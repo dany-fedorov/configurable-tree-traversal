@@ -1,6 +1,6 @@
 import { testDepthFirstTree, tree2 } from './common';
-import { ChildrenOrder } from '../traverse-depth-first';
-import { TraversalVisitorCommand } from '../../types';
+import { ChildrenOrder } from '../../../src/traversals/traverse-depth-first';
+import { TraversalVisitorCommand } from '../../../src/types';
 
 test('Tree 1: Pre-order - halting', () => {
   const {

@@ -1,14 +1,14 @@
-import { testDepthFirstTree, tree2 } from './common';
-import { ChildrenOrder } from '../traverse-depth-first';
+import { testDepthFirstTree, tree1 } from './common';
+import { ChildrenOrder } from '../../../src/traversals/traverse-depth-first';
 
-test('Tree 1: In-order - reversed', () => {
+test('Tree 1: Post-order - reversed', () => {
   const {
     visited,
     visitedData,
     rootVertex,
     resolvedTreeMap,
     vertexContextMap,
-  } = testDepthFirstTree(tree2, 'inOrderVisitor', {
+  } = testDepthFirstTree(tree1, 'postOrderVisitor', {
     childrenOrder: ChildrenOrder.REVERSED,
   });
   expect(visitedData).toMatchSnapshot();

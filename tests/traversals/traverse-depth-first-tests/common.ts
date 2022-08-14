@@ -1,17 +1,17 @@
-import { Vertex } from '../../classes';
+import { Vertex } from '../../../src/classes';
 import type {
   ITraversableTree,
   ITreeTypeParameters,
   IVertex,
   TraversalVisitor,
   TraversalVisitorOptions,
-} from '../../types';
+} from '../../../src/types';
 import {
   DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
   DepthFirstTraversalConfig,
   DepthFirstVisitors,
   traverseDepthFirst,
-} from '../traverse-depth-first';
+} from '../../../src/traversals/traverse-depth-first';
 
 export type TreeTypeParameters1 = ITreeTypeParameters<string, string>;
 

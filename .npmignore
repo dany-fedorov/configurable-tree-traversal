@@ -18,5 +18,6 @@ webpack.config.js
 **/*.md
 !README.md
 /coverage
-__tests__
+**/*.test.ts.snap
+/__tests__
 
