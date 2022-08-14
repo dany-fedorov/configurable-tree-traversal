@@ -3,6 +3,7 @@ import type {
   ITraversableTree,
   ITreeTypeParameters,
   IVertex,
+  TraversalVisitor,
   TraversalVisitorOptions,
 } from '../../types';
 import {
@@ -37,10 +38,7 @@ export type Tree2TypeParameters = ITreeTypeParameters<
 const tree2Nodes: Record<string, (string | null)[]> = {
   F: ['B', 'G'],
   B: ['A', 'D'],
-  A: [],
   D: ['C', 'E'],
-  C: [],
-  E: [],
   G: [null, 'I'],
   I: ['H', null],
 };
@@ -69,6 +67,7 @@ export function testDepthFirstTree<
   tree: ITraversableTree<TreeTypeParameters>,
   visitorKey: keyof DepthFirstVisitors<TreeTypeParameters>,
   config: Partial<DepthFirstTraversalConfig> = DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
+  visitor?: TraversalVisitor<TreeTypeParameters>,
 ) {
   const visited: Array<{
     vertex: IVertex<TreeTypeParameters>;
@@ -94,6 +93,7 @@ export function testDepthFirstTree<
               previousVisitedVertex: options.previousVisitedVertex,
             },
           });
+          return visitor?.(vertex, options);
         },
       },
       config,

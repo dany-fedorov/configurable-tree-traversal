@@ -8,6 +8,7 @@ import type {
   VertexContextMap,
 } from '../types';
 import { Vertex } from '../classes';
+import { TraversalVisitorCommand } from '../types';
 
 export enum ChildrenOrder {
   DEFAULT = 'DEFAULT',
@@ -47,6 +48,15 @@ export function traverseDepthFirst<
 ): TraversalResult<TreeTypeParameters> {
   type ThisIVertexContext = IVertexContext<TreeTypeParameters>;
   type ThisIVertex = IVertex<TreeTypeParameters>;
+  type ThisTraversalOrderContext = {
+    visitIndex: number;
+    previousVisitedVertex: ThisIVertex | null;
+  };
+  type VisitorsContext = {
+    [K in keyof Required<
+      DepthFirstVisitors<TreeTypeParameters>
+    >]: ThisTraversalOrderContext;
+  };
 
   const effectiveConfig =
     config === DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG
@@ -62,13 +72,20 @@ export function traverseDepthFirst<
   if (rootVertex === null) {
     return { rootVertex, vertexContextMap, resolvedTreeMap };
   }
-  let preOrderVisitIndex = 0;
-  let postOrderVisitIndex = 0;
-  let inOrderVisitIndex = 0;
-
-  let previousPreOrderVisitedVertex: ThisIVertex | null = null;
-  let previousPostOrderVisitedVertex: ThisIVertex | null = null;
-  let previousInOrderVisitedVertex: ThisIVertex | null = null;
+  const visitorsContext: VisitorsContext = {
+    preOrderVisitor: {
+      visitIndex: 0,
+      previousVisitedVertex: null,
+    },
+    postOrderVisitor: {
+      visitIndex: 0,
+      previousVisitedVertex: null,
+    },
+    inOrderVisitor: {
+      visitIndex: 0,
+      previousVisitedVertex: null,
+    },
+  };
 
   onPreOrder(rootVertex, null);
   pushHints(rootVertex);
@@ -78,7 +95,9 @@ export function traverseDepthFirst<
     : onPostOrderProcessing;
   const onInOrder = !visitors?.inOrderVisitor ? null : onInOrderProcessing;
 
-  while (stack.length > 0) {
+  let haltTraversalFlag = false;
+
+  while (stack.length > 0 && !haltTraversalFlag) {
     const vertexContext = stack.pop() as ThisIVertexContext;
     const vertex = tree.makeVertex(vertexContext.hint, vertexContext);
     if (vertex === null) {
@@ -107,30 +126,14 @@ export function traverseDepthFirst<
       parentVertexChildren.push(vertex);
     }
     vertexContextMap.set(vertex, vertexContext);
-    visitors?.preOrderVisitor?.(vertex, {
-      vertexContextMap,
-      resolvedTreeMap,
-      visitIndex: preOrderVisitIndex++,
-      previousVisitedVertex: previousPreOrderVisitedVertex,
-      isLeafVertex: isLeafVertex(vertex),
-      isRootVertex: isRootVertex(vertex),
-    });
-    previousPreOrderVisitedVertex = vertex;
+    visit('preOrderVisitor', vertex);
   }
 
   function onInOrderProcessing(
     vertex: ThisIVertex,
     vertexContext: ThisIVertexContext | null,
   ): void {
-    visitors?.inOrderVisitor?.(vertex, {
-      vertexContextMap,
-      resolvedTreeMap,
-      visitIndex: inOrderVisitIndex++,
-      previousVisitedVertex: previousInOrderVisitedVertex,
-      isLeafVertex: isLeafVertex(vertex),
-      isRootVertex: isRootVertex(vertex),
-    });
-    previousInOrderVisitedVertex = vertex;
+    visit('inOrderVisitor', vertex);
     if (!isLeafVertex(vertex) || !vertexContext?.parentVertex) {
       return;
     }
@@ -175,15 +178,7 @@ export function traverseDepthFirst<
     let curVertex = vertex;
     let curVertexContext = vertexContext;
     while (curVertex !== null) {
-      visitors?.postOrderVisitor?.(curVertex, {
-        vertexContextMap,
-        resolvedTreeMap,
-        visitIndex: postOrderVisitIndex++,
-        previousVisitedVertex: previousPostOrderVisitedVertex,
-        isLeafVertex: isLeafVertex(vertex),
-        isRootVertex: isRootVertex(vertex),
-      });
-      previousPostOrderVisitedVertex = vertex;
+      visit('postOrderVisitor', curVertex);
       if (!curVertexContext?.parentVertex) {
         break;
       }
@@ -212,6 +207,24 @@ export function traverseDepthFirst<
         curVertex = curVertexContext.parentVertex;
         curVertexContext = parentVertexContext;
       }
+    }
+  }
+
+  function visit(
+    visitorKey: keyof Required<DepthFirstVisitors<TreeTypeParameters>>,
+    vertex: IVertex<TreeTypeParameters>,
+  ): void {
+    const visitorResult = visitors?.[visitorKey]?.(vertex, {
+      vertexContextMap,
+      resolvedTreeMap,
+      visitIndex: visitorsContext[visitorKey].visitIndex++,
+      previousVisitedVertex: visitorsContext[visitorKey].previousVisitedVertex,
+      isLeafVertex: isLeafVertex(vertex),
+      isRootVertex: isRootVertex(vertex),
+    });
+    visitorsContext[visitorKey].previousVisitedVertex = vertex;
+    if (visitorResult?.command === TraversalVisitorCommand.HALT_TRAVERSAL) {
+      haltTraversalFlag = true;
     }
   }
 

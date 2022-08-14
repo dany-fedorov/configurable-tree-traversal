@@ -1,7 +1,7 @@
 {
   "name": "configurable-tree-traversal",
-  "version": "0.0.1",
-  "description": "",
+  "version": "0.0.2",
+  "description": "Very configurable tree traversal for TypeScript",
   "main": "./dist/index.js",
   "scripts": {
     "test": "NODE_OPTIONS='--stack-trace-limit=1000' ./node_modules/.bin/jest",

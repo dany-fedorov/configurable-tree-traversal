@@ -62,7 +62,7 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [],
@@ -80,11 +80,14 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "E",
+        "$c": Array [
+          "C",
+          "E",
+        ],
+        "$d": "D",
       },
       "visitIndex": 4,
     },
@@ -101,8 +104,11 @@ Array [
       "isLeafVertex": true,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "E",
+        "$c": Array [
+          "A",
+          "D",
+        ],
+        "$d": "B",
       },
       "visitIndex": 5,
     },
@@ -143,7 +149,7 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [],
@@ -161,11 +167,14 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": null,
+        "$c": Array [
+          "H",
+          null,
+        ],
+        "$d": "I",
       },
       "visitIndex": 9,
     },
@@ -179,11 +188,14 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
-      "isRootVertex": false,
+      "isLeafVertex": false,
+      "isRootVertex": true,
       "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": null,
+        "$c": Array [
+          null,
+          "I",
+        ],
+        "$d": "G",
       },
       "visitIndex": 10,
     },

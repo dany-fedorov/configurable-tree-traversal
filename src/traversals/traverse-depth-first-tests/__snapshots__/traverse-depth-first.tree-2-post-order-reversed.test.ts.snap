@@ -47,7 +47,7 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [],
@@ -68,8 +68,11 @@ Array [
       "isLeafVertex": true,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "H",
+        "$c": Array [
+          "H",
+          null,
+        ],
+        "$d": "I",
       },
       "visitIndex": 3,
     },
@@ -80,7 +83,7 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [],
@@ -101,8 +104,11 @@ Array [
       "isLeafVertex": true,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": null,
+        "$c": Array [
+          null,
+          "I",
+        ],
+        "$d": "G",
       },
       "visitIndex": 5,
     },
@@ -128,7 +134,7 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [],
@@ -149,8 +155,11 @@ Array [
       "isLeafVertex": true,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "C",
+        "$c": Array [
+          "C",
+          "E",
+        ],
+        "$d": "D",
       },
       "visitIndex": 8,
     },
@@ -161,7 +170,7 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [],
@@ -179,11 +188,14 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
-      "isRootVertex": false,
+      "isLeafVertex": false,
+      "isRootVertex": true,
       "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "A",
+        "$c": Array [
+          "A",
+          "D",
+        ],
+        "$d": "B",
       },
       "visitIndex": 10,
     },

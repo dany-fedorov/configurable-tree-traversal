@@ -47,10 +47,18 @@ export interface TraversalVisitorOptions<
   isRootVertex: boolean;
 }
 
+export enum TraversalVisitorCommand {
+  HALT_TRAVERSAL = 'HALT_TRAVERSAL',
+}
+
+export interface TraversalVisitorResult {
+  command?: TraversalVisitorCommand;
+}
+
 export type TraversalVisitor<TreeTypeParameters extends ITreeTypeParameters> = (
   vertex: IVertex<TreeTypeParameters>,
   options: TraversalVisitorOptions<TreeTypeParameters>,
-) => void;
+) => TraversalVisitorResult | undefined;
 
 export interface IVertexContext<TreeTypeParameters extends ITreeTypeParameters>
   extends ContextForGetVertex<TreeTypeParameters> {
