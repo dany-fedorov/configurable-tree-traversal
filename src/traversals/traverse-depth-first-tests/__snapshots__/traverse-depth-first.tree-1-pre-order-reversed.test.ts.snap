@@ -1,0 +1,671 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Tree 1: Pre-order - reversed 1`] = `
+Array [
+  "1",
+  "1.2",
+  "1.2.2",
+  "1.2.2.2",
+  "1.2.2.1",
+  "1.2.1",
+  "1.2.1.2",
+  "1.2.1.1",
+  "1.1",
+  "1.1.2",
+  "1.1.2.2",
+  "1.1.2.1",
+  "1.1.1",
+  "1.1.1.2",
+  "1.1.1.1",
+]
+`;
+
+exports[`Tree 1: Pre-order - reversed 2`] = `
+Array [
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": true,
+      "previousVisitedVertex": null,
+      "visitIndex": 0,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1",
+      },
+      "visitIndex": 1,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.2",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2",
+      },
+      "visitIndex": 2,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.2.2",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2.2",
+      },
+      "visitIndex": 3,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "1.2.2.2",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "1.2.2.2",
+      },
+      "visitIndex": 4,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "1.2.2.1",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "1.2.2.1",
+      },
+      "visitIndex": 5,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.2.1",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2.1",
+      },
+      "visitIndex": 6,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "1.2.1.2",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "1.2.1.2",
+      },
+      "visitIndex": 7,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "1.2.1.1",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "1.2.1.1",
+      },
+      "visitIndex": 8,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.1",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1",
+      },
+      "visitIndex": 9,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.1.2",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1.2",
+      },
+      "visitIndex": 10,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "1.1.2.2",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "1.1.2.2",
+      },
+      "visitIndex": 11,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "1.1.2.1",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "1.1.2.1",
+      },
+      "visitIndex": 12,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.1.1",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1.1",
+      },
+      "visitIndex": 13,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "1.1.1.2",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "1.1.1.2",
+      },
+      "visitIndex": 14,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "1.1.1.1",
+    },
+  },
+]
+`;
+
+exports[`Tree 1: Pre-order - reversed 3`] = `
+Object {
+  "resolvedTreeMap": Map {
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1",
+    } => Array [
+      Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2",
+      },
+      Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1",
+      },
+    ],
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.2",
+    } => Array [
+      Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2.2",
+      },
+      Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2.1",
+      },
+    ],
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.2.2",
+    } => Array [
+      Object {
+        "$c": Array [],
+        "$d": "1.2.2.2",
+      },
+      Object {
+        "$c": Array [],
+        "$d": "1.2.2.1",
+      },
+    ],
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.2.1",
+    } => Array [
+      Object {
+        "$c": Array [],
+        "$d": "1.2.1.2",
+      },
+      Object {
+        "$c": Array [],
+        "$d": "1.2.1.1",
+      },
+    ],
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.1",
+    } => Array [
+      Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1.2",
+      },
+      Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1.1",
+      },
+    ],
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.1.2",
+    } => Array [
+      Object {
+        "$c": Array [],
+        "$d": "1.1.2.2",
+      },
+      Object {
+        "$c": Array [],
+        "$d": "1.1.2.1",
+      },
+    ],
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.1.1",
+    } => Array [
+      Object {
+        "$c": Array [],
+        "$d": "1.1.1.2",
+      },
+      Object {
+        "$c": Array [],
+        "$d": "1.1.1.1",
+      },
+    ],
+  },
+  "rootVertex": Object {
+    "$c": Array [
+      "1",
+      "2",
+    ],
+    "$d": "1",
+  },
+  "vertexContextMap": Map {
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1",
+    } => null,
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.2",
+    } => Object {
+      "hint": "2",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1",
+      },
+      "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.2.2",
+    } => Object {
+      "hint": "2",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2",
+      },
+      "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "1.2.2.2",
+    } => Object {
+      "hint": "2",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2.2",
+      },
+      "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "1.2.2.1",
+    } => Object {
+      "hint": "1",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2.2",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.2.1",
+    } => Object {
+      "hint": "1",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "1.2.1.2",
+    } => Object {
+      "hint": "2",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2.1",
+      },
+      "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "1.2.1.1",
+    } => Object {
+      "hint": "1",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.2.1",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.1",
+    } => Object {
+      "hint": "1",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.1.2",
+    } => Object {
+      "hint": "2",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1",
+      },
+      "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "1.1.2.2",
+    } => Object {
+      "hint": "2",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1.2",
+      },
+      "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "1.1.2.1",
+    } => Object {
+      "hint": "1",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1.2",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+    Object {
+      "$c": Array [
+        "1",
+        "2",
+      ],
+      "$d": "1.1.1",
+    } => Object {
+      "hint": "1",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "1.1.1.2",
+    } => Object {
+      "hint": "2",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1.1",
+      },
+      "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "1.1.1.1",
+    } => Object {
+      "hint": "1",
+      "parentVertex": Object {
+        "$c": Array [
+          "1",
+          "2",
+        ],
+        "$d": "1.1.1",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+  },
+}
+`;
