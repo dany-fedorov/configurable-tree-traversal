@@ -1,6 +1,6 @@
 {
   "name": "configurable-tree-traversal",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Very configurable tree traversal for TypeScript",
   "main": "./dist/index.js",
   "scripts": {
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/dany-fedorov/configurable-traversal.git"
+    "url": "git://github.com/dany-fedorov/configurable-tree-traversal.git"
   },
   "publishConfig": {
     "access": "public"
