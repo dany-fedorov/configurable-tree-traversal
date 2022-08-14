@@ -4,9 +4,9 @@ Use your own data structure through a universal wrapper - `ITraversableTree`
 
 ```typescript
 /**
- * Buit with TypeScript in mind - paremetrize the tree with ITreeTypeParameters
+ * Paremetrize the tree with ITreeTypeParameters
  */
-interface ThisTreeParameters implements ITreeTypeParameters {
+interface ThisTreeParameters {
   VertexData: string | null;
   VertexHint: string | null;
 }
@@ -14,7 +14,10 @@ interface ThisTreeParameters implements ITreeTypeParameters {
 /**
  * Data structure is your own
  */
-const treeNodes: Record<ThisTreeParameters['VertexData'], Array<ThisTreeParameters['VertexHint']>> = {
+const treeNodes: Record<
+  ThisTreeParameters['VertexData'],
+  Array<ThisTreeParameters['VertexHint']>
+  > = {
   F: ['B', 'G'],
   B: ['A', 'D'],
   D: ['C', 'E'],
@@ -25,7 +28,9 @@ const treeNodes: Record<ThisTreeParameters['VertexData'], Array<ThisTreeParamete
 /**
  * Provide a wrapper for underlying data structure
  */
-function makeVertexForTree(hint: ThisTreeParameters['VertexHint']) {
+function makeVertexForTree(
+  hint: ThisTreeParameters['VertexHint']
+) {
   return Vertex.makePlain<ThisTreeParameters>({
     data: hint,
     childrenHints: hint === null ? [] : tree2Nodes[h] || [],
@@ -42,42 +47,46 @@ const tree: ITraversableTree<ThisTreeParameters> = {
   makeVertex(hint) {
     return makeVertexForTree(hint);
   },
-}
+};
 ```
 
 Supply visitors for different orders of traversals
 
 ```typescript
-const { rootVertex, resolvedTreeMap, vertexContextMap } = traverseDepthFirst<ThisTreeParameters>(
-  tree,
-  {
-    /**
-     * Tree vertex + all the context
-     */
-    preOrderVisitor: (vertex, {
-      vertexContextMap,
-      resolvedTreeMap,
-      visitIndex,
-      previousVisitedVertex,
-      isLeafVertex,
-      isRootVertex,
-    }) => {
-      const data = Vertex.getData<ThisTreeParameters>(vertex);
+const { rootVertex, resolvedTreeMap, vertexContextMap } =
+  traverseDepthFirst<ThisTreeParameters>(
+    tree,
+    {
       /**
-       * ... Process this data ...
+       * Tree vertex + all the context
        */
-      if (data === 'C') {
+      preOrderVisitor: (
+        vertex,
+        {
+          vertexContextMap,
+          resolvedTreeMap,
+          visitIndex,
+          previousVisitedVertex,
+          isLeafVertex,
+          isRootVertex,
+        },
+      ) => {
+        const data = Vertex.getData<ThisTreeParameters>(vertex);
         /**
-         * Can halt traversal from a visitor
+         * ... Process this data ...
          */
-        return {
-          command: TraversalVisitorCommand.HALT_TRAVERSAL,
-        };
-      }
-    }
-  },
-  {
-    childrenOrder: ChildrenOrder.DEFAULT,
-  }
-);
+        if (data === 'C') {
+          /**
+           * Can halt traversal from a visitor
+           */
+          return {
+            command: TraversalVisitorCommand.HALT_TRAVERSAL,
+          };
+        }
+      },
+    },
+    {
+      childrenOrder: ChildrenOrder.DEFAULT,
+    },
+  );
 ```
