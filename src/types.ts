@@ -43,12 +43,23 @@ export interface TraversalVisitorOptions<TTP extends TreeTypeParameters>
   isRootVertex: boolean;
 }
 
-export enum TraversalVisitorCommand {
+export enum TraversalVisitorCommandName {
   HALT_TRAVERSAL = 'HALT_TRAVERSAL',
 }
 
+export interface TraversalVisitorCommandArguments {
+  [TraversalVisitorCommandName.HALT_TRAVERSAL]: void;
+}
+
+export interface TraversalVisitorCommand<
+  T extends TraversalVisitorCommandName,
+> {
+  commandName: T;
+  commandArguments?: TraversalVisitorCommandArguments[T];
+}
+
 export interface TraversalVisitorResult {
-  command?: TraversalVisitorCommand;
+  commands?: TraversalVisitorCommand<TraversalVisitorCommandName>[];
 }
 
 export type TraversalVisitor<TTP extends TreeTypeParameters> = (

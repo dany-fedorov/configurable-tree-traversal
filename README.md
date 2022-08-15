@@ -79,7 +79,7 @@ const { rootVertex, resolvedTreeMap, vertexContextMap } =
            * Can halt traversal from a visitor.
            */
           return {
-            command: TraversalVisitorCommand.HALT_TRAVERSAL,
+            commands: [{ commandName: TraversalVisitorCommand.HALT_TRAVERSAL }],
           };
         }
       },

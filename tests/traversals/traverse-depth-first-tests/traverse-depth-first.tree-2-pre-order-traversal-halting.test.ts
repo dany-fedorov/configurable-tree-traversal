@@ -1,6 +1,6 @@
 import { testDepthFirstTree, tree2 } from './common';
 import { ChildrenOrder } from '../../../src/traversals/traverse-depth-first';
-import { TraversalVisitorCommand } from '../../../src/types';
+import { TraversalVisitorCommandName } from '../../../src/types';
 
 test('Tree 1: Pre-order - halting', () => {
   const {
@@ -18,7 +18,9 @@ test('Tree 1: Pre-order - halting', () => {
     (vertex) => {
       if (vertex.$d === 'C') {
         return {
-          command: TraversalVisitorCommand.HALT_TRAVERSAL,
+          commands: [
+            { commandName: TraversalVisitorCommandName.HALT_TRAVERSAL },
+          ],
         };
       }
       return;

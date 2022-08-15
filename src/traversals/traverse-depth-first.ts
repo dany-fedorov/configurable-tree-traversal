@@ -9,7 +9,7 @@ import type {
   TreeResolution,
 } from '../types';
 import { CVertex } from '../CVertex';
-import { TraversalVisitorCommand } from '../types';
+import { TraversalVisitorCommand, TraversalVisitorCommandName } from '../types';
 
 export enum ChildrenOrder {
   DEFAULT = 'DEFAULT',
@@ -220,8 +220,18 @@ export function traverseDepthFirst<
       isRootVertex: isRootVertex(vertex),
     });
     visitorsContext[visitorOrderKey].previousVisitedVertex = vertex;
-    if (visitorResult?.command === TraversalVisitorCommand.HALT_TRAVERSAL) {
-      haltTraversalFlag = true;
+    visitorResult?.commands?.forEach(executeVisitorCommand);
+  }
+
+  function executeVisitorCommand(
+    command: TraversalVisitorCommand<TraversalVisitorCommandName>,
+  ) {
+    switch (command.commandName) {
+      case TraversalVisitorCommandName.HALT_TRAVERSAL:
+        haltTraversalFlag = true;
+        break;
+      default:
+        return;
     }
   }
 
