@@ -2,17 +2,17 @@
   "extends": "@tsconfig/node16-strictest/tsconfig.json",
   "compilerOptions": {
     "baseUrl": "./src",
-    "outDir": "./build",
+    "outDir": "./lib",
     "declaration": true,
     "noPropertyAccessFromIndexSignature": false
   },
   "include": [
     "src",
-    "__tests__",
+    "tests",
     "scripts"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "lib"
   ]
 }

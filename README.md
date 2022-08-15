@@ -1,6 +1,6 @@
 # Configurable Tree Traversal
 
-Use your own data structure through a universal wrapper - `TraversableTree`
+Use your own data structure through a universal interface - `TraversableTree`
 
 ```typescript
 /**
@@ -56,7 +56,7 @@ const { rootVertex, resolvedTreeMap, vertexContextMap } =
     tree,
     {
       /**
-       * See also postOrderVisitor and inOrderVisitor.
+       * See also `postOrderVisitor` and `inOrderVisitor`.
        * Arguments are tree vertex + all the context.
        */
       preOrderVisitor: (
@@ -72,7 +72,7 @@ const { rootVertex, resolvedTreeMap, vertexContextMap } =
       ) => {
         const data = Vertex.getData<ThisTreeParameters>(vertex);
         /**
-         * ... Process this data ...
+         * ... process this data ...
          */
         if (data === 'C') {
           /**

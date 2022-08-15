@@ -1,4 +1,4 @@
-import { WVertex } from '../../../src/classes';
+import { CVertex } from '../../../src/classes';
 import type {
   TraversableTree,
   TreeTypeParameters,
@@ -17,15 +17,15 @@ export type TTP1 = TreeTypeParameters<string, string>;
 
 export const tree1: TraversableTree<TTP1> = {
   makeRoot() {
-    return WVertex.makePlain({
+    return CVertex.makePlain({
       data: '1',
       childrenHints: ['1', '2'],
     });
   },
   makeVertex(hint, { parentVertex }) {
-    return WVertex.makePlain({
-      data: [WVertex.getData(parentVertex), hint].join('.'),
-      childrenHints: WVertex.getData(parentVertex).length > 3 ? [] : ['1', '2'],
+    return CVertex.makePlain({
+      data: [CVertex.getData(parentVertex), hint].join('.'),
+      childrenHints: CVertex.getData(parentVertex).length > 3 ? [] : ['1', '2'],
     });
   },
 };
@@ -44,7 +44,7 @@ const tree2Nodes: Record<string, (string | null)[]> = {
 };
 
 const mkNodeForTree2 = (h: string | null) =>
-  WVertex.makePlain<Tree2TypeParameters>({
+  CVertex.makePlain<Tree2TypeParameters>({
     data: h,
     childrenHints: h === null ? [] : tree2Nodes[h] || [],
   });

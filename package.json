@@ -1,8 +1,8 @@
 {
   "name": "configurable-tree-traversal",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Very configurable tree traversal for TypeScript",
-  "main": "./dist/index.js",
+  "main": "./lib/index.js",
   "scripts": {
     "test": "NODE_OPTIONS='--stack-trace-limit=1000' ./node_modules/.bin/jest",
     "build": "tsc -p ./tsconfig.build.json",

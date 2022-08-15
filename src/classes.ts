@@ -1,30 +1,30 @@
 import type { Vertex, TreeTypeParameters } from './types';
 
-interface VertexProps<TTP extends TreeTypeParameters> {
+interface CVertexProps<TTP extends TreeTypeParameters> {
   data: TTP['VertexData'];
   childrenHints: TTP['VertexHint'][];
 }
 
-export class WVertex<TTP extends TreeTypeParameters> implements Vertex<TTP> {
+export class CVertex<TTP extends TreeTypeParameters> implements Vertex<TTP> {
   readonly $d: TTP['VertexData'];
   readonly $c: TTP['VertexHint'][];
 
-  constructor(vertexProps: VertexProps<TTP>) {
+  constructor(vertexProps: CVertexProps<TTP>) {
     this.$d = vertexProps.data;
     this.$c = vertexProps.childrenHints;
   }
 
   static fromPlain<TTP extends TreeTypeParameters>(
     vertexPlain: Vertex<TTP>,
-  ): WVertex<TTP> {
-    return new WVertex<TTP>({
+  ): CVertex<TTP> {
+    return new CVertex<TTP>({
       data: vertexPlain.$d,
       childrenHints: vertexPlain.$c,
     });
   }
 
   static makePlain<TTP extends TreeTypeParameters>(
-    vertexProps: VertexProps<TTP>,
+    vertexProps: CVertexProps<TTP>,
   ): Vertex<TTP> {
     return {
       $d: vertexProps.data,
@@ -45,11 +45,11 @@ export class WVertex<TTP extends TreeTypeParameters> implements Vertex<TTP> {
   }
 
   getChildrenHints() {
-    return WVertex.getChildrenHints<TTP>(this);
+    return CVertex.getChildrenHints<TTP>(this);
   }
 
   getData() {
-    return WVertex.getData<TTP>(this);
+    return CVertex.getData<TTP>(this);
   }
 
   toPlain(): Vertex<TTP> {
