@@ -6,6 +6,7 @@ import type {
   TreeTypeParameters,
   ResolvedTreeMap,
   VertexContextMap,
+  TreeResolution,
 } from '../types';
 import { CVertex } from '../CVertex';
 import { TraversalVisitorCommand } from '../types';
@@ -23,9 +24,8 @@ export const DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG: DepthFirstTraversalConfig = {
   childrenOrder: ChildrenOrder.DEFAULT,
 };
 
-export interface TraversalResult<TTP extends TreeTypeParameters> {
-  resolvedTreeMap: ResolvedTreeMap<TTP>;
-  vertexContextMap: VertexContextMap<TTP>;
+export interface TraversalResult<TTP extends TreeTypeParameters>
+  extends TreeResolution<TTP> {
   rootVertex: Vertex<TTP> | null;
 }
 
@@ -91,7 +91,11 @@ export function traverseDepthFirst<
 
   while (vertexStack.length > 0 && !haltTraversalFlag) {
     const vertexContext = vertexStack.pop() as ThisIVertexContext;
-    const vertex = tree.makeVertex(vertexContext.hint, vertexContext);
+    const vertex = tree.makeVertex(vertexContext.hint, {
+      ...vertexContext,
+      resolvedTreeMap,
+      vertexContextMap,
+    });
     if (vertex === null) {
       continue;
     }
