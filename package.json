@@ -17,9 +17,8 @@
     "access": "public"
   },
   "keywords": [
-    "tree-traversal",
-    "object-traversal",
-    "graph-traversal",
+    "tree traversal",
+    "object traversal",
     "traversal",
     "tree",
     "graph"
