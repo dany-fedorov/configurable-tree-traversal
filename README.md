@@ -1,10 +1,10 @@
 # Configurable Tree Traversal
 
-Use your own data structure through a universal wrapper - `ITraversableTree`
+Use your own data structure through a universal wrapper - `TraversableTree`
 
 ```typescript
 /**
- * Paremetrize the tree with ITreeTypeParameters
+ * Paremetrize the tree with TreeTypeParameters.
  */
 interface ThisTreeParameters {
   VertexData: string | null;
@@ -12,25 +12,23 @@ interface ThisTreeParameters {
 }
 
 /**
- * Data structure is your own
+ * Data structure is your own.
  */
-const treeNodes: Record<
-  ThisTreeParameters['VertexData'],
-  Array<ThisTreeParameters['VertexHint']>
-  > = {
+const treeNodes = {
   F: ['B', 'G'],
   B: ['A', 'D'],
   D: ['C', 'E'],
   G: [null, 'I'],
   I: ['H', null],
-};
+} as Record<
+  ThisTreeParameters['VertexData'],
+  Array<ThisTreeParameters['VertexHint']>
+  >;
 
 /**
- * Provide a wrapper for underlying data structure
+ * Provide a wrapper for underlying data structure.
  */
-function makeVertexForTree(
-  hint: ThisTreeParameters['VertexHint']
-) {
+function makeVertexForTree(hint: ThisTreeParameters['VertexHint']) {
   return Vertex.makePlain<ThisTreeParameters>({
     data: hint,
     childrenHints: hint === null ? [] : tree2Nodes[h] || [],
@@ -38,9 +36,9 @@ function makeVertexForTree(
 }
 
 /**
- * `ITraversableTree` allows to implement lazy evaluation for your tree data
+ * `TraversableTree` allows to implement lazy evaluation for your tree data.
  */
-const tree: ITraversableTree<ThisTreeParameters> = {
+const tree: TraversableTree<ThisTreeParameters> = {
   makeRoot() {
     return makeVertexForTree('F');
   },
@@ -58,7 +56,8 @@ const { rootVertex, resolvedTreeMap, vertexContextMap } =
     tree,
     {
       /**
-       * Tree vertex + all the context
+       * See also postOrderVisitor and inOrderVisitor.
+       * Arguments are tree vertex + all the context.
        */
       preOrderVisitor: (
         vertex,
@@ -77,7 +76,7 @@ const { rootVertex, resolvedTreeMap, vertexContextMap } =
          */
         if (data === 'C') {
           /**
-           * Can halt traversal from a visitor
+           * Can halt traversal from a visitor.
            */
           return {
             command: TraversalVisitorCommand.HALT_TRAVERSAL,

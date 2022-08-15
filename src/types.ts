@@ -1,48 +1,43 @@
-export interface ITreeTypeParameters<
-  VertexData = unknown,
-  VertexHint = unknown,
-> {
-  VertexData: VertexData;
-  VertexHint: VertexHint;
+export interface TreeTypeParameters<VD = unknown, VH = unknown> {
+  VertexData: VD;
+  VertexHint: VH;
 }
 
-export interface ContextForGetVertex<
-  TreeTypeParameters extends ITreeTypeParameters,
-> {
-  parentVertex: IVertex<TreeTypeParameters>;
+export interface ContextForGetVertex<TTP extends TreeTypeParameters> {
+  parentVertex: Vertex<TTP>;
   vertexHintOriginalOrderIndex: number;
   vertexHintTraversalOrderIndex: number;
 }
 
-export interface IVertex<TreeTypeParameters extends ITreeTypeParameters> {
-  readonly $d: TreeTypeParameters['VertexData'];
-  readonly $c: TreeTypeParameters['VertexHint'][];
+export interface Vertex<TTP extends TreeTypeParameters> {
+  readonly $d: TTP['VertexData'];
+  readonly $c: TTP['VertexHint'][];
 }
 
-export interface ITraversableTree<
-  TreeTypeParameters extends ITreeTypeParameters,
-> {
-  makeRoot(): IVertex<TreeTypeParameters> | null;
+export interface TraversableTree<TTP extends TreeTypeParameters> {
+  makeRoot(): Vertex<TTP> | null;
 
   makeVertex(
-    vertexHint: TreeTypeParameters['VertexHint'],
-    contextForGetVertex: ContextForGetVertex<TreeTypeParameters>,
-  ): IVertex<TreeTypeParameters> | null;
+    vertexHint: TTP['VertexHint'],
+    contextForGetVertex: ContextForGetVertex<TTP>,
+  ): Vertex<TTP> | null;
 }
 
-export type VertexContextMap<TreeTypeParameters extends ITreeTypeParameters> =
-  Map<IVertex<TreeTypeParameters>, IVertexContext<TreeTypeParameters> | null>;
+export type VertexContextMap<TTP extends TreeTypeParameters> = Map<
+  Vertex<TTP>,
+  IVertexContext<TTP> | null
+>;
 
-export type ResolvedTreeMap<TreeTypeParameters extends ITreeTypeParameters> =
-  Map<IVertex<TreeTypeParameters>, Array<IVertex<TreeTypeParameters>>>;
+export type ResolvedTreeMap<TTP extends TreeTypeParameters> = Map<
+  Vertex<TTP>,
+  Array<Vertex<TTP>>
+>;
 
-export interface TraversalVisitorOptions<
-  TreeTypeParameters extends ITreeTypeParameters,
-> {
-  vertexContextMap: VertexContextMap<TreeTypeParameters>;
-  resolvedTreeMap: ResolvedTreeMap<TreeTypeParameters>;
+export interface TraversalVisitorOptions<TTP extends TreeTypeParameters> {
+  vertexContextMap: VertexContextMap<TTP>;
+  resolvedTreeMap: ResolvedTreeMap<TTP>;
   visitIndex: number;
-  previousVisitedVertex: IVertex<TreeTypeParameters> | null;
+  previousVisitedVertex: Vertex<TTP> | null;
   isLeafVertex: boolean;
   isRootVertex: boolean;
 }
@@ -55,12 +50,12 @@ export interface TraversalVisitorResult {
   command?: TraversalVisitorCommand;
 }
 
-export type TraversalVisitor<TreeTypeParameters extends ITreeTypeParameters> = (
-  vertex: IVertex<TreeTypeParameters>,
-  options: TraversalVisitorOptions<TreeTypeParameters>,
+export type TraversalVisitor<TTP extends TreeTypeParameters> = (
+  vertex: Vertex<TTP>,
+  options: TraversalVisitorOptions<TTP>,
 ) => TraversalVisitorResult | undefined;
 
-export interface IVertexContext<TreeTypeParameters extends ITreeTypeParameters>
-  extends ContextForGetVertex<TreeTypeParameters> {
-  hint: TreeTypeParameters['VertexHint'];
+export interface IVertexContext<TTP extends TreeTypeParameters>
+  extends ContextForGetVertex<TTP> {
+  hint: TTP['VertexHint'];
 }

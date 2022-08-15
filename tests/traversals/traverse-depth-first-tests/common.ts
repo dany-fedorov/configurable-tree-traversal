@@ -1,8 +1,8 @@
-import { Vertex } from '../../../src/classes';
+import { WVertex } from '../../../src/classes';
 import type {
-  ITraversableTree,
-  ITreeTypeParameters,
-  IVertex,
+  TraversableTree,
+  TreeTypeParameters,
+  Vertex,
   TraversalVisitor,
   TraversalVisitorOptions,
 } from '../../../src/types';
@@ -13,24 +13,24 @@ import {
   traverseDepthFirst,
 } from '../../../src/traversals/traverse-depth-first';
 
-export type TreeTypeParameters1 = ITreeTypeParameters<string, string>;
+export type TTP1 = TreeTypeParameters<string, string>;
 
-export const tree1: ITraversableTree<TreeTypeParameters1> = {
+export const tree1: TraversableTree<TTP1> = {
   makeRoot() {
-    return Vertex.makePlain({
+    return WVertex.makePlain({
       data: '1',
       childrenHints: ['1', '2'],
     });
   },
   makeVertex(hint, { parentVertex }) {
-    return Vertex.makePlain({
-      data: [Vertex.getData(parentVertex), hint].join('.'),
-      childrenHints: Vertex.getData(parentVertex).length > 3 ? [] : ['1', '2'],
+    return WVertex.makePlain({
+      data: [WVertex.getData(parentVertex), hint].join('.'),
+      childrenHints: WVertex.getData(parentVertex).length > 3 ? [] : ['1', '2'],
     });
   },
 };
 
-export type Tree2TypeParameters = ITreeTypeParameters<
+export type Tree2TypeParameters = TreeTypeParameters<
   string | null,
   string | null
 >;
@@ -44,7 +44,7 @@ const tree2Nodes: Record<string, (string | null)[]> = {
 };
 
 const mkNodeForTree2 = (h: string | null) =>
-  Vertex.makePlain<Tree2TypeParameters>({
+  WVertex.makePlain<Tree2TypeParameters>({
     data: h,
     childrenHints: h === null ? [] : tree2Nodes[h] || [],
   });
@@ -52,7 +52,7 @@ const mkNodeForTree2 = (h: string | null) =>
 /**
  * https://en.wikipedia.org/wiki/Tree_traversal#/media/File:Sorted_binary_tree_ALL_RGB.svg
  */
-export const tree2: ITraversableTree<Tree2TypeParameters> = {
+export const tree2: TraversableTree<Tree2TypeParameters> = {
   makeRoot() {
     return mkNodeForTree2('F');
   },
@@ -62,27 +62,27 @@ export const tree2: ITraversableTree<Tree2TypeParameters> = {
 };
 
 export function testDepthFirstTree<
-  TreeTypeParameters extends ITreeTypeParameters,
+  TTP extends TreeTypeParameters,
 >(
-  tree: ITraversableTree<TreeTypeParameters>,
-  visitorKey: keyof DepthFirstVisitors<TreeTypeParameters>,
+  tree: TraversableTree<TTP>,
+  visitorKey: keyof DepthFirstVisitors<TTP>,
   config: Partial<DepthFirstTraversalConfig> = DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
-  visitor?: TraversalVisitor<TreeTypeParameters>,
+  visitor?: TraversalVisitor<TTP>,
 ) {
   const visited: Array<{
-    vertex: IVertex<TreeTypeParameters>;
+    vertex: Vertex<TTP>;
     options: Omit<
-      TraversalVisitorOptions<TreeTypeParameters>,
+      TraversalVisitorOptions<TTP>,
       'resolvedTreeMap' | 'vertexContextMap'
     >;
   }> = [];
   const { rootVertex, resolvedTreeMap, vertexContextMap } =
-    traverseDepthFirst<TreeTypeParameters>(
+    traverseDepthFirst<TTP>(
       tree,
       {
         [visitorKey]: (
-          vertex: IVertex<TreeTypeParameters>,
-          options: TraversalVisitorOptions<TreeTypeParameters>,
+          vertex: Vertex<TTP>,
+          options: TraversalVisitorOptions<TTP>,
         ) => {
           visited.push({
             vertex,

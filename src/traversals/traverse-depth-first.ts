@@ -1,13 +1,13 @@
 import type {
-  ITraversableTree,
-  IVertex,
+  TraversableTree,
+  Vertex,
   IVertexContext,
   TraversalVisitor,
-  ITreeTypeParameters,
+  TreeTypeParameters,
   ResolvedTreeMap,
   VertexContextMap,
 } from '../types';
-import { Vertex } from '../classes';
+import { WVertex } from '../classes';
 import { TraversalVisitorCommand } from '../types';
 
 export enum ChildrenOrder {
@@ -23,39 +23,33 @@ export const DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG: DepthFirstTraversalConfig = {
   childrenOrder: ChildrenOrder.DEFAULT,
 };
 
-export interface TraversalResult<
-  TreeTypeParameters extends ITreeTypeParameters,
-> {
-  resolvedTreeMap: ResolvedTreeMap<TreeTypeParameters>;
-  vertexContextMap: VertexContextMap<TreeTypeParameters>;
-  rootVertex: IVertex<TreeTypeParameters> | null;
+export interface TraversalResult<TTP extends TreeTypeParameters> {
+  resolvedTreeMap: ResolvedTreeMap<TTP>;
+  vertexContextMap: VertexContextMap<TTP>;
+  rootVertex: Vertex<TTP> | null;
 }
 
-export interface DepthFirstVisitors<
-  TreeTypeParameters extends ITreeTypeParameters,
-> {
-  preOrderVisitor?: TraversalVisitor<TreeTypeParameters>;
-  postOrderVisitor?: TraversalVisitor<TreeTypeParameters>;
-  inOrderVisitor?: TraversalVisitor<TreeTypeParameters>;
+export interface DepthFirstVisitors<TTP extends TreeTypeParameters> {
+  preOrderVisitor?: TraversalVisitor<TTP>;
+  postOrderVisitor?: TraversalVisitor<TTP>;
+  inOrderVisitor?: TraversalVisitor<TTP>;
 }
 
 export function traverseDepthFirst<
-  TreeTypeParameters extends ITreeTypeParameters = ITreeTypeParameters,
+  TTP extends TreeTypeParameters = TreeTypeParameters,
 >(
-  tree: ITraversableTree<TreeTypeParameters>,
-  visitors: DepthFirstVisitors<TreeTypeParameters>,
+  tree: TraversableTree<TTP>,
+  visitors: DepthFirstVisitors<TTP>,
   config: Partial<DepthFirstTraversalConfig> = DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
-): TraversalResult<TreeTypeParameters> {
-  type ThisIVertexContext = IVertexContext<TreeTypeParameters>;
-  type ThisIVertex = IVertex<TreeTypeParameters>;
+): TraversalResult<TTP> {
+  type ThisIVertexContext = IVertexContext<TTP>;
+  type ThisIVertex = Vertex<TTP>;
   type ThisTraversalOrderContext = {
     visitIndex: number;
     previousVisitedVertex: ThisIVertex | null;
   };
   type VisitorsContext = {
-    [K in keyof Required<
-      DepthFirstVisitors<TreeTypeParameters>
-    >]: ThisTraversalOrderContext;
+    [K in keyof Required<DepthFirstVisitors<TTP>>]: ThisTraversalOrderContext;
   };
 
   const effectiveConfig =
@@ -63,8 +57,8 @@ export function traverseDepthFirst<
       ? config
       : { ...DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG, ...config };
   const stack: Array<ThisIVertexContext> = [];
-  const vertexContextMap: VertexContextMap<TreeTypeParameters> = new Map();
-  const resolvedTreeMap: ResolvedTreeMap<TreeTypeParameters> = new Map();
+  const vertexContextMap: VertexContextMap<TTP> = new Map();
+  const resolvedTreeMap: ResolvedTreeMap<TTP> = new Map();
   const notPostOrderVisitedChildrenCountMap = new Map<ThisIVertex, number>();
   const notInOrderVisitedChildrenCountMap = new Map<ThisIVertex, number>();
   const rootVertex = tree.makeRoot();
@@ -211,8 +205,8 @@ export function traverseDepthFirst<
   }
 
   function visit(
-    visitorKey: keyof Required<DepthFirstVisitors<TreeTypeParameters>>,
-    vertex: IVertex<TreeTypeParameters>,
+    visitorKey: keyof Required<DepthFirstVisitors<TTP>>,
+    vertex: Vertex<TTP>,
   ): void {
     const visitorResult = visitors?.[visitorKey]?.(vertex, {
       vertexContextMap,
@@ -237,7 +231,7 @@ export function traverseDepthFirst<
   }
 
   function getChildrenHints(vertex: ThisIVertex) {
-    return Vertex.prototype.getChildrenHints.call(vertex);
+    return WVertex.prototype.getChildrenHints.call(vertex);
   }
 
   function pushHints(parentVertex: ThisIVertex): Array<ThisIVertexContext> {

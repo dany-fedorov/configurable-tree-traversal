@@ -1,60 +1,58 @@
-import type { IVertex, ITreeTypeParameters } from './types';
+import type { Vertex, TreeTypeParameters } from './types';
 
-interface VertexProps<TreeTypeParameters extends ITreeTypeParameters> {
-  data: TreeTypeParameters['VertexData'];
-  childrenHints: TreeTypeParameters['VertexHint'][];
+interface VertexProps<TTP extends TreeTypeParameters> {
+  data: TTP['VertexData'];
+  childrenHints: TTP['VertexHint'][];
 }
 
-export class Vertex<TreeTypeParameters extends ITreeTypeParameters>
-  implements IVertex<TreeTypeParameters>
-{
-  readonly $d: TreeTypeParameters['VertexData'];
-  readonly $c: TreeTypeParameters['VertexHint'][];
+export class WVertex<TTP extends TreeTypeParameters> implements Vertex<TTP> {
+  readonly $d: TTP['VertexData'];
+  readonly $c: TTP['VertexHint'][];
 
-  constructor(vertexProps: VertexProps<TreeTypeParameters>) {
+  constructor(vertexProps: VertexProps<TTP>) {
     this.$d = vertexProps.data;
     this.$c = vertexProps.childrenHints;
   }
 
-  static fromPlain<TreeTypeParameters extends ITreeTypeParameters>(
-    vertexPlain: IVertex<TreeTypeParameters>,
-  ): Vertex<TreeTypeParameters> {
-    return new Vertex<TreeTypeParameters>({
+  static fromPlain<TTP extends TreeTypeParameters>(
+    vertexPlain: Vertex<TTP>,
+  ): WVertex<TTP> {
+    return new WVertex<TTP>({
       data: vertexPlain.$d,
       childrenHints: vertexPlain.$c,
     });
   }
 
-  static makePlain<TreeTypeParameters extends ITreeTypeParameters>(
-    vertexProps: VertexProps<TreeTypeParameters>,
-  ): IVertex<TreeTypeParameters> {
+  static makePlain<TTP extends TreeTypeParameters>(
+    vertexProps: VertexProps<TTP>,
+  ): Vertex<TTP> {
     return {
       $d: vertexProps.data,
       $c: vertexProps.childrenHints,
     };
   }
 
-  static getData<TreeTypeParameters extends ITreeTypeParameters>(
-    vertex: IVertex<TreeTypeParameters>,
-  ): TreeTypeParameters['VertexData'] {
+  static getData<TTP extends TreeTypeParameters>(
+    vertex: Vertex<TTP>,
+  ): TTP['VertexData'] {
     return vertex.$d;
   }
 
-  static getChildrenHints<TreeTypeParameters extends ITreeTypeParameters>(
-    vertex: IVertex<TreeTypeParameters>,
-  ): TreeTypeParameters['VertexHint'][] {
+  static getChildrenHints<TTP extends TreeTypeParameters>(
+    vertex: Vertex<TTP>,
+  ): TTP['VertexHint'][] {
     return vertex.$c;
   }
 
   getChildrenHints() {
-    return Vertex.getChildrenHints<TreeTypeParameters>(this);
+    return WVertex.getChildrenHints<TTP>(this);
   }
 
   getData() {
-    return Vertex.getData<TreeTypeParameters>(this);
+    return WVertex.getData<TTP>(this);
   }
 
-  toPlain(): IVertex<TreeTypeParameters> {
+  toPlain(): Vertex<TTP> {
     return {
       $d: this.$d,
       $c: this.$c,
