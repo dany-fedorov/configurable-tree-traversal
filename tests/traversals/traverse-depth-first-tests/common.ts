@@ -1,4 +1,4 @@
-import { CVertex } from '../../../src/classes';
+import { CVertex } from '../../../src/CVertex';
 import type {
   TraversableTree,
   TreeTypeParameters,

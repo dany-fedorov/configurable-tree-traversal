@@ -7,7 +7,7 @@ import type {
   ResolvedTreeMap,
   VertexContextMap,
 } from '../types';
-import { CVertex } from '../classes';
+import { CVertex } from '../CVertex';
 import { TraversalVisitorCommand } from '../types';
 
 export enum ChildrenOrder {
