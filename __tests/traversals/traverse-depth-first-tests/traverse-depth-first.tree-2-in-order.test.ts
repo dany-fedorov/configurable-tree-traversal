@@ -1,6 +1,6 @@
 import { testDepthFirstTree, tree2 } from './common';
 
-test('Tree 1: In-order', () => {
+test('Tree 2: In-order', () => {
   const {
     visited,
     visitedData,

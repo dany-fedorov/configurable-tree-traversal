@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`Tree 1: Pre-order - halting 1`] = `
+exports[`Tree 2: Pre-order - halting 1`] = `
 Array [
   "F",
   "B",
@@ -10,7 +10,7 @@ Array [
 ]
 `;
 
-exports[`Tree 1: Pre-order - halting 2`] = `
+exports[`Tree 2: Pre-order - halting 2`] = `
 Array [
   Object {
     "options": Object {
@@ -105,7 +105,7 @@ Array [
 ]
 `;
 
-exports[`Tree 1: Pre-order - halting 3`] = `
+exports[`Tree 2: Pre-order - halting 3`] = `
 Object {
   "resolvedTreeMap": Map {
     Object {

@@ -1,22 +1,22 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`Tree 1: Post-order - reversed 1`] = `
+exports[`Tree 2: In-order 1`] = `
 Array [
   "A",
-  "C",
-  "E",
-  "D",
   "B",
-  null,
-  "H",
-  null,
-  "I",
-  "G",
+  "C",
+  "D",
+  "E",
   "F",
+  null,
+  "G",
+  "H",
+  "I",
+  null,
 ]
 `;
 
-exports[`Tree 1: Post-order - reversed 2`] = `
+exports[`Tree 2: In-order 2`] = `
 Array [
   Object {
     "options": Object {
@@ -32,64 +32,13 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [],
         "$d": "A",
       },
       "visitIndex": 1,
-    },
-    "vertex": Object {
-      "$c": Array [],
-      "$d": "C",
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": true,
-      "isRootVertex": false,
-      "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "C",
-      },
-      "visitIndex": 2,
-    },
-    "vertex": Object {
-      "$c": Array [],
-      "$d": "E",
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": false,
-      "isRootVertex": false,
-      "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "E",
-      },
-      "visitIndex": 3,
-    },
-    "vertex": Object {
-      "$c": Array [
-        "C",
-        "E",
-      ],
-      "$d": "D",
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": false,
-      "isRootVertex": false,
-      "previousVisitedVertex": Object {
-        "$c": Array [
-          "C",
-          "E",
-        ],
-        "$d": "D",
-      },
-      "visitIndex": 4,
     },
     "vertex": Object {
       "$c": Array [
@@ -110,11 +59,29 @@ Array [
         ],
         "$d": "B",
       },
-      "visitIndex": 5,
+      "visitIndex": 2,
     },
     "vertex": Object {
       "$c": Array [],
-      "$d": null,
+      "$d": "C",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "C",
+      },
+      "visitIndex": 3,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "C",
+        "E",
+      ],
+      "$d": "D",
     },
   },
   Object {
@@ -122,28 +89,52 @@ Array [
       "isLeafVertex": true,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
+        "$c": Array [
+          "C",
+          "E",
+        ],
+        "$d": "D",
+      },
+      "visitIndex": 4,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "E",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": true,
+      "previousVisitedVertex": Object {
         "$c": Array [],
-        "$d": null,
+        "$d": "E",
+      },
+      "visitIndex": 5,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "B",
+        "G",
+      ],
+      "$d": "F",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "B",
+          "G",
+        ],
+        "$d": "F",
       },
       "visitIndex": 6,
     },
     "vertex": Object {
       "$c": Array [],
-      "$d": "H",
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": true,
-      "isRootVertex": false,
-      "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "H",
-      },
-      "visitIndex": 7,
-    },
-    "vertex": Object {
-      "$c": Array [],
       "$d": null,
     },
   },
@@ -155,28 +146,7 @@ Array [
         "$c": Array [],
         "$d": null,
       },
-      "visitIndex": 8,
-    },
-    "vertex": Object {
-      "$c": Array [
-        "H",
-        null,
-      ],
-      "$d": "I",
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": false,
-      "isRootVertex": false,
-      "previousVisitedVertex": Object {
-        "$c": Array [
-          "H",
-          null,
-        ],
-        "$d": "I",
-      },
-      "visitIndex": 9,
+      "visitIndex": 7,
     },
     "vertex": Object {
       "$c": Array [
@@ -188,8 +158,8 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": false,
-      "isRootVertex": true,
+      "isLeafVertex": true,
+      "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [
           null,
@@ -197,20 +167,53 @@ Array [
         ],
         "$d": "G",
       },
-      "visitIndex": 10,
+      "visitIndex": 8,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "H",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "H",
+      },
+      "visitIndex": 9,
     },
     "vertex": Object {
       "$c": Array [
-        "B",
-        "G",
+        "H",
+        null,
       ],
-      "$d": "F",
+      "$d": "I",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "H",
+          null,
+        ],
+        "$d": "I",
+      },
+      "visitIndex": 10,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": null,
     },
   },
 ]
 `;
 
-exports[`Tree 1: Post-order - reversed 3`] = `
+exports[`Tree 2: In-order 3`] = `
 Object {
   "resolvedTreeMap": Map {
     Object {

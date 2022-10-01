@@ -2,7 +2,7 @@ import { testDepthFirstTree, tree2 } from './common';
 import { ChildrenOrder } from '../../../src/traversals/traverse-depth-first';
 import { TraversalVisitorCommandName } from '../../../src/types';
 
-test('Tree 1: Pre-order - halting', () => {
+test('Tree 2: Pre-order - halting', () => {
   const {
     visited,
     visitedData,

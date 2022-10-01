@@ -1,22 +1,22 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`Tree 1: In-order - reversed 1`] = `
+exports[`Tree 2: Post-order - reversed 1`] = `
 Array [
-  null,
-  "I",
-  "H",
-  "G",
-  null,
-  "F",
+  "A",
+  "C",
   "E",
   "D",
-  "C",
   "B",
-  "A",
+  null,
+  "H",
+  null,
+  "I",
+  "G",
+  "F",
 ]
 `;
 
-exports[`Tree 1: In-order - reversed 2`] = `
+exports[`Tree 2: Post-order - reversed 2`] = `
 Array [
   Object {
     "options": Object {
@@ -27,25 +27,22 @@ Array [
     },
     "vertex": Object {
       "$c": Array [],
-      "$d": null,
+      "$d": "A",
     },
   },
   Object {
     "options": Object {
-      "isLeafVertex": false,
+      "isLeafVertex": true,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [],
-        "$d": null,
+        "$d": "A",
       },
       "visitIndex": 1,
     },
     "vertex": Object {
-      "$c": Array [
-        "H",
-        null,
-      ],
-      "$d": "I",
+      "$c": Array [],
+      "$d": "C",
     },
   },
   Object {
@@ -53,85 +50,10 @@ Array [
       "isLeafVertex": true,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
-        "$c": Array [
-          "H",
-          null,
-        ],
-        "$d": "I",
+        "$c": Array [],
+        "$d": "C",
       },
       "visitIndex": 2,
-    },
-    "vertex": Object {
-      "$c": Array [],
-      "$d": "H",
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": false,
-      "isRootVertex": false,
-      "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "H",
-      },
-      "visitIndex": 3,
-    },
-    "vertex": Object {
-      "$c": Array [
-        null,
-        "I",
-      ],
-      "$d": "G",
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": true,
-      "isRootVertex": false,
-      "previousVisitedVertex": Object {
-        "$c": Array [
-          null,
-          "I",
-        ],
-        "$d": "G",
-      },
-      "visitIndex": 4,
-    },
-    "vertex": Object {
-      "$c": Array [],
-      "$d": null,
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": false,
-      "isRootVertex": true,
-      "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": null,
-      },
-      "visitIndex": 5,
-    },
-    "vertex": Object {
-      "$c": Array [
-        "B",
-        "G",
-      ],
-      "$d": "F",
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": true,
-      "isRootVertex": false,
-      "previousVisitedVertex": Object {
-        "$c": Array [
-          "B",
-          "G",
-        ],
-        "$d": "F",
-      },
-      "visitIndex": 6,
     },
     "vertex": Object {
       "$c": Array [],
@@ -146,7 +68,7 @@ Array [
         "$c": Array [],
         "$d": "E",
       },
-      "visitIndex": 7,
+      "visitIndex": 3,
     },
     "vertex": Object {
       "$c": Array [
@@ -158,7 +80,7 @@ Array [
   },
   Object {
     "options": Object {
-      "isLeafVertex": true,
+      "isLeafVertex": false,
       "isRootVertex": false,
       "previousVisitedVertex": Object {
         "$c": Array [
@@ -167,22 +89,7 @@ Array [
         ],
         "$d": "D",
       },
-      "visitIndex": 8,
-    },
-    "vertex": Object {
-      "$c": Array [],
-      "$d": "C",
-    },
-  },
-  Object {
-    "options": Object {
-      "isLeafVertex": false,
-      "isRootVertex": false,
-      "previousVisitedVertex": Object {
-        "$c": Array [],
-        "$d": "C",
-      },
-      "visitIndex": 9,
+      "visitIndex": 4,
     },
     "vertex": Object {
       "$c": Array [
@@ -203,17 +110,107 @@ Array [
         ],
         "$d": "B",
       },
-      "visitIndex": 10,
+      "visitIndex": 5,
     },
     "vertex": Object {
       "$c": Array [],
-      "$d": "A",
+      "$d": null,
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": null,
+      },
+      "visitIndex": 6,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": "H",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": true,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": "H",
+      },
+      "visitIndex": 7,
+    },
+    "vertex": Object {
+      "$c": Array [],
+      "$d": null,
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [],
+        "$d": null,
+      },
+      "visitIndex": 8,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "H",
+        null,
+      ],
+      "$d": "I",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": false,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          "H",
+          null,
+        ],
+        "$d": "I",
+      },
+      "visitIndex": 9,
+    },
+    "vertex": Object {
+      "$c": Array [
+        null,
+        "I",
+      ],
+      "$d": "G",
+    },
+  },
+  Object {
+    "options": Object {
+      "isLeafVertex": false,
+      "isRootVertex": true,
+      "previousVisitedVertex": Object {
+        "$c": Array [
+          null,
+          "I",
+        ],
+        "$d": "G",
+      },
+      "visitIndex": 10,
+    },
+    "vertex": Object {
+      "$c": Array [
+        "B",
+        "G",
+      ],
+      "$d": "F",
     },
   },
 ]
 `;
 
-exports[`Tree 1: In-order - reversed 3`] = `
+exports[`Tree 2: Post-order - reversed 3`] = `
 Object {
   "resolvedTreeMap": Map {
     Object {
@@ -225,52 +222,17 @@ Object {
     } => Array [
       Object {
         "$c": Array [
-          null,
-          "I",
-        ],
-        "$d": "G",
-      },
-      Object {
-        "$c": Array [
           "A",
           "D",
         ],
         "$d": "B",
       },
-    ],
-    Object {
-      "$c": Array [
-        null,
-        "I",
-      ],
-      "$d": "G",
-    } => Array [
       Object {
         "$c": Array [
-          "H",
           null,
+          "I",
         ],
-        "$d": "I",
-      },
-      Object {
-        "$c": Array [],
-        "$d": null,
-      },
-    ],
-    Object {
-      "$c": Array [
-        "H",
-        null,
-      ],
-      "$d": "I",
-    } => Array [
-      Object {
-        "$c": Array [],
-        "$d": null,
-      },
-      Object {
-        "$c": Array [],
-        "$d": "H",
+        "$d": "G",
       },
     ],
     Object {
@@ -281,15 +243,15 @@ Object {
       "$d": "B",
     } => Array [
       Object {
+        "$c": Array [],
+        "$d": "A",
+      },
+      Object {
         "$c": Array [
           "C",
           "E",
         ],
         "$d": "D",
-      },
-      Object {
-        "$c": Array [],
-        "$d": "A",
       },
     ],
     Object {
@@ -301,11 +263,46 @@ Object {
     } => Array [
       Object {
         "$c": Array [],
-        "$d": "E",
+        "$d": "C",
       },
       Object {
         "$c": Array [],
-        "$d": "C",
+        "$d": "E",
+      },
+    ],
+    Object {
+      "$c": Array [
+        null,
+        "I",
+      ],
+      "$d": "G",
+    } => Array [
+      Object {
+        "$c": Array [],
+        "$d": null,
+      },
+      Object {
+        "$c": Array [
+          "H",
+          null,
+        ],
+        "$d": "I",
+      },
+    ],
+    Object {
+      "$c": Array [
+        "H",
+        null,
+      ],
+      "$d": "I",
+    } => Array [
+      Object {
+        "$c": Array [],
+        "$d": "H",
+      },
+      Object {
+        "$c": Array [],
+        "$d": null,
       },
     ],
   },
@@ -326,6 +323,87 @@ Object {
     } => null,
     Object {
       "$c": Array [
+        "A",
+        "D",
+      ],
+      "$d": "B",
+    } => Object {
+      "hint": "B",
+      "parentVertex": Object {
+        "$c": Array [
+          "B",
+          "G",
+        ],
+        "$d": "F",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "A",
+    } => Object {
+      "hint": "A",
+      "parentVertex": Object {
+        "$c": Array [
+          "A",
+          "D",
+        ],
+        "$d": "B",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [
+        "C",
+        "E",
+      ],
+      "$d": "D",
+    } => Object {
+      "hint": "D",
+      "parentVertex": Object {
+        "$c": Array [
+          "A",
+          "D",
+        ],
+        "$d": "B",
+      },
+      "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "C",
+    } => Object {
+      "hint": "C",
+      "parentVertex": Object {
+        "$c": Array [
+          "C",
+          "E",
+        ],
+        "$d": "D",
+      },
+      "vertexHintOriginalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 0,
+    },
+    Object {
+      "$c": Array [],
+      "$d": "E",
+    } => Object {
+      "hint": "E",
+      "parentVertex": Object {
+        "$c": Array [
+          "C",
+          "E",
+        ],
+        "$d": "D",
+      },
+      "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+    Object {
+      "$c": Array [
         null,
         "I",
       ],
@@ -340,6 +418,21 @@ Object {
         "$d": "F",
       },
       "vertexHintOriginalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 1,
+    },
+    Object {
+      "$c": Array [],
+      "$d": null,
+    } => Object {
+      "hint": null,
+      "parentVertex": Object {
+        "$c": Array [
+          null,
+          "I",
+        ],
+        "$d": "G",
+      },
+      "vertexHintOriginalOrderIndex": 0,
       "vertexHintTraversalOrderIndex": 0,
     },
     Object {
@@ -358,22 +451,7 @@ Object {
         "$d": "G",
       },
       "vertexHintOriginalOrderIndex": 1,
-      "vertexHintTraversalOrderIndex": 0,
-    },
-    Object {
-      "$c": Array [],
-      "$d": null,
-    } => Object {
-      "hint": null,
-      "parentVertex": Object {
-        "$c": Array [
-          "H",
-          null,
-        ],
-        "$d": "I",
-      },
-      "vertexHintOriginalOrderIndex": 1,
-      "vertexHintTraversalOrderIndex": 0,
+      "vertexHintTraversalOrderIndex": 1,
     },
     Object {
       "$c": Array [],
@@ -388,7 +466,7 @@ Object {
         "$d": "I",
       },
       "vertexHintOriginalOrderIndex": 0,
-      "vertexHintTraversalOrderIndex": 1,
+      "vertexHintTraversalOrderIndex": 0,
     },
     Object {
       "$c": Array [],
@@ -397,93 +475,12 @@ Object {
       "hint": null,
       "parentVertex": Object {
         "$c": Array [
+          "H",
           null,
-          "I",
         ],
-        "$d": "G",
-      },
-      "vertexHintOriginalOrderIndex": 0,
-      "vertexHintTraversalOrderIndex": 1,
-    },
-    Object {
-      "$c": Array [
-        "A",
-        "D",
-      ],
-      "$d": "B",
-    } => Object {
-      "hint": "B",
-      "parentVertex": Object {
-        "$c": Array [
-          "B",
-          "G",
-        ],
-        "$d": "F",
-      },
-      "vertexHintOriginalOrderIndex": 0,
-      "vertexHintTraversalOrderIndex": 1,
-    },
-    Object {
-      "$c": Array [
-        "C",
-        "E",
-      ],
-      "$d": "D",
-    } => Object {
-      "hint": "D",
-      "parentVertex": Object {
-        "$c": Array [
-          "A",
-          "D",
-        ],
-        "$d": "B",
+        "$d": "I",
       },
       "vertexHintOriginalOrderIndex": 1,
-      "vertexHintTraversalOrderIndex": 0,
-    },
-    Object {
-      "$c": Array [],
-      "$d": "E",
-    } => Object {
-      "hint": "E",
-      "parentVertex": Object {
-        "$c": Array [
-          "C",
-          "E",
-        ],
-        "$d": "D",
-      },
-      "vertexHintOriginalOrderIndex": 1,
-      "vertexHintTraversalOrderIndex": 0,
-    },
-    Object {
-      "$c": Array [],
-      "$d": "C",
-    } => Object {
-      "hint": "C",
-      "parentVertex": Object {
-        "$c": Array [
-          "C",
-          "E",
-        ],
-        "$d": "D",
-      },
-      "vertexHintOriginalOrderIndex": 0,
-      "vertexHintTraversalOrderIndex": 1,
-    },
-    Object {
-      "$c": Array [],
-      "$d": "A",
-    } => Object {
-      "hint": "A",
-      "parentVertex": Object {
-        "$c": Array [
-          "A",
-          "D",
-        ],
-        "$d": "B",
-      },
-      "vertexHintOriginalOrderIndex": 0,
       "vertexHintTraversalOrderIndex": 1,
     },
   },

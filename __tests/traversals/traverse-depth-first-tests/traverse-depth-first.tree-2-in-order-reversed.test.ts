@@ -1,7 +1,7 @@
 import { testDepthFirstTree, tree2 } from './common';
 import { ChildrenOrder } from '../../../src/traversals/traverse-depth-first';
 
-test('Tree 1: In-order - reversed', () => {
+test('Tree 2: In-order - reversed', () => {
   const {
     visited,
     visitedData,

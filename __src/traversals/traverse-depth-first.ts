@@ -1,14 +1,15 @@
 import type {
   TraversableTree,
-  Vertex,
-  IVertexContext,
+  VertexContent,
+  VertexResolutionContext,
   TraversalVisitor,
   TreeTypeParameters,
   ResolvedTreeMap,
-  VertexContextMap,
+  VertexResolutionContextMap,
   TreeResolution,
+  TraversalVisitorCommandArguments,
 } from '../types';
-import { CVertex } from '../CVertex';
+import { Vertex } from '../Vertex';
 import { TraversalVisitorCommand, TraversalVisitorCommandName } from '../types';
 
 export enum ChildrenOrder {
@@ -26,7 +27,7 @@ export const DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG: DepthFirstTraversalConfig = {
 
 export interface TraversalResult<TTP extends TreeTypeParameters>
   extends TreeResolution<TTP> {
-  rootVertex: Vertex<TTP> | null;
+  rootVertex: VertexContent<TTP> | null;
 }
 
 export interface DepthFirstVisitors<TTP extends TreeTypeParameters> {
@@ -42,8 +43,8 @@ export function traverseDepthFirst<
   visitors: DepthFirstVisitors<TTP>,
   config: Partial<DepthFirstTraversalConfig> = DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
 ): TraversalResult<TTP> {
-  type ThisIVertexContext = IVertexContext<TTP>;
-  type ThisIVertex = Vertex<TTP>;
+  type ThisIVertexContext = VertexResolutionContext<TTP>;
+  type ThisIVertex = VertexContent<TTP>;
   type ThisTraversalOrderContext = {
     visitIndex: number;
     previousVisitedVertex: ThisIVertex | null;
@@ -71,7 +72,7 @@ export function traverseDepthFirst<
       previousVisitedVertex: null,
     },
   };
-  const vertexContextMap: VertexContextMap<TTP> = new Map();
+  const vertexContextMap: VertexResolutionContextMap<TTP> = new Map();
   const resolvedTreeMap: ResolvedTreeMap<TTP> = new Map();
   const postOrderNotVisitedChildrenCountMap = new Map<ThisIVertex, number>();
   const inOrderNotVisitedChildrenCountMap = new Map<ThisIVertex, number>();
@@ -208,7 +209,7 @@ export function traverseDepthFirst<
 
   function visitVertex(
     visitorOrderKey: keyof Required<DepthFirstVisitors<TTP>>,
-    vertex: Vertex<TTP>,
+    vertex: VertexContent<TTP>,
   ): void {
     const visitorResult = visitors?.[visitorOrderKey]?.(vertex, {
       vertexContextMap,
@@ -220,19 +221,25 @@ export function traverseDepthFirst<
       isRootVertex: isRootVertex(vertex),
     });
     visitorsContext[visitorOrderKey].previousVisitedVertex = vertex;
-    visitorResult?.commands?.forEach(executeVisitorCommand);
-  }
-
-  function executeVisitorCommand(
-    command: TraversalVisitorCommand<TraversalVisitorCommandName>,
-  ) {
-    switch (command.commandName) {
-      case TraversalVisitorCommandName.HALT_TRAVERSAL:
-        haltTraversalFlag = true;
-        break;
-      default:
-        return;
-    }
+    visitorResult?.commands?.forEach(
+      (command: TraversalVisitorCommand<TTP>) => {
+        switch (command.commandName) {
+          case TraversalVisitorCommandName.HALT_TRAVERSAL:
+            haltTraversalFlag = true;
+            break;
+          case TraversalVisitorCommandName.REWRITE_VERTEX_DATA:
+            // Vertex.setData(
+            //   vertex,
+            //   (
+            //     command.commandArguments as TraversalVisitorCommandArguments<TTP>[TraversalVisitorCommandName.REWRITE_VERTEX_DATA]
+            //   ).newData,
+            // );
+            break;
+          default:
+            return;
+        }
+      },
+    );
   }
 
   function isRootVertex(vertex: ThisIVertex) {
@@ -244,7 +251,7 @@ export function traverseDepthFirst<
   }
 
   function getChildrenHints(vertex: ThisIVertex) {
-    return CVertex.prototype.getChildrenHints.call(vertex);
+    return Vertex.prototype.getChildrenHints.call(vertex);
   }
 
   function pushHints(parentVertex: ThisIVertex): Array<ThisIVertexContext> {
