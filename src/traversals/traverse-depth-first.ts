@@ -7,10 +7,15 @@ import type {
   ResolvedTreeMap,
   VertexResolutionContextMap,
   TreeResolution,
-  TraversalVisitorCommandArguments,
+  // TraversalVisitorCommandArguments,
 } from '../types';
 import { Vertex } from '../Vertex';
-import { TraversalVisitorCommand, TraversalVisitorCommandName } from '../types';
+import {
+  ResolvedTree,
+  TraversalVisitorCommand,
+  TraversalVisitorCommandName,
+} from '../types';
+import { Ref } from '../Ref';
 
 export enum ChildrenOrder {
   DEFAULT = 'DEFAULT',
@@ -27,7 +32,8 @@ export const DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG: DepthFirstTraversalConfig = {
 
 export interface TraversalResult<TTP extends TreeTypeParameters>
   extends TreeResolution<TTP> {
-  rootVertex: VertexContent<TTP> | null;
+  ___rootVertex: VertexContent<TTP> | null;
+  rootVertex: Vertex<TTP> | null;
 }
 
 export interface DepthFirstVisitors<TTP extends TreeTypeParameters> {
@@ -43,11 +49,13 @@ export function traverseDepthFirst<
   visitors: DepthFirstVisitors<TTP>,
   config: Partial<DepthFirstTraversalConfig> = DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
 ): TraversalResult<TTP> {
-  type ThisIVertexContext = VertexResolutionContext<TTP>;
-  type ThisIVertex = VertexContent<TTP>;
+  type ThisVertexContext = VertexResolutionContext<TTP>;
+  type ThisVertexContent = VertexContent<TTP>;
+  // type ThisVertex = Vertex<TTP>;
+  type ThisVertexRef = Ref<Vertex<TTP>>;
   type ThisTraversalOrderContext = {
     visitIndex: number;
-    previousVisitedVertex: ThisIVertex | null;
+    previousVisitedVertex: ThisVertexContent | null;
   };
   type VisitorsContext = {
     [K in keyof Required<DepthFirstVisitors<TTP>>]: ThisTraversalOrderContext;
@@ -57,7 +65,7 @@ export function traverseDepthFirst<
     config === DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG
       ? config
       : { ...DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG, ...config };
-  const vertexStack: Array<ThisIVertexContext> = [];
+  const vertexStack: Array<ThisVertexContext> = [];
   const visitorsContext: VisitorsContext = {
     preOrderVisitor: {
       visitIndex: 0,
@@ -73,91 +81,119 @@ export function traverseDepthFirst<
     },
   };
   const vertexContextMap: VertexResolutionContextMap<TTP> = new Map();
-  const resolvedTreeMap: ResolvedTreeMap<TTP> = new Map();
-  const postOrderNotVisitedChildrenCountMap = new Map<ThisIVertex, number>();
-  const inOrderNotVisitedChildrenCountMap = new Map<ThisIVertex, number>();
+  const ___resolvedTreeMap: ResolvedTreeMap<TTP> = new Map();
+  const resolvedTree = new ResolvedTree();
+  const postOrderNotVisitedChildrenCountMap = new Map<
+    ThisVertexContent,
+    number
+  >();
+  const inOrderNotVisitedChildrenCountMap = new Map<
+    ThisVertexContent,
+    number
+  >();
   let haltTraversalFlag = false;
   const onPostOrder = !visitors?.postOrderVisitor
     ? null
     : onPostOrderProcessing;
   const onInOrder = !visitors?.inOrderVisitor ? null : onInOrderProcessing;
 
-  const rootVertex = tree.makeRoot();
-  if (rootVertex === null) {
-    return { rootVertex, vertexContextMap, resolvedTreeMap };
+  const rootVertexContent = tree.makeRoot();
+  if (rootVertexContent === null) {
+    return {
+      ___rootVertex: null,
+      rootVertex: null,
+      vertexContextMap,
+      ___resolvedTreeMap: ___resolvedTreeMap,
+      resolvedTree,
+    };
   }
+  const rootVertexRef = new Ref(Vertex.fromContent(rootVertexContent));
 
-  onPreOrder(rootVertex, null);
-  pushHints(rootVertex);
+  onPreOrder(rootVertexRef, null);
+  pushHints(rootVertexRef);
 
   while (vertexStack.length > 0 && !haltTraversalFlag) {
-    const vertexContext = vertexStack.pop() as ThisIVertexContext;
-    const vertex = tree.makeVertex(vertexContext.vertexHint, {
+    const vertexContext = vertexStack.pop() as ThisVertexContext;
+    const vertexContent = tree.makeVertex(vertexContext.vertexHint, {
       ...vertexContext,
-      resolvedTreeMap,
+      ___resolvedTreeMap: ___resolvedTreeMap,
+      resolvedTree,
       vertexContextMap,
     });
-    if (vertex === null) {
+    if (vertexContent === null) {
       continue;
     }
-    onPreOrder(vertex, vertexContext);
-    pushHints(vertex);
-    if (isLeafVertex(vertex)) {
-      onPostOrder?.(vertex, vertexContext);
-      onInOrder?.(vertex, vertexContext);
+    const vertexRef = new Ref(Vertex.fromContent(vertexContent));
+    onPreOrder(vertexRef, vertexContext);
+    pushHints(vertexRef);
+    if (vertexRef.get().isLeafVertex()) {
+      onPostOrder?.(vertexRef, vertexContext);
+      onInOrder?.(vertexRef, vertexContext);
     }
   }
 
   function onPreOrder(
-    vertex: ThisIVertex,
-    vertexContext: ThisIVertexContext | null,
+    vertexRef: ThisVertexRef,
+    vertexContext: ThisVertexContext | null,
   ): void {
     if (vertexContext !== null) {
-      let parentVertexChildren = resolvedTreeMap.get(
-        vertexContext.parentVertex,
+      let parentVertexChildren = ___resolvedTreeMap.get(
+        vertexContext.___parentVertexContent,
       );
       if (parentVertexChildren === undefined) {
         parentVertexChildren = [];
-        resolvedTreeMap.set(vertexContext.parentVertex, parentVertexChildren);
+        ___resolvedTreeMap.set(
+          vertexContext.___parentVertexContent,
+          parentVertexChildren,
+        );
       }
-      parentVertexChildren.push(vertex);
+      parentVertexChildren.push(vertexRef.get().getContent());
     }
-    vertexContextMap.set(vertex, vertexContext);
-    visitVertex('preOrderVisitor', vertex);
+    vertexContextMap.set(vertexRef.get().getContent(), vertexContext);
+    visitVertex('preOrderVisitor', vertexRef);
   }
 
   function onInOrderProcessing(
-    vertex: ThisIVertex,
-    vertexContext: ThisIVertexContext | null,
+    vertexRef: ThisVertexRef,
+    vertexContext: ThisVertexContext | null,
   ): void {
-    visitVertex('inOrderVisitor', vertex);
-    if (!isLeafVertex(vertex) || !vertexContext?.parentVertex) {
+    visitVertex('inOrderVisitor', vertexRef);
+    if (
+      !vertexRef.get().isLeafVertex() ||
+      !vertexContext?.___parentVertexContent
+    ) {
       return;
     }
     // let curVertex = vertex;
-    let curVertexContext: ThisIVertexContext | null = vertexContext;
+    let curVertexContext: ThisVertexContext | null = vertexContext;
     while (curVertexContext !== null) {
       const inOrderNotVisitedChildrenCount =
-        inOrderNotVisitedChildrenCountMap.get(curVertexContext.parentVertex);
+        inOrderNotVisitedChildrenCountMap.get(
+          curVertexContext.___parentVertexContent,
+        );
       if (inOrderNotVisitedChildrenCount === undefined) {
         return;
       }
       const newCount = inOrderNotVisitedChildrenCount - 1;
       if (newCount !== 0) {
         inOrderNotVisitedChildrenCountMap.set(
-          curVertexContext.parentVertex,
+          curVertexContext.___parentVertexContent,
           newCount,
         );
         const parentVertexContext = vertexContextMap.get(
-          curVertexContext.parentVertex,
+          curVertexContext.___parentVertexContent,
         );
         if (parentVertexContext !== undefined) {
-          onInOrder?.(curVertexContext.parentVertex, parentVertexContext);
+          onInOrder?.(
+            // curVertexContext.___parentVertexContent,
+            curVertexContext.parentVertexRef,
+            parentVertexContext,
+          );
         }
         break;
       } else {
         const parentVertexContext = vertexContextMap.get(
-          curVertexContext.parentVertex,
+          curVertexContext.___parentVertexContent,
         );
         if (parentVertexContext === undefined) {
           break;
@@ -169,39 +205,42 @@ export function traverseDepthFirst<
   }
 
   function onPostOrderProcessing(
-    vertex: ThisIVertex,
-    vertexContext: ThisIVertexContext | null,
+    vertexRef: ThisVertexRef,
+    vertexContext: ThisVertexContext | null,
   ): void {
-    let curVertex = vertex;
+    let curVertexRef = vertexRef;
     let curVertexContext = vertexContext;
-    while (curVertex !== null) {
-      visitVertex('postOrderVisitor', curVertex);
-      if (!curVertexContext?.parentVertex) {
+    while (curVertexRef !== null) {
+      visitVertex('postOrderVisitor', curVertexRef);
+      if (!curVertexContext?.___parentVertexContent) {
         break;
       }
       const postOrderNotVisitedChildrenCount =
-        postOrderNotVisitedChildrenCountMap.get(curVertexContext.parentVertex);
+        postOrderNotVisitedChildrenCountMap.get(
+          curVertexContext.___parentVertexContent,
+        );
       if (postOrderNotVisitedChildrenCount === undefined) {
         break;
       }
       const newCount = postOrderNotVisitedChildrenCount - 1;
       if (newCount !== 0) {
         postOrderNotVisitedChildrenCountMap.set(
-          curVertexContext.parentVertex,
+          curVertexContext.___parentVertexContent,
           newCount,
         );
         break;
       } else {
         postOrderNotVisitedChildrenCountMap.delete(
-          curVertexContext.parentVertex,
+          curVertexContext.___parentVertexContent,
         );
         const parentVertexContext = vertexContextMap.get(
-          curVertexContext.parentVertex,
+          curVertexContext.___parentVertexContent,
         );
         if (parentVertexContext === undefined) {
           break;
         }
-        curVertex = curVertexContext.parentVertex;
+        // curVertexRef = curVertexContext.___parentVertexContent;
+        curVertexRef = curVertexContext.parentVertexRef;
         curVertexContext = parentVertexContext;
       }
     }
@@ -209,18 +248,21 @@ export function traverseDepthFirst<
 
   function visitVertex(
     visitorOrderKey: keyof Required<DepthFirstVisitors<TTP>>,
-    vertex: VertexContent<TTP>,
+    vertexRef: ThisVertexRef,
   ): void {
-    const visitorResult = visitors?.[visitorOrderKey]?.(vertex, {
+    const visitorResult = visitors?.[visitorOrderKey]?.(vertexRef.get(), {
       vertexContextMap,
-      resolvedTreeMap,
+      ___resolvedTreeMap: ___resolvedTreeMap,
+      resolvedTree,
       visitIndex: visitorsContext[visitorOrderKey].visitIndex++,
       previousVisitedVertex:
         visitorsContext[visitorOrderKey].previousVisitedVertex,
-      isLeafVertex: isLeafVertex(vertex),
-      isRootVertex: isRootVertex(vertex),
+      isLeafVertex: vertexRef.get().isLeafVertex(),
+      isRootVertex: isRootVertex(vertexRef),
     });
-    visitorsContext[visitorOrderKey].previousVisitedVertex = vertex;
+    visitorsContext[visitorOrderKey].previousVisitedVertex = vertexRef
+      .get()
+      .getContent();
     visitorResult?.commands?.forEach(
       (command: TraversalVisitorCommand<TTP>) => {
         switch (command.commandName) {
@@ -242,21 +284,13 @@ export function traverseDepthFirst<
     );
   }
 
-  function isRootVertex(vertex: ThisIVertex) {
-    return vertex === rootVertex;
+  function isRootVertex(vertexRef: ThisVertexRef) {
+    return vertexRef === rootVertexRef;
   }
 
-  function isLeafVertex(vertex: ThisIVertex) {
-    return getChildrenHints(vertex).length === 0;
-  }
-
-  function getChildrenHints(vertex: ThisIVertex) {
-    return Vertex.prototype.getChildrenHints.call(vertex);
-  }
-
-  function pushHints(parentVertex: ThisIVertex): Array<ThisIVertexContext> {
-    const childrenHints = getChildrenHints(parentVertex);
-    const newEntries: ThisIVertexContext[] = [];
+  function pushHints(parentVertexRef: ThisVertexRef): Array<ThisVertexContext> {
+    const childrenHints = parentVertexRef.get().getChildrenHints();
+    const newEntries: ThisVertexContext[] = [];
     for (let i = 0; i < childrenHints.length; i++) {
       const hintIndex =
         effectiveConfig.childrenOrder === ChildrenOrder.REVERSED
@@ -265,20 +299,34 @@ export function traverseDepthFirst<
       const hint = childrenHints[hintIndex];
       newEntries.push({
         vertexHint: hint,
-        parentVertex,
+        ___parentVertexContent: parentVertexRef.get().getContent(),
+        parentVertexRef,
+        parentVertex: parentVertexRef.get(),
         vertexHintOriginalOrderIndex: hintIndex,
         vertexHintTraversalOrderIndex: childrenHints.length - i - 1,
       });
     }
     vertexStack.push(...newEntries);
     if (visitors?.postOrderVisitor) {
-      postOrderNotVisitedChildrenCountMap.set(parentVertex, newEntries.length);
+      postOrderNotVisitedChildrenCountMap.set(
+        parentVertexRef.get().getContent(),
+        newEntries.length,
+      );
     }
     if (visitors?.inOrderVisitor) {
-      inOrderNotVisitedChildrenCountMap.set(parentVertex, newEntries.length);
+      inOrderNotVisitedChildrenCountMap.set(
+        parentVertexRef.get().getContent(),
+        newEntries.length,
+      );
     }
     return newEntries;
   }
 
-  return { resolvedTreeMap, vertexContextMap, rootVertex };
+  return {
+    ___resolvedTreeMap,
+    resolvedTree,
+    vertexContextMap,
+    ___rootVertex: rootVertexRef.get().getContent(),
+    rootVertex: rootVertexRef.get(),
+  };
 }

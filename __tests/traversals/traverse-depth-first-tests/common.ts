@@ -22,10 +22,10 @@ export const tree1: TraversableTree<TTP1> = {
       childrenHints: ['1', '2'],
     });
   },
-  makeVertex(hint, { parentVertex }) {
+  makeVertex(hint, { ___parentVertexContent }) {
     return Vertex.makeContent({
-      data: [Vertex.getDataFromContent(parentVertex), hint].join('.'),
-      childrenHints: Vertex.getDataFromContent(parentVertex).length > 3 ? [] : ['1', '2'],
+      data: [Vertex.getDataFromContent(___parentVertexContent), hint].join('.'),
+      childrenHints: Vertex.getDataFromContent(___parentVertexContent).length > 3 ? [] : ['1', '2'],
     });
   },
 };
@@ -73,10 +73,10 @@ export function testDepthFirstTree<
     vertex: VertexContent<TTP>;
     options: Omit<
       TraversalVisitorOptions<TTP>,
-      'resolvedTreeMap' | 'vertexContextMap'
+      '___resolvedTreeMap' | 'vertexContextMap'
     >;
   }> = [];
-  const { rootVertex, resolvedTreeMap, vertexContextMap } =
+  const { ___rootVertex, ___resolvedTreeMap, vertexContextMap } =
     traverseDepthFirst<TTP>(
       tree,
       {
@@ -101,8 +101,8 @@ export function testDepthFirstTree<
   return {
     visited,
     visitedData: visited.map((v) => v.vertex.$d),
-    rootVertex,
-    resolvedTreeMap,
+    ___rootVertex: ___rootVertex,
+    ___resolvedTreeMap: ___resolvedTreeMap,
     vertexContextMap,
   };
 }

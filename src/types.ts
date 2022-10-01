@@ -1,3 +1,6 @@
+import { Vertex } from './Vertex';
+import { Ref } from './Ref';
+
 export interface TreeTypeParameters<VD = unknown, VH = unknown> {
   VertexData: VD;
   VertexHint: VH;
@@ -32,7 +35,8 @@ export type ResolvedTreeMap<TTP extends TreeTypeParameters> = Map<
 
 export interface TreeResolution<TTP extends TreeTypeParameters> {
   vertexContextMap: VertexResolutionContextMap<TTP>;
-  resolvedTreeMap: ResolvedTreeMap<TTP>;
+  ___resolvedTreeMap: ResolvedTreeMap<TTP>;
+  resolvedTree: ResolvedTree<TTP>;
 }
 
 export interface TraversalVisitorOptions<TTP extends TreeTypeParameters>
@@ -70,13 +74,19 @@ export interface TraversalVisitorResult<TTP extends TreeTypeParameters> {
 }
 
 export type TraversalVisitor<TTP extends TreeTypeParameters> = (
-  vertex: VertexContent<TTP>,
+  vertex: Vertex<TTP>,
   options: TraversalVisitorOptions<TTP>,
 ) => TraversalVisitorResult<TTP> | undefined;
 
 export interface VertexResolutionContext<TTP extends TreeTypeParameters> {
-  parentVertex: VertexContent<TTP>;
+  ___parentVertexContent: VertexContent<TTP>;
+  parentVertex: Vertex<TTP>;
+  parentVertexRef: Ref<Vertex<TTP>>;
   vertexHintOriginalOrderIndex: number;
   vertexHintTraversalOrderIndex: number;
   vertexHint: TTP['VertexHint'];
 }
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+export class ResolvedTree<TTP extends TreeTypeParameters> {}
