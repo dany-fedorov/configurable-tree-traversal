@@ -44,6 +44,17 @@ export class VertexResolved<TTP extends TreeTypeParameters>
   getChildren(): CTTRef<Vertex<TTP>>[] {
     return this.$c;
   }
+
+  getParent(): CTTRef<Vertex<TTP>> | null {
+    return this.$d.resolutionContext?.parentVertexRef ?? null;
+  }
+
+  clone(content?: Partial<VertexResolvedContent<TTP>>): VertexResolved<TTP> {
+    return new VertexResolved<TTP>({
+      $d: content?.$d ?? this.$d,
+      $c: content?.$c ?? this.$c,
+    });
+  }
 }
 
 export type ResolvedTreeMap<TTP extends TreeTypeParameters> = Map<
@@ -90,6 +101,28 @@ export class ResolvedTree<
     vertexRef: CTTRef<Vertex<TTP>>,
   ): Array<CTTRef<Vertex<TTP>>> | null {
     return this.map.get(vertexRef)?.getChildren() ?? null;
+  }
+
+  getParentOf(vertexRef: CTTRef<Vertex<TTP>>): CTTRef<Vertex<TTP>> | null {
+    return this.get(vertexRef)?.getParent() ?? null;
+  }
+
+  deleteChildOf(parent: CTTRef<Vertex<TTP>>, child: CTTRef<Vertex<TTP>>): void {
+    const resolved = this.get(parent);
+    if (resolved !== null) {
+      const newResolved = resolved.clone({
+        $c: resolved.getChildren().filter((c) => c !== child),
+      });
+      this.set(parent, newResolved);
+    }
+  }
+
+  delete(vertexRef: CTTRef<Vertex<TTP>>): void {
+    const parent = this.getParentOf(vertexRef);
+    if (parent !== null) {
+      this.deleteChildOf(parent, vertexRef);
+    }
+    this.map.delete(vertexRef);
   }
 
   has(vertexRef: CTTRef<Vertex<TTP>>): boolean {

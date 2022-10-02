@@ -234,6 +234,9 @@ export function traverseDepthFirst<
             );
             // console.log('REWRITTEN!');
             break;
+          case TraversalVisitorCommandName.DELETE_V1:
+            resolvedTree.delete(vertexRef);
+            break;
           default:
             return;
         }

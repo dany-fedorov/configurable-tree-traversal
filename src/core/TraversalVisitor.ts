@@ -4,11 +4,15 @@ import type { ResolvedTree } from './ResolvedTree';
 import type { CTTRef } from './CTTRef';
 
 export enum TraversalVisitorCommandName {
+  NOOP = 'NOOP',
   HALT_TRAVERSAL = 'HALT_TRAVERSAL',
   REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
+  DELETE_V1 = 'DELETE_V1',
 }
 
 export type TraversalVisitorCommandArguments<TTP extends TreeTypeParameters> = {
+  [TraversalVisitorCommandName.NOOP]: void;
+  [TraversalVisitorCommandName.DELETE_V1]: void;
   [TraversalVisitorCommandName.HALT_TRAVERSAL]: void;
   [TraversalVisitorCommandName.REWRITE_VERTEX_DATA]: {
     newData: TTP['VertexData'];

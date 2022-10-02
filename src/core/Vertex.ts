@@ -29,10 +29,10 @@ export class Vertex<TTP extends TreeTypeParameters>
     return this.getChildrenHints().length === 0;
   }
 
-  clone(vertexContent?: Partial<VertexContent<TTP>>): Vertex<TTP> {
+  clone(content?: Partial<VertexContent<TTP>>): Vertex<TTP> {
     return new Vertex<TTP>({
-      $d: vertexContent?.$d || this.$d,
-      $c: vertexContent?.$c || this.$c,
+      $d: content?.$d ?? this.$d,
+      $c: content?.$c ?? this.$c,
     });
   }
 }
