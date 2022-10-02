@@ -3,15 +3,26 @@ import type { TreeTypeParameters } from './TreeTypeParameters';
 import type { VertexResolutionContext } from './ResolvedTree';
 import type { ResolvedTree } from './ResolvedTree';
 
-type MakeVertexOptions<TTP extends TreeTypeParameters> = {
+export type MakeVertexOptions<TTP extends TreeTypeParameters> = {
   resolutionContext: VertexResolutionContext<TTP>;
   resolvedTree: ResolvedTree<TTP>;
 };
 
-export interface TraversableTree<TTP extends TreeTypeParameters> {
+export type TraversableTree<TTP extends TreeTypeParameters> = {
   makeRoot(): VertexContent<TTP> | null;
 
   makeVertex(
+    vertexHint: TTP['VertexHint'],
+    options: MakeVertexOptions<TTP>,
+  ): VertexContent<TTP> | null;
+};
+
+export abstract class AbstractTraversableTree<TTP extends TreeTypeParameters>
+  implements TraversableTree<TTP>
+{
+  abstract makeRoot(): VertexContent<TTP> | null;
+
+  abstract makeVertex(
     vertexHint: TTP['VertexHint'],
     options: MakeVertexOptions<TTP>,
   ): VertexContent<TTP> | null;

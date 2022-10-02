@@ -1,15 +1,15 @@
-export class Ref<T> {
+export class CTTRef<T> {
   private _ref: T;
 
   constructor(ref: T) {
     this._ref = ref;
   }
 
-  get(): T {
+  unref(): T {
     return this._ref;
   }
 
-  set(ref: T): void {
+  setPointsTo(ref: T): void {
     this._ref = ref;
   }
 }
