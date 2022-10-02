@@ -1,14 +1,17 @@
-import { ResolvedTree, VertexResolutionContext } from './ResolvedTree';
-import type { TreeTypeParameters } from './TreeTypeParameters';
+import {
+  ResolvedTree,
+  VertexResolutionContext,
+} from '../abstract/ResolvedTree';
+import type { TreeTypeParameters } from '../abstract/TreeTypeParameters';
 import type {
   TraversalVisitor,
   TraversalVisitorCommand,
   TraversalVisitorCommandArguments,
-} from './TraversalVisitor';
-import type { TraversableTree } from './TraversableTree';
-import { Vertex } from './Vertex';
-import { Ref } from './Ref';
-import { TraversalVisitorCommandName } from './TraversalVisitor';
+} from '../abstract/TraversalVisitor';
+import type { TraversableTree } from '../abstract/TraversableTree';
+import { Vertex } from '../abstract/Vertex';
+import { Ref } from '../abstract/Ref';
+import { TraversalVisitorCommandName } from '../abstract/TraversalVisitor';
 
 export enum ChildrenOrder {
   DEFAULT = 'DEFAULT',

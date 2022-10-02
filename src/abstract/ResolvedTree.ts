@@ -2,7 +2,7 @@ import type { TreeTypeParameters } from './TreeTypeParameters';
 import type { Vertex } from './Vertex';
 import type { Ref } from './Ref';
 import type { CTTAbstractParent } from './CTTAbstractParent';
-import { jsonStringifySafe } from './utils/jsonStringifySafe';
+import { jsonStringifySafe } from '../utils/jsonStringifySafe';
 
 export type VertexResolutionContext<TTP extends TreeTypeParameters> = {
   parentVertex: Vertex<TTP>;
