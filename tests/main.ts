@@ -4,8 +4,9 @@ import type { TraversableTreeParametersFromTraversableTree } from '../src/core/T
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
 import type { TraversalVisitorOptions } from '../src/core/TraversalVisitor';
 import { TraversableObjectTree } from '../src/traversable-tree-implementations/TraversableObject';
+import { rewriteObject } from '../src/tools/rewriteObject';
 
-const main = () => {
+const main_ = () => {
   const host = {
     a: 1,
     b: 2,
@@ -78,4 +79,48 @@ const main = () => {
   );
 };
 
+const main = () => {
+  const host = {
+    a: 1,
+    b: 2,
+    c: [1, 2, 1, 3],
+    d: { d1: { d2: 'heh' }, d11: { d22: { d33: { d44: 'heh-deep' } } } },
+    e: 'fef',
+    f: { f1: { f2: 'heh' } },
+    g: [{ g1: 123, g11: { g22: [1, 2, 3, 4, 3, 2, 1] } }],
+  };
+  console.log(jsonStringifySafe(host, 8));
+  const { result } = rewriteObject<string | number>(
+    host,
+    ({ key, value }, options) => {
+      const depth =
+        options.resolvedTree.get(options.vertexRef)?.getResolutionContext()
+          ?.depth ?? 0;
+      const p = options.resolvedTree.getPathTo(options.vertexRef, {
+        noRoot: true,
+      });
+      console.log(p.map((ps) => ps.unref().getData().key));
+      if (value === 2) {
+        return {
+          delete: true,
+        };
+      } else if (value === 1) {
+        return {
+          rewrite: { value: 1000 },
+        };
+      } else if (depth % 2 === 0 && typeof key === 'string') {
+        const newKey = [key, depth].join('__');
+        return {
+          rewrite: {
+            key: newKey,
+          },
+        };
+      }
+      return;
+    },
+  );
+  console.log(jsonStringifySafe(result, 8));
+};
+
+// main_();
 main();

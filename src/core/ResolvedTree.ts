@@ -66,6 +66,10 @@ type ResolvedTreeConfig<TTP extends TreeTypeParameters> = {
   traversableTree: TraversableTree<TTP>;
 };
 
+export type GetPathToOptions = {
+  noRoot?: boolean;
+};
+
 export class ResolvedTree<
   TTP extends TreeTypeParameters,
 > extends AbstractTraversableTree<ResolvedTreeTypeParameters<TTP>> {
@@ -155,6 +159,29 @@ export class ResolvedTree<
       throw new Error(`Could not find ref - ${jsonStringifySafe(vertexRef)}`);
     }
     parentVertexResolved.pushChildren(children);
+  }
+
+  getPathTo(
+    vertexRef: CTTRef<Vertex<TTP>>,
+    options?: GetPathToOptions,
+  ): CTTRef<Vertex<TTP>>[] {
+    let curVertex = vertexRef;
+    const reversedPath: CTTRef<Vertex<TTP>>[] = [curVertex];
+    while (true) {
+      const parent = this.getParentOf(curVertex);
+      if (parent === null) {
+        break;
+      } else {
+        reversedPath.push(parent);
+        curVertex = parent;
+      }
+    }
+    const straightPath = reversedPath.reverse();
+    if (options?.noRoot === true) {
+      return straightPath.slice(1);
+    } else {
+      return straightPath;
+    }
   }
 
   onPreOrderVisit(
