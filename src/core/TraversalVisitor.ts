@@ -7,13 +7,13 @@ export enum TraversalVisitorCommandName {
   NOOP = 'NOOP',
   HALT_TRAVERSAL = 'HALT_TRAVERSAL',
   REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
-  DELETE_V1 = 'DELETE_V1',
+  DELETE_VERTEX = 'DELETE_VERTEX',
 }
 
 export type TraversalVisitorCommandArguments<TTP extends TreeTypeParameters> = {
   [TraversalVisitorCommandName.NOOP]: void;
-  [TraversalVisitorCommandName.DELETE_V1]: void;
   [TraversalVisitorCommandName.HALT_TRAVERSAL]: void;
+  [TraversalVisitorCommandName.DELETE_VERTEX]: void;
   [TraversalVisitorCommandName.REWRITE_VERTEX_DATA]: {
     newData: TTP['VertexData'];
   };

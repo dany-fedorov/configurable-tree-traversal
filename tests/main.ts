@@ -1,112 +1,81 @@
+import { traverseDepthFirst } from '../src/traversals/traverseDepthFirst';
+import type { Vertex } from '../src/core/Vertex';
+import type { TraversableTreeParametersFromTraversableTree } from '../src/core/TraversableTreeParametersFromTraversableTree';
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
-import { rewriteObject_v1 } from '../src/tools/rewriteObject_v1';
-// import {
-//   makeRewriteCommand_v1,
-//   TraversableObjectTree_V1,
-// } from '../src/tools/TraversableObjectTree_V1';
-// import { traverseDepthFirst } from '../src/traversals/traverseDepthFirst';
-
-/*const main = () => {
-  const host = {
-    a: 1,
-    b: 2,
-    c: [1, 2],
-    d: { d1: { d2: 'heh' } },
-  };
-  console.log(jsonStringifySafe(host, 2));
-  const tree = new TraversableObjectTree_V1(host);
-  const { resolvedTree } = traverseDepthFirst(tree, {
-    // preOrderVisitor: (v, options) => {
-    //   // const depth = options.resolvedTree.getResolutionContextOf(
-    //   //   options.vertexRef,
-    //   // )?.depth;
-    //   // console.log(depth, 'preOrderVisitor', v.getData().key, v.getData().value);
-    // },
-    postOrderVisitor: (v, options) => {
-      const depth = options.isRoot
-        ? 0
-        : options.resolvedTree.getResolutionContextOf(options.vertexRef)?.depth;
-      console.log(
-        depth,
-        'postOrderVisitor',
-        v.getData().key,
-        v.getData().value,
-      );
-      const val = v.getData().value;
-      if (typeof val === 'number') {
-        return {
-          commands: [
-            makeRewriteCommand_v1({
-              vertexInput: v,
-              options,
-              newValue: val + 1000,
-            }),
-          ],
-        };
-      } else if (typeof val === 'string') {
-        return {
-          commands: [
-            makeRewriteCommand_v1({
-              vertexInput: v,
-              options,
-              newValue: '+++' + val + '+++',
-            }),
-          ],
-        };
-      } else {
-        return {
-          commands: [
-            makeRewriteCommand_v1({
-              vertexInput: v,
-              options,
-            }),
-          ],
-        };
-      }
-    },
-  });
-  const root = resolvedTree.getRoot();
-  if (root !== null) {
-    console.log(root.unref().getData().value);
-    // console.log(resolvedTree.get(root));
-  }
-  traverseDepthFirst(resolvedTree, {
-    preOrderVisitor: (v) => {
-      console.log(
-        'preOrderVisitor--',
-        jsonStringifySafe(v.getData().unref().getData()),
-      );
-    },
-  });
-};*/
+import type { TraversalVisitorOptions } from '../src/core/TraversalVisitor';
+import { TraversableObjectTree } from '../src/traversable-tree-implementations/TraversableObject';
 
 const main = () => {
   const host = {
     a: 1,
     b: 2,
-    c: [1, 2],
-    d: { d1: { d2: 'heh' } },
+    c: [1, 2, 1, 3],
+    d: { d1: { d2: 'heh' }, d11: { d22: { d33: { d44: 'heh-deep' } } } },
     e: 'fef',
+    f: { f1: { f2: 'heh' } },
+    g: [{ g1: 123, g11: { g22: [1, 2, 3, 4, 3, 2, 1] } }],
   };
-  console.log(jsonStringifySafe({ host1: host }));
-  const newHost = rewriteObject_v1(host, (v) => {
-    const val = v.getData().value;
-    if (v.getData().key === 'e' || v.getData().key === 'd1') {
-      return {
-        delete: true,
-      };
-    } else if (typeof val === 'number') {
-      return {
-        newValue: val + 1000,
-      };
-    } else if (typeof val === 'string') {
-      return {
-        newValue: '+++' + val + '+++',
-      };
-    } else {
-      return {};
-    }
+  console.log(jsonStringifySafe(host, 8));
+  const tree = new TraversableObjectTree({
+    rootKey: Symbol.for('ROOT'),
+    host,
   });
-  console.log(jsonStringifySafe({ host2: newHost }));
+  type TreeTTP = TraversableTreeParametersFromTraversableTree<typeof tree>;
+  const { resolvedTree } = traverseDepthFirst(tree, {
+    postOrderVisitor: (
+      vertex: Vertex<TreeTTP>,
+      options: TraversalVisitorOptions<TreeTTP>,
+    ) => {
+      const depth =
+        options.resolvedTree.get(options.vertexRef)?.getResolutionContext()
+          ?.depth ?? 0;
+      // console.log(depth, vertex.getData());
+      const makeMutationCommand =
+        TraversableObjectTree.makeMutationCommandFactory<
+          TreeTTP,
+          Partial<TreeTTP['VertexData']>
+        >(vertex, options);
+      // TraversableTreeParametersFromTraversableTree<typeof tree>,
+      if (vertex.getData().value === 1) {
+        return {
+          commands: [
+            makeMutationCommand({
+              rewrite: { value: 1000 },
+            }),
+          ],
+        };
+      } else if (vertex.getData().value === 2) {
+        return {
+          commands: [
+            makeMutationCommand({
+              delete: true,
+            }),
+          ],
+        };
+      } else if (depth % 2 === 0 && typeof vertex.getData().key === 'string') {
+        const newKey = [vertex.getData().key, depth].join('__');
+        // console.log(depth, vertex.getData(), newKey);
+        return {
+          commands: [
+            makeMutationCommand({
+              rewrite: {
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                key: newKey,
+              },
+            }),
+          ],
+        };
+      } else {
+        return {
+          commands: [makeMutationCommand()],
+        };
+      }
+    },
+  });
+  console.log(
+    jsonStringifySafe(resolvedTree.getRoot()?.unref().getData().value, 8),
+  );
 };
+
 main();

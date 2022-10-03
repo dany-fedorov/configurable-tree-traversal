@@ -224,17 +224,20 @@ export function traverseDepthFirst<
           case TraversalVisitorCommandName.HALT_TRAVERSAL:
             haltTraversalFlag = true;
             break;
-          case TraversalVisitorCommandName.REWRITE_VERTEX_DATA:
+          case TraversalVisitorCommandName.REWRITE_VERTEX_DATA: {
+            const newData = (
+              command.commandArguments as TraversalVisitorCommandArguments<TTP>[TraversalVisitorCommandName.REWRITE_VERTEX_DATA]
+            ).newData;
+            // console.log(jsonStringifySafe({ newData }));
             vertexRef.setPointsTo(
               vertexRef.unref().clone({
-                $d: (
-                  command.commandArguments as TraversalVisitorCommandArguments<TTP>[TraversalVisitorCommandName.REWRITE_VERTEX_DATA]
-                ).newData,
+                $d: newData,
               }),
             );
             // console.log('REWRITTEN!');
             break;
-          case TraversalVisitorCommandName.DELETE_V1:
+          }
+          case TraversalVisitorCommandName.DELETE_VERTEX:
             resolvedTree.delete(vertexRef);
             break;
           default:

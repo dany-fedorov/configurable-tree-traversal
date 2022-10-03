@@ -50,7 +50,7 @@ export function makeObjectRewriteCommand_v1<
     input.delete === true
   ) {
     return {
-      commandName: TraversalVisitorCommandName.DELETE_V1,
+      commandName: TraversalVisitorCommandName.DELETE_VERTEX,
     };
   } else if (Object.prototype.hasOwnProperty.call(input, 'newValue')) {
     return {
