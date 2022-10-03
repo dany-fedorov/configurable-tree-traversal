@@ -1,9 +1,9 @@
-import { traverseDepthFirst } from '../src/traversals/traverseDepthFirst';
-import type { Vertex } from '../src/core/Vertex';
-import type { TraversableTreeParametersFromTraversableTree } from '../src/core/TraversableTreeParametersFromTraversableTree';
+// import { traverseDepthFirst } from '../src/traversals/traverseDepthFirst';
+// import type { Vertex } from '../src/core/Vertex';
+// import type { TraversableTreeParametersFromTraversableTree } from '../src/core/TraversableTreeParametersFromTraversableTree';
+// import type { TraversalVisitorOptions } from '../src/core/TraversalVisitor';
+// import { TraversableObjectTree } from '../src/traversable-tree-implementations/TraversableObjectTree';
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
-import type { TraversalVisitorOptions } from '../src/core/TraversalVisitor';
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/TraversableObjectTree';
 import { rewriteObject } from '../src/tools/rewriteObject';
 
 /*const main_ = () => {
