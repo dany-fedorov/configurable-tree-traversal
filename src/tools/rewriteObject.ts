@@ -20,7 +20,8 @@ export type RewriteFn<K extends TraversableObjectPropKey, PV> = (
   | MakeMutationCommandFunctionInput<Partial<TraversableObjectProp<K, PV>>>
   | undefined;
 
-export const DEFAULT_ROOT_KEY = 'rewriteObject::rootKey::default';
+export const REWRITE_OBJECT_DEFAULT_ROOT_KEY =
+  'rewriteObject::rootKey::default';
 
 export type RewriteObjectResult<R> = {
   result: R;
@@ -40,7 +41,7 @@ export function rewriteObject<
   const tree = new TraversableObjectTree({
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    rootKey: options?.rootKey || DEFAULT_ROOT_KEY,
+    rootKey: options?.rootKey || REWRITE_OBJECT_DEFAULT_ROOT_KEY,
     host: obj,
   });
   const { resolvedTree } = traverseDepthFirst(tree, {
