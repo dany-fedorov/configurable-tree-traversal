@@ -4,11 +4,11 @@ import type {
   TraversableObjectPropKey,
   TraversableObjectTreeInstanceConfigInput,
   TraversableObjectTTP,
-} from '../traversable-tree-implementations/TraversableObject';
+} from '../traversable-tree-implementations/TraversableObjectTree';
 import type { Vertex } from '../core/Vertex';
 import type { TraversalVisitorOptions } from '../core/TraversalVisitor';
 import type { MakeMutationCommandFunctionInput } from '../core/MakeMutationCommandFunctionFactory';
-import { TraversableObjectTree } from '../traversable-tree-implementations/TraversableObject';
+import { TraversableObjectTree } from '../traversable-tree-implementations/TraversableObjectTree';
 import { traverseDepthFirst } from '../traversals/traverseDepthFirst';
 
 export type RewriteFn<K extends TraversableObjectPropKey, PV> = (

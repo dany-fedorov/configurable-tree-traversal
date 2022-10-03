@@ -3,10 +3,10 @@ import type { Vertex } from '../src/core/Vertex';
 import type { TraversableTreeParametersFromTraversableTree } from '../src/core/TraversableTreeParametersFromTraversableTree';
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
 import type { TraversalVisitorOptions } from '../src/core/TraversalVisitor';
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/TraversableObject';
+import { TraversableObjectTree } from '../src/traversable-tree-implementations/TraversableObjectTree';
 import { rewriteObject } from '../src/tools/rewriteObject';
 
-const main_ = () => {
+/*const main_ = () => {
   const host = {
     a: 1,
     b: 2,
@@ -77,7 +77,7 @@ const main_ = () => {
   console.log(
     jsonStringifySafe(resolvedTree.getRoot()?.unref().getData().value, 8),
   );
-};
+};*/
 
 const main = () => {
   const host = {
