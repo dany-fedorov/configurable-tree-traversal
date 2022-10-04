@@ -1,5 +1,5 @@
 import type {
-  MakeMutationCommandFunctionFactoryConfiguration,
+  TO_MakeMutationCommandFunctionFactoryConfiguration,
   TraversableObject,
   TraversableObjectProp,
   TraversableObjectPropKey,
@@ -10,7 +10,25 @@ import type { Vertex } from '../core/Vertex';
 import type { TraversalVisitorOptions } from '../core/TraversalVisitor';
 import type { MakeMutationCommandFunctionInput } from '../core/MakeMutationCommandFunctionFactory';
 import { TraversableObjectTree } from '../traversable-tree-implementations/TraversableObjectTree';
-import { traverseDepthFirst } from '../traversals/traverseDepthFirst';
+import {
+  DepthFirstTraversalConfig,
+  traverseDepthFirst,
+} from '../traversals/traverseDepthFirst';
+import type { GetPathToOptions } from '../core';
+
+export type RewriteFnOptions<
+  InK extends TraversableObjectPropKey,
+  InV,
+> = TraversalVisitorOptions<TraversableObjectTTP<InK, InV>> & {
+  vertex: Vertex<TraversableObjectTTP<InK, InV>>;
+  getPath: (options?: GetPathToOptions) => InK[];
+};
+
+export type RewriteFnPropInput<
+  InK extends TraversableObjectPropKey,
+  InV,
+  OutV,
+> = TraversableObjectProp<InK, InV> & { assembledComposite?: OutV };
 
 export type RewriteFn<
   InK extends TraversableObjectPropKey,
@@ -18,15 +36,8 @@ export type RewriteFn<
   OutK extends TraversableObjectPropKey,
   OutV,
 > = (
-  prop: TraversableObjectProp<InK, InV> | TraversableObjectProp<OutK, OutV>,
-  options: TraversalVisitorOptions<
-    TraversableObjectTTP<InK, InV>,
-    TraversableObjectTTP<OutK, OutV>
-  > & {
-    vertex: Vertex<
-      TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
-    >;
-  },
+  prop: RewriteFnPropInput<InK, InV, OutV>,
+  options: RewriteFnOptions<InK, InV>,
 ) =>
   | MakeMutationCommandFunctionInput<Partial<TraversableObjectProp<OutK, OutV>>>
   | undefined;
@@ -47,12 +58,14 @@ type RewriteObjectOptions<
   OutV,
 > = Partial<
   Omit<TraversableObjectTreeInstanceConfigInput<In, InK, InV>, 'host'> &
-    MakeMutationCommandFunctionFactoryConfiguration<
+    TO_MakeMutationCommandFunctionFactoryConfiguration<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
-    >
+    > &
+    DepthFirstTraversalConfig
 > & {
   getResultFromRootValue?: (value: OutV | null) => Out;
+  assembleCompositeBeforeVisit?: boolean;
 };
 
 export function rewriteObject<
@@ -67,6 +80,12 @@ export function rewriteObject<
   rewrite: RewriteFn<InK, InV, OutK, OutV>,
   options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
 ): RewriteObjectResult<Out> {
+  const assembleCompositeBeforeVisit =
+    options?.assembleCompositeBeforeVisit ?? false;
+  const getResultFromRootValue =
+    typeof options?.getResultFromRootValue === 'function'
+      ? options.getResultFromRootValue
+      : (rootValue: OutV | null) => (rootValue as unknown as Out) ?? null;
   const tree = new TraversableObjectTree<In, InK, InV, OutK, OutV>({
     getPropertyFromHost:
       options?.getPropertyFromHost ??
@@ -91,43 +110,74 @@ export function rewriteObject<
       ...(options?.assembleObject
         ? { assembleObject: options.assembleObject }
         : {}),
+      ...(options?.assembledMap
+        ? { assembledMap: options.assembledMap }
+        : { assembledMap: new Map() }),
     });
   const { resolvedTree } = traverseDepthFirst<
     TraversableObjectTTP<InK, InV>,
     TraversableObjectTTP<OutK, OutV>
-  >(tree, {
-    postOrderVisitor: (
-      vertex: Vertex<
-        TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
-      >,
-      options: TraversalVisitorOptions<
-        TraversableObjectTTP<InK, InV>,
-        TraversableObjectTTP<OutK, OutV>
-      >,
-    ) => {
-      const makeMutationCommand = makeMutationCommandFactory(vertex, options);
-      const rw = rewrite(vertex.getData(), { ...options, vertex });
-      const hasDelete =
-        rw && Object.prototype.hasOwnProperty.call(rw, 'delete');
-      const hasRewrite =
-        rw && Object.prototype.hasOwnProperty.call(rw, 'rewrite');
-      return {
-        commands: [
-          makeMutationCommand({
-            ...(!hasDelete ? {} : { delete: rw.delete }),
-            ...(!hasRewrite ? {} : { rewrite: rw.rewrite }),
-          }),
-        ],
-      };
+  >(
+    tree,
+    {
+      postOrderVisitor: (
+        /**
+         * [1] No guarantee here by traverseDepthFirst that it wasn't rewritten to Vertex<TraversableObjectTTP<OutK,OutV>>
+         * on preorder
+         */
+        vertex: Vertex<
+          TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
+        >,
+        options: TraversalVisitorOptions<
+          TraversableObjectTTP<InK, InV>,
+          TraversableObjectTTP<OutK, OutV>
+        >,
+      ) => {
+        const { makeMutationCommand, isComposite, assembleComposite } =
+          makeMutationCommandFactory(vertex, options);
+        let rwInput = vertex.getData() as RewriteFnPropInput<InK, InV, OutV>;
+        if (assembleCompositeBeforeVisit && isComposite()) {
+          rwInput = { ...rwInput, assembledComposite: assembleComposite() };
+        }
+        /**
+         * [1] But here rewriteObject guarantees that this is TraversableObjectProp<InK, InV> since we only rewrite on
+         * postorder
+         */
+        const rw = rewrite(rwInput, {
+          ...options,
+          vertex,
+          getPath: (thisOptions) =>
+            options.resolvedTree
+              .getPathTo(options.vertexRef, thisOptions)
+              .map((ps) => ps.unref().getData().key),
+        } as RewriteFnOptions<InK, InV>);
+        const hasDelete =
+          rw && Object.prototype.hasOwnProperty.call(rw, 'delete');
+        const hasRewrite =
+          rw && Object.prototype.hasOwnProperty.call(rw, 'rewrite');
+        return {
+          commands: [
+            makeMutationCommand({
+              ...(!hasDelete ? {} : { delete: rw.delete }),
+              ...(!hasRewrite ? {} : { rewrite: rw.rewrite }),
+            }),
+          ],
+        };
+      },
     },
-  });
+    {
+      ...(!options?.saveNotMutatedResolvedTree
+        ? {}
+        : { saveNotMutatedResolvedTree: options?.saveNotMutatedResolvedTree }),
+      ...(!options?.childrenOrder
+        ? {}
+        : { childrenOrder: options?.childrenOrder }),
+    },
+  );
   const rootValue =
     (resolvedTree.getRoot()?.unref().getData().value as unknown as OutV) ??
     null;
-  const result =
-    typeof options?.getResultFromRootValue === 'function'
-      ? options.getResultFromRootValue(rootValue)
-      : (rootValue as unknown as Out) ?? null;
+  const result = getResultFromRootValue(rootValue);
   return {
     result,
   };

@@ -38,6 +38,7 @@ export type TraversalVisitorOptions<
   RW_TTP extends TreeTypeParameters = TTP,
 > = {
   resolvedTree: ResolvedTree<TTP | RW_TTP>;
+  notMutatedResolvedTree: ResolvedTree<TTP> | null;
   visitIndex: number;
   previousVisitedVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
   isRoot: boolean;

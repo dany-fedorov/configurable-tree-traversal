@@ -171,7 +171,9 @@ export function traverseDepthFirst<
     vertexContext: VertexResolutionContext<TTP | RW_TTP> | null,
   ): void {
     visitVertex('inOrderVisitor', vertexRef);
-    if (!vertexRef.unref().isLeafVertex() || !vertexContext?.parentVertexRef) {
+    const isLeaf = vertexRef.unref().isLeafVertex();
+    const isSingleParent = vertexRef.unref().getChildrenHints().length === 1;
+    if (!isLeaf && !isSingleParent) {
       return;
     }
     // let curVertex = vertex;
@@ -180,32 +182,31 @@ export function traverseDepthFirst<
     while (curVertexContext !== null) {
       const inOrderNotVisitedChildrenCount =
         inOrderNotVisitedChildrenCountMap.get(curVertexContext.parentVertexRef);
+      // console.log(vertexRef.unref().getData(), {inOrderNotVisitedChildrenCount,});
       if (inOrderNotVisitedChildrenCount === undefined) {
         return;
       }
+      const parentVertexContext: VertexResolutionContext<TTP | RW_TTP> | null =
+        resolvedTree
+          .get(curVertexContext.parentVertexRef)
+          ?.getResolutionContext() ?? null;
       const newCount = inOrderNotVisitedChildrenCount - 1;
-      if (newCount !== 0) {
-        inOrderNotVisitedChildrenCountMap.set(
-          curVertexContext.parentVertexRef,
-          newCount,
-        );
-        const parentVertexContext: VertexResolutionContext<
-          TTP | RW_TTP
-        > | null =
-          resolvedTree
-            .get(curVertexContext.parentVertexRef)
-            ?.getResolutionContext() ?? null;
-        if (parentVertexContext !== null) {
+      inOrderNotVisitedChildrenCountMap.set(
+        curVertexContext.parentVertexRef,
+        newCount,
+      );
+      const siblingsCount = curVertexContext.parentVertexRef
+        .unref()
+        .getChildrenHints().length;
+      // console.log(vertexRef.unref().getData(), { newCount, siblingsCount });
+      if (newCount !== 0 || (newCount === 0 && siblingsCount === 1)) {
+        if (parentVertexContext === null) {
+          onInOrder?.(rootVertexRef, null);
+        } else {
           onInOrder?.(curVertexContext.parentVertexRef, parentVertexContext);
         }
         break;
       } else {
-        const parentVertexContext: VertexResolutionContext<
-          TTP | RW_TTP
-        > | null =
-          resolvedTree
-            .get(curVertexContext.parentVertexRef)
-            ?.getResolutionContext() ?? null;
         if (parentVertexContext === null) {
           break;
         }
@@ -263,6 +264,7 @@ export function traverseDepthFirst<
   ): void {
     const visitorResult = visitors?.[visitorOrderKey]?.(vertexRef.unref(), {
       resolvedTree,
+      notMutatedResolvedTree,
       visitIndex: visitorsContext[visitorOrderKey].visitIndex++,
       previousVisitedVertexRef:
         visitorsContext[visitorOrderKey].previousVisitedVertexRef,
