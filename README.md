@@ -15,4 +15,6 @@ already works.
 1. Unit tests
 2. Freeze data at some point? make trees/vertices immutable?
 3. Async traversal
-4. Breadth-first traversal
+4. Implementation for FS
+5. Benchmarks
+6. Breadth-first traversal
