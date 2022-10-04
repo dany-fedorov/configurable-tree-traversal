@@ -5,7 +5,6 @@ import type {
   TraversableObjectPropKey,
   TraversableObjectTreeInstanceConfigInput,
   TraversableObjectTTP,
-  TraversableObjectTTP_V1,
 } from '../traversable-tree-implementations/TraversableObjectTree';
 import type { Vertex } from '../core/Vertex';
 import type { TraversalVisitorOptions } from '../core/TraversalVisitor';
@@ -19,9 +18,14 @@ export type RewriteFn<
   OutK extends TraversableObjectPropKey,
   OutV,
 > = (
-  prop: TraversableObjectProp<InK, InV>,
-  options: TraversalVisitorOptions<TraversableObjectTTP_V1<InK, InV>> & {
-    vertex: Vertex<TraversableObjectTTP_V1<InK, InV>>;
+  prop: TraversableObjectProp<InK, InV> | TraversableObjectProp<OutK, OutV>,
+  options: TraversalVisitorOptions<
+    TraversableObjectTTP<InK, InV>,
+    TraversableObjectTTP<OutK, OutV>
+  > & {
+    vertex: Vertex<
+      TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
+    >;
   },
 ) =>
   | MakeMutationCommandFunctionInput<Partial<TraversableObjectProp<OutK, OutV>>>
@@ -63,7 +67,7 @@ export function rewriteObject<
   rewrite: RewriteFn<InK, InV, OutK, OutV>,
   options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
 ): RewriteObjectResult<Out> {
-  const tree = new TraversableObjectTree<In, InK, InV>({
+  const tree = new TraversableObjectTree<In, InK, InV, OutK, OutV>({
     getPropertyFromHost:
       options?.getPropertyFromHost ??
       TraversableObjectTree.getPropertyFromHostDefault(
@@ -93,8 +97,13 @@ export function rewriteObject<
     TraversableObjectTTP<OutK, OutV>
   >(tree, {
     postOrderVisitor: (
-      vertex: Vertex<TraversableObjectTTP<InK, InV>>,
-      options: TraversalVisitorOptions<TraversableObjectTTP<InK, InV>>,
+      vertex: Vertex<
+        TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
+      >,
+      options: TraversalVisitorOptions<
+        TraversableObjectTTP<InK, InV>,
+        TraversableObjectTTP<OutK, OutV>
+      >,
     ) => {
       const makeMutationCommand = makeMutationCommandFactory(vertex, options);
       const rw = rewrite(vertex.getData(), { ...options, vertex });

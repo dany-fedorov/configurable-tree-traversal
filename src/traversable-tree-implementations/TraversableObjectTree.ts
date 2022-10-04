@@ -183,7 +183,7 @@ const makeMutationCommandFactory: MakeMutationCommandFunctionFactory =
           hasRewrite &&
           Object.prototype.hasOwnProperty.call(input_2.rewrite, 'key');
         const getChildrenObjectPropertiesOf = (
-          vertexRef: CTTRef<Vertex<IN_TO_TTP>>,
+          vertexRef: CTTRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
         ): OUT_TO_TTP['VertexData'][] => {
           return (resolvedTree.getChildrenOf(vertexRef) ?? []).map((ch) =>
             ch.unref().getData(),
@@ -262,7 +262,12 @@ export class TraversableObjectTree<
   H = TraversableObject<TraversableObjectPropKey, unknown>,
   InK extends TraversableObjectPropKey = TraversableObjectPropKey,
   InV = TraversableObject<TraversableObjectPropKey, unknown> | unknown,
-> extends AbstractTraversableTree<TraversableObjectTTP<InK, InV>> {
+  OutK extends TraversableObjectPropKey = InK,
+  OutV = InV,
+> extends AbstractTraversableTree<
+  TraversableObjectTTP<InK, InV>,
+  TraversableObjectTTP<OutK, OutV>
+> {
   private readonly instanceConfig: Required<
     TraversableObjectTreeInstanceConfigInput<H, InK, InV>
   >;
@@ -299,7 +304,10 @@ export class TraversableObjectTree<
 
   makeVertex(
     vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
-    _options: MakeVertexOptions<TraversableObjectTTP<InK, InV>>,
+    _options: MakeVertexOptions<
+      TraversableObjectTTP<InK, InV>,
+      TraversableObjectTTP<OutK, OutV>
+    >,
   ): VertexContent<TraversableObjectTTP<InK, InV>> | null {
     const { getChildrenOfProperty } = this.instanceConfig;
     const hints = getChildrenOfProperty(vertexHint);

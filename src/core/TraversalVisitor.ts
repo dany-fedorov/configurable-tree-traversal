@@ -33,18 +33,21 @@ export interface TraversalVisitorResult<RW_TTP extends TreeTypeParameters> {
   commands?: TraversalVisitorCommand<RW_TTP>[];
 }
 
-export type TraversalVisitorOptions<TTP extends TreeTypeParameters> = {
-  resolvedTree: ResolvedTree<TTP>;
+export type TraversalVisitorOptions<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters = TTP,
+> = {
+  resolvedTree: ResolvedTree<TTP | RW_TTP>;
   visitIndex: number;
-  previousVisitedVertexRef: CTTRef<Vertex<TTP>> | null;
+  previousVisitedVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
   isRoot: boolean;
-  vertexRef: CTTRef<Vertex<TTP>>;
+  vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
 };
 
 export type TraversalVisitor<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > = (
-  vertex: Vertex<TTP>,
-  options: TraversalVisitorOptions<TTP>,
+  vertex: Vertex<TTP | RW_TTP>,
+  options: TraversalVisitorOptions<TTP, RW_TTP>,
 ) => TraversalVisitorResult<RW_TTP> | undefined | void;

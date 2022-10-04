@@ -7,9 +7,9 @@ export type MakeVertexOptions<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > = {
-  resolutionContext: VertexResolutionContext<TTP, RW_TTP>;
-  resolvedTree: ResolvedTree<TTP, RW_TTP>;
-  notMutatedResolvedTree: ResolvedTree<TTP, TTP> | null;
+  resolutionContext: VertexResolutionContext<TTP | RW_TTP>;
+  resolvedTree: ResolvedTree<TTP | RW_TTP>;
+  notMutatedResolvedTree: ResolvedTree<TTP> | null;
 };
 
 export type TraversableTree<
@@ -24,8 +24,10 @@ export type TraversableTree<
   ): VertexContent<TTP> | null;
 };
 
-export abstract class AbstractTraversableTree<TTP extends TreeTypeParameters>
-  implements TraversableTree<TTP>
+export abstract class AbstractTraversableTree<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters = TTP,
+> implements TraversableTree<TTP, RW_TTP>
 {
   abstract makeRoot(): VertexContent<TTP> | null;
 
