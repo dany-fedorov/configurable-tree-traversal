@@ -17,37 +17,49 @@ export enum ChildrenOrder {
 
 export type DepthFirstTraversalConfig = {
   childrenOrder: ChildrenOrder;
+  saveNotMutatedResolvedTree: boolean;
 };
 
 export const DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG: DepthFirstTraversalConfig = {
   childrenOrder: ChildrenOrder.DEFAULT,
+  saveNotMutatedResolvedTree: true,
 };
 
-export type TraversalResult<TTP extends TreeTypeParameters> = {
-  resolvedTree: ResolvedTree<TTP>;
+export type TraversalResult<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = {
+  resolvedTree: ResolvedTree<TTP, RW_TTP>;
+  notMutatedResolvedTree: ResolvedTree<TTP, TTP> | null;
 };
 
-export type DepthFirstVisitors<TTP extends TreeTypeParameters> = {
-  preOrderVisitor?: TraversalVisitor<TTP>;
-  postOrderVisitor?: TraversalVisitor<TTP>;
-  inOrderVisitor?: TraversalVisitor<TTP>;
+export type DepthFirstVisitors<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = {
+  preOrderVisitor?: TraversalVisitor<TTP, RW_TTP>;
+  postOrderVisitor?: TraversalVisitor<TTP, RW_TTP>;
+  inOrderVisitor?: TraversalVisitor<TTP, RW_TTP>;
 };
 
 export function traverseDepthFirst<
   TTP extends TreeTypeParameters = TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters = TTP,
 >(
-  tree: TraversableTree<TTP>,
-  visitors: DepthFirstVisitors<TTP>,
+  tree: TraversableTree<TTP, RW_TTP>,
+  visitors: DepthFirstVisitors<TTP, RW_TTP>,
   config: Partial<DepthFirstTraversalConfig> = DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
-): TraversalResult<TTP> {
-  type ThisVertexResolutionContext = VertexResolutionContext<TTP>;
+): TraversalResult<TTP, RW_TTP> {
+  type ThisVertexResolutionContext = VertexResolutionContext<TTP | RW_TTP>;
   type ThisVertexRef = CTTRef<Vertex<TTP>>;
   type ThisTraversalOrderContext = {
     visitIndex: number;
     previousVisitedVertexRef: ThisVertexRef | null;
   };
   type ThisVisitorsContext = {
-    [K in keyof Required<DepthFirstVisitors<TTP>>]: ThisTraversalOrderContext;
+    [K in keyof Required<
+      DepthFirstVisitors<TTP, RW_TTP>
+    >]: ThisTraversalOrderContext;
   };
 
   const effectiveConfig =
@@ -69,9 +81,11 @@ export function traverseDepthFirst<
       previousVisitedVertexRef: null,
     },
   };
-  const resolvedTree = new ResolvedTree<TTP>({
-    traversableTree: tree,
-  });
+  const resolvedTree = new ResolvedTree<TTP, RW_TTP>();
+  const notMutatedResolvedTree =
+    config?.saveNotMutatedResolvedTree !== true
+      ? null
+      : new ResolvedTree<TTP, TTP>();
   const postOrderNotVisitedChildrenCountMap = new Map<ThisVertexRef, number>();
   const inOrderNotVisitedChildrenCountMap = new Map<ThisVertexRef, number>();
   let haltTraversalFlag = false;
@@ -84,6 +98,7 @@ export function traverseDepthFirst<
   if (rootVertexContent === null) {
     return {
       resolvedTree,
+      notMutatedResolvedTree,
     };
   }
   const rootVertexRef = new CTTRef(new Vertex(rootVertexContent));
@@ -96,6 +111,7 @@ export function traverseDepthFirst<
     const vertexContent = tree.makeVertex(vertexContext.vertexHint, {
       resolutionContext: vertexContext,
       resolvedTree,
+      notMutatedResolvedTree,
     });
     if (vertexContent === null) {
       continue;
@@ -206,7 +222,7 @@ export function traverseDepthFirst<
   }
 
   function visitVertex(
-    visitorOrderKey: keyof Required<DepthFirstVisitors<TTP>>,
+    visitorOrderKey: keyof Required<DepthFirstVisitors<TTP, RW_TTP>>,
     vertexRef: ThisVertexRef,
   ): void {
     const visitorResult = visitors?.[visitorOrderKey]?.(vertexRef.unref(), {
@@ -219,7 +235,7 @@ export function traverseDepthFirst<
     });
     visitorsContext[visitorOrderKey].previousVisitedVertexRef = vertexRef;
     visitorResult?.commands?.forEach(
-      (command: TraversalVisitorCommand<TTP>) => {
+      (command: TraversalVisitorCommand<RW_TTP>) => {
         switch (command.commandName) {
           case TraversalVisitorCommandName.HALT_TRAVERSAL:
             haltTraversalFlag = true;

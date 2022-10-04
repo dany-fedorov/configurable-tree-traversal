@@ -6,83 +6,99 @@ import { jsonStringifySafe } from '../utils/jsonStringifySafe';
 import { AbstractTraversableTree, TraversableTree } from './TraversableTree';
 import type { ResolvedTreeTypeParameters } from './ResolvedTreeTypeParameters';
 
-export type VertexResolutionContext<TTP extends TreeTypeParameters> = {
+export type VertexResolutionContext<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = {
   depth: number;
-  parentVertex: Vertex<TTP>;
-  parentVertexRef: CTTRef<Vertex<TTP>>;
+  parentVertex: Vertex<TTP | RW_TTP>;
+  parentVertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
   vertexHintOriginalOrderIndex: number;
   vertexHintTraversalOrderIndex: number;
   vertexHint: TTP['VertexHint'];
 };
 
-export type VertexResolvedData<TTP extends TreeTypeParameters> = {
-  resolutionContext: VertexResolutionContext<TTP> | null;
+export type VertexResolvedData<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = {
+  resolutionContext: VertexResolutionContext<TTP, RW_TTP> | null;
 };
 
-export type VertexResolvedContent<TTP extends TreeTypeParameters> =
-  CTTAbstractParent<VertexResolvedData<TTP>, CTTRef<Vertex<TTP>>>;
+export type VertexResolvedContent<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = CTTAbstractParent<
+  VertexResolvedData<TTP, RW_TTP>,
+  CTTRef<Vertex<TTP | RW_TTP>>
+>;
 
-export class VertexResolved<TTP extends TreeTypeParameters>
-  implements VertexResolvedContent<TTP>
+export class VertexResolved<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> implements VertexResolvedContent<TTP, RW_TTP>
 {
-  readonly $d: VertexResolvedData<TTP>;
-  readonly $c: CTTRef<Vertex<TTP>>[];
+  readonly $d: VertexResolvedData<TTP, RW_TTP>;
+  readonly $c: CTTRef<Vertex<TTP | RW_TTP>>[];
 
-  constructor(vertexContent: VertexResolvedContent<TTP>) {
+  constructor(vertexContent: VertexResolvedContent<TTP, RW_TTP>) {
     this.$d = vertexContent.$d;
     this.$c = vertexContent.$c;
   }
 
-  pushChildren(children: Array<CTTRef<Vertex<TTP>>>): void {
+  pushChildren(children: Array<CTTRef<Vertex<TTP | RW_TTP>>>): void {
     this.$c.push(...children);
   }
 
-  getResolutionContext(): VertexResolutionContext<TTP> | null {
+  getResolutionContext(): VertexResolutionContext<TTP, RW_TTP> | null {
     return this.$d.resolutionContext;
   }
 
-  getChildren(): CTTRef<Vertex<TTP>>[] {
+  getChildren(): CTTRef<Vertex<TTP | RW_TTP>>[] {
     return this.$c;
   }
 
-  getParent(): CTTRef<Vertex<TTP>> | null {
+  getParent(): CTTRef<Vertex<TTP | RW_TTP>> | null {
     return this.$d.resolutionContext?.parentVertexRef ?? null;
   }
 
-  clone(content?: Partial<VertexResolvedContent<TTP>>): VertexResolved<TTP> {
-    return new VertexResolved<TTP>({
+  clone(
+    content?: Partial<VertexResolvedContent<TTP, RW_TTP>>,
+  ): VertexResolved<TTP, RW_TTP> {
+    return new VertexResolved<TTP, RW_TTP>({
       $d: content?.$d ?? this.$d,
       $c: content?.$c ?? this.$c,
     });
   }
 }
 
-export type ResolvedTreeMap<TTP extends TreeTypeParameters> = Map<
-  CTTRef<Vertex<TTP>>,
-  VertexResolved<TTP>
->;
+export type ResolvedTreeMap<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = Map<CTTRef<Vertex<TTP | RW_TTP>>, VertexResolved<TTP, RW_TTP>>;
 
-type ResolvedTreeConfig<TTP extends TreeTypeParameters> = {
-  traversableTree: TraversableTree<TTP>;
-};
+// type ResolvedTreeConfig<
+//   TTP extends TreeTypeParameters,
+//   RW_TTP extends TreeTypeParameters,
+// > = {};
 
 export type GetPathToOptions = {
   noRoot?: boolean;
+  noSelf?: boolean;
 };
 
 export class ResolvedTree<
   TTP extends TreeTypeParameters,
-> extends AbstractTraversableTree<ResolvedTreeTypeParameters<TTP>> {
+  RW_TTP extends TreeTypeParameters = TTP,
+> extends AbstractTraversableTree<ResolvedTreeTypeParameters<TTP | RW_TTP>> {
   private _isResolved = false;
-  private map: ResolvedTreeMap<TTP>;
-  private root: CTTRef<Vertex<TTP>> | null;
-  public readonly traversableTree: TraversableTree<TTP>;
+  private map: ResolvedTreeMap<TTP, RW_TTP>;
+  private root: CTTRef<Vertex<TTP | RW_TTP>> | null;
 
-  constructor(config: ResolvedTreeConfig<TTP>) {
+  constructor(/*config: ResolvedTreeConfig<TTP, RW_TTP>*/) {
     super();
     this.map = new Map();
     this.root = null;
-    this.traversableTree = config.traversableTree;
   }
 
   markAsResolved() {
@@ -93,35 +109,42 @@ export class ResolvedTree<
     return this._isResolved;
   }
 
-  getRoot(): CTTRef<Vertex<TTP>> | null {
+  getRoot(): CTTRef<Vertex<TTP | RW_TTP>> | null {
     return this.root;
   }
 
-  setRoot(root: CTTRef<Vertex<TTP>>): void {
+  setRoot(root: CTTRef<Vertex<TTP | RW_TTP>>): void {
     this.root = root;
   }
 
   getChildrenOf(
-    vertexRef: CTTRef<Vertex<TTP>>,
-  ): Array<CTTRef<Vertex<TTP>>> | null {
+    vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
+  ): Array<CTTRef<Vertex<TTP | RW_TTP>>> | null {
     return this.map.get(vertexRef)?.getChildren() ?? null;
   }
 
-  getParentOf(vertexRef: CTTRef<Vertex<TTP>>): CTTRef<Vertex<TTP>> | null {
+  getParentOf(
+    vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
+  ): CTTRef<Vertex<TTP | RW_TTP>> | null {
     return this.get(vertexRef)?.getParent() ?? null;
   }
 
-  deleteChildOf(parent: CTTRef<Vertex<TTP>>, child: CTTRef<Vertex<TTP>>): void {
+  deleteChildOf(
+    parent: CTTRef<Vertex<TTP | RW_TTP>>,
+    child: CTTRef<Vertex<TTP | RW_TTP>>,
+  ): void {
     const resolved = this.get(parent);
     if (resolved !== null) {
       const newResolved = resolved.clone({
-        $c: resolved.getChildren().filter((c) => c !== child),
+        $c: resolved
+          .getChildren()
+          .filter((c: CTTRef<Vertex<TTP | RW_TTP>>) => c !== child),
       });
       this.set(parent, newResolved);
     }
   }
 
-  delete(vertexRef: CTTRef<Vertex<TTP>>): void {
+  delete(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): void {
     const parent = this.getParentOf(vertexRef);
     if (parent !== null) {
       this.deleteChildOf(parent, vertexRef);
@@ -129,30 +152,32 @@ export class ResolvedTree<
     this.map.delete(vertexRef);
   }
 
-  has(vertexRef: CTTRef<Vertex<TTP>>): boolean {
+  has(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): boolean {
     return this.map.has(vertexRef);
   }
 
-  get(vertexRef: CTTRef<Vertex<TTP>>): VertexResolved<TTP> | null {
+  get(
+    vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
+  ): VertexResolved<TTP, RW_TTP> | null {
     return this.map.get(vertexRef) ?? null;
   }
 
   set(
-    vertexRef: CTTRef<Vertex<TTP>>,
-    vertexResolved: VertexResolved<TTP>,
+    vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
+    vertexResolved: VertexResolved<TTP, RW_TTP>,
   ): void {
     this.map.set(vertexRef, vertexResolved);
   }
 
   getResolutionContextOf(
-    vertexRef: CTTRef<Vertex<TTP>>,
-  ): VertexResolutionContext<TTP> | null {
+    vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
+  ): VertexResolutionContext<TTP, RW_TTP> | null {
     return this.get(vertexRef)?.getResolutionContext() ?? null;
   }
 
   pushChildrenTo(
-    vertexRef: CTTRef<Vertex<TTP>>,
-    children: Array<CTTRef<Vertex<TTP>>>,
+    vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
+    children: Array<CTTRef<Vertex<TTP | RW_TTP>>>,
   ): void {
     const parentVertexResolved = this.get(vertexRef);
     if (parentVertexResolved == null) {
@@ -162,11 +187,12 @@ export class ResolvedTree<
   }
 
   getPathTo(
-    vertexRef: CTTRef<Vertex<TTP>>,
+    vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
     options?: GetPathToOptions,
-  ): CTTRef<Vertex<TTP>>[] {
+  ): CTTRef<Vertex<TTP | RW_TTP>>[] {
     let curVertex = vertexRef;
-    const reversedPath: CTTRef<Vertex<TTP>>[] = [curVertex];
+    const reversedPath: CTTRef<Vertex<TTP | RW_TTP>>[] =
+      options?.noSelf === true ? [] : [curVertex];
     while (true) {
       const parent = this.getParentOf(curVertex);
       if (parent === null) {
@@ -186,11 +212,11 @@ export class ResolvedTree<
 
   onPreOrderVisit(
     vertexRef: CTTRef<Vertex<TTP>>,
-    vertexContext: VertexResolutionContext<TTP> | null,
+    vertexContext: VertexResolutionContext<TTP, TTP> | null,
   ): void {
     this.set(
       vertexRef,
-      new VertexResolved<TTP>({
+      new VertexResolved<TTP, TTP>({
         $d: { resolutionContext: vertexContext },
         $c: [],
       }),
@@ -202,7 +228,7 @@ export class ResolvedTree<
     }
   }
 
-  makeRoot(): VertexContent<ResolvedTreeTypeParameters<TTP>> | null {
+  makeRoot(): VertexContent<ResolvedTreeTypeParameters<TTP | RW_TTP>> | null {
     if (this.root === null) {
       return null;
     }
@@ -213,8 +239,8 @@ export class ResolvedTree<
   }
 
   makeVertex(
-    vertexHint: ResolvedTreeTypeParameters<TTP>['VertexHint'],
-  ): VertexContent<ResolvedTreeTypeParameters<TTP>> | null {
+    vertexHint: ResolvedTreeTypeParameters<TTP | RW_TTP>['VertexHint'],
+  ): VertexContent<ResolvedTreeTypeParameters<TTP | RW_TTP>> | null {
     return {
       $d: vertexHint,
       $c: this.getChildrenOf(vertexHint) ?? [],

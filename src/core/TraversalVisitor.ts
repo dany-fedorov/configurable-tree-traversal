@@ -10,25 +10,27 @@ export enum TraversalVisitorCommandName {
   DELETE_VERTEX = 'DELETE_VERTEX',
 }
 
-export type TraversalVisitorCommandArguments<TTP extends TreeTypeParameters> = {
+export type TraversalVisitorCommandArguments<
+  RW_TTP extends TreeTypeParameters,
+> = {
   [TraversalVisitorCommandName.NOOP]: void;
   [TraversalVisitorCommandName.HALT_TRAVERSAL]: void;
   [TraversalVisitorCommandName.DELETE_VERTEX]: void;
   [TraversalVisitorCommandName.REWRITE_VERTEX_DATA]: {
-    newData: TTP['VertexData'];
+    newData: RW_TTP['VertexData'];
   };
 };
 
 export type TraversalVisitorCommand<
-  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
   T extends TraversalVisitorCommandName = TraversalVisitorCommandName,
 > = {
   commandName: T;
-  commandArguments?: TraversalVisitorCommandArguments<TTP>[T];
+  commandArguments?: TraversalVisitorCommandArguments<RW_TTP>[T];
 };
 
-export interface TraversalVisitorResult<TTP extends TreeTypeParameters> {
-  commands?: TraversalVisitorCommand<TTP>[];
+export interface TraversalVisitorResult<RW_TTP extends TreeTypeParameters> {
+  commands?: TraversalVisitorCommand<RW_TTP>[];
 }
 
 export type TraversalVisitorOptions<TTP extends TreeTypeParameters> = {
@@ -39,7 +41,10 @@ export type TraversalVisitorOptions<TTP extends TreeTypeParameters> = {
   vertexRef: CTTRef<Vertex<TTP>>;
 };
 
-export type TraversalVisitor<TTP extends TreeTypeParameters> = (
+export type TraversalVisitor<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = (
   vertex: Vertex<TTP>,
   options: TraversalVisitorOptions<TTP>,
-) => TraversalVisitorResult<TTP> | undefined | void;
+) => TraversalVisitorResult<RW_TTP> | undefined | void;

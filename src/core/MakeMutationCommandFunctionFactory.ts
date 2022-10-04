@@ -18,19 +18,23 @@ export type MakeMutationCommandFunctionResult<TTP extends TreeTypeParameters> =
     | TraversalVisitorCommandName.NOOP
   >;
 
-export type MakeMutationCommandFunction<
-  TTP extends TreeTypeParameters,
-  RW_V,
-> = (
-  input?: MakeMutationCommandFunctionInput<RW_V>,
+export type MakeMutationCommandFunction<TTP extends TreeTypeParameters> = (
+  input_2?: MakeMutationCommandFunctionInput<any>,
 ) => MakeMutationCommandFunctionResult<TTP>;
 
+export type MakeMutationCommandFunctionFactory_2<
+  IN_TTP extends TreeTypeParameters,
+  OUT_TTP extends TreeTypeParameters,
+> = (
+  ...visitorArguments: Parameters<TraversalVisitor<IN_TTP, OUT_TTP>>
+) => MakeMutationCommandFunction<OUT_TTP>;
+
 export type MakeMutationCommandFunctionFactory = <
-  TTP extends TreeTypeParameters<any, any>, // See [1]
-  RW_V,
+  IN_TTP extends TreeTypeParameters<any, any>, // See [1]
+  OUT_TTP extends TreeTypeParameters<any, any>, // See [1]
 >(
-  ...visitorArguments: Parameters<TraversalVisitor<TTP>>
-) => MakeMutationCommandFunction<TTP, RW_V>;
+  input_0?: any,
+) => MakeMutationCommandFunctionFactory_2<IN_TTP, OUT_TTP>;
 
 /**
  * [1]

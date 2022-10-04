@@ -1,9 +1,11 @@
 import type {
+  MakeMutationCommandFunctionFactoryConfiguration,
   TraversableObject,
   TraversableObjectProp,
   TraversableObjectPropKey,
   TraversableObjectTreeInstanceConfigInput,
   TraversableObjectTTP,
+  TraversableObjectTTP_V1,
 } from '../traversable-tree-implementations/TraversableObjectTree';
 import type { Vertex } from '../core/Vertex';
 import type { TraversalVisitorOptions } from '../core/TraversalVisitor';
@@ -11,49 +13,90 @@ import type { MakeMutationCommandFunctionInput } from '../core/MakeMutationComma
 import { TraversableObjectTree } from '../traversable-tree-implementations/TraversableObjectTree';
 import { traverseDepthFirst } from '../traversals/traverseDepthFirst';
 
-export type RewriteFn<K extends TraversableObjectPropKey, PV> = (
-  prop: TraversableObjectProp<K, PV>,
-  options: TraversalVisitorOptions<TraversableObjectTTP<K, PV>> & {
-    vertex: Vertex<TraversableObjectTTP<K, PV>>;
+export type RewriteFn<
+  InK extends TraversableObjectPropKey,
+  InV,
+  OutK extends TraversableObjectPropKey,
+  OutV,
+> = (
+  prop: TraversableObjectProp<InK, InV>,
+  options: TraversalVisitorOptions<TraversableObjectTTP_V1<InK, InV>> & {
+    vertex: Vertex<TraversableObjectTTP_V1<InK, InV>>;
   },
 ) =>
-  | MakeMutationCommandFunctionInput<Partial<TraversableObjectProp<K, PV>>>
+  | MakeMutationCommandFunctionInput<Partial<TraversableObjectProp<OutK, OutV>>>
   | undefined;
 
-export const REWRITE_OBJECT_DEFAULT_ROOT_KEY =
-  'rewriteObject::rootKey::default';
+export const __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ =
+  '__REWRITE_OBJECT_DEFAULT_ROOT_KEY__';
 
-export type RewriteObjectResult<R> = {
-  result: R;
+export type RewriteObjectResult<Out> = {
+  result: Out | null;
+};
+
+type RewriteObjectOptions<
+  In,
+  InK extends TraversableObjectPropKey,
+  InV,
+  Out,
+  OutK extends TraversableObjectPropKey,
+  OutV,
+> = Partial<
+  Omit<TraversableObjectTreeInstanceConfigInput<In, InK, InV>, 'host'> &
+    MakeMutationCommandFunctionFactoryConfiguration<
+      TraversableObjectTTP<InK, InV>,
+      TraversableObjectTTP<OutK, OutV>
+    >
+> & {
+  getResultFromRootValue?: (value: OutV | null) => Out;
 };
 
 export function rewriteObject<
-  K extends TraversableObjectPropKey = TraversableObjectPropKey,
-  PV = unknown,
-  R = unknown,
+  In = TraversableObject<TraversableObjectPropKey, unknown>,
+  InK extends TraversableObjectPropKey = TraversableObjectPropKey,
+  InV = TraversableObject<TraversableObjectPropKey, unknown> | unknown,
+  Out = In,
+  OutK extends TraversableObjectPropKey = InK,
+  OutV = InV,
 >(
-  obj: TraversableObject<K, PV>,
-  rewrite: RewriteFn<K, PV>,
-  options?: Partial<
-    Omit<TraversableObjectTreeInstanceConfigInput<K, PV>, 'host'>
-  >,
-): RewriteObjectResult<R> {
-  const tree = new TraversableObjectTree({
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    rootKey: options?.rootKey || REWRITE_OBJECT_DEFAULT_ROOT_KEY,
+  obj: In,
+  rewrite: RewriteFn<InK, InV, OutK, OutV>,
+  options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
+): RewriteObjectResult<Out> {
+  const tree = new TraversableObjectTree<In, InK, InV>({
+    getPropertyFromHost:
+      options?.getPropertyFromHost ??
+      TraversableObjectTree.getPropertyFromHostDefault(
+        __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ as InK,
+      ),
+    ...(!options?.getPropertyFromHost
+      ? {}
+      : { getPropertyFromHost: options.getPropertyFromHost }),
     host: obj,
   });
-  const { resolvedTree } = traverseDepthFirst(tree, {
+  const makeMutationCommandFactory =
+    TraversableObjectTree.makeMutationCommandFactory<
+      TraversableObjectTTP<InK, InV>,
+      TraversableObjectTTP<OutK, OutV>
+    >({
+      ...(options?.isArray ? { isArray: options.isArray } : {}),
+      ...(options?.isObject ? { isObject: options.isObject } : {}),
+      ...(options?.assembleArray
+        ? { assembleArray: options.assembleArray }
+        : {}),
+      ...(options?.assembleObject
+        ? { assembleObject: options.assembleObject }
+        : {}),
+    });
+  const { resolvedTree } = traverseDepthFirst<
+    TraversableObjectTTP<InK, InV>,
+    TraversableObjectTTP<OutK, OutV>
+  >(tree, {
     postOrderVisitor: (
-      vertex: Vertex<TraversableObjectTTP<K, PV>>,
-      options: TraversalVisitorOptions<TraversableObjectTTP<K, PV>>,
+      vertex: Vertex<TraversableObjectTTP<InK, InV>>,
+      options: TraversalVisitorOptions<TraversableObjectTTP<InK, InV>>,
     ) => {
-      const makeMutationCommand =
-        TraversableObjectTree.makeMutationCommandFactory<
-          TraversableObjectTTP<K, PV>,
-          Partial<TraversableObjectTTP<K, PV>['VertexData']>
-        >(vertex, options);
+      const makeMutationCommand = makeMutationCommandFactory(vertex, options);
       const rw = rewrite(vertex.getData(), { ...options, vertex });
       const hasDelete =
         rw && Object.prototype.hasOwnProperty.call(rw, 'delete');
@@ -69,8 +112,13 @@ export function rewriteObject<
       };
     },
   });
-  const result = (resolvedTree.getRoot()?.unref().getData().value ??
-    null) as unknown as R;
+  const rootValue =
+    (resolvedTree.getRoot()?.unref().getData().value as unknown as OutV) ??
+    null;
+  const result =
+    typeof options?.getResultFromRootValue === 'function'
+      ? options.getResultFromRootValue(rootValue)
+      : (rootValue as unknown as Out) ?? null;
   return {
     result,
   };
