@@ -2,7 +2,7 @@ import * as uuid from 'uuid';
 
 export class CTTRef<T> {
   private _ref: T;
-  private _id: string;
+  private readonly _id: string;
 
   constructor(ref: T) {
     this._ref = ref;
