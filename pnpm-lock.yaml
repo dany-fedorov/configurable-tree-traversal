@@ -5,6 +5,7 @@ specifiers:
   '@tsconfig/node16-strictest': ^1.0.3
   '@types/jest': ^28.1.4
   '@types/node': ^18.7.3
+  '@types/uuid': ^8.3.4
   '@typescript-eslint/eslint-plugin': 5.29.0
   '@typescript-eslint/parser': 5.29.0
   chokidar: ^3.5.3
@@ -26,6 +27,7 @@ devDependencies:
   '@tsconfig/node16-strictest': 1.0.3
   '@types/jest': 28.1.6
   '@types/node': 18.7.3
+  '@types/uuid': 8.3.4
   '@typescript-eslint/eslint-plugin': 5.29.0_qqmbkyiaixvppdwswpytuf2hgm
   '@typescript-eslint/parser': 5.29.0_b5e7v2qnwxfo6hmiq56u52mz3e
   chokidar: 3.5.3
@@ -816,6 +818,10 @@ packages:
 
   /@types/stack-utils/2.0.1:
     resolution: {integrity: sha512-Hl219/BT5fLAaz6NDkSuhzasy49dwQS/DSdu4MdggFB8zcXv7vflBI3xp7FEmkmdDkBUI2bPUNeMttp2knYdxw==}
+    dev: true
+
+  /@types/uuid/8.3.4:
+    resolution: {integrity: sha512-c/I8ZRb51j+pYGAu5CrFMRxqZ2ke4y2grEBO5AUjgSkSk+qT2Ea+OdWElz/OiMf5MNpn2b17kuVBwZLQJXzihw==}
     dev: true
 
   /@types/yargs-parser/21.0.0:
