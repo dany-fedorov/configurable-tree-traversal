@@ -124,13 +124,17 @@ export type TO_MakeMutationCommandFunctionFactoryConfiguration<
   IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
 > = {
-  isArray?: (data: IN_TO_TTP['VertexData']) => boolean;
-  isObject?: (data: IN_TO_TTP['VertexData']) => boolean;
+  isArray?: (vertexData: IN_TO_TTP['VertexData']) => boolean;
+  isObject?: (vertexData: IN_TO_TTP['VertexData']) => boolean;
   assembleArray?: (
     children: OUT_TO_TTP['VertexData'][],
+    vertexData: IN_TO_TTP['VertexData'],
+    visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>,
   ) => OUT_TO_TTP['VertexData']['value'];
   assembleObject?: (
     children: OUT_TO_TTP['VertexData'][],
+    vertexData: IN_TO_TTP['VertexData'],
+    visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>,
   ) => OUT_TO_TTP['VertexData']['value'];
   assembledMap?: Map<
     CTTRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
@@ -230,6 +234,8 @@ const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
         if (isArray(vertexData)) {
           const res = assembleArray(
             TraversableObjectTree_getChildrenObjectPropertiesOf(vertexRef),
+            vertex.getData(),
+            visitorArguments,
           );
           if (saveToMap) {
             assembledMap.set(vertexRef, res);
@@ -238,6 +244,8 @@ const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
         } else if (isObject(vertexData)) {
           const res = assembleObject(
             TraversableObjectTree_getChildrenObjectPropertiesOf(vertexRef),
+            vertex.getData(),
+            visitorArguments,
           );
           if (saveToMap) {
             assembledMap.set(vertexRef, res);
