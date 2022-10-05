@@ -46,7 +46,7 @@ export const __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ =
   '__REWRITE_OBJECT_DEFAULT_ROOT_KEY__';
 
 export type RewriteObjectResult<Out> = {
-  outputObject: Out | null;
+  outputObject: Out;
 };
 
 type RewriteObjectOptions<
@@ -64,8 +64,9 @@ type RewriteObjectOptions<
     > &
     DepthFirstTraversalConfig
 > & {
+  rewrite?: RewriteFn<InK, InV, OutK, OutV>;
   getOutputObjectFromRootValue?: (value: OutV | null) => Out;
-  assembleCompositeBeforeVisit?: boolean;
+  assembleCompositesBeforeRewrite?: boolean;
 };
 
 export function rewriteObject<
@@ -77,15 +78,16 @@ export function rewriteObject<
   OutV = InV,
 >(
   inputObject: In,
-  rewrite: RewriteFn<InK, InV, OutK, OutV>,
   options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
 ): RewriteObjectResult<Out> {
   const assembleCompositeBeforeVisit =
-    options?.assembleCompositeBeforeVisit ?? false;
+    options?.assembleCompositesBeforeRewrite ?? false;
+  const rewrite =
+    typeof options?.rewrite === 'function' ? options.rewrite : null;
   const getOutputObjectFromRootValue =
     typeof options?.getOutputObjectFromRootValue === 'function'
       ? options.getOutputObjectFromRootValue
-      : (rootValue: OutV | null) => (rootValue as unknown as Out) ?? null;
+      : (rootValue: OutV | null) => rootValue as unknown as Out;
   const tree = new TraversableObjectTree<In, InK, InV, OutK, OutV>({
     getRootPropertyFromInputObject:
       options?.getRootPropertyFromInputObject ??
@@ -140,7 +142,7 @@ export function rewriteObject<
          * [1] But here rewriteObject guarantees that this is TraversableObjectProp<InK, InV> since we only rewrite on
          * postorder
          */
-        const rw = rewrite(rwInput, {
+        const rw = rewrite?.(rwInput, {
           ...options,
           vertex,
           getPath: (thisOptions) =>
@@ -175,6 +177,9 @@ export function rewriteObject<
     (resolvedTree.getRoot()?.unref().getData().value as unknown as OutV) ??
     null;
   const outputObject = getOutputObjectFromRootValue(rootValue);
+  if (outputObject === null) {
+    throw new Error(`outputObject is null`);
+  }
   return {
     outputObject,
   };
