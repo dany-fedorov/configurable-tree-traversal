@@ -111,7 +111,7 @@ export class ResolvedTree<
     return this.get(vertexRef)?.getParent() ?? null;
   }
 
-  deleteChildOf(parent: CTTRef<Vertex<TTP>>, child: CTTRef<Vertex<TTP>>): void {
+  private deleteChildOf(parent: CTTRef<Vertex<TTP>>, child: CTTRef<Vertex<TTP>>): void {
     const resolved = this.get(parent);
     if (resolved !== null) {
       const newResolved = resolved.clone({
