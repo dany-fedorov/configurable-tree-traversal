@@ -94,6 +94,9 @@ export function rewriteObject<
       TraversableObjectTree.getRootPropertyFromInputObjectDefault(
         __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ as InK,
       ),
+    getChildrenOfProperty:
+      options?.getChildrenOfProperty ??
+      TraversableObjectTree.getChildrenOfPropertyDefault,
     inputObject,
   });
   const makeMutationCommandFactory =
