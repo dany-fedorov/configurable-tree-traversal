@@ -181,7 +181,7 @@ const MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT = {
       unknown
     >[],
   ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
-    return children.map((ch) => ch.value);
+    return processedChildren.map((ch) => ch.value);
   },
   assembleObject: (
     processedChildren: TraversableObjectProp<
@@ -189,7 +189,7 @@ const MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT = {
       unknown
     >[],
   ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
-    return Object.fromEntries(children.map((ch) => [ch.key, ch.value]));
+    return Object.fromEntries(processedChildren.map((ch) => [ch.key, ch.value]));
   },
 };
 
