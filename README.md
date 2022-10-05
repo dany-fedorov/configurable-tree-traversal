@@ -12,9 +12,11 @@ already works.
 
 # TODO
 
-1. Unit tests
-2. Freeze data at some point? make trees/vertices immutable?
+1. Add self-reference test
+2. --
 3. Async traversal
-4. Implementation for FS
-5. Benchmarks
-6. Breadth-first traversal
+4. Implementation for FS (with a way to keep fs and tree in sync)
+5. Unit tests
+6. Freeze data at some point? make trees/vertices immutable?
+7. Benchmarks
+8. Breadth-first traversal
