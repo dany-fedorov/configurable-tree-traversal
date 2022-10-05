@@ -1,17 +1,13 @@
-import { traverseDepthFirst } from '../src/traversals/traverseDepthFirst';
+import {
+  ChildrenOrder,
+  traverseDepthFirst,
+} from '../src/traversals/traverseDepthFirst';
 // import type { Vertex } from '../src/core/Vertex';
 // import type { TraversableTreeParametersFromTraversableTree } from '../src/core/TraversableTreeParametersFromTraversableTree';
 // import type { TraversalVisitorOptions } from '../src/core/TraversalVisitor';
 import { TraversableObjectTree } from '../src/traversable-tree-implementations/TraversableObjectTree';
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
 // import { rewriteObject } from '../src/tools/rewriteObject';
-import type {} from // JsonArray,
-// JsonObject,
-// JsonPrimitive,
-// KvasInMemoryJsonKey,
-// KvasInMemoryJsonKey,
-// KvasInMemoryJsonMapHost,
-'./kvas';
 // import { KvasInMemoryJsonMap } from './kvas';
 // import type { TraversableObject } from '../src/traversable-tree-implementations';
 
@@ -172,7 +168,7 @@ import type {} from // JsonArray,
 };*/
 
 const main = () => {
-  const host = {
+  const inputObject = {
     a: 1,
     b: 2,
     c: [1, 2, 1, 3],
@@ -181,36 +177,36 @@ const main = () => {
     f: { f1: { f2: 'heh' } },
     g: [{ g1: 123, g11: { g22: [1, 2, 3, 4, 3, 2, 1] } }],
   };
-  console.log(jsonStringifySafe(host, 2));
-  const tree = new TraversableObjectTree({ host });
+  console.log(jsonStringifySafe(inputObject, 2));
+  const tree = new TraversableObjectTree({ inputObject });
   traverseDepthFirst(tree, {
-    inOrderVisitor: (vertex, options) => {
+    postOrderVisitor: (vertex, options) => {
       const p = options.resolvedTree.getPathTo(options.vertexRef, {
         noRoot: true,
       });
       console.log(
         // options.vertexRef,
-        '------------------------------\n',
-        options.vertexRef.getId(),
+        // '------------------------------\n',
+        // options.vertexRef.getId(),
         p.map((ps) => ps.unref().getData().key),
         typeof vertex.getData().value === 'object'
           ? 'OBJECT'
           : vertex.getData().value,
-        '\n<---------\n',
-        options.previousVisitedVertexRef === null
-          ? 'NONE'
-          : options.previousVisitedVertexRef.getId(),
-        options.previousVisitedVertexRef === null
-          ? 'NONE'
-          : options.resolvedTree
-              .getPathTo(options.previousVisitedVertexRef, {
-                noRoot: true,
-              })
-              .map((ps) => ps.unref().getData().key),
-        typeof options.previousVisitedVertexRef?.unref().getData().value ===
-          'object'
-          ? 'OBJECT'
-          : options.previousVisitedVertexRef?.unref().getData().value,
+        // '\n<---------\n',
+        // options.previousVisitedVertexRef === null
+        //   ? 'NONE'
+        //   : options.previousVisitedVertexRef.getId(),
+        // options.previousVisitedVertexRef === null
+        //   ? 'NONE'
+        //   : options.resolvedTree
+        //       .getPathTo(options.previousVisitedVertexRef, {
+        //         noRoot: true,
+        //       })
+        //       .map((ps) => ps.unref().getData().key),
+        // typeof options.previousVisitedVertexRef?.unref().getData().value ===
+        //   'object'
+        //   ? 'OBJECT'
+        //   : options.previousVisitedVertexRef?.unref().getData().value,
       );
     },
   });

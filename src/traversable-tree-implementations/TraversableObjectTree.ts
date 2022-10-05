@@ -51,15 +51,17 @@ export type TraversableObject<K extends TraversableObjectPropKey, PV> =
     };
 
 export type TraversableObjectTreeInstanceConfigInput<
-  H,
+  In,
   K extends TraversableObjectPropKey,
   V,
 > = {
-  host: H;
+  inputObject: In;
   getChildrenOfProperty?: (
     prop: TraversableObjectProp<K, V>,
   ) => TraversableObjectTTP<K, V>['VertexHint'][];
-  getPropertyFromHost?: (host: H) => TraversableObjectProp<K, V>;
+  getRootPropertyFromInputObject?: (
+    inputObj: In,
+  ) => TraversableObjectProp<K, V>;
 };
 
 const PRIMITIVE_TYPEOF_TYPES = [
@@ -99,15 +101,21 @@ function getChildrenOfPropertyDefault<K extends TraversableObjectPropKey, V>(
 export const __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ =
   '__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__';
 
-function getPropertyFromHostDefault<H, K extends TraversableObjectPropKey, V>(
+function getRootPropertyFromInputObjectDefault<
+  In,
+  K extends TraversableObjectPropKey,
+  V,
+>(
   rootKey?: K,
 ): Required<
-  TraversableObjectTreeInstanceConfigInput<H, K, V>
->['getPropertyFromHost'] {
-  return function getPropertyFromHostDefault_implementation(host: H) {
+  TraversableObjectTreeInstanceConfigInput<In, K, V>
+>['getRootPropertyFromInputObject'] {
+  return function getRootPropertyFromInputObjectDefault_implementation(
+    inputObject: In,
+  ) {
     return {
       key: (rootKey ?? __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__) as K,
-      value: host as unknown as V,
+      value: inputObject as unknown as V,
     };
   };
 }
@@ -326,7 +334,7 @@ const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
   };
 
 export class TraversableObjectTree<
-  H = TraversableObject<TraversableObjectPropKey, unknown>,
+  In = TraversableObject<TraversableObjectPropKey, unknown>,
   InK extends TraversableObjectPropKey = TraversableObjectPropKey,
   InV = TraversableObject<TraversableObjectPropKey, unknown> | unknown,
   OutK extends TraversableObjectPropKey = InK,
@@ -336,14 +344,15 @@ export class TraversableObjectTree<
   TraversableObjectTTP<OutK, OutV>
 > {
   private readonly instanceConfig: Required<
-    TraversableObjectTreeInstanceConfigInput<H, InK, InV>
+    TraversableObjectTreeInstanceConfigInput<In, InK, InV>
   >;
 
   static getChildrenOfPropertyDefault = getChildrenOfPropertyDefault;
-  static getPropertyFromHostDefault = getPropertyFromHostDefault;
+  static getRootPropertyFromInputObjectDefault =
+    getRootPropertyFromInputObjectDefault;
 
   constructor(
-    instanceConfig: TraversableObjectTreeInstanceConfigInput<H, InK, InV>,
+    instanceConfig: TraversableObjectTreeInstanceConfigInput<In, InK, InV>,
   ) {
     super();
     this.instanceConfig = {
@@ -351,18 +360,21 @@ export class TraversableObjectTree<
       getChildrenOfProperty:
         instanceConfig.getChildrenOfProperty ??
         TraversableObjectTree.getChildrenOfPropertyDefault,
-      getPropertyFromHost:
-        instanceConfig.getPropertyFromHost ??
-        TraversableObjectTree.getPropertyFromHostDefault(),
+      getRootPropertyFromInputObject:
+        instanceConfig.getRootPropertyFromInputObject ??
+        TraversableObjectTree.getRootPropertyFromInputObjectDefault(),
     };
   }
 
   static makeMutationCommandFactory = makeMutationCommandFactory;
 
   makeRoot(): VertexContent<TraversableObjectTTP<InK, InV>> | null {
-    const { host, getChildrenOfProperty, getPropertyFromHost } =
-      this.instanceConfig;
-    const rootProp = getPropertyFromHost(host);
+    const {
+      inputObject,
+      getChildrenOfProperty,
+      getRootPropertyFromInputObject,
+    } = this.instanceConfig;
+    const rootProp = getRootPropertyFromInputObject(inputObject);
     return {
       $d: rootProp,
       $c: getChildrenOfProperty(rootProp),

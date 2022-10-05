@@ -46,7 +46,7 @@ export const __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ =
   '__REWRITE_OBJECT_DEFAULT_ROOT_KEY__';
 
 export type RewriteObjectResult<Out> = {
-  result: Out | null;
+  outputObject: Out | null;
 };
 
 type RewriteObjectOptions<
@@ -64,7 +64,7 @@ type RewriteObjectOptions<
     > &
     DepthFirstTraversalConfig
 > & {
-  getResultFromRootValue?: (value: OutV | null) => Out;
+  getOutputObjectFromRootValue?: (value: OutV | null) => Out;
   assembleCompositeBeforeVisit?: boolean;
 };
 
@@ -76,26 +76,26 @@ export function rewriteObject<
   OutK extends TraversableObjectPropKey = InK,
   OutV = InV,
 >(
-  obj: In,
+  inputObject: In,
   rewrite: RewriteFn<InK, InV, OutK, OutV>,
   options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
 ): RewriteObjectResult<Out> {
   const assembleCompositeBeforeVisit =
     options?.assembleCompositeBeforeVisit ?? false;
-  const getResultFromRootValue =
-    typeof options?.getResultFromRootValue === 'function'
-      ? options.getResultFromRootValue
+  const getOutputObjectFromRootValue =
+    typeof options?.getOutputObjectFromRootValue === 'function'
+      ? options.getOutputObjectFromRootValue
       : (rootValue: OutV | null) => (rootValue as unknown as Out) ?? null;
   const tree = new TraversableObjectTree<In, InK, InV, OutK, OutV>({
     getPropertyFromHost:
-      options?.getPropertyFromHost ??
-      TraversableObjectTree.getPropertyFromHostDefault(
+      options?.getRootPropertyFromInputObject ??
+      TraversableObjectTree.getRootPropertyFromInputObjectDefault(
         __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ as InK,
       ),
-    ...(!options?.getPropertyFromHost
+    ...(!options?.getRootPropertyFromInputObject
       ? {}
-      : { getPropertyFromHost: options.getPropertyFromHost }),
-    host: obj,
+      : { getPropertyFromHost: options.getRootPropertyFromInputObject }),
+    inputObject,
   });
   const makeMutationCommandFactory =
     TraversableObjectTree.makeMutationCommandFactory<
@@ -177,8 +177,8 @@ export function rewriteObject<
   const rootValue =
     (resolvedTree.getRoot()?.unref().getData().value as unknown as OutV) ??
     null;
-  const result = getResultFromRootValue(rootValue);
+  const outputObject = getOutputObjectFromRootValue(rootValue);
   return {
-    result,
+    outputObject,
   };
 }
