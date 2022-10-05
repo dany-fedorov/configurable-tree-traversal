@@ -64,7 +64,7 @@ export type TraversableObjectTreeInstanceConfigInput<
   ) => TraversableObjectProp<K, V>;
 };
 
-const PRIMITIVE_TYPEOF_TYPES = [
+export const PRIMITIVE_TYPEOF_TYPES = [
   'null',
   'undefined',
   'symbol',
