@@ -127,12 +127,12 @@ export type TO_MakeMutationCommandFunctionFactoryConfiguration<
   isArray?: (vertexData: IN_TO_TTP['VertexData']) => boolean;
   isObject?: (vertexData: IN_TO_TTP['VertexData']) => boolean;
   assembleArray?: (
-    children: OUT_TO_TTP['VertexData'][],
+    processedChildren: OUT_TO_TTP['VertexData'][],
     vertexData: IN_TO_TTP['VertexData'],
     visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>,
   ) => OUT_TO_TTP['VertexData']['value'];
   assembleObject?: (
-    children: OUT_TO_TTP['VertexData'][],
+    processedChildren: OUT_TO_TTP['VertexData'][],
     vertexData: IN_TO_TTP['VertexData'],
     visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>,
   ) => OUT_TO_TTP['VertexData']['value'];
@@ -176,12 +176,18 @@ const MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT = {
   ): boolean =>
     Boolean(d.value && typeof d.value === 'object' && !Array.isArray(d.value)),
   assembleArray: (
-    children: TraversableObjectProp<TraversableObjectPropKey, unknown>[],
+    processedChildren: TraversableObjectProp<
+      TraversableObjectPropKey,
+      unknown
+    >[],
   ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
     return children.map((ch) => ch.value);
   },
   assembleObject: (
-    children: TraversableObjectProp<TraversableObjectPropKey, unknown>[],
+    processedChildren: TraversableObjectProp<
+      TraversableObjectPropKey,
+      unknown
+    >[],
   ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
     return Object.fromEntries(children.map((ch) => [ch.key, ch.value]));
   },
