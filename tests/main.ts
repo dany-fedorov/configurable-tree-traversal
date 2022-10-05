@@ -1,7 +1,4 @@
-import {
-  ChildrenOrder,
-  traverseDepthFirst,
-} from '../src/traversals/traverseDepthFirst';
+import { traverseDepthFirst } from '../src/traversals/traverseDepthFirst';
 // import type { Vertex } from '../src/core/Vertex';
 // import type { TraversableTreeParametersFromTraversableTree } from '../src/core/TraversableTreeParametersFromTraversableTree';
 // import type { TraversalVisitorOptions } from '../src/core/TraversalVisitor';

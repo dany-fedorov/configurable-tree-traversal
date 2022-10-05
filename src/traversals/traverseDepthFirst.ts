@@ -18,6 +18,8 @@ export enum ChildrenOrder {
 export type DepthFirstTraversalConfig = {
   childrenOrder: ChildrenOrder;
   saveNotMutatedResolvedTree: boolean;
+  // TODO:
+  // inOrderConfig: { }
 };
 
 export const DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG: DepthFirstTraversalConfig = {
