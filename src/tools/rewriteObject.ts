@@ -87,14 +87,11 @@ export function rewriteObject<
       ? options.getOutputObjectFromRootValue
       : (rootValue: OutV | null) => (rootValue as unknown as Out) ?? null;
   const tree = new TraversableObjectTree<In, InK, InV, OutK, OutV>({
-    getPropertyFromHost:
+    getRootPropertyFromInputObject:
       options?.getRootPropertyFromInputObject ??
       TraversableObjectTree.getRootPropertyFromInputObjectDefault(
         __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ as InK,
       ),
-    ...(!options?.getRootPropertyFromInputObject
-      ? {}
-      : { getPropertyFromHost: options.getRootPropertyFromInputObject }),
     inputObject,
   });
   const makeMutationCommandFactory =
