@@ -2,7 +2,7 @@
   "extends": "@tsconfig/node16-strictest/tsconfig.json",
   "compilerOptions": {
     "baseUrl": "./src",
-    "outDir": "./lib",
+    "outDir": "./dist",
     "declaration": true,
     "noPropertyAccessFromIndexSignature": false
   },

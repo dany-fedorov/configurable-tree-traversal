@@ -6,8 +6,8 @@
   "scripts": {
     "test": "NODE_OPTIONS='--stack-trace-limit=1000' ./node_modules/.bin/jest",
     "build": "tsc -p ./tsconfig.build.json",
-    "prepare-me": "rm -rf ./lib && npm run build",
-    "prepublish-me": "npm run prepare-me && rm -fr ./npm-module && mv lib ./npm-module && cp package.json ./npm-module && cp README.md ./npm-module",
+    "prepare-me": "rm -rf ./dist && npm run build",
+    "prepublish-me": "npm run prepare-me && rm -fr ./npm-module && mv dist ./npm-module && cp package.json ./npm-module && cp README.md ./npm-module",
     "publish-me": "npm run prepublish-me && cd npm-module && npm publish --access public",
     "postpublish-me": "if [ $(basename $(pwd)) != 'configurable-tree-traversal' ]; then cd ..; fi && rm -fr npm-module",
     "build-watch": "chokidar './src/**/*.ts' -c 'npm run build' -i './node_modules/**/*' --initial"
