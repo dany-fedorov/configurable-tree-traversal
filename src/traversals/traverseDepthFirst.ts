@@ -15,16 +15,37 @@ export enum ChildrenOrder {
   REVERSED = 'REVERSED',
 }
 
+export type IndexRange = number | [number, number];
+
+export type DepthFirstTraversalConfig_InOrderTraversalConfig = {
+  visitParentAfter: IndexRange | number | { ranges: IndexRange[] };
+  visitParentAfterRangesOutOfBoundsFallback:
+    | IndexRange
+    | number
+    | { ranges: IndexRange[] };
+  visitOneChildParents: boolean;
+};
+
+type DeepPartial<T> = T extends object
+  ? {
+      [P in keyof T]?: DeepPartial<T[P]>;
+    }
+  : T;
+
 export type DepthFirstTraversalConfig = {
   childrenOrder: ChildrenOrder;
   saveNotMutatedResolvedTree: boolean;
-  // TODO:
-  // inOrderConfig: { }
+  inOrderTraversalConfig: DepthFirstTraversalConfig_InOrderTraversalConfig;
 };
 
 export const DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG: DepthFirstTraversalConfig = {
   childrenOrder: ChildrenOrder.DEFAULT,
   saveNotMutatedResolvedTree: false,
+  inOrderTraversalConfig: {
+    visitParentAfter: [0, -2],
+    visitParentAfterRangesOutOfBoundsFallback: -2,
+    visitOneChildParents: true,
+  },
 };
 
 export type TraversalResult<
@@ -44,13 +65,87 @@ export type DepthFirstVisitors<
   inOrderVisitor?: TraversalVisitor<TTP, RW_TTP>;
 };
 
+function normalizeRange(
+  r: IndexRange,
+  arrLength: number,
+): [number, number] | null {
+  const rr = (Array.isArray(r) ? r : [r, r]).map((n, i) => {
+    if (n < 0) {
+      if (n < -arrLength) {
+        if (i === 0) {
+          return 0;
+        } else {
+          return null;
+        }
+      } else {
+        return arrLength + n;
+      }
+    } /* if (n >= 0) */ else {
+      if (n > arrLength - 1) {
+        if (i === 0) {
+          return null;
+        } else {
+          return arrLength - 1;
+        }
+      } else {
+        return n;
+      }
+    }
+  });
+  if (
+    rr[0] === null ||
+    rr[1] === null ||
+    (rr[0] as number) > (rr[1] as number)
+  ) {
+    return null;
+  }
+  return rr as [number, number];
+}
+
+function isInRange(r: [number, number], x: number) {
+  return x >= r[0] && x <= r[1];
+}
+
+function shouldVisitParentOnInOrder(
+  inOrderTraversalConfig: DepthFirstTraversalConfig_InOrderTraversalConfig,
+  justVisitedIndex: number,
+  allSiblingsCount: number,
+): boolean {
+  const cfg = inOrderTraversalConfig.visitParentAfter;
+  const fallback =
+    inOrderTraversalConfig.visitParentAfterRangesOutOfBoundsFallback;
+  const visitParentAfterRanges = (
+    Array.isArray(cfg) || typeof cfg === 'number' ? [cfg] : cfg.ranges
+  )
+    .map((r) => normalizeRange(r, allSiblingsCount))
+    .filter(Boolean) as [number, number][];
+  const visitParentAfterFallbackRanges = (
+    Array.isArray(fallback) || typeof fallback === 'number'
+      ? [fallback]
+      : fallback.ranges
+  )
+    .map((r) => normalizeRange(r, allSiblingsCount))
+    .filter(Boolean) as [number, number][];
+  // console.log(justVisitedIndex, visitParentAfterRanges, visitParentAfterRanges.some((r) => isInRange(r, justVisitedIndex)), visitParentAfterFallbackRanges, visitParentAfterRanges.length === 0 && visitParentAfterFallbackRanges.some((r) => isInRange(r, justVisitedIndex),),);
+  return (
+    (justVisitedIndex === allSiblingsCount - 1 &&
+      allSiblingsCount === 1 &&
+      inOrderTraversalConfig.visitOneChildParents) ||
+    visitParentAfterRanges.some((r) => isInRange(r, justVisitedIndex)) ||
+    (visitParentAfterRanges.length === 0 &&
+      visitParentAfterFallbackRanges.some((r) =>
+        isInRange(r, justVisitedIndex),
+      ))
+  );
+}
+
 export function traverseDepthFirst<
   TTP extends TreeTypeParameters = TreeTypeParameters,
   RW_TTP extends TreeTypeParameters = TTP,
 >(
   tree: TraversableTree<TTP, RW_TTP>,
   visitors: DepthFirstVisitors<TTP, RW_TTP>,
-  config: Partial<DepthFirstTraversalConfig> = DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
+  config: DeepPartial<DepthFirstTraversalConfig> = DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
 ): TraversalResult<TTP, RW_TTP> {
   type ThisTraversalOrderContext = {
     visitIndex: number;
@@ -62,10 +157,18 @@ export function traverseDepthFirst<
     >]: ThisTraversalOrderContext;
   };
 
-  const effectiveConfig =
+  const effectiveConfig = (
     config === DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG
       ? config
-      : { ...DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG, ...config };
+      : {
+          ...DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG,
+          ...config,
+          inOrderTraversalConfig: {
+            ...DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG.inOrderTraversalConfig,
+            ...(config?.inOrderTraversalConfig || {}),
+          },
+        }
+  ) as DepthFirstTraversalConfig;
   const STACK: Array<VertexResolutionContext<TTP | RW_TTP>> = [];
   const visitorsContext: ThisVisitorsContext = {
     preOrderVisitor: {
@@ -94,15 +197,11 @@ export function traverseDepthFirst<
     CTTRef<Vertex<TTP | RW_TTP>>,
     number
   >();
-  const inOrderNotVisitedChildrenCountMap = new Map<
-    CTTRef<Vertex<TTP | RW_TTP>>,
-    number
-  >();
   let haltTraversalFlag = false;
-  const onPostOrder = !visitors?.postOrderVisitor
-    ? null
-    : onPostOrderProcessing;
-  const onInOrder = !visitors?.inOrderVisitor ? null : onInOrderProcessing;
+  const onPostOrder =
+    !visitors?.postOrderVisitor && !visitors?.inOrderVisitor
+      ? null
+      : onPostOrderProcessing;
 
   const rootVertexContent = tree.makeRoot();
   if (rootVertexContent === null) {
@@ -131,7 +230,6 @@ export function traverseDepthFirst<
     pushHints(vertexRef, vertexContext.depth);
     if (vertexRef.unref().isLeafVertex()) {
       onPostOrder?.(vertexRef, vertexContext);
-      onInOrder?.(vertexRef, vertexContext);
     }
   }
 
@@ -168,52 +266,56 @@ export function traverseDepthFirst<
     visitVertex('preOrderVisitor', vertexRef);
   }
 
+  function onInOrderProcessing_getInOrderSiblingsContext(
+    vertexContext: VertexResolutionContext<TTP | RW_TTP>,
+  ) {
+    const postOrderNotVisitedSiblingsCount =
+      postOrderNotVisitedChildrenCountMap.get(vertexContext.parentVertexRef);
+    if (postOrderNotVisitedSiblingsCount == null) {
+      throw new Error(
+        'getInOrderSiblingsContext::Could not find entry in postOrderNotVisitedChildrenCountMap',
+      );
+    }
+    const allSiblingsCount = vertexContext.parentVertexRef
+      .unref()
+      .getChildrenHints().length;
+    const justVisitedIndex =
+      allSiblingsCount - postOrderNotVisitedSiblingsCount;
+    return {
+      justVisitedIndex,
+      allSiblingsCount,
+    };
+  }
+
   function onInOrderProcessing(
     vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
     vertexContext: VertexResolutionContext<TTP | RW_TTP> | null,
   ): void {
-    visitVertex('inOrderVisitor', vertexRef);
-    const isLeaf = vertexRef.unref().isLeafVertex();
-    const isSingleParent = vertexRef.unref().getChildrenHints().length === 1;
-    if (!isLeaf && !isSingleParent) {
+    if (vertexContext == null) {
       return;
     }
-    // let curVertex = vertex;
-    let curVertexContext: VertexResolutionContext<TTP | RW_TTP> | null =
-      vertexContext;
-    while (curVertexContext !== null) {
-      const inOrderNotVisitedChildrenCount =
-        inOrderNotVisitedChildrenCountMap.get(curVertexContext.parentVertexRef);
-      // console.log(vertexRef.unref().getData(), {inOrderNotVisitedChildrenCount,});
-      if (inOrderNotVisitedChildrenCount === undefined) {
-        return;
-      }
+    if (vertexRef.unref().isLeafVertex()) {
+      visitVertex('inOrderVisitor', vertexRef);
+    }
+    const { justVisitedIndex, allSiblingsCount } =
+      onInOrderProcessing_getInOrderSiblingsContext(vertexContext);
+    if (
+      shouldVisitParentOnInOrder(
+        effectiveConfig.inOrderTraversalConfig,
+        justVisitedIndex,
+        allSiblingsCount,
+      )
+    ) {
       const parentVertexContext: VertexResolutionContext<TTP | RW_TTP> | null =
         resolvedTree
-          .get(curVertexContext.parentVertexRef)
+          .get(vertexContext.parentVertexRef)
           ?.getResolutionContext() ?? null;
-      const newCount = inOrderNotVisitedChildrenCount - 1;
-      inOrderNotVisitedChildrenCountMap.set(
-        curVertexContext.parentVertexRef,
-        newCount,
+      visitVertex(
+        'inOrderVisitor',
+        parentVertexContext === null
+          ? rootVertexRef
+          : vertexContext.parentVertexRef,
       );
-      const siblingsCount = curVertexContext.parentVertexRef
-        .unref()
-        .getChildrenHints().length;
-      // console.log(vertexRef.unref().getData(), { newCount, siblingsCount });
-      if (newCount !== 0 || (newCount === 0 && siblingsCount === 1)) {
-        if (parentVertexContext === null) {
-          onInOrder?.(rootVertexRef, null);
-        } else {
-          onInOrder?.(curVertexContext.parentVertexRef, parentVertexContext);
-        }
-        break;
-      } else {
-        if (parentVertexContext === null) {
-          break;
-        }
-        curVertexContext = parentVertexContext;
-      }
     }
   }
 
@@ -224,6 +326,7 @@ export function traverseDepthFirst<
     let curVertexRef = vertexRef;
     let curVertexContext = vertexContext;
     while (curVertexRef !== null) {
+      onInOrderProcessing(curVertexRef, curVertexContext);
       visitVertex('postOrderVisitor', curVertexRef);
       if (!curVertexContext?.parentVertexRef) {
         break;
@@ -232,8 +335,10 @@ export function traverseDepthFirst<
         postOrderNotVisitedChildrenCountMap.get(
           curVertexContext.parentVertexRef,
         );
-      if (postOrderNotVisitedChildrenCount === undefined) {
-        break;
+      if (postOrderNotVisitedChildrenCount == null) {
+        throw new Error(
+          'onPostOrderProcessing::Could not find entry in postOrderNotVisitedChildrenCountMap',
+        );
       }
       const newCount = postOrderNotVisitedChildrenCount - 1;
       if (newCount !== 0) {
@@ -264,7 +369,11 @@ export function traverseDepthFirst<
     visitorOrderKey: keyof Required<DepthFirstVisitors<TTP, RW_TTP>>,
     vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
   ): void {
-    const visitorResult = visitors?.[visitorOrderKey]?.(vertexRef.unref(), {
+    const visitor = visitors?.[visitorOrderKey];
+    if (visitor == null) {
+      return;
+    }
+    const visitorResult = visitor(vertexRef.unref(), {
       resolvedTree,
       notMutatedResolvedTree,
       visitIndex: visitorsContext[visitorOrderKey].visitIndex++,
@@ -329,15 +438,15 @@ export function traverseDepthFirst<
       });
     }
     STACK.push(...newEntries);
-    if (visitors?.postOrderVisitor) {
+    if (visitors?.postOrderVisitor || visitors?.inOrderVisitor) {
       postOrderNotVisitedChildrenCountMap.set(
         parentVertexRef,
         newEntries.length,
       );
     }
-    if (visitors?.inOrderVisitor) {
-      inOrderNotVisitedChildrenCountMap.set(parentVertexRef, newEntries.length);
-    }
+    // if (visitors?.inOrderVisitor) {
+    //   inOrderNotVisitedChildrenCountMap.set(parentVertexRef, newEntries.length);
+    // }
     return newEntries;
   }
 

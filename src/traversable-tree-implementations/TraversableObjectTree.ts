@@ -130,11 +130,13 @@ export type TO_MakeMutationCommandFunctionFactoryConfiguration<
     processedChildren: OUT_TO_TTP['VertexData'][],
     vertexData: IN_TO_TTP['VertexData'],
     visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>,
+    isCompositeAssertions: TO_IsCompositeAssertionsMixin,
   ) => OUT_TO_TTP['VertexData']['value'];
   assembleObject?: (
     processedChildren: OUT_TO_TTP['VertexData'][],
     vertexData: IN_TO_TTP['VertexData'],
     visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>,
+    isCompositeAssertions: TO_IsCompositeAssertionsMixin,
   ) => OUT_TO_TTP['VertexData']['value'];
   assembledMap?: Map<
     CTTRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
@@ -142,11 +144,16 @@ export type TO_MakeMutationCommandFunctionFactoryConfiguration<
   >;
 };
 
+export type TO_IsCompositeAssertionsMixin = {
+  isComposite: boolean;
+  isArray: boolean;
+  isObject: boolean;
+};
+
 export type TO_MakeMutationCommandFactoryResult<
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-> = {
+> = TO_IsCompositeAssertionsMixin & {
   makeMutationCommand: MakeMutationCommandFunction<OUT_TO_TTP>;
-  isComposite: () => boolean;
   assembleComposite: (saveToMap?: boolean) => OUT_TO_TTP['VertexData']['value'];
 };
 
@@ -189,7 +196,9 @@ const MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT = {
       unknown
     >[],
   ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
-    return Object.fromEntries(processedChildren.map((ch) => [ch.key, ch.value]));
+    return Object.fromEntries(
+      processedChildren.map((ch) => [ch.key, ch.value]),
+    );
   },
 };
 
@@ -222,9 +231,9 @@ const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
       const vertexData = vertex.getData();
       const { resolvedTree, vertexRef } = options;
 
-      function TraversableObjectTree_isComposite(): boolean {
-        return isObject(vertexData) || isArray(vertexData);
-      }
+      const isThisAnArray = isArray(vertexData);
+      const isThisAnObject = isObject(vertexData);
+      const isThisComposite = isThisAnArray || isThisAnObject;
 
       function TraversableObjectTree_getChildrenObjectPropertiesOf(
         vertexRef: CTTRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
@@ -237,21 +246,31 @@ const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
       function TraversableObjectTree_assembleComposite(
         saveToMap = true,
       ): OUT_TO_TTP['VertexData']['value'] {
-        if (isArray(vertexData)) {
+        if (isThisAnArray) {
           const res = assembleArray(
             TraversableObjectTree_getChildrenObjectPropertiesOf(vertexRef),
             vertex.getData(),
             visitorArguments,
+            {
+              isObject: isThisAnObject,
+              isArray: isThisAnArray,
+              isComposite: isThisComposite,
+            },
           );
           if (saveToMap) {
             assembledMap.set(vertexRef, res);
           }
           return res;
-        } else if (isObject(vertexData)) {
+        } else if (isThisAnObject) {
           const res = assembleObject(
             TraversableObjectTree_getChildrenObjectPropertiesOf(vertexRef),
             vertex.getData(),
             visitorArguments,
+            {
+              isObject: isThisAnObject,
+              isArray: isThisAnArray,
+              isComposite: isThisComposite,
+            },
           );
           if (saveToMap) {
             assembledMap.set(vertexRef, res);
@@ -312,7 +331,7 @@ const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
               },
             },
           };
-        } else if (TraversableObjectTree_isComposite()) {
+        } else if (isThisComposite) {
           const hasAlreadyAssembled = assembledMap?.has(vertexRef);
           return {
             commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
@@ -340,7 +359,9 @@ const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
       }
 
       return {
-        isComposite: TraversableObjectTree_isComposite,
+        isComposite: isThisComposite,
+        isArray: isThisAnArray,
+        isObject: isThisAnObject,
         assembleComposite: TraversableObjectTree_assembleComposite,
         makeMutationCommand: TraversableObjectTree_makeMutationCommand_2,
       };

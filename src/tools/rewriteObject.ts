@@ -1,4 +1,5 @@
 import type {
+  TO_IsCompositeAssertionsMixin,
   TO_MakeMutationCommandFunctionFactoryConfiguration,
   TraversableObject,
   TraversableObjectProp,
@@ -19,10 +20,11 @@ import type { GetPathToOptions } from '../core';
 export type RewriteFnOptions<
   InK extends TraversableObjectPropKey,
   InV,
-> = TraversalVisitorOptions<TraversableObjectTTP<InK, InV>> & {
-  vertex: Vertex<TraversableObjectTTP<InK, InV>>;
-  getPath: (options?: GetPathToOptions) => InK[];
-};
+> = TraversalVisitorOptions<TraversableObjectTTP<InK, InV>> &
+  TO_IsCompositeAssertionsMixin & {
+    vertex: Vertex<TraversableObjectTTP<InK, InV>>;
+    getPath: (options?: GetPathToOptions) => InK[];
+  };
 
 export type RewriteFnPropInput<
   InK extends TraversableObjectPropKey,
@@ -135,10 +137,15 @@ export function rewriteObject<
           TraversableObjectTTP<OutK, OutV>
         >,
       ) => {
-        const { makeMutationCommand, isComposite, assembleComposite } =
-          makeMutationCommandFactory(vertex, options);
+        const {
+          makeMutationCommand,
+          isComposite,
+          isObject,
+          isArray,
+          assembleComposite,
+        } = makeMutationCommandFactory(vertex, options);
         let rwInput = vertex.getData() as RewriteFnPropInput<InK, InV, OutV>;
-        if (assembleCompositeBeforeVisit && isComposite()) {
+        if (assembleCompositeBeforeVisit && isComposite) {
           rwInput = { ...rwInput, assembledComposite: assembleComposite() };
         }
         /**
@@ -147,6 +154,9 @@ export function rewriteObject<
          */
         const rw = rewrite?.(rwInput, {
           ...options,
+          isComposite,
+          isObject,
+          isArray,
           vertex,
           getPath: (thisOptions) =>
             options.resolvedTree
