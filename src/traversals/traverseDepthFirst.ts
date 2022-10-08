@@ -49,8 +49,7 @@ export type DepthFirstTraversalConfig<
   resolvedTreesContainer: Partial<ResolvedTreesContainer<TTP, RW_TTP>> | null;
   traversalState: Partial<DepthFirstTraversalState<TTP, RW_TTP>> | null;
   rootVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
-  startAfterVisitor: VisitorOrderKey | null;
-  // skipRootVertex: boolean;
+  lastVisitedBy: DepthFirstVisitorOrderKey | null;
 };
 
 export const DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG: DepthFirstTraversalConfig<
@@ -67,17 +66,19 @@ export const DEFAULT_DEPTH_FIRST_TRAVERSAL_CONFIG: DepthFirstTraversalConfig<
   resolvedTreesContainer: null,
   traversalState: null,
   rootVertexRef: null,
-  startAfterVisitor: null,
+  lastVisitedBy: null,
 };
 
 export type DepthFirstTraversalResultInstanceConfig<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > = {
+  visitors: DepthFirstVisitors<TTP, RW_TTP>;
   traversableTree: TraversableTree<TTP, RW_TTP>;
   resolvedTreesContainer: ResolvedTreesContainer<TTP, RW_TTP>;
   traversalState: DepthFirstTraversalState<TTP, RW_TTP>;
   haltedOnContext: TraversalHaltedOnContext<TTP, RW_TTP> | null;
+  config: DepthFirstTraversalConfigInput<TTP, RW_TTP>;
 };
 
 export class DepthFirstTraversalResult<
@@ -102,7 +103,7 @@ export class DepthFirstTraversalResult<
     return this.icfg.haltedOnContext?.vertexRef ?? null;
   }
 
-  getHaltedOnVisitorOrderKey(): VisitorOrderKey | null {
+  getHaltedOnVisitorOrderKey(): DepthFirstVisitorOrderKey | null {
     return this.icfg.haltedOnContext?.visitorOrderKey ?? null;
   }
 
@@ -113,9 +114,34 @@ export class DepthFirstTraversalResult<
   getResolvedTreesContainer(): ResolvedTreesContainer<TTP, RW_TTP> {
     return this.icfg.resolvedTreesContainer;
   }
+
+  isHalted(): boolean {
+    return !!this.icfg.haltedOnContext?.vertexRef;
+  }
+
+  continue(
+    tTree: TraversableTree<TTP, RW_TTP> | null,
+    visitors?: DepthFirstVisitors<TTP, RW_TTP> | null,
+    config?: DepthFirstTraversalConfigInput<TTP, RW_TTP> | null,
+  ): DepthFirstTraversalResult<TTP, RW_TTP> {
+    if (!this.isHalted()) {
+      return this;
+    }
+    return traverseDepthFirst(
+      tTree ?? this.getTraversableTree(),
+      visitors ?? this.icfg.visitors,
+      {
+        ...(config ?? this.icfg.config),
+        lastVisitedBy: this.getHaltedOnVisitorOrderKey(),
+        rootVertexRef: this.getHaltedOnVertexRef(),
+        traversalState: this.getTraversalState(),
+        resolvedTreesContainer: this.getResolvedTreesContainer(),
+      },
+    );
+  }
 }
 
-export type VisitorOrderKey = keyof Required<
+export type DepthFirstVisitorOrderKey = keyof Required<
   DepthFirstVisitors<TreeTypeParameters, TreeTypeParameters>
 >;
 
@@ -123,9 +149,9 @@ export type DepthFirstVisitors<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > = {
-  preOrderVisitor?: TraversalVisitor<TTP, RW_TTP>;
-  postOrderVisitor?: TraversalVisitor<TTP, RW_TTP>;
-  inOrderVisitor?: TraversalVisitor<TTP, RW_TTP>;
+  preOrderVisitor?: TraversalVisitor<TTP, RW_TTP> | null;
+  postOrderVisitor?: TraversalVisitor<TTP, RW_TTP> | null;
+  inOrderVisitor?: TraversalVisitor<TTP, RW_TTP> | null;
 };
 
 function normalizeRange(
@@ -206,7 +232,7 @@ type TraversalHaltedOnContext<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > = {
-  visitorOrderKey: VisitorOrderKey;
+  visitorOrderKey: DepthFirstVisitorOrderKey;
   vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
 };
 
@@ -428,6 +454,7 @@ function initRoot<
 ): {
   rootVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
   rootVertexResolutionContext: VertexResolutionContext<TTP | RW_TTP> | null;
+  lastVisitedBy: DepthFirstVisitorOrderKey | null;
 } {
   const rootVertexRef =
     config.rootVertexRef != null
@@ -437,9 +464,12 @@ function initRoot<
     rootVertexRef === null
       ? null
       : rTree.get(rootVertexRef)?.getResolutionContext() ?? null;
+  const lastVisitedBy =
+    config.lastVisitedBy != null ? config.lastVisitedBy : null;
   return {
     rootVertexRef,
     rootVertexResolutionContext,
+    lastVisitedBy,
   };
 }
 
@@ -460,32 +490,21 @@ export function traverseDepthFirst<
   const effectiveConfig = makeEffectiveConfig<TTP, RW_TTP>(config);
   let haltTraversalFlag = false;
   let haltedOnContext = null;
-  // const visitorsState = initVisitorsState<TTP, RW_TTP>();
-  // const {
-  //   resolvedTree: rTree,
-  //   notMutatedResolvedTree: notMutatedRTree,
-  //   haltState,
-  // } = createTraversalHelperObjects(effectiveConfig);
-  // const {
-  //   rootVertexRef: rvr,
-  //   // rootVertexContext,
-  //   notMutatedResolvedTreeRefsMap,
-  //   postOrderNotVisitedChildrenCountMap,
-  //   STACK,
-  // } = initContinuationObjects(tTree, rTree, effectiveConfig);
   const traversalState = new DepthFirstTraversalState(effectiveConfig);
   const resolvedTreesContainer = new ResolvedTreesContainer(effectiveConfig);
-  const { rootVertexRef: rvr /*rootVertexResolutionContext*/ } = initRoot(
-    tTree,
-    resolvedTreesContainer.resolvedTree,
-    effectiveConfig,
-  );
+  const {
+    rootVertexRef: rvr,
+    rootVertexResolutionContext,
+    lastVisitedBy,
+  } = initRoot(tTree, resolvedTreesContainer.resolvedTree, effectiveConfig);
   if (rvr === null) {
     return new DepthFirstTraversalResult({
       traversableTree: tTree,
       resolvedTreesContainer,
       traversalState,
       haltedOnContext,
+      visitors,
+      config: effectiveConfig,
     });
   }
   const rootVertexRef = rvr; // for ts
@@ -495,8 +514,12 @@ export function traverseDepthFirst<
       ? null
       : onPostOrderProcessing;
 
-  onPreOrder(rootVertexRef, null);
-  pushHints(rootVertexRef, 0);
+  if (rootVertexRef.unref().isLeafVertex() && lastVisitedBy != null) {
+    onPostOrder?.(rootVertexRef, rootVertexResolutionContext, lastVisitedBy);
+  } else if (lastVisitedBy == null) {
+    onPreOrder(rootVertexRef, null);
+    pushHints(rootVertexRef, 0);
+  }
 
   while (traversalState.STACK.length > 0 && !haltTraversalFlag) {
     const vertexContext = traversalState.STACK.pop() as VertexResolutionContext<
@@ -518,7 +541,7 @@ export function traverseDepthFirst<
     }
   }
 
-  if (!haltTraversalFlag) {
+  if (lastVisitedBy !== 'postOrderVisitor' && !haltTraversalFlag) {
     onPostOrder?.(rootVertexRef, null);
   }
 
@@ -583,7 +606,7 @@ export function traverseDepthFirst<
     };
   }
 
-  function onInOrderProcessing_visitVertex(
+  function onInOrderProcessing_visitLeafVertex(
     vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
     vertexContext: VertexResolutionContext<TTP | RW_TTP> | null,
   ): void {
@@ -595,7 +618,7 @@ export function traverseDepthFirst<
     }
   }
 
-  function onInOrderProcessing_visitParent(
+  function onInOrderProcessing_maybeVisitParent(
     vertexContext: VertexResolutionContext<TTP | RW_TTP> | null,
   ): void {
     if (vertexContext == null) {
@@ -626,13 +649,29 @@ export function traverseDepthFirst<
   function onPostOrderProcessing(
     vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
     vertexContext: VertexResolutionContext<TTP | RW_TTP> | null,
+    lastVisitedBy?: DepthFirstVisitorOrderKey,
   ): void {
+    if (haltTraversalFlag) {
+      return;
+    }
     let curVertexRef = vertexRef;
     let curVertexContext = vertexContext;
     while (curVertexRef !== null && !haltTraversalFlag) {
-      onInOrderProcessing_visitVertex(curVertexRef, curVertexContext);
-      visitVertex('postOrderVisitor', curVertexRef);
-      onInOrderProcessing_visitParent(curVertexContext);
+      if (
+        lastVisitedBy !== 'inOrderVisitor' &&
+        lastVisitedBy !== 'postOrderVisitor'
+      ) {
+        onInOrderProcessing_visitLeafVertex(curVertexRef, curVertexContext);
+      }
+      if (lastVisitedBy !== 'postOrderVisitor' && !haltTraversalFlag) {
+        visitVertex('postOrderVisitor', curVertexRef);
+      }
+      if (!haltTraversalFlag) {
+        onInOrderProcessing_maybeVisitParent(curVertexContext);
+      }
+      if (haltTraversalFlag) {
+        return;
+      }
       if (!curVertexContext?.parentVertexRef) {
         break;
       }
@@ -766,8 +805,10 @@ export function traverseDepthFirst<
 
   return new DepthFirstTraversalResult({
     traversableTree: tTree,
+    visitors,
     resolvedTreesContainer,
     traversalState,
     haltedOnContext,
+    config: effectiveConfig,
   });
 }

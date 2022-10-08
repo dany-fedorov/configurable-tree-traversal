@@ -286,8 +286,8 @@ const main = () => {
   // console.log(jsonStringifySafe(resolvedTree.getRoot()?.unref().getData()));
   // console.log(haltedOnContext);
   console.log('----------');
-  const res1 = traverseDepthFirst(
-    res.getTraversableTree(),
+  const res1 = res.continue(
+    null,
     {
       preOrderVisitor(vertex, { isTreeRoot, isTraversalRoot }) {
         console.log(
@@ -317,12 +317,12 @@ const main = () => {
         );
       },
     },
-    {
+    /*{
       resolvedTreesContainer: res.getResolvedTreesContainer(),
       traversalState: res.getTraversalState(),
       rootVertexRef: res.getHaltedOnVertexRef(),
-      startAfterVisitor: res.getHaltedOnVisitorOrderKey(),
-    },
+      lastVisitedBy: res.getHaltedOnVisitorOrderKey(),
+    }*/
   );
 };
 
