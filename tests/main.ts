@@ -244,7 +244,7 @@ const main = () => {
   const tree = new TraversableObjectTree({
     inputObject: obj,
   });
-  const { resolvedTree, haltedOnContext } = traverseDepthFirst(tree, {
+  const res = traverseDepthFirst(tree, {
     preOrderVisitor(vertex, { isTreeRoot }) {
       console.log(
         'PRE'.padEnd(4),
@@ -285,6 +285,45 @@ const main = () => {
   });
   // console.log(jsonStringifySafe(resolvedTree.getRoot()?.unref().getData()));
   // console.log(haltedOnContext);
+  console.log('----------');
+  const res1 = traverseDepthFirst(
+    res.getTraversableTree(),
+    {
+      preOrderVisitor(vertex, { isTreeRoot, isTraversalRoot }) {
+        console.log(
+          'PRE'.padEnd(4),
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+          jsonStringifySafe(vertex.getData().value),
+        );
+      },
+      inOrderVisitor(vertex, { isTreeRoot }) {
+        console.log(
+          'IN'.padEnd(4),
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+          jsonStringifySafe(vertex.getData().value),
+        );
+      },
+      postOrderVisitor(vertex, { isTreeRoot }) {
+        console.log(
+          'POST'.padEnd(4),
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+          jsonStringifySafe(vertex.getData().value),
+        );
+      },
+    },
+    {
+      resolvedTreesContainer: res.getResolvedTreesContainer(),
+      traversalState: res.getTraversalState(),
+      rootVertexRef: res.getHaltedOnVertexRef(),
+      startAfterVisitor: res.getHaltedOnVisitorOrderKey(),
+    },
+  );
 };
 
 // main_();
