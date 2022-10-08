@@ -5,6 +5,7 @@ import {
 import { TraversableObjectTree } from '../src/traversable-tree-implementations/TraversableObjectTree';
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
 import { rewriteObject } from '../src/tools';
+import { TraversalVisitorCommandName } from '../src/core';
 
 /*const main_ = () => {
   const host = {
@@ -75,7 +76,7 @@ import { rewriteObject } from '../src/tools';
   );
 }*/
 
-const main = () => {
+/*const main = () => {
   const host = {
     a: 1,
     b: 2,
@@ -124,7 +125,7 @@ const main = () => {
     },
   });
   console.log(jsonStringifySafe(outputObject, 8));
-};
+}*/
 
 /*const main = () => {
   const host: KvasInMemoryJsonMapHost<JsonPrimitive> = {
@@ -233,6 +234,58 @@ const main = () => {
 //     },
 //   );
 // };
+
+const main = () => {
+  const obj = {
+    a: 1,
+    b: 2,
+    c: 3,
+  };
+  const tree = new TraversableObjectTree({
+    inputObject: obj,
+  });
+  const { resolvedTree, haltedOnContext } = traverseDepthFirst(tree, {
+    preOrderVisitor(vertex, { isTreeRoot }) {
+      console.log(
+        'PRE'.padEnd(4),
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+        jsonStringifySafe(vertex.getData().value),
+      );
+    },
+    inOrderVisitor(vertex, { isTreeRoot }) {
+      console.log(
+        'IN'.padEnd(4),
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+        jsonStringifySafe(vertex.getData().value),
+      );
+    },
+    postOrderVisitor(vertex, { isTreeRoot }) {
+      console.log(
+        'POST'.padEnd(4),
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+        jsonStringifySafe(vertex.getData().value),
+      );
+      if (vertex.getData().key === 'b') {
+        // return {
+        //   commands: [
+        //     {
+        //       commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+        //     },
+        //   ],
+        // };
+      }
+      return {};
+    },
+  });
+  // console.log(jsonStringifySafe(resolvedTree.getRoot()?.unref().getData()));
+  // console.log(haltedOnContext);
+};
 
 // main_();
 main();

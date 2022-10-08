@@ -41,7 +41,8 @@ export type TraversalVisitorOptions<
   notMutatedResolvedTree: ResolvedTree<TTP> | null;
   visitIndex: number;
   previousVisitedVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
-  isRoot: boolean;
+  isTreeRoot: boolean;
+  isTraversalRoot: boolean;
   vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
 };
 
