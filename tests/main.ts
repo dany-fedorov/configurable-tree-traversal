@@ -272,13 +272,13 @@ const main = () => {
         jsonStringifySafe(vertex.getData().value),
       );
       if (vertex.getData().key === 'b') {
-        // return {
-        //   commands: [
-        //     {
-        //       commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
-        //     },
-        //   ],
-        // };
+        return {
+          commands: [
+            {
+              commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+            },
+          ],
+        };
       }
       return {};
     },
