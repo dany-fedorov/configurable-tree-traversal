@@ -10,8 +10,6 @@ export type VertexResolutionContext<TTP extends TreeTypeParameters> = {
   depth: number;
   parentVertex: Vertex<TTP>;
   parentVertexRef: CTTRef<Vertex<TTP>>;
-  // vertexHintOriginalOrderIndex: number;
-  // vertexHintTraversalOrderIndex: number;
   hintIndex: number;
   vertexHint: TTP['VertexHint'];
 };
@@ -68,11 +66,6 @@ export type ResolvedTreeMap<TTP extends TreeTypeParameters> = Map<
   CTTRef<Vertex<TTP>>,
   VertexResolved<TTP>
 >;
-
-// type ResolvedTreeConfig<
-//   TTP extends TreeTypeParameters,
-//   RW_TTP extends TreeTypeParameters,
-// > = {};
 
 export type GetPathToOptions = {
   noRoot?: boolean;
@@ -183,27 +176,6 @@ export class ResolvedTree<
       return straightPath.slice(1);
     } else {
       return straightPath;
-    }
-  }
-
-  /**
-   * @deprecated
-   */
-  ___onPreOrderVisit(
-    vertexRef: CTTRef<Vertex<TTP>>,
-    vertexContext: VertexResolutionContext<TTP> | null,
-  ): void {
-    this.set(
-      vertexRef,
-      new VertexResolved<TTP>({
-        $d: { resolutionContext: vertexContext },
-        $c: [],
-      }),
-    );
-    if (vertexContext !== null) {
-      this.pushChildrenTo(vertexContext.parentVertexRef, [vertexRef]);
-    } else {
-      this.setRoot(vertexRef);
     }
   }
 
