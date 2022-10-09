@@ -129,13 +129,13 @@ export type TO_MakeMutationCommandFunctionFactoryConfiguration<
   assembleArray?: (
     processedChildren: OUT_TO_TTP['VertexData'][],
     vertexData: IN_TO_TTP['VertexData'],
-    visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>,
+    visitorArguments: Parameters<TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>>,
     isCompositeAssertions: TO_IsCompositeAssertionsMixin,
   ) => OUT_TO_TTP['VertexData']['value'];
   assembleObject?: (
     processedChildren: OUT_TO_TTP['VertexData'][],
     vertexData: IN_TO_TTP['VertexData'],
-    visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>,
+    visitorArguments: Parameters<TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>>,
     isCompositeAssertions: TO_IsCompositeAssertionsMixin,
   ) => OUT_TO_TTP['VertexData']['value'];
   assembledMap?: Map<
@@ -161,7 +161,7 @@ export type TO_MakeMutationCommandFunctionFactory_2<
   IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
 > = (
-  ...visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>
+  ...visitorArguments: Parameters<TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>>
 ) => TO_MakeMutationCommandFactoryResult<OUT_TO_TTP>;
 
 export type TO_MakeMutationCommandFunctionFactory = <
@@ -225,7 +225,7 @@ const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
     const assembledMap = assembledMapInput ?? new Map();
 
     return function TraversableObjectTree_makeMutationCommandFactory_1(
-      ...visitorArguments: Parameters<TraversalVisitor<IN_TO_TTP, OUT_TO_TTP>>
+      ...visitorArguments: Parameters<TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>>
     ): TO_MakeMutationCommandFactoryResult<OUT_TO_TTP> {
       const [vertex, options] = visitorArguments;
       const vertexData = vertex.getData();
@@ -378,7 +378,7 @@ export class TraversableObjectTree<
   TraversableObjectTTP<InK, InV>,
   TraversableObjectTTP<OutK, OutV>
 > {
-  private readonly instanceConfig: Required<
+  private readonly icfg: Required<
     TraversableObjectTreeInstanceConfigInput<In, InK, InV>
   >;
 
@@ -387,16 +387,16 @@ export class TraversableObjectTree<
     getRootPropertyFromInputObjectDefault;
 
   constructor(
-    instanceConfig: TraversableObjectTreeInstanceConfigInput<In, InK, InV>,
+    icfgInput: TraversableObjectTreeInstanceConfigInput<In, InK, InV>,
   ) {
     super();
-    this.instanceConfig = {
-      ...instanceConfig,
+    this.icfg = {
+      ...icfgInput,
       getChildrenOfProperty:
-        instanceConfig.getChildrenOfProperty ??
+        icfgInput.getChildrenOfProperty ??
         TraversableObjectTree.getChildrenOfPropertyDefault,
       getRootPropertyFromInputObject:
-        instanceConfig.getRootPropertyFromInputObject ??
+        icfgInput.getRootPropertyFromInputObject ??
         TraversableObjectTree.getRootPropertyFromInputObjectDefault(),
     };
   }
@@ -408,7 +408,7 @@ export class TraversableObjectTree<
       inputObject,
       getChildrenOfProperty,
       getRootPropertyFromInputObject,
-    } = this.instanceConfig;
+    } = this.icfg;
     const rootProp = getRootPropertyFromInputObject(inputObject);
     return {
       $d: rootProp,
@@ -423,7 +423,7 @@ export class TraversableObjectTree<
       TraversableObjectTTP<OutK, OutV>
     >,
   ): VertexContent<TraversableObjectTTP<InK, InV>> | null {
-    const { getChildrenOfProperty } = this.instanceConfig;
+    const { getChildrenOfProperty } = this.icfg;
     const hints = getChildrenOfProperty(vertexHint);
     return {
       $d: vertexHint,

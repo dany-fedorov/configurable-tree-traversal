@@ -6,16 +6,20 @@ import type { CTTRef } from './CTTRef';
 export enum TraversalVisitorCommandName {
   NOOP = 'NOOP',
   HALT_TRAVERSAL = 'HALT_TRAVERSAL',
-  REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
   DELETE_VERTEX = 'DELETE_VERTEX',
+  SET_VERTEX_VISITORS_CHAIN_STATE = 'SET_VERTEX_VISITORS_CHAIN_STATE',
+  REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
 }
 
 export type TraversalVisitorCommandArguments<
   RW_TTP extends TreeTypeParameters,
 > = {
-  [TraversalVisitorCommandName.NOOP]: void;
-  [TraversalVisitorCommandName.HALT_TRAVERSAL]: void;
-  [TraversalVisitorCommandName.DELETE_VERTEX]: void;
+  [TraversalVisitorCommandName.NOOP]: never;
+  [TraversalVisitorCommandName.HALT_TRAVERSAL]: never;
+  [TraversalVisitorCommandName.DELETE_VERTEX]: never;
+  [TraversalVisitorCommandName.SET_VERTEX_VISITORS_CHAIN_STATE]: {
+    vertexVisitorsChainState: unknown;
+  };
   [TraversalVisitorCommandName.REWRITE_VERTEX_DATA]: {
     newData: RW_TTP['VertexData'];
   };
@@ -33,23 +37,57 @@ export interface TraversalVisitorResult<RW_TTP extends TreeTypeParameters> {
   commands?: TraversalVisitorCommand<RW_TTP>[];
 }
 
-export type TraversalVisitorOptions<
+export type TraversalVisitorInputOptions<
+  ORDER extends string,
   TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+  RW_TTP extends TreeTypeParameters,
 > = {
   resolvedTree: ResolvedTree<TTP | RW_TTP>;
   notMutatedResolvedTree: ResolvedTree<TTP> | null;
-  visitIndex: number;
+  vertexVisitIndex: number;
+  curVertexVisitorVisitIndex: number;
   previousVisitedVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
   isTreeRoot: boolean;
   isTraversalRoot: boolean;
   vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
+  vertexVisitorsChainState: unknown;
+  visitorRecord: TraversalVisitorRecord<ORDER, TTP, RW_TTP>;
+  order: ORDER;
+};
+
+export enum TraversalVisitorFunctionResolutionStyle {
+  SEQUENTIAL = 'SEQUENTIAL',
+  CONCURRENT = 'CONCURRENT',
+}
+
+export type TraversalVisitorFunctionOptions = {
+  priority: number;
+  resolutionStyle: TraversalVisitorFunctionResolutionStyle;
+};
+
+export type TraversalVisitorRecord<
+  ORDER extends string,
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = {
+  addedIndex: number;
+  priority: number;
+  resolutionStyle: TraversalVisitorFunctionResolutionStyle;
+  visitor: TraversalVisitor<ORDER, TTP, RW_TTP>;
+};
+
+export const DEFAULT_VISITOR_PRIORITY = 100;
+
+export const DEFAULT_VISITOR_FN_OPTIONS = {
+  priority: DEFAULT_VISITOR_PRIORITY,
+  resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
 };
 
 export type TraversalVisitor<
+  ORDER extends string,
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > = (
   vertex: Vertex<TTP | RW_TTP>,
-  options: TraversalVisitorOptions<TTP, RW_TTP>,
+  options: TraversalVisitorInputOptions<ORDER, TTP, RW_TTP>,
 ) => TraversalVisitorResult<RW_TTP> | undefined | void;

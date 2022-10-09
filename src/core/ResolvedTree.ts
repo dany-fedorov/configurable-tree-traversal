@@ -10,8 +10,9 @@ export type VertexResolutionContext<TTP extends TreeTypeParameters> = {
   depth: number;
   parentVertex: Vertex<TTP>;
   parentVertexRef: CTTRef<Vertex<TTP>>;
-  vertexHintOriginalOrderIndex: number;
-  vertexHintTraversalOrderIndex: number;
+  // vertexHintOriginalOrderIndex: number;
+  // vertexHintTraversalOrderIndex: number;
+  hintIndex: number;
   vertexHint: TTP['VertexHint'];
 };
 
@@ -39,6 +40,12 @@ export class VertexResolved<TTP extends TreeTypeParameters>
 
   getResolutionContext(): VertexResolutionContext<TTP> | null {
     return this.$d.resolutionContext;
+  }
+
+  setResolutionContext(
+    resolutionContext: VertexResolutionContext<TTP> | null,
+  ): void {
+    this.$d.resolutionContext = resolutionContext;
   }
 
   getChildren(): CTTRef<Vertex<TTP>>[] {
@@ -111,7 +118,10 @@ export class ResolvedTree<
     return this.get(vertexRef)?.getParent() ?? null;
   }
 
-  private deleteChildOf(parent: CTTRef<Vertex<TTP>>, child: CTTRef<Vertex<TTP>>): void {
+  private deleteChildOf(
+    parent: CTTRef<Vertex<TTP>>,
+    child: CTTRef<Vertex<TTP>>,
+  ): void {
     const resolved = this.get(parent);
     if (resolved !== null) {
       const newResolved = resolved.clone({
@@ -185,7 +195,10 @@ export class ResolvedTree<
     }
   }
 
-  onPreOrderVisit(
+  /**
+   * @deprecated
+   */
+  ___onPreOrderVisit(
     vertexRef: CTTRef<Vertex<TTP>>,
     vertexContext: VertexResolutionContext<TTP> | null,
   ): void {

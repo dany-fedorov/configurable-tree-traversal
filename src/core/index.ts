@@ -4,7 +4,6 @@ export * from './MakeMutationCommandFunctionFactory';
 export * from './ResolvedTree';
 export * from './ResolvedTreeTypeParameters';
 export * from './TraversableTree';
-export * from './TraversableTreeParametersFromTraversableTree';
 export * from './TraversalVisitor';
 export * from './TreeTypeParameters';
 export * from './Vertex';

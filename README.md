@@ -7,7 +7,7 @@ Can do depth-first traversals like on this picture.
 
 https://en.wikipedia.org/wiki/Tree_traversal#/media/File:Sorted_binary_tree_ALL_RGB.svg
 
-Check out [src/tools/rewriteObject.ts](src/tools/rewriteObject.ts) and [tests/main.ts](tests/main.ts) to see what
+Check out [src/tools/rewriteObject.ts](src/tools/rewriteObject.ts) and [tests/_main.ts](tests/_main.ts) to see what
 already works.
 
 If for some reason you want to use this as a dependency, please use fixed version (remove ^ from version

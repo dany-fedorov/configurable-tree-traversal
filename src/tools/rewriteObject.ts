@@ -8,19 +8,25 @@ import type {
   TraversableObjectTTP,
 } from '../traversable-tree-implementations/TraversableObjectTree';
 import type { Vertex } from '../core/Vertex';
-import type { TraversalVisitorOptions } from '../core/TraversalVisitor';
+import type { TraversalVisitorInputOptions } from '../core/TraversalVisitor';
 import type { MakeMutationCommandFunctionInput } from '../core/MakeMutationCommandFunctionFactory';
 import { TraversableObjectTree } from '../traversable-tree-implementations/TraversableObjectTree';
-import {
-  DepthFirstTraversalConfig,
-  traverseDepthFirst,
-} from '../traversals/traverseDepthFirst';
+// import {
+//   DepthFirstTraversalConfig,
+//   traverseDepthFirst,
+// } from '../traversals/traverseDepthFirst';
 import type { GetPathToOptions } from '../core';
+import type { DepthFirstTraversalOrder } from '../traversals/depth-first-traversal/DepthFirstTraversal';
+import type { DepthFirstTraversalConfig } from '../_legacy/traversals/traverseDepthFirst';
 
 export type RewriteFnOptions<
   InK extends TraversableObjectPropKey,
   InV,
-> = TraversalVisitorOptions<TraversableObjectTTP<InK, InV>> &
+> = TraversalVisitorInputOptions<
+  DepthFirstTraversalOrder,
+  TraversableObjectTTP<InK, InV>,
+  TraversableObjectTTP<InK, InV>
+> &
   TO_IsCompositeAssertionsMixin & {
     vertex: Vertex<TraversableObjectTTP<InK, InV>>;
     getPath: (options?: GetPathToOptions) => InK[];
@@ -64,7 +70,10 @@ type RewriteObjectOptions<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     > &
-    DepthFirstTraversalConfig
+    DepthFirstTraversalConfig<
+      TraversableObjectTTP<InK, InV>,
+      TraversableObjectTTP<OutK, OutV>
+    >
 > & {
   rewrite?: RewriteFn<InK, InV, OutK, OutV>;
   getOutputObjectFromRootValue?: (value: OutV | null) => Out;
@@ -118,7 +127,7 @@ export function rewriteObject<
         ? { assembledMap: options.assembledMap }
         : { assembledMap: new Map() }),
     });
-  const { resolvedTree } = traverseDepthFirst<
+  const res = traverseDepthFirst<
     TraversableObjectTTP<InK, InV>,
     TraversableObjectTTP<OutK, OutV>
   >(
@@ -132,7 +141,7 @@ export function rewriteObject<
         vertex: Vertex<
           TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
         >,
-        options: TraversalVisitorOptions<
+        options: TraversalVisitorInputOptions<
           TraversableObjectTTP<InK, InV>,
           TraversableObjectTTP<OutK, OutV>
         >,
@@ -187,8 +196,8 @@ export function rewriteObject<
     },
   );
   const rootValue =
-    (resolvedTree.getRoot()?.unref().getData().value as unknown as OutV) ??
-    null;
+    (res.getResolvedTree().getRoot()?.unref().getData()
+      .value as unknown as OutV) ?? null;
   const outputObject = getOutputObjectFromRootValue(rootValue);
   if (outputObject === null) {
     throw new Error(`outputObject is null`);
