@@ -1,10 +1,10 @@
-import type { TreeTypeParameters } from './TreeTypeParameters';
-import type { Vertex, VertexContent } from './Vertex';
-import type { CTTRef } from './CTTRef';
-import type { CTTAbstractParent } from './CTTAbstractParent';
-import { jsonStringifySafe } from '../utils/jsonStringifySafe';
-import { AbstractTraversableTree } from './TraversableTree';
-import type { ResolvedTreeTypeParameters } from './ResolvedTreeTypeParameters';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { Vertex, VertexContent } from '@core/Vertex';
+import type { CTTRef } from '@core/CTTRef';
+import type { CTTAbstractParent } from '@core/CTTAbstractParent';
+import { AbstractTraversableTree } from '@core/TraversableTree';
+import type { ResolvedTreeTypeParameters } from '@core/ResolvedTreeTypeParameters';
+import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export type VertexResolutionContext<TTP extends TreeTypeParameters> = {
   depth: number;

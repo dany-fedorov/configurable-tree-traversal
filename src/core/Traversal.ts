@@ -1,11 +1,11 @@
-import type { TreeTypeParameters } from './TreeTypeParameters';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitor,
   TraversalVisitorFunctionOptions,
   TraversalVisitorRecord,
-} from './TraversalVisitor';
-import type { Vertex } from './Vertex';
-import type { CTTRef } from './CTTRef';
+} from '@core/TraversalVisitor';
+import type { Vertex } from '@core/Vertex';
+import type { CTTRef } from '@core/CTTRef';
 
 export type TraversalIteratorResultContent<
   ORDER extends string,

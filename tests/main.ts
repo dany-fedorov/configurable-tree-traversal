@@ -1,9 +1,7 @@
-import {
-  DepthFirstTraversal,
-  DepthFirstTraversalOrder,
-} from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
-import { TraversableObjectTree } from '../src/traversable-tree-implementations';
-import { TraversalVisitorCommandName } from '../src/core';
+import { TraversableObjectTree } from '@traversable-object-tree/index';
+import { DepthFirstTraversal } from '@depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
 const main = () => {
   const obj = {

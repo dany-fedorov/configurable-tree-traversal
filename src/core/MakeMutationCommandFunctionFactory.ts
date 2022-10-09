@@ -1,9 +1,9 @@
-import type { TreeTypeParameters } from './TreeTypeParameters';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitor,
   TraversalVisitorCommand,
-} from './TraversalVisitor';
-import type { TraversalVisitorCommandName } from './TraversalVisitor';
+} from '@core/TraversalVisitor';
+import type { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
 export type MakeMutationCommandFunctionInput<RW_V> = {
   rewrite?: RW_V;
@@ -29,18 +29,20 @@ export type MakeMutationCommandFunction<OUT_TTP extends TreeTypeParameters> = (
 ) => MakeMutationCommandFunctionResult<OUT_TTP>;
 
 export type MakeMutationCommandFunctionFactory_2<
+  ORDER extends string,
   IN_TTP extends TreeTypeParameters,
   OUT_TTP extends TreeTypeParameters,
 > = (
-  ...visitorArguments: Parameters<TraversalVisitor<IN_TTP, OUT_TTP>>
+  ...visitorArguments: Parameters<TraversalVisitor<ORDER, IN_TTP, OUT_TTP>>
 ) => MakeMutationCommandFactoryResult<OUT_TTP>;
 
 export type MakeMutationCommandFunctionFactory = <
+  ORDER extends string,
   IN_TTP extends TreeTypeParameters<any, any>, // See [1]
   OUT_TTP extends TreeTypeParameters<any, any>, // See [1]
 >(
   input_0?: any,
-) => MakeMutationCommandFunctionFactory_2<IN_TTP, OUT_TTP>;
+) => MakeMutationCommandFunctionFactory_2<ORDER, IN_TTP, OUT_TTP>;
 
 /**
  * [1]

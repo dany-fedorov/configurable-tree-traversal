@@ -5,12 +5,13 @@
   "main": "./index.js",
   "scripts": {
     "test": "NODE_OPTIONS='--stack-trace-limit=1000' ./node_modules/.bin/jest",
-    "build": "tsc -p ./tsconfig.build.json",
+    "build": "tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json",
     "prepare-me": "rm -rf ./dist && npm run build",
     "prepublish-me": "npm run prepare-me && rm -fr ./npm-module && mv dist ./npm-module && cp package.json ./npm-module && cp README.md ./npm-module",
     "publish-me": "npm run prepublish-me && cd npm-module && npm publish --access public",
     "postpublish-me": "if [ $(basename $(pwd)) != 'configurable-tree-traversal' ]; then cd ..; fi && rm -fr npm-module",
-    "build-watch": "chokidar './src/**/*.ts' -c 'npm run build' -i './node_modules/**/*' --initial"
+    "build-watch": "chokidar './src/**/*.ts' -c 'npm run build' -i './node_modules/**/*' --initial",
+    "tsfile": "ts-node -r tsconfig-paths/register -T"
   },
   "repository": {
     "type": "git",
@@ -44,6 +45,8 @@
     "prettier": "2.7.1",
     "ts-jest": "^28.0.5",
     "ts-node": "^10.8.2",
+    "tsconfig-paths": "^4.1.0",
+    "tsconfig-replace-paths": "^0.0.11",
     "typescript": "^4.7.4"
   },
   "dependencies": {

@@ -1,8 +1,6 @@
-import type {
-  TraversalVisitorInputOptions,
-  TreeTypeParameters,
-} from '../../core';
-import type { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { TraversalVisitorInputOptions } from '@core/TraversalVisitor';
 
 export type DepthFirstTraversalVisitorsState<
   TTP extends TreeTypeParameters,

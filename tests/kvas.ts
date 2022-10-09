@@ -1,4 +1,4 @@
-import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
+import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export type JsonObject<P extends JsonPrimitive> = { [x: string]: JsonValue<P> };
 export type JsonArray<P extends JsonPrimitive> = Array<JsonValue<P>>;

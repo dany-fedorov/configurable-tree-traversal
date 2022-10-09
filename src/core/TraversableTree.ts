@@ -1,7 +1,7 @@
-import type { VertexContent } from './Vertex';
-import type { TreeTypeParameters } from './TreeTypeParameters';
-import type { VertexResolutionContext } from './ResolvedTree';
-import type { ResolvedTree } from './ResolvedTree';
+import type { VertexContent } from '@core/Vertex';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { ResolvedTree } from '@core/ResolvedTree';
 
 export type MakeVertexOptions<
   TTP extends TreeTypeParameters,

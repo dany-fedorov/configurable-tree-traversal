@@ -1,5 +1,4 @@
 {
-  "extends": "@tsconfig/node16-strictest/tsconfig.json",
   "compilerOptions": {
     "baseUrl": "./src",
     "outDir": "./dist",
@@ -21,10 +20,5 @@
         "utils/*"
       ]
     }
-  },
-  "include": [
-    "src",
-    "tests",
-    "webpack.config.ts"
-  ]
+  }
 }

@@ -1,3 +1,45 @@
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import {
+  Traversal,
+  TraversalIteratorResultContent,
+  TraversalStatus,
+} from '@core/Traversal';
+import type {
+  DepthFirstTraversalInstanceConfig,
+  DepthFirstTraversalInstanceConfigInput,
+} from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
+import type { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
+import type { DepthFirstTraversalState } from '@depth-first-traversal/lib/DepthFirstTraversalState';
+import {
+  DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
+  mergeInstanceConfigs,
+} from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import type { TraversableTree } from '@core/TraversableTree';
+import type {
+  TraversalVisitor,
+  TraversalVisitorCommand,
+  TraversalVisitorCommandArguments,
+  TraversalVisitorFunctionOptions,
+  TraversalVisitorInputOptions,
+  TraversalVisitorRecord,
+  TraversalVisitorResult,
+} from '@core/TraversalVisitor';
+import {
+  DEFAULT_VISITOR_FN_OPTIONS,
+  TraversalVisitorCommandName,
+  TraversalVisitorFunctionResolutionStyle,
+} from '@core/TraversalVisitor';
+import { CTTRef } from '@core/CTTRef';
+import { Vertex } from '@core/Vertex';
+import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { DepthFirstTraversalExecuteVisitorCommandsResult } from '@depth-first-traversal/lib/DepthFirstTraversalExecuteVisitorCommandsResult';
+import { initVisitors } from '@depth-first-traversal/init-helpers/initVisitors';
+import { initInternalObjects } from '@depth-first-traversal/init-helpers/initInternalObjects';
+import { shouldVisitParentOnInOrder } from '@depth-first-traversal/in-range-helpers/shouldVisitParentOnInOrder';
+import type { ResolvedTree } from '@core/ResolvedTree';
+
 export class DepthFirstTraversal<
   TTP extends TreeTypeParameters = TreeTypeParameters,
   RW_TTP extends TreeTypeParameters = TTP,
@@ -5,7 +47,10 @@ export class DepthFirstTraversal<
   icfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
 
   visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
-  resolvedTreesContainer: ResolvedTreesContainer<TTP, RW_TTP>;
+  resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
+    TTP,
+    RW_TTP
+  >;
   traversalState: DepthFirstTraversalState<TTP, RW_TTP>;
   curGenerator: Generator<
     TraversalIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>
@@ -46,16 +91,16 @@ export class DepthFirstTraversal<
     return this;
   }
 
-  getTraversalStatus(): TraversalStatus {
-    return this.traversalState.status;
-  }
-
   private setStatus(stauts: TraversalStatus): void {
     this.traversalState.status = stauts;
   }
 
   getStatus(): TraversalStatus {
     return this.traversalState.status;
+  }
+
+  getResolvedTree(): ResolvedTree<TTP | RW_TTP> {
+    return this.resolvedTreesContainer.resolvedTree;
   }
 
   addVisitorFor(
@@ -101,31 +146,19 @@ export class DepthFirstTraversal<
     return this;
   }
 
-  getTraversalRootVertexRef(): CTTRef<Vertex<TTP | RW_TTP>> | null {
-    return this.traversalState.traversalRootVertexRef;
-  }
-
   private setTraversalRootVertexRef(
     vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
   ): void {
     this.traversalState.traversalRootVertexRef = vertexRef;
   }
 
-  getResolvedTreeRootVertexRef(): CTTRef<Vertex<TTP | RW_TTP>> | null {
-    return this.resolvedTreesContainer.getRoot();
-  }
-
-  setResolvedTreeRootVertexRef(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): void {
-    this.resolvedTreesContainer.setRoot(vertexRef);
-  }
-
   private initRootVertex(): CTTRef<Vertex<TTP | RW_TTP>> | null {
     if (
-      this.getTraversalRootVertexRef() !== null &&
-      this.getResolvedTreeRootVertexRef() !== null
+      this.traversalState.traversalRootVertexRef !== null &&
+      this.resolvedTreesContainer.resolvedTree.getRoot() !== null
     ) {
       // Already initialized, this is a continuation
-      return this.getResolvedTreeRootVertexRef();
+      return this.resolvedTreesContainer.resolvedTree.getRoot();
     }
     const rootContent = this.getTraversableTree().makeRoot();
     if (rootContent === null) {
@@ -135,7 +168,7 @@ export class DepthFirstTraversal<
       new Vertex<TTP | RW_TTP>(rootContent),
     );
     this.setTraversalRootVertexRef(rootVertexRef);
-    this.setResolvedTreeRootVertexRef(rootVertexRef);
+    this.resolvedTreesContainer.setRoot(rootVertexRef);
     return rootVertexRef;
   }
 
@@ -182,11 +215,11 @@ export class DepthFirstTraversal<
   }
 
   isTraversalRootVertex(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): boolean {
-    return vertexRef === this.getTraversalRootVertexRef();
+    return vertexRef === this.traversalState.traversalRootVertexRef;
   }
 
   isTreeRootVertex(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): boolean {
-    return vertexRef === this.getResolvedTreeRootVertexRef();
+    return vertexRef === this.resolvedTreesContainer.resolvedTree.getRoot();
   }
 
   private executeVisitorCommands(
@@ -375,7 +408,7 @@ export class DepthFirstTraversal<
   }
 
   isHalted(): boolean {
-    return this.getTraversalStatus() === TraversalStatus.HALTED;
+    return this.getStatus() === TraversalStatus.HALTED;
   }
 
   private onInOrderProcessing_getInOrderSiblingsContext(
@@ -539,7 +572,7 @@ export class DepthFirstTraversal<
     this.resolvedTreesContainer.pushChildrenTo(vertexContext.parentVertexRef, [
       vertexRef,
     ]);
-    this.pushHintsOf(vertexRef, vertexContext.depth + 1);
+    this.pushHintsOf(vertexRef, vertexContext.depth);
     if (orders.includes(DepthFirstTraversalOrder.PRE_ORDER)) {
       runVisitorFunctions &&
         this.visitVertex(DepthFirstTraversalOrder.PRE_ORDER, vertexRef);

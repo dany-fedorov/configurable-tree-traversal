@@ -1,6 +1,6 @@
-import type { CTTRef } from './CTTRef';
-import type { Vertex } from './Vertex';
-import type { TreeTypeParameters } from './TreeTypeParameters';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { Vertex } from '@core/Vertex';
+import type { CTTRef } from '@core/CTTRef';
 
 export interface ResolvedTreeTypeParameters<TTP extends TreeTypeParameters> {
   VertexData: CTTRef<Vertex<TTP>>;

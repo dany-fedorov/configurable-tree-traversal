@@ -1,7 +1,7 @@
-import type { TreeTypeParameters } from './TreeTypeParameters';
-import type { Vertex } from './Vertex';
-import type { ResolvedTree } from './ResolvedTree';
-import type { CTTRef } from './CTTRef';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { Vertex } from '@core/Vertex';
+import type { ResolvedTree } from '@core/ResolvedTree';
+import type { CTTRef } from '@core/CTTRef';
 
 export enum TraversalVisitorCommandName {
   NOOP = 'NOOP',

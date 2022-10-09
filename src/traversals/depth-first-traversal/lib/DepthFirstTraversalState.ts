@@ -1,4 +1,29 @@
-export export export export export export export export export export class DepthFirstTraversalState<
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { CTTRef } from '@core/CTTRef';
+import type { Vertex } from '@core/Vertex';
+import type { DepthFirstTraversalVisitorsState } from '@depth-first-traversal/lib/DepthFirstTraversalVisitorsState';
+import { TraversalStatus } from '@core/Traversal';
+import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+
+export function initDepthFirstVisitorsState<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+>(): DepthFirstTraversalVisitorsState<TTP, RW_TTP> {
+  const empty = {
+    vertexVisitIndex: 0,
+    curVertexVisitorVisitIndex: 0,
+    previousVisitedVertexRef: null,
+  };
+  return {
+    [DepthFirstTraversalOrder.PRE_ORDER]: { ...empty },
+    [DepthFirstTraversalOrder.IN_ORDER]: { ...empty },
+    [DepthFirstTraversalOrder.POST_ORDER]: { ...empty },
+  };
+}
+
+export class DepthFirstTraversalState<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > {

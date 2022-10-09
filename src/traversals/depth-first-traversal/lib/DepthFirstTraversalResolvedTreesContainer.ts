@@ -1,18 +1,20 @@
-import { jsonStringifySafe } from '../../../utils/jsonStringifySafe';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { Vertex } from '@core/Vertex';
+import { CTTRef } from '@core/CTTRef';
 import {
-  CTTRef,
   ResolvedTree,
-  TreeTypeParameters,
-  Vertex, VertexResolutionContext, VertexResolved,
-} from '../../../core';
-import type { DepthFirstTraversalInstanceConfig } from './DepthFirstTraversalInstanceConfig';
+  VertexResolutionContext,
+  VertexResolved,
+} from '@core/ResolvedTree';
+import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export type NotMutatedResolvedTreeRefsMap<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > = Map<CTTRef<Vertex<TTP | RW_TTP>>, CTTRef<Vertex<TTP>>>;
 
-export class ResolvedTreesContainer<
+export class DepthFirstTraversalResolvedTreesContainer<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > {
@@ -86,10 +88,6 @@ export class ResolvedTreesContainer<
         notMutatedVertexResolved as VertexResolved<TTP>,
       );
     }
-  }
-
-  getRoot(): CTTRef<Vertex<TTP | RW_TTP>> | null {
-    return this.resolvedTree.getRoot();
   }
 
   setWithResolutionContext(

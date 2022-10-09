@@ -1,5 +1,5 @@
-import type { TreeTypeParameters } from './TreeTypeParameters';
-import type { CTTAbstractParent } from './CTTAbstractParent';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { CTTAbstractParent } from '@core/CTTAbstractParent';
 
 export type VertexContent<TTP extends TreeTypeParameters> = CTTAbstractParent<
   TTP['VertexData'],

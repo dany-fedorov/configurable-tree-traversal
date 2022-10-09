@@ -1,42 +1,10 @@
-function normalizeRange(
-  r: IndexRange,
-  arrLength: number,
-): [number, number] | null {
-  const rr = (Array.isArray(r) ? r : [r, r]).map((n, i) => {
-    if (n < 0) {
-      if (n < -arrLength) {
-        if (i === 0) {
-          return 0;
-        } else {
-          return null;
-        }
-      } else {
-        return arrLength + n;
-      }
-    } /* if (n >= 0) */ else {
-      if (n > arrLength - 1) {
-        if (i === 0) {
-          return null;
-        } else {
-          return arrLength - 1;
-        }
-      } else {
-        return n;
-      }
-    }
-  });
-  if (
-    rr[0] === null ||
-    rr[1] === null ||
-    (rr[0] as number) > (rr[1] as number)
-  ) {
-    return null;
-  }
-  return rr as [number, number];
-}
+import type { DepthFirstTraversalInOrderTraversalConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
+import { normalizeRange } from '@depth-first-traversal/in-range-helpers/normalizeRange';
+import { isInRange } from '@depth-first-traversal/in-range-helpers/isInRange';
+import type {IndexRange} from "@depth-first-traversal/in-range-helpers/IndexRange";
 
-function shouldVisitParentOnInOrder(
-  inOrderTraversalConfig: DepthFirstTraversalInstanceConfig_InOrderTraversalConfig,
+export function shouldVisitParentOnInOrder(
+  inOrderTraversalConfig: DepthFirstTraversalInOrderTraversalConfig,
   justVisitedIndex: number,
   allSiblingsCount: number,
 ): boolean {
@@ -46,14 +14,14 @@ function shouldVisitParentOnInOrder(
   const visitParentAfterRanges = (
     Array.isArray(cfg) || typeof cfg === 'number' ? [cfg] : cfg.ranges
   )
-    .map((r) => normalizeRange(r, allSiblingsCount))
+    .map((r: IndexRange) => normalizeRange(r, allSiblingsCount))
     .filter(Boolean) as [number, number][];
   const visitParentAfterFallbackRanges = (
     Array.isArray(fallback) || typeof fallback === 'number'
       ? [fallback]
       : fallback.ranges
   )
-    .map((r) => normalizeRange(r, allSiblingsCount))
+    .map((r: IndexRange) => normalizeRange(r, allSiblingsCount))
     .filter(Boolean) as [number, number][];
   // console.log(justVisitedIndex, visitParentAfterRanges, visitParentAfterRanges.some((r) => isInRange(r, justVisitedIndex)), visitParentAfterFallbackRanges, visitParentAfterRanges.length === 0 && visitParentAfterFallbackRanges.some((r) => isInRange(r, justVisitedIndex),),);
   return (
@@ -66,8 +34,4 @@ function shouldVisitParentOnInOrder(
         isInRange(r, justVisitedIndex),
       ))
   );
-}
-
-function isInRange(r: [number, number], x: number) {
-  return x >= r[0] && x <= r[1];
 }

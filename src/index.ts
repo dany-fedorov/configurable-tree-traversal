@@ -1,4 +1,4 @@
-export * as core from './core';
-export * as tools from './tools';
-export * as traversals from './traversals';
-export * as traversableTreeImplementations from './traversable-tree-implementations';
+export * as core from '@core/index';
+export * as rewriteObject from '@rewrite-object/index';
+export * as depthFirstTraversal from '@depth-first-traversal/index';
+export * as traversableObjectTree from '@traversable-object-tree/index';
