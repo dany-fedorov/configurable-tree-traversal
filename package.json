@@ -1,11 +1,11 @@
 {
   "name": "configurable-tree-traversal",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Very configurable tree traversal for TypeScript",
   "main": "./index.js",
   "scripts": {
     "test": "NODE_OPTIONS='--stack-trace-limit=1000' ./node_modules/.bin/jest",
-    "build": "tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json",
+    "build": "tsc -p ./tsconfig.build.json # && tsconfig-replace-paths --project tsconfig.paths.json -s ./src",
     "prepare-me": "rm -rf ./dist && npm run build",
     "prepublish-me": "npm run prepare-me && rm -fr ./npm-module && mv dist ./npm-module && cp package.json ./npm-module && cp README.md ./npm-module",
     "publish-me": "npm run prepublish-me && cd npm-module && npm publish --access public",
