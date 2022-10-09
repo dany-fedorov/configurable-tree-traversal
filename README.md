@@ -1,6 +1,6 @@
 # Project Status
 
-Can do depth-first traversals like on this picture for abstract trees like on this picture
+Can do depth-first traversals like on this picture for abstract trees 
 
 https://en.wikipedia.org/wiki/Tree_traversal#/media/File:Sorted_binary_tree_ALL_RGB.svg
 
