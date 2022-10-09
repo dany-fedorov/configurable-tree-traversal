@@ -4,15 +4,30 @@
     "baseUrl": "./src",
     "outDir": "./dist",
     "declaration": true,
-    "noPropertyAccessFromIndexSignature": false
-  },
-  "include": [
-    "src",
-    "tests",
-    "scripts"
-  ],
-  "exclude": [
-    "node_modules",
-    "lib"
-  ]
+    //    "noPropertyAccessFromIndexSignature": false,
+    "paths": {
+      "@core/*": [
+        "src/core/*"
+      ],
+      "@rewrite-object/*": [
+        "src/tools/rewrite-object/*"
+      ],
+      "@traversable-object-tree/*": [
+        "src/traversable-tree-implementations/traversable-object-tree/*"
+      ],
+      "@depth-first-traversal/*": [
+        "src/traversals/depth-first-traversal/*"
+      ]
+    },
+    "include": [
+      "src",
+      "tests",
+      "scripts"
+    ],
+    "exclude": [
+      "node_modules",
+      "lib",
+      "_legacy"
+    ]
+  }
 }

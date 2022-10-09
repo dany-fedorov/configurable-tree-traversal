@@ -1,1 +1,1 @@
-export * from './traverseDepthFirst';
+export * from './depth-first-traversal/DepthFirstTraversal';

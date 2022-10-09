@@ -82,7 +82,6 @@ export type GetPathToOptions = {
 export class ResolvedTree<
   TTP extends TreeTypeParameters,
 > extends AbstractTraversableTree<ResolvedTreeTypeParameters<TTP>> {
-  private _isResolved = false;
   private map: ResolvedTreeMap<TTP>;
   private root: CTTRef<Vertex<TTP>> | null;
 
@@ -90,14 +89,6 @@ export class ResolvedTree<
     super();
     this.map = new Map();
     this.root = null;
-  }
-
-  markAsResolved() {
-    this._isResolved = true;
-  }
-
-  isResolved(): boolean {
-    return this._isResolved;
   }
 
   getRoot(): CTTRef<Vertex<TTP>> | null {

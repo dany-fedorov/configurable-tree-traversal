@@ -235,117 +235,117 @@
 //   );
 // };
 
-const _main = () => {
-  const obj = {
-    a: 1,
-    b: 2,
-    c: 3,
-  };
-  const tree = new TraversableObjectTree({
-    inputObject: obj,
-  });
-  const res = traverseDepthFirst(tree, {
-    preOrderVisitor(vertex, { isTreeRoot }) {
-      console.log(
-        'PRE'.padEnd(4),
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
-        jsonStringifySafe(vertex.getData().value),
-      );
-      // if (vertex.getData().key === 'b') {
-      if (isTreeRoot) {
-        return {
-          commands: [
-            {
-              commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
-            },
-          ],
-        };
-      }
-      return {};
-    },
-    inOrderVisitor(vertex, { isTreeRoot }) {
-      console.log(
-        'IN'.padEnd(4),
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
-        jsonStringifySafe(vertex.getData().value),
-      );
-      if (vertex.getData().key === 'b') {
-        return {
-          commands: [
-            {
-              commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
-            },
-          ],
-        };
-      }
-      return {};
-    },
-    postOrderVisitor(vertex, { isTreeRoot }) {
-      console.log(
-        'POST'.padEnd(4),
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
-        jsonStringifySafe(vertex.getData().value),
-      );
-      if (vertex.getData().key === 'b') {
-        return {
-          commands: [
-            {
-              commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
-            },
-          ],
-        };
-      }
-      return {};
-    },
-  });
-  // console.log(jsonStringifySafe(resolvedTree.getRoot()?.unref().getData()));
-  // console.log(haltedOnContext);
-  console.log('----------');
-  const res1 = res.continue(
-    null,
-    {
-      preOrderVisitor(vertex, { isTreeRoot, isTraversalRoot }) {
-        console.log(
-          'PRE'.padEnd(4),
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
-          jsonStringifySafe(vertex.getData().value),
-        );
-      },
-      inOrderVisitor(vertex, { isTreeRoot }) {
-        console.log(
-          'IN'.padEnd(4),
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
-          jsonStringifySafe(vertex.getData().value),
-        );
-      },
-      postOrderVisitor(vertex, { isTreeRoot }) {
-        console.log(
-          'POST'.padEnd(4),
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
-          (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
-          jsonStringifySafe(vertex.getData().value),
-        );
-      },
-    },
-    /*{
-      resolvedTreesContainer: res.getResolvedTreesContainer(),
-      traversalState: res.getTraversalState(),
-      rootVertexRef: res.getHaltedOnVertexRef(),
-      lastVisitedBy: res.getHaltedOnVisitorOrderKey(),
-    }*/
-  );
-};
-
-// main_();
-_main();
+// const _main = () => {
+//   const obj = {
+//     a: 1,
+//     b: 2,
+//     c: 3,
+//   };
+//   const tree = new TraversableObjectTree({
+//     inputObject: obj,
+//   });
+//   const res = traverseDepthFirst(tree, {
+//     preOrderVisitor(vertex, { isTreeRoot }) {
+//       console.log(
+//         'PRE'.padEnd(4),
+//         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+//         // @ts-ignore
+//         (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+//         jsonStringifySafe(vertex.getData().value),
+//       );
+//       // if (vertex.getData().key === 'b') {
+//       if (isTreeRoot) {
+//         return {
+//           commands: [
+//             {
+//               commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+//             },
+//           ],
+//         };
+//       }
+//       return {};
+//     },
+//     inOrderVisitor(vertex, { isTreeRoot }) {
+//       console.log(
+//         'IN'.padEnd(4),
+//         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+//         // @ts-ignore
+//         (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+//         jsonStringifySafe(vertex.getData().value),
+//       );
+//       if (vertex.getData().key === 'b') {
+//         return {
+//           commands: [
+//             {
+//               commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+//             },
+//           ],
+//         };
+//       }
+//       return {};
+//     },
+//     postOrderVisitor(vertex, { isTreeRoot }) {
+//       console.log(
+//         'POST'.padEnd(4),
+//         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+//         // @ts-ignore
+//         (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+//         jsonStringifySafe(vertex.getData().value),
+//       );
+//       if (vertex.getData().key === 'b') {
+//         return {
+//           commands: [
+//             {
+//               commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+//             },
+//           ],
+//         };
+//       }
+//       return {};
+//     },
+//   });
+//   // console.log(jsonStringifySafe(resolvedTree.getRoot()?.unref().getData()));
+//   // console.log(haltedOnContext);
+//   console.log('----------');
+//   const res1 = res.continue(
+//     null,
+//     {
+//       preOrderVisitor(vertex, { isTreeRoot, isTraversalRoot }) {
+//         console.log(
+//           'PRE'.padEnd(4),
+//           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+//           // @ts-ignore
+//           (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+//           jsonStringifySafe(vertex.getData().value),
+//         );
+//       },
+//       inOrderVisitor(vertex, { isTreeRoot }) {
+//         console.log(
+//           'IN'.padEnd(4),
+//           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+//           // @ts-ignore
+//           (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+//           jsonStringifySafe(vertex.getData().value),
+//         );
+//       },
+//       postOrderVisitor(vertex, { isTreeRoot }) {
+//         console.log(
+//           'POST'.padEnd(4),
+//           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+//           // @ts-ignore
+//           (isTreeRoot ? 'ROOT' : vertex.getData().key).padEnd(8),
+//           jsonStringifySafe(vertex.getData().value),
+//         );
+//       },
+//     },
+//     /*{
+//       resolvedTreesContainer: res.getResolvedTreesContainer(),
+//       traversalState: res.getTraversalState(),
+//       rootVertexRef: res.getHaltedOnVertexRef(),
+//       lastVisitedBy: res.getHaltedOnVisitorOrderKey(),
+//     }*/
+//   );
+// };
+//
+// // main_();
+// _main();
