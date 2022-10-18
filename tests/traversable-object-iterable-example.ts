@@ -156,3 +156,30 @@ for (const { vertex, order } of traversalIterable3) {
     jsonStringifySafe(vertex.getData().value),
   );
 }
+
+/*
+Inside the loop on PRE_ORDER  ; key: __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ ; value: {"F":{"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}}
+Inside the loop on PRE_ORDER  ; key: F ; value: {"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}
+Inside the loop on PRE_ORDER  ; key: B ; value: {"A":1,"D":["C","E"]}
+Inside the loop on PRE_ORDER  ; key: A ; value: 1
+-  Post-order  key: A ; value: 1
+Inside the loop on PRE_ORDER  ; key: D ; value: ["C","E"]
+Found D!!
+----
+----
+Inside the loop on PRE_ORDER  ; key: 0 ; value: "C"
+-  Post-order  key: 0 ; value: "C"
+Inside the loop on PRE_ORDER  ; key: 1 ; value: "E"
+-  Post-order  key: 1 ; value: "E"
+-  Post-order  key: D ; value: ["C","E"]
+-  Post-order  key: B ; value: {"A":1,"D":["C","E"]}
+----
+----
+Inside the loop on PRE_ORDER  ; key: I ; value: {"H":1}
+Inside the loop on PRE_ORDER  ; key: H ; value: 1
+-  Post-order  key: H ; value: 1
+-  Post-order  key: I ; value: {"H":1}
+-  Post-order  key: G ; value: {"_":null,"I":{"H":1}}
+-  Post-order  key: F ; value: {"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}
+-  Post-order  key: __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ ; value: {"F":{"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}}
+*/
