@@ -29,7 +29,7 @@ const treeData =
 
 const traversableTree = {
   makeRoot: () => treeData,
-  makeVertex: (h: any) => h,
+  makeVertex: (childHint: any) => childHint,
 };
 const traversal = new DepthFirstTraversal({ traversableTree });
 
