@@ -46,6 +46,8 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) =>
 traversal.makeRunner().run();
 ```
 
+Stdout
+
 ![Stdout of tree-from-image-example.ts](./tree-from-image-example-result.png)
 
 ### [traversable-object-example.ts](./tests/traversable-object-example.ts) 
