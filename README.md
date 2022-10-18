@@ -10,30 +10,22 @@ Can do depth-first traversals like on this picture for abstract trees.
 
 To run examples you'll need to have [node](https://nodejs.org/en/download/) and you'll need to run `npm install`.
 
-### [tree-from-image-example.ts](./tests/tree-from-image-example-1.ts) (`npm run tsfile tests/tree-from-image-example.ts`).
+### [tree-from-image-example.ts](./tests/tree-from-image-example-1.ts) 
+
+`npm run tsfile tests/tree-from-image-example.ts`
 
 ```typescript
 const treeData =
-  {
-    $d: 'F', $c: [
-      {
-        $d: 'B', $c: [
-          {$d: 'A', $c: []},
-          {
-            $d: 'D', $c: [
-              {$d: 'C', $c: []},
-              {$d: 'E', $c: []}]
-          }]
-      },
-      {
-        $d: 'G', $c: [
+  { $d: 'F', $c: [
+      { $d: 'B', $c: [
+          { $d: 'A', $c: [] },
+          { $d: 'D', $c: [
+              { $d: 'C', $c: [] },
+              { $d: 'E', $c: [] }] }] },
+      { $d: 'G', $c: [
           null,
-          {
-            $d: 'I', $c: [
-              {$d: 'H', $c: []}]
-          }]
-      }]
-  };
+          { $d: 'I', $c: [
+              { $d: 'H', $c: [] }] }] }] };
 
 const traversableTree = {
   makeRoot: () => treeData,
@@ -56,11 +48,17 @@ traversal.makeRunner().run();
 
 ![Stdout of tree-from-image-example.ts](./tree-from-image-example-result.png)
 
-### [traversable-object-example.ts](./tests/traversable-object-example.ts) (`npm run tsfile tests/traversable-object-example.ts`).
+### [traversable-object-example.ts](./tests/traversable-object-example.ts) 
 
-### [traversable-object-iterable-example.ts](./tests/traversable-object-iterable-example.ts) (`npm run tsfile tests/traversable-object-iterable-example.ts`).
+`npm run tsfile tests/traversable-object-example.ts`
 
-### [rewrite-object-example.ts](./tests/rewrite-object-example.ts) (`npm run tsfile tests/rewrite-object-example.ts`).
+### [traversable-object-iterable-example.ts](./tests/traversable-object-iterable-example.ts) 
+
+`npm run tsfile tests/traversable-object-iterable-example.ts`
+
+### [rewrite-object-example.ts](./tests/rewrite-object-example.ts) 
+
+`npm run tsfile tests/rewrite-object-example.ts`
 
 # Project Status
 
