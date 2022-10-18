@@ -31,16 +31,16 @@ const traversableTree = {
   makeRoot: () => treeData,
   makeVertex: (h: any) => h,
 };
-const traversal = new DepthFirstTraversal({traversableTree});
+const traversal = new DepthFirstTraversal({ traversableTree });
 
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) =>
-  reportVisit(DepthFirstTraversalOrder.PRE_ORDER, v.getData()),
+traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) =>
+  reportVisit(DepthFirstTraversalOrder.PRE_ORDER, vertex.getData()),
 );
-traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) =>
-  reportVisit(DepthFirstTraversalOrder.IN_ORDER, v.getData()),
+traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (vertex) =>
+  reportVisit(DepthFirstTraversalOrder.IN_ORDER, vertex.getData()),
 );
-traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) =>
-  reportVisit(DepthFirstTraversalOrder.POST_ORDER, v.getData()),
+traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) =>
+  reportVisit(DepthFirstTraversalOrder.POST_ORDER, vertex.getData()),
 );
 
 traversal.makeRunner().run();

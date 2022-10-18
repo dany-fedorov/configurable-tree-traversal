@@ -1,5 +1,5 @@
-import { DepthFirstTraversal } from '@depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import {DepthFirstTraversal} from '@depth-first-traversal/DepthFirstTraversal';
+import {DepthFirstTraversalOrder} from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 
 /**
  * Utils
@@ -43,7 +43,7 @@ function logWhiteRow(str: string, d = 0): void {
   const asciiS = s.replace(ANSI_ESCAPE, '');
   console.log(
     s,
-    Array.from({ length: process.stdout.columns - asciiS.length - 1 - d })
+    Array.from({length: process.stdout.columns - asciiS.length - 1 - d})
       .map(() => ' ')
       .join(''),
   );
@@ -99,6 +99,7 @@ process.on('beforeExit', () => {
  * Example (weird formatting to make it compact for README.md)
  */
 
+// @webstorm-formatter:off
 // prettier-ignore
 const treeData =
   { $d: 'F', $c: [
@@ -118,14 +119,14 @@ const traversableTree = {
 };
 const traversal = new DepthFirstTraversal({ traversableTree });
 
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) =>
-  reportVisit(DepthFirstTraversalOrder.PRE_ORDER, v.getData()),
+traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) =>
+  reportVisit(DepthFirstTraversalOrder.PRE_ORDER, vertex.getData()),
 );
-traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) =>
-  reportVisit(DepthFirstTraversalOrder.IN_ORDER, v.getData()),
+traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (vertex) =>
+  reportVisit(DepthFirstTraversalOrder.IN_ORDER, vertex.getData()),
 );
-traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) =>
-  reportVisit(DepthFirstTraversalOrder.POST_ORDER, v.getData()),
+traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) =>
+  reportVisit(DepthFirstTraversalOrder.POST_ORDER, vertex.getData()),
 );
 
 traversal.makeRunner().run();
