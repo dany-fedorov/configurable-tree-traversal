@@ -2,7 +2,7 @@
 
 Can do depth-first traversals like on this picture for abstract trees.
 
-<img src="./Sorted_binary_tree_ALL_RGB.svg.png" width="400" height="400" />
+<img src="./Sorted_binary_tree_ALL_RGB.svg.png" width="460" height="393" />
 
 (source: https://en.wikipedia.org/wiki/Tree_traversal)
 
