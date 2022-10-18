@@ -26,14 +26,6 @@ export class DepthFirstTraversal<
   icfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
 
   visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
-  // resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
-  //   TTP,
-  //   RW_TTP
-  // >;
-  // traversalState: DepthFirstTraversalState<TTP, RW_TTP>;
-  // curGenerator: Generator<
-  //   TraversalIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>
-  // > | null;
 
   constructor(icfgInput: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>) {
     super();
@@ -45,12 +37,6 @@ export class DepthFirstTraversal<
       icfgInput,
     );
     this.visitors = initVisitors(this.icfg);
-    // const { resolvedTreesContainer, traversalState } = initInternalObjects(
-    //   this.icfg,
-    // );
-    // this.resolvedTreesContainer = resolvedTreesContainer;
-    // this.traversalState = traversalState;
-    // this.curGenerator = null;
   }
 
   configure(
@@ -58,11 +44,6 @@ export class DepthFirstTraversal<
   ): this {
     this.icfg = mergeInstanceConfigs(this.icfg, icfgInput);
     this.visitors = initVisitors(this.icfg);
-    // const { resolvedTreesContainer, traversalState } = initInternalObjects(
-    //   this.icfg,
-    // );
-    // this.resolvedTreesContainer = resolvedTreesContainer;
-    // this.traversalState = traversalState;
     return this;
   }
 
@@ -108,89 +89,6 @@ export class DepthFirstTraversal<
     this.visitors[order] = visitorRecords;
     return this;
   }
-
-  /**getIterable(
-   config?: DepthFirstTraversalIterableConfigInput,
-   ): Generator<
-   TraversalIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>
-   > {
-    const iterableConfig =
-      makeEffectiveDepthFirstTraversalIterableConfig(config);
-    const rootVertexRef = this.initRootVertex();
-    if (rootVertexRef === null) {
-      return;
-    }
-
-    this.pushHintsOf(rootVertexRef, 0);
-    yield* this.yieldAndVisit(
-      iterableConfig,
-      DepthFirstTraversalOrder.PRE_ORDER,
-      rootVertexRef,
-    );
-
-    while (this.traversalState.STACK.length > 0) {
-      const vertexContext =
-        this.traversalState.STACK.pop() as VertexResolutionContext<
-          TTP | RW_TTP
-        >;
-      const vertexContent = this.getTraversableTree().makeVertex(
-        vertexContext.vertexHint,
-        {
-          resolutionContext: vertexContext,
-          resolvedTree: this.resolvedTreesContainer.resolvedTree,
-          notMutatedResolvedTree:
-            this.resolvedTreesContainer.notMutatedResolvedTree,
-        },
-      );
-      if (vertexContent === null) {
-        if (
-          this.icfg.inOrderTraversalConfig.considerVisitAfterNullContentVertices
-        ) {
-          yield* this.onPostOrder_tryInOrderVisitOnParentVertex(
-            iterableConfig,
-            vertexContext,
-          );
-          this.traversalState.countVisitedOnPostOrderAChildOf(
-            vertexContext.parentVertexRef,
-          );
-        }
-        continue;
-      }
-      const vertexRef = new CTTRef(new Vertex(vertexContent));
-      yield* this.onPreOrder(iterableConfig, vertexRef, vertexContext);
-
-      if (
-        vertexRef.unref().isLeafVertex() &&
-        this.hasPostOrderOrInOrderVisitors()
-      ) {
-        yield* this.onPostOrder(iterableConfig, vertexRef, vertexContext);
-      }
-    }
-
-    yield* this.onPostOrder(iterableConfig, rootVertexRef, null);
-
-    return;
-  }*/
-
-  /*  run(): this {
-      if (this.getStatus() === TraversalRunnerStatus.FINISHED) {
-        return this;
-      }
-      if (this.curGenerator === null) {
-        this.curGenerator = this.getIterable();
-      }
-      this.setStatus(TraversalRunnerStatus.RUNNING);
-      while (true) {
-        const r = this.curGenerator.next();
-        if (r.done === true) {
-          this.setStatus(TraversalRunnerStatus.FINISHED);
-          return this;
-        }
-        if (this.isHalted()) {
-          return this;
-        }
-      }
-    }*/
 
   makeRunner() {
     return new DepthFirstTraversalRunner({
