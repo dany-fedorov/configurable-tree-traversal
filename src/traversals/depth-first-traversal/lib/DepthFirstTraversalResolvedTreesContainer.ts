@@ -25,33 +25,25 @@ export class DepthFirstTraversalResolvedTreesContainer<
     RW_TTP
   > | null;
 
-  constructor(cfg: {
-    saveNotMutatedResolvedTree: DepthFirstTraversalInstanceConfig<
-      TTP,
-      RW_TTP
-    >['saveNotMutatedResolvedTree'];
-    internalObjects: {
-      resolvedTreesContainer?: DepthFirstTraversalInstanceConfig<
-        TTP,
-        RW_TTP
-      >['internalObjects']['resolvedTreesContainer'];
-    };
-  }) {
+  constructor(cfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
     this.resolvedTree =
-      cfg?.internalObjects?.resolvedTreesContainer?.resolvedTree != null
-        ? cfg?.internalObjects?.resolvedTreesContainer.resolvedTree
+      cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
+        ?.resolvedTree != null
+        ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
+            .resolvedTree
         : new ResolvedTree<TTP | RW_TTP>();
     this.notMutatedResolvedTree =
-      cfg?.internalObjects?.resolvedTreesContainer?.notMutatedResolvedTree !=
-      null
-        ? cfg?.internalObjects?.resolvedTreesContainer.notMutatedResolvedTree
+      cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
+        ?.notMutatedResolvedTree != null
+        ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
+            .notMutatedResolvedTree
         : cfg.saveNotMutatedResolvedTree
         ? new ResolvedTree<TTP>()
         : null;
     this.notMutatedResolvedTreeRefsMap =
-      cfg?.internalObjects?.resolvedTreesContainer
+      cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
         ?.notMutatedResolvedTreeRefsMap != null
-        ? cfg?.internalObjects?.resolvedTreesContainer
+        ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
             .notMutatedResolvedTreeRefsMap
         : cfg.saveNotMutatedResolvedTree
         ? new Map()

@@ -13,9 +13,7 @@ const main = () => {
     // f: { f1: { f2: 'heh' } },
     // g: [{ g1: 123, g11: { g22: [1, 2, 3, 4, 3, 2, 1] } }],
   };
-  const tree = new TraversableObjectTree({
-    inputObject: obj,
-  });
+  const tree = new TraversableObjectTree(obj);
   const t = new DepthFirstTraversal({
     traversableTree: tree,
   });

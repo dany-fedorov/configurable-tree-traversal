@@ -1,4 +1,4 @@
-import type { IndexRange } from '@depth-first-traversal/in-range-helpers/IndexRange';
+import type { IndexRange } from '@depth-first-traversal/in-order-helpers/IndexRange';
 
 export function normalizeRange(
   r: IndexRange,

@@ -2,7 +2,7 @@ import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversableTree } from '@core/TraversableTree';
 import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
 import type { DepthFirstTraversalInOrderTraversalConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
-import type { DepthFirstTraversalInternalObjects } from '@depth-first-traversal/lib/DepthFirstTraversalInternalObjects';
+import type { DepthFirstTraversalRunnerInternalObjects } from '@depth-first-traversal/lib/DepthFirstTraversalRunnerInternalObjects';
 import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { OrNullAllFields } from '@depth-first-traversal/type-helpers/OrNullAllFields';
 import type { DepthFirstTraversalInstanceConfigDeepPartial } from '@depth-first-traversal/type-helpers/DepthFirstTraversalInstanceConfigDeepPartial';
@@ -17,11 +17,11 @@ export type DepthFirstTraversalInstanceConfig<
 > = {
   traversableTree: TraversableTree<TTP, RW_TTP>;
   sortChildrenHints: SortChildrenHintsFn<TTP> | null;
-  saveNotMutatedResolvedTree: boolean;
   visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
   inOrderTraversalConfig: DepthFirstTraversalInOrderTraversalConfig;
-  internalObjects: Partial<
-    OrNullAllFields<DepthFirstTraversalInternalObjects<TTP, RW_TTP>>
+  saveNotMutatedResolvedTree: boolean;
+  traversalRunnerInternalObjects: Partial<
+    OrNullAllFields<DepthFirstTraversalRunnerInternalObjects<TTP, RW_TTP>>
   >;
 };
 
@@ -30,20 +30,21 @@ export const DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   'traversableTree'
 > = {
   sortChildrenHints: null,
-  saveNotMutatedResolvedTree: false,
   inOrderTraversalConfig: {
     visitParentAfterChildren: [0, -2],
     visitParentAfterChildrenAllRangesOutOfBoundsFallback: -2,
     visitUpOneChildParents: true,
+    considerVisitAfterNullContentVertices: true,
   },
   visitors: {
     [DepthFirstTraversalOrder.PRE_ORDER]: [],
     [DepthFirstTraversalOrder.IN_ORDER]: [],
     [DepthFirstTraversalOrder.POST_ORDER]: [],
   },
-  internalObjects: {
+  saveNotMutatedResolvedTree: false,
+  traversalRunnerInternalObjects: {
     resolvedTreesContainer: null,
-    traversalState: null,
+    state: null,
   },
 };
 
@@ -56,7 +57,10 @@ export type DepthFirstTraversalInstanceConfigInput<
       TTP,
       RW_TTP
     >['inOrderTraversalConfig']
-  | keyof DepthFirstTraversalInstanceConfig<TTP, RW_TTP>['internalObjects']
+  | keyof DepthFirstTraversalInstanceConfig<
+      TTP,
+      RW_TTP
+    >['traversalRunnerInternalObjects']
   | keyof DepthFirstTraversalInstanceConfig<TTP, RW_TTP>['visitors']
   | 'traversableTree'
 >;
@@ -79,9 +83,9 @@ export function mergeInstanceConfigs<
       ...base.inOrderTraversalConfig,
       ...input.inOrderTraversalConfig,
     },
-    internalObjects: {
-      ...base.internalObjects,
-      ...(input.internalObjects ?? {}),
+    traversalRunnerInternalObjects: {
+      ...base.traversalRunnerInternalObjects,
+      ...(input.traversalRunnerInternalObjects ?? {}),
     },
   };
 }

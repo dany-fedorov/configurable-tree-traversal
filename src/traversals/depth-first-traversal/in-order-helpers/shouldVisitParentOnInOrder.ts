@@ -1,7 +1,7 @@
 import type { DepthFirstTraversalInOrderTraversalConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
-import { normalizeRange } from '@depth-first-traversal/in-range-helpers/normalizeRange';
-import { isInRange } from '@depth-first-traversal/in-range-helpers/isInRange';
-import type {IndexRange} from "@depth-first-traversal/in-range-helpers/IndexRange";
+import { normalizeRange } from '@depth-first-traversal/in-order-helpers/normalizeRange';
+import { isInRange } from '@depth-first-traversal/in-order-helpers/isInRange';
+import type { IndexRange } from '@depth-first-traversal/in-order-helpers/IndexRange';
 
 export function shouldVisitParentOnInOrder(
   inOrderTraversalConfig: DepthFirstTraversalInOrderTraversalConfig,

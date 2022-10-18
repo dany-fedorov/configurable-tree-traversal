@@ -11,8 +11,8 @@ import type {
 } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
 import { getChildrenOfPropertyDefault } from '@traversable-object-tree/lib/getChildrenOfPropertyDefault';
 import { getRootPropertyFromInputObjectDefault } from '@traversable-object-tree/lib/getRootPropertyFromInputObjectDefault';
-import {makeMutationCommandFactory} from "@traversable-object-tree/lib/makeMutationCommandFactory";
-import type {VertexContent} from "@core/Vertex";
+import { makeMutationCommandFactory } from '@traversable-object-tree/lib/makeMutationCommandFactory';
+import type { VertexContent } from '@core/Vertex';
 
 export class TraversableObjectTree<
   In = TraversableObject<TraversableObjectPropKey, unknown>,
@@ -24,36 +24,48 @@ export class TraversableObjectTree<
   TraversableObjectTTP<InK, InV>,
   TraversableObjectTTP<OutK, OutV>
 > {
-  private readonly icfg: TraversableObjectTreeInstanceConfig<In, InK, InV>;
+  private readonly icfg: TraversableObjectTreeInstanceConfig<
+    In,
+    InK,
+    InV,
+    OutK,
+    OutV
+  >;
+  public readonly rootObject: In;
 
   static getChildrenOfPropertyDefault = getChildrenOfPropertyDefault;
   static getRootPropertyFromInputObjectDefault =
     getRootPropertyFromInputObjectDefault;
 
   constructor(
-    icfgInput: TraversableObjectTreeInstanceConfigInput<In, InK, InV>,
+    rootObject: In,
+    icfgInput?: TraversableObjectTreeInstanceConfigInput<
+      In,
+      InK,
+      InV,
+      OutK,
+      OutV
+    >,
   ) {
     super();
+    this.rootObject = rootObject;
     this.icfg = {
-      ...icfgInput,
+      makeVertexHook: null,
       getChildrenOfProperty:
-        icfgInput.getChildrenOfProperty ??
+        icfgInput?.getChildrenOfProperty ??
         TraversableObjectTree.getChildrenOfPropertyDefault,
       getRootPropertyFromInputObject:
-        icfgInput.getRootPropertyFromInputObject ??
+        icfgInput?.getRootPropertyFromInputObject ??
         TraversableObjectTree.getRootPropertyFromInputObjectDefault(),
+      ...(icfgInput || {}),
     };
   }
 
   static makeMutationCommandFactory = makeMutationCommandFactory;
 
   makeRoot(): VertexContent<TraversableObjectTTP<InK, InV>> | null {
-    const {
-      inputObject,
-      getChildrenOfProperty,
-      getRootPropertyFromInputObject,
-    } = this.icfg;
-    const rootProp = getRootPropertyFromInputObject(inputObject);
+    const { getChildrenOfProperty, getRootPropertyFromInputObject } = this.icfg;
+    const rootProp = getRootPropertyFromInputObject(this.rootObject);
     return {
       $d: rootProp,
       $c: getChildrenOfProperty(rootProp),
@@ -62,11 +74,15 @@ export class TraversableObjectTree<
 
   makeVertex(
     vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
-    _options: MakeVertexOptions<
+    options: MakeVertexOptions<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >,
   ): VertexContent<TraversableObjectTTP<InK, InV>> | null {
+    const res = this.icfg.makeVertexHook?.(vertexHint, options);
+    if (res?.returnMe !== undefined) {
+      return res.returnMe;
+    }
     const { getChildrenOfProperty } = this.icfg;
     const hints = getChildrenOfProperty(vertexHint);
     return {

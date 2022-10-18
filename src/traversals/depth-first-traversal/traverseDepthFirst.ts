@@ -3,6 +3,8 @@ import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversableTree } from '@core/TraversableTree';
 import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { TraversalVisitor } from '@core/TraversalVisitor';
+import type { DepthFirstTraversalRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
+import type { DepthFirstTraversalInstanceConfigInput } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 
 export type DepthFirstTraversalVisitorsSimple<
   TTP extends TreeTypeParameters,
@@ -19,11 +21,11 @@ export function traverseDepthFirst<
 >(
   traversableTree: TraversableTree<TTP, RW_TTP>,
   visitors: DepthFirstTraversalVisitorsSimple<TTP, RW_TTP> | null,
-  config: {},
-): DepthFirstTraversal<TTP, RW_TTP> {
+  config?: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
+): DepthFirstTraversalRunner<TTP, RW_TTP> {
   const traversal = new DepthFirstTraversal({
     traversableTree,
-    ...config,
+    ...(config || {}),
   });
   if (visitors?.preOrderVisitor) {
     traversal.addVisitorFor(
@@ -43,5 +45,5 @@ export function traverseDepthFirst<
       visitors?.postOrderVisitor,
     );
   }
-  return traversal.run();
+  return traversal.makeRunner().run();
 }

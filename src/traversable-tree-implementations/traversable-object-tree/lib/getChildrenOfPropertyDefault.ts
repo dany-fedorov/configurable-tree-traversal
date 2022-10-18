@@ -10,7 +10,7 @@ export function getChildrenOfPropertyDefault<
   prop: TraversableObjectProp<K, V>,
 ): TraversableObjectTTP<K, V>['VertexHint'][] {
   const { value } = prop;
-  if (PRIMITIVE_TYPEOF_TYPES.includes(typeof value)) {
+  if (PRIMITIVE_TYPEOF_TYPES.includes(typeof value) || value === null) {
     return [];
   }
   if (Array.isArray(value)) {

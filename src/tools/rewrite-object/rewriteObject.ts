@@ -13,7 +13,7 @@ import type { DepthFirstTraversalInstanceConfigInput } from '@depth-first-traver
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
 import { TraversableObjectTree } from '@traversable-object-tree/TraversableObjectTree';
 import { traverseDepthFirst } from '@depth-first-traversal/traverseDepthFirst';
-import type { DepthFirstTraversal } from '@depth-first-traversal/DepthFirstTraversal';
+import type { DepthFirstTraversalRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
 
 export type RewriteFnOptions<
   InK extends TraversableObjectPropKey,
@@ -57,7 +57,7 @@ export type RewriteObjectResult<
   OutV,
 > = {
   outputObject: Out;
-  traversal: DepthFirstTraversal<
+  traversalRunner: DepthFirstTraversalRunner<
     TraversableObjectTTP<InK, InV>,
     TraversableObjectTTP<OutK, OutV>
   >;
@@ -71,7 +71,7 @@ export type RewriteObjectOptions<
   OutK extends TraversableObjectPropKey,
   OutV,
 > = Partial<
-  Omit<TraversableObjectTreeInstanceConfigInput<In, InK, InV>, 'host'> &
+  TraversableObjectTreeInstanceConfigInput<In, InK, InV, OutK, OutV> &
     TO_MakeMutationCommandFunctionFactoryConfiguration<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
@@ -94,7 +94,7 @@ export function rewriteObject<
   OutK extends TraversableObjectPropKey = InK,
   OutV = InV,
 >(
-  inputObject: In,
+  object: In,
   options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
 ): RewriteObjectResult<InK, InV, Out, OutK, OutV> {
   const assembleCompositeBeforeVisit =
@@ -105,16 +105,22 @@ export function rewriteObject<
     typeof options?.getOutputObjectFromRootValue === 'function'
       ? options.getOutputObjectFromRootValue
       : (rootValue: OutV | null) => rootValue as unknown as Out;
-  const tree = new TraversableObjectTree<In, InK, InV, OutK, OutV>({
+  const tree = new TraversableObjectTree<In, InK, InV, OutK, OutV>(object, {
+    ...(!options?.['makeVertexHook']
+      ? {}
+      : {
+          makeVertexHook: options?.['makeVertexHook'],
+        }),
+    ...(!options?.['getChildrenOfProperty']
+      ? {}
+      : {
+          getChildrenOfProperty: options?.['getChildrenOfProperty'],
+        }),
     getRootPropertyFromInputObject:
-      options?.getRootPropertyFromInputObject ??
+      options?.['getRootPropertyFromInputObject'] ??
       TraversableObjectTree.getRootPropertyFromInputObjectDefault(
         __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ as InK,
       ),
-    getChildrenOfProperty:
-      options?.getChildrenOfProperty ??
-      TraversableObjectTree.getChildrenOfPropertyDefault,
-    inputObject,
   });
   const makeMutationCommandFactory =
     TraversableObjectTree.makeMutationCommandFactory<
@@ -133,7 +139,7 @@ export function rewriteObject<
         ? { assembledMap: options.assembledMap }
         : { assembledMap: new Map() }),
     });
-  const traversal = traverseDepthFirst<
+  const traversalRunner = traverseDepthFirst<
     TraversableObjectTTP<InK, InV>,
     TraversableObjectTTP<OutK, OutV>
   >(
@@ -200,7 +206,7 @@ export function rewriteObject<
     },
   );
   const rootValue =
-    (traversal.getResolvedTree().getRoot()?.unref().getData()
+    (traversalRunner.getResolvedTree().getRoot()?.unref().getData()
       .value as unknown as OutV) ?? null;
   const outputObject = getOutputObjectFromRootValue(rootValue);
   if (outputObject === null) {
@@ -208,6 +214,6 @@ export function rewriteObject<
   }
   return {
     outputObject,
-    traversal,
+    traversalRunner,
   };
 }

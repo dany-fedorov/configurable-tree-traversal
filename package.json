@@ -1,6 +1,6 @@
 {
   "name": "configurable-tree-traversal",
-  "version": "0.1.5",
+  "version": "0.2.5",
   "description": "Very configurable tree traversal for TypeScript",
   "main": "./index.js",
   "scripts": {
@@ -11,7 +11,7 @@
     "publish-me": "npm run prepublish-me && cd npm-module && npm publish --access public",
     "postpublish-me": "rm -fr npm-module",
     "build-watch": "chokidar './src/**/*.ts' -c 'npm run build' -i './node_modules/**/*' --initial",
-    "tsfile": "ts-node -r tsconfig-paths/register -T"
+    "tsfile": "ts-node -r tsconfig-paths/register -T -s"
   },
   "repository": {
     "type": "git",
