@@ -10,7 +10,7 @@ Can do depth-first traversals like on this picture for abstract trees.
 
 To run examples you'll need to have [node](https://nodejs.org/en/download/) and you'll need to run `npm install`.
 
-### [tree-from-image-example.ts](./tests/tree-from-image-example-1.ts) 
+### [tree-from-image-example.ts](./tests/tree-from-image-example.ts) 
 
 `npm run tsfile tests/tree-from-image-example.ts`
 
