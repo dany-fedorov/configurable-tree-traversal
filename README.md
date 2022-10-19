@@ -27,22 +27,10 @@ const treeData =
           { $d: 'I', $c: [
               { $d: 'H', $c: [] }] }] }] };
 
-const traversableTree = {
-  makeRoot: () => treeData,
-  makeVertex: (childHint: any) => childHint,
-};
-const traversal = new DepthFirstTraversal({ traversableTree });
-
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) =>
-  reportVisit(DepthFirstTraversalOrder.PRE_ORDER, vertex.getData()),
-);
-traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (vertex) =>
-  reportVisit(DepthFirstTraversalOrder.IN_ORDER, vertex.getData()),
-);
-traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) =>
-  reportVisit(DepthFirstTraversalOrder.POST_ORDER, vertex.getData()),
-);
-
+const traversal = new DepthFirstTraversal({ traversableTree: { makeRoot: () => treeData, makeVertex: (childHint: any) => childHint } });
+traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => reportVisit(DepthFirstTraversalOrder.PRE_ORDER, vertex.getData()));
+traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (vertex) => reportVisit(DepthFirstTraversalOrder.IN_ORDER, vertex.getData()));
+traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) => reportVisit(DepthFirstTraversalOrder.POST_ORDER, vertex.getData()));
 traversal.makeRunner().run();
 ```
 

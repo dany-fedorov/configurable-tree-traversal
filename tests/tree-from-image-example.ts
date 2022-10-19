@@ -7,8 +7,8 @@ import {DepthFirstTraversalOrder} from '@depth-first-traversal/lib/DepthFirstTra
 
 const RED_FG = '\u001b[31m';
 // const RED_BG = '\u001b[41m';
-const GREEN_FG = '\u001b[92m';
-// const GREEN_BG = '\u001b[102m';
+const GREEN_FG = '\u001b[32m';
+// const GREEN_BG = '\u001b[42m';
 const BLUE_FG = '\u001b[94m';
 // const BLUE_BG = '\u001b[104m';
 const BLACK_FG = '\u001b[30m';
@@ -113,22 +113,10 @@ const treeData =
           { $d: 'I', $c: [
               { $d: 'H', $c: [] }] }] }] };
 
-const traversableTree = {
-  makeRoot: () => treeData,
-  makeVertex: (childHint: any) => childHint,
-};
-const traversal = new DepthFirstTraversal({ traversableTree });
-
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) =>
-  reportVisit(DepthFirstTraversalOrder.PRE_ORDER, vertex.getData()),
-);
-traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (vertex) =>
-  reportVisit(DepthFirstTraversalOrder.IN_ORDER, vertex.getData()),
-);
-traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) =>
-  reportVisit(DepthFirstTraversalOrder.POST_ORDER, vertex.getData()),
-);
-
+const traversal = new DepthFirstTraversal({ traversableTree: { makeRoot: () => treeData, makeVertex: (childHint: any) => childHint } });
+traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => reportVisit(DepthFirstTraversalOrder.PRE_ORDER, vertex.getData()));
+traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (vertex) => reportVisit(DepthFirstTraversalOrder.IN_ORDER, vertex.getData()));
+traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) => reportVisit(DepthFirstTraversalOrder.POST_ORDER, vertex.getData()));
 traversal.makeRunner().run();
 
 /*
