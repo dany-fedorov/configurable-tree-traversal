@@ -384,7 +384,6 @@ export class DepthFirstTraversalRunner<
     TraversalRunnerIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>
   > {
     if (
-      !iterableConfig.iterateOver.includes(DepthFirstTraversalOrder.IN_ORDER) ||
       !this.hasInOrderVisitors() ||
       vertexContext === null
     ) {
@@ -392,6 +391,7 @@ export class DepthFirstTraversalRunner<
     }
     const { justVisitedIndex, allSiblingsCount } =
       this.onInOrderProcessing_getInOrderSiblingsContext(vertexContext);
+    // console.log('onPostOrder_tryInOrderVisitOnParentVertex::justVisitedIndex, allSiblingsCount',justVisitedIndex, allSiblingsCount)
     if (
       shouldVisitParentOnInOrder(
         this.icfg.inOrderTraversalConfig,

@@ -23,7 +23,7 @@ export function shouldVisitParentOnInOrder(
   )
     .map((r: IndexRange) => normalizeRange(r, allSiblingsCount))
     .filter(Boolean) as [number, number][];
-  // console.log(justVisitedIndex, visitParentAfterRanges, visitParentAfterRanges.some((r) => isInRange(r, justVisitedIndex)), visitParentAfterFallbackRanges, visitParentAfterRanges.length === 0 && visitParentAfterFallbackRanges.some((r) => isInRange(r, justVisitedIndex),),);
+  // console.log('shouldVisitParentOnInOrder::',justVisitedIndex, visitParentAfterRanges, visitParentAfterRanges.some((r) => isInRange(r, justVisitedIndex)), visitParentAfterFallbackRanges, visitParentAfterRanges.length === 0 && visitParentAfterFallbackRanges.some((r) => isInRange(r, justVisitedIndex),),);
   return (
     (justVisitedIndex === allSiblingsCount - 1 &&
       allSiblingsCount === 1 &&

@@ -36,7 +36,7 @@ traversal.makeRunner().run();
 
 Stdout
 
-![Stdout of tree-from-image-example.ts](./tree-from-image-example-result-2.png)
+![Stdout of tree-from-image-example.ts](./tree-from-image-example-result-3.png)
 
 ### [traversable-object-example.ts](./tests/traversable-object-example.ts) 
 
