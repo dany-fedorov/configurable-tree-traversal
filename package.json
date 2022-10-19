@@ -1,6 +1,6 @@
 {
   "name": "configurable-tree-traversal",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "Very configurable tree traversal for TypeScript",
   "main": "./index.js",
   "scripts": {
