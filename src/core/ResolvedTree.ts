@@ -2,7 +2,10 @@ import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Vertex, VertexContent } from '@core/Vertex';
 import type { CTTRef } from '@core/CTTRef';
 import type { CTTAbstractParent } from '@core/CTTAbstractParent';
-import { AbstractTraversableTree } from '@core/TraversableTree';
+import {
+  AbstractTraversableTree,
+  MakeVertexResult,
+} from '@core/TraversableTree';
 import type { ResolvedTreeTypeParameters } from '@core/ResolvedTreeTypeParameters';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
@@ -191,10 +194,12 @@ export class ResolvedTree<
 
   makeVertex(
     vertexHint: ResolvedTreeTypeParameters<TTP>['VertexHint'],
-  ): VertexContent<ResolvedTreeTypeParameters<TTP>> | null {
+  ): MakeVertexResult<ResolvedTreeTypeParameters<TTP>> {
     return {
-      $d: vertexHint,
-      $c: this.getChildrenOf(vertexHint) ?? [],
+      vertexContent: {
+        $d: vertexHint,
+        $c: this.getChildrenOf(vertexHint) ?? [],
+      },
     };
   }
 }
