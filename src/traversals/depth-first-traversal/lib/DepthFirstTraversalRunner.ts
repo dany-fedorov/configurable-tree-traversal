@@ -383,10 +383,7 @@ export class DepthFirstTraversalRunner<
   ): Generator<
     TraversalRunnerIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>
   > {
-    if (
-      !this.hasInOrderVisitors() ||
-      vertexContext === null
-    ) {
+    if (!this.hasInOrderVisitors() || vertexContext === null) {
       return;
     }
     const { justVisitedIndex, allSiblingsCount } =
@@ -542,7 +539,7 @@ export class DepthFirstTraversalRunner<
       const vertexContext = this.state.STACK.pop() as VertexResolutionContext<
         TTP | RW_TTP
       >;
-      const vertexContent = this.getTraversableTree().makeVertex(
+      const makeVertexResult = this.getTraversableTree().makeVertex(
         vertexContext.vertexHint,
         {
           resolutionContext: vertexContext,
@@ -551,6 +548,7 @@ export class DepthFirstTraversalRunner<
             this.resolvedTreesContainer.notMutatedResolvedTree,
         },
       );
+      const vertexContent = makeVertexResult?.vertexContent || null;
       if (vertexContent === null) {
         if (
           this.icfg.inOrderTraversalConfig.considerVisitAfterNullContentVertices
