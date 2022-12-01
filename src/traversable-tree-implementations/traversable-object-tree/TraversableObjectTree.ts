@@ -1,6 +1,7 @@
 import {
   AbstractTraversableTree,
   MakeVertexOptions,
+  MakeVertexResult,
 } from '@core/TraversableTree';
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
@@ -78,16 +79,18 @@ export class TraversableObjectTree<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >,
-  ): VertexContent<TraversableObjectTTP<InK, InV>> | null {
+  ): MakeVertexResult<TraversableObjectTTP<InK, InV>> {
     const res = this.icfg.makeVertexHook?.(vertexHint, options);
     if (res?.returnMe !== undefined) {
-      return res.returnMe;
+      return { vertexContent: res.returnMe };
     }
     const { getChildrenOfProperty } = this.icfg;
     const hints = getChildrenOfProperty(vertexHint);
     return {
-      $d: vertexHint,
-      $c: hints,
+      vertexContent: {
+        $d: vertexHint,
+        $c: hints,
+      },
     };
   }
 }

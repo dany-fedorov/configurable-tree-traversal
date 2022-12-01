@@ -12,6 +12,10 @@ export type MakeVertexOptions<
   notMutatedResolvedTree: ResolvedTree<TTP> | null;
 };
 
+export type MakeVertexResult<TTP extends TreeTypeParameters> = {
+  vertexContent: VertexContent<TTP> | null;
+};
+
 export type TraversableTree<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters = TTP,
@@ -21,7 +25,7 @@ export type TraversableTree<
   makeVertex(
     vertexHint: TTP['VertexHint'],
     options: MakeVertexOptions<TTP, RW_TTP>,
-  ): VertexContent<TTP> | null;
+  ): MakeVertexResult<TTP>;
 };
 
 export abstract class AbstractTraversableTree<
@@ -34,5 +38,5 @@ export abstract class AbstractTraversableTree<
   abstract makeVertex(
     vertexHint: TTP['VertexHint'],
     options: MakeVertexOptions<TTP, RW_TTP>,
-  ): VertexContent<TTP> | null;
+  ): MakeVertexResult<TTP>;
 }
