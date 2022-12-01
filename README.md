@@ -59,11 +59,12 @@ of `configurable-tree-traversal` in package.json)
 
 # TODO
 
-1. Add self-reference test
-2. --
-3. Async traversal
-4. Implementation for FS (with a way to keep fs and tree in sync)
-5. Unit tests
-6. Freeze data at some point? make trees/vertices immutable?
-7. Benchmarks
-8. Breadth-first traversal
+1. Breadth-first
+2. Add self-reference test
+3. --
+4. Async traversal
+5. Implementation for FS (with a way to keep fs and tree in sync)
+6. Unit tests
+7. Freeze data at some point? make trees/vertices immutable?
+8. Benchmarks
+9. Breadth-first traversal
