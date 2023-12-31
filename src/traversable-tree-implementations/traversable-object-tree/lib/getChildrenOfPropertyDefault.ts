@@ -21,6 +21,8 @@ export function getChildrenOfPropertyDefault<
       };
     });
   } else {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     return Object.entries(value).map((v) => {
       return {
         key: v[0] as K,
