@@ -1,8 +1,8 @@
-import { TraversableObjectTree } from '@traversable-object-tree/index';
-import { DepthFirstTraversal } from '@depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
-import { jsonStringifySafe } from '@utils/jsonStringifySafe';
+import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
+import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
+import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
 
 const RED_FG = '\u001b[31m';
 // const RED_BG = '\u001b[41m';

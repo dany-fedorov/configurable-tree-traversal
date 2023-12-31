@@ -48,6 +48,7 @@ export class DepthFirstTraversalRunner<
   curGenerator: Generator<
     TraversalRunnerIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>
   > | null;
+  subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<TTP | RW_TTP>>> = new Set();
 
   constructor(icfgInput: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
     this.icfg = icfgInput;
@@ -84,12 +85,12 @@ export class DepthFirstTraversalRunner<
       // Already initialized, this is a continuation
       return this.resolvedTreesContainer.resolvedTree.getRoot();
     }
-    const rootContent = this.getTraversableTree().makeRoot();
-    if (rootContent === null) {
+    const makeRootResult = this.getTraversableTree().makeRoot();
+    if (makeRootResult.vertexContent === null) {
       return null;
     }
     const rootVertexRef = new CTTRef<Vertex<TTP | RW_TTP>>(
-      new Vertex<TTP | RW_TTP>(rootContent),
+      new Vertex<TTP | RW_TTP>(makeRootResult.vertexContent),
     );
     this.setTraversalRootVertexRef(rootVertexRef);
     this.resolvedTreesContainer.setRoot(rootVertexRef);
@@ -180,6 +181,9 @@ export class DepthFirstTraversalRunner<
           res.vertexVisitorsChainState = (
             command.commandArguments as TraversalVisitorCommandArguments<TTP>[TraversalVisitorCommandName.SET_VERTEX_VISITORS_CHAIN_STATE]
           ).vertexVisitorsChainState;
+          break;
+        case TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL:
+          this.subtreeTraversalDisabledRefs.add(vertexRef);
           break;
         default:
           return;
@@ -368,7 +372,7 @@ export class DepthFirstTraversalRunner<
   ): Generator<
     TraversalRunnerIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>
   > {
-    if (this.hasInOrderVisitors() && vertexRef.unref().isLeafVertex()) {
+    if (this.hasInOrderVisitors() && this.isLeafVertexRef(vertexRef)) {
       yield* this.yieldAndVisit(
         iterableConfig,
         DepthFirstTraversalOrder.IN_ORDER,
@@ -539,6 +543,11 @@ export class DepthFirstTraversalRunner<
       const vertexContext = this.state.STACK.pop() as VertexResolutionContext<
         TTP | RW_TTP
       >;
+      if (
+        this.subtreeTraversalDisabledRefs.has(vertexContext.parentVertexRef)
+      ) {
+        continue;
+      }
       const makeVertexResult = this.getTraversableTree().makeVertex(
         vertexContext.vertexHint,
         {
@@ -567,7 +576,7 @@ export class DepthFirstTraversalRunner<
       yield* this.onPreOrder(iterableConfig, vertexRef, vertexContext);
 
       if (
-        vertexRef.unref().isLeafVertex() &&
+        this.isLeafVertexRef(vertexRef) &&
         this.hasPostOrderOrInOrderVisitors()
       ) {
         yield* this.onPostOrder(iterableConfig, vertexRef, vertexContext);
@@ -577,6 +586,13 @@ export class DepthFirstTraversalRunner<
     yield* this.onPostOrder(iterableConfig, rootVertexRef, null);
 
     return;
+  }
+
+  isLeafVertexRef(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): boolean {
+    return (
+      this.subtreeTraversalDisabledRefs.has(vertexRef) ||
+      vertexRef.unref().isLeafVertex()
+    );
   }
 
   *getIterable(
@@ -604,10 +620,8 @@ export class DepthFirstTraversalRunner<
     }
   }
 
-  run(): this {
-    for (const _ of this.getIterable({
-      iterateOver: [],
-    })) {
+  run(config?: DepthFirstTraversalRunnerIterableConfigInput): this {
+    for (const _ of this.getIterable(config)) {
     }
     return this;
     // if (this.getStatus() === TraversalRunnerStatus.FINISHED) {

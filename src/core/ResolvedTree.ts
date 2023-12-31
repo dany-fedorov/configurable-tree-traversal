@@ -1,5 +1,5 @@
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { Vertex, VertexContent } from '@core/Vertex';
+import type { Vertex } from '@core/Vertex';
 import type { CTTRef } from '@core/CTTRef';
 import type { CTTAbstractParent } from '@core/CTTAbstractParent';
 import {
@@ -182,13 +182,15 @@ export class ResolvedTree<
     }
   }
 
-  makeRoot(): VertexContent<ResolvedTreeTypeParameters<TTP>> | null {
+  makeRoot(): MakeVertexResult<ResolvedTreeTypeParameters<TTP>> {
     if (this.root === null) {
-      return null;
+      return { vertexContent: null };
     }
     return {
-      $d: this.root,
-      $c: this.getChildrenOf(this.root) ?? [],
+      vertexContent: {
+        $d: this.root,
+        $c: this.getChildrenOf(this.root) ?? [],
+      },
     };
   }
 

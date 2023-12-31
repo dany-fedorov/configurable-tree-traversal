@@ -13,7 +13,6 @@ import type {
 import { getChildrenOfPropertyDefault } from '@traversable-object-tree/lib/getChildrenOfPropertyDefault';
 import { getRootPropertyFromInputObjectDefault } from '@traversable-object-tree/lib/getRootPropertyFromInputObjectDefault';
 import { makeMutationCommandFactory } from '@traversable-object-tree/lib/makeMutationCommandFactory';
-import type { VertexContent } from '@core/Vertex';
 
 export class TraversableObjectTree<
   In = TraversableObject<TraversableObjectPropKey, unknown>,
@@ -64,12 +63,14 @@ export class TraversableObjectTree<
 
   static makeMutationCommandFactory = makeMutationCommandFactory;
 
-  makeRoot(): VertexContent<TraversableObjectTTP<InK, InV>> | null {
+  makeRoot(): MakeVertexResult<TraversableObjectTTP<InK, InV>> {
     const { getChildrenOfProperty, getRootPropertyFromInputObject } = this.icfg;
     const rootProp = getRootPropertyFromInputObject(this.rootObject);
     return {
-      $d: rootProp,
-      $c: getChildrenOfProperty(rootProp),
+      vertexContent: {
+        $d: rootProp,
+        $c: getChildrenOfProperty(rootProp),
+      },
     };
   }
 

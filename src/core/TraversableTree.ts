@@ -20,7 +20,7 @@ export type TraversableTree<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters = TTP,
 > = {
-  makeRoot(): VertexContent<TTP> | null;
+  makeRoot(): MakeVertexResult<TTP>;
 
   makeVertex(
     vertexHint: TTP['VertexHint'],
@@ -33,7 +33,7 @@ export abstract class AbstractTraversableTree<
   RW_TTP extends TreeTypeParameters = TTP,
 > implements TraversableTree<TTP, RW_TTP>
 {
-  abstract makeRoot(): VertexContent<TTP> | null;
+  abstract makeRoot(): MakeVertexResult<TTP>;
 
   abstract makeVertex(
     vertexHint: TTP['VertexHint'],

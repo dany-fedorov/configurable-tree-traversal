@@ -10,24 +10,39 @@ Can do depth-first traversals like on this picture for abstract trees.
 
 To run examples you'll need to have [node](https://nodejs.org/en/download/) and you'll need to run `npm install`.
 
-### [tree-from-image-example.ts](./tests/tree-from-image-example.ts) 
+### [tree-from-image-example.ts](examples/tree-from-image-example.ts)
 
-`npm run tsfile tests/tree-from-image-example.ts`
+`npm run tsfile examples/tree-from-image-example.ts`
 
 ```typescript
 const treeData =
-  { $d: 'F', $c: [
-      { $d: 'B', $c: [
+  {
+    $d: 'F', $c: [
+      {
+        $d: 'B', $c: [
           { $d: 'A', $c: [] },
-          { $d: 'D', $c: [
+          {
+            $d: 'D', $c: [
               { $d: 'C', $c: [] },
-              { $d: 'E', $c: [] }] }] },
-      { $d: 'G', $c: [
+              { $d: 'E', $c: [] }]
+          }]
+      },
+      {
+        $d: 'G', $c: [
           null,
-          { $d: 'I', $c: [
-              { $d: 'H', $c: [] }] }] }] };
+          {
+            $d: 'I', $c: [
+              { $d: 'H', $c: [] }]
+          }]
+      }]
+  };
 
-const traversal = new DepthFirstTraversal({ traversableTree: { makeRoot: () => treeData, makeVertex: (childHint: any) => childHint } });
+const traversal = new DepthFirstTraversal({
+  traversableTree: {
+    makeRoot: () => treeData,
+    makeVertex: (childHint: any) => childHint
+  }
+});
 traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => reportVisit(DepthFirstTraversalOrder.PRE_ORDER, vertex.getData()));
 traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (vertex) => reportVisit(DepthFirstTraversalOrder.IN_ORDER, vertex.getData()));
 traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) => reportVisit(DepthFirstTraversalOrder.POST_ORDER, vertex.getData()));
@@ -38,17 +53,24 @@ Stdout
 
 ![Stdout of tree-from-image-example.ts](./tree-from-image-example-result-3.png)
 
-### [traversable-object-example.ts](./tests/traversable-object-example.ts) 
+### [traversable-object-example.ts](examples/traversable-object-example.ts)
 
-`npm run tsfile tests/traversable-object-example.ts`
+`npm run tsfile examples/traversable-object-example.ts`
 
-### [traversable-object-iterable-example.ts](./tests/traversable-object-iterable-example.ts) 
+### [traversable-object-example-disable-subtree-traversal.ts](examples/traversable-object-example-disable-subtree-traversal.ts)
 
-`npm run tsfile tests/traversable-object-iterable-example.ts`
+`npm run tsfile examples/traversable-object-example-disable-subtree-traversal.ts`
 
-### [rewrite-object-example.ts](./tests/rewrite-object-example.ts) 
+Same as [traversable-object-example.ts](examples/traversable-object-example.ts), but uses `DISABLE_SUBTREE_TRAVERSAL`
+command on field `B`.
 
-`npm run tsfile tests/rewrite-object-example.ts`
+### [traversable-object-iterable-example.ts](examples/traversable-object-iterable-example.ts)
+
+`npm run tsfile examples/traversable-object-iterable-example.ts`
+
+### [rewrite-object-example.ts](examples/rewrite-object-example.ts)
+
+`npm run tsfile examples/rewrite-object-example.ts`
 
 # Project Status
 

@@ -9,9 +9,9 @@ export enum TraversalVisitorCommandName {
   DELETE_VERTEX = 'DELETE_VERTEX',
   SET_VERTEX_VISITORS_CHAIN_STATE = 'SET_VERTEX_VISITORS_CHAIN_STATE',
   REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
+  DISABLE_SUBTREE_TRAVERSAL = 'DISABLE_SUBTREE_TRAVERSAL',
   // TODO:
   // REWRITE_VERTEX_HINTS = 'REWRITE_VERTEX_HINTS',
-  // HALT_SUBTREE_TRAVERSAL = 'HALT_SUBTREE_TRAVERSAL',
 }
 
 export type TraversalVisitorCommandArguments<
@@ -26,6 +26,7 @@ export type TraversalVisitorCommandArguments<
   [TraversalVisitorCommandName.REWRITE_VERTEX_DATA]: {
     newData: RW_TTP['VertexData'];
   };
+  [TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL]: never;
 };
 
 export type TraversalVisitorCommand<

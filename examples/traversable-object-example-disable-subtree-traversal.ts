@@ -1,8 +1,8 @@
-import { TraversableObjectTree } from '@traversable-object-tree/index';
-import { DepthFirstTraversal } from '@depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
-import { jsonStringifySafe } from '@utils/jsonStringifySafe';
+import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
+import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
+import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
 
 const RED_FG = '\u001b[31m';
 // const RED_BG = '\u001b[41m';
@@ -50,6 +50,16 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
     '; value:',
     jsonStringifySafe(v.getData().value),
   );
+  if (v.getData().key === 'B') {
+    return {
+      commands: [
+        {
+          commandName: TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL,
+        },
+      ],
+    };
+  }
+  return {};
 });
 traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) => {
   console.log(
@@ -90,34 +100,28 @@ const traversalRunner = traversal.makeRunner();
 traversalRunner.run();
 
 console.log();
-console.log('First stop. Traversal runner status:', traversalRunner.getStatus());
+console.log(
+  'First stop. Traversal runner status:',
+  traversalRunner.getStatus(),
+);
 console.log();
 
 traversalRunner.run();
 
 console.log();
-console.log('Second stop. Traversal runner status:', traversalRunner.getStatus());
+console.log(
+  'Second stop. Traversal runner status:',
+  traversalRunner.getStatus(),
+);
 
 /*
 -  Pre-order   key: __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ ; value: {"F":{"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}}
 -  Pre-order   key: F ; value: {"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}
 -  Pre-order   key: B ; value: {"A":1,"D":["C","E"]}
--  Pre-order   key: A ; value: 1
--  In-order    key: A ; value: 1
--  Post-order  key: A ; value: 1
 -  In-order    key: B ; value: {"A":1,"D":["C","E"]}
--  Pre-order   key: D ; value: ["C","E"]
--  Pre-order   key: 0 ; value: "C"
--  In-order    key: 0 ; value: "C"
--  Post-order  key: 0 ; value: "C"
--  In-order    key: D ; value: ["C","E"]
--  Pre-order   key: 1 ; value: "E"
--  In-order    key: 1 ; value: "E"
--  Post-order  key: 1 ; value: "E"
--  Post-order  key: D ; value: ["C","E"]
 -  Post-order  key: B ; value: {"A":1,"D":["C","E"]}
 
-First stop. Status: HALTED
+First stop. Traversal runner status: HALTED
 
 -  In-order    key: F ; value: {"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}
 -  Pre-order   key: G ; value: {"_":null,"I":{"H":1}}
@@ -133,5 +137,5 @@ First stop. Status: HALTED
 -  In-order    key: __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ ; value: {"F":{"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}}
 -  Post-order  key: __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ ; value: {"F":{"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}}
 
-Second stop. Status: FINISHED
+Second stop. Traversal runner status: FINISHED
 */
