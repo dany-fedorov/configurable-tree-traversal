@@ -10,8 +10,7 @@ export enum TraversalVisitorCommandName {
   SET_VERTEX_VISITORS_CHAIN_STATE = 'SET_VERTEX_VISITORS_CHAIN_STATE',
   REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
   DISABLE_SUBTREE_TRAVERSAL = 'DISABLE_SUBTREE_TRAVERSAL',
-  // TODO:
-  // REWRITE_VERTEX_HINTS = 'REWRITE_VERTEX_HINTS',
+  REWRITE_VERTEX_HINTS_ON_PRE_ORDER = 'REWRITE_VERTEX_HINTS_ON_PRE_ORDER',
 }
 
 export type TraversalVisitorCommandArguments<
@@ -27,6 +26,9 @@ export type TraversalVisitorCommandArguments<
     newData: RW_TTP['VertexData'];
   };
   [TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL]: never;
+  [TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER]: {
+    newHints: RW_TTP['VertexHint'][];
+  };
 };
 
 export type TraversalVisitorCommand<

@@ -24,6 +24,16 @@ export function initDepthFirstVisitorsState<
   };
 }
 
+type PopStackResult<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> =
+  | { stackIsEmpty: true; vertexContext: null }
+  | {
+      stackIsEmpty: false;
+      vertexContext: VertexResolutionContext<TTP | RW_TTP>;
+    };
+
 export class DepthFirstTraversalRunnerState<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
@@ -36,6 +46,11 @@ export class DepthFirstTraversalRunnerState<
   visitorsState: DepthFirstTraversalVisitorsState<TTP, RW_TTP>;
   traversalRootVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
   status: TraversalRunnerStatus;
+  subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<TTP | RW_TTP>>> = new Set();
+  vertexRefStackChildrenHintsRanges: Map<
+    CTTRef<Vertex<TTP | RW_TTP>>,
+    [number, number]
+  > = new Map();
 
   constructor(cfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
     const from = cfg?.traversalRunnerInternalObjects?.state ?? null;
@@ -64,7 +79,7 @@ export class DepthFirstTraversalRunnerState<
     if (postOrderNotVisitedChildrenCount == null) {
       throw new Error(
         [
-          'countVisitedOnPostOrderAChildOf::Could not find entry in postOrderNotVisitedChildrenCountMap',
+          '.countVisitedOnPostOrderAChildOf::Could not find entry in postOrderNotVisitedChildrenCountMap',
           `trying to count for parent: ${jsonStringifySafe(parentVertexRef)}`,
         ].join(', '),
       );
@@ -80,8 +95,56 @@ export class DepthFirstTraversalRunnerState<
       );
     }
     if (newCount === 0) {
+      // console.log(newCount, parentVertexRef.unref().getData());
       this.postOrderNotVisitedChildrenCountMap.delete(parentVertexRef);
     }
     return newCount;
+  }
+
+  pushToStack(
+    parentVertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
+    newEntries: VertexResolutionContext<TTP | RW_TTP>[],
+  ): void {
+    const i0 = this.STACK.length;
+    this.STACK.push(...newEntries);
+    const i1 = this.STACK.length;
+    this.vertexRefStackChildrenHintsRanges.set(parentVertexRef, [i0, i1]);
+  }
+
+  popStack(): PopStackResult<TTP, RW_TTP> {
+    while (this.STACK.length > 0) {
+      const vertexContext = this.STACK.pop() as VertexResolutionContext<
+        TTP | RW_TTP
+      >;
+      /**
+       * Update ranges
+       */
+      const [i0] = this.vertexRefStackChildrenHintsRanges.get(
+        vertexContext.parentVertexRef,
+      ) as [number, number];
+      if (this.STACK.length <= i0) {
+        this.vertexRefStackChildrenHintsRanges.delete(
+          vertexContext.parentVertexRef,
+        );
+      } else {
+        this.vertexRefStackChildrenHintsRanges.set(
+          vertexContext.parentVertexRef,
+          [i0, this.STACK.length],
+        );
+      }
+      /**
+       * Check if it was disabled by a command
+       */
+      if (
+        this.subtreeTraversalDisabledRefs.has(vertexContext.parentVertexRef)
+      ) {
+        continue;
+      }
+      /**
+       * --
+       */
+      return { stackIsEmpty: false, vertexContext };
+    }
+    return { stackIsEmpty: true, vertexContext: null };
   }
 }

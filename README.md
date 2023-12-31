@@ -62,7 +62,15 @@ Stdout
 `npm run tsfile examples/traversable-object-example-disable-subtree-traversal.ts`
 
 Same as [traversable-object-example.ts](examples/traversable-object-example.ts), but uses `DISABLE_SUBTREE_TRAVERSAL`
-command on field `B`.
+command on vertex `B`.
+
+### [traversable-object-example-rewrite-vertex-hints.ts](examples/traversable-object-example-disable-subtree-traversal.ts)
+
+`npm run tsfile examples/traversable-object-example-rewrite-vertex-hints.ts`
+
+Same as [traversable-object-example.ts](examples/traversable-object-example.ts), but
+uses `REWRITE_VERTEX_HINTS_ON_PRE_ORDER`
+command on vertex `E`.
 
 ### [traversable-object-iterable-example.ts](examples/traversable-object-iterable-example.ts)
 
