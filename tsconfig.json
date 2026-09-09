@@ -5,26 +5,15 @@
     "outDir": "./dist",
     "declaration": true,
     "paths": {
-      "@core/*": [
-        "core/*"
-      ],
-      "@rewrite-object/*": [
-        "tools/rewrite-object/*"
-      ],
+      "@core/*": ["core/*"],
+      "@rewrite-object/*": ["tools/rewrite-object/*"],
       "@traversable-object-tree/*": [
         "traversable-tree-implementations/traversable-object-tree/*"
       ],
-      "@depth-first-traversal/*": [
-        "traversals/depth-first-traversal/*"
-      ],
-      "@utils/*": [
-        "utils/*"
-      ]
+      "@depth-first-traversal/*": ["traversals/depth-first-traversal/*"],
+      "@utils/*": ["utils/*"],
+      "@breadth-first-traversal/*": ["traversals/breadth-first-traversal/*"]
     }
   },
-  "include": [
-    "src",
-    "tests",
-    "webpack.config.ts"
-  ]
+  "include": ["src", "tests", "examples", "jest.config.ts"]
 }

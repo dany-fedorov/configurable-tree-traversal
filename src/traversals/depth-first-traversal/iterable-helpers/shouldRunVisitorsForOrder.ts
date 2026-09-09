@@ -12,7 +12,7 @@ export function shouldRunVisitorsForOrder(
     !Array.isArray(iterableConfig.enableVisitorFunctionsFor) &&
     Array.isArray(iterableConfig.disableVisitorFunctionsFor)
   ) {
-    return iterableConfig.disableVisitorFunctionsFor.includes(order);
+    return !iterableConfig.disableVisitorFunctionsFor.includes(order);
   }
   return true;
 }

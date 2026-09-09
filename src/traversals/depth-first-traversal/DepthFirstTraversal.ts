@@ -1,3 +1,4 @@
+import { sortVisitorRecords } from '@core/executeVisitors';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { Traversal } from '@core/Traversal';
 import type {
@@ -42,7 +43,10 @@ export class DepthFirstTraversal<
   configure(
     icfgInput: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
   ): this {
-    this.icfg = mergeInstanceConfigs(this.icfg, icfgInput);
+    this.icfg = mergeInstanceConfigs(
+      { ...this.icfg, visitors: this.visitors },
+      icfgInput,
+    );
     this.visitors = initVisitors(this.icfg);
     return this;
   }
@@ -59,7 +63,11 @@ export class DepthFirstTraversal<
     this.visitors[order].push({
       priority: effectiveOptions.priority,
       visitor,
-      addedIndex: this.visitors[order].length,
+      addedIndex:
+        this.visitors[order].reduce(
+          (max, record) => Math.max(max, record.addedIndex),
+          -1,
+        ) + 1,
       resolutionStyle: effectiveOptions.resolutionStyle,
     });
     this.visitors[order].sort((a, b) => {
@@ -86,7 +94,7 @@ export class DepthFirstTraversal<
       RW_TTP
     >[],
   ): this {
-    this.visitors[order] = visitorRecords;
+    this.visitors[order] = sortVisitorRecords(visitorRecords);
     return this;
   }
 

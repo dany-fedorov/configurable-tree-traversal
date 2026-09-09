@@ -2,16 +2,24 @@
   "name": "configurable-tree-traversal",
   "version": "0.5.0",
   "description": "Very configurable tree traversal for TypeScript",
-  "main": "./index.js",
+  "main": "./dist/index.js",
   "scripts": {
-    "test": "NODE_OPTIONS='--stack-trace-limit=1000' ./node_modules/.bin/jest",
-    "build": "tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json -s ./src",
-    "prepare-me": "rm -rf ./dist && npm run build",
-    "prepublish-me": "npm run prepare-me && rm -fr ./npm-module && mv dist ./npm-module && cp package.json ./npm-module && cp README.md ./npm-module",
-    "publish-me": "npm run prepublish-me && cd npm-module && npm publish --access public",
-    "postpublish-me": "rm -fr npm-module",
-    "build-watch": "chokidar './src/**/*.ts' -c 'npm run build' -i './node_modules/**/*' --initial",
-    "tsfile": "ts-node -r tsconfig-paths/register -T -s"
+    "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests examples --ext .ts",
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build": "npm run clean && tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json -s ./src",
+    "prepack": "npm run build",
+    "verify-package": "npm run build && node scripts/verify-package.cjs",
+    "verify-examples": "node scripts/verify-examples.cjs",
+    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run verify-examples && npm run verify-package",
+    "prepare-me": "npm run build",
+    "prepublish-me": "npm run check",
+    "publish-me": "npm run check && npm publish --access public",
+    "build-watch": "node scripts/watch.cjs",
+    "tsfile": "ts-node -r tsconfig-paths/register",
+    "benchmark": "npm run build && node scripts/benchmark.cjs"
   },
   "repository": {
     "type": "git",
@@ -51,5 +59,75 @@
   },
   "dependencies": {
     "uuid": "^9.0.0"
+  },
+  "types": "./dist/index.d.ts",
+  "type": "commonjs",
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "docs/testing.md"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./traversals/depth-first-traversal": {
+      "types": "./dist/traversals/depth-first-traversal/index.d.ts",
+      "default": "./dist/traversals/depth-first-traversal/index.js"
+    },
+    "./traversals/breadth-first-traversal": {
+      "types": "./dist/traversals/breadth-first-traversal/index.d.ts",
+      "default": "./dist/traversals/breadth-first-traversal/index.js"
+    },
+    "./traversable-tree-implementations/traversable-object-tree": {
+      "types": "./dist/traversable-tree-implementations/traversable-object-tree/index.d.ts",
+      "default": "./dist/traversable-tree-implementations/traversable-object-tree/index.js"
+    },
+    "./tools/rewrite-object": {
+      "types": "./dist/tools/rewrite-object/index.d.ts",
+      "default": "./dist/tools/rewrite-object/index.js"
+    },
+    "./*.js": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "core": [
+        "dist/core/index.d.ts"
+      ],
+      "traversals/depth-first-traversal": [
+        "dist/traversals/depth-first-traversal/index.d.ts"
+      ],
+      "traversals/breadth-first-traversal": [
+        "dist/traversals/breadth-first-traversal/index.d.ts"
+      ],
+      "traversable-tree-implementations/traversable-object-tree": [
+        "dist/traversable-tree-implementations/traversable-object-tree/index.d.ts"
+      ],
+      "tools/rewrite-object": [
+        "dist/tools/rewrite-object/index.d.ts"
+      ],
+      "*": [
+        "dist/*"
+      ],
+      "dist/*": [
+        "dist/*"
+      ]
+    }
   }
 }

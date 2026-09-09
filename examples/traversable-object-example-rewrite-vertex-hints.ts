@@ -43,7 +43,7 @@ const traversal = new DepthFirstTraversal({
   traversableTree,
 });
 
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v, opts) => {
+traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
   console.log(
     '-',
     RED_FG,

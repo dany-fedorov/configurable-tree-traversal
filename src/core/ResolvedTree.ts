@@ -36,7 +36,9 @@ export class VertexResolved<TTP extends TreeTypeParameters>
   }
 
   pushChildren(children: Array<CTTRef<Vertex<TTP>>>): void {
-    this.$c.push(...children);
+    for (const child of children) {
+      this.$c.push(child);
+    }
   }
 
   getResolutionContext(): VertexResolutionContext<TTP> | null {
@@ -58,9 +60,17 @@ export class VertexResolved<TTP extends TreeTypeParameters>
   }
 
   clone(content?: Partial<VertexResolvedContent<TTP>>): VertexResolved<TTP> {
+    const data = content?.$d ?? this.$d;
+    const children = content?.$c ?? this.$c;
     return new VertexResolved<TTP>({
-      $d: content?.$d ?? this.$d,
-      $c: content?.$c ?? this.$c,
+      $d: {
+        ...data,
+        resolutionContext:
+          data.resolutionContext === null
+            ? null
+            : { ...data.resolutionContext },
+      },
+      $c: children.slice(),
     });
   }
 }
@@ -123,7 +133,27 @@ export class ResolvedTree<
     if (parent !== null) {
       this.deleteChildOf(parent, vertexRef);
     }
-    this.map.delete(vertexRef);
+
+    const refsToDelete = [vertexRef];
+    const visited = new Set<CTTRef<Vertex<TTP>>>();
+    while (refsToDelete.length > 0) {
+      const currentRef = refsToDelete.pop();
+      if (currentRef === undefined || visited.has(currentRef)) {
+        continue;
+      }
+      visited.add(currentRef);
+      const currentResolved = this.map.get(currentRef);
+      if (currentResolved !== undefined) {
+        for (const childRef of currentResolved.getChildren()) {
+          refsToDelete.push(childRef);
+        }
+      }
+      this.map.delete(currentRef);
+    }
+
+    if (this.root === vertexRef) {
+      this.root = null;
+    }
   }
 
   has(vertexRef: CTTRef<Vertex<TTP>>): boolean {
@@ -162,9 +192,11 @@ export class ResolvedTree<
     vertexRef: CTTRef<Vertex<TTP>>,
     options?: GetPathToOptions,
   ): CTTRef<Vertex<TTP>>[] {
+    if (!this.has(vertexRef)) {
+      throw new Error(`Could not find ref - ${jsonStringifySafe(vertexRef)}`);
+    }
     let curVertex = vertexRef;
-    const reversedPath: CTTRef<Vertex<TTP>>[] =
-      options?.noSelf === true ? [] : [curVertex];
+    const reversedPath: CTTRef<Vertex<TTP>>[] = [curVertex];
     while (true) {
       const parent = this.getParentOf(curVertex);
       if (parent === null) {
@@ -174,12 +206,17 @@ export class ResolvedTree<
         curVertex = parent;
       }
     }
-    const straightPath = reversedPath.reverse();
-    if (options?.noRoot === true) {
-      return straightPath.slice(1);
-    } else {
-      return straightPath;
+    let straightPath = reversedPath.reverse();
+    if (options?.noRoot === true && straightPath[0] === this.root) {
+      straightPath = straightPath.slice(1);
     }
+    if (
+      options?.noSelf === true &&
+      straightPath[straightPath.length - 1] === vertexRef
+    ) {
+      straightPath = straightPath.slice(0, -1);
+    }
+    return straightPath;
   }
 
   makeRoot(): MakeVertexResult<ResolvedTreeTypeParameters<TTP>> {

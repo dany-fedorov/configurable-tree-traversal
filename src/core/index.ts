@@ -7,3 +7,6 @@ export * from './TraversableTree';
 export * from './TraversalVisitor';
 export * from './TreeTypeParameters';
 export * from './Vertex';
+export * from './Traversal';
+export * from './TraversalRunner';
+export * from './TraversalRunnerIterableConfig';

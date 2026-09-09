@@ -34,7 +34,8 @@ t.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
   console.log('IN_ORDER', v.getData());
 });
 
-t.run();
-console.log(t.getStatus());
-t.run();
-console.log(t.getStatus());
+const runner = t.makeRunner();
+runner.run();
+console.log(runner.getStatus());
+runner.run();
+console.log(runner.getStatus());

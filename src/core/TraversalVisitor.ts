@@ -2,6 +2,7 @@ import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { ResolvedTree } from '@core/ResolvedTree';
 import type { CTTRef } from '@core/CTTRef';
+import { deepFreeze } from '@utils/deepFreeze';
 
 export enum TraversalVisitorCommandName {
   NOOP = 'NOOP',
@@ -35,9 +36,12 @@ export type TraversalVisitorCommand<
   RW_TTP extends TreeTypeParameters,
   T extends TraversalVisitorCommandName = TraversalVisitorCommandName,
 > = {
-  commandName: T;
-  commandArguments?: TraversalVisitorCommandArguments<RW_TTP>[T];
-};
+  [Name in T]: { commandName: Name } & ([
+    TraversalVisitorCommandArguments<RW_TTP>[Name],
+  ] extends [never]
+    ? { commandArguments?: never }
+    : { commandArguments: TraversalVisitorCommandArguments<RW_TTP>[Name] });
+}[T];
 
 export interface TraversalVisitorResult<RW_TTP extends TreeTypeParameters> {
   commands?: TraversalVisitorCommand<RW_TTP>[];
@@ -84,10 +88,10 @@ export type TraversalVisitorRecord<
 
 export const DEFAULT_VISITOR_PRIORITY = 100;
 
-export const DEFAULT_VISITOR_FN_OPTIONS = {
+export const DEFAULT_VISITOR_FN_OPTIONS = deepFreeze({
   priority: DEFAULT_VISITOR_PRIORITY,
   resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
-};
+});
 
 export type TraversalVisitor<
   ORDER extends string,

@@ -18,10 +18,6 @@ const main = () => {
       const depth =
         options.resolvedTree.get(options.vertexRef)?.getResolutionContext()
           ?.depth ?? 0;
-      const p = options.resolvedTree.getPathTo(options.vertexRef, {
-        noRoot: true,
-        // noSelf: true,
-      });
       console.log(
         depth,
         // p.map((ps) => ps.unref().getData().key),

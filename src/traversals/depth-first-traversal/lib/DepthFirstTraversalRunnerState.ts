@@ -95,7 +95,6 @@ export class DepthFirstTraversalRunnerState<
       );
     }
     if (newCount === 0) {
-      // console.log(newCount, parentVertexRef.unref().getData());
       this.postOrderNotVisitedChildrenCountMap.delete(parentVertexRef);
     }
     return newCount;

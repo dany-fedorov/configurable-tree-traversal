@@ -30,8 +30,13 @@ export class Vertex<TTP extends TreeTypeParameters>
   }
 
   clone(content?: Partial<VertexContent<TTP>>): Vertex<TTP> {
+    const data =
+      content !== undefined &&
+      Object.prototype.hasOwnProperty.call(content, '$d')
+        ? (content.$d as TTP['VertexData'])
+        : this.$d;
     return new Vertex<TTP>({
-      $d: content?.$d ?? this.$d,
+      $d: data,
       $c: content?.$c ?? this.$c,
     });
   }

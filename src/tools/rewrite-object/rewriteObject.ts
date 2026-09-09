@@ -56,7 +56,7 @@ export type RewriteObjectResult<
   OutK extends TraversableObjectPropKey,
   OutV,
 > = {
-  outputObject: Out;
+  outputObject: Out | null;
   traversalRunner: DepthFirstTraversalRunner<
     TraversableObjectTTP<InK, InV>,
     TraversableObjectTTP<OutK, OutV>
@@ -180,7 +180,7 @@ export function rewriteObject<
           isObject,
           isArray,
           vertex,
-          getKeyPath: (thisOptions: GetPathToOptions) =>
+          getKeyPath: (thisOptions?: GetPathToOptions) =>
             options.resolvedTree
               .getPathTo(options.vertexRef, thisOptions)
               .map((ps) => ps.unref().getData().key),
@@ -200,18 +200,35 @@ export function rewriteObject<
       },
     },
     {
-      ...(!options?.saveNotMutatedResolvedTree
+      ...(options?.sortChildrenHints === undefined
         ? {}
-        : { saveNotMutatedResolvedTree: options?.saveNotMutatedResolvedTree }),
+        : { sortChildrenHints: options.sortChildrenHints }),
+      ...(options?.visitors === undefined
+        ? {}
+        : { visitors: options.visitors }),
+      ...(options?.inOrderTraversalConfig === undefined
+        ? {}
+        : { inOrderTraversalConfig: options.inOrderTraversalConfig }),
+      ...(options?.saveNotMutatedResolvedTree === undefined
+        ? {}
+        : {
+            saveNotMutatedResolvedTree: options.saveNotMutatedResolvedTree,
+          }),
+      ...(options?.traversalRunnerInternalObjects === undefined
+        ? {}
+        : {
+            traversalRunnerInternalObjects:
+              options.traversalRunnerInternalObjects,
+          }),
     },
   );
+  const resolvedTree = traversalRunner.getResolvedTree();
+  const rootRef = resolvedTree.getRoot();
   const rootValue =
-    (traversalRunner.getResolvedTree().getRoot()?.unref().getData()
-      .value as unknown as OutV) ?? null;
+    rootRef === null || !resolvedTree.has(rootRef)
+      ? null
+      : (rootRef.unref().getData().value as unknown as OutV);
   const outputObject = getOutputObjectFromRootValue(rootValue);
-  if (outputObject === null) {
-    throw new Error(`outputObject is null`);
-  }
   return {
     outputObject,
     traversalRunner,

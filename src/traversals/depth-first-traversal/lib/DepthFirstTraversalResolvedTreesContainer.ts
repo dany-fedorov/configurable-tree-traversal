@@ -54,32 +54,57 @@ export class DepthFirstTraversalResolvedTreesContainer<
     vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
     vertexResolved: VertexResolved<TTP | RW_TTP>,
   ): void {
-    this.resolvedTree.set(vertexRef, vertexResolved);
     if (this.notMutatedResolvedTree && this.notMutatedResolvedTreeRefsMap) {
-      const notMutatedRef = new CTTRef<Vertex<TTP>>(
-        (vertexRef as CTTRef<Vertex<TTP>>).unref().clone(),
-      );
-      this.notMutatedResolvedTreeRefsMap.set(vertexRef, notMutatedRef);
+      const vertex = (vertexRef as CTTRef<Vertex<TTP>>).unref();
+      const notMutatedRef =
+        this.notMutatedResolvedTreeRefsMap.get(vertexRef) ??
+        new CTTRef<Vertex<TTP>>(
+          vertex.clone({ $c: vertex.getChildrenHints().slice() }),
+        );
       const resolutionContext = vertexResolved.getResolutionContext();
-      const parentVertexRef = resolutionContext?.parentVertexRef ?? null;
-      const notMutatedVertexParentRef = !parentVertexRef
-        ? null
-        : this.notMutatedResolvedTreeRefsMap.get(parentVertexRef);
-      const notMutatedVertexResolved = vertexResolved.clone();
-      notMutatedVertexResolved.setResolutionContext(
-        !notMutatedVertexParentRef || !resolutionContext
-          ? null
-          : {
-              ...resolutionContext,
-              parentVertexRef: notMutatedVertexParentRef,
-              parentVertex: notMutatedVertexParentRef?.unref(),
-            },
-      );
+      const notMutatedChildren = vertexResolved.getChildren().map((child) => {
+        const notMutatedChild = this.notMutatedResolvedTreeRefsMap?.get(child);
+        if (notMutatedChild === undefined) {
+          throw new Error(
+            `Could not find not mutated child ref - ${jsonStringifySafe(
+              child,
+            )}`,
+          );
+        }
+        return notMutatedChild;
+      });
+      const notMutatedVertexResolved = vertexResolved.clone({
+        $c: notMutatedChildren,
+      });
+      if (resolutionContext === null) {
+        notMutatedVertexResolved.setResolutionContext(null);
+      } else {
+        const notMutatedVertexParentRef =
+          this.notMutatedResolvedTreeRefsMap.get(
+            resolutionContext.parentVertexRef,
+          );
+        if (notMutatedVertexParentRef === undefined) {
+          throw new Error(
+            `Could not find not mutated parent ref - ${jsonStringifySafe(
+              resolutionContext.parentVertexRef,
+            )}`,
+          );
+        }
+        notMutatedVertexResolved.setResolutionContext({
+          ...resolutionContext,
+          parentVertexRef: notMutatedVertexParentRef,
+          parentVertex: notMutatedVertexParentRef.unref(),
+        });
+      }
+      this.resolvedTree.set(vertexRef, vertexResolved);
+      this.notMutatedResolvedTreeRefsMap.set(vertexRef, notMutatedRef);
       this.notMutatedResolvedTree.set(
         notMutatedRef,
         notMutatedVertexResolved as VertexResolved<TTP>,
       );
+      return;
     }
+    this.resolvedTree.set(vertexRef, vertexResolved);
   }
 
   setWithResolutionContext(
@@ -98,6 +123,11 @@ export class DepthFirstTraversalResolvedTreesContainer<
   setRoot(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): void {
     this.resolvedTree.setRoot(vertexRef);
     this.setWithResolutionContext(vertexRef, null);
+    const notMutatedRootRef =
+      this.notMutatedResolvedTreeRefsMap?.get(vertexRef);
+    if (this.notMutatedResolvedTree && notMutatedRootRef) {
+      this.notMutatedResolvedTree.setRoot(notMutatedRootRef);
+    }
   }
 
   delete(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): void {
@@ -108,7 +138,6 @@ export class DepthFirstTraversalResolvedTreesContainer<
     parentVertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
     childrenVertexRefs: CTTRef<Vertex<TTP | RW_TTP>>[],
   ): void {
-    this.resolvedTree.pushChildrenTo(parentVertexRef, childrenVertexRefs);
     if (this.notMutatedResolvedTree && this.notMutatedResolvedTreeRefsMap) {
       const nmParentVertexRef =
         this.notMutatedResolvedTreeRefsMap?.get(parentVertexRef);
@@ -137,7 +166,10 @@ export class DepthFirstTraversalResolvedTreesContainer<
         }
         return nmCh;
       });
+      this.resolvedTree.pushChildrenTo(parentVertexRef, childrenVertexRefs);
       nmParentVertexResolved.pushChildren(nmChildrenVertexRefs);
+      return;
     }
+    this.resolvedTree.pushChildrenTo(parentVertexRef, childrenVertexRefs);
   }
 }

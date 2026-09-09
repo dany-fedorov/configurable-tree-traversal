@@ -1,3 +1,4 @@
+import { sortVisitorRecords } from '@core/executeVisitors';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
@@ -10,7 +11,7 @@ export function initVisitors<
 ): DepthFirstTraversalVisitors<TTP, RW_TTP> {
   return Object.fromEntries(
     Object.entries(icfg.visitors).map(([order, visitors]) => {
-      return [order, [...visitors]];
+      return [order, sortVisitorRecords(visitors)];
     }),
   ) as DepthFirstTraversalVisitors<TTP, RW_TTP>;
 }

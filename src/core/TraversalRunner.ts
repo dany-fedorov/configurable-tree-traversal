@@ -20,6 +20,7 @@ export enum TraversalRunnerStatus {
   RUNNING = 'RUNNING',
   HALTED = 'HALTED',
   FINISHED = 'FINISHED',
+  FAILED = 'FAILED',
 }
 
 export abstract class TraversalRunnerIterable<
@@ -40,11 +41,9 @@ export abstract class TraversalRunner<
 > {
   abstract getStatus(): TraversalRunnerStatus;
 
-  abstract run(): this;
-
-  // abstract halt(): this;
+  abstract run(config?: TraversalIterableConfigInput<ORDER>): this;
 
   abstract getIterable(
-    config: TraversalIterableConfigInput<ORDER>,
+    config?: TraversalIterableConfigInput<ORDER>,
   ): TraversalRunnerIterable<ORDER, TTP, RW_TTP>;
 }

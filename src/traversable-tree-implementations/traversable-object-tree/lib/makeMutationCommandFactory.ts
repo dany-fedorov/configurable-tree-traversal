@@ -241,8 +241,23 @@ export const MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT = {
       TraversableObjectPropKey,
       unknown
     >[],
+    _vertexData: TraversableObjectProp<TraversableObjectPropKey, unknown>,
   ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
-    return processedChildren.map((ch) => ch.value);
+    const numericChildren = processedChildren.filter(
+      (child) => typeof child.key === 'number',
+    );
+    const result = numericChildren.map((child) => child.value);
+    for (const child of processedChildren) {
+      if (typeof child.key !== 'number') {
+        Object.defineProperty(result, child.key, {
+          value: child.value,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+      }
+    }
+    return result;
   },
   assembleObject: (
     processedChildren: TraversableObjectProp<

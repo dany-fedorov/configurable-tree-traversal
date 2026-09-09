@@ -3,4 +3,3 @@ export enum DepthFirstTraversalOrder {
   IN_ORDER = 'IN_ORDER',
   POST_ORDER = 'POST_ORDER',
 }
-

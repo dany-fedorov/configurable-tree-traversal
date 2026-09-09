@@ -52,10 +52,11 @@ const main = () => {
   // for (const x of t.getIterable(false, [DepthFirstTraversalOrder.POST_ORDER])) {
   //   console.log(x.order, x.vertex.getData().key, x.vertex.getData().value);
   // }
-  t.run();
-  console.log(t.getStatus());
-  t.run();
-  console.log(t.getStatus());
+  const runner = t.makeRunner();
+  runner.run();
+  console.log(runner.getStatus());
+  runner.run();
+  console.log(runner.getStatus());
 };
 
 main();
