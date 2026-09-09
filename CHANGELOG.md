@@ -18,5 +18,7 @@
 - Complete public exports, preserve historical deep imports, and fix npm entry points and declaration paths.
 - Add deterministic generated-tree comparisons and regressions for commands, iterator ownership, thrown non-Error values, configuration isolation, saved-tree updates, custom object assembly, and halt-time rewrite output snapshots.
 - Run coverage, all examples, and packed CommonJS/ESM/strict TypeScript consumers in the automated check on Node 22 and 24.
+- Require 100% statements, branches, functions, and lines across all source files. Add tests for concurrent visitor boundaries, custom object hooks and assembly, saved-tree errors, public runner-state helpers, and utility edge cases.
+- Preserve stack ranges and subtree-pruning references when injecting existing depth-first runner state, allowing its public stack helpers to resume safely.
 
 Behavior changes: invalid late hint rewrites now throw; deleted vertices are not yielded or visited again; filtered-out orders can still halt traversal; visitor indices start at zero; failed runners rethrow their original error and require a fresh runner to retry. Exported traversal defaults are frozen; customize through constructor options or configure calls. Resume a halted runner to complete its pending visitor chain and event. Output types now include null for root deletion.

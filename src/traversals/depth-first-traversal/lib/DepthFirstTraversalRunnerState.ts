@@ -46,11 +46,11 @@ export class DepthFirstTraversalRunnerState<
   visitorsState: DepthFirstTraversalVisitorsState<TTP, RW_TTP>;
   traversalRootVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
   status: TraversalRunnerStatus;
-  subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<TTP | RW_TTP>>> = new Set();
+  subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<TTP | RW_TTP>>>;
   vertexRefStackChildrenHintsRanges: Map<
     CTTRef<Vertex<TTP | RW_TTP>>,
     [number, number]
-  > = new Map();
+  >;
 
   constructor(cfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
     const from = cfg?.traversalRunnerInternalObjects?.state ?? null;
@@ -69,6 +69,10 @@ export class DepthFirstTraversalRunnerState<
         : null;
     this.status =
       from?.status != null ? from?.status : TraversalRunnerStatus.INITIAL;
+    this.subtreeTraversalDisabledRefs =
+      from?.subtreeTraversalDisabledRefs ?? new Set();
+    this.vertexRefStackChildrenHintsRanges =
+      from?.vertexRefStackChildrenHintsRanges ?? new Map();
   }
 
   countVisitedOnPostOrderAChildOf(

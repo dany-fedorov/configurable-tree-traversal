@@ -216,7 +216,7 @@ npm run benchmark -- 50000
 npm run tsfile -- examples/tree-from-image-example.ts
 ```
 
-The tests cover deterministic generated trees, mutations, pause/resume, failures, original-tree isolation, object reconstruction, deep chains, and wide trees. Every example also runs as part of `npm run check`. See [the testing guide](docs/testing.md) for the test layout and regression workflow.
+The tests cover deterministic generated trees, mutations, pause/resume, failures, original-tree isolation, object reconstruction, deep chains, and wide trees. `npm run check` requires 100% statements, branches, functions, and lines across all source files and executes every example. See [the testing guide](docs/testing.md) for the test layout and regression workflow.
 
 The packed consumer check runs CommonJS, ESM, and strict TypeScript imports from a temporary extracted tarball, using installed runtime dependencies. It checks both classic Node and Node16 TypeScript resolution, public subpaths, and historical deep imports. It uses `tar` and runs in CI on Linux. CI checks Node 22 and 24. No package is published by the verification commands. The benchmark compares deep and wide trees with both traversal strategies; timings depend on the machine and are not performance guarantees.
 

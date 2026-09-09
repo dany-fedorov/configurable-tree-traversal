@@ -145,11 +145,11 @@ export class DepthFirstTraversalRunner<
     return result;
   }
 
+  /** The frame loop checks membership immediately before dispatching a visit. */
   private *visit(
     order: DepthFirstTraversalOrder,
     vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
   ): Generator<Event<TTP, RW_TTP> | null> {
-    if (!this.getResolvedTree().has(vertexRef)) return;
     if (shouldRunVisitorsForOrder(this.iterableConfig, order)) {
       const state = this.state.visitorsState[order];
       const execution = executeVisitors({

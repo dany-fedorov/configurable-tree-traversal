@@ -18,6 +18,10 @@ The check type-checks source, examples, and compile-time API assertions; lints T
 | `configuration-isolation.test.ts`, `iterable-config.test.ts`, `defaults.test.ts` | Caller-owned arrays, independent defaults, nested ranges, and runner configuration snapshots                                                                     |
 | `core.test.ts`, `core-edge-cases.test.ts`                                        | Vertex references, cloning, paths, subtree deletion, saved original-tree ownership, and container updates                                                        |
 | `object.test.ts`, `object-edge-cases.test.ts`                                    | Cycles and shared identities, symbols, sparse arrays, null/undefined, custom hooks and assemblers, reconstruction, and return-time output snapshots              |
+| `resolved-tree-coverage.test.ts`                                                 | Unresolved-reference fallbacks, duplicate edges, and atomic saved-mapping errors                                                                                 |
+| `object-coverage.test.ts`                                                        | Direct adapter hooks, custom reconstruction, cached assembly, paths, and rewrite options                                                                         |
+| `runner-coverage.test.ts`, `runner-state.test.ts`                                | Convenience visitors, command validation, public runner-state bookkeeping, and pruning boundaries                                                                |
+| `visitor-coverage.test.ts`, `utils.test.ts`                                      | Concurrent halt and deletion, invalid visitor styles, cyclic object graphs, and diagnostic serialization                                                         |
 | `*.typecheck.ts`                                                                 | Public generic inference, abstract runner signatures, command payload compatibility, and intentionally rejected invalid commands                                 |
 
 Generated cases use fixed seeds and bounded trees so failures are reproducible. Separate deep-chain and wide-tree regressions exercise iterative traversal and subtree deletion without relying on timing thresholds.
@@ -32,7 +36,7 @@ npm run verify-examples
 npm run verify-package
 ```
 
-Jest writes the HTML coverage report to `coverage/lcov-report/index.html`. Coverage includes all source files, including compatibility exports and helpers. The full check enforces global minimums of 90% statements, 85% branches, 90% functions, and 90% lines. Use uncovered branches to identify missing behavioral scenarios rather than asserting implementation details solely to increase the percentage.
+Jest writes the HTML coverage report to `coverage/lcov-report/index.html`. The full check requires 100% statements, branches, functions, and lines across `src/**/*.ts`, including compatibility exports and helpers. Source files and branches are not excluded to meet the threshold. New behavior must include tests that exercise its outcomes and error paths; reaching the coverage threshold does not replace reviewing the assertions.
 
 The package check extracts a fresh tarball into a temporary directory outside the source checkout and supplies only installed runtime dependencies. It exercises root and subpath imports, historical `.js` and extensionless deep imports, CommonJS and ESM execution, and strict TypeScript consumers with `node` and `node16` module resolution. It requires the `tar` command. Temporary consumer directories are cleaned up afterward.
 
