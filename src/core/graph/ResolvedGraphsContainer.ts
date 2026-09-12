@@ -91,7 +91,12 @@ export class ResolvedGraphsContainer<
     this.commitSnapshotVertex(staged);
   }
 
-  acceptEdge(parent: Ref<T | R>, index: number, child: Ref<T | R>): void {
+  acceptEdge(
+    parent: Ref<T | R>,
+    index: number,
+    child: Ref<T | R>,
+    legacyTopologyAlreadyLinked = false,
+  ): void {
     const staged = this.snapshot?.stageEdge(parent, index, child) ?? null;
     const oldSlot = this.resolvedGraph.get(parent)?.slots[index];
     const isAcknowledgment =
@@ -102,7 +107,8 @@ export class ResolvedGraphsContainer<
       treeContainer !== null &&
       treeContainer.notMutatedResolvedTree !== null &&
       treeContainer.notMutatedResolvedTreeRefsMap !== null &&
-      !isAcknowledgment
+      !isAcknowledgment &&
+      !legacyTopologyAlreadyLinked
     ) {
       const refs = treeContainer.notMutatedResolvedTreeRefsMap;
       const savedParentRef = refs.get(parent);
@@ -120,7 +126,12 @@ export class ResolvedGraphsContainer<
       }
       savedEdge = { parent: savedParent, child: savedChildRef };
     }
-    this.store.linkSlot(parent, index, child);
+    this.store.linkSlot(
+      parent,
+      index,
+      child,
+      legacyTopologyAlreadyLinked,
+    );
     savedEdge?.parent.pushChildren([savedEdge.child]);
     if (staged !== null) this.snapshot!.commitEdge(staged);
   }

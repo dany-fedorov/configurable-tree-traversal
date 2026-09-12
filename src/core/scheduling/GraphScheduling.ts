@@ -81,6 +81,22 @@ export class GraphScheduling<
       throw new Error('Result vertex id and hint vertex id mismatch');
     }
 
+    const existingTreeChild =
+      result.vertexContent === null
+        ? null
+        : this.findExistingTreeChild(context);
+    if (existingTreeChild !== null) {
+      this.container.acceptEdge(
+        context.parentVertexRef,
+        context.hintIndex,
+        existingTreeChild,
+        true,
+      );
+      this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
+      this.enrollExisting(existingTreeChild);
+      return existingTreeChild;
+    }
+
     const hasSuppliedId = resultHasId || hintHasId;
     const suppliedId = resultHasId
       ? result.vertexId
@@ -371,6 +387,24 @@ export class GraphScheduling<
     const declared = result.dependsOn;
     if (declared !== undefined) return Array.from(new Set(declared));
     return [this.container.resolvedGraph.getIdOf(context.parentVertexRef)];
+  }
+
+  private findExistingTreeChild(
+    context: VertexResolutionContext<T | R>,
+  ): Ref<T | R> | null {
+    const tree = this.container.treeContainer?.resolvedTree;
+    if (tree === undefined) return null;
+    for (const child of tree.getChildrenOf(context.parentVertexRef) ?? []) {
+      const existing = tree.getResolutionContextOf(child);
+      if (
+        existing?.parentVertexRef === context.parentVertexRef &&
+        existing.hintIndex === context.hintIndex &&
+        sameVertexId(existing.vertexHint, context.vertexHint)
+      ) {
+        return child;
+      }
+    }
+    return null;
   }
 
   private register(ref: Ref<T | R>, dependencies: readonly VertexId[]): void {

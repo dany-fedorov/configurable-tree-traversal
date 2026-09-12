@@ -151,9 +151,12 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
 
 test('DFS can traverse a completed injected resolved-tree container again', () => {
   const adapter = {
-    makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
+    makeRoot: () => ({
+      vertexContent: { $d: 'root', $c: ['missing', 'child'] },
+    }),
     makeVertex: (hint: string) => ({
-      vertexContent: { $d: hint, $c: [] },
+      vertexContent:
+        hint === 'missing' ? null : { $d: hint, $c: [] },
     }),
   };
   const first = new DepthFirstTraversal<TestGraph>({
@@ -163,7 +166,8 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
   const root = first.getResolvedTree().getRoot();
   if (root === null) throw new Error('Expected a resolved root');
   const rootRecord = first.getResolvedTree().get(root);
-  const originalChild = first.getResolvedTree().getChildrenOf(root)?.[0];
+  const originalChildren = first.getResolvedTree().getChildrenOf(root);
+  const originalChild = originalChildren?.[0];
   if (originalChild === undefined) throw new Error('Expected a resolved child');
   const childRecord = first.getResolvedTree().get(originalChild);
 
@@ -179,15 +183,25 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
     },
   }).makeRunner();
 
-  expect(
-    Array.from(second.getIterable({
+  const events = Array.from(
+    second.getIterable({
       iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
-    })).map((event) => event.vertex.getData()),
-  ).toEqual(['root', 'child']);
+    }),
+  );
+  expect(events.map((event) => event.vertex.getData())).toEqual([
+    'root',
+    'child',
+  ]);
+  expect(events[1]?.vertexRef).toBe(originalChild);
   expect(second.getResolvedTree().getRoot()).toBe(root);
   expect(second.getResolvedTree().get(root)).toBe(rootRecord);
-  expect(second.getResolvedTree().getChildrenOf(root)?.[0]).toBe(originalChild);
+  expect(second.getResolvedTree().getChildrenOf(root)).toBe(originalChildren);
+  expect(second.getResolvedTree().getChildrenOf(root)).toEqual([originalChild]);
   expect(second.getResolvedTree().get(originalChild)).toBe(childRecord);
+  expect(second.getResolvedGraph().getVertexRefs()).toEqual([
+    root,
+    originalChild,
+  ]);
 });
 
 test('deleting the current vertex still advances visitor metadata for its sibling', () => {

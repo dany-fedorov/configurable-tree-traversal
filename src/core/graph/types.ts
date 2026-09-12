@@ -83,7 +83,12 @@ export interface GraphStoreContract<T extends TreeTypeParameters> {
   setStatus(ref: Ref<T>, status: GraphVertexStatus): void;
   resetTraversal(ref: Ref<T>): void;
   prepareSlots(ref: Ref<T>, hints: readonly T['VertexHint'][]): void;
-  linkSlot(parent: Ref<T>, index: number, child: Ref<T>): void;
+  linkSlot(
+    parent: Ref<T>,
+    index: number,
+    child: Ref<T>,
+    legacyTopologyAlreadyLinked?: boolean,
+  ): void;
   closeSlot(
     parent: Ref<T>,
     index: number,

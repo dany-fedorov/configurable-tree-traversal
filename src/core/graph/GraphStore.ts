@@ -100,7 +100,12 @@ export class GraphStore<T extends TreeTypeParameters>
     entry.slots = hints.map((hint) => ({ kind: 'pending', hint }));
   }
 
-  linkSlot(parent: Ref<T>, index: number, child: Ref<T>): void {
+  linkSlot(
+    parent: Ref<T>,
+    index: number,
+    child: Ref<T>,
+    legacyTopologyAlreadyLinked = false,
+  ): void {
     const parentEntry = this.getEntry(parent);
     const childEntry = this.getEntry(child);
     const slot = this.getSlot(parentEntry, index);
@@ -127,8 +132,8 @@ export class GraphStore<T extends TreeTypeParameters>
       hint: slot.hint,
     };
     parentEntry.slots![index] = { kind: 'linked', hint: slot.hint, childRef: child };
-    childEntry.incoming.push(edge);
-    if (this.mode === 'tree') {
+    if (!legacyTopologyAlreadyLinked) childEntry.incoming.push(edge);
+    if (this.mode === 'tree' && !legacyTopologyAlreadyLinked) {
       const record = this.treeRecords.get(parent);
       if (record !== undefined) record.pushChildren([child]);
     }
