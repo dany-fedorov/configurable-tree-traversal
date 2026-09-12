@@ -3,6 +3,7 @@ import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContain
 import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
 import type { VertexResolutionContext } from '../src/core/ResolvedTree';
+import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 
 type GraphTTP = TreeTypeParameters<
   { label: string; nested: { count: number } },
@@ -104,4 +105,43 @@ test('a rejected active edge does not mutate the original snapshot', () => {
   expect(snapshot.getPathsTo(refs.get(child)!)).toEqual([
     [refs.get(root)!, refs.get(child)!],
   ]);
+});
+
+test('tree acceptance uses supplied graph ids and dependencies', () => {
+  const treeContainer = new DepthFirstTraversal<GraphTTP>({
+    traversableTree: {
+      makeRoot: () => ({ vertexContent: null }),
+      makeVertex: () => ({ vertexContent: null }),
+    },
+  }).makeRunner().resolvedTreesContainer;
+  const container = new ResolvedGraphsContainer({
+    sourceMode: 'tree',
+    saveOriginal: true,
+    treeContainer,
+  });
+  const root = ref('root', ['child']);
+  const child = ref('child');
+
+  container.acceptRoot(root, 'accepted-root');
+  container.acceptVertex(
+    child,
+    'accepted-child',
+    ['accepted-root'],
+    context(root, 0),
+  );
+
+  const snapshot = container.notMutatedResolvedGraph!;
+  const savedRoot = container.notMutatedResolvedGraphRefsMap!.get(root)!;
+  const savedChild = container.notMutatedResolvedGraphRefsMap!.get(child)!;
+  expect(container.resolvedGraph.getIdOf(root)).toBe('accepted-root');
+  expect(container.resolvedGraph.getVertexById('accepted-root')).toBe(root);
+  expect(container.resolvedGraph.getIdOf(child)).toBe('accepted-child');
+  expect(container.resolvedGraph.getVertexById('accepted-child')).toBe(child);
+  expect(container.resolvedGraph.get(child)?.dependsOn).toEqual([
+    'accepted-root',
+  ]);
+  expect(snapshot.getIdOf(savedRoot)).toBe('accepted-root');
+  expect(snapshot.getVertexById('accepted-root')).toBe(savedRoot);
+  expect(snapshot.getIdOf(savedChild)).toBe('accepted-child');
+  expect(snapshot.getVertexById('accepted-child')).toBe(savedChild);
 });

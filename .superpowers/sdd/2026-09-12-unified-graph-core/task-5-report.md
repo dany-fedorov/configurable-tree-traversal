@@ -46,3 +46,57 @@ Implemented graph containers, structural original-graph snapshots, and tree/grap
 ## Concerns
 
 None within Task 5 scope.
+
+## Review Fix: Tree Acceptance Metadata
+
+Tree-mode `acceptRoot` and `acceptVertex` now register the supplied graph id,
+dependencies, and depth in the existing `ResolvedTree` graph store before the
+legacy container installs its unchanged `VertexResolved` record. This retains
+one topology and makes active graph identity/dependency metadata consistent
+with accepted inputs and structural snapshot identity.
+
+Regression coverage also directly exercises synchronous tree-result metadata
+rejection for both `makeRoot` and `makeVertex`.
+
+### RED
+
+Command:
+
+```text
+npm test -- tests/graph-container.test.ts tests/graph-source-binding.test.ts
+```
+
+Output after correcting a test-fixture generic mismatch:
+
+```text
+FAIL tests/graph-container.test.ts
+  Expected: "accepted-root"
+  Received: <the root CTTRef UUID>
+PASS tests/graph-source-binding.test.ts
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       1 failed, 11 passed, 12 total
+```
+
+### GREEN
+
+Command:
+
+```text
+npm test -- tests/graph-container.test.ts tests/graph-source-binding.test.ts
+```
+
+Output:
+
+```text
+PASS tests/graph-container.test.ts
+PASS tests/graph-source-binding.test.ts
+Test Suites: 2 passed, 2 total
+Tests:       12 passed, 12 total
+```
+
+### Review Verification
+
+- `npm test -- tests/graph-container.test.ts tests/graph-source-binding.test.ts tests/tree-graph-view.test.ts tests/resolved-tree-coverage.test.ts tests/core-edge-cases.test.ts tests/resolved-graph.test.ts`: 6 suites, 51 tests passed.
+- `npm run typecheck`: passed.
+- `npx eslint src/core/graph/ResolvedGraphsContainer.ts tests/graph-container.test.ts tests/graph-source-binding.test.ts`: passed with no output.
+- Self-review confirmed tree mode still uses the exact legacy container-created `VertexResolved` records and the existing shared graph store; no competing topology or compatibility path was added.

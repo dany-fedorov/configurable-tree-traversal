@@ -117,6 +117,47 @@ test.each(['vertexId', 'dependsOn'] as const)(
   },
 );
 
+test.each([
+  ['makeRoot', 'vertexId'],
+  ['makeRoot', 'dependsOn'],
+  ['makeVertex', 'vertexId'],
+  ['makeVertex', 'dependsOn'],
+] as const)(
+  'tree binding rejects synchronous %s %s metadata',
+  (method, field) => {
+    const metadata =
+      field === 'vertexId' ? { vertexId: 'id' } : { dependsOn: [] };
+    const treeContainer = new DepthFirstTraversal<InputTTP, RewriteTTP>({
+      traversableTree: {
+        makeRoot: () => ({ vertexContent: null }),
+        makeVertex: () => ({ vertexContent: null }),
+      },
+    }).makeRunner().resolvedTreesContainer;
+    const container = new ResolvedGraphsContainer<InputTTP, RewriteTTP>({
+      sourceMode: 'tree',
+      saveOriginal: false,
+      treeContainer,
+    });
+    const source = bindTreeSource(
+      {
+        makeRoot: () => ({ vertexContent: null, ...metadata }),
+        makeVertex: () => ({ vertexContent: null, ...metadata }),
+      },
+      container,
+    );
+
+    if (method === 'makeRoot') {
+      expect(() => source.makeRoot()).toThrow(/tree source.*metadata/i);
+    } else {
+      const parent = rootRef();
+      container.acceptRoot(parent, parent.getId());
+      expect(() => source.makeVertex(childContext(parent))).toThrow(
+        /tree source.*metadata/i,
+      );
+    }
+  },
+);
+
 test('graph binding passes graph options and forwards hint identity', () => {
   const container = new ResolvedGraphsContainer<InputTTP, RewriteTTP>({
     sourceMode: 'graph',

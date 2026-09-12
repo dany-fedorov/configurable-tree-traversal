@@ -64,6 +64,7 @@ export class ResolvedGraphsContainer<
   acceptRoot(ref: Ref<T | R>, id: VertexId): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
+      this.store.insertVertex({ ref, id, dependsOn: [], depth: 0 });
       this.treeContainer.setRoot(ref);
     } else {
       this.store.insertVertex({ ref, id, dependsOn: [], depth: 0 });
@@ -81,6 +82,7 @@ export class ResolvedGraphsContainer<
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
+      this.store.insertVertex({ ref, id, dependsOn, depth: context.depth });
       this.treeContainer.setWithResolutionContext(ref, context);
     } else {
       this.store.insertVertex({ ref, id, dependsOn, depth: context.depth });
