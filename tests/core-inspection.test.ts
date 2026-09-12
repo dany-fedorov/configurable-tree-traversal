@@ -108,3 +108,81 @@ test('inspection remains readable in initial, halted, finished, and failed state
   expect(failed.poll('drive')).toEqual({ kind: 'FAILED', error: 'broken' });
   expect(failed.inspect().status).toBe(TraversalRunnerStatus.FAILED);
 });
+
+test('inspection detaches and freezes populated chain and frame records', () => {
+  const kernel = setup();
+  const root = kernel.poll('drive');
+  if (root.kind !== 'CALL') throw new Error('Expected root call');
+  kernel.submit({
+    requestId: root.call.requestId,
+    kind: 'MAKE_ROOT',
+    outcome: {
+      ok: true,
+      value: {
+        vertexId: 'root',
+        vertexContent: { $d: 'private-root-data', $c: ['private-hint'] },
+      },
+    },
+  });
+  const visit = kernel.poll('drive');
+  if (visit.kind !== 'CALL' || visit.call.kind !== 'VISIT') {
+    throw new Error('Expected visitor call');
+  }
+
+  const firstChain = kernel.inspect();
+  const secondChain = kernel.inspect();
+  expect(firstChain.chains).toHaveLength(1);
+  expect(firstChain.chains).not.toBe(secondChain.chains);
+  expect(firstChain.chains[0]).not.toBe(secondChain.chains[0]);
+  expect(firstChain.chains[0]!.owner).not.toBe(secondChain.chains[0]!.owner);
+  expect(Object.isFrozen(firstChain.chains)).toBe(true);
+  expect(Object.isFrozen(firstChain.chains[0])).toBe(true);
+  expect(Object.isFrozen(firstChain.chains[0]!.owner)).toBe(true);
+  expect(Object.isFrozen(firstChain.chains[0]!.config.iterateOver)).toBe(true);
+  expect(JSON.stringify(firstChain)).not.toMatch(
+    /private-root-data|private-hint|promise/i,
+  );
+  expect(() => {
+    (firstChain.chains[0]!.owner as { id: number }).id = 999;
+  }).toThrow(TypeError);
+  expect(kernel.inspect().chains[0]!.owner.id).toBe(2);
+  expect(kernel.poll('drive')).toEqual({ kind: 'WAIT' });
+
+  kernel.submit({
+    requestId: visit.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  const event = kernel.poll('drive');
+  if (event.kind !== 'EVENT') throw new Error('Expected root event');
+  kernel.acknowledgeEvent(event.boundaryId);
+  const sort = kernel.poll('drive');
+  if (sort.kind !== 'CALL' || sort.call.kind !== 'SORT_HINTS') {
+    throw new Error('Expected sort request');
+  }
+
+  const firstFrame = kernel.inspect();
+  const secondFrame = kernel.inspect();
+  expect(firstFrame.frames).toHaveLength(1);
+  expect(firstFrame.frames[0]).toMatchObject({
+    stage: 'sort',
+    pendingIndices: [],
+  });
+  expect(firstFrame.frames).not.toBe(secondFrame.frames);
+  expect(firstFrame.frames[0]).not.toBe(secondFrame.frames[0]);
+  expect(firstFrame.frames[0]!.owner).not.toBe(secondFrame.frames[0]!.owner);
+  expect(firstFrame.frames[0]!.pendingIndices).not.toBe(
+    secondFrame.frames[0]!.pendingIndices,
+  );
+  expect(Object.isFrozen(firstFrame.frames[0])).toBe(true);
+  expect(Object.isFrozen(firstFrame.frames[0]!.owner)).toBe(true);
+  expect(Object.isFrozen(firstFrame.frames[0]!.pendingIndices)).toBe(true);
+  expect(JSON.stringify(firstFrame)).not.toMatch(
+    /private-root-data|private-hint|promise/i,
+  );
+  expect(() => {
+    (firstFrame.frames[0]!.pendingIndices as number[]).push(1);
+  }).toThrow(TypeError);
+  expect(kernel.inspect().frames[0]!.pendingIndices).toEqual([]);
+  expect(kernel.poll('drive')).toEqual({ kind: 'WAIT' });
+});

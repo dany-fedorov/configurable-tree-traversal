@@ -45,6 +45,11 @@ type Boundary<T extends TreeTypeParameters> = {
   expandAfter: boolean;
 };
 
+type CallAction<
+  T extends TreeTypeParameters,
+  R extends TreeTypeParameters,
+> = Extract<KernelAction<T, R>, { kind: 'CALL' }>;
+
 type PolicyOrders = {
   initial: VisitOrder;
   completion: VisitOrder | null;
@@ -73,6 +78,7 @@ export class TraversalKernel<
     PendingRequest<T, R>
   >();
   private readonly submittedOutcomes: CallbackReply<T, R>[] = [];
+  private readonly readyCalls: CallAction<T, R>[] = [];
   private readonly frames = new Map<number, FrameState<T, R>>();
   private readonly chains = new Map<number, ChainRuntime<T, R>>();
   private readonly expansionQueue: Ref<T | R>[] = [];
@@ -92,9 +98,8 @@ export class TraversalKernel<
   }
 
   poll(mode: PumpMode): KernelAction<T, R> {
-    if (this.haltRequested) return this.halt();
     this.processSubmittedOutcomes();
-    if (this.boundary !== null) {
+    if (!this.haltRequested && this.boundary !== null) {
       return {
         kind: 'EVENT',
         event: this.boundary.event,
@@ -105,11 +110,14 @@ export class TraversalKernel<
       return { kind: 'FAILED', error: this.failure.error };
     }
 
+    const readyCall = this.takeReadyCall(mode);
+    if (readyCall !== null) return readyCall;
+
     for (;;) {
       const chainAction = this.runTransition(() => this.advanceChains());
       if (chainAction !== null) return chainAction;
       const boundary = this.boundary as Boundary<T | R> | null;
-      if (boundary !== null) {
+      if (!this.haltRequested && boundary !== null) {
         return {
           kind: 'EVENT',
           event: boundary.event,
@@ -120,7 +128,9 @@ export class TraversalKernel<
       if (chainFailure !== null) {
         return { kind: 'FAILED', error: chainFailure.error };
       }
-      if (this.haltRequested) return this.halt();
+      if (this.haltRequested) {
+        return this.hasRunningChain() ? { kind: 'WAIT' } : this.halt();
+      }
 
       const frameAction = this.runTransition(() => this.advanceFrames());
       if (frameAction !== null) return frameAction;
@@ -312,7 +322,7 @@ export class TraversalKernel<
   }
 
   private processSubmittedOutcomes(): void {
-    while (this.submittedOutcomes.length > 0 && this.failure === null) {
+    while (this.submittedOutcomes.length > 0) {
       const reply = this.submittedOutcomes.shift()!;
       const pending = this.pendingRequests.get(reply.requestId);
       if (pending === undefined) continue;
@@ -322,6 +332,19 @@ export class TraversalKernel<
         this.applyOutcome(pending.call, reply);
       } catch (error) {
         this.fail(error);
+        continue;
+      }
+      if (pending.call.owner.kind === 'chain') {
+        const runtime = this.chains.get(pending.call.owner.id);
+        if (runtime !== undefined && runtime.state.phase === 'running') {
+          const action = this.runTransition(() =>
+            this.advanceChain(pending.call.owner.id, runtime),
+          );
+          if (action !== null) this.readyCalls.push(action);
+        }
+      }
+      if (!this.haltRequested && this.boundary !== null) {
+        return;
       }
     }
   }
@@ -400,52 +423,59 @@ export class TraversalKernel<
   }
 
   private advanceChains(): KernelAction<T, R> | null {
-    chainLoop:
     for (const [id, runtime] of this.chains) {
       if (runtime.state.phase !== 'running') continue;
-      for (;;) {
-        const action = runtime.machine.poll();
-        switch (action.kind) {
-          case 'VISIT': {
-            const metadata = this.options.visitorMetadata[runtime.state.order] ?? [];
-            const style = metadata[action.recordIndex]!.resolutionStyle;
-            runtime.state.group =
-              style === 'CONCURRENT' ? 'concurrent' : 'sequential';
-            runtime.state.waitingFor = 'callback';
-            return this.issue({
-              kind: 'VISIT',
-              owner: runtime.state.owner,
-              ref: action.ref,
-              order: runtime.state.order,
-              recordIndex: action.recordIndex,
-              metadata: action.metadata,
-            });
-          }
-          case 'COMMANDS': {
-            runtime.state.waitingFor = 'batch';
-            runtime.state.commands = action.commands.slice();
-            const result = this.commitCommands(runtime, action.commands);
-            runtime.machine.commitBatch(result);
-            runtime.state.commands = [];
-            runtime.state.waitingFor = 'none';
-            if (result.halt) runtime.state.phase = 'paused';
-            if (result.deleted) runtime.state.phase = 'invalid';
-            break;
-          }
-          case 'PAUSED':
-            runtime.state.phase = 'paused';
-            continue chainLoop;
-          case 'WAIT':
-            continue chainLoop;
-          case 'DONE':
-            runtime.state.phase = 'done';
-            this.commitChain(runtime.state);
-            this.chains.delete(id);
-            return null;
-        }
-      }
+      const action = this.advanceChain(id, runtime);
+      if (action !== null) return action;
     }
     return null;
+  }
+
+  private advanceChain(
+    id: number,
+    runtime: ChainRuntime<T, R>,
+  ): CallAction<T, R> | null {
+    for (;;) {
+      const action = runtime.machine.poll();
+      switch (action.kind) {
+        case 'VISIT': {
+          const metadata = this.options.visitorMetadata[runtime.state.order] ?? [];
+          const style = metadata[action.recordIndex]!.resolutionStyle;
+          runtime.state.group =
+            style === 'CONCURRENT' ? 'concurrent' : 'sequential';
+          runtime.state.waitingFor = 'callback';
+          return this.issue({
+            kind: 'VISIT',
+            owner: runtime.state.owner,
+            ref: action.ref,
+            order: runtime.state.order,
+            recordIndex: action.recordIndex,
+            metadata: action.metadata,
+          });
+        }
+        case 'COMMANDS': {
+          runtime.state.waitingFor = 'batch';
+          runtime.state.commands = action.commands.slice();
+          const result = this.commitCommands(runtime, action.commands);
+          runtime.machine.commitBatch(result);
+          runtime.state.commands = [];
+          runtime.state.waitingFor = 'none';
+          if (result.halt) runtime.state.phase = 'paused';
+          if (result.deleted) runtime.state.phase = 'invalid';
+          break;
+        }
+        case 'PAUSED':
+          runtime.state.phase = 'paused';
+          return null;
+        case 'WAIT':
+          return null;
+        case 'DONE':
+          runtime.state.phase = 'done';
+          this.commitChain(runtime.state);
+          this.chains.delete(id);
+          return null;
+      }
+    }
   }
 
   private commitCommands(
@@ -708,7 +738,7 @@ export class TraversalKernel<
 
   private issue(
     input: CallInput<T, R>,
-  ): KernelAction<T, R> {
+  ): CallAction<T, R> {
     const call = { ...input, requestId: this.nextRequestId++ } as CallSpec<
       T,
       R
@@ -726,7 +756,7 @@ export class TraversalKernel<
         this.frames.size === 0 &&
         this.chains.size === 0 &&
         this.expansionQueue.length === 0 &&
-        this.pendingRequests.size === 0 &&
+        !this.hasValidPendingRequest() &&
         this.boundary === null)
     );
   }
@@ -735,10 +765,12 @@ export class TraversalKernel<
     if (this.failure !== null) return;
     this.failure = { error };
     this.setStatus(TraversalRunnerStatus.FAILED);
-    for (const runtime of this.chains.values()) runtime.state.phase = 'invalid';
     for (const pending of this.pendingRequests.values()) {
       this.invalidateOwner(pending.call.owner);
     }
+    this.frames.clear();
+    this.chains.clear();
+    this.readyCalls.length = 0;
   }
 
   private halt(): KernelAction<T, R> {
@@ -750,10 +782,13 @@ export class TraversalKernel<
     refs: ReadonlySet<Ref<T | R>>,
     except: OwnerToken,
   ): void {
-    for (const frame of this.frames.values()) {
-      if (refs.has(frame.ref)) this.invalidateOwner(frame.owner);
+    for (const [id, frame] of this.frames) {
+      if (refs.has(frame.ref)) {
+        this.invalidateOwner(frame.owner);
+        this.frames.delete(id);
+      }
     }
-    for (const runtime of this.chains.values()) {
+    for (const [id, runtime] of this.chains) {
       if (
         refs.has(runtime.state.ref) &&
         runtime.state.owner.id !== except.id
@@ -761,6 +796,7 @@ export class TraversalKernel<
         runtime.machine.invalidate();
         runtime.state.phase = 'invalid';
         this.invalidateOwner(runtime.state.owner);
+        this.chains.delete(id);
       }
     }
     if (this.boundary !== null && refs.has(this.boundary.event.vertexRef)) {
@@ -795,6 +831,28 @@ export class TraversalKernel<
       if (pending.call.owner.id === owner.id) return true;
     }
     return false;
+  }
+
+  private hasRunningChain(): boolean {
+    for (const runtime of this.chains.values()) {
+      if (runtime.state.phase === 'running') return true;
+    }
+    return false;
+  }
+
+  private hasValidPendingRequest(): boolean {
+    for (const pending of this.pendingRequests.values()) {
+      if (this.isOwnerValid(pending.call.owner)) return true;
+    }
+    return false;
+  }
+
+  private takeReadyCall(mode: PumpMode): CallAction<T, R> | null {
+    while (this.readyCalls.length > 0) {
+      const action = this.readyCalls.shift()!;
+      if (this.isRequestEligible(action.call.requestId, mode)) return action;
+    }
+    return null;
   }
 
   private visitorsEnabled(order: VisitOrder): boolean {

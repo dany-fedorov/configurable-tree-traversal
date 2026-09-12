@@ -1,5 +1,5 @@
 import { TraversalKernel } from '../src/core/TraversalKernel';
-import type { CallbackReply } from '../src/core/effects/types';
+import type { CallbackReply, VisitOrder } from '../src/core/effects/types';
 import type { Outcome } from '../src/core/effects/types';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import type { Ref } from '../src/core/graph/types';
@@ -11,7 +11,10 @@ import {
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { TestGraph } from './helpers/graph-fixtures';
 
-function makeKernel(visitorCount = 1) {
+function makeKernel(
+  visitorCount = 1,
+  options: { includeCompletion?: boolean; iterateOver?: VisitOrder[] } = {},
+) {
   const container = new ResolvedGraphsContainer<TestGraph>({
     sourceMode: 'graph',
     saveOriginal: false,
@@ -34,9 +37,20 @@ function makeKernel(visitorCount = 1) {
         priority: 100,
         resolutionStyle: Style.SEQUENTIAL,
       })),
+      ...(options.includeCompletion
+        ? {
+            ON_COMPLETE: [
+              {
+                addedIndex: 0,
+                priority: 100,
+                resolutionStyle: Style.SEQUENTIAL,
+              },
+            ],
+          }
+        : {}),
     },
     iterableConfig: {
-      iterateOver: ['ON_READY'],
+      iterateOver: options.iterateOver ?? ['ON_READY'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
@@ -232,4 +246,255 @@ test('disables an unexpanded subtree without failing its current chain', () => {
   if (event.kind !== 'EVENT') throw new Error('Expected event');
   kernel.acknowledgeEvent(event.boundaryId);
   expect(kernel.poll('drive')).toEqual({ kind: 'FINISHED' });
+});
+
+test('drains an already started chain before reporting HALTED', () => {
+  const { kernel } = makeKernel(2);
+  const root = kernel.poll('drive');
+  if (root.kind !== 'CALL') throw new Error('Expected root call');
+  kernel.submit(
+    rootReply(root.call.requestId, {
+      ok: true,
+      value: { vertexContent: { $d: 'root', $c: [] } },
+    }),
+  );
+  const first = kernel.poll('drive');
+  if (first.kind !== 'CALL' || first.call.kind !== 'VISIT') {
+    throw new Error('Expected first visitor call');
+  }
+
+  kernel.requestHalt();
+  kernel.submit({
+    requestId: first.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  const second = kernel.poll('drain');
+  if (second.kind !== 'CALL' || second.call.kind !== 'VISIT') {
+    throw new Error('Expected draining visitor call');
+  }
+  expect(second.call.recordIndex).toBe(1);
+
+  kernel.submit({
+    requestId: second.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  expect(kernel.poll('drain')).toEqual({ kind: 'HALTED' });
+  expect(kernel.inspect()).toMatchObject({
+    status: TraversalRunnerStatus.HALTED,
+    chains: [],
+    pendingRequests: [],
+    pendingEventBoundaryCount: 1,
+  });
+});
+
+test('does not hide a submitted live failure behind a halt request', () => {
+  const failure = { reason: 'visitor failed while halting' };
+  const { kernel } = makeKernel();
+  const root = kernel.poll('drive');
+  if (root.kind !== 'CALL') throw new Error('Expected root call');
+  kernel.submit(
+    rootReply(root.call.requestId, {
+      ok: true,
+      value: { vertexContent: { $d: 'root', $c: [] } },
+    }),
+  );
+  const visit = kernel.poll('drive');
+  if (visit.kind !== 'CALL' || visit.call.kind !== 'VISIT') {
+    throw new Error('Expected visitor call');
+  }
+
+  kernel.requestHalt();
+  kernel.submit({
+    requestId: visit.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: false, error: failure },
+  });
+  expect(kernel.poll('drain')).toEqual({ kind: 'FAILED', error: failure });
+});
+
+test('delivers an event committed from an earlier reply before a later failure', () => {
+  const failure = { reason: 'later sibling failed' };
+  const { kernel } = makeKernel();
+  const root = kernel.poll('drive');
+  if (root.kind !== 'CALL') throw new Error('Expected root call');
+  kernel.submit(
+    rootReply(root.call.requestId, {
+      ok: true,
+      value: {
+        vertexId: 'root',
+        vertexContent: { $d: 'root', $c: ['a', 'b'] },
+      },
+    }),
+  );
+  const rootVisit = kernel.poll('drive');
+  if (rootVisit.kind !== 'CALL' || rootVisit.call.kind !== 'VISIT') {
+    throw new Error('Expected root visitor call');
+  }
+  kernel.submit({
+    requestId: rootVisit.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  const rootEvent = kernel.poll('drive');
+  if (rootEvent.kind !== 'EVENT') throw new Error('Expected root event');
+  kernel.acknowledgeEvent(rootEvent.boundaryId);
+
+  const makeA = kernel.poll('drive');
+  if (makeA.kind !== 'CALL' || makeA.call.kind !== 'MAKE_VERTEX') {
+    throw new Error('Expected first child request');
+  }
+  kernel.submit({
+    requestId: makeA.call.requestId,
+    kind: 'MAKE_VERTEX',
+    outcome: {
+      ok: true,
+      value: { vertexId: 'a', vertexContent: { $d: 'a', $c: [] } },
+    },
+  });
+  const makeB = kernel.poll('drive');
+  if (makeB.kind !== 'CALL' || makeB.call.kind !== 'MAKE_VERTEX') {
+    throw new Error('Expected second child request');
+  }
+  kernel.submit({
+    requestId: makeB.call.requestId,
+    kind: 'MAKE_VERTEX',
+    outcome: {
+      ok: true,
+      value: { vertexId: 'b', vertexContent: { $d: 'b', $c: [] } },
+    },
+  });
+  const visitA = kernel.poll('drive');
+  if (visitA.kind !== 'CALL' || visitA.call.kind !== 'VISIT') {
+    throw new Error('Expected first child visitor call');
+  }
+  const visitB = kernel.poll('drive');
+  if (visitB.kind !== 'CALL' || visitB.call.kind !== 'VISIT') {
+    throw new Error('Expected second child visitor call');
+  }
+
+  kernel.submit({
+    requestId: visitA.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  kernel.submit({
+    requestId: visitB.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: false, error: failure },
+  });
+
+  const event = kernel.poll('drive');
+  expect(event.kind).toBe('EVENT');
+  if (event.kind !== 'EVENT') throw new Error('Expected surviving event');
+  expect(event.event.vertex.getData()).toBe('a');
+  kernel.acknowledgeEvent(event.boundaryId);
+  expect(kernel.poll('drive')).toEqual({ kind: 'FAILED', error: failure });
+});
+
+test('discards a reply whose chain owner was invalidated by deletion', () => {
+  const { kernel } = makeKernel(1, {
+    includeCompletion: true,
+    iterateOver: [],
+  });
+  const root = kernel.poll('drive');
+  if (root.kind !== 'CALL') throw new Error('Expected root call');
+  kernel.submit(
+    rootReply(root.call.requestId, {
+      ok: true,
+      value: {
+        vertexId: 'root',
+        vertexContent: { $d: 'root', $c: ['a', 'b'] },
+      },
+    }),
+  );
+  const rootVisit = kernel.poll('drive');
+  if (rootVisit.kind !== 'CALL' || rootVisit.call.kind !== 'VISIT') {
+    throw new Error('Expected root visitor call');
+  }
+  kernel.submit({
+    requestId: rootVisit.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  const makeA = kernel.poll('drive');
+  if (makeA.kind !== 'CALL' || makeA.call.kind !== 'MAKE_VERTEX') {
+    throw new Error('Expected first child request');
+  }
+  kernel.submit({
+    requestId: makeA.call.requestId,
+    kind: 'MAKE_VERTEX',
+    outcome: {
+      ok: true,
+      value: {
+        vertexId: 'a',
+        dependsOn: ['root'],
+        vertexContent: { $d: 'a', $c: [] },
+      },
+    },
+  });
+  const makeB = kernel.poll('drive');
+  if (makeB.kind !== 'CALL' || makeB.call.kind !== 'MAKE_VERTEX') {
+    throw new Error('Expected second child request');
+  }
+  kernel.submit({
+    requestId: makeB.call.requestId,
+    kind: 'MAKE_VERTEX',
+    outcome: {
+      ok: true,
+      value: {
+        vertexId: 'b',
+        dependsOn: ['a'],
+        vertexContent: { $d: 'b', $c: [] },
+      },
+    },
+  });
+  const visitA = kernel.poll('drive');
+  if (visitA.kind !== 'CALL' || visitA.call.kind !== 'VISIT') {
+    throw new Error('Expected A visitor call');
+  }
+  kernel.submit({
+    requestId: visitA.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  const visitB = kernel.poll('drive');
+  if (visitB.kind !== 'CALL' || visitB.call.kind !== 'VISIT') {
+    throw new Error('Expected B visitor call');
+  }
+  const completeA = kernel.poll('drive');
+  if (completeA.kind !== 'CALL' || completeA.call.kind !== 'VISIT') {
+    throw new Error('Expected A completion visitor call');
+  }
+  expect(completeA.call.order).toBe('ON_COMPLETE');
+
+  kernel.submit({
+    requestId: completeA.call.requestId,
+    kind: 'VISIT',
+    outcome: {
+      ok: true,
+      value: { commands: [{ commandName: Command.DELETE_VERTEX }] },
+    },
+  });
+  kernel.poll('drive');
+  kernel.submit({
+    requestId: visitB.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  kernel.poll('drive');
+
+  expect(
+    kernel
+      .inspect()
+      .pendingRequests.some(
+        (request) => request.requestId === visitB.call.requestId,
+      ),
+  ).toBe(false);
+  expect(
+    kernel
+      .inspect()
+      .chains.some((chain) => chain.owner.id === visitB.call.owner.id),
+  ).toBe(false);
 });
