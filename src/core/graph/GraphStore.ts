@@ -141,6 +141,11 @@ export class GraphStore<T extends TreeTypeParameters>
     this.ids.set(id, { kind: 'omitted' });
   }
 
+  markDeleted(id: VertexId): void {
+    if (this.ids.has(id)) throw new Error('Vertex id is already indexed');
+    this.ids.set(id, { kind: 'deleted' });
+  }
+
   removeVertices(refs: ReadonlySet<Ref<T>>): void {
     const removals = new Set<Ref<T>>();
     const removedIds: VertexId[] = [];

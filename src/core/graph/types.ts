@@ -89,6 +89,7 @@ export interface GraphStoreContract<T extends TreeTypeParameters> {
     reason: 'omitted' | 'deleted' | 'disabled',
   ): void;
   markOmitted(id: VertexId): void;
+  markDeleted(id: VertexId): void;
   removeVertices(refs: ReadonlySet<Ref<T>>): void;
   getTreeRecord(ref: Ref<T>): VertexResolved<T> | null;
   setTreeRecord(ref: Ref<T>, record: VertexResolved<T>): void;
