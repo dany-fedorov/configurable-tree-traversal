@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 — 2026-09-12
+
+- Restore the Wikipedia traversal diagram, source attribution, and color legend in the README.
+- Include the diagram in the npm package and verify its presence and contents in the packed-package check.
+- No runtime or public API changes.
+
+## 0.6.0
 
 - Add breadth-first traversal, level-order visitors, and a convenience helper.
 - Make depth-first iteration independent of registered visitor functions.

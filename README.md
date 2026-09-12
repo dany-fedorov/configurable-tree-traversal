@@ -76,6 +76,11 @@ Child vertices are resolved lazily. Resolution options include the parent refere
 
 ## Traversal orders
 
+<img src="./Sorted_binary_tree_ALL_RGB.svg.png" alt="Binary tree with depth-first visit points: red for pre-order, green for in-order, and blue for post-order" width="460" height="393" />
+
+Depth-first visit points: red for pre-order, green for in-order, and blue for post-order.
+Source: [Wikipedia — Tree traversal](https://en.wikipedia.org/wiki/Tree_traversal).
+
 | Strategy      | Order         | When a vertex is visited                        |
 | ------------- | ------------- | ----------------------------------------------- |
 | Depth-first   | `PRE_ORDER`   | Before its children                             |

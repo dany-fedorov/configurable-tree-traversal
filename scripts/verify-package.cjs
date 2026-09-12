@@ -175,6 +175,7 @@ try {
   }
   for (const expected of [
     'README.md',
+    'Sorted_binary_tree_ALL_RGB.svg.png',
     'CHANGELOG.md',
     'LICENSE',
     'docs/testing.md',
@@ -202,6 +203,11 @@ try {
     !pack.files.some(
       (file) => file.path.startsWith('tests/') || file.path.startsWith('src/'),
     ),
+  );
+  assert.deepEqual(
+    fs.readFileSync(path.join(install, 'Sorted_binary_tree_ALL_RGB.svg.png')),
+    fs.readFileSync(path.join(root, 'Sorted_binary_tree_ALL_RGB.svg.png')),
+    'The packaged traversal diagram must match the README image',
   );
   console.log(
     `Verified packed package: CommonJS, ESM, TypeScript node/node16, and historical deep imports (${pack.entryCount} files).`,
