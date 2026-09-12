@@ -170,7 +170,7 @@ export class GraphStore<T extends TreeTypeParameters>
       this.treeRecords.delete(ref);
     }
     for (const id of removedIds) this.ids.set(id, { kind: 'deleted' });
-    if (this.root !== null && removals.has(this.root)) this.root = null;
+    if (this.root !== null && refs.has(this.root)) this.root = null;
   }
 
   getTreeRecord(ref: Ref<T>): VertexResolved<T> | null {

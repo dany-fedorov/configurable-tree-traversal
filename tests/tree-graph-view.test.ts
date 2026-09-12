@@ -22,6 +22,16 @@ test('the tree facade retains supplied records and live child arrays', () => {
   expect(tree.getResolvedGraph().getVertexById(ref.getId())).toBe(ref);
 });
 
+test('deleting an unresolved root clears the legacy root', () => {
+  const tree = new ResolvedTree<TestGraph>();
+  const ref = new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: [] }));
+  tree.setRoot(ref);
+
+  tree.delete(ref);
+
+  expect(tree.getRoot()).toBeNull();
+});
+
 test('legacy deletion detaches by clone and permits manually re-setting a ref', () => {
   const tree = new ResolvedTree<TestGraph>();
   const rootRef = new CTTRef(

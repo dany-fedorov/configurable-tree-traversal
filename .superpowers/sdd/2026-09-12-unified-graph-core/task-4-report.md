@@ -43,3 +43,27 @@ Complete.
 ## Concerns
 
 None. Changes are limited to the Task 4 migration, focused compatibility tests, and this report.
+
+## Fix Round: Unresolved Root Deletion
+
+### RED/GREEN
+
+- RED command: `npm test -- tests/tree-graph-view.test.ts`
+- RED output: FAIL, 1 failed / 3 passed. `deleting an unresolved root clears the legacy root` received the unresolved root reference instead of `null`.
+- GREEN command: `npm test -- tests/tree-graph-view.test.ts tests/resolved-graph.test.ts tests/resolved-tree-coverage.test.ts tests/core-edge-cases.test.ts`
+- GREEN output: PASS, 4 suites / 39 tests.
+- `npm run typecheck`: PASS.
+- `npx eslint src/core/graph/GraphStore.ts tests/tree-graph-view.test.ts --ext .ts`: PASS.
+
+### Changed Files
+
+- `src/core/graph/GraphStore.ts`: clear the root when it belongs to the requested removal set, including an unregistered tree root.
+- `tests/tree-graph-view.test.ts`: add the unresolved-root deletion regression.
+- `.superpowers/sdd/2026-09-12-unified-graph-core/task-4-report.md`: record this fix round.
+
+### Self-Review
+
+- Registered entry removal, incident-edge detachment, and ID tombstoning still use only the validated `removals` set.
+- DAG `setRoot` still rejects unregistered references, so the changed root predicate does not weaken strict DAG root registration.
+- Existing registered-root and subtree deletion behavior remains covered by the focused graph and legacy tree suites.
+- The production change is limited to the root-clearing predicate in `GraphStore.removeVertices`.
