@@ -8,6 +8,13 @@ import type {
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { HintVertexId, MaybePromise } from '@core/graph/types';
+import type { VisitResult } from '@core/graph/types';
+import type {
+  CallbackBindings,
+  CallSpec,
+  RawCallbackResult,
+  VisitOrder,
+} from '@core/effects/types';
 
 export interface BoundSource<
   T extends TreeTypeParameters,
@@ -43,10 +50,18 @@ function assertTreeResult<T extends TreeTypeParameters>(
 }
 
 function isPromiseLike<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
-  return (typeof value === 'object' && value !== null) ||
-    typeof value === 'function'
-    ? typeof (value as PromiseLike<T>).then === 'function'
-    : false;
+  if (
+    value === null ||
+    (typeof value !== 'object' && typeof value !== 'function')
+  ) {
+    return false;
+  }
+  try {
+    return typeof (value as PromiseLike<T>).then === 'function';
+  } catch {
+    // The sync transport owns thenable diagnostics, including accessor errors.
+    return false;
+  }
 }
 
 function validateTreeResult<T extends TreeTypeParameters>(
@@ -113,4 +128,53 @@ export function bindGraphSource<
       adapter.getVertexIdFromHint!(asInputHint<T, R>(hint));
   }
   return bound;
+}
+
+export type BoundVisit<
+  T extends TreeTypeParameters,
+  R extends TreeTypeParameters = T,
+> = (
+  call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>,
+) => MaybePromise<VisitResult<R>>;
+
+export function createCallbackBindings<
+  T extends TreeTypeParameters,
+  R extends TreeTypeParameters = T,
+>(input: {
+  source: BoundSource<T, R>;
+  sortHints?: (
+    hints: (T | R)['VertexHint'][],
+  ) => MaybePromise<(T | R)['VertexHint'][]>;
+  visit: Partial<Record<VisitOrder, BoundVisit<T, R>>>;
+}): CallbackBindings<T, R> {
+  return {
+    invoke(call): RawCallbackResult<T, R> {
+      switch (call.kind) {
+        case 'MAKE_ROOT':
+          return { kind: call.kind, value: input.source.makeRoot() };
+        case 'MAKE_VERTEX':
+          return {
+            kind: call.kind,
+            value: input.source.makeVertex(call.context),
+          };
+        case 'SORT_HINTS':
+          return {
+            kind: call.kind,
+            value: input.sortHints?.(call.hints.slice()) ?? call.hints.slice(),
+          };
+        case 'HINT_ID':
+          return {
+            kind: call.kind,
+            value: input.source.getVertexIdFromHint?.(call.hint),
+          };
+        case 'VISIT': {
+          const visitor = input.visit[call.order];
+          if (visitor === undefined) {
+            throw new Error(`No callback binding for ${call.order}`);
+          }
+          return { kind: call.kind, value: visitor(call) };
+        }
+      }
+    },
+  };
 }

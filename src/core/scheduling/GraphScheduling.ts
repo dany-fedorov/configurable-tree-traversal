@@ -229,6 +229,10 @@ export class GraphScheduling<
     return this.eligible.shift() ?? null;
   }
 
+  inspectEligible(): readonly EligibleVisit<T | R>[] {
+    return this.eligible.slice();
+  }
+
   takeCompleting(): Ref<T | R> | null {
     if (this.eligible[0]?.order !== 'ON_COMPLETE') return null;
     return this.eligible.shift()!.ref;
