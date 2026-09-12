@@ -6,6 +6,11 @@ export type EligibleVisit<T extends TreeTypeParameters> = {
   order: 'ON_READY' | 'ON_COMPLETE';
 };
 
+export type GraphStall<T extends TreeTypeParameters> = {
+  dependencies: Array<{ id: VertexId; missing: VertexId[] }>;
+  incomplete: Ref<T>[];
+};
+
 export type VertexWork<T extends TreeTypeParameters> = {
   ref: Ref<T>;
   unmet: Set<VertexId>;
