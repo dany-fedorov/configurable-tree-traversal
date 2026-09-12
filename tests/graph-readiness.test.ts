@@ -105,6 +105,33 @@ test('uses one FIFO for eligible visits and consumes each readiness once', () =>
   expect(scheduling.takeReady()).toBeNull();
 });
 
+test('consumes a wide eligible FIFO with a cursor and preserves head blocking', () => {
+  const width = 10_000;
+  const hints = Array.from({ length: width }, (_, index) => String(index));
+  const { scheduling, rootRef } = setup(hints);
+  scheduling.markPreVisited(rootRef);
+  const refs = hints.map((hint, index) =>
+    scheduling.acceptVertex(
+      context(rootRef, index),
+      result(hint, { id: hint, dependsOn: [] }),
+    ),
+  );
+  const shift = jest.spyOn(Array.prototype, 'shift');
+  try {
+    expect(scheduling.takeCompleting()).toBeNull();
+    expect(scheduling.takeReady()).toBe(rootRef);
+    expect(scheduling.inspectEligible().slice(0, 3)).toEqual(
+      refs.slice(0, 3).map((ref) => ({ ref, order: 'ON_READY' })),
+    );
+    for (const ref of refs) expect(scheduling.takeReady()).toBe(ref);
+    expect(scheduling.takeEligible()).toBeNull();
+    expect(scheduling.inspectEligible()).toEqual([]);
+    expect(shift).not.toHaveBeenCalled();
+  } finally {
+    shift.mockRestore();
+  }
+});
+
 test('defaults child dependencies to the parent and ignores root dependencies', () => {
   const { container, scheduling, rootRef } = setup(['child']);
   const childRef = scheduling.acceptVertex(

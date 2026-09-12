@@ -50,3 +50,34 @@ The focused test now pins:
 ## Concerns
 
 - The existing 20,000-child breadth-first stress test remains iterative and passes, but takes about 5.9 seconds with shared graph lifecycle and legacy-topology checks, compared with about 0.08 seconds on the pre-migration baseline. No correctness or stack-safety regression was observed.
+
+## Fix round 1
+
+### RED evidence
+
+- A runner with a valid injected unresolved context at queue cursor 1 failed with `Unknown breadth-first parent expansion` because policy progress existed only for contexts created by `setHints`.
+- A fresh 1,000-child BFS traversal called `ResolvedTree.getResolutionContextOf` 499,500 times because each accepted child rescanned every child already appended to its parent.
+- A 10,000-vertex readiness FIFO invoked `Array.shift` 10,002 times, including head-blocked probes and final empty consumption.
+
+### GREEN changes
+
+- `BreadthFirstPolicy` now bootstraps parent progress from only the unconsumed queue suffix, preserves the injected queue object and cursor semantics, and distinguishes injected contexts from policy-created expansions that require closure.
+- Skipped entries before a nonzero cursor are never resolved. Skipped active entries release their bootstrapped progress without invoking the adapter.
+- `GraphScheduling.enrollExisting` captures reusable legacy children once before traversal reset, indexed by original hint index with SameValueZero hint validation. Each candidate is consumed once in O(1); children appended during the new traversal are never candidates.
+- `GraphScheduling` now consumes its shared eligible FIFO through a head cursor. `takeReady`, `takeCompleting`, and `takeEligible` retain head-blocking/FIFO semantics; inspection exposes only the pending suffix; deletion filters and compacts that suffix; normal consumption compacts after a bounded threshold.
+
+### GREEN evidence
+
+- Injected queue regression: the supplied queue remains identical, cursor 1 skips the earlier entry, and the valid context resolves and visits exactly once before finished queue clearing.
+- Fresh 1,000-child BFS traversal: 1,001 graph vertices and zero legacy resolution-context lookups.
+- Wide readiness regression: 10,000 entries preserve exact FIFO inspection/consumption order with head blocking and zero `Array.shift` calls.
+- Reinjection parity: BFS compact/null topology and DFS nested legacy topology retain original references and child-array identity.
+- Requested focused matrix: 7 suites, 77 tests passed.
+- `npm test`: 33 suites, 357 tests passed.
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- Timed 20,000-child BFS test: 1.677 seconds Jest test time (`elapsed=3.50`, `user=3.83`, `system=1.60`), down from about 5.8 seconds before this fix round.
+
+### Remaining concern
+
+- Shared graph lifecycle bookkeeping still makes the 20,000-child traversal slower than the approximately 0.08-second legacy loop, but the accidental quadratic legacy-child scan is removed and the stress case remains iterative.

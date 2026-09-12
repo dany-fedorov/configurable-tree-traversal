@@ -20,6 +20,11 @@ type BreadthFirstResolution<T extends TreeTypeParameters> = {
   context: VertexResolutionContext<T>;
 };
 
+type ParentProgress = {
+  remaining: number;
+  closeWhenDone: boolean;
+};
+
 export type BreadthFirstWork<T extends TreeTypeParameters> =
   | {
       kind: 'PREPARE_HINTS';
@@ -37,13 +42,17 @@ export type BreadthFirstWork<T extends TreeTypeParameters> =
 /** Queue policy preserving dequeue-time resolution and legacy public state. */
 export class BreadthFirstPolicy<T extends TreeTypeParameters> {
   private readonly expansions: BreadthFirstExpansion<T>[] = [];
-  private readonly remainingByParent = new Map<Ref<T>, number>();
+  private readonly progressByParent = new Map<Ref<T>, ParentProgress>();
   private pendingResolution: BreadthFirstResolution<T> | null = null;
 
   constructor(
     private readonly state: BreadthFirstPolicyState<T>,
     private readonly hasSorter: boolean,
-  ) {}
+  ) {
+    for (let index = state.queueIndex; index < state.queue.length; index += 1) {
+      this.addParentProgress(state.queue[index]!.parentVertexRef, 1, false);
+    }
+  }
 
   enqueueExpansion(owner: OwnerToken, vertexRef: Ref<T>, depth: number): void {
     this.expansions.push({
@@ -85,6 +94,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
         ) {
           return { kind: 'MAKE_VERTEX', context };
         }
+        this.consumeParentProgress(context.parentVertexRef);
       }
       return this.state.queue.length > 0 ? { kind: 'CLEAR_QUEUE' } : null;
     }
@@ -107,9 +117,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
       });
     }
     this.expansions.shift();
-    if (hints.length > 0) {
-      this.remainingByParent.set(expansion.vertexRef, hints.length);
-    }
+    this.addParentProgress(expansion.vertexRef, hints.length, true);
     return hints.length === 0;
   }
 
@@ -144,16 +152,10 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
     }
     const { context } = this.pendingResolution;
     this.pendingResolution = null;
-    const remaining = this.remainingByParent.get(context.parentVertexRef);
-    if (remaining === undefined || remaining < 1) {
-      throw new Error('Unknown breadth-first parent expansion');
-    }
-    if (remaining === 1) {
-      this.remainingByParent.delete(context.parentVertexRef);
-      return { context, closeParent: true };
-    }
-    this.remainingByParent.set(context.parentVertexRef, remaining - 1);
-    return { context, closeParent: false };
+    return {
+      context,
+      closeParent: this.consumeParentProgress(context.parentVertexRef),
+    };
   }
 
   clearQueue(): void {
@@ -193,7 +195,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
     return (
       this.expansions.length === 0 &&
       this.pendingResolution === null &&
-      this.remainingByParent.size === 0 &&
+      this.progressByParent.size === 0 &&
       this.state.queue.length === 0
     );
   }
@@ -201,6 +203,32 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
   clear(): void {
     this.expansions.length = 0;
     this.pendingResolution = null;
-    this.remainingByParent.clear();
+    this.progressByParent.clear();
+  }
+
+  private addParentProgress(
+    parent: Ref<T>,
+    count: number,
+    closeWhenDone: boolean,
+  ): void {
+    if (count === 0) return;
+    const current = this.progressByParent.get(parent);
+    this.progressByParent.set(parent, {
+      remaining: (current?.remaining ?? 0) + count,
+      closeWhenDone: (current?.closeWhenDone ?? false) || closeWhenDone,
+    });
+  }
+
+  private consumeParentProgress(parent: Ref<T>): boolean {
+    const progress = this.progressByParent.get(parent);
+    if (progress === undefined || progress.remaining < 1) {
+      throw new Error('Unknown breadth-first parent expansion');
+    }
+    if (progress.remaining === 1) {
+      this.progressByParent.delete(parent);
+      return progress.closeWhenDone;
+    }
+    progress.remaining -= 1;
+    return false;
   }
 }

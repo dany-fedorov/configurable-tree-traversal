@@ -18,12 +18,18 @@ export class GraphScheduling<
 > {
   private readonly work = new Map<Ref<T | R>, VertexWork<T | R>>();
   private readonly reverseDependencies = new Map<VertexId, Set<Ref<T | R>>>();
-  private readonly eligible: EligibleVisit<T | R>[] = [];
+  private readonly reusableTreeChildren = new Map<
+    Ref<T | R>,
+    Map<number, { ref: Ref<T | R>; hint: (T | R)['VertexHint'] }>
+  >();
+  private eligible: EligibleVisit<T | R>[] = [];
+  private eligibleHead = 0;
 
   constructor(private readonly container: ResolvedGraphsContainer<T, R>) {}
 
   enrollExisting(ref: Ref<T | R>): void {
     if (!this.work.has(ref)) {
+      this.captureReusableTreeChildren(ref);
       this.container.store.resetTraversal(ref);
       this.register(ref, []);
     }
@@ -244,21 +250,21 @@ export class GraphScheduling<
   }
 
   takeReady(): Ref<T | R> | null {
-    if (this.eligible[0]?.order !== 'ON_READY') return null;
-    return this.eligible.shift()!.ref;
+    if (this.peekEligible()?.order !== 'ON_READY') return null;
+    return this.dequeueEligible()!.ref;
   }
 
   takeEligible(): EligibleVisit<T | R> | null {
-    return this.eligible.shift() ?? null;
+    return this.dequeueEligible();
   }
 
   inspectEligible(): readonly EligibleVisit<T | R>[] {
-    return this.eligible.slice();
+    return this.eligible.slice(this.eligibleHead);
   }
 
   takeCompleting(): Ref<T | R> | null {
-    if (this.eligible[0]?.order !== 'ON_COMPLETE') return null;
-    return this.eligible.shift()!.ref;
+    if (this.peekEligible()?.order !== 'ON_COMPLETE') return null;
+    return this.dequeueEligible()!.ref;
   }
 
   deleteVertex(ref: Ref<T | R>): Set<Ref<T | R>> {
@@ -319,10 +325,10 @@ export class GraphScheduling<
         if (removals.has(dependent)) dependents.delete(dependent);
       }
     }
-    for (let index = this.eligible.length - 1; index >= 0; index -= 1) {
-      if (removals.has(this.eligible[index]!.ref))
-        this.eligible.splice(index, 1);
-    }
+    this.eligible = this.eligible
+      .slice(this.eligibleHead)
+      .filter((entry) => !removals.has(entry.ref));
+    this.eligibleHead = 0;
     for (const slot of survivingSlots) {
       const parentWork = this.work.get(slot.parent);
       if (parentWork !== undefined) this.accountSlot(parentWork, slot.index);
@@ -341,7 +347,7 @@ export class GraphScheduling<
   }
 
   getStall(): GraphStall<T | R> | null {
-    if (this.eligible.length > 0) return null;
+    if (this.peekEligible() !== null) return null;
     const dependencies: GraphStall<T | R>['dependencies'] = [];
     const incomplete: Ref<T | R>[] = [];
     for (const [ref, vertexWork] of this.work) {
@@ -392,19 +398,38 @@ export class GraphScheduling<
   private findExistingTreeChild(
     context: VertexResolutionContext<T | R>,
   ): Ref<T | R> | null {
+    const candidates = this.reusableTreeChildren.get(context.parentVertexRef);
+    const candidate = candidates?.get(context.hintIndex);
+    if (candidate === undefined) return null;
+    candidates!.delete(context.hintIndex);
+    if (candidates!.size === 0) {
+      this.reusableTreeChildren.delete(context.parentVertexRef);
+    }
+    return sameVertexId(candidate.hint, context.vertexHint)
+      ? candidate.ref
+      : null;
+  }
+
+  private captureReusableTreeChildren(parent: Ref<T | R>): void {
     const tree = this.container.treeContainer?.resolvedTree;
-    if (tree === undefined) return null;
-    for (const child of tree.getChildrenOf(context.parentVertexRef) ?? []) {
-      const existing = tree.getResolutionContextOf(child);
+    if (tree === undefined) return;
+    const candidates = new Map<
+      number,
+      { ref: Ref<T | R>; hint: (T | R)['VertexHint'] }
+    >();
+    for (const child of tree.getChildrenOf(parent) ?? []) {
+      const context = tree.getResolutionContextOf(child);
       if (
-        existing?.parentVertexRef === context.parentVertexRef &&
-        existing.hintIndex === context.hintIndex &&
-        sameVertexId(existing.vertexHint, context.vertexHint)
+        context?.parentVertexRef === parent &&
+        !candidates.has(context.hintIndex)
       ) {
-        return child;
+        candidates.set(context.hintIndex, {
+          ref: child,
+          hint: context.vertexHint,
+        });
       }
     }
-    return null;
+    if (candidates.size > 0) this.reusableTreeChildren.set(parent, candidates);
   }
 
   private register(ref: Ref<T | R>, dependencies: readonly VertexId[]): void {
@@ -463,6 +488,27 @@ export class GraphScheduling<
     vertexWork.initialAdmitted = true;
     this.container.store.setStatus(vertexWork.ref, 'READY');
     this.eligible.push({ ref: vertexWork.ref, order: 'ON_READY' });
+  }
+
+  private peekEligible(): EligibleVisit<T | R> | null {
+    return this.eligible[this.eligibleHead] ?? null;
+  }
+
+  private dequeueEligible(): EligibleVisit<T | R> | null {
+    const entry = this.peekEligible();
+    if (entry === null) return null;
+    this.eligibleHead += 1;
+    if (this.eligibleHead === this.eligible.length) {
+      this.eligible.length = 0;
+      this.eligibleHead = 0;
+    } else if (
+      this.eligibleHead >= 1_024 &&
+      this.eligibleHead * 2 >= this.eligible.length
+    ) {
+      this.eligible = this.eligible.slice(this.eligibleHead);
+      this.eligibleHead = 0;
+    }
+    return entry;
   }
 
   private noteLinkedSlot(parent: Ref<T | R>, index: number): void {
