@@ -85,6 +85,15 @@ export class GraphStore<T extends TreeTypeParameters>
     this.getEntry(ref).status = status;
   }
 
+  resetTraversal(ref: Ref<T>): void {
+    if (this.mode !== 'tree') {
+      throw new Error('Traversal reset requires tree mode');
+    }
+    const entry = this.getEntry(ref);
+    entry.status = 'DISCOVERED';
+    entry.slots = null;
+  }
+
   prepareSlots(ref: Ref<T>, hints: readonly T['VertexHint'][]): void {
     const entry = this.getEntry(ref);
     if (entry.slots !== null) throw new Error('Vertex slots are already prepared');

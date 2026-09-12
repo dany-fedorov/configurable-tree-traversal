@@ -666,7 +666,7 @@ export class TraversalKernel<
           }
           runtime.state.ref.setPointsTo(
             runtime.state.ref.unref().clone({
-              $c: command.commandArguments.newHints,
+              $c: command.commandArguments.newHints.slice(),
             }),
           );
           break;
@@ -682,6 +682,17 @@ export class TraversalKernel<
   private commitChain(state: ChainState<T, R>): void {
     const depthFirstFrame = this.depthFirstChainFrames.get(state.owner.id);
     this.depthFirstChainFrames.delete(state.owner.id);
+    const visitorState = this.options.stateBridge.visitorsState[state.order];
+    if (
+      this.depthFirstPolicy !== null &&
+      visitorState !== undefined &&
+      this.visitorsEnabledFor(state.config, state.order)
+    ) {
+      visitorState.curVertexVisitorVisitIndex =
+        state.metadata.curVertexVisitorVisitIndex;
+      visitorState.vertexVisitIndex += 1;
+      visitorState.previousVisitedVertexRef = state.ref;
+    }
     if (!this.options.container.resolvedGraph.has(state.ref)) return;
     const initial = state.order === this.orders.initial;
     if (state.order === DepthFirstTraversalOrder.IN_ORDER) {
@@ -709,16 +720,10 @@ export class TraversalKernel<
         );
       }
     }
-    const visitorState = this.options.stateBridge.visitorsState[state.order];
-    if (visitorState !== undefined) {
+    if (visitorState !== undefined && this.depthFirstPolicy === null) {
       visitorState.curVertexVisitorVisitIndex =
         state.metadata.curVertexVisitorVisitIndex;
-      if (this.depthFirstPolicy === null) {
-        visitorState.previousVisitedVertexRef = state.ref;
-      } else if (this.visitorsEnabledFor(state.config, state.order)) {
-        visitorState.vertexVisitIndex += 1;
-        visitorState.previousVisitedVertexRef = state.ref;
-      }
+      visitorState.previousVisitedVertexRef = state.ref;
     }
     if (state.config.iterateOver.includes(state.order)) {
       this.boundaries.push({
@@ -999,6 +1004,8 @@ export class TraversalKernel<
     }
     this.frames.clear();
     this.chains.clear();
+    this.depthFirstPolicy?.clear();
+    this.depthFirstChainFrames.clear();
     this.readyCalls.length = 0;
   }
 

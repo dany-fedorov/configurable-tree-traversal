@@ -190,4 +190,8 @@ export class DepthFirstPolicy<T extends TreeTypeParameters> {
   getFrames(): readonly DepthFirstFrame<T>[] {
     return this.frames;
   }
+
+  clear(): void {
+    this.frames.length = 0;
+  }
 }

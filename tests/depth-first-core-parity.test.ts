@@ -1,8 +1,10 @@
 import {
+  CTTRef,
   DepthFirstTraversal,
   DepthFirstTraversalOrder,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
+  Vertex,
 } from '../src';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -146,3 +148,190 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
   expect(visits).toEqual(['root']);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });
+
+test('DFS can traverse a completed injected resolved-tree container again', () => {
+  const adapter = {
+    makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
+    makeVertex: (hint: string) => ({
+      vertexContent: { $d: hint, $c: [] },
+    }),
+  };
+  const first = new DepthFirstTraversal<TestGraph>({
+    traversableTree: adapter,
+  }).makeRunner();
+  first.run();
+  const root = first.getResolvedTree().getRoot();
+  if (root === null) throw new Error('Expected a resolved root');
+  const rootRecord = first.getResolvedTree().get(root);
+  const originalChild = first.getResolvedTree().getChildrenOf(root)?.[0];
+  if (originalChild === undefined) throw new Error('Expected a resolved child');
+  const childRecord = first.getResolvedTree().get(originalChild);
+
+  const second = new DepthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => {
+        throw new Error('Existing root must be reused');
+      },
+      makeVertex: adapter.makeVertex,
+    },
+    traversalRunnerInternalObjects: {
+      resolvedTreesContainer: first.resolvedTreesContainer,
+    },
+  }).makeRunner();
+
+  expect(
+    Array.from(second.getIterable({
+      iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
+    })).map((event) => event.vertex.getData()),
+  ).toEqual(['root', 'child']);
+  expect(second.getResolvedTree().getRoot()).toBe(root);
+  expect(second.getResolvedTree().get(root)).toBe(rootRecord);
+  expect(second.getResolvedTree().getChildrenOf(root)?.[0]).toBe(originalChild);
+  expect(second.getResolvedTree().get(originalChild)).toBe(childRecord);
+});
+
+test('deleting the current vertex still advances visitor metadata for its sibling', () => {
+  const siblingMetadata: unknown[] = [];
+  const traversal = new DepthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['deleted', 'sibling'] } }),
+      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+    },
+  });
+  traversal.addVisitorFor(
+    DepthFirstTraversalOrder.PRE_ORDER,
+    (vertex, options) => {
+      if (vertex.getData() === 'deleted') {
+        return {
+          commands: [{ commandName: TraversalVisitorCommandName.DELETE_VERTEX }],
+        };
+      }
+      if (vertex.getData() === 'sibling') {
+        siblingMetadata.push(
+          options.vertexVisitIndex,
+          options.previousVisitedVertexRef?.unref().getData(),
+        );
+      }
+      return undefined;
+    },
+  );
+
+  traversal.makeRunner().run();
+  expect(siblingMetadata).toEqual([2, 'deleted']);
+});
+
+test('hint rewrites clone the command payload before a later visitor mutates it', () => {
+  const hints = ['first'];
+  const traversal = new DepthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['original'] } }),
+      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+    },
+  });
+  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) =>
+    vertex.getData() === 'root'
+      ? {
+          commands: [
+            {
+              commandName:
+                TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+              commandArguments: { newHints: hints },
+            },
+          ],
+        }
+      : undefined,
+  );
+  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+    if (vertex.getData() === 'root') hints.push('late');
+  });
+
+  expect(
+    Array.from(
+      traversal.makeRunner().getIterable({
+        iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
+      }),
+    ).map((event) => event.vertex.getData()),
+  ).toEqual(['root', 'first']);
+});
+
+test('disabled visitor execution leaves injected per-order state unchanged', () => {
+  const traversal = new DepthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
+      makeVertex: () => ({ vertexContent: null }),
+    },
+  });
+  const seed = traversal.makeRunner().state;
+  const previous = new CTTRef(
+    new Vertex<TestGraph>({ $d: 'previous', $c: [] }),
+  );
+  seed.visitorsState[DepthFirstTraversalOrder.PRE_ORDER] = {
+    vertexVisitIndex: 41,
+    curVertexVisitorVisitIndex: 42,
+    previousVisitedVertexRef: previous,
+  };
+  let visitorCalls = 0;
+  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => {
+    visitorCalls += 1;
+  });
+  const runner = new DepthFirstTraversal<TestGraph>({
+    traversableTree: traversal.icfg.traversableTree,
+    visitors: traversal.visitors,
+    traversalRunnerInternalObjects: { state: seed },
+  }).makeRunner();
+
+  expect(
+    Array.from(
+      runner.getIterable({
+        iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
+        disableVisitorFunctionsFor: [DepthFirstTraversalOrder.PRE_ORDER],
+      }),
+    ).map((event) => event.vertex.getData()),
+  ).toEqual(['root']);
+  expect(visitorCalls).toBe(0);
+  expect(seed.visitorsState[DepthFirstTraversalOrder.PRE_ORDER]).toEqual({
+    vertexVisitIndex: 41,
+    curVertexVisitorVisitIndex: 42,
+    previousVisitedVertexRef: previous,
+  });
+  const root = runner.getResolvedGraph().getRoot();
+  if (root === null) throw new Error('Expected a resolved root');
+  expect(runner.getResolvedGraph().getStatusOf(root)).toBe('COMPLETE');
+  expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+});
+
+test.each(['sorter', 'resolver', 'visitor'] as const)(
+  'DFS %s failure clears policy frames from inspection',
+  (failureAt) => {
+    const failure = new Error(`${failureAt} failed`);
+    const traversal = new DepthFirstTraversal<TestGraph>({
+      traversableTree: {
+        makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
+        makeVertex: () => {
+          if (failureAt === 'resolver') throw failure;
+          return { vertexContent: { $d: 'child', $c: [] } };
+        },
+      },
+      sortChildrenHints:
+        failureAt === 'sorter'
+          ? () => {
+              throw failure;
+            }
+          : null,
+    });
+    if (failureAt === 'visitor') {
+      traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => {
+        throw failure;
+      });
+    }
+    const runner = traversal.makeRunner();
+
+    expect(() => runner.run()).toThrow(failure);
+    expect(runner.inspect()).toMatchObject({
+      status: TraversalRunnerStatus.FAILED,
+      frames: [],
+      chains: [],
+      pendingRequests: [],
+    });
+  },
+);
