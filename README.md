@@ -2,6 +2,8 @@
 
 Configurable, synchronous tree traversal for TypeScript and JavaScript. Walk abstract trees or JavaScript objects in depth-first or breadth-first order, transform vertices, prune branches, and pause and resume traversal.
 
+Package: [configurable-tree-traversal on npm](https://www.npmjs.com/package/configurable-tree-traversal)
+
 ```sh
 npm install configurable-tree-traversal
 ```
