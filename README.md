@@ -2,6 +2,11 @@
 
 Configurable, synchronous tree traversal for TypeScript and JavaScript. Walk abstract trees or JavaScript objects in depth-first or breadth-first order, transform vertices, prune branches, and pause and resume traversal.
 
+<img src="./Sorted_binary_tree_ALL_RGB.svg.png" alt="Binary tree with depth-first visit points: red for pre-order, green for in-order, and blue for post-order" width="460" height="393" />
+
+Depth-first visit points: red for pre-order, green for in-order, and blue for post-order.
+Source: [Wikipedia — Tree traversal](https://en.wikipedia.org/wiki/Tree_traversal).
+
 Package: [configurable-tree-traversal on npm](https://www.npmjs.com/package/configurable-tree-traversal)
 
 ```sh
@@ -75,11 +80,6 @@ traversal.makeRunner().run(); // D, B, C, A
 Child vertices are resolved lazily. Resolution options include the parent reference, depth, hint index, and the tree resolved so far. Custom adapters are responsible for detecting cycles in their own graph representation. Both strategies use iterative scheduling and can traverse deeply nested trees without recursive call-stack growth.
 
 ## Traversal orders
-
-<img src="./Sorted_binary_tree_ALL_RGB.svg.png" alt="Binary tree with depth-first visit points: red for pre-order, green for in-order, and blue for post-order" width="460" height="393" />
-
-Depth-first visit points: red for pre-order, green for in-order, and blue for post-order.
-Source: [Wikipedia — Tree traversal](https://en.wikipedia.org/wiki/Tree_traversal).
 
 | Strategy      | Order         | When a vertex is visited                        |
 | ------------- | ------------- | ----------------------------------------------- |

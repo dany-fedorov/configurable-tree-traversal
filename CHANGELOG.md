@@ -2,7 +2,7 @@
 
 ## 0.7.0 — 2026-09-12
 
-- Restore the Wikipedia traversal diagram, source attribution, and color legend in the README.
+- Restore the Wikipedia traversal diagram, source attribution, and color legend at the beginning of the README.
 - Include the diagram in the npm package and verify its presence and contents in the packed-package check.
 - No runtime or public API changes.
 
