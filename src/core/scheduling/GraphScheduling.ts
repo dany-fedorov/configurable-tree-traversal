@@ -22,6 +22,10 @@ export class GraphScheduling<
 
   constructor(private readonly container: ResolvedGraphsContainer<T, R>) {}
 
+  enrollExisting(ref: Ref<T | R>): void {
+    if (!this.work.has(ref)) this.register(ref, []);
+  }
+
   acceptRoot(result: MakeVertexResult<T>): Ref<T | R> | null {
     this.rejectTreeMetadata(result);
     const resultHasId = hasVertexId(result);

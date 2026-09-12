@@ -17,12 +17,19 @@ export function* runSync<
   kernel: KernelPort<T, R>,
   bindings: CallbackBindings<T, R>,
   runtimeState: SyncDriverState,
+  runnerName?: string,
 ): Generator<KernelEvent<T | R> | null> {
   for (;;) {
     const action = kernel.poll('drive');
     switch (action.kind) {
       case 'CALL':
-        invokeAndSubmit(kernel, bindings, runtimeState, action.call);
+        invokeAndSubmit(
+          kernel,
+          bindings,
+          runtimeState,
+          action.call,
+          runnerName,
+        );
         break;
       case 'EVENT':
         yield action.event;
@@ -51,6 +58,7 @@ function invokeAndSubmit<
   bindings: CallbackBindings<T, R>,
   runtimeState: SyncDriverState,
   call: CallSpec<T, R>,
+  runnerName?: string,
 ): void {
   let raw: RawCallbackResult<T, R>;
   runtimeState.inFlightCallbackCount += 1;
@@ -72,7 +80,7 @@ function invokeAndSubmit<
       `Callback binding returned ${raw.kind} for ${call.kind} request`,
     );
   }
-  const misuse = observeThenable(raw.value, call.kind);
+  const misuse = observeThenable(raw.value, call.kind, runnerName);
   kernel.submit({
     requestId: call.requestId,
     kind: call.kind,
@@ -83,7 +91,11 @@ function invokeAndSubmit<
   } as CallbackReply<T, R>);
 }
 
-function observeThenable(value: unknown, callbackName: string): TypeError | null {
+function observeThenable(
+  value: unknown,
+  callbackName: string,
+  runnerName?: string,
+): TypeError | null {
   if (
     value === null ||
     (typeof value !== 'object' && typeof value !== 'function')
@@ -94,7 +106,7 @@ function observeThenable(value: unknown, callbackName: string): TypeError | null
   try {
     then = (value as { then?: unknown }).then;
   } catch (error) {
-    return thenableError(callbackName, error);
+    return thenableError(callbackName, runnerName, error);
   }
   if (typeof then !== 'function') return null;
   try {
@@ -104,16 +116,20 @@ function observeThenable(value: unknown, callbackName: string): TypeError | null
       () => undefined,
     );
   } catch (error) {
-    return thenableError(callbackName, error);
+    return thenableError(callbackName, runnerName, error);
   }
-  return thenableError(callbackName);
+  return thenableError(callbackName, runnerName);
 }
 
-function thenableError(callbackName: string, cause?: unknown): TypeError {
+function thenableError(
+  callbackName: string,
+  runnerName?: string,
+  cause?: unknown,
+): TypeError {
   const error = new TypeError(
-    `Synchronous runner callback ${callbackName} returned a thenable`,
+    `Synchronous ${runnerName ?? 'runner'} callback ${callbackName} returned a thenable`,
   );
-  if (arguments.length > 1) {
+  if (arguments.length > 2) {
     (error as TypeError & { cause?: unknown }).cause = cause;
   }
   return error;

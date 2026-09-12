@@ -29,7 +29,12 @@ export type KernelInspection = Readonly<{
   frames: readonly Readonly<{
     owner: Readonly<OwnerToken>;
     vertexRefId: string;
-    stage: 'sort' | 'identify' | 'resolve' | 'closed';
+    stage:
+      | 'sort'
+      | 'identify'
+      | 'resolve'
+      | 'closed'
+      | import('@depth-first-traversal/lib/DepthFirstPolicy').DepthFirstFrameStage;
     pendingIndices: readonly number[];
   }>[];
   chains: readonly Readonly<{

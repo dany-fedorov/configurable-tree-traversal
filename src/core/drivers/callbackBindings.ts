@@ -39,12 +39,15 @@ type GraphSource<T extends TreeTypeParameters, R extends TreeTypeParameters> =
 
 function assertTreeResult<T extends TreeTypeParameters>(
   result: MakeVertexResult<T>,
+  runnerName?: string,
 ): MakeVertexResult<T> {
   if (
     Object.prototype.hasOwnProperty.call(result, 'vertexId') ||
     Object.prototype.hasOwnProperty.call(result, 'dependsOn')
   ) {
-    throw new TypeError('Tree source results cannot include graph metadata');
+    throw new TypeError(
+      `${runnerName === undefined ? 'Tree source' : `${runnerName} tree source`} results cannot include graph metadata`,
+    );
   }
   return result;
 }
@@ -66,11 +69,12 @@ function isPromiseLike<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
 
 function validateTreeResult<T extends TreeTypeParameters>(
   result: MaybePromise<MakeVertexResult<T>>,
+  runnerName?: string,
 ): MaybePromise<MakeVertexResult<T>> {
   if (isPromiseLike(result)) {
-    return result.then(assertTreeResult);
+    return result.then((value) => assertTreeResult(value, runnerName));
   }
-  return assertTreeResult(result);
+  return assertTreeResult(result, runnerName);
 }
 
 function asInputHint<
@@ -86,13 +90,14 @@ export function bindTreeSource<
 >(
   adapter: TreeSource<T, R>,
   container: ResolvedGraphsContainer<T, R>,
+  runnerName?: string,
 ): BoundSource<T, R> {
   const treeContainer = container.treeContainer;
   if (treeContainer === null) {
     throw new TypeError('Tree source binding requires a tree graph container');
   }
   return {
-    makeRoot: () => validateTreeResult(adapter.makeRoot()),
+    makeRoot: () => validateTreeResult(adapter.makeRoot(), runnerName),
     makeVertex: (context) =>
       validateTreeResult(
         adapter.makeVertex(asInputHint<T, R>(context.vertexHint), {
@@ -100,6 +105,7 @@ export function bindTreeSource<
           resolvedTree: treeContainer.resolvedTree,
           notMutatedResolvedTree: treeContainer.notMutatedResolvedTree,
         }),
+        runnerName,
       ),
   };
 }
