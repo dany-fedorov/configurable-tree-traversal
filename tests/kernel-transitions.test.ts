@@ -280,13 +280,17 @@ test('drains an already started chain before reporting HALTED', () => {
     kind: 'VISIT',
     outcome: { ok: true, value: undefined },
   });
-  expect(kernel.poll('drain')).toEqual({ kind: 'HALTED' });
+  const event = kernel.poll('drain');
+  if (event.kind !== 'EVENT') throw new Error('Expected retained event');
   expect(kernel.inspect()).toMatchObject({
-    status: TraversalRunnerStatus.HALTED,
+    haltRequested: true,
     chains: [],
     pendingRequests: [],
     pendingEventBoundaryCount: 1,
   });
+  kernel.acknowledgeEvent(event.boundaryId);
+  expect(kernel.poll('drain')).toEqual({ kind: 'HALTED' });
+  expect(kernel.inspect().status).toBe(TraversalRunnerStatus.HALTED);
 });
 
 test('does not hide a submitted live failure behind a halt request', () => {
@@ -497,4 +501,92 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       .inspect()
       .chains.some((chain) => chain.owner.id === visitB.call.owner.id),
   ).toBe(false);
+});
+
+test('retains every started-chain event in FIFO order while halting', () => {
+  const { kernel } = makeKernel();
+  const root = kernel.poll('drive');
+  if (root.kind !== 'CALL') throw new Error('Expected root call');
+  kernel.submit(
+    rootReply(root.call.requestId, {
+      ok: true,
+      value: {
+        vertexId: 'root',
+        vertexContent: { $d: 'root', $c: ['a', 'b'] },
+      },
+    }),
+  );
+  const rootVisit = kernel.poll('drive');
+  if (rootVisit.kind !== 'CALL' || rootVisit.call.kind !== 'VISIT') {
+    throw new Error('Expected root visitor call');
+  }
+  kernel.submit({
+    requestId: rootVisit.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  const rootEvent = kernel.poll('drive');
+  if (rootEvent.kind !== 'EVENT') throw new Error('Expected root event');
+  kernel.acknowledgeEvent(rootEvent.boundaryId);
+
+  const makeA = kernel.poll('drive');
+  if (makeA.kind !== 'CALL' || makeA.call.kind !== 'MAKE_VERTEX') {
+    throw new Error('Expected first child request');
+  }
+  kernel.submit({
+    requestId: makeA.call.requestId,
+    kind: 'MAKE_VERTEX',
+    outcome: {
+      ok: true,
+      value: { vertexId: 'a', vertexContent: { $d: 'a', $c: [] } },
+    },
+  });
+  const makeB = kernel.poll('drive');
+  if (makeB.kind !== 'CALL' || makeB.call.kind !== 'MAKE_VERTEX') {
+    throw new Error('Expected second child request');
+  }
+  kernel.submit({
+    requestId: makeB.call.requestId,
+    kind: 'MAKE_VERTEX',
+    outcome: {
+      ok: true,
+      value: { vertexId: 'b', vertexContent: { $d: 'b', $c: [] } },
+    },
+  });
+  const visitA = kernel.poll('drive');
+  if (visitA.kind !== 'CALL' || visitA.call.kind !== 'VISIT') {
+    throw new Error('Expected first child visitor call');
+  }
+  const visitB = kernel.poll('drive');
+  if (visitB.kind !== 'CALL' || visitB.call.kind !== 'VISIT') {
+    throw new Error('Expected second child visitor call');
+  }
+
+  kernel.requestHalt();
+  kernel.submit({
+    requestId: visitA.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+  kernel.submit({
+    requestId: visitB.call.requestId,
+    kind: 'VISIT',
+    outcome: { ok: true, value: undefined },
+  });
+
+  const first = kernel.poll('drain');
+  if (first.kind !== 'EVENT') throw new Error('Expected first retained event');
+  expect(first.event.vertex.getData()).toBe('a');
+  expect(kernel.inspect().pendingEventBoundaryCount).toBe(2);
+  expect(kernel.poll('drain')).toEqual(first);
+  kernel.acknowledgeEvent(first.boundaryId);
+  expect(kernel.inspect().pendingEventBoundaryCount).toBe(1);
+
+  const second = kernel.poll('drain');
+  if (second.kind !== 'EVENT') throw new Error('Expected second retained event');
+  expect(second.boundaryId).not.toBe(first.boundaryId);
+  expect(second.event.vertex.getData()).toBe('b');
+  kernel.acknowledgeEvent(second.boundaryId);
+  expect(kernel.inspect().pendingEventBoundaryCount).toBe(0);
+  expect(kernel.poll('drain')).toEqual({ kind: 'HALTED' });
 });

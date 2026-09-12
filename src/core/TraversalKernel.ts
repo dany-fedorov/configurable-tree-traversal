@@ -90,7 +90,7 @@ export class TraversalKernel<
   private rootSettled = false;
   private haltRequested = false;
   private failure: { error: unknown } | null = null;
-  private boundary: Boundary<T | R> | null = null;
+  private readonly boundaries: Boundary<T | R>[] = [];
 
   constructor(private readonly options: KernelOptions<T, R>) {
     this.scheduling = new GraphScheduling(options.container);
@@ -99,11 +99,12 @@ export class TraversalKernel<
 
   poll(mode: PumpMode): KernelAction<T, R> {
     this.processSubmittedOutcomes();
-    if (!this.haltRequested && this.boundary !== null) {
+    const pendingBoundary = this.boundaries[0];
+    if (pendingBoundary !== undefined) {
       return {
         kind: 'EVENT',
-        event: this.boundary.event,
-        boundaryId: this.boundary.id,
+        event: pendingBoundary.event,
+        boundaryId: pendingBoundary.id,
       };
     }
     if (this.failure !== null) {
@@ -116,8 +117,8 @@ export class TraversalKernel<
     for (;;) {
       const chainAction = this.runTransition(() => this.advanceChains());
       if (chainAction !== null) return chainAction;
-      const boundary = this.boundary as Boundary<T | R> | null;
-      if (!this.haltRequested && boundary !== null) {
+      const boundary = this.boundaries[0] as Boundary<T | R> | undefined;
+      if (boundary !== undefined) {
         return {
           kind: 'EVENT',
           event: boundary.event,
@@ -194,13 +195,14 @@ export class TraversalKernel<
   }
 
   acknowledgeEvent(boundaryId: number): void {
-    if (this.boundary === null || this.boundary.id !== boundaryId) {
+    const boundary = this.boundaries[0];
+    if (boundary === undefined || boundary.id !== boundaryId) {
       throw new Error(`Unknown event boundary ${boundaryId}`);
     }
-    if (this.boundary.expandAfter) {
-      this.expansionQueue.push(this.boundary.event.vertexRef);
+    if (boundary.expandAfter) {
+      this.expansionQueue.push(boundary.event.vertexRef);
     }
-    this.boundary = null;
+    this.boundaries.shift();
   }
 
   requestHalt(): void {
@@ -317,7 +319,7 @@ export class TraversalKernel<
         owner: { ...call.owner },
         valid: this.isOwnerValid(call.owner),
       })),
-      pendingEventBoundaryCount: this.boundary === null ? 0 : 1,
+      pendingEventBoundaryCount: this.boundaries.length,
     });
   }
 
@@ -343,7 +345,7 @@ export class TraversalKernel<
           if (action !== null) this.readyCalls.push(action);
         }
       }
-      if (!this.haltRequested && this.boundary !== null) {
+      if (!this.haltRequested && this.boundaries.length > 0) {
         return;
       }
     }
@@ -558,7 +560,7 @@ export class TraversalKernel<
       visitorState.previousVisitedVertexRef = state.ref;
     }
     if (state.config.iterateOver.includes(state.order)) {
-      this.boundary = {
+      this.boundaries.push({
         id: this.nextBoundaryId++,
         event: {
           vertex: state.ref.unref(),
@@ -569,7 +571,7 @@ export class TraversalKernel<
             state.ref === this.options.stateBridge.traversalRootVertexRef,
         },
         expandAfter: initial,
-      };
+      });
     } else if (initial) {
       this.expansionQueue.push(state.ref);
     }
@@ -757,7 +759,7 @@ export class TraversalKernel<
         this.chains.size === 0 &&
         this.expansionQueue.length === 0 &&
         !this.hasValidPendingRequest() &&
-        this.boundary === null)
+        this.boundaries.length === 0)
     );
   }
 
@@ -799,8 +801,10 @@ export class TraversalKernel<
         this.chains.delete(id);
       }
     }
-    if (this.boundary !== null && refs.has(this.boundary.event.vertexRef)) {
-      this.boundary = null;
+    for (let index = this.boundaries.length - 1; index >= 0; index -= 1) {
+      if (refs.has(this.boundaries[index]!.event.vertexRef)) {
+        this.boundaries.splice(index, 1);
+      }
     }
   }
 
