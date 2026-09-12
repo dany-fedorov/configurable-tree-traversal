@@ -27,6 +27,10 @@ import {
   type DepthFirstFrame,
 } from '@depth-first-traversal/lib/DepthFirstPolicy';
 import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import {
+  BreadthFirstPolicy,
+  type BreadthFirstPolicyState,
+} from '@breadth-first-traversal/lib/BreadthFirstPolicy';
 
 type PendingRequest<
   T extends TreeTypeParameters,
@@ -89,6 +93,7 @@ export class TraversalKernel<
   private readonly expansionQueue: Ref<T | R>[] = [];
   private readonly orders: PolicyOrders;
   private readonly depthFirstPolicy: DepthFirstPolicy<T | R> | null;
+  private readonly breadthFirstPolicy: BreadthFirstPolicy<T | R> | null;
   private readonly depthFirstChainFrames = new Map<
     number,
     DepthFirstFrame<T | R>
@@ -112,19 +117,33 @@ export class TraversalKernel<
             options.hasSorter,
           )
         : null;
+    this.breadthFirstPolicy =
+      options.kind === 'breadth-first'
+        ? new BreadthFirstPolicy(
+            options.stateBridge as typeof options.stateBridge &
+              BreadthFirstPolicyState<T | R>,
+            options.hasSorter,
+          )
+        : null;
     const existingRoot = options.container.resolvedGraph.getRoot();
-    if (this.depthFirstPolicy !== null && existingRoot !== null) {
+    if (
+      (this.depthFirstPolicy !== null || this.breadthFirstPolicy !== null) &&
+      existingRoot !== null
+    ) {
       this.rootRequested = true;
       this.rootSettled = true;
       options.stateBridge.traversalRootVertexRef = existingRoot;
       if (options.container.resolvedGraph.has(existingRoot)) {
         this.scheduling.enrollExisting(existingRoot);
-        this.scheduling.takeReady();
-        this.depthFirstPolicy.push(
-          this.newOwner('frame'),
-          existingRoot,
-          options.container.resolvedGraph.get(existingRoot)?.discoveryDepth ?? 0,
-        );
+        if (this.depthFirstPolicy !== null) {
+          this.scheduling.takeReady();
+          this.depthFirstPolicy.push(
+            this.newOwner('frame'),
+            existingRoot,
+            options.container.resolvedGraph.get(existingRoot)?.discoveryDepth ??
+              0,
+          );
+        }
       }
     }
   }
@@ -182,8 +201,19 @@ export class TraversalKernel<
         return { kind: 'FAILED', error: depthFirstFailure.error };
       }
 
+      const breadthFirstAction = this.runTransition(() =>
+        this.advanceBreadthFirst(),
+      );
+      if (breadthFirstAction === 'PROGRESSED') continue;
+      if (breadthFirstAction !== null) return breadthFirstAction;
+      const breadthFirstFailure = this.failure as { error: unknown } | null;
+      if (breadthFirstFailure !== null) {
+        return { kind: 'FAILED', error: breadthFirstFailure.error };
+      }
+
       if (
         this.depthFirstPolicy === null &&
+        this.breadthFirstPolicy === null &&
         mode === 'drive' &&
         this.runTransition(() => this.admitEligibleVisit())
       ) {
@@ -197,6 +227,7 @@ export class TraversalKernel<
       }
       if (
         this.depthFirstPolicy === null &&
+        this.breadthFirstPolicy === null &&
         mode === 'drive' &&
         this.runTransition(() => this.admitExpansion())
       ) {
@@ -211,18 +242,23 @@ export class TraversalKernel<
         this.rootRequested = true;
         this.setStatus(TraversalRunnerStatus.RUNNING);
         const existingRoot = this.options.container.resolvedGraph.getRoot();
-        if (this.depthFirstPolicy !== null && existingRoot !== null) {
+        if (
+          (this.depthFirstPolicy !== null || this.breadthFirstPolicy !== null) &&
+          existingRoot !== null
+        ) {
           this.rootSettled = true;
           this.options.stateBridge.traversalRootVertexRef = existingRoot;
           if (this.options.container.resolvedGraph.has(existingRoot)) {
             this.scheduling.enrollExisting(existingRoot);
-            this.scheduling.takeReady();
-            this.depthFirstPolicy.push(
-              this.newOwner('frame'),
-              existingRoot,
-              this.options.container.resolvedGraph.get(existingRoot)
-                ?.discoveryDepth ?? 0,
-            );
+            if (this.depthFirstPolicy !== null) {
+              this.scheduling.takeReady();
+              this.depthFirstPolicy.push(
+                this.newOwner('frame'),
+                existingRoot,
+                this.options.container.resolvedGraph.get(existingRoot)
+                  ?.discoveryDepth ?? 0,
+              );
+            }
           }
           continue;
         }
@@ -263,7 +299,11 @@ export class TraversalKernel<
       throw new Error(`Unknown event boundary ${boundaryId}`);
     }
     if (boundary.expandAfter) {
-      this.expansionQueue.push(boundary.event.vertexRef);
+      if (this.breadthFirstPolicy !== null) {
+        this.enqueueBreadthFirstExpansion(boundary.event.vertexRef);
+      } else {
+        this.expansionQueue.push(boundary.event.vertexRef);
+      }
     }
     this.boundaries.shift();
   }
@@ -373,6 +413,12 @@ export class TraversalKernel<
           stage: frame.stage,
           pendingIndices:
             frame.stage === 'child-wait' ? [frame.nextChild - 1] : [],
+          })) ?? []),
+        ...(this.breadthFirstPolicy?.getFrames().map((frame) => ({
+          owner: { ...frame.owner },
+          vertexRefId: frame.vertexRef.getId(),
+          stage: frame.stage,
+          pendingIndices: frame.pendingIndices.slice(),
         })) ?? []),
       ],
       chains: Array.from(this.chains.values(), ({ state }) => ({
@@ -472,6 +518,24 @@ export class TraversalKernel<
           this.depthFirstPolicy.setHints(frame, hints);
           return;
         }
+        if (this.breadthFirstPolicy !== null) {
+          const hints = (
+            reply.outcome as { ok: true; value: (T | R)['VertexHint'][] }
+          ).value.slice();
+          const frame = this.breadthFirstPolicy.getFrames()[0];
+          if (frame?.owner.id !== call.owner.id) {
+            throw new Error('Unknown breadth-first expansion owner');
+          }
+          this.scheduling.prepareSlots(frame.vertexRef, hints);
+          const completed = this.breadthFirstPolicy.setSortedHints(
+            call.owner,
+            hints,
+          );
+          if (completed.empty) {
+            this.scheduling.closeExpansion(completed.vertexRef);
+          }
+          return;
+        }
         const frame = this.frames.get(call.owner.id);
         if (frame === undefined) return;
         frame.hints = (
@@ -517,6 +581,23 @@ export class TraversalKernel<
               this.newOwner('frame'),
               child,
               call.context.depth,
+            );
+          }
+          return;
+        }
+        if (this.breadthFirstPolicy !== null) {
+          const completed =
+            this.breadthFirstPolicy.completeResolution(call.owner);
+          const value = (
+            reply.outcome as {
+              ok: true;
+              value: import('@core/TraversableTree').MakeVertexResult<T>;
+            }
+          ).value;
+          this.scheduling.acceptVertex(completed.context, value);
+          if (completed.closeParent) {
+            this.scheduling.closeExpansion(
+              completed.context.parentVertexRef,
             );
           }
           return;
@@ -629,6 +710,7 @@ export class TraversalKernel<
           );
           if (
             this.depthFirstPolicy === null &&
+            this.breadthFirstPolicy === null &&
             runtime.state.order === this.orders.initial
           ) {
             this.scheduling.prepareSlots(
@@ -636,9 +718,13 @@ export class TraversalKernel<
               runtime.state.ref.unref().getChildrenHints().slice(),
             );
           }
-          if (this.depthFirstPolicy === null) {
+          if (
+            this.depthFirstPolicy === null &&
+            this.breadthFirstPolicy === null
+          ) {
             this.scheduling.disableSubtree(runtime.state.ref);
           } else if (
+            this.depthFirstPolicy !== null &&
             runtime.state.order !== DepthFirstTraversalOrder.PRE_ORDER
           ) {
             this.scheduling.disableSubtree(runtime.state.ref);
@@ -693,6 +779,16 @@ export class TraversalKernel<
       visitorState.vertexVisitIndex += 1;
       visitorState.previousVisitedVertexRef = state.ref;
     }
+    if (
+      this.breadthFirstPolicy !== null &&
+      visitorState !== undefined &&
+      this.visitorsEnabledFor(state.config, state.order)
+    ) {
+      visitorState.curVertexVisitorVisitIndex =
+        state.metadata.curVertexVisitorVisitIndex;
+      visitorState.vertexVisitIndex += 1;
+      visitorState.previousVisitedVertexRef = state.ref;
+    }
     if (!this.options.container.resolvedGraph.has(state.ref)) return;
     const initial = state.order === this.orders.initial;
     if (state.order === DepthFirstTraversalOrder.IN_ORDER) {
@@ -720,7 +816,11 @@ export class TraversalKernel<
         );
       }
     }
-    if (visitorState !== undefined && this.depthFirstPolicy === null) {
+    if (
+      visitorState !== undefined &&
+      this.depthFirstPolicy === null &&
+      this.breadthFirstPolicy === null
+    ) {
       visitorState.curVertexVisitorVisitIndex =
         state.metadata.curVertexVisitorVisitIndex;
       visitorState.previousVisitedVertexRef = state.ref;
@@ -739,7 +839,11 @@ export class TraversalKernel<
         expandAfter: initial && this.depthFirstPolicy === null,
       });
     } else if (initial && this.depthFirstPolicy === null) {
-      this.expansionQueue.push(state.ref);
+      if (this.breadthFirstPolicy !== null) {
+        this.enqueueBreadthFirstExpansion(state.ref);
+      } else {
+        this.expansionQueue.push(state.ref);
+      }
     }
   }
 
@@ -796,6 +900,61 @@ export class TraversalKernel<
       .find((candidate) => candidate.owner.id === ownerId);
     if (frame === undefined) throw new Error('Unknown depth-first frame owner');
     return frame;
+  }
+
+  private advanceBreadthFirst(): KernelAction<T, R> | 'PROGRESSED' | null {
+    const policy = this.breadthFirstPolicy;
+    if (policy === null) return null;
+    const eligible = this.scheduling.takeEligible();
+    if (eligible !== null) {
+      if (eligible.order === 'ON_COMPLETE') {
+        this.scheduling.markComplete(eligible.ref);
+      } else {
+        this.admitChain(eligible.ref, this.orders.initial);
+      }
+      return 'PROGRESSED';
+    }
+    const work = policy.next(
+      (ref) => this.options.container.resolvedGraph.has(ref),
+      (ref) => this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref),
+    );
+    if (work === null) return null;
+    switch (work.kind) {
+      case 'PREPARE_HINTS':
+        this.scheduling.prepareSlots(
+          work.expansion.vertexRef,
+          work.hints,
+        );
+        if (policy.setHints(work.expansion, work.hints)) {
+          this.scheduling.closeExpansion(work.expansion.vertexRef);
+        }
+        return 'PROGRESSED';
+      case 'SORT_HINTS':
+        return this.issue({
+          kind: 'SORT_HINTS',
+          owner: work.expansion.owner,
+          hints: work.hints,
+        });
+      case 'MAKE_VERTEX': {
+        const owner = this.newOwner('frame');
+        policy.startResolution(owner, work.context);
+        return this.issue({ kind: 'MAKE_VERTEX', owner, context: work.context });
+      }
+      case 'CLEAR_QUEUE':
+        policy.clearQueue();
+        return 'PROGRESSED';
+    }
+  }
+
+  private enqueueBreadthFirstExpansion(ref: Ref<T | R>): void {
+    const vertex = this.options.container.resolvedGraph.get(ref);
+    if (vertex !== null) {
+      this.breadthFirstPolicy!.enqueueExpansion(
+        this.newOwner('frame'),
+        ref,
+        vertex.discoveryDepth,
+      );
+    }
   }
 
   private advanceFrames(): KernelAction<T, R> | null {
@@ -890,11 +1049,21 @@ export class TraversalKernel<
       previousVisitedVertexRef: visitorState.previousVisitedVertexRef,
       vertexVisitorsChainState: null,
     };
-    if (records.length > 0 && this.depthFirstPolicy === null) {
+    if (
+      records.length > 0 &&
+      this.depthFirstPolicy === null &&
+      this.breadthFirstPolicy === null
+    ) {
       visitorState.vertexVisitIndex += 1;
     }
     if (
       this.depthFirstPolicy !== null &&
+      this.visitorsEnabledFor(config, order)
+    ) {
+      visitorState.curVertexVisitorVisitIndex = 0;
+    }
+    if (
+      this.breadthFirstPolicy !== null &&
       this.visitorsEnabledFor(config, order)
     ) {
       visitorState.curVertexVisitorVisitIndex = 0;
@@ -988,6 +1157,8 @@ export class TraversalKernel<
         this.frames.size === 0 &&
         (this.depthFirstPolicy === null ||
           this.depthFirstPolicy.getFrames().length === 0) &&
+        (this.breadthFirstPolicy === null ||
+          this.breadthFirstPolicy.isIdle()) &&
         this.chains.size === 0 &&
         this.expansionQueue.length === 0 &&
         !this.hasValidPendingRequest() &&
@@ -1005,6 +1176,7 @@ export class TraversalKernel<
     this.frames.clear();
     this.chains.clear();
     this.depthFirstPolicy?.clear();
+    this.breadthFirstPolicy?.clear();
     this.depthFirstChainFrames.clear();
     this.readyCalls.length = 0;
   }

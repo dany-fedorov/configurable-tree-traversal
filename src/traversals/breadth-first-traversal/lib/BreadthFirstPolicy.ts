@@ -1,0 +1,206 @@
+import type { OwnerToken } from '@core/effects/types';
+import type { Ref } from '@core/graph/types';
+import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+
+export type BreadthFirstPolicyState<T extends TreeTypeParameters> = {
+  queue: VertexResolutionContext<T>[];
+  queueIndex: number;
+};
+
+type BreadthFirstExpansion<T extends TreeTypeParameters> = {
+  owner: OwnerToken;
+  vertexRef: Ref<T>;
+  depth: number;
+  stage: 'prepare' | 'sort-wait';
+};
+
+type BreadthFirstResolution<T extends TreeTypeParameters> = {
+  owner: OwnerToken;
+  context: VertexResolutionContext<T>;
+};
+
+export type BreadthFirstWork<T extends TreeTypeParameters> =
+  | {
+      kind: 'PREPARE_HINTS';
+      expansion: BreadthFirstExpansion<T>;
+      hints: T['VertexHint'][];
+    }
+  | {
+      kind: 'SORT_HINTS';
+      expansion: BreadthFirstExpansion<T>;
+      hints: T['VertexHint'][];
+    }
+  | { kind: 'MAKE_VERTEX'; context: VertexResolutionContext<T> }
+  | { kind: 'CLEAR_QUEUE' };
+
+/** Queue policy preserving dequeue-time resolution and legacy public state. */
+export class BreadthFirstPolicy<T extends TreeTypeParameters> {
+  private readonly expansions: BreadthFirstExpansion<T>[] = [];
+  private readonly remainingByParent = new Map<Ref<T>, number>();
+  private pendingResolution: BreadthFirstResolution<T> | null = null;
+
+  constructor(
+    private readonly state: BreadthFirstPolicyState<T>,
+    private readonly hasSorter: boolean,
+  ) {}
+
+  enqueueExpansion(owner: OwnerToken, vertexRef: Ref<T>, depth: number): void {
+    this.expansions.push({
+      owner,
+      vertexRef,
+      depth,
+      stage: 'prepare',
+    });
+  }
+
+  next(
+    hasVertex: (ref: Ref<T>) => boolean,
+    isDisabled: (ref: Ref<T>) => boolean,
+  ): BreadthFirstWork<T> | null {
+    for (;;) {
+      const expansion = this.expansions[0];
+      if (expansion !== undefined) {
+        if (!hasVertex(expansion.vertexRef)) {
+          this.expansions.shift();
+          continue;
+        }
+        if (expansion.stage === 'sort-wait') return null;
+        const hints = isDisabled(expansion.vertexRef)
+          ? []
+          : expansion.vertexRef.unref().getChildrenHints().slice();
+        if (this.hasSorter && !isDisabled(expansion.vertexRef)) {
+          expansion.stage = 'sort-wait';
+          return { kind: 'SORT_HINTS', expansion, hints };
+        }
+        return { kind: 'PREPARE_HINTS', expansion, hints };
+      }
+
+      if (this.pendingResolution !== null) return null;
+      while (this.state.queueIndex < this.state.queue.length) {
+        const context = this.state.queue[this.state.queueIndex++]!;
+        if (
+          hasVertex(context.parentVertexRef) &&
+          !isDisabled(context.parentVertexRef)
+        ) {
+          return { kind: 'MAKE_VERTEX', context };
+        }
+      }
+      return this.state.queue.length > 0 ? { kind: 'CLEAR_QUEUE' } : null;
+    }
+  }
+
+  setHints(
+    expansion: BreadthFirstExpansion<T>,
+    hints: T['VertexHint'][],
+  ): boolean {
+    if (this.expansions[0] !== expansion) {
+      throw new Error('Unknown breadth-first expansion');
+    }
+    for (let hintIndex = 0; hintIndex < hints.length; hintIndex += 1) {
+      this.state.queue.push({
+        depth: expansion.depth + 1,
+        parentVertex: expansion.vertexRef.unref(),
+        parentVertexRef: expansion.vertexRef,
+        hintIndex,
+        vertexHint: hints[hintIndex]!,
+      });
+    }
+    this.expansions.shift();
+    if (hints.length > 0) {
+      this.remainingByParent.set(expansion.vertexRef, hints.length);
+    }
+    return hints.length === 0;
+  }
+
+  setSortedHints(
+    owner: OwnerToken,
+    hints: T['VertexHint'][],
+  ): { vertexRef: Ref<T>; empty: boolean } {
+    const expansion = this.expansions[0];
+    if (expansion?.owner.id !== owner.id) {
+      throw new Error('Unknown breadth-first expansion owner');
+    }
+    const empty = this.setHints(expansion, hints);
+    return { vertexRef: expansion.vertexRef, empty };
+  }
+
+  startResolution(
+    owner: OwnerToken,
+    context: VertexResolutionContext<T>,
+  ): void {
+    if (this.pendingResolution !== null) {
+      throw new Error('Breadth-first resolution is already pending');
+    }
+    this.pendingResolution = { owner, context };
+  }
+
+  completeResolution(owner: OwnerToken): {
+    context: VertexResolutionContext<T>;
+    closeParent: boolean;
+  } {
+    if (this.pendingResolution?.owner.id !== owner.id) {
+      throw new Error('Unknown breadth-first resolution');
+    }
+    const { context } = this.pendingResolution;
+    this.pendingResolution = null;
+    const remaining = this.remainingByParent.get(context.parentVertexRef);
+    if (remaining === undefined || remaining < 1) {
+      throw new Error('Unknown breadth-first parent expansion');
+    }
+    if (remaining === 1) {
+      this.remainingByParent.delete(context.parentVertexRef);
+      return { context, closeParent: true };
+    }
+    this.remainingByParent.set(context.parentVertexRef, remaining - 1);
+    return { context, closeParent: false };
+  }
+
+  clearQueue(): void {
+    this.state.queue.length = 0;
+    this.state.queueIndex = 0;
+  }
+
+  getFrames(): readonly Readonly<{
+    owner: OwnerToken;
+    vertexRef: Ref<T>;
+    stage: 'sort' | 'resolve';
+    pendingIndices: readonly number[];
+  }>[] {
+    const expansions = this.expansions.map((expansion) => ({
+      owner: expansion.owner,
+      vertexRef: expansion.vertexRef,
+      stage: (expansion.stage === 'sort-wait' ? 'sort' : 'resolve') as
+        | 'sort'
+        | 'resolve',
+      pendingIndices: [] as number[],
+    }));
+    const resolution = this.pendingResolution;
+    return resolution === null
+      ? expansions
+      : [
+          ...expansions,
+          {
+            owner: resolution.owner,
+            vertexRef: resolution.context.parentVertexRef,
+            stage: 'resolve' as const,
+            pendingIndices: [resolution.context.hintIndex],
+          },
+        ];
+  }
+
+  isIdle(): boolean {
+    return (
+      this.expansions.length === 0 &&
+      this.pendingResolution === null &&
+      this.remainingByParent.size === 0 &&
+      this.state.queue.length === 0
+    );
+  }
+
+  clear(): void {
+    this.expansions.length = 0;
+    this.pendingResolution = null;
+    this.remainingByParent.clear();
+  }
+}
