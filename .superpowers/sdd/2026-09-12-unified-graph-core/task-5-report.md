@@ -100,3 +100,60 @@ Tests:       12 passed, 12 total
 - `npm run typecheck`: passed.
 - `npx eslint src/core/graph/ResolvedGraphsContainer.ts tests/graph-container.test.ts tests/graph-source-binding.test.ts`: passed with no output.
 - Self-review confirmed tree mode still uses the exact legacy container-created `VertexResolved` records and the existing shared graph store; no competing topology or compatibility path was added.
+
+## Review Fix Round 2: Atomic Tree Acceptance
+
+Tree-mode `acceptVertex` now prevalidates the saved resolution context before
+inserting supplied metadata into the shared graph store. The focused validator
+is also called by the legacy container's normal `set` path, so saved-parent
+mapping rules remain defined in one place.
+
+The regression removes an accepted parent's saved-tree mapping, verifies the
+failed child acceptance leaves no active reference, active id, legacy record,
+structural snapshot reference, or structural snapshot id, then restores the
+mapping and verifies the same acceptance succeeds.
+
+### RED
+
+Command:
+
+```text
+npm test -- tests/graph-container.test.ts tests/graph-source-binding.test.ts
+```
+
+Output:
+
+```text
+FAIL tests/graph-container.test.ts
+  tree acceptance validates saved parent mappings before graph insertion
+  Expected: false
+  Received: true
+  at expect(container.resolvedGraph.has(child)).toBe(false)
+PASS tests/graph-source-binding.test.ts
+Test Suites: 1 failed, 1 passed, 2 total
+Tests:       1 failed, 12 passed, 13 total
+```
+
+### GREEN
+
+Command:
+
+```text
+npm test -- tests/graph-container.test.ts tests/graph-source-binding.test.ts
+```
+
+Output:
+
+```text
+PASS tests/graph-container.test.ts
+PASS tests/graph-source-binding.test.ts
+Test Suites: 2 passed, 2 total
+Tests:       13 passed, 13 total
+```
+
+### Round 2 Verification
+
+- `npm test -- tests/graph-container.test.ts tests/graph-source-binding.test.ts tests/core-edge-cases.test.ts tests/tree-graph-view.test.ts tests/resolved-graph.test.ts`: 5 suites, 48 tests passed.
+- `npm run typecheck`: passed.
+- `npx eslint src/core/graph/ResolvedGraphsContainer.ts src/traversals/depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer.ts tests/graph-container.test.ts tests/graph-source-binding.test.ts`: passed with no output.
+- Self-review confirmed failed prevalidation runs before active identity insertion and snapshot commit, retry succeeds, and legacy record/topology creation remains unchanged.

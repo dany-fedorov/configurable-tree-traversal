@@ -82,6 +82,7 @@ export class ResolvedGraphsContainer<
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
+      this.treeContainer.validateSavedResolutionContext(context);
       this.store.insertVertex({ ref, id, dependsOn, depth: context.depth });
       this.treeContainer.setWithResolutionContext(ref, context);
     } else {

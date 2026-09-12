@@ -145,3 +145,40 @@ test('tree acceptance uses supplied graph ids and dependencies', () => {
   expect(snapshot.getIdOf(savedChild)).toBe('accepted-child');
   expect(snapshot.getVertexById('accepted-child')).toBe(savedChild);
 });
+
+test('tree acceptance validates saved parent mappings before graph insertion', () => {
+  const treeContainer = new DepthFirstTraversal<GraphTTP>({
+    traversableTree: {
+      makeRoot: () => ({ vertexContent: null }),
+      makeVertex: () => ({ vertexContent: null }),
+    },
+    saveNotMutatedResolvedTree: true,
+  }).makeRunner().resolvedTreesContainer;
+  const container = new ResolvedGraphsContainer({
+    sourceMode: 'tree',
+    saveOriginal: true,
+    treeContainer,
+  });
+  const root = ref('root', ['child']);
+  const child = ref('child');
+  container.acceptRoot(root, 'root');
+  const savedRefs = treeContainer.notMutatedResolvedTreeRefsMap!;
+  const savedRoot = savedRefs.get(root)!;
+  savedRefs.delete(root);
+
+  expect(() =>
+    container.acceptVertex(child, 'child', ['root'], context(root, 0)),
+  ).toThrow(/not mutated parent ref/i);
+  expect(container.resolvedGraph.has(child)).toBe(false);
+  expect(container.resolvedGraph.getVertexById('child')).toBeNull();
+  expect(treeContainer.resolvedTree.get(child)).toBeNull();
+  expect(container.notMutatedResolvedGraphRefsMap!.has(child)).toBe(false);
+  expect(container.notMutatedResolvedGraph!.getVertexById('child')).toBeNull();
+
+  savedRefs.set(root, savedRoot);
+  container.acceptVertex(child, 'child', ['root'], context(root, 0));
+
+  expect(container.resolvedGraph.getVertexById('child')).toBe(child);
+  expect(treeContainer.resolvedTree.get(child)).not.toBeNull();
+  expect(container.notMutatedResolvedGraphRefsMap!.has(child)).toBe(true);
+});

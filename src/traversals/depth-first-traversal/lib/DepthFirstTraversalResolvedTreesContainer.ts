@@ -54,6 +54,8 @@ export class DepthFirstTraversalResolvedTreesContainer<
     vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
     vertexResolved: VertexResolved<TTP | RW_TTP>,
   ): void {
+    const resolutionContext = vertexResolved.getResolutionContext();
+    this.validateSavedResolutionContext(resolutionContext);
     if (this.notMutatedResolvedTree && this.notMutatedResolvedTreeRefsMap) {
       const vertex = (vertexRef as CTTRef<Vertex<TTP>>).unref();
       const notMutatedRef =
@@ -61,7 +63,6 @@ export class DepthFirstTraversalResolvedTreesContainer<
         new CTTRef<Vertex<TTP>>(
           vertex.clone({ $c: vertex.getChildrenHints().slice() }),
         );
-      const resolutionContext = vertexResolved.getResolutionContext();
       const notMutatedChildren = vertexResolved.getChildren().map((child) => {
         const notMutatedChild = this.notMutatedResolvedTreeRefsMap?.get(child);
         if (notMutatedChild === undefined) {
@@ -82,14 +83,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
         const notMutatedVertexParentRef =
           this.notMutatedResolvedTreeRefsMap.get(
             resolutionContext.parentVertexRef,
-          );
-        if (notMutatedVertexParentRef === undefined) {
-          throw new Error(
-            `Could not find not mutated parent ref - ${jsonStringifySafe(
-              resolutionContext.parentVertexRef,
-            )}`,
-          );
-        }
+          )!;
         notMutatedVertexResolved.setResolutionContext({
           ...resolutionContext,
           parentVertexRef: notMutatedVertexParentRef,
@@ -105,6 +99,23 @@ export class DepthFirstTraversalResolvedTreesContainer<
       return;
     }
     this.resolvedTree.set(vertexRef, vertexResolved);
+  }
+
+  validateSavedResolutionContext(
+    resolutionContext: VertexResolutionContext<TTP | RW_TTP> | null,
+  ): void {
+    if (
+      this.notMutatedResolvedTree !== null &&
+      this.notMutatedResolvedTreeRefsMap !== null &&
+      resolutionContext !== null &&
+      !this.notMutatedResolvedTreeRefsMap.has(resolutionContext.parentVertexRef)
+    ) {
+      throw new Error(
+        `Could not find not mutated parent ref - ${jsonStringifySafe(
+          resolutionContext.parentVertexRef,
+        )}`,
+      );
+    }
   }
 
   setWithResolutionContext(
