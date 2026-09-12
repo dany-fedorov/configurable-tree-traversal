@@ -38,7 +38,7 @@ function setup(hints: string[], commitRoot = true) {
   });
   const scheduling = new GraphScheduling(container);
   const rootRef = scheduling.acceptRoot(result('root', hints))!;
-  container.store.prepareSlots(rootRef, hints);
+  scheduling.prepareSlots(rootRef, hints);
   scheduling.takeReady();
   if (commitRoot) scheduling.markPreVisited(rootRef);
   return { container, scheduling, rootRef };
@@ -54,8 +54,8 @@ test('a shared descendant survives while it has another live parent', () => {
     context(rootRef, 1),
     result('B', ['S']),
   )!;
-  container.store.prepareSlots(aRef, ['S']);
-  container.store.prepareSlots(bRef, ['S']);
+  scheduling.prepareSlots(aRef, ['S']);
+  scheduling.prepareSlots(bRef, ['S']);
   const sharedRef = scheduling.acceptVertex(context(aRef, 0), result('S'))!;
   scheduling.acceptVertex(context(bRef, 0), result('S'));
 
@@ -72,7 +72,7 @@ test('declared dependency deletion cascades despite surviving graph parents', ()
     context(rootRef, 1),
     result('B', ['D']),
   )!;
-  container.store.prepareSlots(bRef, ['D']);
+  scheduling.prepareSlots(bRef, ['D']);
   const dependentRef = scheduling.acceptVertex(
     context(rootRef, 2),
     result('D', [], ['A']),
@@ -94,6 +94,32 @@ test('tombstones delete late dependents before admission', () => {
   ).toBeNull();
   expect(container.store.getIdState('late')).toEqual({ kind: 'deleted' });
   expect(container.resolvedGraph.get(rootRef)?.slots[1]?.kind).toBe('deleted');
+});
+
+test('late tombstoning cascades to earlier dependents', () => {
+  const { container, scheduling, rootRef } = setup(['A', 'D', 'X', 'E']);
+  const aRef = scheduling.acceptVertex(context(rootRef, 0), result('A'))!;
+  const dependentRef = scheduling.acceptVertex(
+    context(rootRef, 1),
+    result('D', [], ['X']),
+  )!;
+  const cascadeRef = scheduling.acceptVertex(
+    context(rootRef, 3),
+    result('E', [], ['D']),
+  )!;
+  scheduling.deleteVertex(aRef);
+
+  expect(
+    scheduling.acceptVertex(context(rootRef, 2), result('X', [], ['A'])),
+  ).toBeNull();
+  expect(container.store.getIdState('X')).toEqual({ kind: 'deleted' });
+  expect(container.store.getIdState('D')).toEqual({ kind: 'deleted' });
+  expect(container.store.getIdState('E')).toEqual({ kind: 'deleted' });
+  expect(container.resolvedGraph.has(dependentRef)).toBe(false);
+  expect(container.resolvedGraph.has(cascadeRef)).toBe(false);
+  expect(
+    container.resolvedGraph.get(rootRef)?.slots.map((slot) => slot.kind),
+  ).toEqual(['deleted', 'deleted', 'deleted', 'deleted']);
 });
 
 test('deleting the root returns every affected ref and empties the graph', () => {
@@ -135,7 +161,7 @@ test('deep and wide deletion cascades use iterative worklists', () => {
   )!;
   const deepRoot = parent;
   for (let index = 1; index < depth; index += 1) {
-    container.store.prepareSlots(parent, ['next']);
+    scheduling.prepareSlots(parent, ['next']);
     parent = scheduling.acceptVertex(
       context(parent, 0, index + 1),
       result(`deep-${index}`, index + 1 < depth ? ['next'] : []),
@@ -147,7 +173,7 @@ test('deep and wide deletion cascades use iterative worklists', () => {
     context(rootRef, 1),
     result('wide', wideHints),
   )!;
-  container.store.prepareSlots(wideRoot, wideHints);
+  scheduling.prepareSlots(wideRoot, wideHints);
   for (let index = 0; index < width; index += 1) {
     scheduling.acceptVertex(context(wideRoot, index, 2), result(`w-${index}`));
   }

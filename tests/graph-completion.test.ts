@@ -37,19 +37,19 @@ function setup(hints: string[] = []) {
   });
   const scheduling = new GraphScheduling(container);
   const rootRef = scheduling.acceptRoot(result('root', hints))!;
-  container.store.prepareSlots(rootRef, hints);
+  scheduling.prepareSlots(rootRef, hints);
   return { container, scheduling, rootRef };
 }
 
 test('a completed child releases its parent completion obligation', () => {
-  const { container, scheduling, rootRef } = setup(['child']);
+  const { scheduling, rootRef } = setup(['child']);
   expect(scheduling.takeReady()).toBe(rootRef);
   scheduling.markPreVisited(rootRef);
   const childRef = scheduling.acceptVertex(
     context(rootRef, 0),
     result('child'),
   )!;
-  container.store.prepareSlots(childRef, []);
+  scheduling.prepareSlots(childRef, []);
   expect(scheduling.takeReady()).toBe(childRef);
   scheduling.markPreVisited(childRef);
   scheduling.closeExpansion(rootRef);
@@ -61,22 +61,41 @@ test('a completed child releases its parent completion obligation', () => {
   expect(scheduling.takeCompleting()).toBe(rootRef);
 });
 
-test('closed empty expansions complete but unprepared expansions do not', () => {
-  const { scheduling, rootRef } = setup();
+test('closing an unprepared expansion is rejected without completing it', () => {
+  const container = new ResolvedGraphsContainer<TestGraph>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  const scheduling = new GraphScheduling(container);
+  const rootRef = scheduling.acceptRoot(result('root'))!;
   scheduling.takeReady();
   scheduling.markPreVisited(rootRef);
 
+  expect(() => scheduling.closeExpansion(rootRef)).toThrow(/unprepared/i);
   expect(scheduling.takeCompleting()).toBeNull();
+});
+
+test('a prepared empty expansion completes', () => {
+  const container = new ResolvedGraphsContainer<TestGraph>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  const scheduling = new GraphScheduling(container);
+  const rootRef = scheduling.acceptRoot(result('root'))!;
+  scheduling.prepareSlots(rootRef, []);
+  scheduling.takeReady();
+  scheduling.markPreVisited(rootRef);
+
   scheduling.closeExpansion(rootRef);
   expect(scheduling.takeCompleting()).toBe(rootRef);
 });
 
 test('completion entries append behind existing initial visits in one FIFO', () => {
-  const { container, scheduling, rootRef } = setup(['A', 'B']);
+  const { scheduling, rootRef } = setup(['A', 'B']);
   scheduling.takeReady();
   scheduling.markPreVisited(rootRef);
   const aRef = scheduling.acceptVertex(context(rootRef, 0), result('A'))!;
-  container.store.prepareSlots(aRef, []);
+  scheduling.prepareSlots(aRef, []);
   expect(scheduling.takeReady()).toBe(aRef);
   scheduling.markPreVisited(aRef);
   const bRef = scheduling.acceptVertex(context(rootRef, 1), result('B'))!;
@@ -102,7 +121,7 @@ test('duplicate slots are accounted once across completion and later deletion', 
   expect(scheduling.acceptVertex(context(rootRef, 1), result('child'))).toBe(
     childRef,
   );
-  container.store.prepareSlots(childRef, []);
+  scheduling.prepareSlots(childRef, []);
   scheduling.takeReady();
   scheduling.markPreVisited(childRef);
   scheduling.closeExpansion(rootRef);

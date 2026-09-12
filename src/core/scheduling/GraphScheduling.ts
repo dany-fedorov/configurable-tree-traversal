@@ -125,6 +125,7 @@ export class GraphScheduling<
     ) {
       this.container.store.markDeleted(accepted.id);
       this.closeSlot(context.parentVertexRef, context.hintIndex, 'deleted');
+      this.deleteDependentsOf(accepted.id);
       return null;
     }
     this.container.acceptVertex(
@@ -156,9 +157,21 @@ export class GraphScheduling<
     this.enqueueCompletion(vertexWork);
   }
 
+  prepareSlots(ref: Ref<T | R>, hints: readonly (T | R)['VertexHint'][]): void {
+    const vertexWork = this.getWork(ref);
+    if (vertexWork.expansion !== 'unprepared') {
+      throw new Error('Vertex expansion is already prepared');
+    }
+    this.container.store.prepareSlots(ref, hints);
+    vertexWork.expansion = 'open';
+  }
+
   closeExpansion(ref: Ref<T | R>): void {
     const vertexWork = this.getWork(ref);
     if (vertexWork.expansion === 'closed') return;
+    if (vertexWork.expansion === 'unprepared') {
+      throw new Error('Cannot close an unprepared vertex expansion');
+    }
     const vertex = this.getVertex(ref);
 
     vertexWork.expansion = 'closed';
@@ -224,34 +237,36 @@ export class GraphScheduling<
   deleteVertex(ref: Ref<T | R>): Set<Ref<T | R>> {
     if (!this.container.resolvedGraph.has(ref)) return new Set();
 
-    const removals = new Set<Ref<T | R>>();
-    const pending: Ref<T | R>[] = [];
     const root = this.container.resolvedGraph.getRoot();
     if (ref === root) {
-      for (const vertexRef of this.container.resolvedGraph.getVertexRefs()) {
-        removals.add(vertexRef);
-      }
-    } else {
-      removals.add(ref);
-      pending.push(ref);
-      while (pending.length > 0) {
-        const current = pending.pop()!;
-        const vertex = this.container.resolvedGraph.get(current);
-        if (vertex === null) continue;
+      return this.deleteRefs(this.container.resolvedGraph.getVertexRefs());
+    }
+    return this.deleteRefs([ref]);
+  }
 
-        for (const dependent of this.reverseDependencies.get(vertex.vertexId) ??
-          []) {
-          this.addRemoval(dependent, removals, pending);
-        }
-        for (const child of this.container.resolvedGraph.getChildrenOf(
-          current,
-        ) ?? []) {
-          if (removals.has(child)) continue;
-          const parents =
-            this.container.resolvedGraph.getParentsOf(child) ?? [];
-          if (parents.every((parent) => removals.has(parent))) {
-            this.addRemoval(child, removals, pending);
-          }
+  private deleteDependentsOf(id: VertexId): Set<Ref<T | R>> {
+    return this.deleteRefs(Array.from(this.reverseDependencies.get(id) ?? []));
+  }
+
+  private deleteRefs(initialRefs: readonly Ref<T | R>[]): Set<Ref<T | R>> {
+    const removals = new Set<Ref<T | R>>();
+    const pending: Ref<T | R>[] = [];
+    for (const ref of initialRefs) this.addRemoval(ref, removals, pending);
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      const vertex = this.container.resolvedGraph.get(current);
+      if (vertex === null) continue;
+
+      for (const dependent of this.reverseDependencies.get(vertex.vertexId) ??
+        []) {
+        this.addRemoval(dependent, removals, pending);
+      }
+      for (const child of this.container.resolvedGraph.getChildrenOf(current) ??
+        []) {
+        if (removals.has(child)) continue;
+        const parents = this.container.resolvedGraph.getParentsOf(child) ?? [];
+        if (parents.every((parent) => removals.has(parent))) {
+          this.addRemoval(child, removals, pending);
         }
       }
     }
