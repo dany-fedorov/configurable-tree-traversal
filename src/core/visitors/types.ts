@@ -1,20 +1,12 @@
 import type { CTTRef } from '@core/CTTRef';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type {
-  TraversalVisitorCommand,
-  TraversalVisitorFunctionResolutionStyle,
-} from '@core/TraversalVisitor';
+import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
 import type { Vertex } from '@core/Vertex';
-import type { VisitResult } from '@core/graph/types';
+import type { VisitResult, VisitorRecord } from '@core/graph/types';
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
-export type VisitorRegistrationMetadata<F = unknown> = {
-  addedIndex: number;
-  priority: number;
-  resolutionStyle: TraversalVisitorFunctionResolutionStyle;
-  visitor: F;
-};
+export type RegistrationMetadata = Omit<VisitorRecord<never>, 'visitor'>;
 
 export type VisitorChainMetadata<T extends TreeTypeParameters> = {
   vertexVisitIndex: number;
@@ -47,7 +39,7 @@ export type VisitorChainInput<
   R extends TreeTypeParameters = T,
 > = {
   ref: CTTRef<Vertex<T | R>>;
-  records: readonly VisitorRegistrationMetadata[];
+  records: readonly RegistrationMetadata[];
   metadata: VisitorChainMetadata<T | R>;
   family: 'tree' | 'dag';
 };

@@ -1,5 +1,8 @@
 import { CTTRef } from '../src/core/CTTRef';
-import { executeVisitors } from '../src/core/executeVisitors';
+import {
+  executeVisitors,
+  sortVisitorRecords,
+} from '../src/core/executeVisitors';
 import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
 import {
   TraversalVisitorCommandName as Command,
@@ -11,6 +14,46 @@ import { Vertex } from '../src/core/Vertex';
 
 type Tree = TreeTypeParameters<string, string>;
 type Record = TraversalVisitorRecord<'ORDER', Tree, Tree>;
+
+test('yields for an external halt committed by an empty concurrent group', () => {
+  const vertexRef = new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+  const calls: string[] = [];
+  let halted = false;
+  let firstBatch = true;
+  const execution = executeVisitors({
+    vertexRef,
+    records: [
+      {
+        addedIndex: 0,
+        priority: 100,
+        resolutionStyle: Style.SEQUENTIAL,
+        visitor: () => {
+          calls.push('sequential');
+        },
+      },
+    ],
+    state: {
+      vertexVisitIndex: 0,
+      curVertexVisitorVisitIndex: 0,
+      previousVisitedVertexRef: null,
+    },
+    getOptions: () => null as never,
+    executeCommands: (commands) => {
+      expect(commands).toEqual([]);
+      halted = firstBatch;
+      firstBatch = false;
+      return {};
+    },
+    isHalted: () => halted,
+    isDeleted: () => false,
+  });
+
+  expect(execution.next()).toEqual({ done: false, value: undefined });
+  expect(calls).toEqual([]);
+  halted = false;
+  expect(execution.next()).toEqual({ done: true, value: undefined });
+  expect(calls).toEqual(['sequential']);
+});
 
 test('synchronously drives grouped callbacks while retaining halt metadata', () => {
   const vertexRef = new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
@@ -147,4 +190,37 @@ test('validates all styles before invoking a compatibility callback', () => {
 
   expect(() => execution.next()).toThrow(/unknown visitor resolution style/i);
   expect(calls).toEqual([]);
+});
+
+test('sortVisitorRecords returns priority and registration order copies', () => {
+  const visitor = () => undefined;
+  const late = {
+    addedIndex: 2,
+    priority: 100,
+    resolutionStyle: Style.SEQUENTIAL,
+    visitor,
+  };
+  const high = {
+    addedIndex: 1,
+    priority: 200,
+    resolutionStyle: Style.SEQUENTIAL,
+    visitor,
+  };
+  const early = {
+    addedIndex: 0,
+    priority: 100,
+    resolutionStyle: Style.SEQUENTIAL,
+    visitor,
+  };
+
+  const sorted = sortVisitorRecords<'ORDER', Tree, Tree>([late, high, early]);
+
+  expect(
+    sorted.map(({ priority, addedIndex }) => [priority, addedIndex]),
+  ).toEqual([
+    [200, 1],
+    [100, 0],
+    [100, 2],
+  ]);
+  expect(sorted[0]).not.toBe(high);
 });

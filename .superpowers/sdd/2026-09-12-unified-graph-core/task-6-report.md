@@ -48,3 +48,78 @@ Implemented the promise-free `VisitorChain` state machine and converted `execute
 ## Concerns
 
 - `npm run test:coverage` executes all 287 tests successfully but still exits nonzero against the repository's 100% global threshold. The report includes pre-existing uncovered Task 5 graph/binding/snapshot paths and the unexported DAG order enum, plus defensive invalid-transition branches in the new wrapper/machine. The Task 6 brief requires focused tests, full compatibility tests, typecheck, and lint rather than the global coverage gate; unrelated coverage expansion was left out of scope.
+
+## Review Fix Round 1
+
+The machine now accepts callback-free `RegistrationMetadata`, always exposes the empty concurrent command boundary, and covers invalid public transitions. The compatibility wrapper strips callbacks before constructing the machine and independently preserves the legacy external/global halt boundary after every command commit. Protocol-unreachable wrapper branches were removed rather than tested through mocks.
+
+### RED
+
+Command:
+
+```text
+npm test -- tests/visitor-chain-machine.test.ts tests/execute-visitors-compat.test.ts
+```
+
+Output:
+
+```text
+FAIL tests/execute-visitors-compat.test.ts
+  yields for an external halt committed by an empty concurrent group
+  Expected done: false; received done: true
+FAIL tests/visitor-chain-machine.test.ts
+  TS2741: Property 'visitor' is missing from callback-free registration metadata
+Test Suites: 2 failed, 2 total
+Tests: 1 failed, 3 passed, 4 total
+```
+
+The first GREEN attempt correctly exposed the empty boundary but identified stale sequential-only test setup and a compatibility fixture that re-triggered its simulated external halt on every batch. After those fixtures acknowledged the empty boundary and limited the external halt to the first commit, the implementation passed.
+
+### GREEN
+
+Command:
+
+```text
+npm test -- tests/visitor-chain-machine.test.ts tests/execute-visitors-compat.test.ts
+```
+
+Output:
+
+```text
+PASS tests/execute-visitors-compat.test.ts
+PASS tests/visitor-chain-machine.test.ts
+Test Suites: 2 passed, 2 total
+Tests: 11 passed, 11 total
+```
+
+### Coverage
+
+Command:
+
+```text
+npx jest --runInBand --coverage --collectCoverageFrom='src/core/executeVisitors.ts' --collectCoverageFrom='src/core/visitors/VisitorChain.ts' tests/visitor-chain-machine.test.ts tests/execute-visitors-compat.test.ts
+```
+
+Output:
+
+```text
+File                 | % Stmts | % Branch | % Funcs | % Lines
+executeVisitors.ts   |     100 |      100 |     100 |     100
+VisitorChain.ts      |     100 |      100 |     100 |     100
+All files            |     100 |      100 |     100 |     100
+Test Suites: 2 passed, 2 total
+Tests: 11 passed, 11 total
+```
+
+### Round 1 Verification
+
+- `npm test -- tests/visitor-chain-machine.test.ts tests/execute-visitors-compat.test.ts tests/visitor-coverage.test.ts tests/depth-first.test.ts tests/breadth-first.test.ts`: 5 suites, 54 tests passed.
+- `npm test`: 25 suites, 291 tests passed.
+- `npm run typecheck`: passed after removing the obsolete resolution-style import.
+- `npm run lint`: passed.
+- Self-review confirmed the wrapper yields once for an owned halt, yields for an external halt after an empty or nonempty batch, and resumes machine-owned pause state before continuing.
+- Self-review confirmed the machine stores only callback-free registration fields and original indices; the wrapper retains callbacks in its own captured record array for synchronous invocation.
+
+### Round 1 Concerns
+
+None within Task 6 scope.

@@ -72,7 +72,6 @@ export class VisitorChain<
 
       this.group = 'sequential';
       this.groupPosition = 0;
-      if (this.concurrentRecordIndices.length === 0) return this.poll();
       this.pendingCommands = this.concurrentCommands.slice();
       return this.poll();
     }

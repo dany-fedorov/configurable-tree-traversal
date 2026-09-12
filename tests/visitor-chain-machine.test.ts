@@ -20,7 +20,27 @@ const record = (resolutionStyle: Style) => ({
   addedIndex: 0,
   priority: 100,
   resolutionStyle,
-  visitor: () => undefined,
+});
+
+test('commits an empty concurrent group before sequential work', () => {
+  const chain = new VisitorChain<Tree>({
+    ref: ref(),
+    records: [record(Style.SEQUENTIAL)],
+    metadata: metadata(),
+    family: 'tree',
+  });
+
+  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
+  chain.commitBatch({
+    halt: false,
+    deleted: false,
+    vertexVisitorsChainState: undefined,
+  });
+  expect(chain.poll()).toMatchObject({
+    kind: 'VISIT',
+    recordIndex: 0,
+    metadata: { vertexVisitorsChainState: undefined },
+  });
 });
 
 test('waits for a sequential command batch and resumes after its halt', () => {
@@ -31,6 +51,8 @@ test('waits for a sequential command batch and resumes after its halt', () => {
     family: 'tree',
   });
 
+  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
+  chain.commitBatch({ halt: false, deleted: false });
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 0,
@@ -119,6 +141,8 @@ test('does not pause for a halt that was not requested by its command batch', ()
     family: 'dag',
   });
 
+  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
+  chain.commitBatch({ halt: false, deleted: false });
   chain.poll();
   chain.submit({ ok: true, value: undefined });
   expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
@@ -134,10 +158,13 @@ test('stops before another callback after deletion or invalidation', () => {
     metadata: metadata(),
     family: 'tree',
   });
+  expect(deleted.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
+  deleted.commitBatch({ halt: false, deleted: false });
   deleted.poll();
   deleted.submit({ ok: true, value: undefined });
   deleted.poll();
   deleted.commitBatch({ halt: false, deleted: true });
+  expect(deleted.poll()).toEqual({ kind: 'DONE' });
   expect(deleted.poll()).toEqual({ kind: 'DONE' });
 
   const invalid = new VisitorChain<Tree>({
@@ -148,6 +175,38 @@ test('stops before another callback after deletion or invalidation', () => {
   });
   invalid.invalidate();
   expect(invalid.poll()).toEqual({ kind: 'DONE' });
+});
+
+test('rejects submit and commit calls outside their transition boundaries', () => {
+  const chain = new VisitorChain<Tree>({
+    ref: ref(),
+    records: [record(Style.SEQUENTIAL)],
+    metadata: metadata(),
+    family: 'tree',
+  });
+
+  expect(() => chain.submit({ ok: true, value: undefined })).toThrow(
+    /not waiting for an outcome/i,
+  );
+  expect(() => chain.commitBatch({ halt: false, deleted: false })).toThrow(
+    /no command batch to commit/i,
+  );
+
+  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
+  chain.commitBatch({ halt: false, deleted: false });
+  chain.poll();
+  chain.submit({ ok: true, value: undefined });
+  expect(() => chain.commitBatch({ halt: false, deleted: false })).toThrow(
+    /no command batch to commit/i,
+  );
+
+  chain.invalidate();
+  expect(() => chain.submit({ ok: true, value: undefined })).toThrow(
+    /not waiting for an outcome/i,
+  );
+  expect(() => chain.commitBatch({ halt: false, deleted: false })).toThrow(
+    /no command batch to commit/i,
+  );
 });
 
 test('rejects every unknown style at admission and rethrows callback errors', () => {
@@ -168,6 +227,8 @@ test('rejects every unknown style at admission and rethrows callback errors', ()
     family: 'tree',
   });
   const failure = { reason: 'visitor failed' };
+  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
+  chain.commitBatch({ halt: false, deleted: false });
   chain.poll();
   let caught: unknown;
   try {

@@ -7,6 +7,12 @@ import type {
   TraversalVisitorRecord,
 } from './TraversalVisitor';
 import { VisitorChain } from './visitors/VisitorChain';
+import type { VisitorChainPoll } from './visitors/types';
+
+type SynchronousVisitorChainAction<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = Exclude<VisitorChainPoll<TTP, RW_TTP>, { kind: 'WAIT' | 'PAUSED' }>;
 
 export type VisitorExecutionState<TTP extends TreeTypeParameters> = {
   vertexVisitIndex: number;
@@ -39,7 +45,11 @@ export function* executeVisitors<
   const records = input.records.slice();
   const chain = new VisitorChain<TTP, RW_TTP>({
     ref: vertexRef,
-    records,
+    records: records.map(({ addedIndex, priority, resolutionStyle }) => ({
+      addedIndex,
+      priority,
+      resolutionStyle,
+    })),
     metadata: {
       ...state,
       vertexVisitorsChainState: null,
@@ -49,13 +59,10 @@ export function* executeVisitors<
   state.curVertexVisitorVisitIndex = 0;
 
   while (true) {
-    const action = chain.poll();
+    const action = chain.poll() as SynchronousVisitorChainAction<TTP, RW_TTP>;
     switch (action.kind) {
       case 'VISIT': {
-        const record = records[action.recordIndex];
-        if (record === undefined) {
-          throw new Error('Visitor chain selected an unknown record');
-        }
+        const record = records[action.recordIndex]!;
         state.curVertexVisitorVisitIndex =
           action.metadata.curVertexVisitorVisitIndex;
         const result = record.visitor(
@@ -68,8 +75,9 @@ export function* executeVisitors<
       }
       case 'COMMANDS': {
         const result = input.executeCommands(action.commands);
+        const halted = input.isHalted();
         chain.commitBatch({
-          halt: input.isHalted(),
+          halt: halted,
           deleted: input.isDeleted(),
           ...(Object.prototype.hasOwnProperty.call(
             result,
@@ -80,18 +88,16 @@ export function* executeVisitors<
               }
             : {}),
         });
+        if (halted) {
+          yield;
+          chain.resume();
+        }
         break;
       }
-      case 'PAUSED':
-        yield;
-        chain.resume();
-        break;
       case 'DONE':
         state.previousVisitedVertexRef = vertexRef;
         state.vertexVisitIndex++;
         return;
-      case 'WAIT':
-        throw new Error('Synchronous visitor chain is unexpectedly waiting');
     }
   }
 }
