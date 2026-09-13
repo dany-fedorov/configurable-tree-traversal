@@ -30,9 +30,9 @@ function traversal(
   });
 }
 
-async function values(
-  runner: ReturnType<ReturnType<typeof traversal>['makeRunner']>,
-): Promise<string[]> {
+async function values(runner: {
+  getIterable(): AsyncIterable<{ vertex: { getData(): string } }>;
+}): Promise<string[]> {
   const seen: string[] = [];
   for await (const event of runner.getIterable())
     seen.push(event.vertex.getData());
@@ -169,6 +169,50 @@ test('preserves paused visitor outcomes through repeated resumptions', async () 
   expect(runner.getStatus()).toBe(Status.FINISHED);
 });
 
+test('retains prefetched outcomes settled during halt and resumes in dequeue order', async () => {
+  type Result = { vertexContent: { $d: string; $c: string[] } };
+  const pending = {
+    A: deferred<Result>(),
+    B: deferred<Result>(),
+    C: deferred<Result>(),
+  };
+  const calls: string[] = [];
+  const traversal = new AsyncBreadthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => ({
+        vertexContent: { $d: 'root', $c: ['A', 'B', 'C'] },
+      }),
+      makeVertex: (hint) => {
+        calls.push(hint);
+        return pending[hint as keyof typeof pending].promise;
+      },
+    },
+    concurrency: 3,
+  });
+  traversal.addVisitorFor(Order.LEVEL_ORDER, async (vertex) =>
+    vertex.getData() === 'A'
+      ? { commands: [{ commandName: Command.HALT_TRAVERSAL }] }
+      : undefined,
+  );
+  const runner = traversal.makeRunner();
+  const iterator = runner.getIterable();
+
+  expect((await iterator.next()).value?.vertex.getData()).toBe('root');
+  const halted = iterator.next();
+  await eventLoopTurn();
+  expect(calls).toEqual(['A', 'B', 'C']);
+  pending.A.resolve({ vertexContent: { $d: 'A', $c: [] } });
+  expect(await halted).toEqual({ done: true, value: undefined });
+  expect(runner.getStatus()).toBe(Status.HALTED);
+
+  pending.C.resolve({ vertexContent: { $d: 'C', $c: [] } });
+  pending.B.resolve({ vertexContent: { $d: 'B', $c: [] } });
+  await eventLoopTurn();
+
+  await expect(values(runner)).resolves.toEqual(['A', 'B', 'C']);
+  expect(calls).toEqual(['A', 'B', 'C']);
+});
+
 test('uses new iterator filters when resuming after consumer closure', async () => {
   const visited: string[] = [];
   const t = traversal(node('root', node('child')));
@@ -205,6 +249,42 @@ test('directly exposes session iterator ownership and synchronous close control'
     value: undefined,
   });
   expect(runner.getStatus()).toBe(Status.HALTED);
+});
+
+test('an unopened iterator does not change later execution filters', async () => {
+  const visited: string[] = [];
+  const t = traversal(node('root'));
+  t.addVisitorFor(Order.LEVEL_ORDER, async (vertex) => {
+    visited.push(vertex.getData());
+  });
+  const runner = t.makeRunner();
+
+  runner.getIterable({
+    disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+  });
+  await runner.run();
+
+  expect(visited).toEqual(['root']);
+});
+
+test('a lease-rejected iterator does not change resumed execution filters', async () => {
+  const visited: string[] = [];
+  const t = traversal(node('root', node('child')));
+  t.addVisitorFor(Order.LEVEL_ORDER, async (vertex) => {
+    visited.push(vertex.getData());
+  });
+  const runner = t.makeRunner();
+  const active = runner.getIterable();
+  expect((await active.next()).value?.vertex.getData()).toBe('root');
+
+  const rejected = runner.getIterable({
+    disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+  });
+  await expect(rejected.next()).rejects.toThrow('Another active iterator');
+  await active.return(undefined);
+  await runner.run();
+
+  expect(visited).toEqual(['root', 'child']);
 });
 
 test('snapshots builder configuration and reuses injected tree storage and state', async () => {
@@ -285,8 +365,26 @@ test('validates, defaults, and inspects concurrency without advancing traversal'
   expect(runner.getStatus()).toBe(Status.INITIAL);
   expect(() => traversal(undefined, 0)).toThrow(TypeError);
   expect(() => traversal(undefined, 1.5)).toThrow(TypeError);
+  expect(traversal().makeRunner().inspect().concurrency).toBe(Infinity);
   expect(
     Object.isFrozen(ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG),
+  ).toBe(true);
+  expect(
+    Object.isFrozen(
+      ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.visitors,
+    ),
+  ).toBe(true);
+  expect(
+    Object.isFrozen(
+      ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.visitors[
+        Order.LEVEL_ORDER
+      ],
+    ),
+  ).toBe(true);
+  expect(
+    Object.isFrozen(
+      ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.traversalRunnerInternalObjects,
+    ),
   ).toBe(true);
 });
 

@@ -178,21 +178,21 @@ export class AsyncBreadthFirstTraversalRunner<
   getIterable(
     config?: BreadthFirstTraversalRunnerIterableConfigInput,
   ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown> {
-    if (config !== undefined) {
-      this.iterableConfig =
-        makeEffectiveBreadthFirstTraversalRunnerIterableConfig(config);
-    }
-    return this.execution.getIterable(this.iterableConfig);
+    return this.execution.getIterable(
+      config === undefined
+        ? undefined
+        : makeEffectiveBreadthFirstTraversalRunnerIterableConfig(config),
+    );
   }
 
   async run(
     config?: BreadthFirstTraversalRunnerIterableConfigInput,
   ): Promise<this> {
-    if (config !== undefined) {
-      this.iterableConfig =
-        makeEffectiveBreadthFirstTraversalRunnerIterableConfig(config);
-    }
-    await this.execution.run(this.iterableConfig);
+    await this.execution.run(
+      config === undefined
+        ? undefined
+        : makeEffectiveBreadthFirstTraversalRunnerIterableConfig(config),
+    );
     return this;
   }
 
@@ -218,10 +218,15 @@ export class AsyncBreadthFirstTraversalRunner<
       acknowledgeEvent: (boundaryId) => control.acknowledgeEvent(boundaryId),
       requestHalt: () => control.requestHalt(),
       isHaltRequested: () => control.isHaltRequested(),
-      resume: (config) =>
-        control.resume(
-          config as Partial<BreadthFirstTraversalRunnerIterableConfig>,
-        ),
+      resume: (config) => {
+        if (config !== undefined) {
+          this.iterableConfig =
+            makeEffectiveBreadthFirstTraversalRunnerIterableConfig(
+              config as BreadthFirstTraversalRunnerIterableConfig,
+            );
+        }
+        control.resume(this.iterableConfig);
+      },
       getStatus: () => control.getStatus(),
       getFailure: () => control.getFailure(),
       inspect: () => control.inspect(),
