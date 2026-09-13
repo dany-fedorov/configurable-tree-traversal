@@ -1,8 +1,11 @@
 import {
+  AsyncBreadthFirstTraversal,
   AsyncDepthFirstTraversal,
+  BreadthFirstTraversalOrder,
   DepthFirstTraversalOrder,
   TraversalVisitorCommandName,
   type AsyncCoreExecution,
+  type AsyncBreadthFirstTraversalInstanceConfig,
   type AsyncDepthFirstTraversalInstanceConfig,
   type AsyncTraversalVisitor,
   type AsyncTraversableTree,
@@ -73,6 +76,62 @@ const execution: AsyncCoreExecution<
 const iterable: AsyncGenerator = runner.getIterable();
 const result: Promise<typeof runner> = runner.run();
 
+const breadthConfig: AsyncBreadthFirstTraversalInstanceConfig<Input, Output> = {
+  traversableTree: tree,
+  sortChildrenHints: async (hints) => hints,
+  visitors: { [BreadthFirstTraversalOrder.LEVEL_ORDER]: [] },
+  saveNotMutatedResolvedTree: false,
+  traversalRunnerInternalObjects: {
+    resolvedTreesContainer: null,
+    state: null,
+  },
+  concurrency: 2,
+};
+const breadthTraversal = new AsyncBreadthFirstTraversal<Input, Output>(
+  breadthConfig,
+);
+const breadthVisitor: AsyncTraversalVisitor<
+  BreadthFirstTraversalOrder,
+  Input,
+  Output
+> = async () => ({
+  commands: [
+    {
+      commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+      commandArguments: { newData: { output: 2 } },
+    },
+  ],
+});
+breadthTraversal.addVisitorFor(
+  BreadthFirstTraversalOrder.LEVEL_ORDER,
+  breadthVisitor,
+);
+breadthTraversal.setVisitorsFor(
+  BreadthFirstTraversalOrder.LEVEL_ORDER,
+  breadthTraversal.listVisitorsFor(BreadthFirstTraversalOrder.LEVEL_ORDER),
+);
+const breadthRunner = breadthTraversal.makeRunner();
+const breadthExecution: AsyncCoreExecution<
+  ReturnType<typeof breadthRunner.getIterable> extends AsyncGenerator<infer E>
+    ? E
+    : never
+> = breadthRunner;
+const breadthIterable: AsyncGenerator = breadthRunner.getIterable();
+const breadthResult: Promise<typeof breadthRunner> = breadthRunner.run();
+
+breadthTraversal.addVisitorFor(
+  BreadthFirstTraversalOrder.LEVEL_ORDER,
+  // @ts-expect-error Async BFS visitors must rewrite to the output data type.
+  async () => ({
+    commands: [
+      {
+        commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+        commandArguments: { newData: { input: 'wrong' } },
+      },
+    ],
+  }),
+);
+
 // @ts-expect-error Async DFS visitors must rewrite to the output data type.
 traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, async () => ({
   commands: [
@@ -83,4 +142,11 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, async () => ({
   ],
 }));
 
-void [execution, iterable, result];
+void [
+  execution,
+  iterable,
+  result,
+  breadthExecution,
+  breadthIterable,
+  breadthResult,
+];
