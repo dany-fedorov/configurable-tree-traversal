@@ -111,7 +111,7 @@ Do not use timer-duration assertions. Deferreds choose settlement order; `eventL
 
 **Interfaces:** consumes current `BreadthFirstTraversal`, `DepthFirstTraversal`, `ResolvedTree`, and `VertexResolved`; produces baseline trace tests and `TestGraph`, `GraphFixture`, `diamond`, `graphAdapter`, `deferred`, `eventLoopTurn` fixtures.
 
-- [ ] Add this passing characterization test, importing the current BFS class:
+- [x] Add this passing characterization test, importing the current BFS class:
 
 ```ts
 test('BFS resolves one queued child at the next visit boundary', () => {
@@ -134,8 +134,8 @@ test('BFS resolves one queued child at the next visit boundary', () => {
 });
 ```
 
-- [ ] Add an exact DFS trace recording adapter calls, visitor calls, iterator events, parent data in each resolution context, and resolved-tree contents. Rewrite the parent data in an in-order visitor and assert the next child's context observes that version. Add `get(ref) === suppliedRecord`, child-array identity, and existing injected-container identity assertions.
-- [ ] Run `npm test -- tests/traversal-callback-contract.test.ts tests/runner-state.test.ts tests/resolved-tree-coverage.test.ts tests/core-edge-cases.test.ts`, then `npm run typecheck`. All should pass on the baseline; investigate any failure before refactoring.
+- [x] Add an exact DFS trace recording adapter calls, visitor calls, iterator events, parent data in each resolution context, and resolved-tree contents. Rewrite the parent data in an in-order visitor and assert the next child's context observes that version. Add `get(ref) === suppliedRecord`, child-array identity, and existing injected-container identity assertions.
+- [x] Run `npm test -- tests/traversal-callback-contract.test.ts tests/runner-state.test.ts tests/resolved-tree-coverage.test.ts tests/core-edge-cases.test.ts`, then `npm run typecheck`. All should pass on the baseline; investigate any failure before refactoring.
 
 **Stop condition:** new characterization assertions agree with current code, and the fixtures introduce no dependency on future APIs.
 
@@ -762,3 +762,16 @@ At the listed review gates, inspect the integrated diff against the contracts.
 Raise concrete contradictions with their assumption/task ids; keep the chosen
 architecture unless the user approves a change. Do not commit or publish unless asked.
 ```
+
+## Execution report
+
+### Task 1: Lock down current callback and storage behavior
+
+- Baseline commit: `2bb4d26` (`Finalize unified graph core handoff`).
+- Initial status: clean `main`, ahead of `origin/main` by 3 commits.
+- Changed files: `tests/helpers/graph-fixtures.ts`, `tests/traversal-callback-contract.test.ts`, and this handoff record.
+- `npm test -- tests/traversal-callback-contract.test.ts tests/runner-state.test.ts tests/resolved-tree-coverage.test.ts tests/core-edge-cases.test.ts`: passed, 4 suites and 24 tests.
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `git diff --check`: passed.
+- Result: current BFS next-boundary laziness, exact DFS callback/context/event ordering, rewritten-parent context timing, resolved-tree contents, supplied-record and child-array identity, and injected-container store identity are pinned. The graph fixture has no dependency on future source APIs.
