@@ -86,9 +86,9 @@ test('closes while root resolution is pending and consumes it after resume', asy
 
 test('validates callback result kinds and concurrency', async () => {
   const kernel = makeKernel();
-  expect(() => createAsyncDriver(kernel, {} as CallbackBindings<TestGraph>, 0)).toThrow(
-    /positive integer.*Infinity/i,
-  );
+  expect(() =>
+    createAsyncDriver(kernel, {} as CallbackBindings<TestGraph>, 0),
+  ).toThrow(/positive integer.*Infinity/i);
   const driver = createAsyncDriver(
     kernel,
     {
@@ -193,11 +193,14 @@ test('deletion cancels queued callbacks while an invalid running permit drains',
 
   const internals = kernel as unknown as {
     scheduling: { deleteVertex(ref: Ref<TestGraph>): Set<Ref<TestGraph>> };
-    invalidateRefs(refs: ReadonlySet<Ref<TestGraph>>, except: {
-      kind: 'chain';
-      id: number;
-      epoch: number;
-    }): void;
+    invalidateRefs(
+      refs: ReadonlySet<Ref<TestGraph>>,
+      except: {
+        kind: 'chain';
+        id: number;
+        epoch: number;
+      },
+    ): void;
   };
   const removed = internals.scheduling.deleteVertex(rootEvent.event.vertexRef);
   internals.invalidateRefs(removed, { kind: 'chain', id: -1, epoch: 0 });
@@ -320,4 +323,75 @@ test('applies a settled invalidation before admitting a released permit', async 
 
   expect(driver.advance('settle')).toEqual({ kind: 'WAIT' });
   expect(started).toEqual([1]);
+});
+
+test('clears close-acknowledged boundary suppression on failure', () => {
+  let failed = false;
+  const acknowledgements: number[] = [];
+  const kernel = {
+    poll: () =>
+      failed
+        ? { kind: 'FAILED' as const, error: new Error('drain failed') }
+        : { kind: 'EVENT' as const, event: {} as never, boundaryId: 1 },
+    acknowledgeEvent(boundaryId: number) {
+      acknowledgements.push(boundaryId);
+    },
+    requestHalt() {
+      failed = true;
+    },
+    isHaltRequested: () => failed,
+    isRequestValid: () => true,
+    isRequestEligible: () => true,
+  } as unknown as KernelPort<TestGraph>;
+  const driver = createAsyncDriver(
+    kernel,
+    {} as CallbackBindings<TestGraph>,
+    1,
+  );
+
+  expect(driver.advance('drive')).toMatchObject({
+    kind: 'EVENT',
+    boundaryId: 1,
+  });
+  driver.requestHalt();
+  expect(driver.advance('drain')).toMatchObject({ kind: 'FAILED' });
+  driver.acknowledgeEvent(1);
+
+  expect(acknowledgements).toEqual([1, 1]);
+});
+
+test('clears close-boundary bookkeeping when draining throws', () => {
+  let draining = false;
+  const error = new Error('drain threw');
+  const acknowledgements: number[] = [];
+  const kernel = {
+    poll() {
+      if (draining) throw error;
+      return { kind: 'EVENT' as const, event: {} as never, boundaryId: 2 };
+    },
+    acknowledgeEvent(boundaryId: number) {
+      acknowledgements.push(boundaryId);
+    },
+    requestHalt() {
+      draining = true;
+    },
+    isHaltRequested: () => draining,
+    isRequestValid: () => true,
+    isRequestEligible: () => true,
+  } as unknown as KernelPort<TestGraph>;
+  const driver = createAsyncDriver(
+    kernel,
+    {} as CallbackBindings<TestGraph>,
+    1,
+  );
+
+  expect(driver.advance('drive')).toMatchObject({
+    kind: 'EVENT',
+    boundaryId: 2,
+  });
+  driver.requestHalt();
+  expect(() => driver.advance('drain')).toThrow(error);
+  driver.acknowledgeEvent(2);
+
+  expect(acknowledgements).toEqual([2, 2]);
 });

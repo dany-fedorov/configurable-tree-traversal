@@ -16,10 +16,6 @@ import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversalRunnerIteratorResultContent } from '@core/TraversalRunner';
 import { TraversalKernel } from '@core/TraversalKernel';
 import type { Vertex } from '@core/Vertex';
-import {
-  DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  type DepthFirstTraversalInstanceConfig,
-} from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import {
   mergeAsyncBreadthFirstTraversalInstanceConfigs,
@@ -70,18 +66,16 @@ export class AsyncBreadthFirstTraversalRunner<
       this.icfg.traversalRunnerInternalObjects.state,
     );
     const resolvedTreeConfig = {
-      ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-      traversableTree: this.icfg.traversableTree,
       saveNotMutatedResolvedTree: this.icfg.saveNotMutatedResolvedTree,
       traversalRunnerInternalObjects: {
-        ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.traversalRunnerInternalObjects,
         resolvedTreesContainer:
           this.icfg.traversalRunnerInternalObjects.resolvedTreesContainer,
       },
-    } as unknown as DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
-    this.resolvedTreesContainer = new DepthFirstTraversalResolvedTreesContainer(
-      resolvedTreeConfig,
-    );
+    };
+    this.resolvedTreesContainer = new DepthFirstTraversalResolvedTreesContainer<
+      TTP,
+      RW_TTP
+    >(resolvedTreeConfig);
     const graphContainer = new ResolvedGraphsContainer<TTP, RW_TTP>({
       sourceMode: 'tree',
       saveOriginal: false,

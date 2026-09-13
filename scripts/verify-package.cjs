@@ -144,7 +144,8 @@ try {
     path.join(consumer, 'consumer.ts'),
     `
     import { AsyncBreadthFirstTraversal, AsyncDagTraversal, AsyncDepthFirstTraversal, DepthFirstTraversal, DepthFirstTraversalOrder, BreadthFirstTraversal, DagTraversal, DagTraversalOrder, TraversableObjectTree, TraversalRunnerStatus, TraversalVisitorCommandName, core, rewriteObject, traverseBreadthFirstAsync, traverseDag, traverseDagAsync, traverseDepthFirst, traverseDepthFirstAsync } from 'configurable-tree-traversal';
-    import type { AsyncTraversableGraph, CoreInspection, ResolvedGraph, TraversalRunner, TraversableGraph, TraversableTree, TreeTypeParameters, TraversalVisitorCommand } from 'configurable-tree-traversal';
+    import type { AsyncTraversableGraph, ChildSlot, CoreInspection, GraphEdge, GraphVertex, GraphVertexStatus, HintVertexId, MaybePromise, ResolvedGraph, TraversalRunner, TraversableGraph, TraversableTree, TreeTypeParameters, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
+    import type { ChildSlot as CoreChildSlot, GraphEdge as CoreGraphEdge, GraphVertex as CoreGraphVertex, GraphVertexStatus as CoreGraphVertexStatus, HintVertexId as CoreHintVertexId, MaybePromise as CoreMaybePromise, VertexId as CoreVertexId } from 'configurable-tree-traversal/core';
     import type { DepthFirstTraversalRunnerIterableConfigInput } from 'configurable-tree-traversal/traversals/depth-first-traversal';
     import type { DagTraversalRunnerIterableConfigInput } from 'configurable-tree-traversal/traversals/dag-traversal';
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
@@ -200,6 +201,7 @@ try {
     const asyncBreadth = new AsyncBreadthFirstTraversal({ traversableTree: abstractTree }).makeRunner();
     const asyncDag = new AsyncDagTraversal({ traversableGraph: asyncGraph, concurrency: 2 }).makeRunner();
     const inspection: CoreInspection = asyncDag.inspect();
+    const publicTypes: [VertexId, HintVertexId, MaybePromise<string>, GraphVertexStatus, GraphEdge<Tree> | null, ChildSlot<Tree> | null, GraphVertex<Tree> | null, CoreVertexId, CoreHintVertexId, CoreMaybePromise<string>, CoreGraphVertexStatus, CoreGraphEdge<Tree> | null, CoreChildSlot<Tree> | null, CoreGraphVertex<Tree> | null] = ['id', { vertexId: 'id' }, 'value', 'READY', null, null, null, 'core-id', { vertexId: 'core-id' }, Promise.resolve('value'), 'COMPLETE', null, null, null];
     const asyncRuns: Promise<unknown>[] = [
       asyncDepth.run(), asyncBreadth.run(), asyncDag.run(),
       traverseDepthFirstAsync(abstractTree, null),
@@ -207,7 +209,7 @@ try {
       traverseDagAsync({ traversableGraph: asyncGraph }, null),
     ];
     const syncDag = traverseDag({ traversableGraph: graph }, null);
-    void [Vertex, ExplicitVertex, core.Vertex, value, status, failedStatus, convenience, resolvedGraph, inspection, asyncRuns, syncDag];
+    void [Vertex, ExplicitVertex, core.Vertex, value, status, failedStatus, convenience, resolvedGraph, inspection, publicTypes, asyncRuns, syncDag];
   `,
   );
   for (const resolution of ['node', 'node16']) {

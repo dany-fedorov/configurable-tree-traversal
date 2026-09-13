@@ -52,7 +52,12 @@ export class DepthFirstTraversalRunnerState<
     [number, number]
   >;
 
-  constructor(cfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
+  constructor(
+    cfg: Pick<
+      DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
+      'traversalRunnerInternalObjects'
+    >,
+  ) {
     const from = cfg?.traversalRunnerInternalObjects?.state ?? null;
     this.STACK = from?.STACK != null ? from?.STACK : [];
     this.postOrderNotVisitedChildrenCountMap =

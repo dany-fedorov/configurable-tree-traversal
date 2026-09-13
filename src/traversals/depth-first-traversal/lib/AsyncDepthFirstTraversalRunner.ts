@@ -54,11 +54,9 @@ export class AsyncDepthFirstTraversalRunner<
         records.map((record) => ({ ...record })),
       ]),
     ) as typeof this.icfg.visitors;
-    this.state = new DepthFirstTraversalRunnerState(
-      this.icfg as never,
-    );
+    this.state = new DepthFirstTraversalRunnerState(this.icfg);
     this.resolvedTreesContainer = new DepthFirstTraversalResolvedTreesContainer(
-      this.icfg as never,
+      this.icfg,
     );
     const graphContainer = new ResolvedGraphsContainer<TTP, RW_TTP>({
       sourceMode: 'tree',
@@ -82,10 +80,12 @@ export class AsyncDepthFirstTraversalRunner<
       visit: Object.fromEntries(
         Object.values(DepthFirstTraversalOrder).map((order) => [
           order,
-          (call: Extract<
-            import('@core/effects/types').CallSpec<TTP, RW_TTP>,
-            { kind: 'VISIT' }
-          >) => {
+          (
+            call: Extract<
+              import('@core/effects/types').CallSpec<TTP, RW_TTP>,
+              { kind: 'VISIT' }
+            >,
+          ) => {
             const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
             return visitorRecord.visitor(call.ref.unref(), {
               ...call.metadata,
@@ -96,8 +96,7 @@ export class AsyncDepthFirstTraversalRunner<
               isTraversalRoot: this.isTraversalRootVertex(call.ref),
               vertexRef: call.ref,
               visitorRecord,
-              vertexVisitorsChainState:
-                call.metadata.vertexVisitorsChainState,
+              vertexVisitorsChainState: call.metadata.vertexVisitorsChainState,
               order,
             });
           },
@@ -128,14 +127,8 @@ export class AsyncDepthFirstTraversalRunner<
       hasHintIds: false,
       concurrency: this.icfg.concurrency,
     });
-    const driver = createAsyncDriver(
-      kernel,
-      bindings,
-      this.icfg.concurrency,
-    );
-    this.execution = new AsyncRunnerSession(
-      this.projectEvents(driver),
-    );
+    const driver = createAsyncDriver(kernel, bindings, this.icfg.concurrency);
+    this.execution = new AsyncRunnerSession(this.projectEvents(driver));
   }
 
   getStatus() {
@@ -208,9 +201,10 @@ export class AsyncDepthFirstTraversalRunner<
       acknowledgeEvent: (boundaryId) => control.acknowledgeEvent(boundaryId),
       requestHalt: () => control.requestHalt(),
       isHaltRequested: () => control.isHaltRequested(),
-      resume: (config) => control.resume(
-        config as Partial<DepthFirstTraversalRunnerIterableConfig>,
-      ),
+      resume: (config) =>
+        control.resume(
+          config as Partial<DepthFirstTraversalRunnerIterableConfig>,
+        ),
       getStatus: () => control.getStatus(),
       getFailure: () => control.getFailure(),
       inspect: () => control.inspect(),

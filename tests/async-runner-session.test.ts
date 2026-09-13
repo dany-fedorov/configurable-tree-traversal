@@ -1,8 +1,6 @@
 import type { DriverInspection } from '../src/core/CoreInspection';
 import type { TraversalRunnerIterableConfig } from '../src/core/TraversalRunnerIterableConfig';
-import {
-  TraversalRunnerStatus,
-} from '../src/core/TraversalRunner';
+import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import type { VisitOrder } from '../src/core/effects/types';
 import type {
   AsyncSessionControl,
@@ -68,7 +66,8 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
     if (action.kind === 'EVENT') {
       this.outstandingBoundaries.add(action.boundaryId);
     }
-    if (action.kind === 'FINISHED') this.status = TraversalRunnerStatus.FINISHED;
+    if (action.kind === 'FINISHED')
+      this.status = TraversalRunnerStatus.FINISHED;
     if (action.kind === 'HALTED') this.status = TraversalRunnerStatus.HALTED;
     if (action.kind === 'FAILED') {
       this.status = TraversalRunnerStatus.FAILED;
@@ -108,7 +107,11 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
   }
 
   public inspect(): DriverInspection {
-    return { ...inspection, status: this.status, haltRequested: this.haltRequested };
+    return {
+      ...inspection,
+      status: this.status,
+      haltRequested: this.haltRequested,
+    };
   }
 
   public waitForProgress(): Promise<void> {
@@ -189,7 +192,10 @@ test('queues next calls, settles while idle, and acknowledges delivered boundari
   const session = new AsyncRunnerSession(control);
   const iterator = session.getIterable();
 
-  await expect(iterator.next()).resolves.toEqual({ done: false, value: 'first' });
+  await expect(iterator.next()).resolves.toEqual({
+    done: false,
+    value: 'first',
+  });
   expect(session.inspect().bufferedEventCount).toBe(1);
   expect(control.modes.slice(0, 3)).toEqual(['drive', 'settle', 'settle']);
 
@@ -372,6 +378,57 @@ test('preserves an undefined traversal failure through close and later execution
   await expect(close).rejects.toBeUndefined();
   await expect(pending).rejects.toBeUndefined();
   await expect(session.run()).rejects.toBeUndefined();
+});
+
+test('captures an undefined control exception without rejecting the detached pump', async () => {
+  const control = new FakeAsyncSessionControl<string>();
+  control.advance = () => {
+    throw undefined;
+  };
+  const session = new AsyncRunnerSession(control);
+
+  await expect(
+    Promise.race([
+      session.getIterable().next(),
+      new Promise<never>((_resolve, reject) => {
+        setTimeout(() => reject(new Error('session pump timed out')), 100);
+      }),
+    ]),
+  ).rejects.toBeUndefined();
+  expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+});
+
+test('fails the session when acknowledging a delivered boundary throws', async () => {
+  const control = new FakeAsyncSessionControl<string>();
+  const error = new Error('acknowledgement failed');
+  control.enqueue({ kind: 'EVENT', event: 'value', boundaryId: 40 });
+  const session = new AsyncRunnerSession(control);
+  const iterator = session.getIterable();
+  await expect(iterator.next()).resolves.toEqual({
+    done: false,
+    value: 'value',
+  });
+  control.acknowledgeEvent = () => {
+    throw error;
+  };
+
+  await expect(iterator.next()).rejects.toBe(error);
+  expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+});
+
+test('rejects close and pending demand when requesting halt throws', async () => {
+  const control = new FakeAsyncSessionControl<string>();
+  const error = new Error('halt request failed');
+  const session = new AsyncRunnerSession(control);
+  const iterator = session.getIterable();
+  const pending = iterator.next();
+  control.requestHalt = () => {
+    throw error;
+  };
+
+  await expect(iterator.return(undefined)).rejects.toBe(error);
+  await expect(pending).rejects.toBe(error);
+  expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
 });
 
 test('run drains the session iterator, returns itself, and applies its config', async () => {

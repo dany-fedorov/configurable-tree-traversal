@@ -9,10 +9,7 @@ import type {
   KernelPort,
   PumpMode,
 } from '@core/effects/types';
-import type {
-  AsyncSessionControl,
-  SessionProgress,
-} from '@core/kernelTypes';
+import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import { CallbackScheduler } from '@core/drivers/CallbackScheduler';
 import { Wakeup } from '@core/drivers/Wakeup';
 
@@ -35,6 +32,11 @@ export function createAsyncDriver<
   const closeAcknowledgedBoundaries = new Set<number>();
   let emittedBoundaryId: number | null = null;
   let closing = false;
+
+  function clearFailedBoundaryBookkeeping(): void {
+    closeAcknowledgedBoundaries.clear();
+    emittedBoundaryId = null;
+  }
 
   function discardInvalidQueued(): void {
     const discarded = scheduler.discardQueued(
@@ -80,22 +82,29 @@ export function createAsyncDriver<
         closeAcknowledgedBoundaries.add(emittedBoundaryId);
         emittedBoundaryId = null;
       }
-      submitSettled();
-      let effectiveMode = mode;
-      for (;;) {
-        const action = kernel.poll(effectiveMode);
-        if (kernel.isHaltRequested()) effectiveMode = 'drain';
-        discardInvalidQueued();
-        if (action.kind === 'CALL') enqueue(action.call);
-        scheduler.startEligible((requestId) =>
-          kernel.isRequestEligible(requestId, effectiveMode),
-        );
-        if (action.kind === 'EVENT') {
-          if (action.boundaryId === emittedBoundaryId) return { kind: 'WAIT' };
-          emittedBoundaryId = action.boundaryId;
-          return action;
+      try {
+        submitSettled();
+        let effectiveMode = mode;
+        for (;;) {
+          const action = kernel.poll(effectiveMode);
+          if (kernel.isHaltRequested()) effectiveMode = 'drain';
+          discardInvalidQueued();
+          if (action.kind === 'CALL') enqueue(action.call);
+          scheduler.startEligible((requestId) =>
+            kernel.isRequestEligible(requestId, effectiveMode),
+          );
+          if (action.kind === 'EVENT') {
+            if (action.boundaryId === emittedBoundaryId)
+              return { kind: 'WAIT' };
+            emittedBoundaryId = action.boundaryId;
+            return action;
+          }
+          if (action.kind === 'FAILED') clearFailedBoundaryBookkeeping();
+          if (action.kind !== 'CALL') return action;
         }
-        if (action.kind !== 'CALL') return action;
+      } catch (error) {
+        clearFailedBoundaryBookkeeping();
+        throw error;
       }
     },
     acknowledgeEvent: (boundaryId) => {

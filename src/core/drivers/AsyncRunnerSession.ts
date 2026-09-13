@@ -42,7 +42,9 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
   public constructor(private readonly control: AsyncSessionControl<E>) {}
 
   public getStatus(): TraversalRunnerStatus {
-    return this.control.getStatus();
+    return this.observedFailure === null
+      ? this.control.getStatus()
+      : TraversalRunnerStatus.FAILED;
   }
 
   public isHalted(): boolean {
@@ -52,6 +54,7 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
   public inspect(): CoreInspection {
     return Object.freeze({
       ...this.control.inspect(),
+      status: this.getStatus(),
       bufferedEventCount: this.bufferedEvents.length,
     });
   }
@@ -97,24 +100,33 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
       }
       state.phase = 'active';
       this.activeIterator = state;
-      const failure = this.control.getFailure();
-      if (failure !== null) {
-        this.release(state);
-        return Promise.reject(failure.error);
-      }
-      if (this.control.getStatus() === TraversalRunnerStatus.FINISHED) {
-        this.release(state);
-        return Promise.resolve(done);
-      }
       try {
+        const failure = this.control.getFailure();
+        if (failure !== null) {
+          this.release(state);
+          return Promise.reject(failure.error);
+        }
+        if (this.control.getStatus() === TraversalRunnerStatus.FINISHED) {
+          this.release(state);
+          return Promise.resolve(done);
+        }
         this.control.resume(state.config);
       } catch (error) {
+        this.observeFailure(error);
         this.release(state);
         return Promise.reject(error);
       }
     }
 
-    if (state.phase === 'active') this.acknowledgeDeliveredBoundary();
+    if (state.phase === 'active') {
+      try {
+        this.acknowledgeDeliveredBoundary();
+      } catch (error) {
+        const failure = this.observeFailure(error);
+        this.fail(state, failure);
+        return Promise.reject(failure);
+      }
+    }
     const promise = new Promise<IteratorResult<E, void>>((resolve, reject) => {
       state.nextWaiters.push({ resolve, reject });
     });
@@ -140,7 +152,12 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
     );
     if (state.phase === 'active') {
       state.phase = 'closing';
-      this.control.requestHalt();
+      try {
+        this.control.requestHalt();
+      } catch (error) {
+        this.fail(state, this.observeFailure(error));
+        return promise;
+      }
     }
     this.requestPump();
     return promise;
@@ -215,9 +232,18 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
           this.demandWakeup.wait(),
         ]);
       }
+    } catch (error) {
+      const state = this.activeIterator;
+      const failure = this.observeFailure(error);
+      if (state !== null) this.fail(state, failure);
     } finally {
       this.pumping = false;
     }
+  }
+
+  private observeFailure(error: unknown): unknown {
+    if (this.observedFailure === null) this.observedFailure = { error };
+    return this.observedFailure.error;
   }
 
   private complete(state: IteratorState<E>): void {

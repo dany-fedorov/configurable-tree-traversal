@@ -41,13 +41,9 @@ test('reports a safe reconstructed cycle path for self and back edges', () => {
   store.prepareSlots(a, ['B']);
   store.prepareSlots(b, ['A']);
 
-  expect(() => store.linkSlot(a, 0, a)).toThrow(
-    /reference#1 -> reference#1/,
-  );
+  expect(() => store.linkSlot(a, 0, a)).toThrow(/reference#1 -> reference#1/);
   store.linkSlot(a, 0, b);
-  expect(() => store.linkSlot(b, 0, a)).toThrow(
-    /"B" -> reference#1 -> "B"/,
-  );
+  expect(() => store.linkSlot(b, 0, a)).toThrow(/"B" -> reference#1 -> "B"/);
 });
 
 test('preserves parallel slots while deduplicating parents and paths', () => {
@@ -183,7 +179,12 @@ test('returns shallow query snapshots and exposes no store mutations', () => {
   const root = ref('root', ['child']);
   const child = ref('child');
   store.insertVertex({ ref: root, id: 'root', dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: child, id: 'child', dependsOn: ['root'], depth: 1 });
+  store.insertVertex({
+    ref: child,
+    id: 'child',
+    dependsOn: ['root'],
+    depth: 1,
+  });
   store.setRoot(root);
   store.prepareSlots(root, ['child']);
   store.linkSlot(root, 0, child);
@@ -217,6 +218,33 @@ test('returns shallow query snapshots and exposes no store mutations', () => {
   expect(
     (store.graph as unknown as { linkSlot?: unknown }).linkSlot,
   ).toBeUndefined();
+});
+
+test('returns detached incoming edge and child slot records', () => {
+  const store = new GraphStore<TestGraph>('dag');
+  const root = ref('root', ['child']);
+  const child = ref('child');
+  store.insertVertex({ ref: root, id: 'root', dependsOn: [], depth: 0 });
+  store.insertVertex({ ref: child, id: 'child', dependsOn: [], depth: 1 });
+  store.prepareSlots(root, ['child']);
+  store.linkSlot(root, 0, child);
+
+  const edge = store.graph.get(child)!.incoming[0]!;
+  const slot = store.graph.get(root)!.slots[0]!;
+  (edge as { hintIndex: number }).hintIndex = 99;
+  (slot as { hint: string }).hint = 'corrupted';
+
+  expect(store.graph.get(child)!.incoming[0]).toMatchObject({
+    parentRef: root,
+    childRef: child,
+    hintIndex: 0,
+    hint: 'child',
+  });
+  expect(store.graph.get(root)!.slots[0]).toEqual({
+    kind: 'linked',
+    hint: 'child',
+    childRef: child,
+  });
 });
 
 test('supports empty roots and path filtering', () => {
@@ -309,9 +337,7 @@ test('handles deep chains iteratively for cycle checks and paths', () => {
   store.setRoot(refs[0]!);
 
   expect(store.graph.getPathsTo(refs[count - 1]!)[0]).toHaveLength(count);
-  expect(() => store.linkSlot(refs[count - 1]!, 0, refs[0]!)).toThrow(
-    /cycle/i,
-  );
+  expect(() => store.linkSlot(refs[count - 1]!, 0, refs[0]!)).toThrow(/cycle/i);
   expect(store.graph.getChildrenOf(refs[count - 1]!)).toEqual([]);
 });
 
@@ -323,14 +349,24 @@ test('enforces remaining mode and reference invariants', () => {
   dag.insertVertex({ ref: child, id: 'child', dependsOn: [], depth: 1 });
 
   expect(() =>
-    dag.insertVertex({ ref: parent, id: 'another-id', dependsOn: [], depth: 0 }),
+    dag.insertVertex({
+      ref: parent,
+      id: 'another-id',
+      dependsOn: [],
+      depth: 0,
+    }),
   ).toThrow(/reference/i);
   expect(() => dag.setRoot(ref('unknown'))).toThrow(/reference/i);
   expect(() => dag.setStatus(ref('unknown'), 'READY')).toThrow(/reference/i);
-  expect(() => dag.setTreeRecord(parent, new VertexResolved({
-    $d: { resolutionContext: null },
-    $c: [],
-  }))).toThrow(/tree mode/i);
+  expect(() =>
+    dag.setTreeRecord(
+      parent,
+      new VertexResolved({
+        $d: { resolutionContext: null },
+        $c: [],
+      }),
+    ),
+  ).toThrow(/tree mode/i);
   expect(dag.getTreeRecord(ref('unknown'))).toBeNull();
 
   dag.prepareSlots(parent, ['child']);
@@ -367,7 +403,12 @@ test('tree slot linking appends once and tree queries tolerate partial records',
   ]);
 
   const recordless = ref('recordless');
-  store.insertVertex({ ref: recordless, id: 'recordless', dependsOn: [], depth: 0 });
+  store.insertVertex({
+    ref: recordless,
+    id: 'recordless',
+    dependsOn: [],
+    depth: 0,
+  });
   expect(store.graph.get(recordless)?.slots).toEqual([]);
   expect(store.graph.getChildrenOf(recordless)).toEqual([]);
 });

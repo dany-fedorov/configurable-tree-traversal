@@ -18,6 +18,14 @@ import { ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/d
 import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 
+const rejectAfter = (milliseconds: number) =>
+  new Promise<never>((_resolve, reject) => {
+    setTimeout(
+      () => reject(new Error('async traversal timed out')),
+      milliseconds,
+    );
+  });
+
 test('visits a shared join once after all deferred prerequisites complete', async () => {
   const aVisit = deferred<void>();
   const bVisit = deferred<void>();
@@ -71,6 +79,44 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
 
   expect(visited.filter((data) => data === 'join')).toHaveLength(1);
   expect(visited).toEqual(['root', 'A', 'B', 'join']);
+});
+
+test('fails a hostile object-id stall without coercion, rejection, or hanging', async () => {
+  let coercions = 0;
+  const unhandled: unknown[] = [];
+  const listener = (error: unknown) => unhandled.push(error);
+  const hostileId = {
+    toString() {
+      coercions += 1;
+      throw new Error('must not coerce vertex ids');
+    },
+  };
+  process.on('unhandledRejection', listener);
+  try {
+    const runner = new AsyncDagTraversal<TestGraph>({
+      traversableGraph: {
+        makeRoot: () => ({
+          vertexContent: { $d: 'root', $c: ['blocked'] },
+          vertexId: 'root',
+        }),
+        makeVertex: () => ({
+          vertexContent: { $d: 'blocked', $c: [] },
+          vertexId: 'blocked',
+          dependsOn: [hostileId],
+        }),
+      },
+    }).makeRunner();
+
+    await expect(
+      Promise.race([runner.run(), rejectAfter(100)]),
+    ).rejects.toThrow(/DAG traversal stalled: "blocked", reference#1/);
+    await eventLoopTurn();
+    expect(coercions).toBe(0);
+    expect(unhandled).toEqual([]);
+    expect(runner.getStatus()).toBe(Status.FAILED);
+  } finally {
+    process.off('unhandledRejection', listener);
+  }
 });
 
 test('supports promised graph callbacks, sorting, hint identity, and snapshots', async () => {

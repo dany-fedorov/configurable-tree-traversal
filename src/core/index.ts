@@ -16,3 +16,12 @@ export * from './AsyncTraversalVisitor';
 export * from './CoreInspection';
 export * from './ResolvedGraph';
 export * from './TraversableGraph';
+export type {
+  ChildSlot,
+  GraphEdge,
+  GraphVertex,
+  GraphVertexStatus,
+  HintVertexId,
+  MaybePromise,
+  VertexId,
+} from './graph/types';

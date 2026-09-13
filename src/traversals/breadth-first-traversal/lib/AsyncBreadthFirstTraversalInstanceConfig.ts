@@ -4,11 +4,9 @@ import type { MaybePromise, VisitorRecord } from '@core/graph/types';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  mergeBreadthFirstTraversalInstanceConfigs,
   type BreadthFirstTraversalInstanceConfig,
-  type BreadthFirstTraversalInstanceConfigInput,
 } from './BreadthFirstTraversalInstanceConfig';
-import type { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
+import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type AsyncBreadthFirstTraversalVisitors<
@@ -55,15 +53,17 @@ export type AsyncBreadthFirstTraversalInstanceConfigInput<
   >;
 };
 
-export const ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG = deepFreeze(
-  {
-    ...BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-    concurrency: Infinity,
-  },
-) as unknown as Omit<
+export const ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   AsyncBreadthFirstTraversalInstanceConfig<TreeTypeParameters>,
   'traversableTree'
->;
+> = deepFreeze({
+  ...BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
+  sortChildrenHints: null,
+  visitors: {
+    [BreadthFirstTraversalOrder.LEVEL_ORDER]: [],
+  },
+  concurrency: Infinity,
+});
 
 export function mergeAsyncBreadthFirstTraversalInstanceConfigs<
   TTP extends TreeTypeParameters,
@@ -72,10 +72,19 @@ export function mergeAsyncBreadthFirstTraversalInstanceConfigs<
   base: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
   input: AsyncBreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
 ): AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP> {
-  const merged = mergeBreadthFirstTraversalInstanceConfigs(
-    base as unknown as BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-    input as unknown as BreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-  ) as unknown as AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
+  const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
+  const merged: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP> = {
+    ...base,
+    ...input,
+    visitors: {
+      [BreadthFirstTraversalOrder.LEVEL_ORDER]:
+        visitors[BreadthFirstTraversalOrder.LEVEL_ORDER].slice(),
+    },
+    traversalRunnerInternalObjects: {
+      ...base.traversalRunnerInternalObjects,
+      ...(input.traversalRunnerInternalObjects ?? {}),
+    },
+  };
   if (
     merged.concurrency !== Infinity &&
     (!Number.isInteger(merged.concurrency) || merged.concurrency <= 0)

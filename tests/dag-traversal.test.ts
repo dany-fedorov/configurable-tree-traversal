@@ -40,9 +40,9 @@ test('visits a shared join once after both prerequisites', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   }).makeRunner();
-  const values = [
-    ...runner.getIterable({ iterateOver: [Order.ON_READY] }),
-  ].map(({ vertex }) => vertex.getData());
+  const values = [...runner.getIterable({ iterateOver: [Order.ON_READY] })].map(
+    ({ vertex }) => vertex.getData(),
+  );
   expect(values).toEqual(['root', 'A', 'B', 'join']);
   const graph = runner.getResolvedGraph();
   const join = graph.getVertexById('join')!;
@@ -118,6 +118,35 @@ test.each([
   expect(runner.getStatus()).toBe(Status.FAILED);
 });
 
+test('reports hostile object dependency ids without coercing them', () => {
+  let coercions = 0;
+  const hostileId = {
+    toString() {
+      coercions += 1;
+      throw new Error('must not coerce vertex ids');
+    },
+  };
+  const runner = new DagTraversal<TestGraph>({
+    traversableGraph: {
+      makeRoot: () => ({
+        vertexContent: { $d: 'root', $c: ['blocked'] },
+        vertexId: 'root',
+      }),
+      makeVertex: () => ({
+        vertexContent: { $d: 'blocked', $c: [] },
+        vertexId: 'blocked',
+        dependsOn: [hostileId],
+      }),
+    },
+  }).makeRunner();
+
+  expect(() => runner.run()).toThrow(
+    /DAG traversal stalled: "blocked", reference#1/,
+  );
+  expect(coercions).toBe(0);
+  expect(runner.getStatus()).toBe(Status.FAILED);
+});
+
 test('rejects discovery cycles found through known-id hints', () => {
   const resolutions: string[] = [];
   const adapter = graphAdapter({
@@ -185,7 +214,9 @@ test('applies rewrite, disable, and delete commands with tombstones', () => {
           ],
         };
       case 'disabled':
-        return { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] };
+        return {
+          commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }],
+        };
       case 'deleted':
         return { commands: [{ commandName: Command.DELETE_VERTEX }] };
     }
@@ -334,11 +365,7 @@ test('runs TraversableObjectTree with its real ancestor context', () => {
     [...runner.getIterable({ iterateOver: [Order.ON_READY] })].map(
       ({ vertex }) => vertex.getData().key,
     ),
-  ).toEqual([
-    '__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__',
-    'branch',
-    'leaf',
-  ]);
+  ).toEqual(['__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__', 'branch', 'leaf']);
   expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(3);
 });
 
@@ -394,10 +421,12 @@ test.each([false, true])(
 
 test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
   const seen: Array<[string, number, number, string | null, unknown]> = [];
-  const traversal = new DagTraversal<TestGraph>({ traversableGraph: graphAdapter({
-    root: { id: 'root', children: ['child'] },
-    child: { id: 'child', children: [] },
-  }) });
+  const traversal = new DagTraversal<TestGraph>({
+    traversableGraph: graphAdapter({
+      root: { id: 'root', children: ['child'] },
+      child: { id: 'child', children: [] },
+    }),
+  });
   traversal.addVisitorFor(
     Order.ON_READY,
     () => ({
@@ -465,7 +494,9 @@ test('tombstones deleted ids and closes later arrivals', () => {
 });
 
 test('deleting the graph root empties the graph', () => {
-  const traversal = new DagTraversal<TestGraph>({ traversableGraph: graphAdapter() });
+  const traversal = new DagTraversal<TestGraph>({
+    traversableGraph: graphAdapter(),
+  });
   traversal.addVisitorFor(Order.ON_READY, (vertex) =>
     vertex.getData() === 'root'
       ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
@@ -479,9 +510,11 @@ test('deleting the graph root empties the graph', () => {
 
 test('rejects thenables and retains callback failures', () => {
   const error = new Error('visitor failed');
-  const traversal = new DagTraversal<TestGraph>({ traversableGraph: graphAdapter({
-    root: { id: 'root', children: [] },
-  }) });
+  const traversal = new DagTraversal<TestGraph>({
+    traversableGraph: graphAdapter({
+      root: { id: 'root', children: [] },
+    }),
+  });
   traversal.addVisitorFor(Order.ON_READY, () => {
     throw error;
   });
@@ -500,8 +533,9 @@ test('rejects thenables and retains callback failures', () => {
 });
 
 test('enforces one iterator and resumes after consumer close', () => {
-  const runner = new DagTraversal<TestGraph>({ traversableGraph: graphAdapter() })
-    .makeRunner();
+  const runner = new DagTraversal<TestGraph>({
+    traversableGraph: graphAdapter(),
+  }).makeRunner();
   const first = runner.getIterable({ iterateOver: [Order.ON_READY] });
   expect(first.next().value?.vertex.getData()).toBe('root');
   const second = runner.getIterable();
@@ -510,8 +544,8 @@ test('enforces one iterator and resumes after consumer close', () => {
   expect(runner.isHalted()).toBe(true);
 
   expect(
-    [...runner.getIterable({ iterateOver: [Order.ON_READY] })].map(({ vertex }) =>
-      vertex.getData(),
+    [...runner.getIterable({ iterateOver: [Order.ON_READY] })].map(
+      ({ vertex }) => vertex.getData(),
     ),
   ).toEqual(['A', 'B', 'join']);
 });

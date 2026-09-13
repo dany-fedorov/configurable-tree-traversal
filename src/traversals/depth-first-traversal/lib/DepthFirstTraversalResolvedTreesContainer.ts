@@ -25,7 +25,20 @@ export class DepthFirstTraversalResolvedTreesContainer<
     RW_TTP
   > | null;
 
-  constructor(cfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
+  constructor(
+    cfg: Pick<
+      DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
+      'saveNotMutatedResolvedTree'
+    > & {
+      traversalRunnerInternalObjects: Pick<
+        DepthFirstTraversalInstanceConfig<
+          TTP,
+          RW_TTP
+        >['traversalRunnerInternalObjects'],
+        'resolvedTreesContainer'
+      >;
+    },
+  ) {
     this.resolvedTree =
       cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
         ?.resolvedTree != null

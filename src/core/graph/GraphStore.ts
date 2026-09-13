@@ -100,7 +100,8 @@ export class GraphStore<T extends TreeTypeParameters>
 
   prepareSlots(ref: Ref<T>, hints: readonly T['VertexHint'][]): void {
     const entry = this.getEntry(ref);
-    if (entry.slots !== null) throw new Error('Vertex slots are already prepared');
+    if (entry.slots !== null)
+      throw new Error('Vertex slots are already prepared');
     entry.slots = hints.map((hint) => ({ kind: 'pending', hint }));
   }
 
@@ -135,7 +136,11 @@ export class GraphStore<T extends TreeTypeParameters>
       hintIndex: index,
       hint: slot.hint,
     };
-    parentEntry.slots![index] = { kind: 'linked', hint: slot.hint, childRef: child };
+    parentEntry.slots![index] = {
+      kind: 'linked',
+      hint: slot.hint,
+      childRef: child,
+    };
     if (!legacyTopologyAlreadyLinked) childEntry.incoming.push(edge);
     if (this.mode === 'tree' && !legacyTopologyAlreadyLinked) {
       const record = this.treeRecords.get(parent);
@@ -250,12 +255,14 @@ export class GraphStore<T extends TreeTypeParameters>
   private getGraphVertex(ref: Ref<T>): GraphVertex<T> | null {
     const entry = this.entries.get(ref);
     if (entry === undefined) return null;
-    const incoming =
-      this.mode === 'tree' ? this.getTreeIncoming(ref) : entry.incoming.slice();
-    const slots = entry.slots?.slice() ?? [];
+    const incoming = (
+      this.mode === 'tree' ? this.getTreeIncoming(ref) : entry.incoming
+    ).map((edge) => ({ ...edge }));
+    const slots = entry.slots?.map((slot) => ({ ...slot })) ?? [];
     const discoveryDepth =
       this.mode === 'tree'
-        ? this.treeRecords.get(ref)?.getResolutionContext()?.depth ?? entry.depth
+        ? this.treeRecords.get(ref)?.getResolutionContext()?.depth ??
+          entry.depth
         : entry.depth;
     return {
       vertexRef: ref,
@@ -285,7 +292,9 @@ export class GraphStore<T extends TreeTypeParameters>
   private getParents(ref: Ref<T>): Ref<T>[] | null {
     if (!this.entries.has(ref)) return null;
     const incoming =
-      this.mode === 'tree' ? this.getTreeIncoming(ref) : this.getEntry(ref).incoming;
+      this.mode === 'tree'
+        ? this.getTreeIncoming(ref)
+        : this.getEntry(ref).incoming;
     const seen = new Set<Ref<T>>();
     const parents: Ref<T>[] = [];
     for (const edge of incoming) {

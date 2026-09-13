@@ -13,11 +13,8 @@ import type {
   VisitOrder,
 } from '@core/effects/types';
 import type { Ref } from '@core/graph/types';
-import type {
-  ChainState,
-  FrameState,
-  KernelOptions,
-} from '@core/kernelTypes';
+import { createVertexIdLabeler } from '@core/graph/identity';
+import type { ChainState, FrameState, KernelOptions } from '@core/kernelTypes';
 import { GraphScheduling } from '@core/scheduling/GraphScheduling';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { VisitorChain } from '@core/visitors/VisitorChain';
@@ -86,13 +83,11 @@ export class TraversalKernel<
 > implements KernelPort<T, R>
 {
   private readonly scheduling: GraphScheduling<T, R>;
+  private readonly labelVertexId = createVertexIdLabeler();
   private readonly rootOwner: OwnerToken = { kind: 'root', id: 1, epoch: 0 };
   private readonly ownerEpochs = new Map<string, number>([['root:1', 0]]);
   private readonly invalidOwners = new Set<string>();
-  private readonly pendingRequests = new Map<
-    number,
-    PendingRequest<T, R>
-  >();
+  private readonly pendingRequests = new Map<number, PendingRequest<T, R>>();
   private readonly submittedOutcomes: CallbackReply<T, R>[] = [];
   private readonly storedOutcomeRequests: PendingRequest<T, R>[] = [];
   private readonly readyCalls: CallAction<T, R>[] = [];
@@ -123,10 +118,7 @@ export class TraversalKernel<
     this.orders = this.selectPolicy(options.kind);
     this.depthFirstPolicy =
       options.kind === 'depth-first'
-        ? new DepthFirstPolicy(
-            options.inOrderConfig!,
-            options.hasSorter,
-          )
+        ? new DepthFirstPolicy(options.inOrderConfig!, options.hasSorter)
         : null;
     this.breadthFirstPolicy =
       options.kind === 'breadth-first'
@@ -154,7 +146,9 @@ export class TraversalKernel<
         (options.dagSeed.readyVisits.length > 0 ||
           options.dagSeed.expansionQueue.length > 0)
       ) {
-        throw new Error('Invalid injected DAG seed: work references an empty graph');
+        throw new Error(
+          'Invalid injected DAG seed: work references an empty graph',
+        );
       }
       this.scheduling.restoreDagSeed(options.dagSeed.readyVisits);
       const expansionRefs = new Set<Ref<T | R>>();
@@ -165,7 +159,9 @@ export class TraversalKernel<
           options.container.resolvedGraph.getStatusOf(ref) !== 'PRE_VISITED' ||
           options.container.store.getTraversalSlots(ref) !== null
         ) {
-          throw new Error('Invalid injected DAG seed: expansion queue is inconsistent');
+          throw new Error(
+            'Invalid injected DAG seed: expansion queue is inconsistent',
+          );
         }
         expansionRefs.add(ref);
       }
@@ -175,7 +171,9 @@ export class TraversalKernel<
           options.container.store.getTraversalSlots(ref) === null &&
           !expansionRefs.has(ref)
         ) {
-          throw new Error('Invalid injected DAG seed: expansion work is missing');
+          throw new Error(
+            'Invalid injected DAG seed: expansion work is missing',
+          );
         }
       }
       this.expansionQueue.push(...options.dagSeed.expansionQueue);
@@ -304,7 +302,8 @@ export class TraversalKernel<
         this.setStatus(TraversalRunnerStatus.RUNNING);
         const existingRoot = this.options.container.resolvedGraph.getRoot();
         if (
-          (this.depthFirstPolicy !== null || this.breadthFirstPolicy !== null) &&
+          (this.depthFirstPolicy !== null ||
+            this.breadthFirstPolicy !== null) &&
           existingRoot !== null
         ) {
           this.rootSettled = true;
@@ -345,7 +344,9 @@ export class TraversalKernel<
             ...missing,
           ]);
           const detail =
-            ids.length > 0 ? ids.map(String).join(', ') : 'incomplete work';
+            ids.length > 0
+              ? ids.map(this.labelVertexId).join(', ')
+              : 'incomplete work';
           const error = new Error(`DAG traversal stalled: ${detail}`);
           this.fail(error);
           return { kind: 'FAILED', error };
@@ -366,7 +367,9 @@ export class TraversalKernel<
       );
     }
     if (pending.submitted) {
-      throw new Error(`Callback request ${reply.requestId} was already submitted`);
+      throw new Error(
+        `Callback request ${reply.requestId} was already submitted`,
+      );
     }
     pending.submitted = true;
     this.submittedOutcomes.push(reply);
@@ -505,7 +508,7 @@ export class TraversalKernel<
           stage: frame.stage,
           pendingIndices:
             frame.stage === 'child-wait' ? [frame.nextChild - 1] : [],
-          })) ?? []),
+        })) ?? []),
         ...(this.breadthFirstPolicy?.getFrames().map((frame) => ({
           owner: { ...frame.owner },
           vertexRefId: frame.vertexRef.getId(),
@@ -523,12 +526,15 @@ export class TraversalKernel<
         waitingFor: state.waitingFor,
         config: copyFilters(state.config),
       })),
-      pendingRequests: Array.from(this.pendingRequests.values(), ({ call }) => ({
-        requestId: call.requestId,
-        kind: call.kind,
-        owner: { ...call.owner },
-        valid: this.isOwnerValid(call.owner),
-      })),
+      pendingRequests: Array.from(
+        this.pendingRequests.values(),
+        ({ call }) => ({
+          requestId: call.requestId,
+          kind: call.kind,
+          owner: { ...call.owner },
+          valid: this.isOwnerValid(call.owner),
+        }),
+      ),
       pendingEventBoundaryCount: this.boundaries.length,
     });
   }
@@ -623,10 +629,7 @@ export class TraversalKernel<
     }
   }
 
-  private applyOutcome(
-    call: CallSpec<T, R>,
-    reply: CallbackReply<T, R>,
-  ): void {
+  private applyOutcome(call: CallSpec<T, R>, reply: CallbackReply<T, R>): void {
     if (!reply.outcome.ok) throw reply.outcome.error;
     switch (call.kind) {
       case 'MAKE_ROOT': {
@@ -737,8 +740,9 @@ export class TraversalKernel<
           return;
         }
         if (this.breadthFirstPolicy !== null) {
-          const completed =
-            this.breadthFirstPolicy.completeResolution(call.owner);
+          const completed = this.breadthFirstPolicy.completeResolution(
+            call.owner,
+          );
           const value = (
             reply.outcome as {
               ok: true;
@@ -747,9 +751,7 @@ export class TraversalKernel<
           ).value;
           this.scheduling.acceptVertex(completed.context, value);
           if (completed.closeParent) {
-            this.scheduling.closeExpansion(
-              completed.context.parentVertexRef,
-            );
+            this.scheduling.closeExpansion(completed.context.parentVertexRef);
           }
           return;
         }
@@ -1044,11 +1046,7 @@ export class TraversalKernel<
             transportFrame.nextConsumeIndex += 1;
             if (child !== null) {
               this.scheduling.takeReady();
-              policy.push(
-                this.newOwner('frame'),
-                child,
-                context.depth,
-              );
+              policy.push(this.newOwner('frame'), child, context.depth);
             }
             return 'PROGRESSED';
           }
@@ -1125,9 +1123,9 @@ export class TraversalKernel<
   }
 
   private findDepthFirstFrame(ownerId: number): DepthFirstFrame<T | R> {
-    return this.depthFirstPolicy!
-      .getFrames()
-      .find((candidate) => candidate.owner.id === ownerId)!;
+    return this.depthFirstPolicy!.getFrames().find(
+      (candidate) => candidate.owner.id === ownerId,
+    )!;
   }
 
   private advanceBreadthFirst(
@@ -1194,10 +1192,7 @@ export class TraversalKernel<
           this.prepareAsyncFrame(frame, work.hints);
         }
         if (this.options.execution !== 'async') {
-          this.scheduling.prepareSlots(
-            work.expansion.vertexRef,
-            work.hints,
-          );
+          this.scheduling.prepareSlots(work.expansion.vertexRef, work.hints);
         }
         if (policy.setHints(work.expansion, work.hints)) {
           this.scheduling.closeExpansion(work.expansion.vertexRef);
@@ -1232,7 +1227,11 @@ export class TraversalKernel<
         }
         const owner = this.newOwner('frame');
         policy.startResolution(owner, work.context);
-        return this.issue({ kind: 'MAKE_VERTEX', owner, context: work.context });
+        return this.issue({
+          kind: 'MAKE_VERTEX',
+          owner,
+          context: work.context,
+        });
       }
       case 'CLEAR_QUEUE':
         policy.clearQueue();
@@ -1250,9 +1249,7 @@ export class TraversalKernel<
           const contexts = frontier.contexts
             .slice()
             .sort((left, right) => left.hintIndex - right.hintIndex);
-          if (
-            contexts.some((context, index) => context.hintIndex !== index)
-          ) {
+          if (contexts.some((context, index) => context.hintIndex !== index)) {
             throw new Error('Invalid injected breadth-first frontier');
           }
           this.scheduling.prepareSlots(
@@ -1495,7 +1492,8 @@ export class TraversalKernel<
         const outcome = frame.identityOutcomes.get(index)!;
         frame.identityOutcomes.delete(index);
         if (!outcome.ok) throw outcome.error;
-        if (outcome.value !== undefined) frame.hintIds.set(index, outcome.value);
+        if (outcome.value !== undefined)
+          frame.hintIds.set(index, outcome.value);
       }
       frame.stage = 'resolve';
       frame.nextAdmissionIndex = 0;
@@ -1586,7 +1584,8 @@ export class TraversalKernel<
     const concurrentIndices: number[] = [];
     const sequentialIndices: number[] = [];
     records.forEach((record, index) => {
-      if (record.resolutionStyle === 'CONCURRENT') concurrentIndices.push(index);
+      if (record.resolutionStyle === 'CONCURRENT')
+        concurrentIndices.push(index);
       else if (record.resolutionStyle === 'SEQUENTIAL')
         sequentialIndices.push(index);
       else throw new TypeError('Unknown visitor resolution style');
@@ -1656,9 +1655,7 @@ export class TraversalKernel<
     return true;
   }
 
-  private issue(
-    input: CallInput<T, R>,
-  ): CallAction<T, R> {
+  private issue(input: CallInput<T, R>): CallAction<T, R> {
     const call = { ...input, requestId: this.nextRequestId++ } as CallSpec<
       T,
       R
@@ -1716,10 +1713,7 @@ export class TraversalKernel<
       }
     }
     for (const [id, runtime] of this.chains) {
-      if (
-        refs.has(runtime.state.ref) &&
-        runtime.state.owner.id !== except.id
-      ) {
+      if (refs.has(runtime.state.ref) && runtime.state.owner.id !== except.id) {
         runtime.machine.invalidate();
         runtime.state.phase = 'invalid';
         this.invalidateOwner(runtime.state.owner);
