@@ -18,7 +18,10 @@ export class CallbackScheduler<T> {
   private readonly settled: SettledCallback<T>[] = [];
   private activeCount = 0;
 
-  public constructor(limit: number) {
+  public constructor(
+    limit: number,
+    private readonly onSettled: () => void = () => undefined,
+  ) {
     if (limit !== Infinity && (!Number.isInteger(limit) || limit <= 0)) {
       throw new TypeError('Callback limit must be a positive integer or Infinity');
     }
@@ -49,6 +52,7 @@ export class CallbackScheduler<T> {
       void captureOutcome(callback.invoke).then((outcome) => {
         this.activeCount -= 1;
         this.settled.push({ requestId: callback.requestId, outcome });
+        this.onSettled();
       });
     }
   }
@@ -57,11 +61,14 @@ export class CallbackScheduler<T> {
     return this.settled.shift();
   }
 
-  public discardQueued(predicate: (requestId: number) => boolean): void {
+  public discardQueued(predicate: (requestId: number) => boolean): number[] {
+    const discarded: number[] = [];
     for (let index = this.queued.length - 1; index >= 0; index -= 1) {
       if (predicate(this.queued[index]!.requestId)) {
+        discarded.push(this.queued[index]!.requestId);
         this.queued.splice(index, 1);
       }
     }
+    return discarded;
   }
 }

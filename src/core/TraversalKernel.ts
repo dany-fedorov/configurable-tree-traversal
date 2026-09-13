@@ -38,6 +38,7 @@ type PendingRequest<
 > = {
   call: CallSpec<T, R>;
   submitted: boolean;
+  storedReply?: CallbackReply<T, R>;
 };
 
 type ChainRuntime<
@@ -73,6 +74,11 @@ type CallInput<
     : never
   : never;
 
+type FrameCall<
+  T extends TreeTypeParameters,
+  R extends TreeTypeParameters,
+> = Extract<CallSpec<T, R>, { kind: 'SORT_HINTS' | 'HINT_ID' | 'MAKE_VERTEX' }>;
+
 export class TraversalKernel<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
@@ -98,6 +104,9 @@ export class TraversalKernel<
     number,
     DepthFirstFrame<T | R>
   >();
+  private breadthPendingContext:
+    | import('@core/ResolvedTree').VertexResolutionContext<T | R>
+    | null = null;
   private nextRequestId = 1;
   private nextOwnerId = 2;
   private nextBoundaryId = 1;
@@ -230,7 +239,11 @@ export class TraversalKernel<
         return this.hasRunningChain() ? { kind: 'WAIT' } : this.halt();
       }
 
-      const frameAction = this.runTransition(() => this.advanceFrames());
+      const frameAction = this.runTransition(() =>
+        this.depthFirstPolicy === null && this.breadthFirstPolicy === null
+          ? this.advanceFrames()
+          : null,
+      );
       if (frameAction !== null) return frameAction;
       const frameFailure = this.failure as { error: unknown } | null;
       if (frameFailure !== null) {
@@ -357,6 +370,14 @@ export class TraversalKernel<
     this.submittedOutcomes.push(reply);
   }
 
+  discardRequest(requestId: number): void {
+    const pending = this.pendingRequests.get(requestId);
+    if (pending === undefined || this.isOwnerValid(pending.call.owner)) {
+      throw new Error(`Cannot discard live callback request ${requestId}`);
+    }
+    this.pendingRequests.delete(requestId);
+  }
+
   acknowledgeEvent(boundaryId: number): void {
     const boundary = this.boundaries[0];
     if (boundary === undefined || boundary.id !== boundaryId) {
@@ -425,6 +446,11 @@ export class TraversalKernel<
     if (pending === undefined || pending.submitted) return false;
     if (!this.isOwnerValid(pending.call.owner)) return false;
     return mode !== 'drain' || pending.call.owner.kind === 'chain';
+  }
+
+  isRequestValid(requestId: number): boolean {
+    const pending = this.pendingRequests.get(requestId);
+    return pending !== undefined && this.isOwnerValid(pending.call.owner);
   }
 
   isHaltRequested(): boolean {
@@ -506,12 +532,41 @@ export class TraversalKernel<
   }
 
   private processSubmittedOutcomes(): void {
+    if (!this.haltRequested) {
+      for (const [requestId, pending] of this.pendingRequests) {
+        if (pending.storedReply === undefined) continue;
+        const reply = pending.storedReply;
+        this.pendingRequests.delete(requestId);
+        if (!this.isOwnerValid(pending.call.owner)) continue;
+        try {
+          this.applyOutcome(pending.call, reply);
+        } catch (error) {
+          this.fail(error);
+        }
+      }
+    }
     while (this.submittedOutcomes.length > 0) {
       const reply = this.submittedOutcomes.shift()!;
       const pending = this.pendingRequests.get(reply.requestId);
       if (pending === undefined) continue;
+      if (!this.isOwnerValid(pending.call.owner)) {
+        this.pendingRequests.delete(reply.requestId);
+        continue;
+      }
+      if (
+        this.options.execution === 'async' &&
+        pending.call.owner.kind === 'frame' &&
+        (this.depthFirstPolicy !== null || this.breadthFirstPolicy !== null)
+      ) {
+        this.pendingRequests.delete(reply.requestId);
+        this.storeFrameOutcome(pending.call as FrameCall<T, R>, reply);
+        continue;
+      }
+      if (this.haltRequested && pending.call.owner.kind !== 'chain') {
+        pending.storedReply = reply;
+        continue;
+      }
       this.pendingRequests.delete(reply.requestId);
-      if (!this.isOwnerValid(pending.call.owner)) continue;
       try {
         this.applyOutcome(pending.call, reply);
       } catch (error) {
@@ -530,6 +585,38 @@ export class TraversalKernel<
       if (!this.haltRequested && this.boundaries.length > 0) {
         return;
       }
+    }
+  }
+
+  private storeFrameOutcome(
+    call: FrameCall<T, R>,
+    reply: CallbackReply<T, R>,
+  ): void {
+    const frame = this.frames.get(call.owner.id)!;
+    switch (call.kind) {
+      case 'SORT_HINTS':
+        frame.sortOutcome = reply.outcome as Outcome<(T | R)['VertexHint'][]>;
+        return;
+      case 'HINT_ID': {
+        const index = call.hintIndex;
+        frame.pendingIndices.delete(index);
+        frame.identityOutcomes.set(
+          index,
+          reply.outcome as Outcome<
+            import('@core/graph/types').HintVertexId | undefined
+          >,
+        );
+        return;
+      }
+      case 'MAKE_VERTEX':
+        frame.pendingIndices.delete(call.context.hintIndex);
+        frame.outcomes.set(
+          call.context.hintIndex,
+          reply.outcome as Outcome<
+            import('@core/TraversableTree').MakeVertexResult<T>
+          >,
+        );
+        return;
     }
   }
 
@@ -907,6 +994,55 @@ export class TraversalKernel<
   private advanceDepthFirst(): KernelAction<T, R> | 'PROGRESSED' | null {
     const policy = this.depthFirstPolicy;
     if (policy === null) return null;
+    if (this.options.execution === 'async') {
+      const frame = policy.getFrames().at(-1);
+      if (frame !== undefined) {
+        const transportFrame = this.frames.get(frame.owner.id);
+        if (transportFrame !== undefined) {
+          const transportAction = this.advanceAsyncFrame(transportFrame);
+          if (transportAction !== null) return transportAction;
+          if (frame.stage === 'child-wait') {
+            const index = frame.nextChild - 1;
+            const context = transportFrame.contexts.get(index)!;
+            let child: Ref<T | R> | null;
+            let resolved: boolean;
+            if (transportFrame.knownIndices.has(index)) {
+              this.scheduling.acceptKnownHint(
+                context,
+                transportFrame.hintIds.get(index)!,
+              );
+              const slot = this.options.container.store.getTraversalSlots(
+                context.parentVertexRef,
+              )?.[index];
+              resolved = slot?.kind === 'linked';
+              child = null;
+            } else {
+              const outcome = transportFrame.outcomes.get(index);
+              if (outcome === undefined) return null;
+              transportFrame.outcomes.delete(index);
+              if (!outcome.ok) throw outcome.error;
+              child = this.scheduling.acceptVertex(
+                context,
+                outcome.value,
+                transportFrame.hintIds.get(index),
+              );
+              resolved = child !== null;
+            }
+            policy.completeChild(frame, index, resolved);
+            transportFrame.nextConsumeIndex += 1;
+            if (child !== null) {
+              this.scheduling.takeReady();
+              policy.push(
+                this.newOwner('frame'),
+                child,
+                context.depth,
+              );
+            }
+            return 'PROGRESSED';
+          }
+        }
+      }
+    }
     const work = policy.next(
       (ref) => this.options.container.resolvedGraph.has(ref),
       (ref) => this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref),
@@ -919,16 +1055,39 @@ export class TraversalKernel<
         return 'PROGRESSED';
       }
       case 'PREPARE_HINTS':
-        this.scheduling.prepareSlots(work.frame.vertexRef, work.hints);
+        if (this.options.execution === 'async') {
+          const frame = this.makeAsyncFrame(
+            work.frame.owner,
+            work.frame.vertexRef,
+            work.frame.depth,
+            work.hints,
+            'resolve',
+          );
+          this.prepareAsyncFrame(frame, work.hints);
+        } else {
+          this.scheduling.prepareSlots(work.frame.vertexRef, work.hints);
+        }
         policy.setHints(work.frame, work.hints);
         return 'PROGRESSED';
       case 'SORT_HINTS':
+        if (this.options.execution === 'async') {
+          this.makeAsyncFrame(
+            work.frame.owner,
+            work.frame.vertexRef,
+            work.frame.depth,
+            work.hints,
+            'sort',
+          );
+        }
         return this.issue({
           kind: 'SORT_HINTS',
           owner: work.frame.owner,
           hints: work.hints,
         });
       case 'MAKE_VERTEX': {
+        if (this.options.execution === 'async') {
+          return this.advanceDepthFirst();
+        }
         const context = {
           parentVertexRef: work.frame.vertexRef,
           parentVertex: work.frame.vertexRef.unref(),
@@ -944,6 +1103,7 @@ export class TraversalKernel<
       }
       case 'CLOSE':
         this.scheduling.closeExpansion(work.frame.vertexRef);
+        this.frames.delete(work.frame.owner.id);
         this.scheduling.takeCompleting();
         return 'PROGRESSED';
       case 'POP':
@@ -960,6 +1120,37 @@ export class TraversalKernel<
   private advanceBreadthFirst(): KernelAction<T, R> | 'PROGRESSED' | null {
     const policy = this.breadthFirstPolicy;
     if (policy === null) return null;
+    if (this.options.execution === 'async') {
+      for (const frame of this.frames.values()) {
+        const action = this.advanceAsyncFrame(frame);
+        if (action !== null) return action;
+      }
+      if (this.breadthPendingContext !== null) {
+        const context = this.breadthPendingContext;
+        const frame = Array.from(this.frames.values()).find(
+          (candidate) => candidate.ref === context.parentVertexRef,
+        )!;
+        const outcome = frame.outcomes.get(context.hintIndex);
+        if (outcome === undefined) return null;
+        frame.outcomes.delete(context.hintIndex);
+        if (!outcome.ok) throw outcome.error;
+        const completed = policy.completeResolution(frame.owner);
+        this.breadthPendingContext = null;
+        this.scheduling.acceptVertex(
+          completed.context,
+          outcome.value,
+          frame.hintIds.get(context.hintIndex),
+        );
+        frame.nextConsumeIndex += 1;
+        if (frame.nextConsumeIndex === frame.hints.length) {
+          this.frames.delete(frame.owner.id);
+        }
+        if (completed.closeParent) {
+          this.scheduling.closeExpansion(completed.context.parentVertexRef);
+        }
+        return 'PROGRESSED';
+      }
+    }
     const eligible = this.scheduling.takeEligible();
     if (eligible !== null) {
       if (eligible.order === 'ON_COMPLETE') {
@@ -976,21 +1167,53 @@ export class TraversalKernel<
     if (work === null) return null;
     switch (work.kind) {
       case 'PREPARE_HINTS':
-        this.scheduling.prepareSlots(
-          work.expansion.vertexRef,
-          work.hints,
-        );
+        if (this.options.execution === 'async') {
+          const frame = this.makeAsyncFrame(
+            work.expansion.owner,
+            work.expansion.vertexRef,
+            work.expansion.depth,
+            work.hints,
+            'resolve',
+          );
+          this.prepareAsyncFrame(frame, work.hints);
+        }
+        if (this.options.execution !== 'async') {
+          this.scheduling.prepareSlots(
+            work.expansion.vertexRef,
+            work.hints,
+          );
+        }
         if (policy.setHints(work.expansion, work.hints)) {
           this.scheduling.closeExpansion(work.expansion.vertexRef);
+          if (this.options.execution === 'async') {
+            this.frames.delete(work.expansion.owner.id);
+          }
         }
         return 'PROGRESSED';
       case 'SORT_HINTS':
+        if (this.options.execution === 'async') {
+          this.makeAsyncFrame(
+            work.expansion.owner,
+            work.expansion.vertexRef,
+            work.expansion.depth,
+            work.hints,
+            'sort',
+          );
+        }
         return this.issue({
           kind: 'SORT_HINTS',
           owner: work.expansion.owner,
           hints: work.hints,
         });
       case 'MAKE_VERTEX': {
+        if (this.options.execution === 'async') {
+          const frame = Array.from(this.frames.values()).find(
+            (candidate) => candidate.ref === work.context.parentVertexRef,
+          )!;
+          policy.startResolution(frame.owner, work.context);
+          this.breadthPendingContext = work.context;
+          return this.advanceBreadthFirst();
+        }
         const owner = this.newOwner('frame');
         policy.startResolution(owner, work.context);
         return this.issue({ kind: 'MAKE_VERTEX', owner, context: work.context });
@@ -1063,6 +1286,7 @@ export class TraversalKernel<
           kind: 'HINT_ID',
           owner: frame.owner,
           hint: frame.hints[index]!,
+          hintIndex: index,
         });
       }
     }
@@ -1097,6 +1321,123 @@ export class TraversalKernel<
       this.scheduling.closeExpansion(frame.ref);
       this.frames.delete(frame.owner.id);
       return null;
+    }
+    return null;
+  }
+
+  private makeAsyncFrame(
+    owner: OwnerToken,
+    ref: Ref<T | R>,
+    depth: number,
+    hints: (T | R)['VertexHint'][],
+    stage: FrameState<T, R>['stage'],
+  ): FrameState<T, R> {
+    const frame: FrameState<T, R> = {
+      owner,
+      ref,
+      depth,
+      stage,
+      hints: hints.slice(),
+      nextIdentityIndex: 0,
+      nextAdmissionIndex: 0,
+      nextConsumeIndex: 0,
+      hintIds: new Map(),
+      knownIndices: new Set(),
+      contexts: new Map(),
+      pendingIndices: new Set(),
+      identityOutcomes: new Map(),
+      outcomes: new Map(),
+      sortOutcome: null,
+    };
+    this.frames.set(owner.id, frame);
+    return frame;
+  }
+
+  private prepareAsyncFrame(
+    frame: FrameState<T, R>,
+    hints: (T | R)['VertexHint'][],
+  ): void {
+    frame.hints = hints.slice();
+    frame.stage = this.options.hasHintIds ? 'identify' : 'resolve';
+    frame.nextIdentityIndex = 0;
+    frame.nextAdmissionIndex = 0;
+    frame.nextConsumeIndex = 0;
+    const parentVertex = frame.ref.unref();
+    for (let index = 0; index < frame.hints.length; index += 1) {
+      frame.contexts.set(index, {
+        depth: frame.depth + 1,
+        parentVertex,
+        parentVertexRef: frame.ref,
+        hintIndex: index,
+        vertexHint: frame.hints[index]!,
+      });
+    }
+    this.scheduling.prepareSlots(frame.ref, frame.hints);
+  }
+
+  private advanceAsyncFrame(frame: FrameState<T, R>): CallAction<T, R> | null {
+    if (frame.stage === 'sort') {
+      const outcome = frame.sortOutcome;
+      if (outcome === null) return null;
+      frame.sortOutcome = null;
+      if (!outcome.ok) throw outcome.error;
+      this.prepareAsyncFrame(frame, outcome.value);
+      this.depthFirstPolicy?.setHints(
+        this.findDepthFirstFrame(frame.owner.id),
+        outcome.value,
+      );
+      if (this.breadthFirstPolicy !== null) {
+        const completed = this.breadthFirstPolicy.setSortedHints(
+          frame.owner,
+          outcome.value,
+        );
+        if (completed.empty) {
+          this.scheduling.closeExpansion(completed.vertexRef);
+          this.frames.delete(frame.owner.id);
+        }
+      }
+    }
+    if (frame.stage === 'identify') {
+      if (frame.nextAdmissionIndex < frame.hints.length) {
+        const index = frame.nextAdmissionIndex++;
+        frame.pendingIndices.add(index);
+        return this.issue({
+          kind: 'HINT_ID',
+          owner: frame.owner,
+          hint: frame.hints[index]!,
+          hintIndex: index,
+        });
+      }
+      if (frame.identityOutcomes.size < frame.hints.length) return null;
+      while (frame.nextIdentityIndex < frame.hints.length) {
+        const index = frame.nextIdentityIndex++;
+        const outcome = frame.identityOutcomes.get(index)!;
+        frame.identityOutcomes.delete(index);
+        if (!outcome.ok) throw outcome.error;
+        if (outcome.value !== undefined) frame.hintIds.set(index, outcome.value);
+      }
+      frame.stage = 'resolve';
+      frame.nextAdmissionIndex = 0;
+    }
+    if (frame.stage === 'resolve') {
+      while (frame.nextAdmissionIndex < frame.hints.length) {
+        const index = frame.nextAdmissionIndex++;
+        const hintId = frame.hintIds.get(index);
+        if (
+          hintId !== undefined &&
+          Object.prototype.hasOwnProperty.call(hintId, 'vertexId') &&
+          this.options.container.store.getIdState(hintId.vertexId) !== undefined
+        ) {
+          frame.knownIndices.add(index);
+          continue;
+        }
+        frame.pendingIndices.add(index);
+        return this.issue({
+          kind: 'MAKE_VERTEX',
+          owner: frame.owner,
+          context: frame.contexts.get(index)!,
+        });
+      }
     }
     return null;
   }
@@ -1207,11 +1548,15 @@ export class TraversalKernel<
         : 'resolve',
       hints,
       nextIdentityIndex: 0,
+      nextAdmissionIndex: 0,
       nextConsumeIndex: 0,
       hintIds: new Map(),
+      knownIndices: new Set(),
       contexts: new Map(),
       pendingIndices: new Set(),
+      identityOutcomes: new Map(),
       outcomes: new Map(),
+      sortOutcome: null,
     };
     this.frames.set(owner.id, frame);
     if (!this.options.hasSorter) {

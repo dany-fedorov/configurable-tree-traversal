@@ -57,11 +57,15 @@ export type FrameState<
   stage: 'sort' | 'identify' | 'resolve';
   hints: (T | R)['VertexHint'][];
   nextIdentityIndex: number;
+  nextAdmissionIndex: number;
   nextConsumeIndex: number;
   hintIds: Map<number, HintVertexId>;
+  knownIndices: Set<number>;
   contexts: Map<number, VertexResolutionContext<T | R>>;
   pendingIndices: Set<number>;
+  identityOutcomes: Map<number, Outcome<HintVertexId | undefined>>;
   outcomes: Map<number, Outcome<MakeVertexResult<T>>>;
+  sortOutcome: Outcome<(T | R)['VertexHint'][]> | null;
 };
 
 export type ChainState<

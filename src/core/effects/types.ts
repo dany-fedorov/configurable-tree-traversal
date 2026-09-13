@@ -45,7 +45,7 @@ export type CallSpec<
 > = { requestId: number; owner: OwnerToken } & (
   | { kind: 'MAKE_ROOT' }
   | { kind: 'SORT_HINTS'; hints: (T | R)['VertexHint'][] }
-  | { kind: 'HINT_ID'; hint: (T | R)['VertexHint'] }
+  | { kind: 'HINT_ID'; hint: (T | R)['VertexHint']; hintIndex: number }
   | { kind: 'MAKE_VERTEX'; context: VertexResolutionContext<T | R> }
   | {
       kind: 'VISIT';
@@ -120,10 +120,12 @@ export interface KernelPort<
 > {
   poll(mode: PumpMode): KernelAction<T, R>;
   submit(reply: CallbackReply<T, R>): void;
+  discardRequest(requestId: number): void;
   acknowledgeEvent(boundaryId: number): void;
   requestHalt(): void;
   resume(config?: Partial<TraversalRunnerIterableConfig<VisitOrder>>): void;
   isRequestEligible(requestId: number, mode: PumpMode): boolean;
+  isRequestValid(requestId: number): boolean;
   isHaltRequested(): boolean;
   getFailure(): { error: unknown } | null;
   getStatus(): TraversalRunnerStatus;

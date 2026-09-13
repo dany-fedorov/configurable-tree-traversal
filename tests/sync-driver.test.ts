@@ -206,7 +206,13 @@ test('callback bindings dispatch every request by its discriminant', () => {
     }),
   ).toEqual({ kind: 'SORT_HINTS', value: ['b', 'a'] });
   expect(
-    bindings.invoke({ requestId: 3, owner, kind: 'HINT_ID', hint: 'a' }),
+    bindings.invoke({
+      requestId: 3,
+      owner,
+      kind: 'HINT_ID',
+      hint: 'a',
+      hintIndex: 0,
+    }),
   ).toEqual({ kind: 'HINT_ID', value: { vertexId: 'hint' } });
   expect(
     bindings.invoke({
