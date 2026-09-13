@@ -10,6 +10,7 @@ import type {
 } from '../src/core/kernelTypes';
 import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import { Wakeup } from '../src/core/drivers/Wakeup';
+import { eventLoopTurn } from './helpers/graph-fixtures';
 
 const inspection: DriverInspection = Object.freeze({
   status: TraversalRunnerStatus.INITIAL,
@@ -79,7 +80,6 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
   public acknowledgeEvent(boundaryId: number): void {
     this.acknowledged.push(boundaryId);
     this.outstandingBoundaries.delete(boundaryId);
-    this.wakeup.notify();
   }
 
   public requestHalt(): void {
@@ -97,7 +97,6 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
     this.resumedWith.push(config);
     this.haltRequested = false;
     this.status = TraversalRunnerStatus.RUNNING;
-    this.wakeup.notify();
   }
 
   public getStatus(): TraversalRunnerStatus {
@@ -200,6 +199,66 @@ test('queues next calls, settles while idle, and acknowledges delivered boundari
   await expect(second).resolves.toEqual({ done: false, value: 'second' });
   await expect(finished).resolves.toEqual({ done: true, value: undefined });
   expect(control.acknowledged).toEqual([10, 11]);
+});
+
+test('new demand wakes a pump waiting on a conforming silent control', async () => {
+  const control = new FakeAsyncSessionControl<string>();
+  control.enqueue({ kind: 'EVENT', event: 'first', boundaryId: 12 });
+  const session = new AsyncRunnerSession(control);
+  const iterator = session.getIterable();
+  await iterator.next();
+  await eventLoopTurn();
+  const advancesBeforeDemand = control.advanceCount;
+
+  const pending = iterator.next();
+  await eventLoopTurn();
+
+  expect(control.advanceCount).toBeGreaterThan(advancesBeforeDemand);
+  expect(control.modes.at(-1)).toBe('drive');
+  const close = iterator.return(undefined);
+  control.reachHalted();
+  await close;
+  await pending;
+});
+
+test('an idle traversal failure rejects the active iterator on its next demand', async () => {
+  const control = new FakeAsyncSessionControl<string>();
+  const error = new Error('failed while idle');
+  control.enqueue(
+    { kind: 'EVENT', event: 'first', boundaryId: 13 },
+    { kind: 'FAILED', error },
+  );
+  const iterator = new AsyncRunnerSession(control).getIterable();
+
+  await expect(iterator.next()).resolves.toEqual({
+    done: false,
+    value: 'first',
+  });
+  await expect(iterator.next()).rejects.toBe(error);
+});
+
+test('non-closing failure delivers committed buffered events before rejecting', async () => {
+  const control = new FakeAsyncSessionControl<string>();
+  const error = new Error('failed after commits');
+  control.enqueue(
+    { kind: 'EVENT', event: 'first', boundaryId: 14 },
+    { kind: 'EVENT', event: 'buffered', boundaryId: 15 },
+    { kind: 'FAILED', error },
+  );
+  const session = new AsyncRunnerSession(control);
+  const iterator = session.getIterable();
+
+  await expect(iterator.next()).resolves.toEqual({
+    done: false,
+    value: 'first',
+  });
+  expect(session.inspect().bufferedEventCount).toBe(1);
+  await expect(iterator.next()).resolves.toEqual({
+    done: false,
+    value: 'buffered',
+  });
+  await expect(iterator.next()).rejects.toBe(error);
+  expect(control.acknowledged).toEqual([14, 15]);
 });
 
 test('retains events buffered during close and acknowledges the delivered boundary on resume', async () => {

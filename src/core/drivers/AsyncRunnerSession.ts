@@ -4,6 +4,7 @@ import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TraversalRunnerIterableConfig } from '@core/TraversalRunnerIterableConfig';
 import type { PumpMode, VisitOrder } from '@core/effects/types';
 import type { AsyncSessionControl } from '@core/kernelTypes';
+import { Wakeup } from '@core/drivers/Wakeup';
 
 type NextWaiter<E> = {
   resolve: (result: IteratorResult<E, void>) => void;
@@ -34,6 +35,8 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
   private readonly bufferedEvents: BufferedEvent<E>[] = [];
   private activeIterator: IteratorState<E> | null = null;
   private deliveredBoundaryId: number | null = null;
+  private readonly demandWakeup = new Wakeup();
+  private observedFailure: { error: unknown } | null = null;
   private pumping = false;
 
   public constructor(private readonly control: AsyncSessionControl<E>) {}
@@ -158,7 +161,8 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
   }
 
   private requestPump(): void {
-    if (!this.pumping) void this.pump();
+    if (this.pumping) this.demandWakeup.notify();
+    else void this.pump();
   }
 
   private async pump(): Promise<void> {
@@ -167,6 +171,18 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
       while (this.activeIterator !== null) {
         const state = this.activeIterator;
         this.deliverBufferedEvents(state);
+
+        if (this.observedFailure !== null) {
+          if (
+            state.phase === 'closing' ||
+            (this.bufferedEvents.length === 0 && state.nextWaiters.length > 0)
+          ) {
+            this.fail(state, this.observedFailure.error);
+            continue;
+          }
+          await this.demandWakeup.wait();
+          continue;
+        }
 
         const mode: PumpMode =
           state.phase === 'closing' || this.control.isHaltRequested()
@@ -184,10 +200,13 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
           continue;
         }
         if (progress.kind === 'FAILED') {
-          this.fail(state, progress.error);
+          this.observedFailure = { error: progress.error };
           continue;
         }
-        await this.control.waitForProgress();
+        await Promise.race([
+          this.control.waitForProgress(),
+          this.demandWakeup.wait(),
+        ]);
       }
     } finally {
       this.pumping = false;
