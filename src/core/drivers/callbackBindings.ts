@@ -53,12 +53,6 @@ function assertTreeResult<T extends TreeTypeParameters>(
 }
 
 function isPromiseLike<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
-  if (
-    value === null ||
-    (typeof value !== 'object' && typeof value !== 'function')
-  ) {
-    return false;
-  }
   try {
     return typeof (value as PromiseLike<T>).then === 'function';
   } catch {

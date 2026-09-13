@@ -54,6 +54,10 @@ export class GraphStore<T extends TreeTypeParameters>
     return state?.kind === 'live' ? { kind: 'live', ref: state.ref } : state;
   }
 
+  getTraversalSlots(ref: Ref<T>): readonly ChildSlot<T>[] | null {
+    return this.getEntry(ref).slots?.slice() ?? null;
+  }
+
   insertVertex(input: {
     ref: Ref<T>;
     id: VertexId;

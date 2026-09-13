@@ -189,7 +189,7 @@ export class StructuralGraphSnapshot<
       } else if (frame.index < frame.parents.length) {
         const parent = frame.parents[frame.index++]!;
         reversedPath.push(parent);
-        stack.push({ parents: this.getParents(parent) ?? [], index: 0 });
+        stack.push({ parents: this.getParents(parent)!, index: 0 });
       } else {
         stack.pop();
         reversedPath.pop();

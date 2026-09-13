@@ -1,4 +1,7 @@
-import type { CallbackBindings } from '../src/core/effects/types';
+import type {
+  CallbackBindings,
+  KernelPort,
+} from '../src/core/effects/types';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
@@ -114,6 +117,14 @@ test.each([
       },
     }),
   ],
+  [
+    'throwing then call',
+    {
+      then() {
+        throw new Error('call failed');
+      },
+    },
+  ],
 ])('rejects a %s from a synchronous callback without leaking it', (_name, value) => {
   const iterator = runSync<TestGraph>(
     setup(),
@@ -123,6 +134,31 @@ test.each([
     { inFlightCallbackCount: 0 },
   );
   expect(() => iterator.next()).toThrow(/synchronous runner.*MAKE_ROOT/i);
+});
+
+test('rejects WAIT and mismatched callback transport results', () => {
+  const waiting = {
+    poll: () => ({ kind: 'WAIT' as const }),
+  } as unknown as KernelPort<TestGraph>;
+  expect(() =>
+    runSync(
+      waiting,
+      { invoke: () => ({ kind: 'MAKE_ROOT', value: { vertexContent: null } }) },
+      { inFlightCallbackCount: 0 },
+    ).next(),
+  ).toThrow(/stalled/i);
+
+  const iterator = runSync(
+    setup(),
+    {
+      invoke: () => ({
+        kind: 'VISIT',
+        value: undefined,
+      }),
+    } as CallbackBindings<TestGraph>,
+    { inFlightCallbackCount: 0 },
+  );
+  expect(() => iterator.next()).toThrow(/returned VISIT.*MAKE_ROOT/i);
 });
 
 test('callback bindings dispatch every request by its discriminant', () => {
@@ -203,4 +239,39 @@ test('callback bindings dispatch every request by its discriminant', () => {
     }),
   ).toEqual({ kind: 'VISIT', value: undefined });
   expect(calls).toEqual(['root', 'sort', 'id', 'vertex', 'visit']);
+});
+
+test('callback bindings use sort fallback and reject missing visitors', () => {
+  const bindings = createCallbackBindings<TestGraph>({
+    source: {
+      makeRoot: () => ({ vertexContent: null }),
+      makeVertex: () => ({ vertexContent: null }),
+    },
+    visit: {},
+  });
+  const owner = { kind: 'frame' as const, id: 1, epoch: 0 };
+  expect(
+    bindings.invoke({
+      requestId: 1,
+      owner,
+      kind: 'SORT_HINTS',
+      hints: ['a'],
+    }),
+  ).toEqual({ kind: 'SORT_HINTS', value: ['a'] });
+  expect(() =>
+    bindings.invoke({
+      requestId: 2,
+      owner: { kind: 'chain', id: 2, epoch: 0 },
+      kind: 'VISIT',
+      ref: new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: [] })),
+      order: 'ON_READY',
+      recordIndex: 0,
+      metadata: {
+        vertexVisitIndex: 0,
+        curVertexVisitorVisitIndex: 0,
+        previousVisitedVertexRef: null,
+        vertexVisitorsChainState: null,
+      },
+    }),
+  ).toThrow(/no callback binding/i);
 });

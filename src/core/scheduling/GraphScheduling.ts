@@ -27,6 +27,133 @@ export class GraphScheduling<
 
   constructor(private readonly container: ResolvedGraphsContainer<T, R>) {}
 
+  restoreDagSeed(readyVisits: readonly EligibleVisit<T | R>[]): void {
+    const refs = this.container.resolvedGraph.getVertexRefs();
+    const restoredWork = new Map<Ref<T | R>, VertexWork<T | R>>();
+    const restoredDependencies = new Map<VertexId, Set<Ref<T | R>>>();
+    const queued = new Map<Ref<T | R>, EligibleVisit<T | R>>();
+
+    for (const visit of readyVisits) {
+      if (!this.container.resolvedGraph.has(visit.ref)) {
+        this.throwInvalidSeed('ready visit references an unknown vertex');
+      }
+      if (queued.has(visit.ref)) {
+        this.throwInvalidSeed('ready visit is duplicated');
+      }
+      if (visit.order !== 'ON_READY' && visit.order !== 'ON_COMPLETE') {
+        this.throwInvalidSeed('ready visit has an invalid order');
+      }
+      queued.set(visit.ref, visit);
+    }
+
+    for (const ref of refs) {
+      const vertex = this.getVertex(ref);
+      const slots = this.container.store.getTraversalSlots(ref);
+      const unmet = new Set<VertexId>();
+      for (const dependency of vertex.dependsOn) {
+        let dependents = restoredDependencies.get(dependency);
+        if (dependents === undefined) {
+          dependents = new Set();
+          restoredDependencies.set(dependency, dependents);
+        }
+        dependents.add(ref);
+        const state = this.container.store.getIdState(dependency);
+        if (state?.kind === 'omitted') continue;
+        if (state?.kind === 'live') {
+          const status = this.container.resolvedGraph.getStatusOf(state.ref);
+          if (
+            status === 'PRE_VISITED' ||
+            status === 'COMPLETING' ||
+            status === 'COMPLETE'
+          ) {
+            continue;
+          }
+        }
+        unmet.add(dependency);
+      }
+
+      if (slots?.some((slot) => slot.kind === 'pending') === true) {
+        this.throwInvalidSeed('vertex has a partially consumed expansion');
+      }
+      const completionAccounted =
+        slots?.map(
+          (slot) =>
+            slot.kind !== 'linked' ||
+            this.container.resolvedGraph.getStatusOf(slot.childRef) === 'COMPLETE',
+        ) ?? [];
+      const remainingChildren = completionAccounted.filter(
+        (accounted) => !accounted,
+      ).length;
+      const status = vertex.status;
+      const queuedVisit = queued.get(ref);
+      const work: VertexWork<T | R> = {
+        ref,
+        unmet,
+        expansion: slots === null ? 'unprepared' : 'closed',
+        initialAdmitted: status !== 'DISCOVERED',
+        initialCommitted:
+          status === 'PRE_VISITED' ||
+          status === 'COMPLETING' ||
+          status === 'COMPLETE',
+        completionAdmitted: status === 'COMPLETING' || status === 'COMPLETE',
+        completionCommitted: status === 'COMPLETE',
+        completionAccounted,
+        remainingChildren,
+      };
+
+      if (status === 'PRE_VISITING') {
+        this.throwInvalidSeed('vertex has an active initial visit');
+      }
+      if (status === 'DISCOVERED') {
+        if (slots !== null || unmet.size === 0 || queuedVisit !== undefined) {
+          this.throwInvalidSeed('DISCOVERED vertex is inconsistent');
+        }
+      } else if (status === 'READY') {
+        if (
+          slots !== null ||
+          unmet.size !== 0 ||
+          queuedVisit?.order !== 'ON_READY'
+        ) {
+          this.throwInvalidSeed('READY vertex is inconsistent');
+        }
+      } else if (status === 'PRE_VISITED') {
+        if (
+          unmet.size !== 0 ||
+          queuedVisit !== undefined ||
+          (slots !== null && remainingChildren === 0)
+        ) {
+          this.throwInvalidSeed('PRE_VISITED vertex is inconsistent');
+        }
+      } else if (status === 'COMPLETING') {
+        if (
+          slots === null ||
+          unmet.size !== 0 ||
+          remainingChildren !== 0 ||
+          queuedVisit?.order !== 'ON_COMPLETE'
+        ) {
+          this.throwInvalidSeed('COMPLETING vertex is inconsistent');
+        }
+      } else if (
+        slots === null ||
+        unmet.size !== 0 ||
+        remainingChildren !== 0 ||
+        queuedVisit !== undefined
+      ) {
+        this.throwInvalidSeed('COMPLETE vertex is inconsistent');
+      }
+      restoredWork.set(ref, work);
+    }
+
+    this.work.clear();
+    for (const [ref, work] of restoredWork) this.work.set(ref, work);
+    this.reverseDependencies.clear();
+    for (const [id, dependents] of restoredDependencies) {
+      this.reverseDependencies.set(id, dependents);
+    }
+    this.eligible = readyVisits.map((visit) => ({ ...visit }));
+    this.eligibleHead = 0;
+  }
+
   enrollExisting(ref: Ref<T | R>): void {
     if (!this.work.has(ref)) {
       this.captureReusableTreeChildren(ref);
@@ -322,17 +449,15 @@ export class GraphScheduling<
     for (const ref of initialRefs) this.addRemoval(ref, removals, pending);
     while (pending.length > 0) {
       const current = pending.pop()!;
-      const vertex = this.container.resolvedGraph.get(current);
-      if (vertex === null) continue;
+      const vertex = this.container.resolvedGraph.get(current)!;
 
       for (const dependent of this.reverseDependencies.get(vertex.vertexId) ??
         []) {
         this.addRemoval(dependent, removals, pending);
       }
-      for (const child of this.container.resolvedGraph.getChildrenOf(current) ??
-        []) {
+      for (const child of this.container.resolvedGraph.getChildrenOf(current)!) {
         if (removals.has(child)) continue;
-        const parents = this.container.resolvedGraph.getParentsOf(child) ?? [];
+        const parents = this.container.resolvedGraph.getParentsOf(child)!;
         if (parents.every((parent) => removals.has(parent))) {
           this.addRemoval(child, removals, pending);
         }
@@ -341,8 +466,7 @@ export class GraphScheduling<
 
     const survivingSlots: Array<{ parent: Ref<T | R>; index: number }> = [];
     for (const removal of removals) {
-      const vertex = this.container.resolvedGraph.get(removal);
-      if (vertex === null) continue;
+      const vertex = this.container.resolvedGraph.get(removal)!;
       for (const edge of vertex.incoming) {
         if (!removals.has(edge.parentRef)) {
           survivingSlots.push({
@@ -452,7 +576,7 @@ export class GraphScheduling<
       number,
       { ref: Ref<T | R>; hint: (T | R)['VertexHint'] }
     >();
-    for (const child of tree.getChildrenOf(parent) ?? []) {
+    for (const child of tree.getChildrenOf(parent)!) {
       const context = tree.getResolutionContextOf(child);
       if (
         context?.parentVertexRef === parent &&
@@ -563,9 +687,6 @@ export class GraphScheduling<
     vertexWork.completionAccounted[index] = true;
     if (vertexWork.expansion === 'closed') {
       vertexWork.remainingChildren -= 1;
-      if (vertexWork.remainingChildren < 0) {
-        throw new Error('Completion slot accounting underflow');
-      }
       this.enqueueCompletion(vertexWork);
     }
   }
@@ -609,5 +730,9 @@ export class GraphScheduling<
 
   private throwOmissionContentConflict(): never {
     throw new Error('Vertex omission conflicts with supplied content');
+  }
+
+  private throwInvalidSeed(detail: string): never {
+    throw new Error(`Invalid injected DAG seed: ${detail}`);
   }
 }

@@ -126,6 +126,52 @@ export class TraversalKernel<
           )
         : null;
     const existingRoot = options.container.resolvedGraph.getRoot();
+    if (options.kind === 'dag' && options.dagSeed !== undefined) {
+      const refs = options.container.resolvedGraph.getVertexRefs();
+      const traversalRoot = options.stateBridge.traversalRootVertexRef;
+      if (
+        refs.length > 0 &&
+        (existingRoot === null ||
+          traversalRoot !== existingRoot ||
+          !options.container.resolvedGraph.has(existingRoot))
+      ) {
+        throw new Error('Invalid injected DAG seed: traversal root mismatch');
+      }
+      if (
+        refs.length === 0 &&
+        (options.dagSeed.readyVisits.length > 0 ||
+          options.dagSeed.expansionQueue.length > 0)
+      ) {
+        throw new Error('Invalid injected DAG seed: work references an empty graph');
+      }
+      this.scheduling.restoreDagSeed(options.dagSeed.readyVisits);
+      const expansionRefs = new Set<Ref<T | R>>();
+      for (const ref of options.dagSeed.expansionQueue) {
+        if (
+          expansionRefs.has(ref) ||
+          !options.container.resolvedGraph.has(ref) ||
+          options.container.resolvedGraph.getStatusOf(ref) !== 'PRE_VISITED' ||
+          options.container.store.getTraversalSlots(ref) !== null
+        ) {
+          throw new Error('Invalid injected DAG seed: expansion queue is inconsistent');
+        }
+        expansionRefs.add(ref);
+      }
+      for (const ref of refs) {
+        if (
+          options.container.resolvedGraph.getStatusOf(ref) === 'PRE_VISITED' &&
+          options.container.store.getTraversalSlots(ref) === null &&
+          !expansionRefs.has(ref)
+        ) {
+          throw new Error('Invalid injected DAG seed: expansion work is missing');
+        }
+      }
+      this.expansionQueue.push(...options.dagSeed.expansionQueue);
+      if (refs.length > 0) {
+        this.rootRequested = true;
+        this.rootSettled = true;
+      }
+    }
     if (
       (this.depthFirstPolicy !== null || this.breadthFirstPolicy !== null) &&
       existingRoot !== null
@@ -140,8 +186,7 @@ export class TraversalKernel<
           this.depthFirstPolicy.push(
             this.newOwner('frame'),
             existingRoot,
-            options.container.resolvedGraph.get(existingRoot)?.discoveryDepth ??
-              0,
+            options.container.resolvedGraph.get(existingRoot)!.discoveryDepth,
           );
         }
       }
@@ -255,8 +300,8 @@ export class TraversalKernel<
               this.depthFirstPolicy.push(
                 this.newOwner('frame'),
                 existingRoot,
-                this.options.container.resolvedGraph.get(existingRoot)
-                  ?.discoveryDepth ?? 0,
+                this.options.container.resolvedGraph.get(existingRoot)!
+                  .discoveryDepth,
               );
             }
           }
@@ -494,10 +539,10 @@ export class TraversalKernel<
     if (!reply.outcome.ok) throw reply.outcome.error;
     switch (call.kind) {
       case 'MAKE_ROOT': {
-        const outcome = reply.outcome as Outcome<
-          import('@core/TraversableTree').MakeVertexResult<T>
-        >;
-        if (!outcome.ok) throw outcome.error;
+        const outcome = reply.outcome as {
+          ok: true;
+          value: import('@core/TraversableTree').MakeVertexResult<T>;
+        };
         const ref = this.scheduling.acceptRoot(outcome.value);
         this.rootSettled = true;
         this.options.stateBridge.traversalRootVertexRef = ref;
@@ -508,8 +553,7 @@ export class TraversalKernel<
         return;
       }
       case 'VISIT': {
-        const runtime = this.chains.get(call.owner.id);
-        if (runtime === undefined) return;
+        const runtime = this.chains.get(call.owner.id)!;
         runtime.machine.submit(
           reply.outcome as Outcome<import('@core/graph/types').VisitResult<R>>,
         );
@@ -540,10 +584,7 @@ export class TraversalKernel<
           const hints = (
             reply.outcome as { ok: true; value: (T | R)['VertexHint'][] }
           ).value.slice();
-          const frame = this.breadthFirstPolicy.getFrames()[0];
-          if (frame?.owner.id !== call.owner.id) {
-            throw new Error('Unknown breadth-first expansion owner');
-          }
+          const frame = this.breadthFirstPolicy.getFrames()[0]!;
           this.scheduling.prepareSlots(frame.vertexRef, hints);
           const completed = this.breadthFirstPolicy.setSortedHints(
             call.owner,
@@ -554,8 +595,7 @@ export class TraversalKernel<
           }
           return;
         }
-        const frame = this.frames.get(call.owner.id);
-        if (frame === undefined) return;
+        const frame = this.frames.get(call.owner.id)!;
         frame.hints = (
           reply.outcome as { ok: true; value: (T | R)['VertexHint'][] }
         ).value.slice();
@@ -564,8 +604,7 @@ export class TraversalKernel<
         return;
       }
       case 'HINT_ID': {
-        const frame = this.frames.get(call.owner.id);
-        if (frame === undefined) return;
+        const frame = this.frames.get(call.owner.id)!;
         const index = frame.nextIdentityIndex;
         const value = (
           reply.outcome as {
@@ -620,8 +659,7 @@ export class TraversalKernel<
           }
           return;
         }
-        const frame = this.frames.get(call.owner.id);
-        if (frame === undefined) return;
+        const frame = this.frames.get(call.owner.id)!;
         const index = frame.nextConsumeIndex;
         const value = (
           reply.outcome as {
@@ -657,7 +695,7 @@ export class TraversalKernel<
       const action = runtime.machine.poll();
       switch (action.kind) {
         case 'VISIT': {
-          const metadata = this.options.visitorMetadata[runtime.state.order] ?? [];
+          const metadata = this.options.visitorMetadata[runtime.state.order]!;
           const style = metadata[action.recordIndex]!.resolutionStyle;
           runtime.state.group =
             style === 'CONCURRENT' ? 'concurrent' : 'sequential';
@@ -813,11 +851,8 @@ export class TraversalKernel<
     if (!this.options.container.resolvedGraph.has(state.ref)) return;
     const initial = state.order === this.orders.initial;
     if (state.order === DepthFirstTraversalOrder.IN_ORDER) {
-      if (depthFirstFrame === undefined || this.depthFirstPolicy === null) {
-        throw new Error('In-order chain has no depth-first frame');
-      }
-      this.depthFirstPolicy.completeVisit(
-        depthFirstFrame,
+      this.depthFirstPolicy!.completeVisit(
+        depthFirstFrame!,
         DepthFirstTraversalOrder.IN_ORDER,
       );
     } else if (initial) {
@@ -916,11 +951,9 @@ export class TraversalKernel<
   }
 
   private findDepthFirstFrame(ownerId: number): DepthFirstFrame<T | R> {
-    const frame = this.depthFirstPolicy
-      ?.getFrames()
-      .find((candidate) => candidate.owner.id === ownerId);
-    if (frame === undefined) throw new Error('Unknown depth-first frame owner');
-    return frame;
+    return this.depthFirstPolicy!
+      .getFrames()
+      .find((candidate) => candidate.owner.id === ownerId)!;
   }
 
   private advanceBreadthFirst(): KernelAction<T, R> | 'PROGRESSED' | null {
@@ -1036,12 +1069,7 @@ export class TraversalKernel<
       while (frame.nextConsumeIndex < frame.hints.length) {
         if (this.hasPendingFor(frame.owner)) return null;
         const index = frame.nextConsumeIndex;
-        const parent = this.options.container.resolvedGraph.get(frame.ref);
-        if (parent === null) {
-          frame.stage = 'closed';
-          this.frames.delete(frame.owner.id);
-          return null;
-        }
+        const parent = this.options.container.resolvedGraph.get(frame.ref)!;
         const context = {
           depth: parent.discoveryDepth + 1,
           parentVertex: frame.ref.unref(),
@@ -1066,7 +1094,6 @@ export class TraversalKernel<
         });
       }
       this.scheduling.closeExpansion(frame.ref);
-      frame.stage = 'closed';
       this.frames.delete(frame.owner.id);
       return null;
     }
@@ -1076,10 +1103,6 @@ export class TraversalKernel<
   private admitEligibleVisit(): boolean {
     const eligible = this.scheduling.takeEligible();
     if (eligible === null) return false;
-    if (eligible.order === 'ON_COMPLETE' && this.orders.completion === null) {
-      this.scheduling.markComplete(eligible.ref);
-      return true;
-    }
     const order =
       eligible.order === 'ON_READY'
         ? this.orders.initial

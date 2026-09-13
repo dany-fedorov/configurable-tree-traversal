@@ -139,6 +139,17 @@ export class DagTraversalRunner<
         sourceMode === 'graph' &&
         graphSource!.getVertexIdFromHint !== undefined,
       concurrency: 1,
+      ...(this.state.status === TraversalRunnerStatus.HALTED
+        ? {
+            dagSeed: {
+              readyVisits: this.state.readyVisits.map(({ vertexRef, order }) => ({
+                ref: vertexRef,
+                order,
+              })),
+              expansionQueue: this.state.expansionQueue,
+            },
+          }
+        : {}),
     });
   }
 

@@ -265,6 +265,80 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });
 
+function completedParentSeed() {
+  const runner = new BreadthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
+      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+    },
+  }).makeRunner();
+  runner.run();
+  const root = runner.getResolvedTree().getRoot();
+  if (root === null) throw new Error('Expected root');
+  return { root, runner };
+}
+
+test('BFS closes an injected frontier whose contexts were all consumed', () => {
+  const seed = completedParentSeed();
+  const context = {
+    depth: 1,
+    parentVertex: seed.root.unref(),
+    parentVertexRef: seed.root,
+    hintIndex: 0,
+    vertexHint: 'child',
+  };
+  const state = new BreadthFirstTraversalRunnerState<TestGraph, TestGraph>({
+    queue: [context],
+    queueIndex: 1,
+  });
+  const runner = new BreadthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => {
+        throw new Error('Existing root must be reused');
+      },
+      makeVertex: () => {
+        throw new Error('Consumed child must be reused');
+      },
+    },
+    traversalRunnerInternalObjects: {
+      resolvedTreesContainer: seed.runner.resolvedTreesContainer,
+      state,
+    },
+  }).makeRunner();
+  expect([...runner.getIterable()].map((event) => event.vertex.getData())).toEqual([
+    'root',
+  ]);
+  expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+});
+
+test('BFS rejects an injected frontier with non-contiguous hint indices', () => {
+  const seed = completedParentSeed();
+  const state = new BreadthFirstTraversalRunnerState<TestGraph, TestGraph>({
+    queue: [
+      {
+        depth: 1,
+        parentVertex: seed.root.unref(),
+        parentVertexRef: seed.root,
+        hintIndex: 1,
+        vertexHint: 'child',
+      },
+    ],
+  });
+  const runner = new BreadthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => {
+        throw new Error('Existing root must be reused');
+      },
+      makeVertex: () => ({ vertexContent: null }),
+    },
+    traversalRunnerInternalObjects: {
+      resolvedTreesContainer: seed.runner.resolvedTreesContainer,
+      state,
+    },
+  }).makeRunner();
+  expect(() => runner.run()).toThrow(/invalid injected breadth-first frontier/i);
+});
+
 test('BFS does not search newly appended children for legacy reuse', () => {
   const width = 1_000;
   const runner = new BreadthFirstTraversal<TestGraph>({

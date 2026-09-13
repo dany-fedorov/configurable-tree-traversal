@@ -10,6 +10,8 @@ import {
 } from '../src/core/TraversalVisitor';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { TestGraph } from './helpers/graph-fixtures';
+import { CTTRef } from '../src/core/CTTRef';
+import { Vertex } from '../src/core/Vertex';
 
 function makeKernel(
   visitorCount = 1,
@@ -62,11 +64,93 @@ function makeKernel(
   return { kernel, container, stateBridge };
 }
 
+function makeBreadthKernel() {
+  const container = new ResolvedGraphsContainer<TestGraph>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  const stateBridge = {
+    status: TraversalRunnerStatus.INITIAL,
+    traversalRootVertexRef: null,
+    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    visitorsState: {},
+    queue: [],
+    queueIndex: 0,
+  };
+  const kernel = new TraversalKernel<TestGraph>({
+    kind: 'breadth-first',
+    execution: 'sync',
+    sourceMode: 'tree',
+    container,
+    stateBridge,
+    visitorMetadata: {},
+    iterableConfig: {
+      iterateOver: ['LEVEL_ORDER'],
+      enableVisitorFunctionsFor: null,
+      disableVisitorFunctionsFor: null,
+    },
+    inOrderConfig: null,
+    hasSorter: false,
+    hasHintIds: false,
+    concurrency: 1,
+  });
+  return kernel;
+}
+
+function makeDepthKernel() {
+  const container = new ResolvedGraphsContainer<TestGraph>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  return new TraversalKernel<TestGraph>({
+    kind: 'depth-first',
+    execution: 'sync',
+    sourceMode: 'tree',
+    container,
+    stateBridge: {
+      status: TraversalRunnerStatus.INITIAL,
+      traversalRootVertexRef: null,
+      subtreeTraversalDisabledRefs: new Set(),
+      visitorsState: {},
+    },
+    visitorMetadata: {},
+    iterableConfig: {
+      iterateOver: ['PRE_ORDER', 'IN_ORDER', 'POST_ORDER'],
+      enableVisitorFunctionsFor: null,
+      disableVisitorFunctionsFor: null,
+    },
+    inOrderConfig: {
+      visitParentAfterChildren: 0,
+      visitParentAfterChildrenAllRangesOutOfBoundsFallback: 0,
+      visitUpOneChildParents: true,
+      considerVisitAfterNullContentVertices: true,
+    },
+    hasSorter: false,
+    hasHintIds: false,
+    concurrency: 1,
+  });
+}
+
 function rootReply(
   requestId: number,
   outcome: Outcome<MakeVertexResult<TestGraph>>,
 ): Extract<CallbackReply<TestGraph>, { kind: 'MAKE_ROOT' }> {
   return { requestId, kind: 'MAKE_ROOT', outcome };
+}
+
+function invokePrivate<R>(
+  target: object,
+  name: string,
+  ...args: unknown[]
+): R {
+  const method = (target as unknown as Record<string, unknown>)[name] as (
+    ...values: unknown[]
+  ) => R;
+  return method.apply(target, args);
+}
+
+function setPrivate(target: object, name: string, value: unknown): void {
+  (target as unknown as Record<string, unknown>)[name] = value;
 }
 
 test('steps from an owned root request through visit and event backpressure', () => {
@@ -108,6 +192,250 @@ test('steps from an owned root request through visit and event backpressure', ()
   kernel.acknowledgeEvent(event.boundaryId);
   expect(kernel.poll('drive')).toEqual({ kind: 'FINISHED' });
   expect(container.resolvedGraph.getRoot()).not.toBeNull();
+});
+
+test('reports public request, halt, event, and failed-resume guards', () => {
+  const { kernel, stateBridge } = makeKernel();
+  expect(kernel.isHaltRequested()).toBe(false);
+  expect(kernel.isRequestEligible(999, 'drive')).toBe(false);
+  expect(() => kernel.acknowledgeEvent(999)).toThrow(/unknown event/i);
+  const root = kernel.poll('drive');
+  if (root.kind !== 'CALL') throw new Error('Expected root call');
+  expect(kernel.isRequestEligible(root.call.requestId, 'drive')).toBe(true);
+  expect(kernel.isRequestEligible(root.call.requestId, 'drain')).toBe(false);
+  invokePrivate<void>(kernel, 'invalidateOwner', root.call.owner);
+  expect(kernel.isRequestEligible(root.call.requestId, 'drive')).toBe(false);
+  (
+    kernel as unknown as {
+      invalidOwners: Set<string>;
+    }
+  ).invalidOwners.clear();
+  kernel.submit(
+    rootReply(root.call.requestId, {
+      ok: false,
+      error: new Error('failed root'),
+    }),
+  );
+  expect(kernel.isRequestEligible(root.call.requestId, 'drive')).toBe(false);
+  expect(kernel.poll('drive')).toMatchObject({ kind: 'FAILED' });
+  kernel.resume();
+  expect(stateBridge.status).toBe(TraversalRunnerStatus.FAILED);
+});
+
+test('resume copies every optional filter shape without retaining caller arrays', () => {
+  const { kernel } = makeKernel();
+  kernel.resume({});
+  kernel.resume({
+    iterateOver: ['ON_COMPLETE'],
+    enableVisitorFunctionsFor: ['ON_READY'],
+    disableVisitorFunctionsFor: ['ON_COMPLETE'],
+  });
+  const configured = kernel.inspect().iterableConfig;
+  kernel.resume({});
+  expect(kernel.inspect().iterableConfig).toEqual(configured);
+  kernel.resume({
+    enableVisitorFunctionsFor: null,
+    disableVisitorFunctionsFor: null,
+  });
+  expect(kernel.inspect().iterableConfig).toMatchObject({
+    enableVisitorFunctionsFor: null,
+    disableVisitorFunctionsFor: null,
+  });
+});
+
+test.each([
+  'advanceChains',
+  'admitEligibleVisit',
+  'admitExpansion',
+] as const)('converts a thrown %s transition to FAILED', (method) => {
+  const { kernel } = makeKernel();
+  if (method === 'admitExpansion') {
+    setPrivate(kernel, 'admitEligibleVisit', () => false);
+  }
+  setPrivate(kernel, method, () => {
+    throw new Error(`${method} failed`);
+  });
+  expect(kernel.poll('drive')).toMatchObject({
+    kind: 'FAILED',
+    error: expect.objectContaining({ message: `${method} failed` }),
+  });
+});
+
+test('private invalidation removes frames and boundaries and is idempotent', () => {
+  const { kernel } = makeKernel();
+  const vertexRef = new CTTRef(
+    new Vertex<TestGraph>({ $d: 'removed', $c: [] }),
+  );
+  const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
+  const fields = kernel as unknown as {
+    boundaries: Array<{ event: { vertexRef: Ref<TestGraph> } }>;
+    frames: Map<number, { owner: typeof owner; ref: Ref<TestGraph> }>;
+    pendingRequests: Map<
+      number,
+      { call: { owner: typeof owner }; submitted: boolean }
+    >;
+  };
+  fields.frames.set(owner.id, { owner, ref: vertexRef });
+  fields.boundaries.push({ event: { vertexRef } });
+  invokePrivate<void>(
+    kernel,
+    'invalidateRefs',
+    new Set([vertexRef]),
+    { kind: 'chain', id: 99, epoch: 0 },
+  );
+  expect(fields.frames.size).toBe(0);
+  expect(fields.boundaries).toEqual([]);
+
+  const root = kernel.poll('drive');
+  if (root.kind !== 'CALL') throw new Error('Expected root call');
+  invokePrivate<void>(kernel, 'fail', new Error('forced'));
+  expect(fields.pendingRequests.size).toBe(1);
+  invokePrivate<void>(kernel, 'fail', new Error('ignored'));
+  expect(kernel.getFailure()).toMatchObject({
+    error: expect.objectContaining({ message: 'forced' }),
+  });
+});
+
+test('detects a running chain when deciding whether a halt can settle', () => {
+  const { kernel } = makeKernel();
+  const fields = kernel as unknown as {
+    chains: Map<number, { state: { phase: string } }>;
+  };
+  fields.chains.set(1, { state: { phase: 'running' } });
+  expect(invokePrivate<boolean>(kernel, 'hasRunningChain')).toBe(true);
+  setPrivate(kernel, 'advanceChains', () => null);
+  kernel.requestHalt();
+  expect(kernel.poll('drive')).toEqual({ kind: 'WAIT' });
+});
+
+test('kernel inspection maps breadth-first policy frames', () => {
+  const kernel = makeBreadthKernel();
+  const vertexRef = new CTTRef(
+    new Vertex<TestGraph>({ $d: 'parent', $c: [] }),
+  );
+  const fields = kernel as unknown as {
+    breadthFirstPolicy: {
+      enqueueExpansion(
+        owner: { kind: 'frame'; id: number; epoch: number },
+        ref: Ref<TestGraph>,
+        depth: number,
+      ): void;
+    };
+  };
+  fields.breadthFirstPolicy.enqueueExpansion(
+    { kind: 'frame', id: 2, epoch: 0 },
+    vertexRef,
+    0,
+  );
+  expect(kernel.inspect().frames).toEqual([
+    expect.objectContaining({ vertexRefId: vertexRef.getId(), stage: 'resolve' }),
+  ]);
+
+  const scheduling = (
+    kernel as unknown as {
+      scheduling: { eligible: Array<{ ref: Ref<TestGraph>; order: string }> };
+    }
+  ).scheduling;
+  scheduling.eligible.push({ ref: vertexRef, order: 'ON_COMPLETE' });
+  expect(kernel.inspect().readyVisits).toEqual([
+    { vertexRefId: vertexRef.getId(), order: 'LEVEL_ORDER' },
+  ]);
+});
+
+test('kernel inspection reports a depth-first child-wait frame index', () => {
+  const kernel = makeDepthKernel();
+  const vertexRef = new CTTRef(
+    new Vertex<TestGraph>({ $d: 'parent', $c: ['child'] }),
+  );
+  const policy = (
+    kernel as unknown as {
+      depthFirstPolicy: {
+        push(
+          owner: { kind: 'frame'; id: number; epoch: number },
+          ref: Ref<TestGraph>,
+          depth: number,
+        ): void;
+        getFrames(): Array<{ stage: string; nextChild: number }>;
+      };
+    }
+  ).depthFirstPolicy;
+  policy.push({ kind: 'frame', id: 2, epoch: 0 }, vertexRef, 0);
+  const frame = policy.getFrames()[0]!;
+  frame.stage = 'child-wait';
+  frame.nextChild = 1;
+  expect(kernel.inspect().frames[0]?.pendingIndices).toEqual([0]);
+});
+
+test('a frame outside an actionable internal stage cannot advance', () => {
+  const { kernel } = makeKernel();
+  const fields = kernel as unknown as {
+    frames: Map<number, { stage: string }>;
+  };
+  fields.frames.set(1, { stage: 'invalid' });
+  expect(invokePrivate(kernel, 'advanceFrames')).toBeNull();
+});
+
+test.each(['identify', 'resolve'] as const)(
+  'a %s frame waits while its owner has an outstanding callback',
+  (stage) => {
+    const { kernel } = makeKernel();
+    const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
+    const vertexRef = new CTTRef(
+      new Vertex<TestGraph>({ $d: 'parent', $c: ['child'] }),
+    );
+    const fields = kernel as unknown as {
+      frames: Map<number, object>;
+      pendingRequests: Map<number, object>;
+    };
+    fields.frames.set(owner.id, {
+      owner,
+      ref: vertexRef,
+      stage,
+      hints: ['child'],
+      nextIdentityIndex: 0,
+      nextConsumeIndex: 0,
+      hintIds: new Map(),
+      contexts: new Map(),
+      pendingIndices: new Set(),
+      outcomes: new Map(),
+    });
+    fields.pendingRequests.set(1, {
+      call: { owner },
+      submitted: false,
+    });
+    expect(invokePrivate(kernel, 'advanceFrames')).toBeNull();
+  },
+);
+
+test('drops an orphaned submitted callback reply', () => {
+  const { kernel } = makeKernel();
+  const fields = kernel as unknown as {
+    submittedOutcomes: object[];
+  };
+  fields.submittedOutcomes.push({
+    requestId: 999,
+    kind: 'MAKE_ROOT',
+    outcome: { ok: true, value: { vertexContent: null } },
+  });
+  invokePrivate<void>(kernel, 'processSubmittedOutcomes');
+  expect(fields.submittedOutcomes).toEqual([]);
+});
+
+test('reports an incomplete-work DAG stall without dependency ids', () => {
+  const { kernel } = makeKernel();
+  const vertexRef = new CTTRef(
+    new Vertex<TestGraph>({ $d: 'incomplete', $c: [] }),
+  );
+  setPrivate(kernel, 'rootRequested', true);
+  setPrivate(kernel, 'scheduling', {
+    inspectEligible: () => [],
+    getStall: () => ({ dependencies: [], incomplete: [vertexRef] }),
+    takeEligible: () => null,
+  });
+  expect(kernel.poll('drive')).toMatchObject({
+    kind: 'FAILED',
+    error: expect.objectContaining({ message: expect.stringMatching(/incomplete work/) }),
+  });
 });
 
 test('validates request ids and reply kinds exactly once', () => {

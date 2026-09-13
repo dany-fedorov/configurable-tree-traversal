@@ -213,3 +213,50 @@ test('graph binding rejects a tree-mode container', () => {
     ),
   ).toThrow(/graph source.*graph.*container/i);
 });
+
+test('tree binding rejects a graph-mode container', () => {
+  const container = new ResolvedGraphsContainer<InputTTP>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  expect(() =>
+    bindTreeSource(
+      {
+        makeRoot: () => ({ vertexContent: null }),
+        makeVertex: () => ({ vertexContent: null }),
+      },
+      container,
+    ),
+  ).toThrow(/tree graph container/i);
+});
+
+test('tree binding leaves a throwing then accessor for sync diagnostics', () => {
+  const treeContainer = new DepthFirstTraversal<InputTTP>({
+    traversableTree: {
+      makeRoot: () => ({ vertexContent: null }),
+      makeVertex: () => ({ vertexContent: null }),
+    },
+  }).makeRunner().resolvedTreesContainer;
+  const container = new ResolvedGraphsContainer({
+    sourceMode: 'tree',
+    saveOriginal: false,
+    treeContainer,
+  });
+  const result = Object.defineProperty(
+    { vertexContent: null },
+    'then',
+    {
+      get() {
+        throw new Error('then getter');
+      },
+    },
+  );
+  const bound = bindTreeSource(
+    {
+      makeRoot: () => result,
+      makeVertex: () => ({ vertexContent: null }),
+    },
+    container,
+  );
+  expect(bound.makeRoot()).toBe(result);
+});

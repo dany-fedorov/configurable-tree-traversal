@@ -15,6 +15,7 @@ import type {
   VisitOrder,
 } from '@core/effects/types';
 import type { RegistrationMetadata } from '@core/visitors/types';
+import type { EligibleVisit } from '@core/scheduling/types';
 
 export type KernelStateBridge<T extends TreeTypeParameters> = {
   status: TraversalRunnerStatus;
@@ -40,6 +41,10 @@ export type KernelOptions<
   hasSorter: boolean;
   hasHintIds: boolean;
   concurrency: number;
+  dagSeed?: {
+    readyVisits: readonly EligibleVisit<T | R>[];
+    expansionQueue: readonly Ref<T | R>[];
+  };
 };
 
 export type FrameState<
@@ -49,7 +54,7 @@ export type FrameState<
   owner: OwnerToken;
   ref: Ref<T | R>;
   depth: number;
-  stage: 'sort' | 'identify' | 'resolve' | 'closed';
+  stage: 'sort' | 'identify' | 'resolve';
   hints: (T | R)['VertexHint'][];
   nextIdentityIndex: number;
   nextConsumeIndex: number;

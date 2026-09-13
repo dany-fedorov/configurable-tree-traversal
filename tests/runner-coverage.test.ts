@@ -172,6 +172,40 @@ test.each(['depth-first', 'breadth-first'] as const)(
   },
 );
 
+test.each(['depth-first', 'breadth-first'] as const)(
+  '%s adopts a registered root assigned after runner construction',
+  (strategy) => {
+    const traversal =
+      strategy === 'depth-first'
+        ? new DepthFirstTraversal<Tree>({
+            traversableTree: {
+              ...adapter(node('unused')),
+              makeRoot: () => {
+                throw new Error('Registered root must be reused');
+              },
+            },
+          })
+        : new BreadthFirstTraversal<Tree>({
+            traversableTree: {
+              ...adapter(node('unused')),
+              makeRoot: () => {
+                throw new Error('Registered root must be reused');
+              },
+            },
+          });
+    const runner = traversal.makeRunner();
+    const root = new CTTRef(new Vertex<Tree>(node('late-root')));
+    runner.resolvedTreesContainer.setRoot(root);
+    expect(
+      [...runner.getIterable()].map((event) => event.vertex.getData()),
+    ).toEqual(
+      strategy === 'depth-first'
+        ? ['late-root', 'late-root', 'late-root']
+        : ['late-root'],
+    );
+  },
+);
+
 test('depth-first hint rewrites outside pre-order fail the runner', () => {
   const traversal = new DepthFirstTraversal<Tree>({
     traversableTree: adapter(node('root')),

@@ -5,6 +5,7 @@ import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContain
 import type { HintVertexId, Ref } from '../src/core/graph/types';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import type { TestGraph } from './helpers/graph-fixtures';
+import { Vertex } from '../src/core/Vertex';
 
 function result(
   label: string,
@@ -57,6 +58,135 @@ function setup(rootHints: string[] = []) {
   container.store.prepareSlots(rootRef, rootHints);
   return { container, scheduling, rootRef };
 }
+
+test('root acceptance honors existing live, omitted, and deleted identities', () => {
+  const container = new ResolvedGraphsContainer<TestGraph>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  const scheduling = new GraphScheduling(container);
+  container.store.markDeleted('deleted');
+  container.store.markOmitted('omitted');
+  expect(scheduling.acceptRoot(result('deleted', { id: 'deleted' }))).toBeNull();
+  expect(scheduling.acceptRoot(omitted('omitted'))).toBeNull();
+  expect(() =>
+    scheduling.acceptRoot(result('conflict', { id: 'omitted' })),
+  ).toThrow(/omission conflicts/i);
+
+  const rootRef = scheduling.acceptRoot(result('root', { id: 'root' }))!;
+  container.store.setRoot(null);
+  expect(scheduling.acceptRoot(result('ignored', { id: 'root' }))).toBe(rootRef);
+  expect(container.resolvedGraph.getRoot()).toBe(rootRef);
+});
+
+test('scheduling rejects unknown enrollment and duplicate expansion transitions', () => {
+  const container = new ResolvedGraphsContainer<TestGraph>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  const scheduling = new GraphScheduling(container);
+  const unknown = new CTTRef(
+    new Vertex<TestGraph>({ $d: 'unknown', $c: [] }),
+  );
+  expect(() => scheduling.markPreVisited(unknown)).toThrow(/unknown/i);
+  container.store.insertVertex({
+    ref: unknown,
+    id: 'unknown',
+    dependsOn: [],
+    depth: 0,
+  });
+  expect(() => scheduling.markPreVisited(unknown)).toThrow(/not enrolled/i);
+  expect(() => scheduling.markPreVisiting(unknown)).toThrow(/not enrolled/i);
+  expect(() => scheduling.disableSubtree(new CTTRef(unknown.unref()))).toThrow(
+    /unknown/i,
+  );
+
+  const rootRef = scheduling.acceptRoot(result('root', { id: 'root' }))!;
+  expect(scheduling.getStall()).toBeNull();
+  scheduling.prepareSlots(rootRef, []);
+  expect(() => scheduling.prepareSlots(rootRef, [])).toThrow(/already prepared/i);
+  scheduling.markPreVisited(rootRef);
+  scheduling.closeExpansion(rootRef);
+  expect(() =>
+    (
+      scheduling as unknown as {
+        noteLinkedSlot(parent: Ref<TestGraph>, index: number): void;
+      }
+    ).noteLinkedSlot(rootRef, 0),
+  ).toThrow(/after expansion is closed/i);
+  expect(scheduling.deleteVertex(new CTTRef(rootRef.unref()))).toEqual(new Set());
+});
+
+test('known-hint and consumed-tree restoration handle absent and reusable slots', () => {
+  const { container, scheduling, rootRef } = setup(['child']);
+  (
+    scheduling as unknown as {
+      captureReusableTreeChildren(parent: Ref<TestGraph>): void;
+    }
+  ).captureReusableTreeChildren(rootRef);
+  expect(
+    (
+      scheduling as unknown as {
+        reusableTreeChildren: Map<Ref<TestGraph>, unknown>;
+      }
+    ).reusableTreeChildren.size,
+  ).toBe(0);
+  expect(
+    scheduling.acceptKnownHint(context(rootRef, 0), {} as HintVertexId),
+  ).toBe(false);
+  expect(
+    scheduling.acceptKnownHint(context(rootRef, 0), { vertexId: 'missing' }),
+  ).toBe(false);
+  scheduling.restoreConsumedTreeSlot(context(rootRef, 0));
+  expect(container.resolvedGraph.get(rootRef)?.slots[0]?.kind).toBe('omitted');
+
+  const second = setup(['child']);
+  const childRef = new CTTRef(
+    new Vertex<TestGraph>({ $d: 'child', $c: [] }),
+  );
+  second.container.acceptVertex(childRef, 'child', [], context(second.rootRef, 0));
+  const reusable = second.scheduling as unknown as {
+    reusableTreeChildren: Map<
+      Ref<TestGraph>,
+      Map<number, { ref: Ref<TestGraph>; hint: string }>
+    >;
+  };
+  reusable.reusableTreeChildren.set(
+    second.rootRef,
+    new Map([[0, { ref: childRef, hint: 'child' }]]),
+  );
+  second.scheduling.restoreConsumedTreeSlot(context(second.rootRef, 0));
+  expect(second.container.resolvedGraph.getChildrenOf(second.rootRef)).toEqual([
+    childRef,
+  ]);
+  expect(second.container.resolvedGraph.getStatusOf(childRef)).toBe('COMPLETE');
+  reusable.reusableTreeChildren.set(
+    second.rootRef,
+    new Map([[0, { ref: childRef, hint: 'different' }]]),
+  );
+  expect(
+    (
+      second.scheduling as unknown as {
+        findExistingTreeChild(
+          value: VertexResolutionContext<TestGraph>,
+        ): Ref<TestGraph> | null;
+      }
+    ).findExistingTreeChild(context(second.rootRef, 0)),
+  ).toBeNull();
+
+  const removals = new Set<Ref<TestGraph>>([second.rootRef]);
+  const pending: Ref<TestGraph>[] = [];
+  (
+    second.scheduling as unknown as {
+      addRemoval(
+        ref: Ref<TestGraph>,
+        refs: Set<Ref<TestGraph>>,
+        work: Ref<TestGraph>[],
+      ): void;
+    }
+  ).addRemoval(second.rootRef, removals, pending);
+  expect(pending).toEqual([]);
+});
 
 test('admits an early dependent only after both later prerequisites are pre-visited', () => {
   const { container, scheduling, rootRef } = setup(['join', 'A', 'B']);

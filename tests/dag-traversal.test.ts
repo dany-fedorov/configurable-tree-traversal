@@ -357,34 +357,40 @@ test('tree source rejects graph metadata', () => {
   expect(() => runner.run()).toThrow(/tree source.*metadata/i);
 });
 
-test('sorts copied hints before resolution', () => {
-  const hints = ['b', 'a'];
-  const adapter: TraversableGraph<TestGraph> = {
-    makeRoot: () => ({
-      vertexContent: { $d: 'root', $c: hints },
-      vertexId: 'root',
-    }),
-    makeVertex: (hint) => ({
-      vertexContent: { $d: hint, $c: [] },
-      vertexId: hint,
-    }),
-  };
-  const events = [
-    ...new DagTraversal<TestGraph>({
-      traversableGraph: adapter,
-      sortChildrenHints: (children) => children.reverse(),
-    })
-      .makeRunner()
-      .getIterable({ iterateOver: [Order.ON_READY] }),
-  ];
+test.each([false, true])(
+  'sorts copied hints before resolution with hint identity %s',
+  (identifyHints) => {
+    const hints = ['b', 'a'];
+    const adapter: TraversableGraph<TestGraph> = {
+      makeRoot: () => ({
+        vertexContent: { $d: 'root', $c: hints },
+        vertexId: 'root',
+      }),
+      makeVertex: (hint) => ({
+        vertexContent: { $d: hint, $c: [] },
+        vertexId: hint,
+      }),
+      ...(identifyHints
+        ? { getVertexIdFromHint: (hint: string) => ({ vertexId: hint }) }
+        : {}),
+    };
+    const events = [
+      ...new DagTraversal<TestGraph>({
+        traversableGraph: adapter,
+        sortChildrenHints: (children) => children.reverse(),
+      })
+        .makeRunner()
+        .getIterable({ iterateOver: [Order.ON_READY] }),
+    ];
 
-  expect(events.map(({ vertex }) => vertex.getData())).toEqual([
-    'root',
-    'a',
-    'b',
-  ]);
-  expect(hints).toEqual(['b', 'a']);
-});
+    expect(events.map(({ vertex }) => vertex.getData())).toEqual([
+      'root',
+      'a',
+      'b',
+    ]);
+    expect(hints).toEqual(['b', 'a']);
+  },
+);
 
 test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
   const seen: Array<[string, number, number, string | null, unknown]> = [];

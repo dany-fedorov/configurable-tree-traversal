@@ -73,6 +73,7 @@ export interface GraphStoreContract<T extends TreeTypeParameters> {
   readonly mode: 'tree' | 'dag';
   readonly graph: ResolvedGraph<T>;
   getIdState(id: VertexId): IdState<T> | undefined;
+  getTraversalSlots(ref: Ref<T>): readonly ChildSlot<T>[] | null;
   insertVertex(input: {
     ref: Ref<T>;
     id: VertexId;

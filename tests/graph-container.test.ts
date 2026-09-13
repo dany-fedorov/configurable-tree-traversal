@@ -182,3 +182,54 @@ test('tree acceptance validates saved parent mappings before graph insertion', (
   expect(treeContainer.resolvedTree.get(child)).not.toBeNull();
   expect(container.notMutatedResolvedGraphRefsMap!.has(child)).toBe(true);
 });
+
+function treeEdgeContainer() {
+  const treeContainer = new DepthFirstTraversal<GraphTTP>({
+    traversableTree: {
+      makeRoot: () => ({ vertexContent: null }),
+      makeVertex: () => ({ vertexContent: null }),
+    },
+    saveNotMutatedResolvedTree: true,
+  }).makeRunner().resolvedTreesContainer;
+  const container = new ResolvedGraphsContainer({
+    sourceMode: 'tree',
+    saveOriginal: false,
+    treeContainer,
+  });
+  const root = ref('root', ['child']);
+  const child = ref('child');
+  container.acceptRoot(root, 'root');
+  container.acceptVertex(child, 'child', [], context(root, 0));
+  container.store.prepareSlots(root, ['child']);
+  return { child, container, root, treeContainer };
+}
+
+test.each([
+  ['parent ref', ({ root, treeContainer }: ReturnType<typeof treeEdgeContainer>) => {
+    treeContainer.notMutatedResolvedTreeRefsMap!.delete(root);
+  }],
+  ['child ref', ({ child, treeContainer }: ReturnType<typeof treeEdgeContainer>) => {
+    treeContainer.notMutatedResolvedTreeRefsMap!.delete(child);
+  }],
+  ['parent record', ({ root, treeContainer }: ReturnType<typeof treeEdgeContainer>) => {
+    const savedRoot = treeContainer.notMutatedResolvedTreeRefsMap!.get(root)!;
+    treeContainer.notMutatedResolvedTree!.delete(savedRoot);
+  }],
+] as const)('tree edge acceptance rejects a missing saved %s atomically', (_name, corrupt) => {
+  const fixture = treeEdgeContainer();
+  corrupt(fixture);
+  expect(() =>
+    fixture.container.acceptEdge(fixture.root, 0, fixture.child),
+  ).toThrow(/not mutated/i);
+  expect(fixture.container.resolvedGraph.getChildrenOf(fixture.root)).toEqual([]);
+});
+
+test('tree edge acknowledgment does not append saved topology twice', () => {
+  const { child, container, root, treeContainer } = treeEdgeContainer();
+  container.acceptEdge(root, 0, child);
+  container.acceptEdge(root, 0, child);
+  const savedRoot = treeContainer.notMutatedResolvedTreeRefsMap!.get(root)!;
+  expect(
+    treeContainer.notMutatedResolvedTree!.getChildrenOf(savedRoot),
+  ).toHaveLength(1);
+});
