@@ -1,4 +1,8 @@
-import type { CallbackBindings } from '../src/core/effects/types';
+import type {
+  CallbackBindings,
+  CallSpec,
+  KernelPort,
+} from '../src/core/effects/types';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
@@ -252,4 +256,65 @@ test('drops a stored root outcome whose owner is invalidated before resume', asy
   driver.resume();
   expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
   expect(kernel.inspect().pendingRequests).toEqual([]);
+});
+
+test('applies a settled invalidation before admitting a released permit', async () => {
+  const first = deferred<{ vertexContent: null }>();
+  const calls: CallSpec<TestGraph>[] = [
+    {
+      requestId: 1,
+      kind: 'MAKE_ROOT',
+      owner: { kind: 'root', id: 1, epoch: 0 },
+    },
+    {
+      requestId: 2,
+      kind: 'MAKE_ROOT',
+      owner: { kind: 'root', id: 2, epoch: 0 },
+    },
+  ];
+  const started: number[] = [];
+  let submitted = false;
+  let secondValid = true;
+  const kernel = {
+    poll() {
+      if (submitted) secondValid = false;
+      const call = calls.shift();
+      return call === undefined
+        ? { kind: 'WAIT' as const }
+        : { kind: 'CALL' as const, call };
+    },
+    submit() {
+      submitted = true;
+    },
+    discardRequest(requestId: number) {
+      expect(requestId).toBe(2);
+    },
+    isRequestValid(requestId: number) {
+      return requestId === 1 || secondValid;
+    },
+    isRequestEligible(requestId: number) {
+      return requestId === 1 || secondValid;
+    },
+  } as unknown as KernelPort<TestGraph>;
+  const driver = createAsyncDriver(
+    kernel,
+    {
+      invoke(call) {
+        started.push(call.requestId);
+        return {
+          kind: 'MAKE_ROOT',
+          value: call.requestId === 1 ? first.promise : { vertexContent: null },
+        };
+      },
+    } as CallbackBindings<TestGraph>,
+    1,
+  );
+
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  expect(started).toEqual([1]);
+  first.resolve({ vertexContent: null });
+  await eventLoopTurn();
+
+  expect(driver.advance('settle')).toEqual({ kind: 'WAIT' });
+  expect(started).toEqual([1]);
 });

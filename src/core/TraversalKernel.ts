@@ -251,7 +251,7 @@ export class TraversalKernel<
       }
 
       const depthFirstAction = this.runTransition(() =>
-        this.advanceDepthFirst(),
+        this.advanceDepthFirst(mode),
       );
       if (depthFirstAction === 'PROGRESSED') continue;
       if (depthFirstAction !== null) return depthFirstAction;
@@ -261,7 +261,7 @@ export class TraversalKernel<
       }
 
       const breadthFirstAction = this.runTransition(() =>
-        this.advanceBreadthFirst(),
+        this.advanceBreadthFirst(mode),
       );
       if (breadthFirstAction === 'PROGRESSED') continue;
       if (breadthFirstAction !== null) return breadthFirstAction;
@@ -991,7 +991,9 @@ export class TraversalKernel<
     }
   }
 
-  private advanceDepthFirst(): KernelAction<T, R> | 'PROGRESSED' | null {
+  private advanceDepthFirst(
+    mode: PumpMode,
+  ): KernelAction<T, R> | 'PROGRESSED' | null {
     const policy = this.depthFirstPolicy;
     if (policy === null) return null;
     if (this.options.execution === 'async') {
@@ -1001,6 +1003,7 @@ export class TraversalKernel<
         if (transportFrame !== undefined) {
           const transportAction = this.advanceAsyncFrame(transportFrame);
           if (transportAction !== null) return transportAction;
+          if (mode !== 'drive') return null;
           if (frame.stage === 'child-wait') {
             const index = frame.nextChild - 1;
             const context = transportFrame.contexts.get(index)!;
@@ -1043,6 +1046,7 @@ export class TraversalKernel<
         }
       }
     }
+    if (mode !== 'drive') return null;
     const work = policy.next(
       (ref) => this.options.container.resolvedGraph.has(ref),
       (ref) => this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref),
@@ -1086,7 +1090,7 @@ export class TraversalKernel<
         });
       case 'MAKE_VERTEX': {
         if (this.options.execution === 'async') {
-          return this.advanceDepthFirst();
+          return this.advanceDepthFirst(mode);
         }
         const context = {
           parentVertexRef: work.frame.vertexRef,
@@ -1117,7 +1121,9 @@ export class TraversalKernel<
       .find((candidate) => candidate.owner.id === ownerId)!;
   }
 
-  private advanceBreadthFirst(): KernelAction<T, R> | 'PROGRESSED' | null {
+  private advanceBreadthFirst(
+    mode: PumpMode,
+  ): KernelAction<T, R> | 'PROGRESSED' | null {
     const policy = this.breadthFirstPolicy;
     if (policy === null) return null;
     if (this.options.execution === 'async') {
@@ -1125,6 +1131,7 @@ export class TraversalKernel<
         const action = this.advanceAsyncFrame(frame);
         if (action !== null) return action;
       }
+      if (mode !== 'drive') return null;
       if (this.breadthPendingContext !== null) {
         const context = this.breadthPendingContext;
         const frame = Array.from(this.frames.values()).find(
@@ -1212,7 +1219,7 @@ export class TraversalKernel<
           )!;
           policy.startResolution(frame.owner, work.context);
           this.breadthPendingContext = work.context;
-          return this.advanceBreadthFirst();
+          return this.advanceBreadthFirst(mode);
         }
         const owner = this.newOwner('frame');
         policy.startResolution(owner, work.context);

@@ -75,19 +75,18 @@ export function createAsyncDriver<
     advance(mode: PumpMode): SessionProgress<KernelEvent<T | R>> {
       submitSettled();
       for (;;) {
+        const action = kernel.poll(mode);
         discardInvalidQueued();
+        if (action.kind === 'CALL') enqueue(action.call);
         scheduler.startEligible((requestId) =>
           kernel.isRequestEligible(requestId, mode),
         );
-        const action = kernel.poll(mode);
-        if (action.kind !== 'CALL') discardInvalidQueued();
         if (action.kind === 'EVENT') {
           if (action.boundaryId === emittedBoundaryId) return { kind: 'WAIT' };
           emittedBoundaryId = action.boundaryId;
           return action;
         }
         if (action.kind !== 'CALL') return action;
-        enqueue(action.call);
       }
     },
     acknowledgeEvent: (boundaryId) => {

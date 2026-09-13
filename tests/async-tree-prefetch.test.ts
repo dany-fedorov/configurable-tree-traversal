@@ -123,6 +123,50 @@ test('captures prefetched sibling rejection and surfaces it in slot order', asyn
   }
 });
 
+test('settle stores a child outcome without admitting its visitor chain', async () => {
+  const child = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const visits: string[] = [];
+  const { driver } = setup({
+    visitorCount: 1,
+    bindings: {
+      invoke(call) {
+        if (call.kind === 'MAKE_ROOT') {
+          return {
+            kind: call.kind,
+            value: { vertexContent: { $d: 'root', $c: ['child'] } },
+          };
+        }
+        if (call.kind === 'MAKE_VERTEX') {
+          return { kind: call.kind, value: child.promise };
+        }
+        if (call.kind === 'VISIT') {
+          visits.push(call.ref.unref().getData());
+          return { kind: call.kind, value: undefined };
+        }
+        throw new Error(`Unexpected ${call.kind}`);
+      },
+    },
+  });
+
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  await eventLoopTurn();
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  await eventLoopTurn();
+  const rootEvent = driver.advance('drive');
+  if (rootEvent.kind !== 'EVENT') throw new Error('Expected root event');
+  driver.acknowledgeEvent(rootEvent.boundaryId);
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  expect(visits).toEqual(['root']);
+
+  child.resolve({ vertexContent: { $d: 'child', $c: [] } });
+  await eventLoopTurn();
+  expect(driver.advance('settle')).toEqual({ kind: 'WAIT' });
+  expect(visits).toEqual(['root']);
+
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  expect(visits).toEqual(['root', 'child']);
+});
+
 test('the limiter includes promised sorting and prefetched child resolution', async () => {
   const sorted = deferred<string[]>();
   const child = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
@@ -523,6 +567,82 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
     done: true,
     value: undefined,
   });
+});
+
+test('breadth-first settle does not admit a resolved child visitor', async () => {
+  const child = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const visits: string[] = [];
+  const stateBridge = {
+    status: TraversalRunnerStatus.INITIAL,
+    traversalRootVertexRef: null,
+    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    visitorsState: {},
+    queue: [],
+    queueIndex: 0,
+  };
+  const kernel = new TraversalKernel<TestGraph>({
+    kind: 'breadth-first',
+    execution: 'async',
+    sourceMode: 'tree',
+    container: new ResolvedGraphsContainer<TestGraph>({
+      sourceMode: 'graph',
+      saveOriginal: false,
+    }),
+    stateBridge,
+    visitorMetadata: {
+      LEVEL_ORDER: [
+        { addedIndex: 0, priority: 100, resolutionStyle: Style.SEQUENTIAL },
+      ],
+    },
+    iterableConfig: {
+      iterateOver: ['LEVEL_ORDER'],
+      enableVisitorFunctionsFor: null,
+      disableVisitorFunctionsFor: null,
+    },
+    inOrderConfig: null,
+    hasSorter: false,
+    hasHintIds: false,
+    concurrency: 1,
+  });
+  const driver = createAsyncDriver(
+    kernel,
+    {
+      invoke(call) {
+        if (call.kind === 'MAKE_ROOT') {
+          return {
+            kind: call.kind,
+            value: { vertexContent: { $d: 'root', $c: ['child'] } },
+          };
+        }
+        if (call.kind === 'MAKE_VERTEX') {
+          return { kind: call.kind, value: child.promise };
+        }
+        if (call.kind === 'VISIT') {
+          visits.push(call.ref.unref().getData());
+          return { kind: call.kind, value: undefined };
+        }
+        throw new Error(`Unexpected ${call.kind}`);
+      },
+    },
+    1,
+  );
+
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  await eventLoopTurn();
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  await eventLoopTurn();
+  const rootEvent = driver.advance('drive');
+  if (rootEvent.kind !== 'EVENT') throw new Error('Expected root event');
+  driver.acknowledgeEvent(rootEvent.boundaryId);
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  expect(visits).toEqual(['root']);
+
+  child.resolve({ vertexContent: { $d: 'child', $c: [] } });
+  await eventLoopTurn();
+  expect(driver.advance('settle')).toEqual({ kind: 'WAIT' });
+  expect(visits).toEqual(['root']);
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  expect(visits).toEqual(['root', 'child']);
 });
 
 test('breadth-first closes an unsorted empty async frame', async () => {
