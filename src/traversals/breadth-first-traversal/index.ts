@@ -1,6 +1,7 @@
 export * from './BreadthFirstTraversal';
 export * from './AsyncBreadthFirstTraversal';
 export * from './traverseBreadthFirst';
+export * from './traverseBreadthFirstAsync';
 export * from './lib/AsyncBreadthFirstTraversalInstanceConfig';
 export * from './lib/AsyncBreadthFirstTraversalRunner';
 export * from './lib/BreadthFirstTraversalInstanceConfig';

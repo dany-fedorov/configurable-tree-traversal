@@ -1,6 +1,7 @@
 export * from './DepthFirstTraversal';
 export * from './AsyncDepthFirstTraversal';
 export * from './traverseDepthFirst';
+export * from './traverseDepthFirstAsync';
 
 export * from './lib/DepthFirstTraversalExecuteVisitorCommandsResult';
 export * from './lib/DepthFirstTraversalInOrderTraversalConfig';

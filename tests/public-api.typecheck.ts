@@ -1,14 +1,32 @@
 import {
+  AsyncBreadthFirstTraversal,
+  AsyncDagTraversal,
+  AsyncDepthFirstTraversal,
+  DagTraversal,
+  DagTraversalOrder,
   DepthFirstTraversal,
   DepthFirstTraversalOrder,
   TraversableObjectTree,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   traverseDepthFirst,
+  traverseBreadthFirstAsync,
+  traverseDag,
+  traverseDagAsync,
+  traverseDepthFirstAsync,
+  type AsyncCoreExecution,
+  type CoreInspection,
+  type KernelInspection,
+  type ResolvedGraph,
+  type TraversableGraph,
   type TraversalRunner,
   type TreeTypeParameters,
   type TraversableTree,
 } from '../src';
+import {
+  hasSingleSink as hasSingleSinkFromDagSubpath,
+  traverseDagAsync as traverseDagAsyncFromDagSubpath,
+} from '../src/traversals/dag-traversal';
 
 type Node = { $d: string; $c: (Node | null)[] };
 type Tree = TreeTypeParameters<string, Node | null>;
@@ -17,6 +35,10 @@ const root: Node = { $d: 'root', $c: [{ $d: 'leaf', $c: [] }] };
 const tree: TraversableTree<Tree> = {
   makeRoot: () => ({ vertexContent: root }),
   makeVertex: (hint) => ({ vertexContent: hint }),
+};
+const graph: TraversableGraph<Tree> = {
+  makeRoot: () => ({ vertexId: 'root', vertexContent: root }),
+  makeVertex: (hint) => ({ vertexId: hint?.$d, vertexContent: hint }),
 };
 
 const traversal = new DepthFirstTraversal({ traversableTree: tree });
@@ -62,4 +84,48 @@ for (const event of objectRunner.getIterable()) {
   void key;
 }
 
-void [interfaceRunner, convenienceData, failedStatus];
+const asyncDepthResult: Promise<
+  ReturnType<AsyncDepthFirstTraversal<Tree>['makeRunner']>
+> = traverseDepthFirstAsync(tree, null);
+const asyncBreadthResult: Promise<
+  ReturnType<AsyncBreadthFirstTraversal<Tree>['makeRunner']>
+> = traverseBreadthFirstAsync(tree, null);
+const dagResult: ReturnType<DagTraversal<Tree>['makeRunner']> = traverseDag(
+  { traversableGraph: graph },
+  null,
+);
+const asyncDagResult: Promise<
+  ReturnType<AsyncDagTraversal<Tree>['makeRunner']>
+> = traverseDagAsyncFromDagSubpath({ traversableGraph: graph }, null);
+const asyncExecution: AsyncCoreExecution<unknown> = new AsyncDagTraversal({
+  traversableGraph: graph,
+}).makeRunner();
+const resolvedGraph: ResolvedGraph<Tree> = dagResult.getResolvedGraph();
+const rootRef = resolvedGraph.getRoot();
+const children = rootRef === null ? null : resolvedGraph.getChildrenOf(rootRef);
+const inspection: CoreInspection = dagResult.inspect();
+const kernelInspection: KernelInspection = inspection;
+const oneSink: boolean = hasSingleSinkFromDagSubpath(resolvedGraph);
+const order: DagTraversalOrder = DagTraversalOrder.ON_READY;
+
+// @ts-expect-error DAG helper configuration cannot replace its explicit source.
+traverseDag({ traversableGraph: graph }, null, { traversableGraph: graph });
+// @ts-expect-error Async DAG helper configuration cannot replace its explicit source.
+traverseDagAsync({ traversableGraph: graph }, null, { traversableTree: tree });
+
+void [
+  interfaceRunner,
+  convenienceData,
+  failedStatus,
+  asyncDepthResult,
+  asyncBreadthResult,
+  dagResult,
+  asyncDagResult,
+  asyncExecution,
+  resolvedGraph,
+  children,
+  inspection,
+  kernelInspection,
+  oneSink,
+  order,
+];
