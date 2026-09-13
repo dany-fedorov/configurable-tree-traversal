@@ -1,6 +1,6 @@
 # configurable-tree-traversal
 
-Configurable, synchronous tree traversal for TypeScript and JavaScript. Walk abstract trees or JavaScript objects in depth-first or breadth-first order, transform vertices, prune branches, and pause and resume traversal.
+Configurable tree and DAG traversal for TypeScript and JavaScript. Walk abstract trees or JavaScript objects in synchronous or asynchronous depth-first and breadth-first order, schedule dependency-aware DAGs, transform vertices, prune branches, and pause and resume traversal.
 
 <img src="./Sorted_binary_tree_ALL_RGB.svg.png" alt="Binary tree with depth-first visit points: red for pre-order, green for in-order, and blue for post-order" width="460" height="393" />
 
@@ -13,7 +13,7 @@ Package: [configurable-tree-traversal on npm](https://www.npmjs.com/package/conf
 npm install configurable-tree-traversal
 ```
 
-The package includes CommonJS JavaScript and TypeScript declarations. Node ESM consumers can use the default import (`import library from 'configurable-tree-traversal'`).
+The package includes CommonJS JavaScript and TypeScript declarations. Node ESM consumers can use named imports or the default import (`import library from 'configurable-tree-traversal'`).
 
 ## Traverse an object
 
@@ -124,6 +124,84 @@ const keys = [...traversal.makeRunner().getIterable()]
 
 Register visitors using `BreadthFirstTraversalOrder.LEVEL_ORDER`. `traverseBreadthFirst(tree, visitor, config?)` creates and runs a traversal. The corresponding depth-first helper is `traverseDepthFirst(tree, { preOrderVisitor?, inOrderVisitor?, postOrderVisitor? }, config?)`. Both helpers return the runner; pass `null` in place of visitors to just resolve the tree.
 
+## Async traversal
+
+`AsyncDepthFirstTraversal` and `AsyncBreadthFirstTraversal` preserve their synchronous counterparts' configuration, events, commands, graph queries, and visitor metadata. Their adapter, sorter, hint-identity, and visitor callbacks may independently return either a value or a promise. `run()` returns a promise of the runner, and `getIterable()` returns an async-generator-compatible iterator.
+
+```ts
+import {
+  AsyncDepthFirstTraversal,
+  DepthFirstTraversalOrder,
+  type TreeTypeParameters,
+} from 'configurable-tree-traversal';
+
+type Files = TreeTypeParameters<string, string>;
+const traversal = new AsyncDepthFirstTraversal<Files>({
+  concurrency: 4,
+  traversableTree: {
+    makeRoot: () => ({ vertexContent: { $d: '/', $c: ['src'] } }),
+    makeVertex: async (path) => ({
+      vertexContent: { $d: path, $c: await listChildren(path) },
+    }),
+  },
+});
+
+for await (const event of traversal.makeRunner().getIterable({
+  iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
+})) {
+  console.log(event.vertex.getData());
+}
+```
+
+Set `concurrency` to a positive integer to bound invoked callbacks; the default is `Infinity`. Async tree runners may prefetch child callbacks after the parent event boundary. Under timing-independent adapters and visitors, they provide qualified parity with synchronous tree runners: event values and final topology match, but callback timing and the resolved prefix visible to a callback can differ. Async DAG traversal guarantees dependency ordering and committed lifecycle ordering, not a complete event-sequence match with synchronous DAG traversal.
+
+## DAG traversal
+
+`DagTraversal` and `AsyncDagTraversal` traverse a discovered acyclic graph in two lifecycle orders: `ON_READY` after the vertex's initial visitor chain satisfies dependents, and `ON_COMPLETE` after its entire discovered descendant subgraph completes. A dependency waits for a task's `ON_READY`, not its subtree completion. Dependencies do not create graph edges, and an explicit `dependsOn` replaces the default parent dependency.
+
+```ts
+import {
+  DagTraversal,
+  DagTraversalOrder,
+} from 'configurable-tree-traversal/traversals/dag-traversal';
+import type { TreeTypeParameters } from 'configurable-tree-traversal';
+
+type Workflow = TreeTypeParameters<string, string>;
+const jobs: Record<string, { children: string[]; dependsOn: string[] }> = {
+  root: { children: ['compile', 'test', 'publish'], dependsOn: [] },
+  compile: { children: ['publish'], dependsOn: ['root'] },
+  test: { children: ['publish'], dependsOn: ['root'] },
+  publish: { children: [], dependsOn: ['compile', 'test'] },
+};
+const traversal = new DagTraversal<Workflow>({
+  traversableGraph: {
+    makeRoot: () => makeJob('root'),
+    makeVertex: (id) => makeJob(id),
+    getVertexIdFromHint: (id) => ({ vertexId: id }),
+  },
+});
+traversal.addVisitorFor(DagTraversalOrder.ON_READY, (vertex) => {
+  runTask(vertex.getData());
+});
+traversal.makeRunner().run();
+
+function makeJob(id: string) {
+  const job = jobs[id];
+  if (job === undefined) throw new Error(`Unknown job: ${id}`);
+  return {
+    vertexId: id,
+    dependsOn: job.dependsOn,
+    vertexContent: { $d: id, $c: job.children },
+  };
+}
+```
+
+A DAG constructor accepts exactly one source mode. Use `traversableGraph` for graph callback options, explicit ids and dependencies; use `traversableTree` to adapt an existing tree source while visitors receive the graph facade. The source mode is fixed at construction, although `configure()` can replace the adapter within that mode. Tree-source results cannot add graph identity or dependency fields.
+
+Graph ids use `Map`/`Set` SameValueZero equality, so `NaN`, `null`, explicit `undefined`, symbols, and object references are valid. `getVertexIdFromHint()` returns a wrapper, not a bare id: return `{ vertexId: undefined }` for the real id `undefined`, or return `undefined` when the hint has no identity. A known hint id can reuse a vertex without resolving it; if both the hint hook and resolver supply ids, they must match.
+
+`runner.getResolvedGraph()` provides read-only vertex, status, parent, child, path, and id queries. Query arrays are shallow snapshots: changing an array cannot edit topology, while contained references and user vertex data remain live. With `saveNotMutatedResolvedGraph: true`, DAG runners also expose a structural `notMutatedResolvedGraph` snapshot containing first-accepted content and discovery edges. Rewrites and deletions do not alter it, but user data is still shallowly shared.
+
 ## Visitors and commands
 
 Visitors receive `(vertex, options)` and may return `{ commands: [...] }`. Commands apply to the resolved tree; they do not mutate the original input object.
@@ -177,6 +255,24 @@ Statuses are `INITIAL`, `RUNNING`, `HALTED`, `FINISHED`, and `FAILED`. Running a
 
 An error in the consumer's `for...of` body closes that iterator and leaves the runner `HALTED`, so it can be resumed. Runners are in-memory continuations, not serializable checkpoints. Advanced callers injecting `traversalRunnerInternalObjects` must provide mutually consistent state and resolved-tree storage, including the saved tree and reference map when saving original vertices.
 
+Async iteration uses the same one-owner rule. Calling `return()` on an active async iterator requests a halt immediately, including while `next()` is waiting on an adapter, then drains only already-started visitor-chain work. Unresolved `next()` calls finish as done and buffered events remain available on resume. User callbacks are not cancelled, so a pending visitor can delay close indefinitely. A loop-body error follows JavaScript iterator-close semantics and remains the reported error; the runner is resumable unless traversal itself failed.
+
+## Inspection and execution
+
+Every runner has a synchronous `inspect()` method. It returns a detached, frozen snapshot with status, traversal kind, source mode, execution mode, effective concurrency, ready visits, frames, visitor chains, pending callback identities, event boundaries, physical in-flight callback count, and buffered event count. Inspection never calls user code, consumes an event, or advances traversal, and snapshots contain reference ids rather than callback functions, promises, or vertex data.
+
+```ts
+const asyncRunner = traversal.makeRunner();
+const iterator = asyncRunner.getIterable();
+const next = iterator.next();
+const snapshot = asyncRunner.inspect();
+console.log(snapshot.pendingRequests, snapshot.inFlightCallbackCount);
+await next;
+await iterator.return();
+```
+
+All six public runners use the same explicit transition-state model. Synchronous runners execute its callback requests inline; asynchronous runners delegate iteration and `run()` to one shared `AsyncCoreExecution` session with serialized state commits, finite callback limiting when configured, and one iterator lease. Calling `run()` while an iterator owns that session rejects rather than starting a second execution.
+
 ## Rewrite objects
 
 The `rewriteObject` namespace is retained for compatibility:
@@ -201,13 +297,13 @@ Set `assembleCompositesBeforeRewrite: true` to receive `assembledComposite` alon
 
 `outputObject` captures the root value when the helper returns (after the optional `getOutputObjectFromRootValue` conversion). If custom visitors halt traversal, check `traversalRunner.getStatus()` before treating that value as complete. Resume with `traversalRunner.run()` and read the final value from `traversalRunner.getResolvedTree().getRoot()?.unref().getData().value`, using `null` when the root was deleted. Resuming does not update the earlier `outputObject` or rerun the output conversion hook.
 
-With `saveNotMutatedResolvedTree: true`, visitors can inspect a separate original resolved tree. Its vertex references, child lists, and resolution contexts are independent of command-driven changes. Vertex data is shallowly shared, so direct mutation of user data is not an immutable snapshot. The saved tree contains only vertices actually resolved during traversal.
+With `saveNotMutatedResolvedTree: true`, visitors can inspect a separate original resolved tree. Its vertex references, child lists, and resolution contexts are independent of command-driven changes. Vertex data is shallowly shared, so direct mutation of user data is not an immutable snapshot. The saved tree contains only vertices actually resolved during traversal. Runner configuration and visitor records are also copied when a runner is made; later builder configuration does not alter that runner.
 
 `ResolvedTree.getPathTo(ref, { noRoot?, noSelf? })` returns the resolved ancestry in root-to-vertex order and throws if the reference is absent from that tree. Saved-tree paths use saved references from `notMutatedResolvedTreeRefsMap`. Deleting a resolved vertex removes its resolved descendants and detaches it from its parent; deleting the root clears the root pointer.
 
 ## API compatibility
 
-Namespace exports `core`, `depthFirstTraversal`, `traversableObjectTree`, and `rewriteObject` remain available, alongside `breadthFirstTraversal` and named exports for traversal classes, helpers, and types. Historical deep imports such as `configurable-tree-traversal/core/Vertex` also work.
+Namespace exports `core`, `depthFirstTraversal`, `breadthFirstTraversal`, `dagTraversal`, `traversableObjectTree`, and `rewriteObject` remain available, alongside named exports for all six traversal classes, helpers, and types. Public subpaths include `core` and each traversal family. Historical deep imports such as `configurable-tree-traversal/core/Vertex` and `configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner` also work.
 
 Corrected behavior includes independent iteration, reliable halt/resume, terminal error handling, sorting, subtree deletion, and zero-based visitor indices. Root deletion and rewriting null now return null instead of throwing; the rewrite result type accounts for that. See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
@@ -223,10 +319,10 @@ npm run benchmark -- 50000
 npm run tsfile -- examples/tree-from-image-example.ts
 ```
 
-The tests cover deterministic generated trees, mutations, pause/resume, failures, original-tree isolation, object reconstruction, deep chains, and wide trees. `npm run check` requires 100% statements, branches, functions, and lines across all source files and executes every example. See [the testing guide](docs/testing.md) for the test layout and regression workflow.
+The tests cover deterministic generated trees and DAGs, mutations, dependencies, async races, pause/resume, failures, snapshots, original-tree isolation, object reconstruction, deep chains, and wide trees. `npm run check` requires 100% statements, branches, functions, and lines across all source files and executes every example. See [the testing guide](docs/testing.md) for the test layout and regression workflow.
 
 The packed consumer check runs CommonJS, ESM, and strict TypeScript imports from a temporary extracted tarball, using installed runtime dependencies. It checks both classic Node and Node16 TypeScript resolution, public subpaths, and historical deep imports. It uses `tar` and runs in CI on Linux. CI checks Node 22 and 24. No package is published by the verification commands. The benchmark compares deep and wide trees with both traversal strategies; timings depend on the machine and are not performance guarantees.
 
-Async traversal and filesystem synchronization are outside the synchronous API. User vertex data is not frozen. Custom graph adapters must define their own identity and cycle policy.
+Retries, durable checkpoints, callback cancellation, fetching undiscovered prerequisites by id, and dependencies on subtree completion are outside this release. User vertex data is not frozen. Discovery cycles are rejected; dependency cycles or missing dependencies fail as a scheduling stall.
 
 MIT licensed.

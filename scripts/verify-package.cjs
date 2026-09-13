@@ -52,19 +52,32 @@ try {
     const core = require('configurable-tree-traversal/core');
     const depth = require('configurable-tree-traversal/traversals/depth-first-traversal');
     const breadth = require('configurable-tree-traversal/traversals/breadth-first-traversal');
+    const dag = require('configurable-tree-traversal/traversals/dag-traversal');
     const objectTree = require('configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree');
     const rewrite = require('configurable-tree-traversal/tools/rewrite-object');
     const vertex = require('configurable-tree-traversal/core/Vertex');
     const explicitVertex = require('configurable-tree-traversal/core/Vertex.js');
     const depthRunner = require('configurable-tree-traversal/traversals/depth-first-traversal/lib/DepthFirstTraversalRunner');
+    const dagRunner = require('configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner');
     assert.equal(core.Vertex, lib.core.Vertex);
     assert.equal(depth.DepthFirstTraversal, lib.DepthFirstTraversal);
     assert.equal(breadth.BreadthFirstTraversal, lib.BreadthFirstTraversal);
+    assert.equal(depth.AsyncDepthFirstTraversal, lib.AsyncDepthFirstTraversal);
+    assert.equal(breadth.AsyncBreadthFirstTraversal, lib.AsyncBreadthFirstTraversal);
+    assert.equal(dag.DagTraversal, lib.DagTraversal);
+    assert.equal(dag.AsyncDagTraversal, lib.AsyncDagTraversal);
     assert.equal(objectTree.TraversableObjectTree, lib.TraversableObjectTree);
     assert.equal(rewrite.rewriteObject, lib.rewriteObject.rewriteObject);
     assert.equal(vertex.Vertex, lib.core.Vertex);
     assert.equal(explicitVertex.Vertex, lib.core.Vertex);
     assert.equal(depthRunner.DepthFirstTraversalRunner, depth.DepthFirstTraversalRunner);
+    assert.equal(dagRunner.DagTraversalRunner, dag.DagTraversalRunner);
+    assert.equal(depth.traverseDepthFirst, lib.traverseDepthFirst);
+    assert.equal(depth.traverseDepthFirstAsync, lib.traverseDepthFirstAsync);
+    assert.equal(breadth.traverseBreadthFirst, lib.traverseBreadthFirst);
+    assert.equal(breadth.traverseBreadthFirstAsync, lib.traverseBreadthFirstAsync);
+    assert.equal(dag.traverseDag, lib.traverseDag);
+    assert.equal(dag.traverseDagAsync, lib.traverseDagAsync);
     assert.equal(lib.TraversalRunnerStatus.FAILED, 'FAILED');
 
     const tree = new lib.TraversableObjectTree({ a: { b: 1 }, c: 2 });
@@ -90,16 +103,36 @@ try {
     import lib from 'configurable-tree-traversal';
     import { DepthFirstTraversal } from 'configurable-tree-traversal/traversals/depth-first-traversal';
     import { BreadthFirstTraversal } from 'configurable-tree-traversal/traversals/breadth-first-traversal';
+    import { AsyncDagTraversal, DagTraversal, DagTraversalOrder } from 'configurable-tree-traversal/traversals/dag-traversal';
     import { TraversableObjectTree } from 'configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree';
     import { rewriteObject } from 'configurable-tree-traversal/tools/rewrite-object';
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
     import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
     assert.equal(DepthFirstTraversal, lib.DepthFirstTraversal);
     assert.equal(BreadthFirstTraversal, lib.BreadthFirstTraversal);
+    assert.equal(DagTraversal, lib.DagTraversal);
+    assert.equal(AsyncDagTraversal, lib.AsyncDagTraversal);
     assert.equal(TraversableObjectTree, lib.TraversableObjectTree);
     assert.equal(rewriteObject, lib.rewriteObject.rewriteObject);
     assert.equal(Vertex, lib.core.Vertex);
     assert.equal(ExplicitVertex, lib.core.Vertex);
+
+    const runner = new AsyncDagTraversal({
+      traversableGraph: {
+        makeRoot: async () => ({
+          vertexId: 'root', vertexContent: { $d: 'root', $c: [] },
+        }),
+        makeVertex: async () => ({ vertexContent: null }),
+      },
+    }).makeRunner();
+    const orders = [];
+    for await (const event of runner.getIterable()) orders.push(event.order);
+    assert.deepEqual(orders, [DagTraversalOrder.ON_READY, DagTraversalOrder.ON_COMPLETE]);
+    const inspection = runner.inspect();
+    assert.equal(inspection.execution, 'async');
+    assert.equal(inspection.inFlightCallbackCount, 0);
+    assert.equal(inspection.bufferedEventCount, 0);
+    assert.equal(Object.isFrozen(inspection), true);
   `,
   );
   execFileSync(process.execPath, ['consumer.mjs'], {
@@ -109,9 +142,10 @@ try {
   fs.writeFileSync(
     path.join(consumer, 'consumer.ts'),
     `
-    import { DepthFirstTraversal, DepthFirstTraversalOrder, BreadthFirstTraversal, TraversableObjectTree, TraversalRunnerStatus, TraversalVisitorCommandName, core, rewriteObject, traverseDepthFirst } from 'configurable-tree-traversal';
-    import type { TraversalRunner, TraversableTree, TreeTypeParameters, TraversalVisitorCommand } from 'configurable-tree-traversal';
+    import { AsyncBreadthFirstTraversal, AsyncDagTraversal, AsyncDepthFirstTraversal, DepthFirstTraversal, DepthFirstTraversalOrder, BreadthFirstTraversal, DagTraversal, DagTraversalOrder, TraversableObjectTree, TraversalRunnerStatus, TraversalVisitorCommandName, core, rewriteObject, traverseBreadthFirstAsync, traverseDag, traverseDagAsync, traverseDepthFirst, traverseDepthFirstAsync } from 'configurable-tree-traversal';
+    import type { AsyncTraversableGraph, CoreInspection, ResolvedGraph, TraversalRunner, TraversableGraph, TraversableTree, TreeTypeParameters, TraversalVisitorCommand } from 'configurable-tree-traversal';
     import type { DepthFirstTraversalRunnerIterableConfigInput } from 'configurable-tree-traversal/traversals/depth-first-traversal';
+    import type { DagTraversalRunnerIterableConfigInput } from 'configurable-tree-traversal/traversals/dag-traversal';
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
     import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
 
@@ -152,7 +186,27 @@ try {
     const value: number | null = rewriteObject.rewriteObject(1).outputObject;
     const bfs = new BreadthFirstTraversal({ traversableTree: tree }).makeRunner();
     for (const { vertex } of bfs.getIterable()) { const key: string | number | symbol = vertex.getData().key; void key; }
-    void [Vertex, ExplicitVertex, core.Vertex, value, status, failedStatus, convenience];
+    const graph: TraversableGraph<Tree> = {
+      makeRoot: () => ({ vertexId: 'root', vertexContent: abstractRoot }),
+      makeVertex: hint => ({ vertexId: hint, vertexContent: hint }),
+      getVertexIdFromHint: hint => ({ vertexId: hint }),
+    };
+    const asyncGraph: AsyncTraversableGraph<Tree> = graph;
+    const dagConfig: DagTraversalRunnerIterableConfigInput = { iterateOver: [DagTraversalOrder.ON_READY] };
+    const dag = new DagTraversal({ traversableGraph: graph }).makeRunner();
+    const resolvedGraph: ResolvedGraph<Tree> = dag.run(dagConfig).getResolvedGraph();
+    const asyncDepth = new AsyncDepthFirstTraversal({ traversableTree: abstractTree }).makeRunner();
+    const asyncBreadth = new AsyncBreadthFirstTraversal({ traversableTree: abstractTree }).makeRunner();
+    const asyncDag = new AsyncDagTraversal({ traversableGraph: asyncGraph, concurrency: 2 }).makeRunner();
+    const inspection: CoreInspection = asyncDag.inspect();
+    const asyncRuns: Promise<unknown>[] = [
+      asyncDepth.run(), asyncBreadth.run(), asyncDag.run(),
+      traverseDepthFirstAsync(abstractTree, null),
+      traverseBreadthFirstAsync(abstractTree, null),
+      traverseDagAsync({ traversableGraph: asyncGraph }, null),
+    ];
+    const syncDag = traverseDag({ traversableGraph: graph }, null);
+    void [Vertex, ExplicitVertex, core.Vertex, value, status, failedStatus, convenience, resolvedGraph, inspection, asyncRuns, syncDag];
   `,
   );
   for (const resolution of ['node', 'node16']) {
@@ -189,6 +243,10 @@ try {
     'dist/traversals/depth-first-traversal/index.d.ts',
     'dist/traversals/breadth-first-traversal/index.js',
     'dist/traversals/breadth-first-traversal/index.d.ts',
+    'dist/traversals/dag-traversal/index.js',
+    'dist/traversals/dag-traversal/index.d.ts',
+    'dist/traversals/dag-traversal/lib/DagTraversalRunner.js',
+    'dist/traversals/dag-traversal/lib/DagTraversalRunner.d.ts',
     'dist/traversable-tree-implementations/traversable-object-tree/index.js',
     'dist/traversable-tree-implementations/traversable-object-tree/index.d.ts',
     'dist/tools/rewrite-object/index.js',
@@ -208,6 +266,11 @@ try {
     fs.readFileSync(path.join(install, 'Sorted_binary_tree_ALL_RGB.svg.png')),
     fs.readFileSync(path.join(root, 'Sorted_binary_tree_ALL_RGB.svg.png')),
     'The packaged traversal diagram must match the README image',
+  );
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(install, 'package.json'), 'utf8'))
+      .version,
+    '0.8.0',
   );
   console.log(
     `Verified packed package: CommonJS, ESM, TypeScript node/node16, and historical deep imports (${pack.entryCount} files).`,
