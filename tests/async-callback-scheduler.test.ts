@@ -200,3 +200,16 @@ test('remembers and coalesces wakeup notifications', async () => {
   wakeup.notify();
   await waitingAgain;
 });
+
+test('shares one pending wakeup waiter', async () => {
+  const wakeup = new Wakeup();
+  const first = wakeup.wait();
+  const second = wakeup.wait();
+
+  expect(second).toBe(first);
+  wakeup.notify();
+  await expect(Promise.all([first, second])).resolves.toEqual([
+    undefined,
+    undefined,
+  ]);
+});
