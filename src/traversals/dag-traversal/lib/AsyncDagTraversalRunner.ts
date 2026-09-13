@@ -255,6 +255,9 @@ export class AsyncDagTraversalRunner<
           };
         }
         if (progress.kind === 'FINISHED' || progress.kind === 'FAILED') {
+          if (progress.kind === 'FAILED' && this.state.failure === null) {
+            this.state.failure = { error: progress.error };
+          }
           policy.releaseIfTerminal();
         }
         return progress;
@@ -272,7 +275,11 @@ export class AsyncDagTraversalRunner<
         control.resume(this.iterableConfig);
       },
       getStatus: () => control.getStatus(),
-      getFailure: () => control.getFailure(),
+      getFailure: () =>
+        control.getFailure() ??
+        (this.state.status === TraversalRunnerStatus.FAILED
+          ? this.state.failure
+          : null),
       inspect: () => control.inspect(),
       waitForProgress: () => control.waitForProgress(),
     };

@@ -352,3 +352,98 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
     { vertexRefId: root.getId(), order: Order.ON_READY },
   ]);
 });
+
+test.each([new Error('injected failure'), undefined])(
+  'preserves an injected FAILED state with exact error %#',
+  async (failure) => {
+    const state = new DagTraversalRunnerState<TestGraph>({
+      status: Status.FAILED,
+      failure: { error: failure },
+    });
+    let sourceCalls = 0;
+    const runner = new AsyncDagTraversal<TestGraph>({
+      traversableGraph: {
+        makeRoot: () => {
+          sourceCalls++;
+          return { vertexContent: null };
+        },
+        makeVertex: () => ({ vertexContent: null }),
+      },
+      traversalRunnerInternalObjects: { state },
+    }).makeRunner();
+
+    for (const attempt of [
+      () => runner.run(),
+      () => runner.getIterable().next(),
+    ]) {
+      let caught = false;
+      try {
+        await attempt();
+      } catch (error) {
+        caught = true;
+        expect(error).toBe(failure);
+      }
+      expect(caught).toBe(true);
+    }
+    expect(runner.getStatus()).toBe(Status.FAILED);
+    expect(state.failure).toEqual({ error: failure });
+    expect(sourceCalls).toBe(0);
+  },
+);
+
+test.each([new Error('live failure'), undefined])(
+  'stores a live failure for exact terminal reconstruction %#',
+  async (failure) => {
+    const root = deferred<{ vertexContent: null }>();
+    const state = new DagTraversalRunnerState<TestGraph>();
+    const container = new ResolvedGraphsContainer<TestGraph>({
+      sourceMode: 'graph',
+      saveOriginal: false,
+    });
+    const source = {
+      makeRoot: () => root.promise,
+      makeVertex: () => ({ vertexContent: null }),
+    };
+    const runner = new AsyncDagTraversal<TestGraph>({
+      traversableGraph: source,
+      traversalRunnerInternalObjects: {
+        state,
+        resolvedGraphsContainer: container,
+      },
+    }).makeRunner();
+    const running = runner.run();
+    await eventLoopTurn();
+    root.reject(failure);
+    let caught = false;
+    try {
+      await running;
+    } catch (error) {
+      caught = true;
+      expect(error).toBe(failure);
+    }
+    expect(caught).toBe(true);
+    expect(state.failure).toEqual({ error: failure });
+
+    const reconstructed = new AsyncDagTraversal<TestGraph>({
+      traversableGraph: {
+        makeRoot: () => {
+          throw new Error('terminal reconstruction must not resolve source');
+        },
+        makeVertex: () => ({ vertexContent: null }),
+      },
+      traversalRunnerInternalObjects: {
+        state,
+        resolvedGraphsContainer: container,
+      },
+    }).makeRunner();
+    caught = false;
+    try {
+      await reconstructed.run();
+    } catch (error) {
+      caught = true;
+      expect(error).toBe(failure);
+    }
+    expect(caught).toBe(true);
+    expect(reconstructed.getStatus()).toBe(Status.FAILED);
+  },
+);

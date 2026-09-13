@@ -198,6 +198,9 @@ test('a committed buffered event retains its original filter eligibility', async
 });
 
 test('repeated halts across iterators do not duplicate visitors or events', async () => {
+  const rootHalt = deferred<void>();
+  const childHalt = deferred<void>();
+  const childStarted = deferred<void>();
   const calls: string[] = [];
   const traversal = new AsyncDagTraversal<TestGraph>({
     traversableGraph: graphAdapter({
@@ -206,7 +209,13 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
     }),
   });
   traversal.addVisitorFor(Order.ON_READY, async (vertex) => {
-    calls.push(`${vertex.getData()}:halt`);
+    const data = vertex.getData();
+    calls.push(`${data}:halt`);
+    if (data === 'root') await rootHalt.promise;
+    else {
+      childStarted.resolve();
+      await childHalt.promise;
+    }
     return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
   });
   traversal.addVisitorFor(Order.ON_READY, async (vertex) => {
@@ -215,10 +224,43 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   const runner = traversal.makeRunner();
   const events: string[] = [];
 
-  for (let index = 0; index < 3; index++) {
-    const iterator = runner.getIterable({ iterateOver: [Order.ON_READY] });
-    for await (const event of iterator) events.push(event.vertex.getData());
-  }
+  const first = runner.getIterable({ iterateOver: [Order.ON_READY] });
+  const firstNext = first.next();
+  await eventLoopTurn();
+  expect(calls).toEqual(['root:halt']);
+  rootHalt.resolve();
+  await expect(firstNext).resolves.toEqual({ done: true, value: undefined });
+  expect(runner.getStatus()).toBe(Status.HALTED);
+
+  const closingIterator = runner.getIterable({ iterateOver: [Order.ON_READY] });
+  const rootEvent = await closingIterator.next();
+  expect(rootEvent.done).toBe(false);
+  events.push(rootEvent.value!.vertex.getData());
+  const childEvent = closingIterator.next();
+  await childStarted.promise;
+  let closed = false;
+  const closing = closingIterator.return(undefined).then((result) => {
+    closed = true;
+    return result;
+  });
+  await eventLoopTurn();
+  expect(closed).toBe(false);
+  const competing = runner.getIterable({ iterateOver: [Order.ON_READY] });
+  await expect(competing.next()).rejects.toThrow('Another active iterator');
+
+  childHalt.resolve();
+  await expect(closing).resolves.toEqual({ done: true, value: undefined });
+  await expect(childEvent).resolves.toEqual({ done: true, value: undefined });
+  expect(runner.getStatus()).toBe(Status.HALTED);
+
+  const resumed = runner.getIterable({ iterateOver: [Order.ON_READY] });
+  const resumedEvent = await resumed.next();
+  expect(resumedEvent.done).toBe(false);
+  events.push(resumedEvent.value!.vertex.getData());
+  await expect(resumed.next()).resolves.toEqual({
+    done: true,
+    value: undefined,
+  });
 
   expect(calls).toEqual([
     'root:halt',
@@ -348,18 +390,26 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
     return { commands: [{ commandName: Command.DELETE_VERTEX }] };
   });
   const runner = traversal.makeRunner();
-  const running = runner.run({ iterateOver: [] });
+  const events: string[] = [];
+  const running = (async () => {
+    for await (const event of runner.getIterable()) {
+      events.push(`${event.order}:${event.vertex.getData()}`);
+    }
+  })();
   await eventLoopTurn();
   await eventLoopTurn();
   expect(started).toEqual(['B', 'C']);
 
   deleteA.resolve();
-  await expect(running).resolves.toBe(runner);
+  await running;
   const beforeLate = runner
     .getResolvedGraph()
     .getVertexRefs()
     .map((ref) => ref.unref().getData());
   expect(beforeLate).toEqual(['root']);
+  const eventsBeforeLate = events.slice();
+  expect(eventsBeforeLate).not.toContain('ON_READY:B');
+  expect(eventsBeforeLate).not.toContain('ON_READY:C');
 
   bVisit.resolve({
     commands: [
@@ -374,6 +424,7 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
   await eventLoopTurn();
   expect(runner.getStatus()).toBe(Status.FINISHED);
   await expect(runner.run()).resolves.toBe(runner);
+  expect(events).toEqual(eventsBeforeLate);
   expect(
     runner
       .getResolvedGraph()
