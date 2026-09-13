@@ -94,6 +94,7 @@ export class TraversalKernel<
     PendingRequest<T, R>
   >();
   private readonly submittedOutcomes: CallbackReply<T, R>[] = [];
+  private readonly storedOutcomeRequests: PendingRequest<T, R>[] = [];
   private readonly readyCalls: CallAction<T, R>[] = [];
   private readonly frames = new Map<number, FrameState<T, R>>();
   private readonly chains = new Map<number, ChainRuntime<T, R>>();
@@ -534,10 +535,10 @@ export class TraversalKernel<
 
   private processSubmittedOutcomes(): void {
     if (!this.haltRequested) {
-      for (const [requestId, pending] of this.pendingRequests) {
-        if (pending.storedReply === undefined) continue;
-        const reply = pending.storedReply;
-        this.pendingRequests.delete(requestId);
+      while (this.storedOutcomeRequests.length > 0) {
+        const pending = this.storedOutcomeRequests.shift()!;
+        const reply = pending.storedReply!;
+        this.pendingRequests.delete(reply.requestId);
         if (!this.isOwnerValid(pending.call.owner)) continue;
         try {
           this.applyOutcome(pending.call, reply);
@@ -565,6 +566,7 @@ export class TraversalKernel<
       }
       if (this.haltRequested && pending.call.owner.kind !== 'chain') {
         pending.storedReply = reply;
+        this.storedOutcomeRequests.push(pending);
         continue;
       }
       this.pendingRequests.delete(reply.requestId);

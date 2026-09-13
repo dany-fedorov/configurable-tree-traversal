@@ -308,6 +308,122 @@ test('accepts duplicate identities in resolver settlement order', async () => {
   expect(container.resolvedGraph.getVertexRefs()).toHaveLength(2);
 });
 
+test('preserves resolver settlement order across a halt and resume', async () => {
+  const blocker = deferred<{
+    vertexId: string;
+    dependsOn: string[];
+    vertexContent: { $d: string; $c: string[] };
+  }>();
+  const first = deferred<{
+    vertexId: string;
+    dependsOn: string[];
+    vertexContent: { $d: string; $c: string[] };
+  }>();
+  const second = deferred<{
+    vertexId: string;
+    dependsOn: string[];
+    vertexContent: { $d: string; $c: string[] };
+  }>();
+  const blockerVisit = deferred<void>();
+  const container = new ResolvedGraphsContainer<TestGraph>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  const kernel = makeKernel(3, container);
+  const driver = createAsyncDriver(
+    kernel,
+    {
+      invoke(call) {
+        if (call.kind === 'MAKE_ROOT') {
+          return {
+            kind: call.kind,
+            value: {
+              vertexId: 'root',
+              vertexContent: {
+                $d: 'root',
+                $c: ['blocker', 'first', 'second'],
+              },
+            },
+          };
+        }
+        if (call.kind === 'MAKE_VERTEX') {
+          const value =
+            call.context.vertexHint === 'blocker'
+              ? blocker.promise
+              : call.context.vertexHint === 'first'
+              ? first.promise
+              : second.promise;
+          return { kind: call.kind, value };
+        }
+        if (call.kind === 'VISIT') {
+          return {
+            kind: call.kind,
+            value:
+              call.ref.unref().getData() === 'blocker'
+                ? blockerVisit.promise
+                : undefined,
+          };
+        }
+        throw new Error(`Unexpected ${call.kind}`);
+      },
+    },
+    3,
+  );
+
+  driver.advance('drive');
+  await eventLoopTurn();
+  driver.advance('drive');
+  await eventLoopTurn();
+  const rootEvent = driver.advance('drive');
+  if (rootEvent.kind !== 'EVENT') throw new Error('Expected root event');
+  driver.acknowledgeEvent(rootEvent.boundaryId);
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+
+  blocker.resolve({
+    vertexId: 'blocker',
+    dependsOn: ['root'],
+    vertexContent: { $d: 'blocker', $c: [] },
+  });
+  await eventLoopTurn();
+  expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
+  driver.requestHalt();
+
+  second.resolve({
+    vertexId: 'duplicate',
+    dependsOn: ['root'],
+    vertexContent: { $d: 'second-won', $c: [] },
+  });
+  await eventLoopTurn();
+  expect(driver.advance('drain')).toEqual({ kind: 'WAIT' });
+  first.resolve({
+    vertexId: 'duplicate',
+    dependsOn: ['root'],
+    vertexContent: { $d: 'first-lost', $c: [] },
+  });
+  await eventLoopTurn();
+  expect(driver.advance('drain')).toEqual({ kind: 'WAIT' });
+  expect(
+    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+  ).toEqual(['root', 'blocker']);
+
+  blockerVisit.resolve();
+  await eventLoopTurn();
+  expect(driver.advance('drain')).toMatchObject({
+    kind: 'EVENT',
+    event: { vertex: { $d: 'blocker' } },
+  });
+  expect(driver.advance('drain')).toEqual({ kind: 'HALTED' });
+
+  driver.resume();
+  driver.advance('drive');
+  expect(
+    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+  ).toContain('second-won');
+  expect(
+    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+  ).not.toContain('first-lost');
+});
+
 test('tracks concurrent hint-id outcomes by their own frame indices after sorting', async () => {
   const sorted = deferred<string[]>();
   const firstId = deferred<{ vertexId: string }>();
