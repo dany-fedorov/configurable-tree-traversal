@@ -1,7 +1,6 @@
 import type { TreeTypeParameters } from '../../src/core/TreeTypeParameters';
 
 export type TestGraph = TreeTypeParameters<string, string>;
-
 export type GraphFixture = Record<
   string,
   {
@@ -27,7 +26,6 @@ export function graphAdapter(nodes: GraphFixture = diamond) {
       vertexContent: { $d: id, $c: entry.children.slice() },
     };
   }
-
   return { makeRoot: () => result('root'), makeVertex: result };
 }
 

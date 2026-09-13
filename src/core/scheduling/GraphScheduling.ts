@@ -1,0 +1,738 @@
+import { CTTRef } from '@core/CTTRef';
+import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { MakeVertexResult } from '@core/TraversableTree';
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import { Vertex } from '@core/Vertex';
+import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
+import { hasVertexId, sameVertexId } from '@core/graph/identity';
+import type { HintVertexId, Ref, VertexId } from '@core/graph/types';
+import type {
+  EligibleVisit,
+  GraphStall,
+  VertexWork,
+} from '@core/scheduling/types';
+
+export class GraphScheduling<
+  T extends TreeTypeParameters,
+  R extends TreeTypeParameters = T,
+> {
+  private readonly work = new Map<Ref<T | R>, VertexWork<T | R>>();
+  private readonly reverseDependencies = new Map<VertexId, Set<Ref<T | R>>>();
+  private readonly reusableTreeChildren = new Map<
+    Ref<T | R>,
+    Map<number, { ref: Ref<T | R>; hint: (T | R)['VertexHint'] }>
+  >();
+  private eligible: EligibleVisit<T | R>[] = [];
+  private eligibleHead = 0;
+
+  constructor(private readonly container: ResolvedGraphsContainer<T, R>) {}
+
+  restoreDagSeed(readyVisits: readonly EligibleVisit<T | R>[]): void {
+    const refs = this.container.resolvedGraph.getVertexRefs();
+    const restoredWork = new Map<Ref<T | R>, VertexWork<T | R>>();
+    const restoredDependencies = new Map<VertexId, Set<Ref<T | R>>>();
+    const queued = new Map<Ref<T | R>, EligibleVisit<T | R>>();
+
+    for (const visit of readyVisits) {
+      if (!this.container.resolvedGraph.has(visit.ref)) {
+        this.throwInvalidSeed('ready visit references an unknown vertex');
+      }
+      if (queued.has(visit.ref)) {
+        this.throwInvalidSeed('ready visit is duplicated');
+      }
+      if (visit.order !== 'ON_READY' && visit.order !== 'ON_COMPLETE') {
+        this.throwInvalidSeed('ready visit has an invalid order');
+      }
+      queued.set(visit.ref, visit);
+    }
+
+    for (const ref of refs) {
+      const vertex = this.getVertex(ref);
+      const slots = this.container.store.getTraversalSlots(ref);
+      const unmet = new Set<VertexId>();
+      for (const dependency of vertex.dependsOn) {
+        let dependents = restoredDependencies.get(dependency);
+        if (dependents === undefined) {
+          dependents = new Set();
+          restoredDependencies.set(dependency, dependents);
+        }
+        dependents.add(ref);
+        const state = this.container.store.getIdState(dependency);
+        if (state?.kind === 'omitted') continue;
+        if (state?.kind === 'live') {
+          const status = this.container.resolvedGraph.getStatusOf(state.ref);
+          if (
+            status === 'PRE_VISITED' ||
+            status === 'COMPLETING' ||
+            status === 'COMPLETE'
+          ) {
+            continue;
+          }
+        }
+        unmet.add(dependency);
+      }
+
+      if (slots?.some((slot) => slot.kind === 'pending') === true) {
+        this.throwInvalidSeed('vertex has a partially consumed expansion');
+      }
+      const completionAccounted =
+        slots?.map(
+          (slot) =>
+            slot.kind !== 'linked' ||
+            this.container.resolvedGraph.getStatusOf(slot.childRef) === 'COMPLETE',
+        ) ?? [];
+      const remainingChildren = completionAccounted.filter(
+        (accounted) => !accounted,
+      ).length;
+      const status = vertex.status;
+      const queuedVisit = queued.get(ref);
+      const work: VertexWork<T | R> = {
+        ref,
+        unmet,
+        expansion: slots === null ? 'unprepared' : 'closed',
+        initialAdmitted: status !== 'DISCOVERED',
+        initialCommitted:
+          status === 'PRE_VISITED' ||
+          status === 'COMPLETING' ||
+          status === 'COMPLETE',
+        completionAdmitted: status === 'COMPLETING' || status === 'COMPLETE',
+        completionCommitted: status === 'COMPLETE',
+        completionAccounted,
+        remainingChildren,
+      };
+
+      if (status === 'PRE_VISITING') {
+        this.throwInvalidSeed('vertex has an active initial visit');
+      }
+      if (status === 'DISCOVERED') {
+        if (slots !== null || unmet.size === 0 || queuedVisit !== undefined) {
+          this.throwInvalidSeed('DISCOVERED vertex is inconsistent');
+        }
+      } else if (status === 'READY') {
+        if (
+          slots !== null ||
+          unmet.size !== 0 ||
+          queuedVisit?.order !== 'ON_READY'
+        ) {
+          this.throwInvalidSeed('READY vertex is inconsistent');
+        }
+      } else if (status === 'PRE_VISITED') {
+        if (
+          unmet.size !== 0 ||
+          queuedVisit !== undefined ||
+          (slots !== null && remainingChildren === 0)
+        ) {
+          this.throwInvalidSeed('PRE_VISITED vertex is inconsistent');
+        }
+      } else if (status === 'COMPLETING') {
+        if (
+          slots === null ||
+          unmet.size !== 0 ||
+          remainingChildren !== 0 ||
+          queuedVisit?.order !== 'ON_COMPLETE'
+        ) {
+          this.throwInvalidSeed('COMPLETING vertex is inconsistent');
+        }
+      } else if (
+        slots === null ||
+        unmet.size !== 0 ||
+        remainingChildren !== 0 ||
+        queuedVisit !== undefined
+      ) {
+        this.throwInvalidSeed('COMPLETE vertex is inconsistent');
+      }
+      restoredWork.set(ref, work);
+    }
+
+    this.work.clear();
+    for (const [ref, work] of restoredWork) this.work.set(ref, work);
+    this.reverseDependencies.clear();
+    for (const [id, dependents] of restoredDependencies) {
+      this.reverseDependencies.set(id, dependents);
+    }
+    this.eligible = readyVisits.map((visit) => ({ ...visit }));
+    this.eligibleHead = 0;
+  }
+
+  enrollExisting(ref: Ref<T | R>): void {
+    if (!this.work.has(ref)) {
+      this.captureReusableTreeChildren(ref);
+      this.container.store.resetTraversal(ref);
+      this.register(ref, []);
+    }
+  }
+
+  acceptRoot(result: MakeVertexResult<T>): Ref<T | R> | null {
+    this.rejectTreeMetadata(result);
+    const resultHasId = hasVertexId(result);
+    const suppliedId = resultHasId ? result.vertexId : undefined;
+    const known = resultHasId
+      ? this.container.store.getIdState(suppliedId)
+      : undefined;
+
+    if (known?.kind === 'deleted') return null;
+    if (known?.kind === 'omitted') {
+      if (result.vertexContent !== null) this.throwOmissionContentConflict();
+      return null;
+    }
+    if (known?.kind === 'live') {
+      this.container.store.setRoot(known.ref);
+      return known.ref;
+    }
+    if (result.vertexContent === null) {
+      if (resultHasId) {
+        this.container.store.markOmitted(suppliedId);
+        this.satisfy(suppliedId);
+      }
+      return null;
+    }
+
+    const accepted = resultHasId
+      ? {
+          ref: new CTTRef(new Vertex<T | R>(result.vertexContent)),
+          id: suppliedId,
+        }
+      : this.makeUniqueRef(result.vertexContent);
+    this.container.acceptRoot(accepted.ref, accepted.id);
+    this.register(accepted.ref, []);
+    return accepted.ref;
+  }
+
+  acceptVertex(
+    context: VertexResolutionContext<T | R>,
+    result: MakeVertexResult<T>,
+    hintIdentity?: HintVertexId,
+  ): Ref<T | R> | null {
+    this.rejectTreeMetadata(result);
+    const resultHasId = hasVertexId(result);
+    const hintHasId = hintIdentity !== undefined && hasVertexId(hintIdentity);
+    if (
+      resultHasId &&
+      hintHasId &&
+      !sameVertexId(result.vertexId, hintIdentity.vertexId)
+    ) {
+      throw new Error('Result vertex id and hint vertex id mismatch');
+    }
+
+    const existingTreeChild =
+      result.vertexContent === null
+        ? null
+        : this.findExistingTreeChild(context);
+    if (existingTreeChild !== null) {
+      this.container.acceptEdge(
+        context.parentVertexRef,
+        context.hintIndex,
+        existingTreeChild,
+        true,
+      );
+      this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
+      this.enrollExisting(existingTreeChild);
+      return existingTreeChild;
+    }
+
+    const hasSuppliedId = resultHasId || hintHasId;
+    const suppliedId = resultHasId
+      ? result.vertexId
+      : hintHasId
+      ? hintIdentity.vertexId
+      : undefined;
+    const known = hasSuppliedId
+      ? this.container.store.getIdState(suppliedId)
+      : undefined;
+
+    if (known?.kind === 'deleted') {
+      this.closeSlot(context.parentVertexRef, context.hintIndex, 'deleted');
+      return null;
+    }
+    if (known?.kind === 'omitted') {
+      if (result.vertexContent !== null) this.throwOmissionContentConflict();
+      this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
+      return null;
+    }
+    if (known?.kind === 'live') {
+      this.container.acceptEdge(
+        context.parentVertexRef,
+        context.hintIndex,
+        known.ref,
+      );
+      this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
+      return known.ref;
+    }
+    if (result.vertexContent === null) {
+      if (hasSuppliedId) {
+        this.container.store.markOmitted(suppliedId);
+        this.satisfy(suppliedId);
+      }
+      this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
+      return null;
+    }
+
+    const accepted = hasSuppliedId
+      ? {
+          ref: new CTTRef(new Vertex<T | R>(result.vertexContent)),
+          id: suppliedId,
+        }
+      : this.makeUniqueRef(result.vertexContent);
+    const dependencies = this.getDependencies(context, result);
+    if (
+      dependencies.some(
+        (id) => this.container.store.getIdState(id)?.kind === 'deleted',
+      )
+    ) {
+      this.container.store.markDeleted(accepted.id);
+      this.closeSlot(context.parentVertexRef, context.hintIndex, 'deleted');
+      this.deleteDependentsOf(accepted.id);
+      return null;
+    }
+    this.container.acceptVertex(
+      accepted.ref,
+      accepted.id,
+      dependencies,
+      context,
+    );
+    this.container.acceptEdge(
+      context.parentVertexRef,
+      context.hintIndex,
+      accepted.ref,
+    );
+    this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
+    this.register(accepted.ref, dependencies);
+    return accepted.ref;
+  }
+
+  acceptKnownHint(
+    context: VertexResolutionContext<T | R>,
+    hintIdentity: HintVertexId,
+  ): boolean {
+    if (!hasVertexId(hintIdentity)) return false;
+    if (this.container.store.getIdState(hintIdentity.vertexId) === undefined) {
+      return false;
+    }
+    this.acceptVertex(context, { vertexContent: null }, hintIdentity);
+    return true;
+  }
+
+  markPreVisited(ref: Ref<T | R>): void {
+    const vertex = this.container.resolvedGraph.get(ref);
+    if (vertex === null) throw new Error('Unknown vertex reference');
+    const vertexWork = this.work.get(ref);
+    if (vertexWork === undefined) throw new Error('Vertex is not enrolled');
+    if (vertexWork.initialCommitted) return;
+
+    vertexWork.initialCommitted = true;
+    this.container.store.setStatus(ref, 'PRE_VISITED');
+    this.satisfy(vertex.vertexId);
+    this.enqueueCompletion(vertexWork);
+  }
+
+  markPreVisiting(ref: Ref<T | R>): void {
+    this.getWork(ref);
+    this.container.store.setStatus(ref, 'PRE_VISITING');
+  }
+
+  prepareSlots(ref: Ref<T | R>, hints: readonly (T | R)['VertexHint'][]): void {
+    const vertexWork = this.getWork(ref);
+    if (vertexWork.expansion !== 'unprepared') {
+      throw new Error('Vertex expansion is already prepared');
+    }
+    this.container.store.prepareSlots(ref, hints);
+    vertexWork.expansion = 'open';
+  }
+
+  restoreConsumedTreeSlot(
+    context: VertexResolutionContext<T | R>,
+  ): void {
+    const child = this.findExistingTreeChild(context);
+    if (child === null) {
+      this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
+      return;
+    }
+    this.container.acceptEdge(
+      context.parentVertexRef,
+      context.hintIndex,
+      child,
+      true,
+    );
+    this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
+    this.container.store.setStatus(child, 'COMPLETE');
+  }
+
+  closeExpansion(ref: Ref<T | R>): void {
+    const vertexWork = this.getWork(ref);
+    if (vertexWork.expansion === 'closed') return;
+    if (vertexWork.expansion === 'unprepared') {
+      throw new Error('Cannot close an unprepared vertex expansion');
+    }
+    const vertex = this.getVertex(ref);
+
+    vertexWork.expansion = 'closed';
+    vertexWork.remainingChildren = 0;
+    for (let index = 0; index < vertex.slots.length; index += 1) {
+      if (vertexWork.completionAccounted[index] === true) continue;
+      const slot = vertex.slots[index]!;
+      if (
+        slot.kind !== 'pending' &&
+        (slot.kind !== 'linked' ||
+          this.container.resolvedGraph.getStatusOf(slot.childRef) ===
+            'COMPLETE')
+      ) {
+        vertexWork.completionAccounted[index] = true;
+      } else {
+        vertexWork.completionAccounted[index] = false;
+        vertexWork.remainingChildren += 1;
+      }
+    }
+    this.enqueueCompletion(vertexWork);
+  }
+
+  closeSlot(
+    parent: Ref<T | R>,
+    index: number,
+    reason: 'omitted' | 'deleted' | 'disabled',
+  ): void {
+    this.container.store.closeSlot(parent, index, reason);
+    const vertexWork = this.work.get(parent);
+    if (vertexWork === undefined) return;
+    if (vertexWork.expansion === 'unprepared') vertexWork.expansion = 'open';
+    this.accountSlot(vertexWork, index);
+  }
+
+  markComplete(ref: Ref<T | R>): void {
+    const vertexWork = this.getWork(ref);
+    if (vertexWork.completionCommitted) return;
+    const vertex = this.getVertex(ref);
+
+    vertexWork.completionCommitted = true;
+    this.container.store.setStatus(ref, 'COMPLETE');
+    for (const edge of vertex.incoming) {
+      const parentWork = this.work.get(edge.parentRef);
+      if (parentWork !== undefined)
+        this.accountSlot(parentWork, edge.hintIndex);
+    }
+  }
+
+  takeReady(): Ref<T | R> | null {
+    if (this.peekEligible()?.order !== 'ON_READY') return null;
+    return this.dequeueEligible()!.ref;
+  }
+
+  takeEligible(): EligibleVisit<T | R> | null {
+    return this.dequeueEligible();
+  }
+
+  inspectEligible(): readonly EligibleVisit<T | R>[] {
+    return this.eligible.slice(this.eligibleHead);
+  }
+
+  takeCompleting(): Ref<T | R> | null {
+    if (this.peekEligible()?.order !== 'ON_COMPLETE') return null;
+    return this.dequeueEligible()!.ref;
+  }
+
+  deleteVertex(ref: Ref<T | R>): Set<Ref<T | R>> {
+    if (!this.container.resolvedGraph.has(ref)) return new Set();
+
+    const root = this.container.resolvedGraph.getRoot();
+    if (ref === root) {
+      return this.deleteRefs(this.container.resolvedGraph.getVertexRefs());
+    }
+    return this.deleteRefs([ref]);
+  }
+
+  private deleteDependentsOf(id: VertexId): Set<Ref<T | R>> {
+    return this.deleteRefs(Array.from(this.reverseDependencies.get(id) ?? []));
+  }
+
+  private deleteRefs(initialRefs: readonly Ref<T | R>[]): Set<Ref<T | R>> {
+    const removals = new Set<Ref<T | R>>();
+    const pending: Ref<T | R>[] = [];
+    for (const ref of initialRefs) this.addRemoval(ref, removals, pending);
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      const vertex = this.container.resolvedGraph.get(current)!;
+
+      for (const dependent of this.reverseDependencies.get(vertex.vertexId) ??
+        []) {
+        this.addRemoval(dependent, removals, pending);
+      }
+      for (const child of this.container.resolvedGraph.getChildrenOf(current)!) {
+        if (removals.has(child)) continue;
+        const parents = this.container.resolvedGraph.getParentsOf(child)!;
+        if (parents.every((parent) => removals.has(parent))) {
+          this.addRemoval(child, removals, pending);
+        }
+      }
+    }
+
+    const survivingSlots: Array<{ parent: Ref<T | R>; index: number }> = [];
+    for (const removal of removals) {
+      const vertex = this.container.resolvedGraph.get(removal)!;
+      for (const edge of vertex.incoming) {
+        if (!removals.has(edge.parentRef)) {
+          survivingSlots.push({
+            parent: edge.parentRef,
+            index: edge.hintIndex,
+          });
+        }
+      }
+    }
+
+    this.container.deleteVertices(removals);
+    for (const removal of removals) this.work.delete(removal);
+    for (const dependents of this.reverseDependencies.values()) {
+      for (const dependent of dependents) {
+        if (removals.has(dependent)) dependents.delete(dependent);
+      }
+    }
+    this.eligible = this.eligible
+      .slice(this.eligibleHead)
+      .filter((entry) => !removals.has(entry.ref));
+    this.eligibleHead = 0;
+    for (const slot of survivingSlots) {
+      const parentWork = this.work.get(slot.parent);
+      if (parentWork !== undefined) this.accountSlot(parentWork, slot.index);
+    }
+    return removals;
+  }
+
+  disableSubtree(ref: Ref<T | R>): void {
+    const vertex = this.getVertex(ref);
+    for (let index = 0; index < vertex.slots.length; index += 1) {
+      if (vertex.slots[index]!.kind === 'pending') {
+        this.closeSlot(ref, index, 'disabled');
+      }
+    }
+    this.closeExpansion(ref);
+  }
+
+  getStall(): GraphStall<T | R> | null {
+    if (this.peekEligible() !== null) return null;
+    const dependencies: GraphStall<T | R>['dependencies'] = [];
+    const incomplete: Ref<T | R>[] = [];
+    for (const [ref, vertexWork] of this.work) {
+      if (vertexWork.completionCommitted) continue;
+      if (vertexWork.unmet.size > 0) {
+        dependencies.push({
+          id: this.container.resolvedGraph.getIdOf(ref),
+          missing: Array.from(vertexWork.unmet),
+        });
+      } else {
+        incomplete.push(ref);
+      }
+    }
+    return dependencies.length === 0 && incomplete.length === 0
+      ? null
+      : { dependencies, incomplete };
+  }
+
+  private rejectTreeMetadata(result: MakeVertexResult<T>): void {
+    if (
+      this.container.sourceMode === 'tree' &&
+      (hasVertexId(result) ||
+        Object.prototype.hasOwnProperty.call(result, 'dependsOn'))
+    ) {
+      throw new Error('Tree-source results cannot contain graph metadata');
+    }
+  }
+
+  private makeUniqueRef(
+    content: NonNullable<MakeVertexResult<T>['vertexContent']>,
+  ): { ref: Ref<T | R>; id: string } {
+    while (true) {
+      const ref = new CTTRef(new Vertex<T | R>(content));
+      const id = ref.getId();
+      if (this.container.store.getIdState(id) === undefined) return { ref, id };
+    }
+  }
+
+  private getDependencies(
+    context: VertexResolutionContext<T | R>,
+    result: MakeVertexResult<T>,
+  ): VertexId[] {
+    const declared = result.dependsOn;
+    if (declared !== undefined) return Array.from(new Set(declared));
+    return [this.container.resolvedGraph.getIdOf(context.parentVertexRef)];
+  }
+
+  private findExistingTreeChild(
+    context: VertexResolutionContext<T | R>,
+  ): Ref<T | R> | null {
+    const candidates = this.reusableTreeChildren.get(context.parentVertexRef);
+    const candidate = candidates?.get(context.hintIndex);
+    if (candidate === undefined) return null;
+    candidates!.delete(context.hintIndex);
+    if (candidates!.size === 0) {
+      this.reusableTreeChildren.delete(context.parentVertexRef);
+    }
+    return sameVertexId(candidate.hint, context.vertexHint)
+      ? candidate.ref
+      : null;
+  }
+
+  private captureReusableTreeChildren(parent: Ref<T | R>): void {
+    const tree = this.container.treeContainer?.resolvedTree;
+    if (tree === undefined) return;
+    const candidates = new Map<
+      number,
+      { ref: Ref<T | R>; hint: (T | R)['VertexHint'] }
+    >();
+    for (const child of tree.getChildrenOf(parent)!) {
+      const context = tree.getResolutionContextOf(child);
+      if (
+        context?.parentVertexRef === parent &&
+        !candidates.has(context.hintIndex)
+      ) {
+        candidates.set(context.hintIndex, {
+          ref: child,
+          hint: context.vertexHint,
+        });
+      }
+    }
+    if (candidates.size > 0) this.reusableTreeChildren.set(parent, candidates);
+  }
+
+  private register(ref: Ref<T | R>, dependencies: readonly VertexId[]): void {
+    const unmet = new Set<VertexId>();
+    for (const dependency of dependencies) {
+      let dependents = this.reverseDependencies.get(dependency);
+      if (dependents === undefined) {
+        dependents = new Set();
+        this.reverseDependencies.set(dependency, dependents);
+      }
+      dependents.add(ref);
+
+      const state = this.container.store.getIdState(dependency);
+      if (state?.kind === 'omitted') continue;
+      if (state?.kind === 'live') {
+        const status = this.container.resolvedGraph.getStatusOf(state.ref);
+        if (
+          status === 'PRE_VISITED' ||
+          status === 'COMPLETING' ||
+          status === 'COMPLETE'
+        ) {
+          continue;
+        }
+      }
+      unmet.add(dependency);
+    }
+
+    const vertexWork: VertexWork<T | R> = {
+      ref,
+      unmet,
+      expansion: 'unprepared',
+      initialAdmitted: false,
+      initialCommitted: false,
+      completionAdmitted: false,
+      completionCommitted: false,
+      completionAccounted: [],
+      remainingChildren: 0,
+    };
+    this.work.set(ref, vertexWork);
+    this.enqueueReady(vertexWork);
+  }
+
+  private satisfy(id: VertexId): void {
+    const dependents = this.reverseDependencies.get(id);
+    if (dependents === undefined) return;
+    for (const ref of dependents) {
+      const vertexWork = this.work.get(ref);
+      if (vertexWork !== undefined && vertexWork.unmet.delete(id)) {
+        this.enqueueReady(vertexWork);
+      }
+    }
+  }
+
+  private enqueueReady(vertexWork: VertexWork<T | R>): void {
+    if (vertexWork.unmet.size !== 0 || vertexWork.initialAdmitted) return;
+    vertexWork.initialAdmitted = true;
+    this.container.store.setStatus(vertexWork.ref, 'READY');
+    this.eligible.push({ ref: vertexWork.ref, order: 'ON_READY' });
+  }
+
+  private peekEligible(): EligibleVisit<T | R> | null {
+    return this.eligible[this.eligibleHead] ?? null;
+  }
+
+  private dequeueEligible(): EligibleVisit<T | R> | null {
+    const entry = this.peekEligible();
+    if (entry === null) return null;
+    this.eligibleHead += 1;
+    if (this.eligibleHead === this.eligible.length) {
+      this.eligible.length = 0;
+      this.eligibleHead = 0;
+    } else if (
+      this.eligibleHead >= 1_024 &&
+      this.eligibleHead * 2 >= this.eligible.length
+    ) {
+      this.eligible = this.eligible.slice(this.eligibleHead);
+      this.eligibleHead = 0;
+    }
+    return entry;
+  }
+
+  private noteLinkedSlot(parent: Ref<T | R>, index: number): void {
+    const vertexWork = this.work.get(parent);
+    if (vertexWork === undefined) return;
+    if (vertexWork.expansion === 'closed') {
+      throw new Error('Cannot link a slot after expansion is closed');
+    }
+    if (vertexWork.expansion === 'unprepared') vertexWork.expansion = 'open';
+    if (vertexWork.completionAccounted[index] === undefined) {
+      vertexWork.completionAccounted[index] = false;
+    }
+  }
+
+  private accountSlot(vertexWork: VertexWork<T | R>, index: number): void {
+    if (vertexWork.completionAccounted[index] === true) return;
+    vertexWork.completionAccounted[index] = true;
+    if (vertexWork.expansion === 'closed') {
+      vertexWork.remainingChildren -= 1;
+      this.enqueueCompletion(vertexWork);
+    }
+  }
+
+  private enqueueCompletion(vertexWork: VertexWork<T | R>): void {
+    if (
+      !vertexWork.initialCommitted ||
+      vertexWork.expansion !== 'closed' ||
+      vertexWork.remainingChildren !== 0 ||
+      vertexWork.completionAdmitted ||
+      vertexWork.completionCommitted
+    ) {
+      return;
+    }
+    vertexWork.completionAdmitted = true;
+    this.container.store.setStatus(vertexWork.ref, 'COMPLETING');
+    this.eligible.push({ ref: vertexWork.ref, order: 'ON_COMPLETE' });
+  }
+
+  private addRemoval(
+    ref: Ref<T | R>,
+    removals: Set<Ref<T | R>>,
+    pending: Ref<T | R>[],
+  ): void {
+    if (!this.container.resolvedGraph.has(ref) || removals.has(ref)) return;
+    removals.add(ref);
+    pending.push(ref);
+  }
+
+  private getVertex(ref: Ref<T | R>) {
+    const vertex = this.container.resolvedGraph.get(ref);
+    if (vertex === null) throw new Error('Unknown vertex reference');
+    return vertex;
+  }
+
+  private getWork(ref: Ref<T | R>): VertexWork<T | R> {
+    const vertexWork = this.work.get(ref);
+    if (vertexWork === undefined) throw new Error('Vertex is not enrolled');
+    return vertexWork;
+  }
+
+  private throwOmissionContentConflict(): never {
+    throw new Error('Vertex omission conflicts with supplied content');
+  }
+
+  private throwInvalidSeed(detail: string): never {
+    throw new Error(`Invalid injected DAG seed: ${detail}`);
+  }
+}

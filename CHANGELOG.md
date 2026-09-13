@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0 — 2026-09-13
+
+- Add synchronous and asynchronous DAG traversal with explicit vertex identity, dependencies, readiness and subtree-completion events, graph queries, snapshots, and tree-source compatibility.
+- Add asynchronous depth-first and breadth-first traversal with value-or-promise adapters and visitors, callback concurrency limits, prefetching, and resumable iterator-close behavior.
+- Run all six traversal families on one inspectable state-machine core with shared synchronous and asynchronous execution semantics and detached inspection snapshots.
+- Add root and subpath exports, typed helpers, CommonJS and ESM consumers, historical deep-import coverage, workflow examples, and strict packed-package verification.
+
 ## 0.7.0 — 2026-09-12
 
 - Restore the Wikipedia traversal diagram, source attribution, and color legend at the beginning of the README.

@@ -1,12 +1,18 @@
 import type { CTTRef } from './CTTRef';
 import type { Vertex } from './Vertex';
 import type { TreeTypeParameters } from './TreeTypeParameters';
-import {
-  TraversalVisitorFunctionResolutionStyle,
-  type TraversalVisitorCommand,
-  type TraversalVisitorInputOptions,
-  type TraversalVisitorRecord,
+import type {
+  TraversalVisitorCommand,
+  TraversalVisitorInputOptions,
+  TraversalVisitorRecord,
 } from './TraversalVisitor';
+import { VisitorChain } from './visitors/VisitorChain';
+import type { VisitorChainPoll } from './visitors/types';
+
+type SynchronousVisitorChainAction<
+  TTP extends TreeTypeParameters,
+  RW_TTP extends TreeTypeParameters,
+> = Exclude<VisitorChainPoll<TTP, RW_TTP>, { kind: 'WAIT' | 'PAUSED' }>;
 
 export type VisitorExecutionState<TTP extends TreeTypeParameters> = {
   vertexVisitIndex: number;
@@ -36,55 +42,64 @@ export function* executeVisitors<
   isDeleted: () => boolean;
 }): Generator<void> {
   const { vertexRef, state } = input;
-  const concurrent = input.records.filter(
-    (r) =>
-      r.resolutionStyle === TraversalVisitorFunctionResolutionStyle.CONCURRENT,
-  );
-  const sequential = input.records.filter(
-    (r) =>
-      r.resolutionStyle === TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
-  );
-  if (concurrent.length + sequential.length !== input.records.length) {
-    throw new TypeError('Unknown visitor resolution style');
-  }
+  const records = input.records.slice();
+  const chain = new VisitorChain<TTP, RW_TTP>({
+    ref: vertexRef,
+    records: records.map(({ addedIndex, priority, resolutionStyle }) => ({
+      addedIndex,
+      priority,
+      resolutionStyle,
+    })),
+    metadata: {
+      ...state,
+      vertexVisitorsChainState: null,
+    },
+    family: 'tree',
+  });
   state.curVertexVisitorVisitIndex = 0;
-  const commands: TraversalVisitorCommand<RW_TTP>[] = [];
-  for (const record of concurrent) {
-    const result = record.visitor(
-      vertexRef.unref(),
-      input.getOptions(record, null),
-    );
-    for (const command of result?.commands ?? []) commands.push(command);
-    state.curVertexVisitorVisitIndex++;
-  }
-  const concurrentResult = input.executeCommands(commands);
-  let chainState: unknown = Object.prototype.hasOwnProperty.call(
-    concurrentResult,
-    'vertexVisitorsChainState',
-  )
-    ? concurrentResult.vertexVisitorsChainState
-    : null;
-  if (input.isHalted()) yield;
-  for (const record of sequential) {
-    if (input.isDeleted()) break;
-    const result = record.visitor(
-      vertexRef.unref(),
-      input.getOptions(record, chainState),
-    );
-    state.curVertexVisitorVisitIndex++;
-    const commandResult = input.executeCommands(result?.commands ?? []);
-    if (
-      Object.prototype.hasOwnProperty.call(
-        commandResult,
-        'vertexVisitorsChainState',
-      )
-    ) {
-      chainState = commandResult.vertexVisitorsChainState;
+
+  while (true) {
+    const action = chain.poll() as SynchronousVisitorChainAction<TTP, RW_TTP>;
+    switch (action.kind) {
+      case 'VISIT': {
+        const record = records[action.recordIndex]!;
+        state.curVertexVisitorVisitIndex =
+          action.metadata.curVertexVisitorVisitIndex;
+        const result = record.visitor(
+          action.ref.unref(),
+          input.getOptions(record, action.metadata.vertexVisitorsChainState),
+        );
+        chain.submit({ ok: true, value: result });
+        state.curVertexVisitorVisitIndex++;
+        break;
+      }
+      case 'COMMANDS': {
+        const result = input.executeCommands(action.commands);
+        const halted = input.isHalted();
+        chain.commitBatch({
+          halt: halted,
+          deleted: input.isDeleted(),
+          ...(Object.prototype.hasOwnProperty.call(
+            result,
+            'vertexVisitorsChainState',
+          )
+            ? {
+                vertexVisitorsChainState: result.vertexVisitorsChainState,
+              }
+            : {}),
+        });
+        if (halted) {
+          yield;
+          chain.resume();
+        }
+        break;
+      }
+      case 'DONE':
+        state.previousVisitedVertexRef = vertexRef;
+        state.vertexVisitIndex++;
+        return;
     }
-    if (input.isHalted()) yield;
   }
-  state.previousVisitedVertexRef = vertexRef;
-  state.vertexVisitIndex++;
 }
 
 export function sortVisitorRecords<
@@ -93,7 +108,13 @@ export function sortVisitorRecords<
   RW_TTP extends TreeTypeParameters,
 >(
   records: TraversalVisitorRecord<ORDER, TTP, RW_TTP>[],
-): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[] {
+): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[];
+export function sortVisitorRecords<
+  R extends { addedIndex: number; priority: number },
+>(records: R[]): R[];
+export function sortVisitorRecords<R extends { addedIndex: number; priority: number }>(
+  records: R[],
+): R[] {
   return records
     .map((record) => ({ ...record }))
     .sort((a, b) => b.priority - a.priority || a.addedIndex - b.addedIndex);

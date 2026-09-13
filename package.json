@@ -1,7 +1,7 @@
 {
   "name": "configurable-tree-traversal",
-  "version": "0.7.0",
-  "description": "Very configurable tree traversal for TypeScript",
+  "version": "0.8.0",
+  "description": "Configurable synchronous and asynchronous tree and DAG traversal for TypeScript",
   "main": "./dist/index.js",
   "scripts": {
     "test": "jest --runInBand",
@@ -89,6 +89,10 @@
       "types": "./dist/traversals/breadth-first-traversal/index.d.ts",
       "default": "./dist/traversals/breadth-first-traversal/index.js"
     },
+    "./traversals/dag-traversal": {
+      "types": "./dist/traversals/dag-traversal/index.d.ts",
+      "default": "./dist/traversals/dag-traversal/index.js"
+    },
     "./traversable-tree-implementations/traversable-object-tree": {
       "types": "./dist/traversable-tree-implementations/traversable-object-tree/index.d.ts",
       "default": "./dist/traversable-tree-implementations/traversable-object-tree/index.js"
@@ -116,6 +120,9 @@
       ],
       "traversals/breadth-first-traversal": [
         "dist/traversals/breadth-first-traversal/index.d.ts"
+      ],
+      "traversals/dag-traversal": [
+        "dist/traversals/dag-traversal/index.d.ts"
       ],
       "traversable-tree-implementations/traversable-object-tree": [
         "dist/traversable-tree-implementations/traversable-object-tree/index.d.ts"
