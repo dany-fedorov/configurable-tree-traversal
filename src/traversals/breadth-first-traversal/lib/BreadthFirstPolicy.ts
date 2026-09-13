@@ -25,6 +25,11 @@ type ParentProgress = {
   closeWhenDone: boolean;
 };
 
+export type InjectedBreadthFirstFrontier<T extends TreeTypeParameters> = {
+  contexts: readonly VertexResolutionContext<T>[];
+  consumedHintIndices: ReadonlySet<number>;
+};
+
 export type BreadthFirstWork<T extends TreeTypeParameters> =
   | {
       kind: 'PREPARE_HINTS';
@@ -43,15 +48,49 @@ export type BreadthFirstWork<T extends TreeTypeParameters> =
 export class BreadthFirstPolicy<T extends TreeTypeParameters> {
   private readonly expansions: BreadthFirstExpansion<T>[] = [];
   private readonly progressByParent = new Map<Ref<T>, ParentProgress>();
+  private readonly injectedFrontiers = new Map<
+    Ref<T>,
+    {
+      contexts: VertexResolutionContext<T>[];
+      consumedHintIndices: Set<number>;
+    }
+  >();
   private pendingResolution: BreadthFirstResolution<T> | null = null;
 
   constructor(
     private readonly state: BreadthFirstPolicyState<T>,
     private readonly hasSorter: boolean,
   ) {
-    for (let index = state.queueIndex; index < state.queue.length; index += 1) {
-      this.addParentProgress(state.queue[index]!.parentVertexRef, 1, false);
+    for (let index = 0; index < state.queue.length; index += 1) {
+      const context = state.queue[index]!;
+      let frontier = this.injectedFrontiers.get(context.parentVertexRef);
+      if (frontier === undefined) {
+        frontier = { contexts: [], consumedHintIndices: new Set() };
+        this.injectedFrontiers.set(context.parentVertexRef, frontier);
+      }
+      frontier.contexts.push(context);
+      if (index < state.queueIndex) {
+        frontier.consumedHintIndices.add(context.hintIndex);
+      } else {
+        this.addParentProgress(context.parentVertexRef, 1, false);
+      }
     }
+  }
+
+  takeInjectedFrontier(
+    parent: Ref<T>,
+  ): InjectedBreadthFirstFrontier<T> | null {
+    const frontier = this.injectedFrontiers.get(parent);
+    if (frontier === undefined) return null;
+    this.injectedFrontiers.delete(parent);
+    return frontier;
+  }
+
+  activateInjectedFrontier(parent: Ref<T>): boolean {
+    const progress = this.progressByParent.get(parent);
+    if (progress === undefined) return true;
+    progress.closeWhenDone = true;
+    return false;
   }
 
   enqueueExpansion(owner: OwnerToken, vertexRef: Ref<T>, depth: number): void {
@@ -204,6 +243,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
     this.expansions.length = 0;
     this.pendingResolution = null;
     this.progressByParent.clear();
+    this.injectedFrontiers.clear();
   }
 
   private addParentProgress(

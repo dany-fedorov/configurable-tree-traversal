@@ -949,7 +949,34 @@ export class TraversalKernel<
   private enqueueBreadthFirstExpansion(ref: Ref<T | R>): void {
     const vertex = this.options.container.resolvedGraph.get(ref);
     if (vertex !== null) {
-      this.breadthFirstPolicy!.enqueueExpansion(
+      const policy = this.breadthFirstPolicy!;
+      if (!this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref)) {
+        const frontier = policy.takeInjectedFrontier(ref);
+        if (frontier !== null) {
+          const contexts = frontier.contexts
+            .slice()
+            .sort((left, right) => left.hintIndex - right.hintIndex);
+          if (
+            contexts.some((context, index) => context.hintIndex !== index)
+          ) {
+            throw new Error('Invalid injected breadth-first frontier');
+          }
+          this.scheduling.prepareSlots(
+            ref,
+            contexts.map((context) => context.vertexHint),
+          );
+          for (const context of contexts) {
+            if (frontier.consumedHintIndices.has(context.hintIndex)) {
+              this.scheduling.restoreConsumedTreeSlot(context);
+            }
+          }
+          if (policy.activateInjectedFrontier(ref)) {
+            this.scheduling.closeExpansion(ref);
+          }
+          return;
+        }
+      }
+      policy.enqueueExpansion(
         this.newOwner('frame'),
         ref,
         vertex.discoveryDepth,

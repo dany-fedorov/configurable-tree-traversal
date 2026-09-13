@@ -190,6 +190,81 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
   expect(runner.state.queueIndex).toBe(0);
 });
 
+test('BFS resumes an injected reachable parent without regenerating its frontier', () => {
+  const first = new BreadthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
+      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+    },
+  }).makeRunner();
+  const firstIterator = first.getIterable();
+  expect(firstIterator.next().value?.vertex.getData()).toBe('root');
+  expect(firstIterator.next().value?.vertex.getData()).toBe('A');
+  firstIterator.return(undefined);
+
+  const root = first.getResolvedTree().getRoot();
+  if (root === null) throw new Error('Expected a resolved root');
+  const consumedChild = first.getResolvedTree().getChildrenOf(root)?.[0];
+  if (consumedChild === undefined) throw new Error('Expected consumed child');
+  const queue = first.state.queue;
+  expect(queue.map((context) => context.vertexHint)).toEqual(['A', 'B']);
+  expect(first.state.queueIndex).toBe(1);
+  expect(root.unref().getChildrenHints()).toEqual(['A', 'B']);
+
+  const calls: string[] = [];
+  let queueAtResolution: string[] = [];
+  const visits: Array<[string, number, string | undefined]> = [];
+  const traversal = new BreadthFirstTraversal<TestGraph>({
+    traversableTree: {
+      makeRoot: () => {
+        throw new Error('Existing root must be reused');
+      },
+      makeVertex: (hint) => {
+        calls.push(hint);
+        queueAtResolution = queue.map((context) => context.vertexHint);
+        return { vertexContent: { $d: hint, $c: [] } };
+      },
+    },
+    traversalRunnerInternalObjects: {
+      resolvedTreesContainer: first.resolvedTreesContainer,
+      state: first.state,
+    },
+  });
+  traversal.addVisitorFor(
+    BreadthFirstTraversalOrder.LEVEL_ORDER,
+    (vertex, options) => {
+      visits.push([
+        vertex.getData(),
+        options.vertexVisitIndex,
+        options.previousVisitedVertexRef?.unref().getData(),
+      ]);
+    },
+  );
+
+  const runner = traversal.makeRunner();
+  expect(runner.state.queue).toBe(queue);
+  expect(
+    Array.from(runner.getIterable()).map((event) => event.vertex.getData()),
+  ).toEqual(['root', 'B']);
+  expect(calls).toEqual(['B']);
+  expect(queueAtResolution).toEqual(['A', 'B']);
+  expect(visits).toEqual([
+    ['root', 2, 'A'],
+    ['B', 3, 'root'],
+  ]);
+  const children = runner.getResolvedTree().getChildrenOf(root);
+  expect(children).toHaveLength(2);
+  expect(children?.[0]).toBe(consumedChild);
+  expect(children?.[1]?.unref().getData()).toBe('B');
+  expect(
+    runner.getResolvedGraph().get(root)?.slots.map((slot) => slot.kind),
+  ).toEqual(['linked', 'linked']);
+  expect(runner.state.queue).toBe(queue);
+  expect(queue).toEqual([]);
+  expect(runner.state.queueIndex).toBe(0);
+  expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+});
+
 test('BFS does not search newly appended children for legacy reuse', () => {
   const width = 1_000;
   const runner = new BreadthFirstTraversal<TestGraph>({

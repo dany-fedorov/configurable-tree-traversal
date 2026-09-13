@@ -81,3 +81,28 @@ The focused test now pins:
 ### Remaining concern
 
 - Shared graph lifecycle bookkeeping still makes the 20,000-child traversal slower than the approximately 0.08-second legacy loop, but the accidental quadratic legacy-child scan is removed and the stress case remains iterative.
+
+## Fix round 2
+
+### RED evidence
+
+- Resuming a partial traversal whose reachable root retained the injected queue `[A, B]` at cursor 1 failed with `Slot is already linked to another vertex`.
+- The shared kernel revisited the root and regenerated its complete hint list, treating the injected queue as unrelated pending work rather than the root's already-established expansion frontier.
+
+### GREEN changes
+
+- `BreadthFirstPolicy` now indexes injected queue contexts by parent, including consumed-prefix hint indices, while progress accounting still covers only the unresolved suffix.
+- When an injected frontier's reachable parent is acknowledged, `TraversalKernel` prepares slots from the preserved contexts instead of enqueuing a fresh expansion.
+- `GraphScheduling` restores consumed tree slots from captured legacy topology without reenrolling or revisiting consumed children. Missing consumed children become terminal omitted slots.
+- The unresolved suffix retains its original queue object, contexts, hints, and cursor behavior; expansion closes when that suffix is consumed.
+
+### GREEN evidence
+
+- The regression preserves root hints `[A, B]`, queue identity, consumed child identity, and two linked root slots while invoking `makeVertex` only for `B`.
+- No duplicate contexts are appended: the queue remains exactly `[A, B]` when `B` resolves, then clears with cursor 0 at completion.
+- Initial visits resume with the injected visitor state: root is visit index 2 after `A`, followed by `B` at visit index 3 after root.
+- Requested focused matrix: 7 suites, 71 tests passed.
+- `npm test`: 33 suites, 358 tests passed.
+- `npm run typecheck`: passed.
+- `npm run lint`: passed.
+- `git diff --check`: passed.

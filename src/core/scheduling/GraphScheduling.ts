@@ -195,6 +195,24 @@ export class GraphScheduling<
     vertexWork.expansion = 'open';
   }
 
+  restoreConsumedTreeSlot(
+    context: VertexResolutionContext<T | R>,
+  ): void {
+    const child = this.findExistingTreeChild(context);
+    if (child === null) {
+      this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
+      return;
+    }
+    this.container.acceptEdge(
+      context.parentVertexRef,
+      context.hintIndex,
+      child,
+      true,
+    );
+    this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
+    this.container.store.setStatus(child, 'COMPLETE');
+  }
+
   closeExpansion(ref: Ref<T | R>): void {
     const vertexWork = this.getWork(ref);
     if (vertexWork.expansion === 'closed') return;
