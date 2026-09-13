@@ -136,6 +136,9 @@ import {
 } from 'configurable-tree-traversal';
 
 type Files = TreeTypeParameters<string, string>;
+async function listChildren(path: string): Promise<string[]> {
+  return path === 'src' ? [] : ['src'];
+}
 const traversal = new AsyncDepthFirstTraversal<Files>({
   concurrency: 4,
   traversableTree: {
@@ -167,6 +170,9 @@ import {
 import type { TreeTypeParameters } from 'configurable-tree-traversal';
 
 type Workflow = TreeTypeParameters<string, string>;
+function runTask(task: string): void {
+  console.log(`Running ${task}`);
+}
 const jobs: Record<string, { children: string[]; dependsOn: string[] }> = {
   root: { children: ['compile', 'test', 'publish'], dependsOn: [] },
   compile: { children: ['publish'], dependsOn: ['root'] },

@@ -1,7 +1,7 @@
 {
   "name": "configurable-tree-traversal",
   "version": "0.8.0",
-  "description": "Very configurable tree traversal for TypeScript",
+  "description": "Configurable synchronous and asynchronous tree and DAG traversal for TypeScript",
   "main": "./dist/index.js",
   "scripts": {
     "test": "jest --runInBand",

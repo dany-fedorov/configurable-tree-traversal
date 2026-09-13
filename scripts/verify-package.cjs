@@ -100,7 +100,7 @@ try {
     path.join(consumer, 'consumer.mjs'),
     `
     import assert from 'node:assert/strict';
-    import lib from 'configurable-tree-traversal';
+    import lib, { AsyncDepthFirstTraversal as RootAsyncDepthFirstTraversal } from 'configurable-tree-traversal';
     import { DepthFirstTraversal } from 'configurable-tree-traversal/traversals/depth-first-traversal';
     import { BreadthFirstTraversal } from 'configurable-tree-traversal/traversals/breadth-first-traversal';
     import { AsyncDagTraversal, DagTraversal, DagTraversalOrder } from 'configurable-tree-traversal/traversals/dag-traversal';
@@ -108,6 +108,7 @@ try {
     import { rewriteObject } from 'configurable-tree-traversal/tools/rewrite-object';
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
     import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
+    assert.equal(RootAsyncDepthFirstTraversal, lib.AsyncDepthFirstTraversal);
     assert.equal(DepthFirstTraversal, lib.DepthFirstTraversal);
     assert.equal(BreadthFirstTraversal, lib.BreadthFirstTraversal);
     assert.equal(DagTraversal, lib.DagTraversal);
