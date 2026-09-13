@@ -31,6 +31,7 @@ import {
   BreadthFirstPolicy,
   type BreadthFirstPolicyState,
 } from '@breadth-first-traversal/lib/BreadthFirstPolicy';
+import { DagPolicy } from '../traversals/dag-traversal/lib/DagPolicy';
 
 type PendingRequest<
   T extends TreeTypeParameters,
@@ -693,7 +694,10 @@ export class TraversalKernel<
       }
       case 'HINT_ID': {
         const frame = this.frames.get(call.owner.id)!;
-        const index = frame.nextIdentityIndex;
+        const index =
+          this.options.kind === 'dag' && this.options.execution === 'async'
+            ? call.hintIndex
+            : frame.nextIdentityIndex;
         const value = (
           reply.outcome as {
             ok: true;
@@ -748,7 +752,10 @@ export class TraversalKernel<
           return;
         }
         const frame = this.frames.get(call.owner.id)!;
-        const index = frame.nextConsumeIndex;
+        const index =
+          this.options.kind === 'dag' && this.options.execution === 'async'
+            ? call.context.hintIndex
+            : frame.nextConsumeIndex;
         const value = (
           reply.outcome as {
             ok: true;
@@ -1270,6 +1277,13 @@ export class TraversalKernel<
   }
 
   private advanceFrames(): KernelAction<T, R> | null {
+    if (this.options.execution === 'async') {
+      for (const frame of this.frames.values()) {
+        const action = this.advanceDagFrame(frame);
+        if (action !== null) return action;
+      }
+      return null;
+    }
     const frame = this.frames.values().next().value as
       | FrameState<T, R>
       | undefined;
@@ -1328,6 +1342,64 @@ export class TraversalKernel<
       this.scheduling.closeExpansion(frame.ref);
       this.frames.delete(frame.owner.id);
       return null;
+    }
+    return null;
+  }
+
+  private advanceDagFrame(frame: FrameState<T, R>): CallAction<T, R> | null {
+    if (frame.stage === 'sort') {
+      if (this.hasPendingFor(frame.owner)) return null;
+      return this.issue({
+        kind: 'SORT_HINTS',
+        owner: frame.owner,
+        hints: frame.hints.slice(),
+      });
+    }
+    if (frame.stage === 'identify') {
+      if (frame.nextAdmissionIndex < frame.hints.length) {
+        const index = frame.nextAdmissionIndex++;
+        frame.pendingIndices.add(index);
+        return this.issue({
+          kind: 'HINT_ID',
+          owner: frame.owner,
+          hint: frame.hints[index]!,
+          hintIndex: index,
+        });
+      }
+      if (frame.pendingIndices.size > 0) return null;
+      frame.stage = 'resolve';
+      frame.nextAdmissionIndex = 0;
+    }
+    if (frame.stage === 'resolve') {
+      while (frame.nextAdmissionIndex < frame.hints.length) {
+        const index = frame.nextAdmissionIndex++;
+        const parent = this.options.container.resolvedGraph.get(frame.ref)!;
+        const context = {
+          depth: parent.discoveryDepth + 1,
+          parentVertex: frame.ref.unref(),
+          parentVertexRef: frame.ref,
+          hintIndex: index,
+          vertexHint: frame.hints[index]!,
+        };
+        frame.contexts.set(index, context);
+        const hintIdentity = frame.hintIds.get(index);
+        if (
+          hintIdentity !== undefined &&
+          this.scheduling.acceptKnownHint(context, hintIdentity)
+        ) {
+          frame.nextConsumeIndex += 1;
+          continue;
+        }
+        frame.pendingIndices.add(index);
+        return this.issue({
+          kind: 'MAKE_VERTEX',
+          owner: frame.owner,
+          context,
+        });
+      }
+      if (frame.pendingIndices.size > 0) return null;
+      this.scheduling.closeExpansion(frame.ref);
+      this.frames.delete(frame.owner.id);
     }
     return null;
   }
@@ -1450,6 +1522,16 @@ export class TraversalKernel<
   }
 
   private admitEligibleVisit(): boolean {
+    if (
+      this.options.kind === 'dag' &&
+      this.options.execution === 'async' &&
+      !DagPolicy.allowsChainAdmission(
+        this.chains.size,
+        this.options.concurrency,
+      )
+    ) {
+      return false;
+    }
     const eligible = this.scheduling.takeEligible();
     if (eligible === null) return false;
     const order =

@@ -81,12 +81,14 @@ export function createAsyncDriver<
         emittedBoundaryId = null;
       }
       submitSettled();
+      let effectiveMode = mode;
       for (;;) {
-        const action = kernel.poll(mode);
+        const action = kernel.poll(effectiveMode);
+        if (kernel.isHaltRequested()) effectiveMode = 'drain';
         discardInvalidQueued();
         if (action.kind === 'CALL') enqueue(action.call);
         scheduler.startEligible((requestId) =>
-          kernel.isRequestEligible(requestId, mode),
+          kernel.isRequestEligible(requestId, effectiveMode),
         );
         if (action.kind === 'EVENT') {
           if (action.boundaryId === emittedBoundaryId) return { kind: 'WAIT' };

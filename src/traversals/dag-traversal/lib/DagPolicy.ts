@@ -12,6 +12,13 @@ export class DagPolicy<
 > {
   private readonly owner = {};
 
+  static allowsChainAdmission(
+    activeChainCount: number,
+    concurrency: number,
+  ): boolean {
+    return activeChainCount < concurrency;
+  }
+
   constructor(
     private readonly state: DagTraversalRunnerState<T, R>,
     private readonly container: ResolvedGraphsContainer<T, R>,

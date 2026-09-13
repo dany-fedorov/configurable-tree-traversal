@@ -295,6 +295,9 @@ test('applies a settled invalidation before admitting a released permit', async 
     isRequestEligible(requestId: number) {
       return requestId === 1 || secondValid;
     },
+    isHaltRequested() {
+      return false;
+    },
   } as unknown as KernelPort<TestGraph>;
   const driver = createAsyncDriver(
     kernel,
