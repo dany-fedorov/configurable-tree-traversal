@@ -32,7 +32,9 @@ export function createAsyncDriver<
     CallbackValues<T, R>[keyof CallbackValues<T, R>]
   >(concurrency, () => wakeup.notify());
   const calls = new Map<number, CallSpec<T, R>>();
+  const closeAcknowledgedBoundaries = new Set<number>();
   let emittedBoundaryId: number | null = null;
+  let closing = false;
 
   function discardInvalidQueued(): void {
     const discarded = scheduler.discardQueued(
@@ -73,6 +75,11 @@ export function createAsyncDriver<
 
   return {
     advance(mode: PumpMode): SessionProgress<KernelEvent<T | R>> {
+      if (closing && emittedBoundaryId !== null) {
+        kernel.acknowledgeEvent(emittedBoundaryId);
+        closeAcknowledgedBoundaries.add(emittedBoundaryId);
+        emittedBoundaryId = null;
+      }
       submitSettled();
       for (;;) {
         const action = kernel.poll(mode);
@@ -90,15 +97,20 @@ export function createAsyncDriver<
       }
     },
     acknowledgeEvent: (boundaryId) => {
+      if (closeAcknowledgedBoundaries.delete(boundaryId)) return;
       kernel.acknowledgeEvent(boundaryId);
       emittedBoundaryId = null;
     },
     requestHalt: () => {
+      closing = true;
       kernel.requestHalt();
       wakeup.notify();
     },
     isHaltRequested: () => kernel.isHaltRequested(),
-    resume: (config) => kernel.resume(config),
+    resume: (config) => {
+      closing = false;
+      kernel.resume(config);
+    },
     getStatus: () => kernel.getStatus(),
     getFailure: () => kernel.getFailure(),
     inspect(): DriverInspection {

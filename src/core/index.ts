@@ -10,3 +10,6 @@ export * from './Vertex';
 export * from './Traversal';
 export * from './TraversalRunner';
 export * from './TraversalRunnerIterableConfig';
+export * from './AsyncCoreExecution';
+export * from './AsyncTraversableTree';
+export * from './AsyncTraversalVisitor';
