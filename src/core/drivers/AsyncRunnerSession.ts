@@ -91,7 +91,9 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
     if (state.phase === 'unopened') {
       if (this.activeIterator !== null) {
         state.phase = 'closed';
-        return Promise.reject(new Error('Another active iterator owns execution'));
+        return Promise.reject(
+          new Error('Another active iterator owns execution'),
+        );
       }
       state.phase = 'active';
       this.activeIterator = state;
@@ -104,7 +106,12 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
         this.release(state);
         return Promise.resolve(done);
       }
-      this.control.resume(state.config);
+      try {
+        this.control.resume(state.config);
+      } catch (error) {
+        this.release(state);
+        return Promise.reject(error);
+      }
     }
 
     if (state.phase === 'active') this.acknowledgeDeliveredBoundary();
