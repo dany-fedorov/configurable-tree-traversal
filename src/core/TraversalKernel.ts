@@ -272,6 +272,24 @@ export class TraversalKernel<
         this.setStatus(TraversalRunnerStatus.FINISHED);
         return { kind: 'FINISHED' };
       }
+      if (
+        this.options.kind === 'dag' &&
+        mode === 'drive' &&
+        !this.hasValidPendingRequest()
+      ) {
+        const stall = this.scheduling.getStall();
+        if (stall !== null) {
+          const ids = stall.dependencies.flatMap(({ id, missing }) => [
+            id,
+            ...missing,
+          ]);
+          const detail =
+            ids.length > 0 ? ids.map(String).join(', ') : 'incomplete work';
+          const error = new Error(`DAG traversal stalled: ${detail}`);
+          this.fail(error);
+          return { kind: 'FAILED', error };
+        }
+      }
       return { kind: 'WAIT' };
     }
   }
@@ -743,11 +761,14 @@ export class TraversalKernel<
           break;
         case TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER:
           if (
-            this.depthFirstPolicy !== null &&
-            runtime.state.order !== DepthFirstTraversalOrder.PRE_ORDER
+            (this.depthFirstPolicy !== null &&
+              runtime.state.order !== DepthFirstTraversalOrder.PRE_ORDER) ||
+            (this.options.kind === 'dag' && runtime.state.order !== 'ON_READY')
           ) {
             throw new Error(
-              'Child hints can only be rewritten during pre-order',
+              this.options.kind === 'dag'
+                ? 'Child hints can only be rewritten during ON_READY'
+                : 'Child hints can only be rewritten during pre-order',
             );
           }
           runtime.state.ref.setPointsTo(
@@ -1000,46 +1021,54 @@ export class TraversalKernel<
     if (frame.stage === 'identify') {
       if (frame.nextIdentityIndex >= frame.hints.length) {
         frame.stage = 'resolve';
-        return null;
+      } else {
+        if (this.hasPendingFor(frame.owner)) return null;
+        const index = frame.nextIdentityIndex;
+        frame.pendingIndices.add(index);
+        return this.issue({
+          kind: 'HINT_ID',
+          owner: frame.owner,
+          hint: frame.hints[index]!,
+        });
       }
-      if (this.hasPendingFor(frame.owner)) return null;
-      const index = frame.nextIdentityIndex;
-      frame.pendingIndices.add(index);
-      return this.issue({
-        kind: 'HINT_ID',
-        owner: frame.owner,
-        hint: frame.hints[index]!,
-      });
     }
     if (frame.stage === 'resolve') {
-      if (frame.nextConsumeIndex >= frame.hints.length) {
-        this.scheduling.closeExpansion(frame.ref);
-        frame.stage = 'closed';
-        this.frames.delete(frame.owner.id);
-        return null;
+      while (frame.nextConsumeIndex < frame.hints.length) {
+        if (this.hasPendingFor(frame.owner)) return null;
+        const index = frame.nextConsumeIndex;
+        const parent = this.options.container.resolvedGraph.get(frame.ref);
+        if (parent === null) {
+          frame.stage = 'closed';
+          this.frames.delete(frame.owner.id);
+          return null;
+        }
+        const context = {
+          depth: parent.discoveryDepth + 1,
+          parentVertex: frame.ref.unref(),
+          parentVertexRef: frame.ref,
+          hintIndex: index,
+          vertexHint: frame.hints[index]!,
+        };
+        frame.contexts.set(index, context);
+        const hintIdentity = frame.hintIds.get(index);
+        if (
+          hintIdentity !== undefined &&
+          this.scheduling.acceptKnownHint(context, hintIdentity)
+        ) {
+          frame.nextConsumeIndex += 1;
+          continue;
+        }
+        frame.pendingIndices.add(index);
+        return this.issue({
+          kind: 'MAKE_VERTEX',
+          owner: frame.owner,
+          context,
+        });
       }
-      if (this.hasPendingFor(frame.owner)) return null;
-      const index = frame.nextConsumeIndex;
-      const parent = this.options.container.resolvedGraph.get(frame.ref);
-      if (parent === null) {
-        frame.stage = 'closed';
-        this.frames.delete(frame.owner.id);
-        return null;
-      }
-      const context = {
-        depth: parent.discoveryDepth + 1,
-        parentVertex: frame.ref.unref(),
-        parentVertexRef: frame.ref,
-        hintIndex: index,
-        vertexHint: frame.hints[index]!,
-      };
-      frame.contexts.set(index, context);
-      frame.pendingIndices.add(index);
-      return this.issue({
-        kind: 'MAKE_VERTEX',
-        owner: frame.owner,
-        context,
-      });
+      this.scheduling.closeExpansion(frame.ref);
+      frame.stage = 'closed';
+      this.frames.delete(frame.owner.id);
+      return null;
     }
     return null;
   }
@@ -1055,6 +1084,9 @@ export class TraversalKernel<
       eligible.order === 'ON_READY'
         ? this.orders.initial
         : this.orders.completion!;
+    if (eligible.order === 'ON_READY') {
+      this.scheduling.markPreVisiting(eligible.ref);
+    }
     this.admitChain(eligible.ref, order);
     return true;
   }

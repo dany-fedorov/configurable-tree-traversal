@@ -173,6 +173,18 @@ export class GraphScheduling<
     return accepted.ref;
   }
 
+  acceptKnownHint(
+    context: VertexResolutionContext<T | R>,
+    hintIdentity: HintVertexId,
+  ): boolean {
+    if (!hasVertexId(hintIdentity)) return false;
+    if (this.container.store.getIdState(hintIdentity.vertexId) === undefined) {
+      return false;
+    }
+    this.acceptVertex(context, { vertexContent: null }, hintIdentity);
+    return true;
+  }
+
   markPreVisited(ref: Ref<T | R>): void {
     const vertex = this.container.resolvedGraph.get(ref);
     if (vertex === null) throw new Error('Unknown vertex reference');
@@ -184,6 +196,11 @@ export class GraphScheduling<
     this.container.store.setStatus(ref, 'PRE_VISITED');
     this.satisfy(vertex.vertexId);
     this.enqueueCompletion(vertexWork);
+  }
+
+  markPreVisiting(ref: Ref<T | R>): void {
+    this.getWork(ref);
+    this.container.store.setStatus(ref, 'PRE_VISITING');
   }
 
   prepareSlots(ref: Ref<T | R>, hints: readonly (T | R)['VertexHint'][]): void {

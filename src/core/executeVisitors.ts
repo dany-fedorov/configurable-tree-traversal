@@ -108,7 +108,13 @@ export function sortVisitorRecords<
   RW_TTP extends TreeTypeParameters,
 >(
   records: TraversalVisitorRecord<ORDER, TTP, RW_TTP>[],
-): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[] {
+): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[];
+export function sortVisitorRecords<
+  R extends { addedIndex: number; priority: number },
+>(records: R[]): R[];
+export function sortVisitorRecords<R extends { addedIndex: number; priority: number }>(
+  records: R[],
+): R[] {
   return records
     .map((record) => ({ ...record }))
     .sort((a, b) => b.priority - a.priority || a.addedIndex - b.addedIndex);
