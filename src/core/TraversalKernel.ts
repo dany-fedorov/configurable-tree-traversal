@@ -130,10 +130,11 @@ export class TraversalKernel<
       const refs = options.container.resolvedGraph.getVertexRefs();
       const traversalRoot = options.stateBridge.traversalRootVertexRef;
       if (
-        refs.length > 0 &&
-        (existingRoot === null ||
-          traversalRoot !== existingRoot ||
-          !options.container.resolvedGraph.has(existingRoot))
+        (refs.length === 0 && traversalRoot !== null) ||
+        (refs.length > 0 &&
+          (existingRoot === null ||
+            traversalRoot !== existingRoot ||
+            !options.container.resolvedGraph.has(existingRoot)))
       ) {
         throw new Error('Invalid injected DAG seed: traversal root mismatch');
       }

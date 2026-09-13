@@ -195,9 +195,44 @@ test('accepts an initial or empty quiescent halted injected state', () => {
 
     expect(runner.state).toBe(state);
     expect(runner.resolvedGraphsContainer).toBe(container);
+    expect(state.traversalRootVertexRef).toBeNull();
     runner.run();
     expect(runner.getStatus()).toBe(Status.FINISHED);
   }
+});
+
+test('rejects a stale traversal root for an empty halted seed atomically', () => {
+  const staleRoot = new CTTRef(
+    new Vertex<TestGraph>({ $d: 'stale-root', $c: [] }),
+  );
+  const state = new DagTraversalRunnerState<TestGraph>({
+    status: Status.HALTED,
+    traversalRootVertexRef: staleRoot,
+  });
+  const container = new ResolvedGraphsContainer<TestGraph>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  const makeRoot = jest.fn(source().makeRoot);
+  const traversal = new DagTraversal<TestGraph>({
+    traversableGraph: { ...source(), makeRoot },
+    traversalRunnerInternalObjects: {
+      state,
+      resolvedGraphsContainer: container,
+    },
+  });
+  const beforeRefs = container.resolvedGraph.getVertexRefs();
+  const beforeReadyVisits = [...state.readyVisits];
+  const beforeExpansionQueue = [...state.expansionQueue];
+
+  expect(() => traversal.makeRunner()).toThrow(/traversal root mismatch/i);
+  expect(makeRoot).not.toHaveBeenCalled();
+  expect(container.resolvedGraph.getVertexRefs()).toEqual(beforeRefs);
+  expect(container.resolvedGraph.getRoot()).toBeNull();
+  expect(state.status).toBe(Status.HALTED);
+  expect(state.traversalRootVertexRef).toBe(staleRoot);
+  expect(state.readyVisits).toEqual(beforeReadyVisits);
+  expect(state.expansionQueue).toEqual(beforeExpansionQueue);
 });
 
 function haltedSeed() {

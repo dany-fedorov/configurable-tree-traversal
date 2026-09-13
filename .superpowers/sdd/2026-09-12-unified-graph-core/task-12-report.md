@@ -72,3 +72,22 @@ This section supersedes the earlier limitation on non-empty portable halted seed
 - Final global coverage: 100% statements, 100% branches, 100% functions, and 100% lines.
 - `npm run check`: pass, including typecheck, lint, coverage, examples, build, and package-consumer verification.
 - `git diff --check`: pass.
+
+## Fix Round 2: Empty Halted Seed Root Agreement
+
+### RED
+
+- Added a direct empty-container `HALTED` seed regression with a stale non-null `traversalRootVertexRef`.
+- The focused run, `npm test -- --runInBand tests/dag-configuration.test.ts`, failed only the new regression: `makeRunner()` accepted the seed instead of reporting a traversal-root mismatch; 48 tests passed.
+- The test snapshots the supplied state and container and verifies root resolution is never called, proving rejection occurs before runtime work or mutation.
+
+### GREEN
+
+- Extended DAG seed root agreement so an empty resolved graph requires a null traversal root, before scheduler restoration and expansion-queue installation.
+- Retained the valid empty quiescent `HALTED` null-root contract: the seed is accepted, resolves its root on resume, and finishes.
+
+### Verification
+
+- Focused DAG run: `npm test -- tests/dag-configuration.test.ts tests/dag-traversal.test.ts` passes, 2 suites and 72 tests.
+- `npm run check`: pass, including typecheck, lint, 36 suites and 469 tests, 100% statements/branches/functions/lines, 7 examples, build, and package-consumer verification.
+- `git diff --check`: pass.
