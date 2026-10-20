@@ -2,6 +2,7 @@ import type { VertexContent } from '@core/Vertex';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { ResolvedTree } from '@core/ResolvedTree';
+import type { VertexId } from '@core/graph/types';
 
 export type MakeVertexOptions<
   TTP extends TreeTypeParameters,
@@ -14,6 +15,8 @@ export type MakeVertexOptions<
 
 export type MakeVertexResult<TTP extends TreeTypeParameters> = {
   vertexContent: VertexContent<TTP> | null;
+  vertexId?: VertexId;
+  dependsOn?: readonly VertexId[];
 };
 
 export type TraversableTree<

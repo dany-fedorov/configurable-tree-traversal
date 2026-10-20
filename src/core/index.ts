@@ -10,3 +10,18 @@ export * from './Vertex';
 export * from './Traversal';
 export * from './TraversalRunner';
 export * from './TraversalRunnerIterableConfig';
+export * from './AsyncCoreExecution';
+export * from './AsyncTraversableTree';
+export * from './AsyncTraversalVisitor';
+export * from './CoreInspection';
+export * from './ResolvedGraph';
+export * from './TraversableGraph';
+export type {
+  ChildSlot,
+  GraphEdge,
+  GraphVertex,
+  GraphVertexStatus,
+  HintVertexId,
+  MaybePromise,
+  VertexId,
+} from './graph/types';

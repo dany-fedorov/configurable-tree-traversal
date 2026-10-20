@@ -7,6 +7,8 @@ import {
   MakeVertexResult,
 } from '@core/TraversableTree';
 import type { ResolvedTreeTypeParameters } from '@core/ResolvedTreeTypeParameters';
+import type { ResolvedGraph } from '@core/ResolvedGraph';
+import { GraphStore } from '@core/graph/GraphStore';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export type VertexResolutionContext<TTP extends TreeTypeParameters> = {
@@ -88,27 +90,34 @@ export type GetPathToOptions = {
 export class ResolvedTree<
   TTP extends TreeTypeParameters,
 > extends AbstractTraversableTree<ResolvedTreeTypeParameters<TTP>> {
-  private map: ResolvedTreeMap<TTP>;
-  private root: CTTRef<Vertex<TTP>> | null;
+  private readonly store: GraphStore<TTP>;
 
   constructor(/*config: ResolvedTreeConfig<TTP, RW_TTP>*/) {
     super();
-    this.map = new Map();
-    this.root = null;
+    this.store = new GraphStore<TTP>('tree');
   }
 
   getRoot(): CTTRef<Vertex<TTP>> | null {
-    return this.root;
+    return this.store.graph.getRoot();
   }
 
   setRoot(root: CTTRef<Vertex<TTP>>): void {
-    this.root = root;
+    this.store.setRoot(root);
+  }
+
+  getResolvedGraph(): ResolvedGraph<TTP> {
+    return this.store.graph;
+  }
+
+  /** @internal */
+  getGraphStore(): GraphStore<TTP> {
+    return this.store;
   }
 
   getChildrenOf(
     vertexRef: CTTRef<Vertex<TTP>>,
   ): Array<CTTRef<Vertex<TTP>>> | null {
-    return this.map.get(vertexRef)?.getChildren() ?? null;
+    return this.get(vertexRef)?.getChildren() ?? null;
   }
 
   getParentOf(vertexRef: CTTRef<Vertex<TTP>>): CTTRef<Vertex<TTP>> | null {
@@ -142,33 +151,29 @@ export class ResolvedTree<
         continue;
       }
       visited.add(currentRef);
-      const currentResolved = this.map.get(currentRef);
-      if (currentResolved !== undefined) {
+      const currentResolved = this.get(currentRef);
+      if (currentResolved !== null) {
         for (const childRef of currentResolved.getChildren()) {
           refsToDelete.push(childRef);
         }
       }
-      this.map.delete(currentRef);
     }
-
-    if (this.root === vertexRef) {
-      this.root = null;
-    }
+    this.store.removeVertices(visited);
   }
 
   has(vertexRef: CTTRef<Vertex<TTP>>): boolean {
-    return this.map.has(vertexRef);
+    return this.store.graph.has(vertexRef);
   }
 
   get(vertexRef: CTTRef<Vertex<TTP>>): VertexResolved<TTP> | null {
-    return this.map.get(vertexRef) ?? null;
+    return this.store.getTreeRecord(vertexRef);
   }
 
   set(
     vertexRef: CTTRef<Vertex<TTP>>,
     vertexResolved: VertexResolved<TTP>,
   ): void {
-    this.map.set(vertexRef, vertexResolved);
+    this.store.setTreeRecord(vertexRef, vertexResolved);
   }
 
   getResolutionContextOf(
@@ -207,7 +212,7 @@ export class ResolvedTree<
       }
     }
     let straightPath = reversedPath.reverse();
-    if (options?.noRoot === true && straightPath[0] === this.root) {
+    if (options?.noRoot === true && straightPath[0] === this.getRoot()) {
       straightPath = straightPath.slice(1);
     }
     if (
@@ -220,13 +225,14 @@ export class ResolvedTree<
   }
 
   makeRoot(): MakeVertexResult<ResolvedTreeTypeParameters<TTP>> {
-    if (this.root === null) {
+    const root = this.getRoot();
+    if (root === null) {
       return { vertexContent: null };
     }
     return {
       vertexContent: {
-        $d: this.root,
-        $c: this.getChildrenOf(this.root) ?? [],
+        $d: root,
+        $c: this.getChildrenOf(root) ?? [],
       },
     };
   }

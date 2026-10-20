@@ -199,6 +199,29 @@ describe('ResolvedTree', () => {
 });
 
 describe('DepthFirstTraversalResolvedTreesContainer', () => {
+  test('appends only to the active tree when snapshots are disabled', () => {
+    const container = new DepthFirstTraversalResolvedTreesContainer<
+      TestTTP,
+      TestTTP
+    >({
+      saveNotMutatedResolvedTree: false,
+      traversalRunnerInternalObjects: {
+        resolvedTreesContainer: null,
+        state: null,
+      },
+    } as unknown as DepthFirstTraversalInstanceConfig<TestTTP, TestTTP>);
+    const rootRef = makeRef('root', ['child']);
+    const childRef = makeRef('child');
+    container.setRoot(rootRef);
+    container.setWithResolutionContext(
+      childRef,
+      makeContext(rootRef, 'child', 1),
+    );
+    container.pushChildrenTo(rootRef, [childRef]);
+    expect(container.resolvedTree.getChildrenOf(rootRef)).toEqual([childRef]);
+    expect(container.notMutatedResolvedTree).toBeNull();
+  });
+
   test('saved tree owns references, contexts, topology, and its root', () => {
     const container = new DepthFirstTraversalResolvedTreesContainer<
       TestTTP,
