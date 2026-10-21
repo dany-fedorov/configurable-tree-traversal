@@ -3,12 +3,129 @@ import {
   AsyncDagTraversal,
   DagTraversalOrder as Order,
   DEFER_READY,
+  type DagSummary,
 } from '../src/traversals/dag-traversal';
 import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 
 type G = TreeTypeParameters<string, string>;
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test(`${Constructor.name} invalid summary blocks only unmet work alongside seeded and ready components`, async () => {
+    let calls = 0;
+    const traversal = new Constructor<G>({
+      discovery: 'eager',
+      syntheticRoot: true,
+      completedWork: new Set(['done']),
+      traversableGraph: {
+        makeRoot: () => {
+          calls++;
+          return { vertexContent: { $d: '', $c: ['done', 'ready', 'bad'] } };
+        },
+        makeVertex: (id) => {
+          calls++;
+          return {
+            vertexId: id,
+            dependsOn:
+              id === 'ready' ? ['done'] : id === 'bad' ? ['missing'] : [],
+            vertexContent: { $d: id, $c: [] },
+          };
+        },
+      },
+    });
+    traversal.addVisitorFor(Order.ON_READY, () => {
+      calls++;
+    });
+    const runner = traversal.makeRunner();
+    await expect(async () => {
+      await runner.run();
+    }).rejects.toMatchObject({
+      diagnostics: { unknownPrerequisiteIds: ['missing'] },
+    });
+    const summary = runner.summary();
+    expect(summary.discovery.complete).toBe(true);
+    expect(summary.vertices.get('done')!.work).toBe('succeeded');
+    expect(summary.vertices.get('ready')!.work).toBe('ready');
+    expect(summary.vertices.get('ready')!.unmetPrerequisiteIds).toEqual([]);
+    expect(summary.vertices.get('bad')!.work).toBe('pending');
+    expect(summary.diagnostics).toEqual({
+      dependencies: [{ id: 'bad', unmet: ['missing'] }],
+      unknownPrerequisiteIds: ['missing'],
+      dependencyCycles: [],
+      dependencyBlockedIds: ['bad'],
+      structurallyIncompleteIds: [],
+    });
+    summary.diagnostics!.dependencies[0]!.unmet.length = 0;
+    summary.diagnostics!.dependencyBlockedIds.length = 0;
+    expect(runner.summary().diagnostics!.dependencies).toEqual([
+      { id: 'bad', unmet: ['missing'] },
+    ]);
+    expect(runner.summary().diagnostics!.dependencyBlockedIds).toEqual(['bad']);
+    expect(calls).toBe(4);
+  });
+
+  test(`${Constructor.name} partial summary retains original seeded cycles while projecting actual unmet work`, async () => {
+    const bad = Object.create(null) as object;
+    const missing = { missing: true };
+    const cycle = undefined;
+    const snapshots: DagSummary[] = [];
+    const runner = new Constructor<TreeTypeParameters<unknown, unknown>>({
+      discovery: 'eager',
+      syntheticRoot: true,
+      completedWork: new Set<unknown>(['done', cycle]),
+      traversableGraph: {
+        makeRoot: () => ({
+          vertexContent: { $d: '', $c: ['done', 'ready', bad, cycle] },
+        }),
+        makeVertex: (id) => {
+          if (id === 'probe') {
+            snapshots.push(runner.summary());
+            return { vertexId: id, vertexContent: null };
+          }
+          return {
+            vertexId: id,
+            dependsOn:
+              id === 'ready'
+                ? ['done']
+                : id === bad
+                ? [missing]
+                : id === cycle
+                ? [cycle]
+                : [],
+            vertexContent: { $d: id, $c: id === cycle ? ['probe'] : [] },
+          };
+        },
+      },
+    }).makeRunner();
+    await expect(async () => {
+      await runner.run();
+    }).rejects.toMatchObject({
+      diagnostics: {
+        unknownPrerequisiteIds: [missing],
+        dependencyCycles: [[cycle]],
+      },
+    });
+    expect(snapshots).toHaveLength(1);
+    const partial = snapshots[0]!;
+    expect(partial.discovery.complete).toBe(false);
+    expect(partial.vertices.get(cycle)!.work).toBe('succeeded');
+    expect(partial.diagnostics).toEqual({
+      dependencies: [{ id: bad, unmet: [missing] }],
+      unknownPrerequisiteIds: [missing],
+      dependencyCycles: [[cycle]],
+      dependencyBlockedIds: [bad],
+      structurallyIncompleteIds: [],
+    });
+    expect(partial.diagnostics!.dependencies[0]!.id).toBe(bad);
+    expect(partial.diagnostics!.dependencies[0]!.unmet[0]).toBe(missing);
+    const complete = runner.summary();
+    expect(complete.discovery.complete).toBe(true);
+    expect(complete.diagnostics).toEqual(partial.diagnostics);
+    partial.diagnostics!.dependencyCycles[0]!.length = 0;
+    partial.diagnostics!.unknownPrerequisiteIds.length = 0;
+    partial.diagnostics!.dependencies.length = 0;
+    expect(runner.summary().diagnostics).toEqual(complete.diagnostics);
+  });
+
   test(`${Constructor.name} defers a diamond without publishing success and settles once`, async () => {
     const seen: string[] = [];
     const traversal = new Constructor<G>({

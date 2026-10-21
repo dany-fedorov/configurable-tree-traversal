@@ -606,6 +606,17 @@ export class TraversalKernel<
       })),
       incomplete: [],
     });
+    // Original edges expose invalid topology even after seeded success; progress
+    // fields describe only work still waiting on scheduler prerequisites.
+    diagnostics.dependencies = work
+      .filter(({ initialCommitted, unmet }) => !initialCommitted && unmet.size > 0)
+      .map(({ ref, unmet }) => ({
+        id: graph.getIdOf(ref),
+        unmet: Array.from(unmet),
+      }));
+    diagnostics.dependencyBlockedIds = diagnostics.dependencyBlockedIds.filter(
+      (id) => vertices.get(id)!.work === 'pending',
+    );
     return {
       discovery: { mode: this.options.discovery ?? 'lazy', complete },
       counts: {

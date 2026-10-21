@@ -373,6 +373,7 @@ adapter is responsible for listing its entire domain.
 Synthetic roots produce no visitor calls or events. `getResolvedGraph()`, visitor
 and resolver graph views, and saved snapshots omit the synthetic vertex and its
 edges. Their `getRoot()` returns `null`; paths follow only real parent edges.
+Explicit catalog membership retains a listed vertex even after its sole real parent is deleted.
 `noRoot` is therefore a no-op, while `noSelf` still removes the target vertex.
 An empty catalog finishes without events. The runner's internal graph container
 retains the synthetic vertex for scheduling.
