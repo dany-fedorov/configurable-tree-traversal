@@ -25,3 +25,4 @@ export type {
   MaybePromise,
   VertexId,
 } from './graph/types';
+export * from './errors/DagTraversalStallError';

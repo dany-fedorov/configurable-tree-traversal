@@ -206,6 +206,16 @@ A DAG constructor accepts exactly one source mode. Use `traversableGraph` for gr
 
 Graph ids use `Map`/`Set` SameValueZero equality, so `NaN`, `null`, explicit `undefined`, symbols, and object references are valid. `getVertexIdFromHint()` returns a wrapper, not a bare id: return `{ vertexId: undefined }` for the real id `undefined`, or return `undefined` when the hint has no identity. A known hint id can reuse a vertex without resolving it; if both the hint hook and resolver supply ids, they must match.
 
+Stalled DAG runners throw `DagTraversalStallError` (available from the root, `core`, and DAG traversal exports). Its `diagnostics` contains detached arrays while retaining original ID identity:
+
+- `dependencies`: `{ id, unmet }` entries for vertices waiting on prerequisites.
+- `unknownPrerequisiteIds`: unmet IDs absent from the discovered graph; lazy discovery may still hide those vertices in the source.
+- `dependencyCycles`: dependency strongly connected components with multiple vertices or a self-loop.
+- `dependencyBlockedIds`: vertices with unmet prerequisites outside those cycles, including direct missing-prerequisite dependents and downstream blocked work.
+- `structurallyIncompleteIds`: unfinished vertices without unmet prerequisites, typically ancestors waiting for children.
+
+The familiar `DAG traversal stalled:` message safely labels arbitrary IDs without coercing user objects. These diagnostics describe the terminal discovered graph; they do not fetch prerequisites or change scheduling.
+
 `runner.getResolvedGraph()` provides read-only vertex, status, parent, child, path, and id queries. Query arrays are shallow snapshots: changing an array cannot edit topology, while contained references and user vertex data remain live. With `saveNotMutatedResolvedGraph: true`, DAG runners also expose a structural `notMutatedResolvedGraph` snapshot containing first-accepted content and discovery edges. Rewrites and deletions do not alter it, but user data is still shallowly shared.
 
 ## Visitors and commands

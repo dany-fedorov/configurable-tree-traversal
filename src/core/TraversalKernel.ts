@@ -13,7 +13,7 @@ import type {
   VisitOrder,
 } from '@core/effects/types';
 import type { Ref } from '@core/graph/types';
-import { createVertexIdLabeler } from '@core/graph/identity';
+import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { ChainState, FrameState, KernelOptions } from '@core/kernelTypes';
 import { GraphScheduling } from '@core/scheduling/GraphScheduling';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
@@ -83,7 +83,6 @@ export class TraversalKernel<
 > implements KernelPort<T, R>
 {
   private readonly scheduling: GraphScheduling<T, R>;
-  private readonly labelVertexId = createVertexIdLabeler();
   private readonly rootOwner: OwnerToken = { kind: 'root', id: 1, epoch: 0 };
   private readonly ownerEpochs = new Map<string, number>([['root:1', 0]]);
   private readonly invalidOwners = new Set<string>();
@@ -339,15 +338,9 @@ export class TraversalKernel<
       ) {
         const stall = this.scheduling.getStall();
         if (stall !== null) {
-          const ids = stall.dependencies.flatMap(({ id, missing }) => [
-            id,
-            ...missing,
-          ]);
-          const detail =
-            ids.length > 0
-              ? ids.map(this.labelVertexId).join(', ')
-              : 'incomplete work';
-          const error = new Error(`DAG traversal stalled: ${detail}`);
+          const error = new DagTraversalStallError(
+            this.scheduling.diagnoseStall(stall),
+          );
           this.fail(error);
           return { kind: 'FAILED', error };
         }

@@ -64,6 +64,8 @@ try {
     assert.equal(breadth.BreadthFirstTraversal, lib.BreadthFirstTraversal);
     assert.equal(depth.AsyncDepthFirstTraversal, lib.AsyncDepthFirstTraversal);
     assert.equal(breadth.AsyncBreadthFirstTraversal, lib.AsyncBreadthFirstTraversal);
+    assert.equal(dag.DagTraversalStallError, lib.DagTraversalStallError);
+    assert.equal(core.DagTraversalStallError, lib.DagTraversalStallError);
     assert.equal(dag.DagTraversal, lib.DagTraversal);
     assert.equal(dag.AsyncDagTraversal, lib.AsyncDagTraversal);
     assert.equal(objectTree.TraversableObjectTree, lib.TraversableObjectTree);
@@ -103,7 +105,7 @@ try {
     import lib, { AsyncDepthFirstTraversal as RootAsyncDepthFirstTraversal } from 'configurable-tree-traversal';
     import { DepthFirstTraversal } from 'configurable-tree-traversal/traversals/depth-first-traversal';
     import { BreadthFirstTraversal } from 'configurable-tree-traversal/traversals/breadth-first-traversal';
-    import { AsyncDagTraversal, DagTraversal, DagTraversalOrder } from 'configurable-tree-traversal/traversals/dag-traversal';
+    import { AsyncDagTraversal, DagTraversal, DagTraversalOrder, DagTraversalStallError } from 'configurable-tree-traversal/traversals/dag-traversal';
     import { TraversableObjectTree } from 'configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree';
     import { rewriteObject } from 'configurable-tree-traversal/tools/rewrite-object';
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
@@ -111,6 +113,7 @@ try {
     assert.equal(RootAsyncDepthFirstTraversal, lib.AsyncDepthFirstTraversal);
     assert.equal(DepthFirstTraversal, lib.DepthFirstTraversal);
     assert.equal(BreadthFirstTraversal, lib.BreadthFirstTraversal);
+    assert.equal(DagTraversalStallError, lib.DagTraversalStallError);
     assert.equal(DagTraversal, lib.DagTraversal);
     assert.equal(AsyncDagTraversal, lib.AsyncDagTraversal);
     assert.equal(TraversableObjectTree, lib.TraversableObjectTree);
@@ -151,6 +154,11 @@ try {
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
     import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
 
+    const stall: import('configurable-tree-traversal').DagTraversalStallDiagnostics = {
+      dependencies: [], unknownPrerequisiteIds: [], dependencyCycles: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
+    };
+    const typedStall: import('configurable-tree-traversal/traversals/dag-traversal').DagTraversalStallError = new core.DagTraversalStallError(stall);
+    void typedStall;
     type Node = { $d: string; $c: (Node | null)[] };
     type Tree = TreeTypeParameters<string, Node | null>;
     const abstractRoot: Node = { $d: 'root', $c: [{ $d: 'leaf', $c: [] }] };
