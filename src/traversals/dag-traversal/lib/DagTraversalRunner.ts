@@ -31,9 +31,10 @@ import {
 } from './DagTraversalRunnerIterableConfig';
 import { DagTraversalRunnerState } from './DagTraversalRunnerState';
 
-type Event<T extends TreeTypeParameters, R extends TreeTypeParameters> = DagEvent<
-  T | R
->;
+type Event<
+  T extends TreeTypeParameters,
+  R extends TreeTypeParameters,
+> = DagEvent<T | R>;
 
 export class DagTraversalRunner<
   T extends TreeTypeParameters = TreeTypeParameters,
@@ -56,22 +57,37 @@ export class DagTraversalRunner<
   constructor(input: DagTraversalInstanceConfig<T, R>) {
     this.icfg = { ...input, visitors: initDagVisitors(input) };
     const injectedState = input.traversalRunnerInternalObjects.state;
-    this.state =
-      injectedState ?? new DagTraversalRunnerState<T, R>();
+    this.state = injectedState ?? new DagTraversalRunnerState<T, R>();
     const graphSource = input.traversableGraph;
     const treeSource = input.traversableTree;
     const sourceMode = graphSource !== undefined ? 'graph' : 'tree';
+    const completedWork =
+      input.completedWork === undefined
+        ? undefined
+        : new Set(input.completedWork);
+    if (
+      completedWork !== undefined &&
+      (sourceMode !== 'graph' ||
+        input.traversalRunnerInternalObjects.state !== null ||
+        input.traversalRunnerInternalObjects.resolvedGraphsContainer !== null)
+    ) {
+      throw new TypeError('completedWork requires a fresh graph-source runner');
+    }
     const injectedContainer =
       input.traversalRunnerInternalObjects.resolvedGraphsContainer;
     if (injectedContainer !== null) {
       if (injectedContainer.sourceMode !== sourceMode) {
-        throw new TypeError('Injected graph container source mode does not match');
+        throw new TypeError(
+          'Injected graph container source mode does not match',
+        );
       }
       if (
         (injectedContainer.notMutatedResolvedGraph !== null) !==
         input.saveNotMutatedResolvedGraph
       ) {
-        throw new TypeError('Injected graph container snapshot mode does not match');
+        throw new TypeError(
+          'Injected graph container snapshot mode does not match',
+        );
       }
       this.resolvedGraphsContainer = injectedContainer;
     } else if (sourceMode === 'graph') {
@@ -80,13 +96,11 @@ export class DagTraversalRunner<
         saveOriginal: input.saveNotMutatedResolvedGraph,
       });
     } else {
-      const treeContainer = new DepthFirstTraversalResolvedTreesContainer(
-        {
-          ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-          traversableTree: treeSource!,
-          saveNotMutatedResolvedTree: input.saveNotMutatedResolvedGraph,
-        } as unknown as DepthFirstTraversalInstanceConfig<T, R>,
-      );
+      const treeContainer = new DepthFirstTraversalResolvedTreesContainer({
+        ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
+        traversableTree: treeSource!,
+        saveNotMutatedResolvedTree: input.saveNotMutatedResolvedGraph,
+      } as unknown as DepthFirstTraversalInstanceConfig<T, R>);
       this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R>({
         sourceMode: 'tree',
         saveOriginal: input.saveNotMutatedResolvedGraph,
@@ -113,9 +127,10 @@ export class DagTraversalRunner<
         ? {}
         : {
             sortHints: (hints: (T | R)['VertexHint'][]) =>
-              input.sortChildrenHints!(
-                hints as T['VertexHint'][],
-              ) as (T | R)['VertexHint'][],
+              input.sortChildrenHints!(hints as T['VertexHint'][]) as (
+                | T
+                | R
+              )['VertexHint'][],
           }),
       visit: {
         [DagTraversalOrder.ON_READY]: (call) => this.visit(call),
@@ -124,6 +139,7 @@ export class DagTraversalRunner<
     });
     this.kernel = new TraversalKernel({
       kind: 'dag',
+      ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'sync',
       sourceMode,
       container: this.resolvedGraphsContainer,
@@ -142,10 +158,12 @@ export class DagTraversalRunner<
       ...(this.state.status === TraversalRunnerStatus.HALTED
         ? {
             dagSeed: {
-              readyVisits: this.state.readyVisits.map(({ vertexRef, order }) => ({
-                ref: vertexRef,
-                order,
-              })),
+              readyVisits: this.state.readyVisits.map(
+                ({ vertexRef, order }) => ({
+                  ref: vertexRef,
+                  order,
+                }),
+              ),
               expansionQueue: this.state.expansionQueue,
             },
           }
@@ -190,7 +208,8 @@ export class DagTraversalRunner<
     }
     if (this.getStatus() === TraversalRunnerStatus.FINISHED) return;
     if (config !== undefined) {
-      this.iterableConfig = makeEffectiveDagTraversalRunnerIterableConfig(config);
+      this.iterableConfig =
+        makeEffectiveDagTraversalRunnerIterableConfig(config);
     }
     this.policy.claim();
     this.kernel.resume(this.iterableConfig);
@@ -252,9 +271,7 @@ export class DagTraversalRunner<
     }
   }
 
-  private visit(
-    call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>,
-  ) {
+  private visit(call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>) {
     const order = call.order as DagTraversalOrder;
     const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
     return visitorRecord.visitor(call.ref.unref(), {

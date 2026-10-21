@@ -342,3 +342,11 @@ The packed consumer check runs CommonJS, ESM, and strict TypeScript imports from
 Retries, durable checkpoints, callback cancellation, fetching undiscovered prerequisites by id, and dependencies on subtree completion are outside this release. User vertex data is not frozen. Discovery cycles are rejected; dependency cycles or missing dependencies fail as a scheduling stall.
 
 MIT licensed.
+
+DAG graph sources accept `completedWork?: ReadonlySet<VertexId>` in both synchronous
+and asynchronous traversal configuration. Each runner copies the set when created.
+A listed vertex skips its initial `ON_READY` visitors and event, but its children
+are still discovered and its `ON_COMPLETE` visit waits for their completion.
+Omitted vertices count as recognized IDs; an ID never discovered causes a
+`TypeError`. This option requires a fresh graph runner and cannot be combined
+with a tree source or injected continuation state/container.

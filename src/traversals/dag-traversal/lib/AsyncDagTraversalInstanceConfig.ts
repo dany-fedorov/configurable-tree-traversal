@@ -1,3 +1,4 @@
+import type { VertexId } from '@core/graph/types';
 import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
 import type { MaybePromise, VisitorRecord } from '@core/graph/types';
 import type { AsyncTraversableGraph } from '@core/TraversableGraph';
@@ -35,6 +36,7 @@ type AsyncDagTraversalOptions<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
 > = {
+  completedWork?: ReadonlySet<VertexId>;
   sortChildrenHints: AsyncDagSortChildrenHintsFn<T> | null;
   visitors: AsyncDagTraversalVisitors<T, R>;
   saveNotMutatedResolvedGraph: boolean;

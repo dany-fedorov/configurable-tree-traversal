@@ -66,6 +66,18 @@ export class AsyncDagTraversalRunner<
     const graphSource = input.traversableGraph;
     const treeSource = input.traversableTree;
     const sourceMode = graphSource !== undefined ? 'graph' : 'tree';
+    const completedWork =
+      input.completedWork === undefined
+        ? undefined
+        : new Set(input.completedWork);
+    if (
+      completedWork !== undefined &&
+      (sourceMode !== 'graph' ||
+        input.traversalRunnerInternalObjects.state !== null ||
+        input.traversalRunnerInternalObjects.resolvedGraphsContainer !== null)
+    ) {
+      throw new TypeError('completedWork requires a fresh graph-source runner');
+    }
     const injectedContainer =
       input.traversalRunnerInternalObjects.resolvedGraphsContainer;
     if (injectedContainer !== null) {
@@ -128,6 +140,7 @@ export class AsyncDagTraversalRunner<
     });
     const kernel = new TraversalKernel({
       kind: 'dag',
+      ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'async',
       sourceMode,
       container: this.resolvedGraphsContainer,

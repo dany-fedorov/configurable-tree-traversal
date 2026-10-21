@@ -113,7 +113,10 @@ export class TraversalKernel<
   private readonly boundaries: Boundary<T | R>[] = [];
 
   constructor(private readonly options: KernelOptions<T, R>) {
-    this.scheduling = new GraphScheduling(options.container);
+    this.scheduling = new GraphScheduling(
+      options.container,
+      options.completedWork,
+    );
     this.orders = this.selectPolicy(options.kind);
     this.depthFirstPolicy =
       options.kind === 'depth-first'
@@ -328,6 +331,13 @@ export class TraversalKernel<
       }
 
       if (this.isFinished()) {
+        if (this.scheduling.getUnusedCompletedWorkIds().length > 0) {
+          const error = new TypeError(
+            'completedWork contains undiscovered vertex IDs',
+          );
+          this.fail(error);
+          return { kind: 'FAILED', error };
+        }
         this.setStatus(TraversalRunnerStatus.FINISHED);
         return { kind: 'FINISHED' };
       }
@@ -1610,7 +1620,8 @@ export class TraversalKernel<
   }
 
   private admitExpansion(): boolean {
-    const ref = this.expansionQueue.shift();
+    const ref =
+      this.scheduling.takeSeededExpansion() ?? this.expansionQueue.shift();
     if (ref === undefined || !this.options.container.resolvedGraph.has(ref)) {
       return ref !== undefined;
     }

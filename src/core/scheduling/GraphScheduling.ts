@@ -27,7 +27,23 @@ export class GraphScheduling<
   private eligible: EligibleVisit<T | R>[] = [];
   private eligibleHead = 0;
 
-  constructor(private readonly container: ResolvedGraphsContainer<T, R>) {}
+  private readonly unusedCompletedWork: Set<VertexId>;
+  private readonly seededExpansion: Ref<T | R>[] = [];
+
+  constructor(
+    private readonly container: ResolvedGraphsContainer<T, R>,
+    completedWork?: ReadonlySet<VertexId>,
+  ) {
+    this.unusedCompletedWork = new Set(completedWork);
+  }
+
+  getUnusedCompletedWorkIds(): VertexId[] {
+    return Array.from(this.unusedCompletedWork);
+  }
+
+  takeSeededExpansion(): Ref<T | R> | null {
+    return this.seededExpansion.shift() ?? null;
+  }
 
   restoreDagSeed(readyVisits: readonly EligibleVisit<T | R>[]): void {
     const refs = this.container.resolvedGraph.getVertexRefs();
@@ -81,7 +97,8 @@ export class GraphScheduling<
         slots?.map(
           (slot) =>
             slot.kind !== 'linked' ||
-            this.container.resolvedGraph.getStatusOf(slot.childRef) === 'COMPLETE',
+            this.container.resolvedGraph.getStatusOf(slot.childRef) ===
+              'COMPLETE',
         ) ?? [];
       const remainingChildren = completionAccounted.filter(
         (accounted) => !accounted,
@@ -184,6 +201,7 @@ export class GraphScheduling<
     if (result.vertexContent === null) {
       if (resultHasId) {
         this.container.store.markOmitted(suppliedId);
+        this.unusedCompletedWork.delete(suppliedId);
         this.satisfy(suppliedId);
       }
       return null;
@@ -263,6 +281,7 @@ export class GraphScheduling<
     if (result.vertexContent === null) {
       if (hasSuppliedId) {
         this.container.store.markOmitted(suppliedId);
+        this.unusedCompletedWork.delete(suppliedId);
         this.satisfy(suppliedId);
       }
       this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
@@ -341,9 +360,7 @@ export class GraphScheduling<
     vertexWork.expansion = 'open';
   }
 
-  restoreConsumedTreeSlot(
-    context: VertexResolutionContext<T | R>,
-  ): void {
+  restoreConsumedTreeSlot(context: VertexResolutionContext<T | R>): void {
     const child = this.findExistingTreeChild(context);
     if (child === null) {
       this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
@@ -457,7 +474,9 @@ export class GraphScheduling<
         []) {
         this.addRemoval(dependent, removals, pending);
       }
-      for (const child of this.container.resolvedGraph.getChildrenOf(current)!) {
+      for (const child of this.container.resolvedGraph.getChildrenOf(
+        current,
+      )!) {
         if (removals.has(child)) continue;
         const parents = this.container.resolvedGraph.getParentsOf(child)!;
         if (parents.every((parent) => removals.has(parent))) {
@@ -555,8 +574,10 @@ export class GraphScheduling<
     const positions = new Map(dependencies.map(({ id }, index) => [id, index]));
     for (let index = 0; index < cycles.length; index++) {
       // Sort wrappers because Array.sort moves raw undefined values last.
-      cycles[index] = cycles[index]!
-        .map((id) => ({ id, position: positions.get(id)! }))
+      cycles[index] = cycles[index]!.map((id) => ({
+        id,
+        position: positions.get(id)!,
+      }))
         .sort((a, b) => a.position - b.position)
         .map(({ id }) => id);
     }
@@ -677,7 +698,13 @@ export class GraphScheduling<
       remainingChildren: 0,
     };
     this.work.set(ref, vertexWork);
-    this.enqueueReady(vertexWork);
+    if (this.unusedCompletedWork.delete(this.getVertex(ref).vertexId)) {
+      vertexWork.initialAdmitted = true;
+      this.markPreVisited(ref);
+      this.seededExpansion.push(ref);
+    } else {
+      this.enqueueReady(vertexWork);
+    }
   }
 
   private satisfy(id: VertexId): void {
