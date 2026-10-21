@@ -1,3 +1,5 @@
+import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
+import { stronglyConnectedComponents } from './stronglyConnectedComponents';
 import { CTTRef } from '@core/CTTRef';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult } from '@core/TraversableTree';
@@ -523,6 +525,53 @@ export class GraphScheduling<
     return dependencies.length === 0 && incomplete.length === 0
       ? null
       : { dependencies, incomplete };
+  }
+
+  diagnoseStall(stall: GraphStall<T | R>): DagTraversalStallDiagnostics {
+    const dependencies = stall.dependencies.map(({ id, missing }) => ({
+      id,
+      unmet: missing.slice(),
+    }));
+    const graph = new Map<VertexId, VertexId[]>();
+    const unknown = new Set<VertexId>();
+    const ids = new Set(dependencies.map(({ id }) => id));
+    for (const { id, unmet } of dependencies) {
+      graph.set(
+        id,
+        unmet.filter((dependency) => ids.has(dependency)),
+      );
+      for (const dependency of unmet) {
+        if (this.container.store.getIdState(dependency) === undefined)
+          unknown.add(dependency);
+      }
+    }
+    const components = stronglyConnectedComponents(graph);
+    const cycles = components.filter(
+      (component) =>
+        component.length > 1 || graph.get(component[0])!.includes(component[0]),
+    );
+    const cycleMembers = new Set(cycles.flat());
+    // Keep diagnostic order stable in discovery order, independent of SCC traversal.
+    const positions = new Map(dependencies.map(({ id }, index) => [id, index]));
+    for (let index = 0; index < cycles.length; index++) {
+      // Sort wrappers because Array.sort moves raw undefined values last.
+      cycles[index] = cycles[index]!
+        .map((id) => ({ id, position: positions.get(id)! }))
+        .sort((a, b) => a.position - b.position)
+        .map(({ id }) => id);
+    }
+    cycles.sort((a, b) => positions.get(a[0])! - positions.get(b[0])!);
+    return {
+      dependencies,
+      unknownPrerequisiteIds: Array.from(unknown),
+      dependencyCycles: cycles,
+      dependencyBlockedIds: dependencies
+        .filter(({ id }) => !cycleMembers.has(id))
+        .map(({ id }) => id),
+      structurallyIncompleteIds: stall.incomplete.map((ref) =>
+        this.container.resolvedGraph.getIdOf(ref),
+      ),
+    };
   }
 
   private rejectTreeMetadata(result: MakeVertexResult<T>): void {

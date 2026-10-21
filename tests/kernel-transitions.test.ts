@@ -1,3 +1,4 @@
+import type { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import type { CallbackReply, VisitOrder } from '../src/core/effects/types';
 import type { Outcome } from '../src/core/effects/types';
@@ -423,18 +424,21 @@ test('drops an orphaned submitted callback reply', () => {
 
 test('reports an incomplete-work DAG stall without dependency ids', () => {
   const { kernel } = makeKernel();
-  const vertexRef = new CTTRef(
-    new Vertex<TestGraph>({ $d: 'incomplete', $c: [] }),
-  );
+  const scheduling = (
+    kernel as unknown as { scheduling: GraphScheduling<TestGraph> }
+  ).scheduling;
+  const vertexRef = scheduling.acceptRoot({
+    vertexId: 'incomplete',
+    vertexContent: { $d: 'incomplete', $c: [] },
+  })!;
+  scheduling.takeReady();
+  scheduling.markPreVisited(vertexRef);
   setPrivate(kernel, 'rootRequested', true);
-  setPrivate(kernel, 'scheduling', {
-    inspectEligible: () => [],
-    getStall: () => ({ dependencies: [], incomplete: [vertexRef] }),
-    takeEligible: () => null,
-  });
   expect(kernel.poll('drive')).toMatchObject({
     kind: 'FAILED',
-    error: expect.objectContaining({ message: expect.stringMatching(/incomplete work/) }),
+    error: expect.objectContaining({
+      message: expect.stringMatching(/incomplete work/),
+    }),
   });
 });
 

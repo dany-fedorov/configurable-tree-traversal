@@ -12,3 +12,4 @@ export * from './lib/DagTraversalRunnerInternalObjects';
 export * from './lib/DagTraversalRunnerIterableConfig';
 export * from './lib/DagTraversalRunnerState';
 export * from './lib/DagTraversalVisitor';
+export * from '../../core/errors/DagTraversalStallError';
