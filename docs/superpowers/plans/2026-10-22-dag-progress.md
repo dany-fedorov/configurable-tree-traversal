@@ -54,7 +54,7 @@ runner.run();
 expect(runner.getResolvedGraph().getRoot()).toBeNull();
 expect(runner.getResolvedGraph().getVertexRefs().map(ref => runner.getResolvedGraph().getIdOf(ref))).toEqual(['a', 'b']);
 ```
-- [ ] Run new tests and observe RED. Implement queue-based eager discovery independent of W readiness; validate all declared dependency edges (including seeds) before admission. Reject duplicate root catalog IDs without rejecting shared descendant references. Catalog entries require explicit IDs. Synthetic root success/completion remains internal and never creates an implicit prerequisite for real roots. Restrict eager child-hint rewrites after topology discovery to prevent stale validation.
+- [ ] Run new tests and observe RED. Implement queue-based eager discovery independent of W readiness; validate all declared dependency edges (including seeds) before admission. Reject duplicate root catalog IDs without rejecting shared descendant references. Catalog entries require explicit IDs. Synthetic root success/completion remains internal and never creates an implicit prerequisite for real roots. Reject eager child-hint rewrites and subtree-disabling commands after topology discovery to prevent stale validation; retain existing data rewrite/deletion behavior. Ensure synthetic root identity cannot collide with a real catalog ID. Validate original edges for seeded lazy graphs when discovery completes as well, so successful seeds cannot hide cycles.
 ```ts
 type DagDiscoveryOptions = { discovery?: 'lazy' | 'eager'; syntheticRoot?: boolean };
 // SCC validation uses original graph vertex.dependsOn, not only unmet sets.
