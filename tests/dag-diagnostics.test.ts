@@ -177,3 +177,27 @@ test('scheduler diagnostics preserve arbitrary missing and cyclic IDs', () => {
     expect(diagnostics.dependencies[0]!.id).toBe(hostile);
   }
 });
+
+test('keeps undefined first when its cycle was discovered first', () => {
+  const runner = new DagTraversal({
+    traversableGraph: {
+      makeRoot: () => ({
+        vertexId: 'root',
+        vertexContent: { $d: 'root', $c: [undefined, 'b'] as unknown[] },
+      }),
+      makeVertex: (id: unknown) => ({
+        vertexId: id,
+        dependsOn: [id === undefined ? 'b' : undefined],
+        vertexContent: { $d: 'task', $c: [] as unknown[] },
+      }),
+    },
+  }).makeRunner();
+  try {
+    runner.run();
+    throw new Error('Expected stall');
+  } catch (error) {
+    expect(
+      (error as DagTraversalStallError).diagnostics.dependencyCycles,
+    ).toEqual([[undefined, 'b']]);
+  }
+});

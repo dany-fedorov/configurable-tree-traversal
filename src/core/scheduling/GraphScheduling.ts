@@ -553,8 +553,13 @@ export class GraphScheduling<
     const cycleMembers = new Set(cycles.flat());
     // Keep diagnostic order stable in discovery order, independent of SCC traversal.
     const positions = new Map(dependencies.map(({ id }, index) => [id, index]));
-    for (const cycle of cycles)
-      cycle.sort((a, b) => positions.get(a)! - positions.get(b)!);
+    for (let index = 0; index < cycles.length; index++) {
+      // Sort wrappers because Array.sort moves raw undefined values last.
+      cycles[index] = cycles[index]!
+        .map((id) => ({ id, position: positions.get(id)! }))
+        .sort((a, b) => a.position - b.position)
+        .map(({ id }) => id);
+    }
     cycles.sort((a, b) => positions.get(a[0])! - positions.get(b[0])!);
     return {
       dependencies,
