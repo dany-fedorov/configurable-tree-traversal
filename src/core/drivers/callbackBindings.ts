@@ -46,7 +46,9 @@ function assertTreeResult<T extends TreeTypeParameters>(
     Object.prototype.hasOwnProperty.call(result, 'dependsOn')
   ) {
     throw new TypeError(
-      `${runnerName === undefined ? 'Tree source' : `${runnerName} tree source`} results cannot include graph metadata`,
+      `${
+        runnerName === undefined ? 'Tree source' : `${runnerName} tree source`
+      } results cannot include graph metadata`,
     );
   }
   return result;
@@ -119,7 +121,7 @@ export function bindGraphSource<
     makeVertex: (context) =>
       adapter.makeVertex(asInputHint<T, R>(context.vertexHint), {
         resolutionContext: context,
-        resolvedGraph: container.resolvedGraph,
+        resolvedGraph: container.publicResolvedGraph,
         notMutatedResolvedGraph: container.notMutatedResolvedGraph,
       }),
   };

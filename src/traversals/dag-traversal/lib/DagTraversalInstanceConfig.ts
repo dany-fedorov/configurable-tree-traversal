@@ -8,6 +8,11 @@ import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInte
 import { DagTraversalOrder } from './DagTraversalOrder';
 import type { DagVisitor } from './DagTraversalVisitor';
 
+export type DagDiscoveryOptions = {
+  discovery?: 'lazy' | 'eager';
+  syntheticRoot?: boolean;
+};
+
 export type DagSource<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
@@ -29,7 +34,7 @@ export type DagSortChildrenHintsFn<T extends TreeTypeParameters> = (
 type DagTraversalOptions<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
-> = {
+> = DagDiscoveryOptions & {
   completedWork?: ReadonlySet<VertexId>;
   sortChildrenHints: DagSortChildrenHintsFn<T> | null;
   visitors: DagTraversalVisitors<T, R>;

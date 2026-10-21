@@ -350,3 +350,34 @@ are still discovered and its `ON_COMPLETE` visit waits for their completion.
 Omitted vertices count as recognized IDs; an ID never discovered causes a
 `TypeError`. This option requires a fresh graph runner and cannot be combined
 with a tree source or injected continuation state/container.
+
+Set `discovery: 'eager'` to resolve every reachable hint before the first visitor,
+including descendants of vertices whose work dependencies are still blocked.
+The runner then validates the original declared dependencies for missing IDs and
+cycles, even when `completedWork` has already satisfied those dependencies.
+Unknown seed IDs also fail before visitors in eager mode. Seeded lazy runners
+validate original dependencies when discovery closes; ordinary lazy traversal
+remains the default. Eager discovery honors explicit root `dependsOn` entries.
+`priority` and `dependsOnComplete` result metadata are not supported and reject
+explicitly.
+
+Set `syntheticRoot: true` when `makeRoot()` returns a catalog holder whose child
+hints describe multiple graph sources. Its supplied ID is ignored in favor of a
+private identity, and its children have no implicit dependency on it. Every
+catalog entry needs an explicit ID from the hint identity callback or the vertex
+result. Repeating an ID within the catalog is an error; shared descendants under
+real vertices remain valid. Combine this option with eager discovery to validate
+a complete catalog, including disconnected components, before work begins. The
+adapter is responsible for listing its entire domain.
+
+Synthetic roots produce no visitor calls or events. `getResolvedGraph()`, visitor
+and resolver graph views, and saved snapshots omit the synthetic vertex and its
+edges. Their `getRoot()` returns `null`; paths follow only real parent edges.
+`noRoot` is therefore a no-op, while `noSelf` still removes the target vertex.
+An empty catalog finishes without events. The runner's internal graph container
+retains the synthetic vertex for scheduling.
+
+Enabled eager/synthetic options require a fresh graph-source runner. Explicit
+`discovery: 'lazy'` and `syntheticRoot: false` remain compatible with tree sources.
+Eager mode rejects child-hint rewrites and subtree-disabling commands after
+validation; data rewrites and vertex deletion retain their existing behavior.

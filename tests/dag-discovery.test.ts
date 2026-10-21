@@ -1,0 +1,376 @@
+import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+
+type G = TreeTypeParameters<string, string>;
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test(`${Constructor.name} eager discovery expands blocked grandchildren before visiting`, async () => {
+    const resolved: string[] = [];
+    const seen: string[] = [];
+    const traversal = new Constructor<G>({
+      ...{ discovery: 'eager' as const },
+      traversableGraph: {
+        makeRoot: () => ({
+          vertexId: 'root',
+          vertexContent: { $d: 'root', $c: ['a', 'b'] },
+        }),
+        makeVertex: (hint) => {
+          resolved.push(hint);
+          return {
+            vertexId: hint,
+            dependsOn: hint === 'a' ? ['c'] : [],
+            vertexContent: { $d: hint, $c: hint === 'b' ? ['c'] : [] },
+          };
+        },
+      },
+    });
+    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+      expect(resolved).toEqual(['a', 'b', 'c']);
+      seen.push(vertex.getData());
+    });
+    await traversal.makeRunner().run();
+    expect(seen).toEqual(['root', 'b', 'c', 'a']);
+  });
+
+  test.each(['cycle', 'missing', 'seed'])(
+    `${Constructor.name} rejects eager %s before visitors`,
+    async (invalid) => {
+      const seen: string[] = [];
+      const traversal = new Constructor<G>({
+        ...{ discovery: 'eager' as const },
+        completedWork: new Set(
+          invalid === 'cycle'
+            ? ['root', 'a']
+            : invalid === 'seed'
+            ? ['unknown']
+            : [],
+        ),
+        traversableGraph: {
+          makeRoot: () => ({
+            vertexId: 'root',
+            dependsOn: invalid === 'cycle' ? ['a'] : [],
+            vertexContent: { $d: 'root', $c: ['a'] },
+          }),
+          makeVertex: () => ({
+            vertexId: 'a',
+            dependsOn:
+              invalid === 'cycle'
+                ? ['root']
+                : invalid === 'missing'
+                ? ['missing']
+                : [],
+            vertexContent: { $d: 'a', $c: [] },
+          }),
+        },
+      });
+      traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+        seen.push(vertex.getData());
+      });
+      await expect(async () => {
+        await traversal.makeRunner().run();
+      }).rejects.toThrow();
+      expect(seen).toEqual([]);
+    },
+  );
+
+  test.each([
+    Command.DISABLE_SUBTREE_TRAVERSAL,
+    Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+  ])(
+    `${Constructor.name} rejects eager topology command %s`,
+    async (command) => {
+      const traversal = new Constructor<G>({
+        ...{ discovery: 'eager' as const },
+        traversableGraph: {
+          makeRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
+          makeVertex: () => ({ vertexContent: null }),
+        },
+      });
+      traversal.addVisitorFor(Order.ON_READY, () => ({
+        commands: [
+          command === Command.DISABLE_SUBTREE_TRAVERSAL
+            ? { commandName: command }
+            : {
+                commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+                commandArguments: { newHints: [] },
+              },
+        ],
+      }));
+      await expect(async () => {
+        await traversal.makeRunner().run();
+      }).rejects.toThrow(/eager/i);
+    },
+  );
+}
+
+test('async eager discovery waits for actual promised resolver results', async () => {
+  const resolved: string[] = [];
+  const traversal = new AsyncDagTraversal<G>({
+    ...{ discovery: 'eager' as const },
+    traversableGraph: {
+      makeRoot: async () => ({
+        vertexId: 'root',
+        vertexContent: { $d: 'root', $c: ['a'] },
+      }),
+      makeVertex: async (hint) => {
+        await Promise.resolve();
+        resolved.push(hint);
+        return {
+          vertexId: hint,
+          vertexContent: { $d: hint, $c: hint === 'a' ? ['b'] : [] },
+        };
+      },
+    },
+  });
+  traversal.addVisitorFor(Order.ON_READY, async () => {
+    expect(resolved).toEqual(['a', 'b']);
+  });
+  await traversal.makeRunner().run();
+});
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test(`${Constructor.name} seeded lazy discovery validates original root dependency cycles`, async () => {
+    const runner = new Constructor<G>({
+      completedWork: new Set(['root', 'a']),
+      traversableGraph: {
+        makeRoot: () => ({
+          vertexId: 'root',
+          dependsOn: ['a'],
+          vertexContent: { $d: 'root', $c: ['a'] },
+        }),
+        makeVertex: () => ({
+          vertexId: 'a',
+          dependsOn: ['root'],
+          vertexContent: { $d: 'a', $c: [] },
+        }),
+      },
+    }).makeRunner();
+    await expect(async () => {
+      await runner.run();
+    }).rejects.toMatchObject({
+      diagnostics: { dependencyCycles: [['root', 'a']] },
+    });
+  });
+
+  test(`${Constructor.name} eager ordinary root honors declared dependencies`, async () => {
+    const seen: string[] = [];
+    const traversal = new Constructor<G>({
+      discovery: 'eager',
+      traversableGraph: {
+        makeRoot: () => ({
+          vertexId: 'root',
+          dependsOn: ['a'],
+          vertexContent: { $d: 'root', $c: ['a'] },
+        }),
+        makeVertex: () => ({
+          vertexId: 'a',
+          dependsOn: [],
+          vertexContent: { $d: 'a', $c: [] },
+        }),
+      },
+    });
+    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+      seen.push(vertex.getData());
+    });
+    await traversal.makeRunner().run();
+    expect(seen).toEqual(['a', 'root']);
+  });
+
+  test.each(['priority', 'dependsOnComplete'])(
+    `${Constructor.name} rejects unsupported %s graph metadata`,
+    async (key) => {
+      for (const root of [false, true]) {
+        const traversal = new Constructor<G>({
+          discovery: 'eager',
+          traversableGraph: {
+            makeRoot: () => ({
+              ...(root ? { [key]: [] } : {}),
+              vertexContent: { $d: 'root', $c: ['a'] },
+            }),
+            makeVertex: () => ({
+              [key]: [],
+              vertexContent: { $d: 'a', $c: [] },
+            }),
+          },
+        });
+        await expect(async () => {
+          await traversal.makeRunner().run();
+        }).rejects.toThrow(/not supported/);
+      }
+    },
+  );
+
+  test.each([{ discovery: 'eager' as const }, { syntheticRoot: true }])(
+    `${Constructor.name} rejects graph progress options with trees or injected continuation %j`,
+    (options) => {
+      const graph = {
+        makeRoot: () => ({ vertexContent: null }),
+        makeVertex: () => ({ vertexContent: null }),
+      };
+      expect(() =>
+        new Constructor<G>({ traversableTree: graph, ...options }).makeRunner(),
+      ).toThrow(TypeError);
+      const runner = new Constructor<G>({
+        traversableGraph: graph,
+      }).makeRunner();
+      for (const injected of [
+        { state: runner.state },
+        { resolvedGraphsContainer: runner.resolvedGraphsContainer },
+      ]) {
+        expect(() =>
+          new Constructor<G>({
+            traversableGraph: graph,
+            ...options,
+            traversalRunnerInternalObjects: injected,
+          }).makeRunner(),
+        ).toThrow(TypeError);
+      }
+    },
+  );
+
+  test(`${Constructor.name} accepts inactive progress options on trees`, async () => {
+    await new Constructor<G>({
+      discovery: 'lazy',
+      syntheticRoot: false,
+      traversableTree: {
+        makeRoot: () => ({ vertexContent: null }),
+        makeVertex: () => ({ vertexContent: null }),
+      },
+    })
+      .makeRunner()
+      .run();
+  });
+
+  test(`${Constructor.name} eager data rewrites and deletion retain original snapshots`, async () => {
+    const traversal = new Constructor<G>({
+      discovery: 'eager',
+      saveNotMutatedResolvedGraph: true,
+      traversableGraph: {
+        makeRoot: () => ({
+          vertexId: 'root',
+          vertexContent: { $d: 'root', $c: ['a', 'b'] },
+        }),
+        makeVertex: (hint) => ({
+          vertexId: hint,
+          vertexContent: { $d: hint, $c: [] },
+        }),
+      },
+    });
+    traversal.addVisitorFor(Order.ON_READY, (vertex) => ({
+      commands: [
+        vertex.getData() === 'a'
+          ? { commandName: Command.DELETE_VERTEX }
+          : {
+              commandName: Command.REWRITE_VERTEX_DATA,
+              commandArguments: { newData: 'rewritten' },
+            },
+      ],
+    }));
+    const runner = traversal.makeRunner();
+    await runner.run({ iterateOver: [] });
+    expect(runner.getResolvedGraph().getVertexById('a')).toBeNull();
+    expect(
+      runner.getResolvedGraph().getVertexById('b')!.unref().getData(),
+    ).toBe('rewritten');
+    expect(
+      runner.notMutatedResolvedGraph!.getVertexById('b')!.unref().getData(),
+    ).toBe('b');
+  });
+}
+
+test('scheduler discovery queries are detached and do not consume eligible work', async () => {
+  const { GraphScheduling } = await import(
+    '../src/core/scheduling/GraphScheduling'
+  );
+  const { ResolvedGraphsContainer } = await import(
+    '../src/core/graph/ResolvedGraphsContainer'
+  );
+  const container = new ResolvedGraphsContainer<G>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  const scheduler = new GraphScheduling(container);
+  const root = scheduler.acceptRoot({
+    vertexId: 'root',
+    vertexContent: { $d: 'root', $c: [] },
+  })!;
+  expect(scheduler.isDiscoveryComplete()).toBe(false);
+  const query = scheduler as typeof scheduler & {
+    inspectWork(): import('../src/core/scheduling/types').VertexWork<G>[];
+  };
+  const before = query.inspectWork();
+  expect(before[0]!.initialCommitted).toBe(false);
+  before[0]!.unmet.add('invented');
+  before[0]!.completionAccounted.push(true);
+  before[0]!.initialCommitted = true;
+  expect(query.inspectWork()[0]).toMatchObject({
+    unmet: new Set(),
+    completionAccounted: [],
+    initialCommitted: false,
+  });
+  scheduler.prepareSlots(root, []);
+  scheduler.closeExpansion(root);
+  expect(scheduler.isDiscoveryComplete()).toBe(true);
+  expect(scheduler.takeReady()).toBe(root);
+  scheduler.markPreVisited(root);
+  expect(query.inspectWork()[0]!.completionCommitted).toBe(false);
+  expect(scheduler.takeCompleting()).toBe(root);
+  scheduler.markComplete(root);
+  expect(query.inspectWork()[0]!.completionCommitted).toBe(true);
+});
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test(`${Constructor.name} validates seeded lazy cycles before completion after discovery closes`, async () => {
+    const completed: string[] = [];
+    const traversal = new Constructor<G>({
+      completedWork: new Set(['root', 'a']),
+      traversableGraph: {
+        makeRoot: () => ({
+          vertexId: 'root',
+          dependsOn: ['a'],
+          vertexContent: { $d: 'root', $c: ['a'] },
+        }),
+        makeVertex: () => ({
+          vertexId: 'a',
+          dependsOn: ['root'],
+          vertexContent: { $d: 'a', $c: [] },
+        }),
+      },
+    });
+    traversal.addVisitorFor(Order.ON_COMPLETE, (vertex) => {
+      completed.push(vertex.getData());
+    });
+    await expect(async () => {
+      await traversal.makeRunner().run();
+    }).rejects.toMatchObject({
+      diagnostics: { dependencyCycles: [['root', 'a']] },
+    });
+    expect(completed).toEqual([]);
+  });
+}
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test(`${Constructor.name} preserves tree-source treatment of unsupported graph-only metadata`, async () => {
+    const seen: string[] = [];
+    const traversal = new Constructor<G>({
+      traversableTree: {
+        makeRoot: () => ({
+          priority: 1,
+          dependsOnComplete: ['unused'],
+          vertexContent: { $d: 'root', $c: ['child'] },
+        }),
+        makeVertex: () => ({
+          priority: 2,
+          vertexContent: { $d: 'child', $c: [] },
+        }),
+      },
+    });
+    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+      seen.push(vertex.getData());
+    });
+    await traversal.makeRunner().run();
+    expect(seen).toEqual(['root', 'child']);
+  });
+}

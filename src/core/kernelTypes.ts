@@ -39,6 +39,7 @@ export type KernelOptions<
   hasSorter: boolean;
   hasHintIds: boolean;
   concurrency: number;
+  discovery?: 'lazy' | 'eager';
   completedWork?: ReadonlySet<VertexId>;
   dagSeed?: {
     readyVisits: readonly EligibleVisit<T | R>[];

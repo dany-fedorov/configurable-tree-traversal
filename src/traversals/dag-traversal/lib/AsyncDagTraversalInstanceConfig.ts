@@ -1,3 +1,4 @@
+import type { DagDiscoveryOptions } from './DagTraversalInstanceConfig';
 import type { VertexId } from '@core/graph/types';
 import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
 import type { MaybePromise, VisitorRecord } from '@core/graph/types';
@@ -35,7 +36,7 @@ export type AsyncDagSortChildrenHintsFn<T extends TreeTypeParameters> = (
 type AsyncDagTraversalOptions<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
-> = {
+> = DagDiscoveryOptions & {
   completedWork?: ReadonlySet<VertexId>;
   sortChildrenHints: AsyncDagSortChildrenHintsFn<T> | null;
   visitors: AsyncDagTraversalVisitors<T, R>;

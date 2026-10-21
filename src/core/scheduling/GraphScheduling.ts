@@ -1,3 +1,4 @@
+import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 import { stronglyConnectedComponents } from './stronglyConnectedComponents';
 import { CTTRef } from '@core/CTTRef';
@@ -28,13 +29,18 @@ export class GraphScheduling<
   private eligibleHead = 0;
 
   private readonly unusedCompletedWork: Set<VertexId>;
+  private readonly validateRootDependencies: boolean;
+  private readonly catalogIds = new Map<VertexId, number>();
+  private readonly discoveryExpansion: Ref<T | R>[] = [];
   private readonly seededExpansion: Ref<T | R>[] = [];
 
   constructor(
     private readonly container: ResolvedGraphsContainer<T, R>,
     completedWork?: ReadonlySet<VertexId>,
+    private readonly eager = false,
   ) {
     this.unusedCompletedWork = new Set(completedWork);
+    this.validateRootDependencies = eager || completedWork !== undefined;
   }
 
   getUnusedCompletedWorkIds(): VertexId[] {
@@ -43,6 +49,44 @@ export class GraphScheduling<
 
   takeSeededExpansion(): Ref<T | R> | null {
     return this.seededExpansion.shift() ?? null;
+  }
+
+  /** Detached progress records; querying never advances scheduling queues. */
+  inspectWork(): VertexWork<T | R>[] {
+    return Array.from(this.work.values(), (work) => ({
+      ...work,
+      unmet: new Set(work.unmet),
+      completionAccounted: work.completionAccounted.slice(),
+    }));
+  }
+
+  takeDiscoveryExpansion(): Ref<T | R> | null {
+    return this.discoveryExpansion.shift() ?? null;
+  }
+
+  /** Closed hint expansion for every retained vertex; independent of work success. */
+  isDiscoveryComplete(): boolean {
+    return Array.from(this.work.values()).every(
+      (work) => work.expansion === 'closed',
+    );
+  }
+
+  /** Validate original declarations, even when a successful seed satisfied them. */
+  validateDiscoveredGraph(): void {
+    const dependencies = Array.from(this.work.keys(), (ref) => ({
+      id: this.getVertex(ref).vertexId,
+      missing: this.getVertex(ref).dependsOn.slice(),
+    }));
+    const diagnostics = this.diagnoseStall({ dependencies, incomplete: [] });
+    if (
+      diagnostics.unknownPrerequisiteIds.length > 0 ||
+      diagnostics.dependencyCycles.length > 0
+    ) {
+      throw new DagTraversalStallError(diagnostics);
+    }
+    if (this.getUnusedCompletedWorkIds().length > 0) {
+      throw new TypeError('completedWork contains undiscovered vertex IDs');
+    }
   }
 
   restoreDagSeed(readyVisits: readonly EligibleVisit<T | R>[]): void {
@@ -184,7 +228,11 @@ export class GraphScheduling<
   acceptRoot(result: MakeVertexResult<T>): Ref<T | R> | null {
     this.rejectTreeMetadata(result);
     const resultHasId = hasVertexId(result);
-    const suppliedId = resultHasId ? result.vertexId : undefined;
+    const suppliedId = this.container.syntheticRoot
+      ? Symbol()
+      : resultHasId
+      ? result.vertexId
+      : undefined;
     const known = resultHasId
       ? this.container.store.getIdState(suppliedId)
       : undefined;
@@ -207,14 +255,19 @@ export class GraphScheduling<
       return null;
     }
 
-    const accepted = resultHasId
-      ? {
-          ref: new CTTRef(new Vertex<T | R>(result.vertexContent)),
-          id: suppliedId,
-        }
-      : this.makeUniqueRef(result.vertexContent);
-    this.container.acceptRoot(accepted.ref, accepted.id);
-    this.register(accepted.ref, []);
+    const accepted =
+      resultHasId || this.container.syntheticRoot
+        ? {
+            ref: new CTTRef(new Vertex<T | R>(result.vertexContent)),
+            id: suppliedId,
+          }
+        : this.makeUniqueRef(result.vertexContent);
+    const dependencies =
+      this.validateRootDependencies && !this.container.syntheticRoot
+        ? Array.from(new Set(result.dependsOn))
+        : [];
+    this.container.acceptRoot(accepted.ref, accepted.id, dependencies);
+    this.register(accepted.ref, dependencies);
     return accepted.ref;
   }
 
@@ -256,6 +309,15 @@ export class GraphScheduling<
       : hintHasId
       ? hintIdentity.vertexId
       : undefined;
+    if (context.parentVertexRef === this.container.syntheticRootRef) {
+      if (!hasSuppliedId)
+        throw new TypeError('Catalog entries require explicit vertex IDs');
+      const previous = this.catalogIds.get(suppliedId);
+      if (previous !== undefined && previous !== context.hintIndex) {
+        throw new TypeError('Duplicate catalog vertex ID');
+      }
+      this.catalogIds.set(suppliedId, context.hintIndex);
+    }
     const known = hasSuppliedId
       ? this.container.store.getIdState(suppliedId)
       : undefined;
@@ -597,6 +659,15 @@ export class GraphScheduling<
 
   private rejectTreeMetadata(result: MakeVertexResult<T>): void {
     if (
+      this.container.sourceMode === 'graph' &&
+      (Object.prototype.hasOwnProperty.call(result, 'priority') ||
+        Object.prototype.hasOwnProperty.call(result, 'dependsOnComplete'))
+    ) {
+      throw new TypeError(
+        'priority and dependsOnComplete metadata are not supported',
+      );
+    }
+    if (
       this.container.sourceMode === 'tree' &&
       (hasVertexId(result) ||
         Object.prototype.hasOwnProperty.call(result, 'dependsOn'))
@@ -621,7 +692,9 @@ export class GraphScheduling<
   ): VertexId[] {
     const declared = result.dependsOn;
     if (declared !== undefined) return Array.from(new Set(declared));
-    return [this.container.resolvedGraph.getIdOf(context.parentVertexRef)];
+    return context.parentVertexRef === this.container.syntheticRootRef
+      ? []
+      : [this.container.resolvedGraph.getIdOf(context.parentVertexRef)];
   }
 
   private findExistingTreeChild(
@@ -698,7 +771,11 @@ export class GraphScheduling<
       remainingChildren: 0,
     };
     this.work.set(ref, vertexWork);
-    if (this.unusedCompletedWork.delete(this.getVertex(ref).vertexId)) {
+    if (this.eager) this.discoveryExpansion.push(ref);
+    if (
+      ref === this.container.syntheticRootRef ||
+      this.unusedCompletedWork.delete(this.getVertex(ref).vertexId)
+    ) {
       vertexWork.initialAdmitted = true;
       this.markPreVisited(ref);
       this.seededExpansion.push(ref);

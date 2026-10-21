@@ -92,6 +92,8 @@ export class TraversalKernel<
   private readonly readyCalls: CallAction<T, R>[] = [];
   private readonly frames = new Map<number, FrameState<T, R>>();
   private readonly chains = new Map<number, ChainRuntime<T, R>>();
+  private readonly startedExpansions = new Set<Ref<T | R>>();
+  private discoveryValidated = false;
   private readonly expansionQueue: Ref<T | R>[] = [];
   private readonly orders: PolicyOrders;
   private readonly depthFirstPolicy: DepthFirstPolicy<T | R> | null;
@@ -116,6 +118,7 @@ export class TraversalKernel<
     this.scheduling = new GraphScheduling(
       options.container,
       options.completedWork,
+      options.discovery === 'eager',
     );
     this.orders = this.selectPolicy(options.kind);
     this.depthFirstPolicy =
@@ -331,13 +334,6 @@ export class TraversalKernel<
       }
 
       if (this.isFinished()) {
-        if (this.scheduling.getUnusedCompletedWorkIds().length > 0) {
-          const error = new TypeError(
-            'completedWork contains undiscovered vertex IDs',
-          );
-          this.fail(error);
-          return { kind: 'FAILED', error };
-        }
         this.setStatus(TraversalRunnerStatus.FINISHED);
         return { kind: 'FINISHED' };
       }
@@ -849,6 +845,17 @@ export class TraversalKernel<
     let hasState = false;
     let chainState: unknown;
     for (const command of commands) {
+      if (
+        this.options.discovery === 'eager' &&
+        (command.commandName ===
+          TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL ||
+          command.commandName ===
+            TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER)
+      ) {
+        throw new TypeError(
+          'Cannot change child topology after eager discovery',
+        );
+      }
       switch (command.commandName) {
         case TraversalVisitorCommandName.NOOP:
           break;
@@ -1526,6 +1533,18 @@ export class TraversalKernel<
 
   private admitEligibleVisit(): boolean {
     if (
+      !this.discoveryValidated &&
+      (this.options.discovery === 'eager' ||
+        this.options.completedWork !== undefined)
+    ) {
+      if (this.rootSettled && this.scheduling.isDiscoveryComplete()) {
+        this.scheduling.validateDiscoveredGraph();
+        this.discoveryValidated = true;
+      } else if (this.options.discovery === 'eager') {
+        return false;
+      }
+    }
+    if (
       this.options.kind === 'dag' &&
       this.options.execution === 'async' &&
       !DagPolicy.allowsChainAdmission(
@@ -1537,6 +1556,10 @@ export class TraversalKernel<
     }
     const eligible = this.scheduling.takeEligible();
     if (eligible === null) return false;
+    if (eligible.ref === this.options.container.syntheticRootRef) {
+      this.scheduling.markComplete(eligible.ref);
+      return true;
+    }
     const order =
       eligible.order === 'ON_READY'
         ? this.orders.initial
@@ -1621,10 +1644,14 @@ export class TraversalKernel<
 
   private admitExpansion(): boolean {
     const ref =
-      this.scheduling.takeSeededExpansion() ?? this.expansionQueue.shift();
+      this.scheduling.takeDiscoveryExpansion() ??
+      this.scheduling.takeSeededExpansion() ??
+      this.expansionQueue.shift();
     if (ref === undefined || !this.options.container.resolvedGraph.has(ref)) {
       return ref !== undefined;
     }
+    if (this.startedExpansions.has(ref)) return true;
+    this.startedExpansions.add(ref);
     if (this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref)) {
       return true;
     }

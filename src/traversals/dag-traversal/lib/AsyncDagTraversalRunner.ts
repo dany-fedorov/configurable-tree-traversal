@@ -71,12 +71,16 @@ export class AsyncDagTraversalRunner<
         ? undefined
         : new Set(input.completedWork);
     if (
-      completedWork !== undefined &&
+      (completedWork !== undefined ||
+        input.discovery === 'eager' ||
+        input.syntheticRoot === true) &&
       (sourceMode !== 'graph' ||
         input.traversalRunnerInternalObjects.state !== null ||
         input.traversalRunnerInternalObjects.resolvedGraphsContainer !== null)
     ) {
-      throw new TypeError('completedWork requires a fresh graph-source runner');
+      throw new TypeError(
+        'Progress options require a fresh graph-source runner',
+      );
     }
     const injectedContainer =
       input.traversalRunnerInternalObjects.resolvedGraphsContainer;
@@ -98,6 +102,7 @@ export class AsyncDagTraversalRunner<
     } else if (sourceMode === 'graph') {
       this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R>({
         sourceMode: 'graph',
+        syntheticRoot: input.syntheticRoot === true,
         saveOriginal: input.saveNotMutatedResolvedGraph,
       });
     } else {
@@ -140,6 +145,7 @@ export class AsyncDagTraversalRunner<
     });
     const kernel = new TraversalKernel({
       kind: 'dag',
+      discovery: input.discovery ?? 'lazy',
       ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'async',
       sourceMode,
@@ -192,7 +198,7 @@ export class AsyncDagTraversalRunner<
   }
 
   getResolvedGraph(): ResolvedGraph<T | R> {
-    return this.resolvedGraphsContainer.resolvedGraph;
+    return this.resolvedGraphsContainer.publicResolvedGraph;
   }
 
   isGraphRootVertex(ref: CTTRef<Vertex<T | R>>): boolean {
