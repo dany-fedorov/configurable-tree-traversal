@@ -14,7 +14,7 @@ import { CallbackScheduler } from '@core/drivers/CallbackScheduler';
 import { Wakeup } from '@core/drivers/Wakeup';
 
 export type AsyncDriverControl<T extends TreeTypeParameters> =
-  AsyncSessionControl<KernelEvent<T>>;
+  AsyncSessionControl<KernelEvent<T>> & { notifyProgress(): void };
 
 export function createAsyncDriver<
   T extends TreeTypeParameters,
@@ -131,6 +131,7 @@ export function createAsyncDriver<
       });
     },
     waitForProgress: () => wakeup.wait(),
+    notifyProgress: () => wakeup.notify(),
   };
 }
 

@@ -1,3 +1,4 @@
+import type { DEFER_READY } from './DagProgress';
 import type { CTTRef } from '@core/CTTRef';
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
@@ -32,7 +33,7 @@ export type DagVisitor<
 > = (
   vertex: Vertex<T | R>,
   options: DagVisitorOptions<T, R>,
-) => VisitResult<R>;
+) => VisitResult<R> | typeof DEFER_READY;
 
 export type AsyncDagVisitorOptions<
   T extends TreeTypeParameters,
@@ -47,7 +48,7 @@ export type AsyncDagVisitor<
 > = (
   vertex: Vertex<T | R>,
   options: AsyncDagVisitorOptions<T, R>,
-) => MaybePromise<VisitResult<R>>;
+) => MaybePromise<VisitResult<R> | typeof DEFER_READY>;
 
 export type DagEvent<T extends TreeTypeParameters> = {
   vertex: Vertex<T>;

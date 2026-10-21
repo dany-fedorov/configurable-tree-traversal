@@ -1,3 +1,4 @@
+import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult, TraversableTree } from '@core/TraversableTree';
 import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
@@ -137,7 +138,7 @@ export type BoundVisit<
   R extends TreeTypeParameters = T,
 > = (
   call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>,
-) => MaybePromise<VisitResult<R>>;
+) => MaybePromise<VisitResult<R> | typeof DEFER_READY>;
 
 export function createCallbackBindings<
   T extends TreeTypeParameters,

@@ -66,6 +66,7 @@ try {
     assert.equal(breadth.AsyncBreadthFirstTraversal, lib.AsyncBreadthFirstTraversal);
     assert.equal(dag.DagTraversalStallError, lib.DagTraversalStallError);
     assert.equal(core.DagTraversalStallError, lib.DagTraversalStallError);
+    assert.equal(dag.DEFER_READY, lib.DEFER_READY);
     assert.equal(dag.DagTraversal, lib.DagTraversal);
     assert.equal(dag.AsyncDagTraversal, lib.AsyncDagTraversal);
     assert.equal(objectTree.TraversableObjectTree, lib.TraversableObjectTree);
@@ -81,6 +82,22 @@ try {
     assert.equal(dag.traverseDag, lib.traverseDag);
     assert.equal(dag.traverseDagAsync, lib.traverseDagAsync);
     assert.equal(lib.TraversalRunnerStatus.FAILED, 'FAILED');
+
+    const progress = new dag.DagTraversal({
+      discovery: 'eager', syntheticRoot: true, completedWork: new Set(['design']),
+      traversableGraph: {
+        makeRoot: () => ({ vertexContent: { $d: '', $c: ['design', 'build'] } }),
+        makeVertex: id => ({ vertexId: id, dependsOn: id === 'build' ? ['design'] : [], vertexContent: { $d: id, $c: [] } }),
+      },
+    });
+    progress.addVisitorFor(dag.DagTraversalOrder.ON_READY, () => dag.DEFER_READY);
+    const progressRunner = progress.makeRunner().run();
+    assert.deepEqual(progressRunner.summary().readyIds, ['build']);
+    const generation = progressRunner.summary().vertices.get('build').generation;
+    assert.equal(progressRunner.settle('build', { ok: true }, generation), true);
+    progressRunner.run();
+    assert.equal(progressRunner.getStatus(), 'FINISHED');
+    assert.equal(progressRunner.settle('build', { ok: true }, generation), false);
 
     const tree = new lib.TraversableObjectTree({ a: { b: 1 }, c: 2 });
     const depthVisits = [...new lib.DepthFirstTraversal({ traversableTree: tree }).makeRunner().getIterable({
@@ -105,7 +122,7 @@ try {
     import lib, { AsyncDepthFirstTraversal as RootAsyncDepthFirstTraversal } from 'configurable-tree-traversal';
     import { DepthFirstTraversal } from 'configurable-tree-traversal/traversals/depth-first-traversal';
     import { BreadthFirstTraversal } from 'configurable-tree-traversal/traversals/breadth-first-traversal';
-    import { AsyncDagTraversal, DagTraversal, DagTraversalOrder, DagTraversalStallError } from 'configurable-tree-traversal/traversals/dag-traversal';
+    import { AsyncDagTraversal, DagTraversal, DagTraversalOrder, DagTraversalStallError, DEFER_READY } from 'configurable-tree-traversal/traversals/dag-traversal';
     import { TraversableObjectTree } from 'configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree';
     import { rewriteObject } from 'configurable-tree-traversal/tools/rewrite-object';
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
@@ -120,6 +137,15 @@ try {
     assert.equal(rewriteObject, lib.rewriteObject.rewriteObject);
     assert.equal(Vertex, lib.core.Vertex);
     assert.equal(ExplicitVertex, lib.core.Vertex);
+
+    const deferredTraversal = new AsyncDagTraversal({ traversableGraph: { makeRoot: () => ({ vertexId: 'task', vertexContent: { $d: 'task', $c: [] } }), makeVertex: () => ({ vertexContent: null }) } });
+    deferredTraversal.addVisitorFor(DagTraversalOrder.ON_READY, () => DEFER_READY);
+    const deferredRunner = deferredTraversal.makeRunner();
+    await deferredRunner.run();
+    assert.deepEqual(deferredRunner.summary().deferredIds, ['task']);
+    deferredRunner.settle('task', { ok: true }, deferredRunner.summary().vertices.get('task').generation);
+    await deferredRunner.run();
+    assert.equal(deferredRunner.getStatus(), 'FINISHED');
 
     const runner = new AsyncDagTraversal({
       traversableGraph: {
@@ -150,6 +176,9 @@ try {
     import type { AsyncTraversableGraph, ChildSlot, CoreInspection, GraphEdge, GraphVertex, GraphVertexStatus, HintVertexId, MaybePromise, ResolvedGraph, TraversalRunner, TraversableGraph, TraversableTree, TreeTypeParameters, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
     import type { ChildSlot as CoreChildSlot, GraphEdge as CoreGraphEdge, GraphVertex as CoreGraphVertex, GraphVertexStatus as CoreGraphVertexStatus, HintVertexId as CoreHintVertexId, MaybePromise as CoreMaybePromise, VertexId as CoreVertexId } from 'configurable-tree-traversal/core';
     import type { DepthFirstTraversalRunnerIterableConfigInput } from 'configurable-tree-traversal/traversals/depth-first-traversal';
+    import { DEFER_READY } from 'configurable-tree-traversal';
+    import type { DagSummary, DagSettlementGeneration, DagSettlementOutcome, DagVertexProgress, DagWorkState } from 'configurable-tree-traversal';
+    import type { DagSummary as SubpathSummary } from 'configurable-tree-traversal/traversals/dag-traversal';
     import type { DagTraversalRunnerIterableConfigInput } from 'configurable-tree-traversal/traversals/dag-traversal';
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
     import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
@@ -208,6 +237,20 @@ try {
     const asyncDepth = new AsyncDepthFirstTraversal({ traversableTree: abstractTree }).makeRunner();
     const asyncBreadth = new AsyncBreadthFirstTraversal({ traversableTree: abstractTree }).makeRunner();
     const asyncDag = new AsyncDagTraversal({ traversableGraph: asyncGraph, concurrency: 2 }).makeRunner();
+    const progressTraversal = new DagTraversal({ traversableGraph: graph, completedWork: new Set<VertexId>(), discovery: 'eager', syntheticRoot: true });
+    progressTraversal.addVisitorFor(DagTraversalOrder.ON_READY, () => DEFER_READY);
+    const progressRunner = progressTraversal.makeRunner();
+    const summary: DagSummary = progressRunner.summary();
+    const subpathSummary: SubpathSummary = asyncDag.summary();
+    const entry: DagVertexProgress | undefined = summary.vertices.get('root');
+    const state: DagWorkState | undefined = entry?.work;
+    const generation: DagSettlementGeneration = Symbol();
+    const outcome: DagSettlementOutcome = { ok: false, error: undefined };
+    const settlement: boolean = progressRunner.settle('root', outcome, generation);
+    const asyncSettlement: boolean = asyncDag.settle('root', { ok: true }, generation);
+    // @ts-expect-error tree visitor return types remain narrow
+    abstractTraversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => DEFER_READY);
+    void [subpathSummary, state, settlement, asyncSettlement];
     const inspection: CoreInspection = asyncDag.inspect();
     const publicTypes: [VertexId, HintVertexId, MaybePromise<string>, GraphVertexStatus, GraphEdge<Tree> | null, ChildSlot<Tree> | null, GraphVertex<Tree> | null, CoreVertexId, CoreHintVertexId, CoreMaybePromise<string>, CoreGraphVertexStatus, CoreGraphEdge<Tree> | null, CoreChildSlot<Tree> | null, CoreGraphVertex<Tree> | null] = ['id', { vertexId: 'id' }, 'value', 'READY', null, null, null, 'core-id', { vertexId: 'core-id' }, Promise.resolve('value'), 'COMPLETE', null, null, null];
     const asyncRuns: Promise<unknown>[] = [

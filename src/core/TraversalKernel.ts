@@ -1,3 +1,11 @@
+import {
+  DEFER_READY,
+  type DagSummary,
+  type DagSettlementOutcome,
+  type DagSettlementGeneration,
+  type DagVertexProgress,
+} from '../traversals/dag-traversal/lib/DagProgress';
+import type { VertexId } from '@core/graph/types';
 import type { KernelInspection } from '@core/CoreInspection';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
@@ -93,6 +101,14 @@ export class TraversalKernel<
   private readonly frames = new Map<number, FrameState<T, R>>();
   private readonly chains = new Map<number, ChainRuntime<T, R>>();
   private readonly startedExpansions = new Set<Ref<T | R>>();
+  private readonly deferred = new Map<
+    Ref<T | R>,
+    {
+      state: ChainState<T, R>;
+      generation: DagSettlementGeneration;
+      outcome?: DagSettlementOutcome;
+    }
+  >();
   private discoveryValidated = false;
   private readonly expansionQueue: Ref<T | R>[] = [];
   private readonly orders: PolicyOrders;
@@ -344,6 +360,8 @@ export class TraversalKernel<
       ) {
         const stall = this.scheduling.getStall();
         if (stall !== null) {
+          if (this.hasDeferredWork() && this.summary().diagnostics === null)
+            return this.halt();
           const error = new DagTraversalStallError(
             this.scheduling.diagnoseStall(stall),
           );
@@ -538,6 +556,121 @@ export class TraversalKernel<
     });
   }
 
+  summary(): DagSummary {
+    const graph = this.options.container.resolvedGraph;
+    const work = this.scheduling
+      .inspectWork()
+      .filter(({ ref }) => ref !== this.options.container.syntheticRootRef);
+    const inFlight = new Set(
+      Array.from(this.chains.values(), ({ state }) => state.ref),
+    );
+    const vertices = new Map<VertexId, DagVertexProgress>();
+    const readyIds: VertexId[] = [];
+    const deferredIds: VertexId[] = [];
+    const inFlightIds: VertexId[] = [];
+    const completedWorkIds: VertexId[] = [];
+    const completedSubtreeIds: VertexId[] = [];
+    let pending = 0;
+    for (const item of work) {
+      const id = graph.getIdOf(item.ref);
+      const deferred = this.deferred.get(item.ref);
+      const running = inFlight.has(item.ref);
+      const state = item.initialCommitted
+        ? 'succeeded'
+        : running
+        ? 'running'
+        : deferred !== undefined
+        ? 'deferred'
+        : item.unmet.size === 0
+        ? 'ready'
+        : 'pending';
+      if (state === 'pending') pending += 1;
+      if (state === 'ready' || state === 'deferred') readyIds.push(id);
+      if (state === 'deferred') deferredIds.push(id);
+      if (running) inFlightIds.push(id);
+      if (item.initialCommitted) completedWorkIds.push(id);
+      if (item.completionCommitted) completedSubtreeIds.push(id);
+      vertices.set(id, {
+        id,
+        work: state,
+        subtreeComplete: item.completionCommitted,
+        unmetPrerequisiteIds: Array.from(item.unmet),
+        ...(state === 'deferred' ? { generation: deferred!.generation } : {}),
+      });
+    }
+    const complete = this.rootSettled && this.scheduling.isDiscoveryComplete();
+    const diagnostics = this.scheduling.diagnoseStall({
+      dependencies: work.map(({ ref }) => ({
+        id: graph.getIdOf(ref),
+        missing: graph.get(ref)!.dependsOn.slice(),
+      })),
+      incomplete: [],
+    });
+    return {
+      discovery: { mode: this.options.discovery ?? 'lazy', complete },
+      counts: {
+        discovered: work.length,
+        pending,
+        ready: readyIds.length,
+        deferred: deferredIds.length,
+        inFlight: inFlightIds.length,
+        workCompleted: completedWorkIds.length,
+        subtreeCompleted: completedSubtreeIds.length,
+      },
+      vertices,
+      readyIds,
+      deferredIds,
+      inFlightIds,
+      completedWorkIds,
+      completedSubtreeIds,
+      unusedCompletedWorkIds: this.scheduling.getUnusedCompletedWorkIds(),
+      diagnostics:
+        diagnostics.dependencyCycles.length > 0 ||
+        (complete && diagnostics.unknownPrerequisiteIds.length > 0)
+          ? diagnostics
+          : null,
+    };
+  }
+
+  settle(
+    id: VertexId,
+    outcome: DagSettlementOutcome,
+    expectedGeneration: DagSettlementGeneration,
+  ): boolean {
+    const identity = this.options.container.store.getIdState(id);
+    const deferred =
+      identity?.kind === 'live' ? this.deferred.get(identity.ref) : undefined;
+    if (deferred === undefined || deferred.generation !== expectedGeneration) {
+      throw new TypeError('Unknown, deleted or stale DAG settlement');
+    }
+    const previous = deferred.outcome;
+    if (previous !== undefined) {
+      if (
+        previous.ok === outcome.ok &&
+        (previous.ok ||
+          (!outcome.ok && Object.is(previous.error, outcome.error)))
+      )
+        return false;
+      throw new TypeError('Conflicting DAG settlement');
+    }
+    if (this.failure !== null)
+      throw new TypeError('Cannot settle a failed runner');
+    deferred.outcome = outcome.ok
+      ? { ok: true }
+      : { ok: false, error: outcome.error };
+    if (outcome.ok) this.commitChain(deferred.state);
+    else this.fail(outcome.error);
+    return true;
+  }
+
+  private hasDeferredWork(): boolean {
+    return Array.from(this.deferred.values()).some(
+      ({ state, outcome }) =>
+        outcome === undefined &&
+        this.options.container.resolvedGraph.has(state.ref),
+    );
+  }
+
   private processSubmittedOutcomes(): void {
     if (!this.haltRequested) {
       while (this.storedOutcomeRequests.length > 0) {
@@ -647,6 +780,21 @@ export class TraversalKernel<
       }
       case 'VISIT': {
         const runtime = this.chains.get(call.owner.id)!;
+        if (reply.outcome.value === DEFER_READY) {
+          if (this.options.kind !== 'dag' || call.order !== 'ON_READY') {
+            throw new TypeError(
+              'DEFER_READY is only valid for DAG ON_READY visitors',
+            );
+          }
+          runtime.state.metadata.curVertexVisitorVisitIndex += 1;
+          this.deferred.set(runtime.state.ref, {
+            state: runtime.state,
+            generation: Symbol('DAG settlement'),
+          });
+          this.chains.delete(call.owner.id);
+          this.expansionQueue.push(runtime.state.ref);
+          return;
+        }
         runtime.machine.submit(
           reply.outcome as Outcome<import('@core/graph/types').VisitResult<R>>,
         );

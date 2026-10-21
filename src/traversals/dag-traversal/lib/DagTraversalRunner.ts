@@ -1,3 +1,9 @@
+import type {
+  DagSummary,
+  DagSettlementOutcome,
+  DagSettlementGeneration,
+} from './DagProgress';
+import type { VertexId } from '@core/graph/types';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { CTTRef } from '@core/CTTRef';
 import {
@@ -175,6 +181,19 @@ export class DagTraversalRunner<
           }
         : {}),
     });
+  }
+
+  summary(): DagSummary {
+    return this.kernel.summary();
+  }
+
+  settle(
+    id: VertexId,
+    outcome: DagSettlementOutcome,
+    expectedGeneration: DagSettlementGeneration,
+  ): boolean {
+    const accepted = this.kernel.settle(id, outcome, expectedGeneration);
+    return accepted;
   }
 
   getStatus(): TraversalRunnerStatus {

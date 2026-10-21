@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add structured DAG stall diagnostics preserving arbitrary vertex ID identity.
+- Add seeded completed work, eager discovery and synthetic catalog roots, plus callback-free progress summaries and guarded settlement of deferred ready work in synchronous and asynchronous DAG runners.
+
 ## 0.8.0 — 2026-10-21
 
 - Add synchronous and asynchronous DAG traversal with explicit vertex identity, dependencies, readiness and subtree-completion events, graph queries, snapshots, and tree-source compatibility.
