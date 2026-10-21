@@ -1,3 +1,4 @@
+import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult, TraversableTree } from '@core/TraversableTree';
 import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
@@ -46,7 +47,9 @@ function assertTreeResult<T extends TreeTypeParameters>(
     Object.prototype.hasOwnProperty.call(result, 'dependsOn')
   ) {
     throw new TypeError(
-      `${runnerName === undefined ? 'Tree source' : `${runnerName} tree source`} results cannot include graph metadata`,
+      `${
+        runnerName === undefined ? 'Tree source' : `${runnerName} tree source`
+      } results cannot include graph metadata`,
     );
   }
   return result;
@@ -119,7 +122,7 @@ export function bindGraphSource<
     makeVertex: (context) =>
       adapter.makeVertex(asInputHint<T, R>(context.vertexHint), {
         resolutionContext: context,
-        resolvedGraph: container.resolvedGraph,
+        resolvedGraph: container.publicResolvedGraph,
         notMutatedResolvedGraph: container.notMutatedResolvedGraph,
       }),
   };
@@ -135,7 +138,7 @@ export type BoundVisit<
   R extends TreeTypeParameters = T,
 > = (
   call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>,
-) => MaybePromise<VisitResult<R>>;
+) => MaybePromise<VisitResult<R> | typeof DEFER_READY>;
 
 export function createCallbackBindings<
   T extends TreeTypeParameters,

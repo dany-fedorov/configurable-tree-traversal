@@ -156,6 +156,8 @@ function setPrivate(target: object, name: string, value: unknown): void {
 
 test('steps from an owned root request through visit and event backpressure', () => {
   const { kernel, container } = makeKernel();
+  expect(kernel.summary().discovery).toEqual({ mode: 'lazy', complete: false });
+  expect(kernel.summary().counts.discovered).toBe(0);
   const root = kernel.poll('drive');
   expect(root.kind).toBe('CALL');
   if (root.kind !== 'CALL') throw new Error('Expected root call');

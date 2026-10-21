@@ -1,3 +1,4 @@
+import { makeDagGraphView } from '../../traversals/dag-traversal/lib/DagGraphView';
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
 import type {
   VertexResolutionContext,
@@ -14,6 +15,7 @@ import type { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-tra
 
 type GraphContainerOptions = {
   sourceMode: 'graph';
+  syntheticRoot?: boolean;
   saveOriginal: boolean;
 };
 
@@ -36,6 +38,9 @@ export class ResolvedGraphsContainer<
   R extends TreeTypeParameters = T,
 > {
   readonly sourceMode: 'tree' | 'graph';
+  readonly syntheticRoot: boolean;
+  syntheticRootRef: Ref<T | R> | null = null;
+  readonly publicResolvedGraph: ResolvedGraph<T | R>;
   readonly store: GraphStoreContract<T | R>;
   readonly resolvedGraph: ResolvedGraph<T | R>;
   readonly notMutatedResolvedGraph: ResolvedGraphSnapshot<T> | null;
@@ -48,12 +53,17 @@ export class ResolvedGraphsContainer<
 
   constructor(options: ResolvedGraphsContainerOptions<T, R>) {
     this.sourceMode = options.sourceMode;
+    this.syntheticRoot =
+      options.sourceMode === 'graph' && options.syntheticRoot === true;
     this.treeContainer =
       options.sourceMode === 'tree' ? options.treeContainer : null;
     this.store =
       this.treeContainer?.resolvedTree.getGraphStore() ??
       new GraphStore<T | R>('dag');
     this.resolvedGraph = this.store.graph;
+    this.publicResolvedGraph = this.syntheticRoot
+      ? makeDagGraphView(this.resolvedGraph, () => this.syntheticRootRef)
+      : this.resolvedGraph;
     this.snapshot = options.saveOriginal
       ? new StructuralGraphSnapshot<T, R>()
       : null;
@@ -61,13 +71,23 @@ export class ResolvedGraphsContainer<
     this.notMutatedResolvedGraphRefsMap = this.snapshot?.refsMap ?? null;
   }
 
-  acceptRoot(ref: Ref<T | R>, id: VertexId): void {
+  acceptRoot(
+    ref: Ref<T | R>,
+    id: VertexId,
+    dependsOn: readonly VertexId[] = [],
+  ): void {
+    if (this.syntheticRoot) {
+      this.syntheticRootRef = ref;
+      this.store.insertVertex({ ref, id, dependsOn: [], depth: 0 });
+      this.store.setRoot(ref);
+      return;
+    }
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
       this.store.insertVertex({ ref, id, dependsOn: [], depth: 0 });
       this.treeContainer.setRoot(ref);
     } else {
-      this.store.insertVertex({ ref, id, dependsOn: [], depth: 0 });
+      this.store.insertVertex({ ref, id, dependsOn, depth: 0 });
       this.store.setRoot(ref);
     }
     this.commitSnapshotVertex(staged);
@@ -97,7 +117,10 @@ export class ResolvedGraphsContainer<
     child: Ref<T | R>,
     legacyTopologyAlreadyLinked = false,
   ): void {
-    const staged = this.snapshot?.stageEdge(parent, index, child) ?? null;
+    const staged =
+      parent === this.syntheticRootRef
+        ? null
+        : this.snapshot?.stageEdge(parent, index, child) ?? null;
     const oldSlot = this.resolvedGraph.get(parent)?.slots[index];
     const isAcknowledgment =
       oldSlot?.kind === 'linked' && oldSlot.childRef === child;
@@ -126,12 +149,7 @@ export class ResolvedGraphsContainer<
       }
       savedEdge = { parent: savedParent, child: savedChildRef };
     }
-    this.store.linkSlot(
-      parent,
-      index,
-      child,
-      legacyTopologyAlreadyLinked,
-    );
+    this.store.linkSlot(parent, index, child, legacyTopologyAlreadyLinked);
     savedEdge?.parent.pushChildren([savedEdge.child]);
     if (staged !== null) this.snapshot!.commitEdge(staged);
   }

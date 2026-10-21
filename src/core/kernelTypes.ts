@@ -33,14 +33,14 @@ export type KernelOptions<
   sourceMode: 'tree' | 'graph';
   container: ResolvedGraphsContainer<T, R>;
   stateBridge: KernelStateBridge<T | R>;
-  visitorMetadata: Partial<
-    Record<VisitOrder, readonly RegistrationMetadata[]>
-  >;
+  visitorMetadata: Partial<Record<VisitOrder, readonly RegistrationMetadata[]>>;
   iterableConfig: TraversalRunnerIterableConfig<VisitOrder>;
   inOrderConfig: DepthFirstTraversalInOrderTraversalConfig | null;
   hasSorter: boolean;
   hasHintIds: boolean;
   concurrency: number;
+  discovery?: 'lazy' | 'eager';
+  completedWork?: ReadonlySet<VertexId>;
   dagSeed?: {
     readyVisits: readonly EligibleVisit<T | R>[];
     expansionQueue: readonly Ref<T | R>[];

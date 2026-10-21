@@ -1,3 +1,4 @@
+import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversalRunnerStatus } from '@core/TraversalRunner';
@@ -20,9 +21,7 @@ export type VisitOrder =
   | 'ON_READY'
   | 'ON_COMPLETE';
 
-export type Outcome<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: unknown };
+export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
 export type PumpMode = 'drive' | 'settle' | 'drain';
 
@@ -64,7 +63,7 @@ export type CallbackValues<
   MAKE_VERTEX: MakeVertexResult<T>;
   SORT_HINTS: (T | R)['VertexHint'][];
   HINT_ID: HintVertexId | undefined;
-  VISIT: VisitResult<R>;
+  VISIT: VisitResult<R> | typeof DEFER_READY;
 };
 
 export type CallbackReply<

@@ -1,3 +1,9 @@
+import type {
+  DagSummary,
+  DagSettlementOutcome,
+  DagSettlementGeneration,
+} from './DagProgress';
+import type { VertexId } from '@core/graph/types';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { CTTRef } from '@core/CTTRef';
@@ -50,6 +56,8 @@ export class AsyncDagTraversalRunner<
   readonly notMutatedResolvedGraph: ResolvedGraphSnapshot<T> | null;
   private iterableConfig: DagTraversalRunnerIterableConfig =
     makeEffectiveDagTraversalRunnerIterableConfig();
+  private readonly kernel: TraversalKernel<T, R>;
+  private readonly notifyProgress: () => void;
   private readonly execution: AsyncCoreExecution<Event<T, R>>;
 
   constructor(input: AsyncDagTraversalInstanceConfig<T, R>) {
@@ -66,6 +74,22 @@ export class AsyncDagTraversalRunner<
     const graphSource = input.traversableGraph;
     const treeSource = input.traversableTree;
     const sourceMode = graphSource !== undefined ? 'graph' : 'tree';
+    const completedWork =
+      input.completedWork === undefined
+        ? undefined
+        : new Set(input.completedWork);
+    if (
+      (completedWork !== undefined ||
+        input.discovery === 'eager' ||
+        input.syntheticRoot === true) &&
+      (sourceMode !== 'graph' ||
+        input.traversalRunnerInternalObjects.state !== null ||
+        input.traversalRunnerInternalObjects.resolvedGraphsContainer !== null)
+    ) {
+      throw new TypeError(
+        'Progress options require a fresh graph-source runner',
+      );
+    }
     const injectedContainer =
       input.traversalRunnerInternalObjects.resolvedGraphsContainer;
     if (injectedContainer !== null) {
@@ -86,6 +110,7 @@ export class AsyncDagTraversalRunner<
     } else if (sourceMode === 'graph') {
       this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R>({
         sourceMode: 'graph',
+        syntheticRoot: input.syntheticRoot === true,
         saveOriginal: input.saveNotMutatedResolvedGraph,
       });
     } else {
@@ -126,8 +151,10 @@ export class AsyncDagTraversalRunner<
         [DagTraversalOrder.ON_COMPLETE]: (call) => this.visit(call),
       },
     });
-    const kernel = new TraversalKernel({
+    const kernel = (this.kernel = new TraversalKernel({
       kind: 'dag',
+      discovery: input.discovery ?? 'lazy',
+      ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'async',
       sourceMode,
       container: this.resolvedGraphsContainer,
@@ -160,10 +187,25 @@ export class AsyncDagTraversalRunner<
             },
           }
         : {}),
-    });
+    }));
     const driver = createAsyncDriver(kernel, bindings, input.concurrency);
+    this.notifyProgress = driver.notifyProgress;
     const projectedControl = this.projectEvents(driver, policy);
     this.execution = new AsyncRunnerSession(projectedControl);
+  }
+
+  summary(): DagSummary {
+    return this.kernel.summary();
+  }
+
+  settle(
+    id: VertexId,
+    outcome: DagSettlementOutcome,
+    expectedGeneration: DagSettlementGeneration,
+  ): boolean {
+    const accepted = this.kernel.settle(id, outcome, expectedGeneration);
+    this.notifyProgress();
+    return accepted;
   }
 
   getStatus(): TraversalRunnerStatus {
@@ -179,7 +221,7 @@ export class AsyncDagTraversalRunner<
   }
 
   getResolvedGraph(): ResolvedGraph<T | R> {
-    return this.resolvedGraphsContainer.resolvedGraph;
+    return this.resolvedGraphsContainer.publicResolvedGraph;
   }
 
   isGraphRootVertex(ref: CTTRef<Vertex<T | R>>): boolean {
