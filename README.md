@@ -293,8 +293,9 @@ are deleted. Halting starts no new lookups; outcomes received while halted are
 stored and applied on resume. Summaries and inspection do not invoke callbacks
 or consume outcomes, and discovery remains partial while lookup is pending.
 A live runner owns pending lookup handles; they cannot be transferred through
-the data-only continuation seed. A new runner may repeat lookups. Durable lookup
-caches and persistence of handles remain the caller's responsibility.
+the data-only continuation seed. A new runner may repeat lookups. Lookup handles
+remain runner-local and nonpersistent. Durable caching and persistence of graph
+and accepted completion facts belong to the host.
 See the executable [module-registry lookup example](examples/dag-prerequisite-resolution-example.ts).
 
 Set `syntheticRoot: true` when `makeRoot()` returns a catalog holder whose child
