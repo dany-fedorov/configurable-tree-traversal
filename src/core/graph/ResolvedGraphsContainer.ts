@@ -49,6 +49,7 @@ export class ResolvedGraphsContainer<
     T,
     R
   > | null;
+  private readonly detachedAnchors = new Set<Ref<T | R>>();
   private readonly snapshot: StructuralGraphSnapshot<T, R> | null;
 
   constructor(options: ResolvedGraphsContainerOptions<T, R>) {
@@ -75,6 +76,7 @@ export class ResolvedGraphsContainer<
     ref: Ref<T | R>,
     id: VertexId,
     dependsOn: readonly VertexId[] = [],
+    dependsOnComplete: readonly VertexId[] = [],
   ): void {
     if (this.syntheticRoot) {
       this.syntheticRootRef = ref;
@@ -87,7 +89,13 @@ export class ResolvedGraphsContainer<
       this.store.insertVertex({ ref, id, dependsOn: [], depth: 0 });
       this.treeContainer.setRoot(ref);
     } else {
-      this.store.insertVertex({ ref, id, dependsOn, depth: 0 });
+      this.store.insertVertex({
+        ref,
+        id,
+        dependsOn,
+        dependsOnComplete,
+        depth: 0,
+      });
       this.store.setRoot(ref);
     }
     this.commitSnapshotVertex(staged);
@@ -99,6 +107,7 @@ export class ResolvedGraphsContainer<
     id: VertexId,
     dependsOn: readonly VertexId[],
     context: VertexResolutionContext<T | R>,
+    dependsOnComplete: readonly VertexId[] = [],
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
@@ -106,9 +115,37 @@ export class ResolvedGraphsContainer<
       this.store.insertVertex({ ref, id, dependsOn, depth: context.depth });
       this.treeContainer.setWithResolutionContext(ref, context);
     } else {
-      this.store.insertVertex({ ref, id, dependsOn, depth: context.depth });
+      this.store.insertVertex({
+        ref,
+        id,
+        dependsOn,
+        dependsOnComplete,
+        depth: context.depth,
+      });
     }
     this.commitSnapshotVertex(staged);
+  }
+
+  acceptDetachedVertex(
+    ref: Ref<T | R>,
+    id: VertexId,
+    dependsOn: readonly VertexId[],
+    dependsOnComplete: readonly VertexId[],
+  ): void {
+    const staged = this.snapshot?.stageVertex(ref, id) ?? null;
+    this.store.insertVertex({
+      ref,
+      id,
+      dependsOn,
+      dependsOnComplete,
+      depth: this.syntheticRoot ? 1 : 0,
+    });
+    this.commitSnapshotVertex(staged);
+    this.detachedAnchors.add(ref);
+  }
+
+  isDetachedAnchor(ref: Ref<T | R>): boolean {
+    return this.detachedAnchors.has(ref);
   }
 
   acceptEdge(
@@ -156,6 +193,7 @@ export class ResolvedGraphsContainer<
 
   deleteVertices(refs: ReadonlySet<Ref<T | R>>): void {
     if (this.treeContainer === null) {
+      for (const ref of refs) this.detachedAnchors.delete(ref);
       this.store.removeVertices(refs);
       return;
     }

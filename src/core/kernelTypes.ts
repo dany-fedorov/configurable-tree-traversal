@@ -38,6 +38,7 @@ export type KernelOptions<
   inOrderConfig: DepthFirstTraversalInOrderTraversalConfig | null;
   hasSorter: boolean;
   hasHintIds: boolean;
+  hasPrerequisiteResolver?: boolean;
   concurrency: number;
   discovery?: 'lazy' | 'eager';
   completedWork?: ReadonlySet<VertexId>;
@@ -89,6 +90,7 @@ export type ChainState<
 export type VertexWork<T extends TreeTypeParameters> = {
   ref: Ref<T>;
   unmet: Set<VertexId>;
+  unmetComplete: Set<VertexId>;
   expansion: 'unprepared' | 'open' | 'closed';
   initialAdmitted: boolean;
   initialCommitted: boolean;

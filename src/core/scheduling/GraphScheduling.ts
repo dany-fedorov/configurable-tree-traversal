@@ -1,6 +1,6 @@
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
-import { stronglyConnectedComponents } from './stronglyConnectedComponents';
+import { dependencyMilestoneCycles } from './dependencyMilestones';
 import { CTTRef } from '@core/CTTRef';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult } from '@core/TraversableTree';
@@ -21,6 +21,12 @@ export class GraphScheduling<
 > {
   private readonly work = new Map<Ref<T | R>, VertexWork<T | R>>();
   private readonly reverseDependencies = new Map<VertexId, Set<Ref<T | R>>>();
+  private readonly reverseCompleteDependencies = new Map<
+    VertexId,
+    Set<Ref<T | R>>
+  >();
+  private completionValidation = false;
+  private readonly removedRefs = new Set<Ref<T | R>>();
   private readonly reusableTreeChildren = new Map<
     Ref<T | R>,
     Map<number, { ref: Ref<T | R>; hint: (T | R)['VertexHint'] }>
@@ -40,9 +46,11 @@ export class GraphScheduling<
     private readonly container: ResolvedGraphsContainer<T, R>,
     completedWork?: ReadonlySet<VertexId>,
     private readonly eager = false,
+    hasPrerequisiteResolver = false,
   ) {
     this.unusedCompletedWork = new Set(completedWork);
-    this.validateRootDependencies = eager || completedWork !== undefined;
+    this.validateRootDependencies =
+      eager || completedWork !== undefined || hasPrerequisiteResolver;
   }
 
   getUnusedCompletedWorkIds(): VertexId[] {
@@ -58,6 +66,7 @@ export class GraphScheduling<
     return Array.from(this.work.values(), (work) => ({
       ...work,
       unmet: new Set(work.unmet),
+      unmetComplete: new Set(work.unmetComplete),
       completionAccounted: work.completionAccounted.slice(),
     }));
   }
@@ -71,11 +80,24 @@ export class GraphScheduling<
     return this.openDiscoveryCount === 0;
   }
 
+  usesCompletionDependencies(): boolean {
+    return this.completionValidation;
+  }
+
+  private declaredPrerequisites(ref: Ref<T | R>): VertexId[] {
+    return Array.from(
+      new Set([
+        ...this.container.store.getDeclaredDependencies(ref),
+        ...this.container.store.getDeclaredCompleteDependencies(ref),
+      ]),
+    );
+  }
+
   /** Validate original declarations, even when a successful seed satisfied them. */
   validateDiscoveredGraph(): void {
     const dependencies = Array.from(this.work.keys(), (ref) => ({
       id: this.container.resolvedGraph.getIdOf(ref),
-      missing: this.container.store.getDeclaredDependencies(ref),
+      missing: this.declaredPrerequisites(ref),
     }));
     const diagnostics = this.diagnoseStall({ dependencies, incomplete: [] });
     if (
@@ -103,7 +125,7 @@ export class GraphScheduling<
     return this.diagnoseStall({
       dependencies: refs.map((ref) => ({
         id: this.container.resolvedGraph.getIdOf(ref),
-        missing: this.container.store.getDeclaredDependencies(ref),
+        missing: this.declaredPrerequisites(ref),
       })),
       incomplete: [],
     });
@@ -113,6 +135,7 @@ export class GraphScheduling<
     const refs = this.container.resolvedGraph.getVertexRefs();
     const restoredWork = new Map<Ref<T | R>, VertexWork<T | R>>();
     const restoredDependencies = new Map<VertexId, Set<Ref<T | R>>>();
+    const restoredCompleteDependencies = new Map<VertexId, Set<Ref<T | R>>>();
     const queued = new Map<Ref<T | R>, EligibleVisit<T | R>>();
 
     for (const visit of readyVisits) {
@@ -131,28 +154,19 @@ export class GraphScheduling<
     for (const ref of refs) {
       const vertex = this.getVertex(ref);
       const slots = this.container.store.getTraversalSlots(ref);
-      const unmet = new Set<VertexId>();
-      for (const dependency of vertex.dependsOn) {
-        let dependents = restoredDependencies.get(dependency);
-        if (dependents === undefined) {
-          dependents = new Set();
-          restoredDependencies.set(dependency, dependents);
-        }
-        dependents.add(ref);
-        const state = this.container.store.getIdState(dependency);
-        if (state?.kind === 'omitted') continue;
-        if (state?.kind === 'live') {
-          const status = this.container.resolvedGraph.getStatusOf(state.ref);
-          if (
-            status === 'PRE_VISITED' ||
-            status === 'COMPLETING' ||
-            status === 'COMPLETE'
-          ) {
-            continue;
-          }
-        }
-        unmet.add(dependency);
-      }
+      const unmet = this.registerDependencies(
+        ref,
+        vertex.dependsOn,
+        restoredDependencies,
+        false,
+      );
+      const unmetComplete = this.registerDependencies(
+        ref,
+        vertex.dependsOnComplete ?? [],
+        restoredCompleteDependencies,
+        true,
+      );
+      const hasUnmet = unmet.size > 0 || unmetComplete.size > 0;
 
       if (slots?.some((slot) => slot.kind === 'pending') === true) {
         this.throwInvalidSeed('vertex has a partially consumed expansion');
@@ -172,6 +186,7 @@ export class GraphScheduling<
       const work: VertexWork<T | R> = {
         ref,
         unmet,
+        unmetComplete,
         expansion: slots === null ? 'unprepared' : 'closed',
         initialAdmitted: status !== 'DISCOVERED',
         initialCommitted:
@@ -188,20 +203,16 @@ export class GraphScheduling<
         this.throwInvalidSeed('vertex has an active initial visit');
       }
       if (status === 'DISCOVERED') {
-        if (slots !== null || unmet.size === 0 || queuedVisit !== undefined) {
+        if (slots !== null || !hasUnmet || queuedVisit !== undefined) {
           this.throwInvalidSeed('DISCOVERED vertex is inconsistent');
         }
       } else if (status === 'READY') {
-        if (
-          slots !== null ||
-          unmet.size !== 0 ||
-          queuedVisit?.order !== 'ON_READY'
-        ) {
+        if (slots !== null || hasUnmet || queuedVisit?.order !== 'ON_READY') {
           this.throwInvalidSeed('READY vertex is inconsistent');
         }
       } else if (status === 'PRE_VISITED') {
         if (
-          unmet.size !== 0 ||
+          hasUnmet ||
           queuedVisit !== undefined ||
           (slots !== null && remainingChildren === 0)
         ) {
@@ -210,7 +221,7 @@ export class GraphScheduling<
       } else if (status === 'COMPLETING') {
         if (
           slots === null ||
-          unmet.size !== 0 ||
+          hasUnmet ||
           remainingChildren !== 0 ||
           queuedVisit?.order !== 'ON_COMPLETE'
         ) {
@@ -218,7 +229,7 @@ export class GraphScheduling<
         }
       } else if (
         slots === null ||
-        unmet.size !== 0 ||
+        hasUnmet ||
         remainingChildren !== 0 ||
         queuedVisit !== undefined
       ) {
@@ -237,6 +248,11 @@ export class GraphScheduling<
     for (const [id, dependents] of restoredDependencies) {
       this.reverseDependencies.set(id, dependents);
     }
+    this.reverseCompleteDependencies.clear();
+    for (const [id, dependents] of restoredCompleteDependencies) {
+      this.reverseCompleteDependencies.set(id, dependents);
+    }
+    this.completionValidation = restoredCompleteDependencies.size > 0;
     this.eligible = readyVisits.map((visit) => ({ ...visit }));
     this.eligibleHead = 0;
   }
@@ -258,12 +274,11 @@ export class GraphScheduling<
       ? result.vertexId
       : undefined;
     const known = resultHasId
-      ? this.container.store.getIdState(suppliedId)
+      ? this.getKnownResult(suppliedId, result)
       : undefined;
 
     if (known?.kind === 'deleted') return null;
     if (known?.kind === 'omitted') {
-      if (result.vertexContent !== null) this.throwOmissionContentConflict();
       return null;
     }
     if (known?.kind === 'live') {
@@ -272,9 +287,7 @@ export class GraphScheduling<
     }
     if (result.vertexContent === null) {
       if (resultHasId) {
-        this.container.store.markOmitted(suppliedId);
-        this.unusedCompletedWork.delete(suppliedId);
-        this.satisfy(suppliedId);
+        this.acceptOmission(suppliedId);
       }
       return null;
     }
@@ -287,11 +300,31 @@ export class GraphScheduling<
           }
         : this.makeUniqueRef(result.vertexContent);
     const dependencies =
-      this.validateRootDependencies && !this.container.syntheticRoot
+      (this.validateRootDependencies ||
+        (this.container.sourceMode === 'graph' &&
+          result.dependsOnComplete !== undefined)) &&
+      !this.container.syntheticRoot
         ? Array.from(new Set(result.dependsOn))
         : [];
-    this.container.acceptRoot(accepted.ref, accepted.id, dependencies);
-    this.register(accepted.ref, dependencies);
+    const completeDependencies = this.container.syntheticRoot
+      ? []
+      : this.getCompleteDependencies(result);
+    if (
+      [...dependencies, ...completeDependencies].some(
+        (id) => this.container.store.getIdState(id)?.kind === 'deleted',
+      )
+    ) {
+      this.container.store.markDeleted(accepted.id);
+      this.deleteDependentsOf(accepted.id);
+      return null;
+    }
+    this.container.acceptRoot(
+      accepted.ref,
+      accepted.id,
+      dependencies,
+      completeDependencies,
+    );
+    this.register(accepted.ref, dependencies, completeDependencies);
     return accepted.ref;
   }
 
@@ -343,7 +376,7 @@ export class GraphScheduling<
       this.catalogIds.set(suppliedId, context.hintIndex);
     }
     const known = hasSuppliedId
-      ? this.container.store.getIdState(suppliedId)
+      ? this.getKnownResult(suppliedId, result)
       : undefined;
 
     if (known?.kind === 'deleted') {
@@ -351,7 +384,6 @@ export class GraphScheduling<
       return null;
     }
     if (known?.kind === 'omitted') {
-      if (result.vertexContent !== null) this.throwOmissionContentConflict();
       this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
       return null;
     }
@@ -366,9 +398,7 @@ export class GraphScheduling<
     }
     if (result.vertexContent === null) {
       if (hasSuppliedId) {
-        this.container.store.markOmitted(suppliedId);
-        this.unusedCompletedWork.delete(suppliedId);
-        this.satisfy(suppliedId);
+        this.acceptOmission(suppliedId);
       }
       this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
       return null;
@@ -381,8 +411,9 @@ export class GraphScheduling<
         }
       : this.makeUniqueRef(result.vertexContent);
     const dependencies = this.getDependencies(context, result);
+    const completeDependencies = this.getCompleteDependencies(result);
     if (
-      dependencies.some(
+      [...dependencies, ...completeDependencies].some(
         (id) => this.container.store.getIdState(id)?.kind === 'deleted',
       )
     ) {
@@ -396,6 +427,7 @@ export class GraphScheduling<
       accepted.id,
       dependencies,
       context,
+      completeDependencies,
     );
     this.container.acceptEdge(
       context.parentVertexRef,
@@ -403,8 +435,72 @@ export class GraphScheduling<
       accepted.ref,
     );
     this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
-    this.register(accepted.ref, dependencies);
+    this.register(accepted.ref, dependencies, completeDependencies);
     return accepted.ref;
+  }
+
+  /** Original declarations retain demand even after W seeds satisfy residual waits. */
+  hasPrerequisiteDemand(id: VertexId): boolean {
+    return (
+      (this.reverseDependencies.get(id)?.size ?? 0) > 0 ||
+      (this.reverseCompleteDependencies.get(id)?.size ?? 0) > 0
+    );
+  }
+
+  getUnknownPrerequisiteIds(): VertexId[] {
+    return Array.from(
+      new Set([
+        ...this.reverseDependencies.keys(),
+        ...this.reverseCompleteDependencies.keys(),
+      ]),
+    ).filter(
+      (id) =>
+        this.hasPrerequisiteDemand(id) &&
+        this.container.store.getIdState(id) === undefined,
+    );
+  }
+
+  acceptPrerequisite(
+    id: VertexId,
+    result: MakeVertexResult<T>,
+  ): Ref<T | R> | null {
+    this.rejectTreeMetadata(result);
+    if (hasVertexId(result) && !sameVertexId(id, result.vertexId)) {
+      throw new Error(
+        'Prerequisite result vertex id and requested vertex id mismatch',
+      );
+    }
+    const known = this.getKnownResult(id, result);
+    if (known?.kind === 'deleted') return null;
+    if (known?.kind === 'omitted') {
+      return null;
+    }
+    if (known?.kind === 'live') return known.ref;
+    if (result.vertexContent === null) {
+      this.acceptOmission(id);
+      return null;
+    }
+    const dependencies = Array.from(new Set(result.dependsOn));
+    const completeDependencies = this.getCompleteDependencies(result);
+    if (
+      [...dependencies, ...completeDependencies].some(
+        (dependency) =>
+          this.container.store.getIdState(dependency)?.kind === 'deleted',
+      )
+    ) {
+      this.container.store.markDeleted(id);
+      this.deleteDependentsOf(id);
+      return null;
+    }
+    const ref = new CTTRef(new Vertex<T | R>(result.vertexContent));
+    this.container.acceptDetachedVertex(
+      ref,
+      id,
+      dependencies,
+      completeDependencies,
+    );
+    this.register(ref, dependencies, completeDependencies);
+    return ref;
   }
 
   acceptKnownHint(
@@ -510,6 +606,7 @@ export class GraphScheduling<
 
     vertexWork.completionCommitted = true;
     this.container.store.setStatus(ref, 'COMPLETE');
+    this.satisfy(vertex.vertexId, true);
     for (const edge of vertex.incoming) {
       const parentWork = this.work.get(edge.parentRef);
       if (parentWork !== undefined)
@@ -545,8 +642,18 @@ export class GraphScheduling<
     return this.deleteRefs([ref]);
   }
 
+  /** Every mutation reports removals once so effect owners cannot outlive consumers. */
+  takeRemovedRefs(): Set<Ref<T | R>> {
+    const removed = new Set(this.removedRefs);
+    this.removedRefs.clear();
+    return removed;
+  }
+
   private deleteDependentsOf(id: VertexId): Set<Ref<T | R>> {
-    return this.deleteRefs(Array.from(this.reverseDependencies.get(id) ?? []));
+    return this.deleteRefs([
+      ...(this.reverseDependencies.get(id) ?? []),
+      ...(this.reverseCompleteDependencies.get(id) ?? []),
+    ]);
   }
 
   private deleteRefs(initialRefs: readonly Ref<T | R>[]): Set<Ref<T | R>> {
@@ -555,16 +662,24 @@ export class GraphScheduling<
     for (const ref of initialRefs) this.addRemoval(ref, removals, pending);
     while (pending.length > 0) {
       const current = pending.pop()!;
+      if (current === this.container.resolvedGraph.getRoot()) {
+        for (const ref of this.container.resolvedGraph.getVertexRefs()) {
+          this.addRemoval(ref, removals, pending);
+        }
+      }
       const vertex = this.container.resolvedGraph.get(current)!;
 
-      for (const dependent of this.reverseDependencies.get(vertex.vertexId) ??
-        []) {
+      for (const dependent of [
+        ...(this.reverseDependencies.get(vertex.vertexId) ?? []),
+        ...(this.reverseCompleteDependencies.get(vertex.vertexId) ?? []),
+      ]) {
         this.addRemoval(dependent, removals, pending);
       }
       for (const child of this.container.resolvedGraph.getChildrenOf(
         current,
       )!) {
-        if (removals.has(child)) continue;
+        if (removals.has(child) || this.container.isDetachedAnchor(child))
+          continue;
         const parents = this.container.resolvedGraph.getParentsOf(child)!;
         if (parents.every((parent) => removals.has(parent))) {
           this.addRemoval(child, removals, pending);
@@ -586,6 +701,7 @@ export class GraphScheduling<
     }
 
     this.container.deleteVertices(removals);
+    for (const ref of removals) this.removedRefs.add(ref);
     for (const removal of removals) {
       const work = this.work.get(removal);
       if (work !== undefined && work.expansion !== 'closed') {
@@ -593,7 +709,10 @@ export class GraphScheduling<
       }
       this.work.delete(removal);
     }
-    for (const dependents of this.reverseDependencies.values()) {
+    for (const dependents of [
+      ...this.reverseDependencies.values(),
+      ...this.reverseCompleteDependencies.values(),
+    ]) {
       for (const dependent of dependents) {
         if (removals.has(dependent)) dependents.delete(dependent);
       }
@@ -625,10 +744,12 @@ export class GraphScheduling<
     const incomplete: Ref<T | R>[] = [];
     for (const [ref, vertexWork] of this.work) {
       if (vertexWork.completionCommitted) continue;
-      if (vertexWork.unmet.size > 0) {
+      if (vertexWork.unmet.size > 0 || vertexWork.unmetComplete.size > 0) {
         dependencies.push({
           id: this.container.resolvedGraph.getIdOf(ref),
-          missing: Array.from(vertexWork.unmet),
+          missing: Array.from(
+            new Set([...vertexWork.unmet, ...vertexWork.unmetComplete]),
+          ),
         });
       } else {
         incomplete.push(ref);
@@ -644,37 +765,24 @@ export class GraphScheduling<
       id,
       unmet: missing.slice(),
     }));
-    const graph = new Map<VertexId, VertexId[]>();
     const unknown = new Set<VertexId>();
-    const ids = new Set(dependencies.map(({ id }) => id));
-    for (const { id, unmet } of dependencies) {
-      graph.set(
-        id,
-        unmet.filter((dependency) => ids.has(dependency)),
-      );
+    for (const { unmet } of dependencies) {
       for (const dependency of unmet) {
         if (this.container.store.getIdState(dependency) === undefined)
           unknown.add(dependency);
       }
     }
-    const components = stronglyConnectedComponents(graph);
-    const cycles = components.filter(
-      (component) =>
-        component.length > 1 || graph.get(component[0])!.includes(component[0]),
+    const cycles = dependencyMilestoneCycles(
+      Array.from(this.container.resolvedGraph.getVertexRefs(), (ref) => ({
+        id: this.container.resolvedGraph.getIdOf(ref),
+        work: this.container.store.getDeclaredDependencies(ref),
+        complete: this.container.store.getDeclaredCompleteDependencies(ref),
+        children: this.container.resolvedGraph
+          .getChildrenOf(ref)!
+          .map((child) => this.container.resolvedGraph.getIdOf(child)),
+      })),
     );
     const cycleMembers = new Set(cycles.flat());
-    // Keep diagnostic order stable in discovery order, independent of SCC traversal.
-    const positions = new Map(dependencies.map(({ id }, index) => [id, index]));
-    for (let index = 0; index < cycles.length; index++) {
-      // Sort wrappers because Array.sort moves raw undefined values last.
-      cycles[index] = cycles[index]!.map((id) => ({
-        id,
-        position: positions.get(id)!,
-      }))
-        .sort((a, b) => a.position - b.position)
-        .map(({ id }) => id);
-    }
-    cycles.sort((a, b) => positions.get(a[0])! - positions.get(b[0])!);
     return {
       dependencies,
       unknownPrerequisiteIds: Array.from(unknown),
@@ -688,15 +796,28 @@ export class GraphScheduling<
     };
   }
 
+  /** Root, discovery and lookup acceptance share identity/conflict semantics. */
+  private getKnownResult(id: VertexId, result: MakeVertexResult<T>) {
+    const known = this.container.store.getIdState(id);
+    if (known?.kind === 'omitted' && result.vertexContent !== null) {
+      this.throwOmissionContentConflict();
+    }
+    return known;
+  }
+
+  private acceptOmission(id: VertexId): void {
+    this.container.store.markOmitted(id);
+    this.unusedCompletedWork.delete(id);
+    this.satisfy(id);
+    this.satisfy(id, true);
+  }
+
   private rejectTreeMetadata(result: MakeVertexResult<T>): void {
     if (
       this.container.sourceMode === 'graph' &&
-      (Object.prototype.hasOwnProperty.call(result, 'priority') ||
-        Object.prototype.hasOwnProperty.call(result, 'dependsOnComplete'))
+      Object.prototype.hasOwnProperty.call(result, 'priority')
     ) {
-      throw new TypeError(
-        'priority and dependsOnComplete metadata are not supported',
-      );
+      throw new TypeError('priority metadata is not supported');
     }
     if (
       this.container.sourceMode === 'tree' &&
@@ -765,34 +886,64 @@ export class GraphScheduling<
     if (candidates.size > 0) this.reusableTreeChildren.set(parent, candidates);
   }
 
-  private register(ref: Ref<T | R>, dependencies: readonly VertexId[]): void {
+  private getCompleteDependencies(result: MakeVertexResult<T>): VertexId[] {
+    if (this.container.sourceMode === 'tree') return [];
+    if (result.dependsOnComplete !== undefined)
+      this.completionValidation = true;
+    return Array.from(new Set(result.dependsOnComplete));
+  }
+
+  private registerDependencies(
+    ref: Ref<T | R>,
+    dependencies: readonly VertexId[],
+    reverse: Map<VertexId, Set<Ref<T | R>>>,
+    complete: boolean,
+  ): Set<VertexId> {
     const unmet = new Set<VertexId>();
     for (const dependency of dependencies) {
-      let dependents = this.reverseDependencies.get(dependency);
+      let dependents = reverse.get(dependency);
       if (dependents === undefined) {
         dependents = new Set();
-        this.reverseDependencies.set(dependency, dependents);
+        reverse.set(dependency, dependents);
       }
       dependents.add(ref);
-
       const state = this.container.store.getIdState(dependency);
       if (state?.kind === 'omitted') continue;
       if (state?.kind === 'live') {
         const status = this.container.resolvedGraph.getStatusOf(state.ref);
         if (
-          status === 'PRE_VISITED' ||
-          status === 'COMPLETING' ||
-          status === 'COMPLETE'
-        ) {
+          status === 'COMPLETE' ||
+          (!complete && (status === 'PRE_VISITED' || status === 'COMPLETING'))
+        )
           continue;
-        }
       }
       unmet.add(dependency);
     }
+    return unmet;
+  }
+
+  private register(
+    ref: Ref<T | R>,
+    dependencies: readonly VertexId[],
+    completeDependencies: readonly VertexId[] = [],
+  ): void {
+    const unmet = this.registerDependencies(
+      ref,
+      dependencies,
+      this.reverseDependencies,
+      false,
+    );
+    const unmetComplete = this.registerDependencies(
+      ref,
+      completeDependencies,
+      this.reverseCompleteDependencies,
+      true,
+    );
 
     const vertexWork: VertexWork<T | R> = {
       ref,
       unmet,
+      unmetComplete,
       expansion: 'unprepared',
       initialAdmitted: false,
       initialCommitted: false,
@@ -816,19 +967,29 @@ export class GraphScheduling<
     }
   }
 
-  private satisfy(id: VertexId): void {
-    const dependents = this.reverseDependencies.get(id);
+  private satisfy(id: VertexId, complete = false): void {
+    const dependents = (
+      complete ? this.reverseCompleteDependencies : this.reverseDependencies
+    ).get(id);
     if (dependents === undefined) return;
     for (const ref of dependents) {
       const vertexWork = this.work.get(ref);
-      if (vertexWork !== undefined && vertexWork.unmet.delete(id)) {
+      if (
+        vertexWork !== undefined &&
+        (complete ? vertexWork.unmetComplete : vertexWork.unmet).delete(id)
+      ) {
         this.enqueueReady(vertexWork);
       }
     }
   }
 
   private enqueueReady(vertexWork: VertexWork<T | R>): void {
-    if (vertexWork.unmet.size !== 0 || vertexWork.initialAdmitted) return;
+    if (
+      vertexWork.unmet.size !== 0 ||
+      vertexWork.unmetComplete.size !== 0 ||
+      vertexWork.initialAdmitted
+    )
+      return;
     vertexWork.initialAdmitted = true;
     this.container.store.setStatus(vertexWork.ref, 'READY');
     this.eligible.push({ ref: vertexWork.ref, order: 'ON_READY' });

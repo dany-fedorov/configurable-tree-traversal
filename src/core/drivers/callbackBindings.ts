@@ -8,7 +8,7 @@ import type {
 } from '@core/TraversableGraph';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
-import type { HintVertexId, MaybePromise } from '@core/graph/types';
+import type { HintVertexId, MaybePromise, VertexId } from '@core/graph/types';
 import type { VisitResult } from '@core/graph/types';
 import type {
   CallbackBindings,
@@ -21,6 +21,9 @@ export interface BoundSource<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
 > {
+  resolvePrerequisite?(
+    id: VertexId,
+  ): MaybePromise<MakeVertexResult<T> | undefined>;
   makeRoot(): MaybePromise<MakeVertexResult<T>>;
   makeVertex(
     context: VertexResolutionContext<T | R>,
@@ -130,6 +133,9 @@ export function bindGraphSource<
     bound.getVertexIdFromHint = (hint) =>
       adapter.getVertexIdFromHint!(asInputHint<T, R>(hint));
   }
+  if (adapter.resolvePrerequisite !== undefined) {
+    bound.resolvePrerequisite = (id) => adapter.resolvePrerequisite!(id);
+  }
   return bound;
 }
 
@@ -155,6 +161,11 @@ export function createCallbackBindings<
       switch (call.kind) {
         case 'MAKE_ROOT':
           return { kind: call.kind, value: input.source.makeRoot() };
+        case 'RESOLVE_PREREQUISITE':
+          return {
+            kind: call.kind,
+            value: input.source.resolvePrerequisite?.(call.vertexId),
+          };
         case 'MAKE_VERTEX':
           return {
             kind: call.kind,

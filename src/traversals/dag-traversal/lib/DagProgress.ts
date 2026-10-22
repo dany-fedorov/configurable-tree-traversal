@@ -15,6 +15,7 @@ export type DagVertexProgress = Readonly<{
   work: DagWorkState;
   subtreeComplete: boolean;
   unmetPrerequisiteIds: readonly VertexId[];
+  unmetCompletePrerequisiteIds?: readonly VertexId[];
   generation?: DagSettlementGeneration;
 }>;
 export type DagSummary = Readonly<{
