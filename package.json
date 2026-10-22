@@ -21,7 +21,8 @@
     "tsfile": "ts-node -r tsconfig-paths/register",
     "benchmark": "npm run build && node scripts/benchmark.cjs",
     "benchmark:dag": "npm run build && node scripts/benchmark-dag.cjs",
-    "test:benchmark": "node --test scripts/benchmark-dag.test.cjs"
+    "test:benchmark": "node --test scripts/benchmark-dag.test.cjs scripts/benchmark-dag-lifecycle.test.cjs",
+    "benchmark:dag:lifecycle": "npm run build && node scripts/benchmark-dag-lifecycle.cjs"
   },
   "repository": {
     "type": "git",

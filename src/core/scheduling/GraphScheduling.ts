@@ -27,6 +27,8 @@ export class GraphScheduling<
   >();
   private eligible: EligibleVisit<T | R>[] = [];
   private eligibleHead = 0;
+  private openDiscoveryCount = 0;
+  private validatedTopologyVersion: number | null = null;
 
   private readonly unusedCompletedWork: Set<VertexId>;
   private readonly validateRootDependencies: boolean;
@@ -66,16 +68,14 @@ export class GraphScheduling<
 
   /** Closed hint expansion for every retained vertex; independent of work success. */
   isDiscoveryComplete(): boolean {
-    return Array.from(this.work.values()).every(
-      (work) => work.expansion === 'closed',
-    );
+    return this.openDiscoveryCount === 0;
   }
 
   /** Validate original declarations, even when a successful seed satisfied them. */
   validateDiscoveredGraph(): void {
     const dependencies = Array.from(this.work.keys(), (ref) => ({
-      id: this.getVertex(ref).vertexId,
-      missing: this.getVertex(ref).dependsOn.slice(),
+      id: this.container.resolvedGraph.getIdOf(ref),
+      missing: this.container.store.getDeclaredDependencies(ref),
     }));
     const diagnostics = this.diagnoseStall({ dependencies, incomplete: [] });
     if (
@@ -87,6 +87,26 @@ export class GraphScheduling<
     if (this.getUnusedCompletedWorkIds().length > 0) {
       throw new TypeError('completedWork contains undiscovered vertex IDs');
     }
+    this.validatedTopologyVersion = this.container.store.getTopologyVersion();
+  }
+
+  /** Reuse only successful validation; a summary never publishes evidence. */
+  diagnoseTopology(
+    refs: readonly Ref<T | R>[],
+  ): DagTraversalStallDiagnostics | null {
+    if (
+      this.validatedTopologyVersion ===
+      this.container.store.getTopologyVersion()
+    ) {
+      return null;
+    }
+    return this.diagnoseStall({
+      dependencies: refs.map((ref) => ({
+        id: this.container.resolvedGraph.getIdOf(ref),
+        missing: this.container.store.getDeclaredDependencies(ref),
+      })),
+      incomplete: [],
+    });
   }
 
   restoreDagSeed(readyVisits: readonly EligibleVisit<T | R>[]): void {
@@ -207,6 +227,10 @@ export class GraphScheduling<
       restoredWork.set(ref, work);
     }
 
+    this.openDiscoveryCount = Array.from(restoredWork.values()).filter(
+      (work) => work.expansion !== 'closed',
+    ).length;
+    this.validatedTopologyVersion = null;
     this.work.clear();
     for (const [ref, work] of restoredWork) this.work.set(ref, work);
     this.reverseDependencies.clear();
@@ -447,6 +471,7 @@ export class GraphScheduling<
     const vertex = this.getVertex(ref);
 
     vertexWork.expansion = 'closed';
+    this.openDiscoveryCount -= 1;
     vertexWork.remainingChildren = 0;
     for (let index = 0; index < vertex.slots.length; index += 1) {
       if (vertexWork.completionAccounted[index] === true) continue;
@@ -561,7 +586,13 @@ export class GraphScheduling<
     }
 
     this.container.deleteVertices(removals);
-    for (const removal of removals) this.work.delete(removal);
+    for (const removal of removals) {
+      const work = this.work.get(removal);
+      if (work !== undefined && work.expansion !== 'closed') {
+        this.openDiscoveryCount -= 1;
+      }
+      this.work.delete(removal);
+    }
     for (const dependents of this.reverseDependencies.values()) {
       for (const dependent of dependents) {
         if (removals.has(dependent)) dependents.delete(dependent);
@@ -771,10 +802,11 @@ export class GraphScheduling<
       remainingChildren: 0,
     };
     this.work.set(ref, vertexWork);
+    this.openDiscoveryCount += 1;
     if (this.eager) this.discoveryExpansion.push(ref);
     if (
       ref === this.container.syntheticRootRef ||
-      this.unusedCompletedWork.delete(this.getVertex(ref).vertexId)
+      this.unusedCompletedWork.delete(this.container.resolvedGraph.getIdOf(ref))
     ) {
       vertexWork.initialAdmitted = true;
       this.markPreVisited(ref);

@@ -1,0 +1,1152 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-10-22T21:03:41.905Z",
+  "command": [
+    "/home/df/.volta/tools/image/node/24.20.0/bin/node",
+    "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/scripts/benchmark-dag.cjs",
+    "--vertices",
+    "1000",
+    "--samples",
+    "3",
+    "--summary-iterations",
+    "10",
+    "--library-path",
+    "./dist"
+  ],
+  "cwd": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal",
+  "artifact": {
+    "entryPath": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/dist/index.js",
+    "realEntryPath": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/dist/index.js",
+    "manifestPath": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/package.json",
+    "name": "configurable-tree-traversal",
+    "version": "0.9.0",
+    "entrySha256": "64ebb18eaf4d8c87a159f625dbc2dd52cb21205c3abf3ea941b0e51afcb4a8dd"
+  },
+  "environment": {
+    "node": "v24.20.0",
+    "v8": "13.6.233.17-node.53",
+    "platform": "linux",
+    "arch": "x64",
+    "osRelease": "7.0.11-76070011-generic",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12800HX",
+    "logicalCpus": 24
+  },
+  "options": {
+    "vertices": 1000,
+    "samples": 3,
+    "summaryIterations": 10,
+    "libraryPath": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/dist"
+  },
+  "policy": {
+    "warmupsPerCase": 1,
+    "reportedSamplesPerCase": 3,
+    "warmupsIncludedInStatistics": false,
+    "summaryIterations": 10,
+    "denseFanIn": 32,
+    "topologyRandomSeed": null,
+    "caseOrder": "shape then empty/prefix; warmup then samples; sequential",
+    "completedWorkSeeds": "empty or first floor(V/2) IDs (prerequisite-closed)",
+    "memory": "No heap deltas recorded; sequential samples; snapshots replaced rather than accumulated; no forced GC"
+  },
+  "timingNotes": {
+    "fixtureConstructionMs": "IDs and prerequisite arrays only; excludes completedWork seed creation",
+    "runnerConstructionMs": "adapter index, traversal construction, visitor registration and makeRunner",
+    "eagerToFirstReadyMs": "run entry to first ON_READY callback; includes traversal setup, full eager discovery and validation; overlaps runToQuiescenceMs",
+    "runToQuiescenceMs": "run entry to return; includes discovery, validation and deferral admission; stops at HALTED frontier, no business work or settlement",
+    "kahnIndexAndFrontierMs": "dependency indexing and removal of supplied seeds only; excludes CTT resolver/lifecycle/identity/validation features; not a speedup comparison",
+    "summaryBatchMs": "repeated summary() plus consuming vertices.size; includes allocation/GC; all assertions excluded",
+    "summaryPerCallMs": "summaryBatchMs / summaryIterations; no stored history of snapshots"
+  },
+  "cases": [
+    {
+      "shape": "chain",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 1000,
+      "edges": 999,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.25927500000000236,
+            "runnerConstructionMs": 0.2031549999999953,
+            "eagerToFirstReadyMs": 9.722090999999992,
+            "runToQuiescenceMs": 10.579353999999995,
+            "kahnIndexAndFrontierMs": 0.7189950000000067,
+            "summaryBatchMs": 3.1297579999999954,
+            "summaryPerCallMs": 0.3129757999999995
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.08814099999999314,
+            "runnerConstructionMs": 0.13317200000000184,
+            "eagerToFirstReadyMs": 5.915827000000007,
+            "runToQuiescenceMs": 6.319631000000001,
+            "kahnIndexAndFrontierMs": 0.20680799999999522,
+            "summaryBatchMs": 2.7792670000000044,
+            "summaryPerCallMs": 0.2779267000000004
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.08564299999999037,
+            "runnerConstructionMs": 0.17832900000000507,
+            "eagerToFirstReadyMs": 7.398504000000003,
+            "runToQuiescenceMs": 7.790595999999994,
+            "kahnIndexAndFrontierMs": 0.22028500000000406,
+            "summaryBatchMs": 3.797881000000004,
+            "summaryPerCallMs": 0.3797881000000004
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.08814099999999314,
+          "min": 0.08564299999999037,
+          "max": 0.25927500000000236
+        },
+        "runnerConstructionMs": {
+          "median": 0.17832900000000507,
+          "min": 0.13317200000000184,
+          "max": 0.2031549999999953
+        },
+        "eagerToFirstReadyMs": {
+          "median": 7.398504000000003,
+          "min": 5.915827000000007,
+          "max": 9.722090999999992
+        },
+        "runToQuiescenceMs": {
+          "median": 7.790595999999994,
+          "min": 6.319631000000001,
+          "max": 10.579353999999995
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 0.22028500000000406,
+          "min": 0.20680799999999522,
+          "max": 0.7189950000000067
+        },
+        "summaryBatchMs": {
+          "median": 3.1297579999999954,
+          "min": 2.7792670000000044,
+          "max": 3.797881000000004
+        },
+        "summaryPerCallMs": {
+          "median": 0.3129757999999995,
+          "min": 0.2779267000000004,
+          "max": 0.3797881000000004
+        }
+      }
+    },
+    {
+      "shape": "chain",
+      "seed": {
+        "kind": "prefix",
+        "count": 500
+      },
+      "vertices": 1000,
+      "edges": 999,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.1468860000000234,
+            "runnerConstructionMs": 0.13234800000000746,
+            "eagerToFirstReadyMs": 5.437394000000012,
+            "runToQuiescenceMs": 7.372451000000012,
+            "kahnIndexAndFrontierMs": 0.37036399999999503,
+            "summaryBatchMs": 2.672982999999988,
+            "summaryPerCallMs": 0.26729829999999877
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.14052700000002005,
+            "runnerConstructionMs": 0.13122999999998797,
+            "eagerToFirstReadyMs": 3.7773639999999773,
+            "runToQuiescenceMs": 6.3401700000000005,
+            "kahnIndexAndFrontierMs": 0.38891600000002313,
+            "summaryBatchMs": 1.8805150000000026,
+            "summaryPerCallMs": 0.18805150000000026
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.14208199999998783,
+            "runnerConstructionMs": 0.12604999999999222,
+            "eagerToFirstReadyMs": 4.4859050000000025,
+            "runToQuiescenceMs": 5.649119000000013,
+            "kahnIndexAndFrontierMs": 0.3307059999999922,
+            "summaryBatchMs": 3.706476000000009,
+            "summaryPerCallMs": 0.3706476000000009
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.14208199999998783,
+          "min": 0.14052700000002005,
+          "max": 0.1468860000000234
+        },
+        "runnerConstructionMs": {
+          "median": 0.13122999999998797,
+          "min": 0.12604999999999222,
+          "max": 0.13234800000000746
+        },
+        "eagerToFirstReadyMs": {
+          "median": 4.4859050000000025,
+          "min": 3.7773639999999773,
+          "max": 5.437394000000012
+        },
+        "runToQuiescenceMs": {
+          "median": 6.3401700000000005,
+          "min": 5.649119000000013,
+          "max": 7.372451000000012
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 0.37036399999999503,
+          "min": 0.3307059999999922,
+          "max": 0.38891600000002313
+        },
+        "summaryBatchMs": {
+          "median": 2.672982999999988,
+          "min": 1.8805150000000026,
+          "max": 3.706476000000009
+        },
+        "summaryPerCallMs": {
+          "median": 0.26729829999999877,
+          "min": 0.18805150000000026,
+          "max": 0.3706476000000009
+        }
+      }
+    },
+    {
+      "shape": "independent",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 1000,
+      "edges": 0,
+      "frontierCount": 1000,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 0,
+          "frontierCount": 1000,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1000
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.17068600000001766,
+            "runnerConstructionMs": 0.2497679999999889,
+            "eagerToFirstReadyMs": 5.938010999999989,
+            "runToQuiescenceMs": 8.412518000000006,
+            "kahnIndexAndFrontierMs": 0.35927200000000425,
+            "summaryBatchMs": 3.077415000000002,
+            "summaryPerCallMs": 0.3077415000000002
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 0,
+          "frontierCount": 1000,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1000
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.1840400000000102,
+            "runnerConstructionMs": 0.15103799999999978,
+            "eagerToFirstReadyMs": 6.268874000000011,
+            "runToQuiescenceMs": 10.271724000000006,
+            "kahnIndexAndFrontierMs": 0.32995900000000233,
+            "summaryBatchMs": 1.7020139999999913,
+            "summaryPerCallMs": 0.17020139999999911
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 0,
+          "frontierCount": 1000,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1000
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.11006399999999417,
+            "runnerConstructionMs": 0.09976599999998825,
+            "eagerToFirstReadyMs": 3.2297709999999995,
+            "runToQuiescenceMs": 5.027608000000015,
+            "kahnIndexAndFrontierMs": 0.22763199999999983,
+            "summaryBatchMs": 2.9760280000000137,
+            "summaryPerCallMs": 0.2976028000000014
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.17068600000001766,
+          "min": 0.11006399999999417,
+          "max": 0.1840400000000102
+        },
+        "runnerConstructionMs": {
+          "median": 0.15103799999999978,
+          "min": 0.09976599999998825,
+          "max": 0.2497679999999889
+        },
+        "eagerToFirstReadyMs": {
+          "median": 5.938010999999989,
+          "min": 3.2297709999999995,
+          "max": 6.268874000000011
+        },
+        "runToQuiescenceMs": {
+          "median": 8.412518000000006,
+          "min": 5.027608000000015,
+          "max": 10.271724000000006
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 0.32995900000000233,
+          "min": 0.22763199999999983,
+          "max": 0.35927200000000425
+        },
+        "summaryBatchMs": {
+          "median": 2.9760280000000137,
+          "min": 1.7020139999999913,
+          "max": 3.077415000000002
+        },
+        "summaryPerCallMs": {
+          "median": 0.2976028000000014,
+          "min": 0.17020139999999911,
+          "max": 0.3077415000000002
+        }
+      }
+    },
+    {
+      "shape": "independent",
+      "seed": {
+        "kind": "prefix",
+        "count": 500
+      },
+      "vertices": 1000,
+      "edges": 0,
+      "frontierCount": 500,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 0,
+          "frontierCount": 500,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 500
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.06525800000000004,
+            "runnerConstructionMs": 0.09251100000000179,
+            "eagerToFirstReadyMs": 4.076099999999997,
+            "runToQuiescenceMs": 5.607522999999986,
+            "kahnIndexAndFrontierMs": 0.17802599999998847,
+            "summaryBatchMs": 1.7350319999999897,
+            "summaryPerCallMs": 0.17350319999999897
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 0,
+          "frontierCount": 500,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 500
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.06518900000000372,
+            "runnerConstructionMs": 0.10434899999998493,
+            "eagerToFirstReadyMs": 3.1988110000000063,
+            "runToQuiescenceMs": 6.280270000000002,
+            "kahnIndexAndFrontierMs": 0.17351500000000897,
+            "summaryBatchMs": 1.652438999999987,
+            "summaryPerCallMs": 0.1652438999999987
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 0,
+          "frontierCount": 500,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 500
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.06682100000000446,
+            "runnerConstructionMs": 0.09738800000002357,
+            "eagerToFirstReadyMs": 3.0030340000000137,
+            "runToQuiescenceMs": 4.445708000000025,
+            "kahnIndexAndFrontierMs": 0.17146700000000692,
+            "summaryBatchMs": 3.105534999999975,
+            "summaryPerCallMs": 0.3105534999999975
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.06525800000000004,
+          "min": 0.06518900000000372,
+          "max": 0.06682100000000446
+        },
+        "runnerConstructionMs": {
+          "median": 0.09738800000002357,
+          "min": 0.09251100000000179,
+          "max": 0.10434899999998493
+        },
+        "eagerToFirstReadyMs": {
+          "median": 3.1988110000000063,
+          "min": 3.0030340000000137,
+          "max": 4.076099999999997
+        },
+        "runToQuiescenceMs": {
+          "median": 5.607522999999986,
+          "min": 4.445708000000025,
+          "max": 6.280270000000002
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 0.17351500000000897,
+          "min": 0.17146700000000692,
+          "max": 0.17802599999998847
+        },
+        "summaryBatchMs": {
+          "median": 1.7350319999999897,
+          "min": 1.652438999999987,
+          "max": 3.105534999999975
+        },
+        "summaryPerCallMs": {
+          "median": 0.17350319999999897,
+          "min": 0.1652438999999987,
+          "max": 0.3105534999999975
+        }
+      }
+    },
+    {
+      "shape": "diamond",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 1000,
+      "edges": 1332,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 1332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.09266500000001088,
+            "runnerConstructionMs": 0.08949599999999691,
+            "eagerToFirstReadyMs": 4.7593049999999835,
+            "runToQuiescenceMs": 5.0534170000000245,
+            "kahnIndexAndFrontierMs": 0.19119100000000344,
+            "summaryBatchMs": 1.5016469999999913,
+            "summaryPerCallMs": 0.15016469999999912
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 1332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.17130500000001803,
+            "runnerConstructionMs": 0.09500100000002476,
+            "eagerToFirstReadyMs": 3.182666999999981,
+            "runToQuiescenceMs": 3.553069999999991,
+            "kahnIndexAndFrontierMs": 0.23453100000000404,
+            "summaryBatchMs": 1.8345990000000256,
+            "summaryPerCallMs": 0.18345990000000256
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 1332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.08354100000002518,
+            "runnerConstructionMs": 0.10218699999995806,
+            "eagerToFirstReadyMs": 3.3459819999999922,
+            "runToQuiescenceMs": 3.688709000000017,
+            "kahnIndexAndFrontierMs": 0.9858380000000011,
+            "summaryBatchMs": 1.842897999999991,
+            "summaryPerCallMs": 0.18428979999999912
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.09266500000001088,
+          "min": 0.08354100000002518,
+          "max": 0.17130500000001803
+        },
+        "runnerConstructionMs": {
+          "median": 0.09500100000002476,
+          "min": 0.08949599999999691,
+          "max": 0.10218699999995806
+        },
+        "eagerToFirstReadyMs": {
+          "median": 3.3459819999999922,
+          "min": 3.182666999999981,
+          "max": 4.7593049999999835
+        },
+        "runToQuiescenceMs": {
+          "median": 3.688709000000017,
+          "min": 3.553069999999991,
+          "max": 5.0534170000000245
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 0.23453100000000404,
+          "min": 0.19119100000000344,
+          "max": 0.9858380000000011
+        },
+        "summaryBatchMs": {
+          "median": 1.8345990000000256,
+          "min": 1.5016469999999913,
+          "max": 1.842897999999991
+        },
+        "summaryPerCallMs": {
+          "median": 0.18345990000000256,
+          "min": 0.15016469999999912,
+          "max": 0.18428979999999912
+        }
+      }
+    },
+    {
+      "shape": "diamond",
+      "seed": {
+        "kind": "prefix",
+        "count": 500
+      },
+      "vertices": 1000,
+      "edges": 1332,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 1332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.0863209999999981,
+            "runnerConstructionMs": 0.10467999999997346,
+            "eagerToFirstReadyMs": 3.1584799999999973,
+            "runToQuiescenceMs": 4.058146000000022,
+            "kahnIndexAndFrontierMs": 0.22622299999994766,
+            "summaryBatchMs": 1.744326000000001,
+            "summaryPerCallMs": 0.1744326000000001
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 1332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.08922599999999647,
+            "runnerConstructionMs": 0.10988699999995788,
+            "eagerToFirstReadyMs": 6.560828000000015,
+            "runToQuiescenceMs": 7.458019999999976,
+            "kahnIndexAndFrontierMs": 0.24471499999998514,
+            "summaryBatchMs": 1.7778789999999844,
+            "summaryPerCallMs": 0.17778789999999844
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 1332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.08495399999998199,
+            "runnerConstructionMs": 0.09609000000000378,
+            "eagerToFirstReadyMs": 3.1992369999999823,
+            "runToQuiescenceMs": 3.9830440000000067,
+            "kahnIndexAndFrontierMs": 0.23966899999999214,
+            "summaryBatchMs": 3.500019000000009,
+            "summaryPerCallMs": 0.35000190000000087
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.0863209999999981,
+          "min": 0.08495399999998199,
+          "max": 0.08922599999999647
+        },
+        "runnerConstructionMs": {
+          "median": 0.10467999999997346,
+          "min": 0.09609000000000378,
+          "max": 0.10988699999995788
+        },
+        "eagerToFirstReadyMs": {
+          "median": 3.1992369999999823,
+          "min": 3.1584799999999973,
+          "max": 6.560828000000015
+        },
+        "runToQuiescenceMs": {
+          "median": 4.058146000000022,
+          "min": 3.9830440000000067,
+          "max": 7.458019999999976
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 0.23966899999999214,
+          "min": 0.22622299999994766,
+          "max": 0.24471499999998514
+        },
+        "summaryBatchMs": {
+          "median": 1.7778789999999844,
+          "min": 1.744326000000001,
+          "max": 3.500019000000009
+        },
+        "summaryPerCallMs": {
+          "median": 0.17778789999999844,
+          "min": 0.1744326000000001,
+          "max": 0.35000190000000087
+        }
+      }
+    },
+    {
+      "shape": "sparse",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 1000,
+      "edges": 1331,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 1331,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.5534949999999981,
+            "runnerConstructionMs": 0.1388780000000338,
+            "eagerToFirstReadyMs": 6.134469000000024,
+            "runToQuiescenceMs": 6.400296000000026,
+            "kahnIndexAndFrontierMs": 0.3122149999999806,
+            "summaryBatchMs": 1.490946000000008,
+            "summaryPerCallMs": 0.1490946000000008
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 1331,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.32131399999997257,
+            "runnerConstructionMs": 0.09357399999998961,
+            "eagerToFirstReadyMs": 3.091627000000017,
+            "runToQuiescenceMs": 3.4080470000000105,
+            "kahnIndexAndFrontierMs": 0.19158700000002682,
+            "summaryBatchMs": 2.027213999999958,
+            "summaryPerCallMs": 0.2027213999999958
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 1331,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.37788399999999456,
+            "runnerConstructionMs": 0.14629999999999654,
+            "eagerToFirstReadyMs": 5.6048979999999915,
+            "runToQuiescenceMs": 6.1891749999999774,
+            "kahnIndexAndFrontierMs": 0.2854660000000422,
+            "summaryBatchMs": 3.5654480000000035,
+            "summaryPerCallMs": 0.35654480000000033
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.37788399999999456,
+          "min": 0.32131399999997257,
+          "max": 0.5534949999999981
+        },
+        "runnerConstructionMs": {
+          "median": 0.1388780000000338,
+          "min": 0.09357399999998961,
+          "max": 0.14629999999999654
+        },
+        "eagerToFirstReadyMs": {
+          "median": 5.6048979999999915,
+          "min": 3.091627000000017,
+          "max": 6.134469000000024
+        },
+        "runToQuiescenceMs": {
+          "median": 6.1891749999999774,
+          "min": 3.4080470000000105,
+          "max": 6.400296000000026
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 0.2854660000000422,
+          "min": 0.19158700000002682,
+          "max": 0.3122149999999806
+        },
+        "summaryBatchMs": {
+          "median": 2.027213999999958,
+          "min": 1.490946000000008,
+          "max": 3.5654480000000035
+        },
+        "summaryPerCallMs": {
+          "median": 0.2027213999999958,
+          "min": 0.1490946000000008,
+          "max": 0.35654480000000033
+        }
+      }
+    },
+    {
+      "shape": "sparse",
+      "seed": {
+        "kind": "prefix",
+        "count": 500
+      },
+      "vertices": 1000,
+      "edges": 1331,
+      "frontierCount": 334,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 1331,
+          "frontierCount": 334,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 334
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.1585890000000063,
+            "runnerConstructionMs": 0.09997000000004164,
+            "eagerToFirstReadyMs": 3.1857539999999744,
+            "runToQuiescenceMs": 4.322983999999963,
+            "kahnIndexAndFrontierMs": 0.26178200000003926,
+            "summaryBatchMs": 1.7147830000000113,
+            "summaryPerCallMs": 0.17147830000000114
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 1331,
+          "frontierCount": 334,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 334
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.14514900000000353,
+            "runnerConstructionMs": 0.11547100000001365,
+            "eagerToFirstReadyMs": 3.535236999999995,
+            "runToQuiescenceMs": 4.669048000000032,
+            "kahnIndexAndFrontierMs": 0.2613460000000032,
+            "summaryBatchMs": 1.7785430000000133,
+            "summaryPerCallMs": 0.17785430000000133
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 1331,
+          "frontierCount": 334,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 334
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.1622979999999643,
+            "runnerConstructionMs": 0.10086100000000897,
+            "eagerToFirstReadyMs": 4.865524999999991,
+            "runToQuiescenceMs": 5.961444999999969,
+            "kahnIndexAndFrontierMs": 0.25521399999996675,
+            "summaryBatchMs": 1.688983999999948,
+            "summaryPerCallMs": 0.1688983999999948
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.1585890000000063,
+          "min": 0.14514900000000353,
+          "max": 0.1622979999999643
+        },
+        "runnerConstructionMs": {
+          "median": 0.10086100000000897,
+          "min": 0.09997000000004164,
+          "max": 0.11547100000001365
+        },
+        "eagerToFirstReadyMs": {
+          "median": 3.535236999999995,
+          "min": 3.1857539999999744,
+          "max": 4.865524999999991
+        },
+        "runToQuiescenceMs": {
+          "median": 4.669048000000032,
+          "min": 4.322983999999963,
+          "max": 5.961444999999969
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 0.2613460000000032,
+          "min": 0.25521399999996675,
+          "max": 0.26178200000003926
+        },
+        "summaryBatchMs": {
+          "median": 1.7147830000000113,
+          "min": 1.688983999999948,
+          "max": 1.7785430000000133
+        },
+        "summaryPerCallMs": {
+          "median": 0.17147830000000114,
+          "min": 0.1688983999999948,
+          "max": 0.17785430000000133
+        }
+      }
+    },
+    {
+      "shape": "bounded-dense",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 1000,
+      "edges": 31472,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 31472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.5574179999999842,
+            "runnerConstructionMs": 0.09631199999995488,
+            "eagerToFirstReadyMs": 10.223253,
+            "runToQuiescenceMs": 11.570577000000014,
+            "kahnIndexAndFrontierMs": 0.6357530000000224,
+            "summaryBatchMs": 6.438924999999983,
+            "summaryPerCallMs": 0.6438924999999983
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 31472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.5444560000000251,
+            "runnerConstructionMs": 0.10547399999995832,
+            "eagerToFirstReadyMs": 11.92384199999998,
+            "runToQuiescenceMs": 12.727720999999974,
+            "kahnIndexAndFrontierMs": 0.6213819999999828,
+            "summaryBatchMs": 4.270106999999996,
+            "summaryPerCallMs": 0.4270106999999996
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 31472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.3245370000000207,
+            "runnerConstructionMs": 0.10047400000001971,
+            "eagerToFirstReadyMs": 9.088490999999976,
+            "runToQuiescenceMs": 12.091648999999961,
+            "kahnIndexAndFrontierMs": 0.583609000000024,
+            "summaryBatchMs": 3.9567839999999705,
+            "summaryPerCallMs": 0.39567839999999704
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 1.5444560000000251,
+          "min": 1.3245370000000207,
+          "max": 1.5574179999999842
+        },
+        "runnerConstructionMs": {
+          "median": 0.10047400000001971,
+          "min": 0.09631199999995488,
+          "max": 0.10547399999995832
+        },
+        "eagerToFirstReadyMs": {
+          "median": 10.223253,
+          "min": 9.088490999999976,
+          "max": 11.92384199999998
+        },
+        "runToQuiescenceMs": {
+          "median": 12.091648999999961,
+          "min": 11.570577000000014,
+          "max": 12.727720999999974
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 0.6213819999999828,
+          "min": 0.583609000000024,
+          "max": 0.6357530000000224
+        },
+        "summaryBatchMs": {
+          "median": 4.270106999999996,
+          "min": 3.9567839999999705,
+          "max": 6.438924999999983
+        },
+        "summaryPerCallMs": {
+          "median": 0.4270106999999996,
+          "min": 0.39567839999999704,
+          "max": 0.6438924999999983
+        }
+      }
+    },
+    {
+      "shape": "bounded-dense",
+      "seed": {
+        "kind": "prefix",
+        "count": 500
+      },
+      "vertices": 1000,
+      "edges": 31472,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 1000,
+          "edges": 31472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.3817770000000564,
+            "runnerConstructionMs": 0.19119899999998324,
+            "eagerToFirstReadyMs": 10.072695000000067,
+            "runToQuiescenceMs": 11.648337999999967,
+            "kahnIndexAndFrontierMs": 1.2533320000000003,
+            "summaryBatchMs": 3.252728999999931,
+            "summaryPerCallMs": 0.3252728999999931
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 31472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.5868470000000343,
+            "runnerConstructionMs": 0.10329699999999775,
+            "eagerToFirstReadyMs": 11.010579000000007,
+            "runToQuiescenceMs": 12.023982000000046,
+            "kahnIndexAndFrontierMs": 1.1187529999999697,
+            "summaryBatchMs": 2.5595559999999296,
+            "summaryPerCallMs": 0.25595559999999296
+          }
+        },
+        {
+          "vertices": 1000,
+          "edges": 31472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 1000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.4904340000000502,
+            "runnerConstructionMs": 0.10460399999999481,
+            "eagerToFirstReadyMs": 8.903196000000094,
+            "runToQuiescenceMs": 10.07450300000005,
+            "kahnIndexAndFrontierMs": 1.1202140000000327,
+            "summaryBatchMs": 6.149585999999999,
+            "summaryPerCallMs": 0.6149585999999999
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 1.4904340000000502,
+          "min": 1.3817770000000564,
+          "max": 1.5868470000000343
+        },
+        "runnerConstructionMs": {
+          "median": 0.10460399999999481,
+          "min": 0.10329699999999775,
+          "max": 0.19119899999998324
+        },
+        "eagerToFirstReadyMs": {
+          "median": 10.072695000000067,
+          "min": 8.903196000000094,
+          "max": 11.010579000000007
+        },
+        "runToQuiescenceMs": {
+          "median": 11.648337999999967,
+          "min": 10.07450300000005,
+          "max": 12.023982000000046
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 1.1202140000000327,
+          "min": 1.1187529999999697,
+          "max": 1.2533320000000003
+        },
+        "summaryBatchMs": {
+          "median": 3.252728999999931,
+          "min": 2.5595559999999296,
+          "max": 6.149585999999999
+        },
+        "summaryPerCallMs": {
+          "median": 0.3252728999999931,
+          "min": 0.25595559999999296,
+          "max": 0.6149585999999999
+        }
+      }
+    }
+  ]
+}

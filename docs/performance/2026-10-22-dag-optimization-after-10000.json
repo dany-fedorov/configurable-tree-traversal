@@ -1,0 +1,1152 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-10-22T21:03:42.500Z",
+  "command": [
+    "/home/df/.volta/tools/image/node/24.20.0/bin/node",
+    "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/scripts/benchmark-dag.cjs",
+    "--vertices",
+    "10000",
+    "--samples",
+    "3",
+    "--summary-iterations",
+    "10",
+    "--library-path",
+    "./dist"
+  ],
+  "cwd": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal",
+  "artifact": {
+    "entryPath": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/dist/index.js",
+    "realEntryPath": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/dist/index.js",
+    "manifestPath": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/package.json",
+    "name": "configurable-tree-traversal",
+    "version": "0.9.0",
+    "entrySha256": "64ebb18eaf4d8c87a159f625dbc2dd52cb21205c3abf3ea941b0e51afcb4a8dd"
+  },
+  "environment": {
+    "node": "v24.20.0",
+    "v8": "13.6.233.17-node.53",
+    "platform": "linux",
+    "arch": "x64",
+    "osRelease": "7.0.11-76070011-generic",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12800HX",
+    "logicalCpus": 24
+  },
+  "options": {
+    "vertices": 10000,
+    "samples": 3,
+    "summaryIterations": 10,
+    "libraryPath": "/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/dist"
+  },
+  "policy": {
+    "warmupsPerCase": 1,
+    "reportedSamplesPerCase": 3,
+    "warmupsIncludedInStatistics": false,
+    "summaryIterations": 10,
+    "denseFanIn": 32,
+    "topologyRandomSeed": null,
+    "caseOrder": "shape then empty/prefix; warmup then samples; sequential",
+    "completedWorkSeeds": "empty or first floor(V/2) IDs (prerequisite-closed)",
+    "memory": "No heap deltas recorded; sequential samples; snapshots replaced rather than accumulated; no forced GC"
+  },
+  "timingNotes": {
+    "fixtureConstructionMs": "IDs and prerequisite arrays only; excludes completedWork seed creation",
+    "runnerConstructionMs": "adapter index, traversal construction, visitor registration and makeRunner",
+    "eagerToFirstReadyMs": "run entry to first ON_READY callback; includes traversal setup, full eager discovery and validation; overlaps runToQuiescenceMs",
+    "runToQuiescenceMs": "run entry to return; includes discovery, validation and deferral admission; stops at HALTED frontier, no business work or settlement",
+    "kahnIndexAndFrontierMs": "dependency indexing and removal of supplied seeds only; excludes CTT resolver/lifecycle/identity/validation features; not a speedup comparison",
+    "summaryBatchMs": "repeated summary() plus consuming vertices.size; includes allocation/GC; all assertions excluded",
+    "summaryPerCallMs": "summaryBatchMs / summaryIterations; no stored history of snapshots"
+  },
+  "cases": [
+    {
+      "shape": "chain",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 10000,
+      "edges": 9999,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 9999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.3399659999999756,
+            "runnerConstructionMs": 1.0382820000000095,
+            "eagerToFirstReadyMs": 76.07954499999997,
+            "runToQuiescenceMs": 85.552715,
+            "kahnIndexAndFrontierMs": 3.776098999999988,
+            "summaryBatchMs": 27.964279999999974,
+            "summaryPerCallMs": 2.7964279999999975
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 9999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.9319849999999974,
+            "runnerConstructionMs": 0.9424300000000017,
+            "eagerToFirstReadyMs": 66.46534500000001,
+            "runToQuiescenceMs": 72.50099800000004,
+            "kahnIndexAndFrontierMs": 2.803931000000034,
+            "summaryBatchMs": 46.548204000000055,
+            "summaryPerCallMs": 4.6548204000000055
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 9999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.5427550000000565,
+            "runnerConstructionMs": 1.140549999999962,
+            "eagerToFirstReadyMs": 80.03453400000001,
+            "runToQuiescenceMs": 87.98798499999998,
+            "kahnIndexAndFrontierMs": 4.377475000000004,
+            "summaryBatchMs": 34.729617000000076,
+            "summaryPerCallMs": 3.4729617000000075
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 1.3399659999999756,
+          "min": 0.9319849999999974,
+          "max": 1.5427550000000565
+        },
+        "runnerConstructionMs": {
+          "median": 1.0382820000000095,
+          "min": 0.9424300000000017,
+          "max": 1.140549999999962
+        },
+        "eagerToFirstReadyMs": {
+          "median": 76.07954499999997,
+          "min": 66.46534500000001,
+          "max": 80.03453400000001
+        },
+        "runToQuiescenceMs": {
+          "median": 85.552715,
+          "min": 72.50099800000004,
+          "max": 87.98798499999998
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 3.776098999999988,
+          "min": 2.803931000000034,
+          "max": 4.377475000000004
+        },
+        "summaryBatchMs": {
+          "median": 34.729617000000076,
+          "min": 27.964279999999974,
+          "max": 46.548204000000055
+        },
+        "summaryPerCallMs": {
+          "median": 3.4729617000000075,
+          "min": 2.7964279999999975,
+          "max": 4.6548204000000055
+        }
+      }
+    },
+    {
+      "shape": "chain",
+      "seed": {
+        "kind": "prefix",
+        "count": 5000
+      },
+      "vertices": 10000,
+      "edges": 9999,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 9999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.8956389999999601,
+            "runnerConstructionMs": 1.0002700000000004,
+            "eagerToFirstReadyMs": 56.44832700000006,
+            "runToQuiescenceMs": 82.83073999999999,
+            "kahnIndexAndFrontierMs": 3.583594000000062,
+            "summaryBatchMs": 34.21825100000001,
+            "summaryPerCallMs": 3.421825100000001
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 9999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.815527999999972,
+            "runnerConstructionMs": 1.5765749999999343,
+            "eagerToFirstReadyMs": 50.240508999999975,
+            "runToQuiescenceMs": 70.52592399999992,
+            "kahnIndexAndFrontierMs": 3.2789599999999837,
+            "summaryBatchMs": 34.13712599999985,
+            "summaryPerCallMs": 3.413712599999985
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 9999,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.7852379999999357,
+            "runnerConstructionMs": 1.0909970000000158,
+            "eagerToFirstReadyMs": 77.73419400000012,
+            "runToQuiescenceMs": 90.73339499999997,
+            "kahnIndexAndFrontierMs": 4.095201999999972,
+            "summaryBatchMs": 34.523526000000174,
+            "summaryPerCallMs": 3.4523526000000175
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.815527999999972,
+          "min": 0.7852379999999357,
+          "max": 0.8956389999999601
+        },
+        "runnerConstructionMs": {
+          "median": 1.0909970000000158,
+          "min": 1.0002700000000004,
+          "max": 1.5765749999999343
+        },
+        "eagerToFirstReadyMs": {
+          "median": 56.44832700000006,
+          "min": 50.240508999999975,
+          "max": 77.73419400000012
+        },
+        "runToQuiescenceMs": {
+          "median": 82.83073999999999,
+          "min": 70.52592399999992,
+          "max": 90.73339499999997
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 3.583594000000062,
+          "min": 3.2789599999999837,
+          "max": 4.095201999999972
+        },
+        "summaryBatchMs": {
+          "median": 34.21825100000001,
+          "min": 34.13712599999985,
+          "max": 34.523526000000174
+        },
+        "summaryPerCallMs": {
+          "median": 3.421825100000001,
+          "min": 3.413712599999985,
+          "max": 3.4523526000000175
+        }
+      }
+    },
+    {
+      "shape": "independent",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 10000,
+      "edges": 0,
+      "frontierCount": 10000,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 0,
+          "frontierCount": 10000,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 10000
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.8567229999998744,
+            "runnerConstructionMs": 0.9381829999999809,
+            "eagerToFirstReadyMs": 44.6911990000001,
+            "runToQuiescenceMs": 73.44459200000006,
+            "kahnIndexAndFrontierMs": 3.049126000000115,
+            "summaryBatchMs": 34.11101400000007,
+            "summaryPerCallMs": 3.411101400000007
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 0,
+          "frontierCount": 10000,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 10000
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.6597709999998642,
+            "runnerConstructionMs": 0.8463640000002215,
+            "eagerToFirstReadyMs": 42.71895899999981,
+            "runToQuiescenceMs": 70.23669799999993,
+            "kahnIndexAndFrontierMs": 2.3990020000001095,
+            "summaryBatchMs": 35.356984999999895,
+            "summaryPerCallMs": 3.5356984999999894
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 0,
+          "frontierCount": 10000,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 10000
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.7119800000000396,
+            "runnerConstructionMs": 0.8529980000000705,
+            "eagerToFirstReadyMs": 40.519649999999956,
+            "runToQuiescenceMs": 69.6933469999999,
+            "kahnIndexAndFrontierMs": 2.309310000000096,
+            "summaryBatchMs": 34.64489600000002,
+            "summaryPerCallMs": 3.4644896000000016
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.7119800000000396,
+          "min": 0.6597709999998642,
+          "max": 0.8567229999998744
+        },
+        "runnerConstructionMs": {
+          "median": 0.8529980000000705,
+          "min": 0.8463640000002215,
+          "max": 0.9381829999999809
+        },
+        "eagerToFirstReadyMs": {
+          "median": 42.71895899999981,
+          "min": 40.519649999999956,
+          "max": 44.6911990000001
+        },
+        "runToQuiescenceMs": {
+          "median": 70.23669799999993,
+          "min": 69.6933469999999,
+          "max": 73.44459200000006
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 2.3990020000001095,
+          "min": 2.309310000000096,
+          "max": 3.049126000000115
+        },
+        "summaryBatchMs": {
+          "median": 34.64489600000002,
+          "min": 34.11101400000007,
+          "max": 35.356984999999895
+        },
+        "summaryPerCallMs": {
+          "median": 3.4644896000000016,
+          "min": 3.411101400000007,
+          "max": 3.5356984999999894
+        }
+      }
+    },
+    {
+      "shape": "independent",
+      "seed": {
+        "kind": "prefix",
+        "count": 5000
+      },
+      "vertices": 10000,
+      "edges": 0,
+      "frontierCount": 5000,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 0,
+          "frontierCount": 5000,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 5000
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.7462120000000141,
+            "runnerConstructionMs": 0.9466079999999693,
+            "eagerToFirstReadyMs": 41.784351000000015,
+            "runToQuiescenceMs": 65.307681,
+            "kahnIndexAndFrontierMs": 2.826182000000017,
+            "summaryBatchMs": 31.736993999999868,
+            "summaryPerCallMs": 3.173699399999987
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 0,
+          "frontierCount": 5000,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 5000
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.625,
+            "runnerConstructionMs": 0.9940650000000915,
+            "eagerToFirstReadyMs": 43.28917300000012,
+            "runToQuiescenceMs": 67.9679799999999,
+            "kahnIndexAndFrontierMs": 2.5511650000000827,
+            "summaryBatchMs": 31.93307300000015,
+            "summaryPerCallMs": 3.193307300000015
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 0,
+          "frontierCount": 5000,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 5000
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.687235999999757,
+            "runnerConstructionMs": 0.9770260000000235,
+            "eagerToFirstReadyMs": 52.29884200000015,
+            "runToQuiescenceMs": 78.48043800000005,
+            "kahnIndexAndFrontierMs": 2.443750999999793,
+            "summaryBatchMs": 33.9955930000001,
+            "summaryPerCallMs": 3.3995593000000097
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 0.687235999999757,
+          "min": 0.625,
+          "max": 0.7462120000000141
+        },
+        "runnerConstructionMs": {
+          "median": 0.9770260000000235,
+          "min": 0.9466079999999693,
+          "max": 0.9940650000000915
+        },
+        "eagerToFirstReadyMs": {
+          "median": 43.28917300000012,
+          "min": 41.784351000000015,
+          "max": 52.29884200000015
+        },
+        "runToQuiescenceMs": {
+          "median": 67.9679799999999,
+          "min": 65.307681,
+          "max": 78.48043800000005
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 2.5511650000000827,
+          "min": 2.443750999999793,
+          "max": 2.826182000000017
+        },
+        "summaryBatchMs": {
+          "median": 31.93307300000015,
+          "min": 31.736993999999868,
+          "max": 33.9955930000001
+        },
+        "summaryPerCallMs": {
+          "median": 3.193307300000015,
+          "min": 3.173699399999987,
+          "max": 3.3995593000000097
+        }
+      }
+    },
+    {
+      "shape": "diamond",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 10000,
+      "edges": 13332,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 13332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.2244850000001861,
+            "runnerConstructionMs": 0.8148479999999836,
+            "eagerToFirstReadyMs": 68.9996199999996,
+            "runToQuiescenceMs": 83.90548499999977,
+            "kahnIndexAndFrontierMs": 8.917862000000241,
+            "summaryBatchMs": 37.19353799999999,
+            "summaryPerCallMs": 3.719353799999999
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 13332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.855438999999933,
+            "runnerConstructionMs": 1.2269649999998364,
+            "eagerToFirstReadyMs": 65.66417599999977,
+            "runToQuiescenceMs": 70.01794999999993,
+            "kahnIndexAndFrontierMs": 4.074749000000338,
+            "summaryBatchMs": 26.700219999999717,
+            "summaryPerCallMs": 2.670021999999972
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 13332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.1886679999997796,
+            "runnerConstructionMs": 0.8497269999998025,
+            "eagerToFirstReadyMs": 53.281578999999965,
+            "runToQuiescenceMs": 57.20781699999998,
+            "kahnIndexAndFrontierMs": 2.72496000000001,
+            "summaryBatchMs": 27.719127999999728,
+            "summaryPerCallMs": 2.771912799999973
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 1.2244850000001861,
+          "min": 1.1886679999997796,
+          "max": 1.855438999999933
+        },
+        "runnerConstructionMs": {
+          "median": 0.8497269999998025,
+          "min": 0.8148479999999836,
+          "max": 1.2269649999998364
+        },
+        "eagerToFirstReadyMs": {
+          "median": 65.66417599999977,
+          "min": 53.281578999999965,
+          "max": 68.9996199999996
+        },
+        "runToQuiescenceMs": {
+          "median": 70.01794999999993,
+          "min": 57.20781699999998,
+          "max": 83.90548499999977
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 4.074749000000338,
+          "min": 2.72496000000001,
+          "max": 8.917862000000241
+        },
+        "summaryBatchMs": {
+          "median": 27.719127999999728,
+          "min": 26.700219999999717,
+          "max": 37.19353799999999
+        },
+        "summaryPerCallMs": {
+          "median": 2.771912799999973,
+          "min": 2.670021999999972,
+          "max": 3.719353799999999
+        }
+      }
+    },
+    {
+      "shape": "diamond",
+      "seed": {
+        "kind": "prefix",
+        "count": 5000
+      },
+      "vertices": 10000,
+      "edges": 13332,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 13332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 0.8300239999998666,
+            "runnerConstructionMs": 0.9997899999998481,
+            "eagerToFirstReadyMs": 57.97345799999994,
+            "runToQuiescenceMs": 81.374507,
+            "kahnIndexAndFrontierMs": 3.365092999999888,
+            "summaryBatchMs": 27.213330999999926,
+            "summaryPerCallMs": 2.7213330999999927
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 13332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 2.469025000000329,
+            "runnerConstructionMs": 2.3192259999996168,
+            "eagerToFirstReadyMs": 62.964156,
+            "runToQuiescenceMs": 79.66664899999978,
+            "kahnIndexAndFrontierMs": 7.16619800000035,
+            "summaryBatchMs": 30.86467700000003,
+            "summaryPerCallMs": 3.0864677000000027
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 13332,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.2258489999999256,
+            "runnerConstructionMs": 1.0250379999997676,
+            "eagerToFirstReadyMs": 57.867151999999805,
+            "runToQuiescenceMs": 67.55839799999967,
+            "kahnIndexAndFrontierMs": 3.4466640000000552,
+            "summaryBatchMs": 26.583044999999856,
+            "summaryPerCallMs": 2.6583044999999856
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 1.2258489999999256,
+          "min": 0.8300239999998666,
+          "max": 2.469025000000329
+        },
+        "runnerConstructionMs": {
+          "median": 1.0250379999997676,
+          "min": 0.9997899999998481,
+          "max": 2.3192259999996168
+        },
+        "eagerToFirstReadyMs": {
+          "median": 57.97345799999994,
+          "min": 57.867151999999805,
+          "max": 62.964156
+        },
+        "runToQuiescenceMs": {
+          "median": 79.66664899999978,
+          "min": 67.55839799999967,
+          "max": 81.374507
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 3.4466640000000552,
+          "min": 3.365092999999888,
+          "max": 7.16619800000035
+        },
+        "summaryBatchMs": {
+          "median": 27.213330999999926,
+          "min": 26.583044999999856,
+          "max": 30.86467700000003
+        },
+        "summaryPerCallMs": {
+          "median": 2.7213330999999927,
+          "min": 2.6583044999999856,
+          "max": 3.0864677000000027
+        }
+      }
+    },
+    {
+      "shape": "sparse",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 10000,
+      "edges": 13331,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 13331,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 2.4055739999998877,
+            "runnerConstructionMs": 0.8516209999997955,
+            "eagerToFirstReadyMs": 53.703238000000056,
+            "runToQuiescenceMs": 59.478767999999945,
+            "kahnIndexAndFrontierMs": 4.70981699999993,
+            "summaryBatchMs": 29.383973999999853,
+            "summaryPerCallMs": 2.9383973999999853
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 13331,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.793177999999898,
+            "runnerConstructionMs": 0.8901340000002165,
+            "eagerToFirstReadyMs": 50.596240999999736,
+            "runToQuiescenceMs": 54.0761779999998,
+            "kahnIndexAndFrontierMs": 5.253673000000163,
+            "summaryBatchMs": 28.31826600000022,
+            "summaryPerCallMs": 2.831826600000022
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 13331,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.4651530000001003,
+            "runnerConstructionMs": 1.0707860000002256,
+            "eagerToFirstReadyMs": 60.07124399999975,
+            "runToQuiescenceMs": 64.0640999999996,
+            "kahnIndexAndFrontierMs": 6.875795999999809,
+            "summaryBatchMs": 27.723147000000154,
+            "summaryPerCallMs": 2.7723147000000155
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 1.793177999999898,
+          "min": 1.4651530000001003,
+          "max": 2.4055739999998877
+        },
+        "runnerConstructionMs": {
+          "median": 0.8901340000002165,
+          "min": 0.8516209999997955,
+          "max": 1.0707860000002256
+        },
+        "eagerToFirstReadyMs": {
+          "median": 53.703238000000056,
+          "min": 50.596240999999736,
+          "max": 60.07124399999975
+        },
+        "runToQuiescenceMs": {
+          "median": 59.478767999999945,
+          "min": 54.0761779999998,
+          "max": 64.0640999999996
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 5.253673000000163,
+          "min": 4.70981699999993,
+          "max": 6.875795999999809
+        },
+        "summaryBatchMs": {
+          "median": 28.31826600000022,
+          "min": 27.723147000000154,
+          "max": 29.383973999999853
+        },
+        "summaryPerCallMs": {
+          "median": 2.831826600000022,
+          "min": 2.7723147000000155,
+          "max": 2.9383973999999853
+        }
+      }
+    },
+    {
+      "shape": "sparse",
+      "seed": {
+        "kind": "prefix",
+        "count": 5000
+      },
+      "vertices": 10000,
+      "edges": 13331,
+      "frontierCount": 3334,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 13331,
+          "frontierCount": 3334,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 3334
+          },
+          "timings": {
+            "fixtureConstructionMs": 1.6246430000001055,
+            "runnerConstructionMs": 1.0626939999997376,
+            "eagerToFirstReadyMs": 80.3979790000003,
+            "runToQuiescenceMs": 116.72440200000028,
+            "kahnIndexAndFrontierMs": 3.8380269999997836,
+            "summaryBatchMs": 56.87183099999993,
+            "summaryPerCallMs": 5.687183099999993
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 13331,
+          "frontierCount": 3334,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 3334
+          },
+          "timings": {
+            "fixtureConstructionMs": 4.257525999999871,
+            "runnerConstructionMs": 4.778366000000005,
+            "eagerToFirstReadyMs": 131.74395800000048,
+            "runToQuiescenceMs": 175.55338500000062,
+            "kahnIndexAndFrontierMs": 4.962470999999823,
+            "summaryBatchMs": 54.49076700000023,
+            "summaryPerCallMs": 5.449076700000023
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 13331,
+          "frontierCount": 3334,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 3334
+          },
+          "timings": {
+            "fixtureConstructionMs": 4.788862000000336,
+            "runnerConstructionMs": 2.4906190000001516,
+            "eagerToFirstReadyMs": 84.36531600000035,
+            "runToQuiescenceMs": 127.32321700000011,
+            "kahnIndexAndFrontierMs": 10.05074599999989,
+            "summaryBatchMs": 43.27853899999991,
+            "summaryPerCallMs": 4.327853899999991
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 4.257525999999871,
+          "min": 1.6246430000001055,
+          "max": 4.788862000000336
+        },
+        "runnerConstructionMs": {
+          "median": 2.4906190000001516,
+          "min": 1.0626939999997376,
+          "max": 4.778366000000005
+        },
+        "eagerToFirstReadyMs": {
+          "median": 84.36531600000035,
+          "min": 80.3979790000003,
+          "max": 131.74395800000048
+        },
+        "runToQuiescenceMs": {
+          "median": 127.32321700000011,
+          "min": 116.72440200000028,
+          "max": 175.55338500000062
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 4.962470999999823,
+          "min": 3.8380269999997836,
+          "max": 10.05074599999989
+        },
+        "summaryBatchMs": {
+          "median": 54.49076700000023,
+          "min": 43.27853899999991,
+          "max": 56.87183099999993
+        },
+        "summaryPerCallMs": {
+          "median": 5.449076700000023,
+          "min": 4.327853899999991,
+          "max": 5.687183099999993
+        }
+      }
+    },
+    {
+      "shape": "bounded-dense",
+      "seed": {
+        "kind": "empty",
+        "count": 0
+      },
+      "vertices": 10000,
+      "edges": 319472,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 319472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 22.852160000000367,
+            "runnerConstructionMs": 1.9954259999994974,
+            "eagerToFirstReadyMs": 237.7832670000007,
+            "runToQuiescenceMs": 262.39729200000056,
+            "kahnIndexAndFrontierMs": 28.309186999999838,
+            "summaryBatchMs": 86.98471400000017,
+            "summaryPerCallMs": 8.698471400000017
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 319472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 16.660012999999708,
+            "runnerConstructionMs": 0.8654959999994389,
+            "eagerToFirstReadyMs": 181.3412640000006,
+            "runToQuiescenceMs": 195.15787799999998,
+            "kahnIndexAndFrontierMs": 11.804542999999285,
+            "summaryBatchMs": 74.47028899999987,
+            "summaryPerCallMs": 7.447028899999987
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 319472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 16.59269099999983,
+            "runnerConstructionMs": 1.2602210000004561,
+            "eagerToFirstReadyMs": 155.52650799999992,
+            "runToQuiescenceMs": 176.63350900000023,
+            "kahnIndexAndFrontierMs": 12.844927999999527,
+            "summaryBatchMs": 190.2218810000004,
+            "summaryPerCallMs": 19.02218810000004
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 16.660012999999708,
+          "min": 16.59269099999983,
+          "max": 22.852160000000367
+        },
+        "runnerConstructionMs": {
+          "median": 1.2602210000004561,
+          "min": 0.8654959999994389,
+          "max": 1.9954259999994974
+        },
+        "eagerToFirstReadyMs": {
+          "median": 181.3412640000006,
+          "min": 155.52650799999992,
+          "max": 237.7832670000007
+        },
+        "runToQuiescenceMs": {
+          "median": 195.15787799999998,
+          "min": 176.63350900000023,
+          "max": 262.39729200000056
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 12.844927999999527,
+          "min": 11.804542999999285,
+          "max": 28.309186999999838
+        },
+        "summaryBatchMs": {
+          "median": 86.98471400000017,
+          "min": 74.47028899999987,
+          "max": 190.2218810000004
+        },
+        "summaryPerCallMs": {
+          "median": 8.698471400000017,
+          "min": 7.447028899999987,
+          "max": 19.02218810000004
+        }
+      }
+    },
+    {
+      "shape": "bounded-dense",
+      "seed": {
+        "kind": "prefix",
+        "count": 5000
+      },
+      "vertices": 10000,
+      "edges": 319472,
+      "frontierCount": 1,
+      "samples": [
+        {
+          "vertices": 10000,
+          "edges": 319472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 22.76799200000005,
+            "runnerConstructionMs": 1.7832429999998567,
+            "eagerToFirstReadyMs": 184.51951699999972,
+            "runToQuiescenceMs": 200.44294499999978,
+            "kahnIndexAndFrontierMs": 28.050828999999794,
+            "summaryBatchMs": 71.07169700000031,
+            "summaryPerCallMs": 7.107169700000031
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 319472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 13.718071999999665,
+            "runnerConstructionMs": 1.1701590000002398,
+            "eagerToFirstReadyMs": 158.49519299999974,
+            "runToQuiescenceMs": 178.29099300000053,
+            "kahnIndexAndFrontierMs": 14.639350000000377,
+            "summaryBatchMs": 63.537302999999156,
+            "summaryPerCallMs": 6.353730299999915
+          }
+        },
+        {
+          "vertices": 10000,
+          "edges": 319472,
+          "frontierCount": 1,
+          "summaryIterations": 10,
+          "callbacks": {
+            "root": 1,
+            "vertex": 10000,
+            "ready": 1
+          },
+          "timings": {
+            "fixtureConstructionMs": 16.665517999999793,
+            "runnerConstructionMs": 1.371740999999929,
+            "eagerToFirstReadyMs": 262.54828,
+            "runToQuiescenceMs": 285.24185599999964,
+            "kahnIndexAndFrontierMs": 17.03858300000047,
+            "summaryBatchMs": 71.45879799999966,
+            "summaryPerCallMs": 7.145879799999966
+          }
+        }
+      ],
+      "statisticsMs": {
+        "fixtureConstructionMs": {
+          "median": 16.665517999999793,
+          "min": 13.718071999999665,
+          "max": 22.76799200000005
+        },
+        "runnerConstructionMs": {
+          "median": 1.371740999999929,
+          "min": 1.1701590000002398,
+          "max": 1.7832429999998567
+        },
+        "eagerToFirstReadyMs": {
+          "median": 184.51951699999972,
+          "min": 158.49519299999974,
+          "max": 262.54828
+        },
+        "runToQuiescenceMs": {
+          "median": 200.44294499999978,
+          "min": 178.29099300000053,
+          "max": 285.24185599999964
+        },
+        "kahnIndexAndFrontierMs": {
+          "median": 17.03858300000047,
+          "min": 14.639350000000377,
+          "max": 28.050828999999794
+        },
+        "summaryBatchMs": {
+          "median": 71.07169700000031,
+          "min": 63.537302999999156,
+          "max": 71.45879799999966
+        },
+        "summaryPerCallMs": {
+          "median": 7.107169700000031,
+          "min": 6.353730299999915,
+          "max": 7.145879799999966
+        }
+      }
+    }
+  ]
+}

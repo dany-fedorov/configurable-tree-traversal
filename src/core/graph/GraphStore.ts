@@ -32,6 +32,7 @@ export class GraphStore<T extends TreeTypeParameters>
   private readonly treeRecords = new Map<Ref<T>, VertexResolved<T>>();
   private readonly labelId = createVertexIdLabeler();
   private root: Ref<T> | null = null;
+  private topologyVersion = 0;
 
   constructor(readonly mode: 'tree' | 'dag') {
     this.graph = Object.freeze({
@@ -55,7 +56,28 @@ export class GraphStore<T extends TreeTypeParameters>
   }
 
   getTraversalSlots(ref: Ref<T>): readonly ChildSlot<T>[] | null {
-    return this.getEntry(ref).slots?.slice() ?? null;
+    return this.getEntry(ref).slots?.map((slot) => ({ ...slot })) ?? null;
+  }
+
+  /** Narrow detached reads for internal traversal consumers. */
+  getTraversalSlot(ref: Ref<T>, index: number): ChildSlot<T> | undefined {
+    const slot = this.getEntry(ref).slots?.[index];
+    return slot === undefined ? undefined : { ...slot };
+  }
+
+  getDiscoveryDepth(ref: Ref<T>): number {
+    const entry = this.getEntry(ref);
+    return this.mode === 'tree'
+      ? this.treeRecords.get(ref)?.getResolutionContext()?.depth ?? entry.depth
+      : entry.depth;
+  }
+
+  getDeclaredDependencies(ref: Ref<T>): VertexId[] {
+    return this.getEntry(ref).dependsOn.slice();
+  }
+
+  getTopologyVersion(): number {
+    return this.topologyVersion;
   }
 
   insertVertex(input: {
@@ -78,6 +100,7 @@ export class GraphStore<T extends TreeTypeParameters>
       slots: null,
     });
     this.ids.set(input.id, { kind: 'live', ref: input.ref });
+    this.topologyVersion += 1;
   }
 
   setRoot(ref: Ref<T> | null): void {
@@ -96,6 +119,7 @@ export class GraphStore<T extends TreeTypeParameters>
     const entry = this.getEntry(ref);
     entry.status = 'DISCOVERED';
     entry.slots = null;
+    this.topologyVersion += 1;
   }
 
   prepareSlots(ref: Ref<T>, hints: readonly T['VertexHint'][]): void {
@@ -103,6 +127,7 @@ export class GraphStore<T extends TreeTypeParameters>
     if (entry.slots !== null)
       throw new Error('Vertex slots are already prepared');
     entry.slots = hints.map((hint) => ({ kind: 'pending', hint }));
+    this.topologyVersion += 1;
   }
 
   linkSlot(
@@ -141,6 +166,7 @@ export class GraphStore<T extends TreeTypeParameters>
       hint: slot.hint,
       childRef: child,
     };
+    this.topologyVersion += 1;
     if (!legacyTopologyAlreadyLinked) childEntry.incoming.push(edge);
     if (this.mode === 'tree' && !legacyTopologyAlreadyLinked) {
       const record = this.treeRecords.get(parent);
@@ -157,16 +183,19 @@ export class GraphStore<T extends TreeTypeParameters>
     const slot = this.getSlot(entry, index);
     if (slot.kind !== 'pending') throw new Error('Slot is already resolved');
     entry.slots![index] = { kind: reason, hint: slot.hint };
+    this.topologyVersion += 1;
   }
 
   markOmitted(id: VertexId): void {
     if (this.ids.has(id)) throw new Error('Vertex id is already indexed');
     this.ids.set(id, { kind: 'omitted' });
+    this.topologyVersion += 1;
   }
 
   markDeleted(id: VertexId): void {
     if (this.ids.has(id)) throw new Error('Vertex id is already indexed');
     this.ids.set(id, { kind: 'deleted' });
+    this.topologyVersion += 1;
   }
 
   removeVertices(refs: ReadonlySet<Ref<T>>): void {
@@ -180,6 +209,7 @@ export class GraphStore<T extends TreeTypeParameters>
       }
     }
 
+    if (removals.size > 0) this.topologyVersion += 1;
     for (const entry of this.entries.values()) {
       if (removals.has(entry.ref)) continue;
       if (entry.slots !== null) {
@@ -224,6 +254,7 @@ export class GraphStore<T extends TreeTypeParameters>
         slots: null,
       });
       this.ids.set(id, { kind: 'live', ref });
+      this.topologyVersion += 1;
     }
     this.treeRecords.set(ref, record);
   }
@@ -259,16 +290,11 @@ export class GraphStore<T extends TreeTypeParameters>
       this.mode === 'tree' ? this.getTreeIncoming(ref) : entry.incoming
     ).map((edge) => ({ ...edge }));
     const slots = entry.slots?.map((slot) => ({ ...slot })) ?? [];
-    const discoveryDepth =
-      this.mode === 'tree'
-        ? this.treeRecords.get(ref)?.getResolutionContext()?.depth ??
-          entry.depth
-        : entry.depth;
     return {
       vertexRef: ref,
       vertex: ref.unref(),
       vertexId: entry.id,
-      discoveryDepth,
+      discoveryDepth: this.getDiscoveryDepth(ref),
       dependsOn: entry.dependsOn.slice(),
       status: entry.status,
       incoming,
