@@ -324,7 +324,7 @@ try {
   assert.equal(
     JSON.parse(fs.readFileSync(path.join(install, 'package.json'), 'utf8'))
       .version,
-    '0.8.0',
+    require('../package.json').version,
   );
   console.log(
     `Verified packed package: CommonJS, ESM, TypeScript node/node16, and historical deep imports (${pack.entryCount} files).`,

@@ -218,6 +218,157 @@ The familiar `DAG traversal stalled:` message safely labels arbitrary IDs withou
 
 `runner.getResolvedGraph()` provides read-only vertex, status, parent, child, path, and id queries. Query arrays are shallow snapshots: changing an array cannot edit topology, while contained references and user vertex data remain live. With `saveNotMutatedResolvedGraph: true`, DAG runners also expose a structural `notMutatedResolvedGraph` snapshot containing first-accepted content and discovery edges. Rewrites and deletions do not alter it, but user data is still shallowly shared.
 
+### Discovery and completed work
+
+DAG graph sources accept `completedWork?: ReadonlySet<VertexId>` in both synchronous
+and asynchronous traversal configuration. Each runner copies the set when created.
+A listed vertex skips its initial `ON_READY` visitors and event, but its children
+are still discovered and its `ON_COMPLETE` visit waits for their completion.
+Omitted vertices count as recognized IDs; an ID never discovered causes a
+`TypeError`. This option requires a fresh graph runner and cannot be combined
+with a tree source or injected continuation state/container.
+
+Set `discovery: 'eager'` to resolve every reachable hint before the first visitor,
+including descendants of vertices whose work dependencies are still blocked.
+The runner then validates the original declared dependencies for missing IDs and
+cycles, even when `completedWork` has already satisfied those dependencies.
+Unknown seed IDs also fail before visitors in eager mode. Seeded lazy runners
+validate original dependencies when discovery closes; ordinary lazy traversal
+remains the default. Eager discovery honors explicit root `dependsOn` entries.
+`priority` and `dependsOnComplete` result metadata are not supported and reject
+explicitly.
+
+Set `syntheticRoot: true` when `makeRoot()` returns a catalog holder whose child
+hints describe multiple graph sources. Its supplied ID is ignored in favor of a
+private identity, and its children have no implicit dependency on it. Every
+catalog entry needs an explicit ID from the hint identity callback or the vertex
+result. Repeating an ID within the catalog is an error; shared descendants under
+real vertices remain valid. Combine this option with eager discovery to validate
+a complete catalog, including disconnected components, before work begins. The
+adapter is responsible for listing its entire domain.
+
+Synthetic roots produce no visitor calls or events. `getResolvedGraph()`, visitor
+and resolver graph views, and saved snapshots omit the synthetic vertex and its
+edges. Their `getRoot()` returns `null`; paths follow only real parent edges.
+Explicit catalog membership retains a listed vertex even after its sole real parent is deleted.
+`noRoot` is therefore a no-op, while `noSelf` still removes the target vertex.
+An empty catalog finishes without events. The runner's internal graph container
+retains the synthetic vertex for scheduling.
+
+Enabled eager/synthetic options require a fresh graph-source runner. Explicit
+`discovery: 'lazy'` and `syntheticRoot: false` remain compatible with tree sources.
+Eager mode rejects child-hint rewrites and subtree-disabling commands after
+validation; data rewrites and vertex deletion retain their existing behavior.
+
+### Deferred DAG progress and reconciliation
+
+Register a sole deterministic `ON_READY` visitor returning `DEFER_READY` to inspect
+candidates without completing their work. Both DAG runners expose `summary()` and
+`settle(id, outcome, expectedGeneration)`. Import the sentinel and `DagSummary`,
+`DagVertexProgress`, `DagWorkState`, `DagSettlementGeneration`, and
+`DagSettlementOutcome` from the package root or DAG subpath.
+
+```ts
+import {
+  DagTraversal,
+  DagTraversalOrder,
+  DEFER_READY,
+  type TreeTypeParameters,
+} from 'configurable-tree-traversal';
+
+type Graph = TreeTypeParameters<string, string>;
+const prerequisites: Record<string, string[]> = {
+  a: [],
+  b: ['a'],
+  c: ['a'],
+  d: ['b', 'c'],
+};
+// In-memory stand-in for accepted completion facts loaded from host storage.
+const acceptedCompletedWork = new Set(['a']);
+const traversal = new DagTraversal<Graph>({
+  completedWork: acceptedCompletedWork,
+  discovery: 'eager',
+  syntheticRoot: true,
+  traversableGraph: {
+    makeRoot: () => ({
+      vertexContent: { $d: '', $c: Object.keys(prerequisites) },
+    }),
+    makeVertex: (id) => ({
+      vertexId: id,
+      dependsOn: prerequisites[id]!,
+      vertexContent: { $d: id, $c: [] },
+    }),
+  },
+});
+traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => DEFER_READY);
+const runner = traversal.makeRunner().run(); // HALTED, waiting for the host
+const snapshot = runner.summary();
+console.log(snapshot.readyIds); // ['b', 'c']
+const generation = snapshot.vertices.get('b')!.generation!;
+
+// A real host validates and durably accepts its result before settlement.
+acceptedCompletedWork.add('b');
+runner.settle('b', { ok: true }, generation);
+runner.run();
+console.log(runner.summary().readyIds); // ['c']; d still waits for c
+```
+
+`DEFER_READY` ends the initial visitor chain, discards its uncommitted buffered
+commands, and skips remaining visitors. It emits no event or dependency success
+and holds no physical callback permit. Already committed changes and external
+visitor effects cannot be undone. The sentinel is rejected in completion and
+tree traversal callbacks. Deferred vertices may expand their own hints in lazy
+mode; use eager discovery and a complete synthetic-root catalog for a global
+frontier, including descendants of deferred parents.
+
+`summary()` invokes no callbacks or resolvers and does not advance scheduling.
+Its detached map, entries and arrays have readonly TypeScript types and retain
+original ID identity without freezing caller objects. It reports discovery mode/completeness, per-vertex work
+state and unmet prerequisites, and counts/IDs for ready, deferred, in-flight,
+work-completed and subtree-completed vertices. Deferred vertices are included in
+`readyIds`; active visitor chains are excluded from readiness and included in
+`inFlightIds`, including active completion chains. These are runner callbacks,
+not external host attempts. `unusedCompletedWorkIds` exposes unrecognized seeds;
+`diagnostics` describes known invalid graph structure, never deferred blockers
+alone. Before root discovery, completeness is false. Lazy partial snapshots do
+not promise a complete global frontier. Synthetic bookkeeping is absent.
+
+A generation is local to a deferred vertex in one retained runner. Accepted
+success commits work and publishes its configured initial event once without
+replaying visitors. Identical reports return `false`, including after completion;
+unknown, deleted, wrong-generation, cross-runner and conflicting reports throw.
+Accepted failure (`{ ok: false, error }`) fails the runner; execution rethrows the
+exact error, including `null` or `undefined`. Failure replay equality uses
+`Object.is`. Halting is resumable and retains generation validity. Settlement
+wakes an active async consumer; after an idle settlement, call `run()` again.
+
+### Host policy and traversal feedback
+
+`{ ok: true }` means the host accepts this vertex's work as complete for traversal
+and allows its dependents to proceed. It does not classify the business result as
+positive. A rejected proposal, negative decision, or other accepted business
+outcome can still complete a vertex when the host's policy says its work is done.
+`{ ok: false, error }` instead aborts traversal with a fatal error; it is not a
+per-vertex business failure state or a request to retry. A host retaining work
+for another attempt keeps it incomplete and manages that attempt itself.
+The progress state named `succeeded` records traversal work completion only.
+
+CTT treats `$d` as opaque caller data. The host can associate accepted outcomes,
+artifact references, or other facts with IDs or vertex data; CTT does not infer
+business dependencies or ranking from those facts. The host ranks a copy of
+`summary().readyIds` and applies its own capacity, claims, and admission policy.
+CTT keeps its default FIFO scheduling; visitor `priority` orders callbacks within
+a visit and does not prioritize graph work. Resolver-result `priority` metadata
+is unsupported, as described above.
+
+On a new reconciliation tick or restart, build a fresh runner from the host's
+accepted `completedWork` facts. Never persist generation symbols. Discard a
+runner when its graph revision changes. The host owns business outcomes,
+artifacts, attempts, retries, claims, capacity, and all persistence, including
+durable running/failure state. It overlays those facts on graph readiness before
+admitting work. Runners remain in-memory continuations. See the runnable
+[reconciliation example](examples/dag-reconciliation-example.ts).
+
 ## Visitors and commands
 
 Visitors receive `(vertex, options)` and may return `{ commands: [...] }`. Commands apply to the resolved tree; they do not mutate the original input object.
@@ -342,101 +493,3 @@ The packed consumer check runs CommonJS, ESM, and strict TypeScript imports from
 Retries, durable checkpoints, callback cancellation, fetching undiscovered prerequisites by id, and dependencies on subtree completion are outside this release. User vertex data is not frozen. Discovery cycles are rejected; dependency cycles or missing dependencies fail as a scheduling stall.
 
 MIT licensed.
-
-DAG graph sources accept `completedWork?: ReadonlySet<VertexId>` in both synchronous
-and asynchronous traversal configuration. Each runner copies the set when created.
-A listed vertex skips its initial `ON_READY` visitors and event, but its children
-are still discovered and its `ON_COMPLETE` visit waits for their completion.
-Omitted vertices count as recognized IDs; an ID never discovered causes a
-`TypeError`. This option requires a fresh graph runner and cannot be combined
-with a tree source or injected continuation state/container.
-
-Set `discovery: 'eager'` to resolve every reachable hint before the first visitor,
-including descendants of vertices whose work dependencies are still blocked.
-The runner then validates the original declared dependencies for missing IDs and
-cycles, even when `completedWork` has already satisfied those dependencies.
-Unknown seed IDs also fail before visitors in eager mode. Seeded lazy runners
-validate original dependencies when discovery closes; ordinary lazy traversal
-remains the default. Eager discovery honors explicit root `dependsOn` entries.
-`priority` and `dependsOnComplete` result metadata are not supported and reject
-explicitly.
-
-Set `syntheticRoot: true` when `makeRoot()` returns a catalog holder whose child
-hints describe multiple graph sources. Its supplied ID is ignored in favor of a
-private identity, and its children have no implicit dependency on it. Every
-catalog entry needs an explicit ID from the hint identity callback or the vertex
-result. Repeating an ID within the catalog is an error; shared descendants under
-real vertices remain valid. Combine this option with eager discovery to validate
-a complete catalog, including disconnected components, before work begins. The
-adapter is responsible for listing its entire domain.
-
-Synthetic roots produce no visitor calls or events. `getResolvedGraph()`, visitor
-and resolver graph views, and saved snapshots omit the synthetic vertex and its
-edges. Their `getRoot()` returns `null`; paths follow only real parent edges.
-Explicit catalog membership retains a listed vertex even after its sole real parent is deleted.
-`noRoot` is therefore a no-op, while `noSelf` still removes the target vertex.
-An empty catalog finishes without events. The runner's internal graph container
-retains the synthetic vertex for scheduling.
-
-Enabled eager/synthetic options require a fresh graph-source runner. Explicit
-`discovery: 'lazy'` and `syntheticRoot: false` remain compatible with tree sources.
-Eager mode rejects child-hint rewrites and subtree-disabling commands after
-validation; data rewrites and vertex deletion retain their existing behavior.
-
-### Deferred DAG progress and reconciliation
-
-Register a sole deterministic `ON_READY` visitor returning `DEFER_READY` to inspect
-candidates without completing their work. Both DAG runners expose `summary()` and
-`settle(id, outcome, expectedGeneration)`. Import the sentinel and `DagSummary`,
-`DagVertexProgress`, `DagWorkState`, `DagSettlementGeneration`, and
-`DagSettlementOutcome` from the package root or DAG subpath.
-
-```ts
-traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => DEFER_READY);
-const runner = traversal.makeRunner();
-await runner.run(); // HALTED once discovery and callbacks reach host-wait quiescence
-const snapshot = runner.summary();
-// With design seeded as completed, backend and frontend are both ready.
-const generation = snapshot.vertices.get('backend')!.generation!;
-
-// The host executes/claims work and durably accepts the guarded result first.
-await host.acceptSuccessfulAttempt('backend');
-runner.settle('backend', { ok: true }, generation);
-await runner.run(); // frontend remains ready; verification still waits
-```
-
-`DEFER_READY` ends the initial visitor chain, discards its uncommitted buffered
-commands, and skips remaining visitors. It emits no event or dependency success
-and holds no physical callback permit. Already committed changes and external
-visitor effects cannot be undone. The sentinel is rejected in completion and
-tree traversal callbacks. Deferred vertices may expand their own hints in lazy
-mode; use eager discovery and a complete synthetic-root catalog for a global
-frontier, including descendants of deferred parents.
-
-`summary()` invokes no callbacks or resolvers and does not advance scheduling.
-Its detached readonly map, entries and arrays retain original ID identity without
-freezing caller objects. It reports discovery mode/completeness, per-vertex work
-state and unmet prerequisites, and counts/IDs for ready, deferred, in-flight,
-work-completed and subtree-completed vertices. Deferred vertices are included in
-`readyIds`; active visitor chains are excluded from readiness and included in
-`inFlightIds`, including active completion chains. These are runner callbacks,
-not external host attempts. `unusedCompletedWorkIds` exposes unrecognized seeds;
-`diagnostics` describes known invalid graph structure, never deferred blockers
-alone. Before root discovery, completeness is false. Lazy partial snapshots do
-not promise a complete global frontier. Synthetic bookkeeping is absent.
-
-A generation is local to a deferred vertex in one retained runner. Accepted
-success commits work and publishes its configured initial event once without
-replaying visitors. Identical reports return `false`, including after completion;
-unknown, deleted, wrong-generation, cross-runner and conflicting reports throw.
-Accepted failure (`{ ok: false, error }`) fails the runner; execution rethrows the
-exact error, including `null` or `undefined`. Failure replay equality uses
-`Object.is`. Halting is resumable and retains generation validity. Settlement
-wakes an active async consumer; after an idle settlement, call `run()` again.
-
-On a new reconciliation tick or restart, build a fresh runner from the host's
-accepted `completedWork` facts. Never persist generation symbols. Discard a
-runner when its graph revision changes. The host owns claims, capacity, retry
-schedules and durable running/failure state; it overlays those facts on graph
-readiness before admitting work. See the runnable
-[reconciliation example](examples/dag-reconciliation-example.ts).
