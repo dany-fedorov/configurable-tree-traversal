@@ -478,17 +478,20 @@ Corrected behavior includes independent iteration, reliable halt/resume, termina
 
 ```sh
 npm ci
-npm run check         # types, lint, coverage, examples, build, packed consumers
+npm run check         # types, lint, coverage, examples, build, packed consumers, benchmark checks
 npm test -- tests/traversal-combinations.test.ts
 npm run test:coverage
 npm run build-watch
 npm run benchmark -- 50000
+npm run benchmark:dag -- --vertices 1000 --samples 3 --summary-iterations 10
 npm run tsfile -- examples/tree-from-image-example.ts
 ```
 
 The tests cover deterministic generated trees and DAGs, mutations, dependencies, async races, pause/resume, failures, snapshots, original-tree isolation, object reconstruction, deep chains, and wide trees. `npm run check` requires 100% statements, branches, functions, and lines across all source files and executes every example. See [the testing guide](docs/testing.md) for the test layout and regression workflow.
 
 The packed consumer check runs CommonJS, ESM, and strict TypeScript imports from a temporary extracted tarball, using installed runtime dependencies. It checks both classic Node and Node16 TypeScript resolution, public subpaths, and historical deep imports. It uses `tar` and runs in CI on Linux. CI checks Node 22 and 24. No package is published by the verification commands. The benchmark compares deep and wide trees with both traversal strategies; timings depend on the machine and are not performance guarantees.
+
+The DAG inspector benchmark emits JSON with the loaded artifact/version, machine details, raw samples, and warmup-excluded medians/ranges. It covers five dependency shapes with empty and prerequisite-closed prefix seeds, full eager discovery, deferral admission, and repeated summaries. For registry-package reproduction, exact timing boundaries, and the limited independent Kahn baseline, see [the DAG baseline](docs/performance/2026-10-22-dag-baseline.md). Run `npm run build && npm run test:benchmark` for focused fixture, frontier, purity, and CLI checks.
 
 Retries, durable checkpoints, callback cancellation, fetching undiscovered prerequisites by id, and dependencies on subtree completion are outside this release. User vertex data is not frozen. Discovery cycles are rejected; dependency cycles or missing dependencies fail as a scheduling stall.
 

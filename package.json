@@ -13,13 +13,15 @@
     "prepack": "npm run build",
     "verify-package": "npm run build && node scripts/verify-package.cjs",
     "verify-examples": "node scripts/verify-examples.cjs",
-    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run verify-examples && npm run verify-package",
+    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run verify-examples && npm run verify-package && npm run test:benchmark",
     "prepare-me": "npm run build",
     "prepublish-me": "npm run check",
     "publish-me": "npm run check && npm publish --access public",
     "build-watch": "node scripts/watch.cjs",
     "tsfile": "ts-node -r tsconfig-paths/register",
-    "benchmark": "npm run build && node scripts/benchmark.cjs"
+    "benchmark": "npm run build && node scripts/benchmark.cjs",
+    "benchmark:dag": "npm run build && node scripts/benchmark-dag.cjs",
+    "test:benchmark": "node --test scripts/benchmark-dag.test.cjs"
   },
   "repository": {
     "type": "git",
