@@ -16,7 +16,7 @@ Nine new regressions cover detached narrow/public reads, unchanged prior snapsho
 
 ## Artifacts and commands
 
-[Complete artifact provenance](2026-10-22-dag-optimization-artifacts.json) lists every built file and SHA-256. The tree hash is SHA-256 of sorted UTF-8 lines `file-sha256`, two spaces, relative POSIX path, newline. Both builds have 246 files. The unchanged index.js hash is `64ebb18eaf4d8c87a159f625dbc2dd52cb21205c3abf3ea941b0e51afcb4a8dd`; that entry hash alone cannot distinguish these builds.
+[Complete artifact provenance](2026-10-22-dag-optimization-artifacts.json) lists every built file and SHA-256. The tree hash is SHA-256 of UTF-8 records concatenated in the exact order of each artifact's `files[]` array: `file-sha256`, two spaces, relative POSIX path, LF. Records are not sorted again. Both builds have 246 files. The unchanged index.js hash is `64ebb18eaf4d8c87a159f625dbc2dd52cb21205c3abf3ea941b0e51afcb4a8dd`; that entry hash alone cannot distinguish these builds.
 
 - Before tree: `7c096fc336e50212f93354689d7fbe1d760318787dd3799cfcfac8c0cf86f4c9`, loaded from `/tmp/ctt-next-evidence/task-1-before/dist`.
 - After tree: `1e938bb8f60f98e64aa0b7b16f5d81bb4065ffaba2021a5429c84a78146bfaa4`, loaded from `/home/df/.codex/worktrees/e0c2/configurable-tree-traversal/dist`.

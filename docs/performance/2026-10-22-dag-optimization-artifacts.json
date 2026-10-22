@@ -8,7 +8,7 @@
     "src/core/graph/types.ts",
     "src/core/scheduling/GraphScheduling.ts"
   ],
-  "artifactHashDefinition": "SHA-256 of sorted UTF-8 lines: <file SHA-256>  <relative POSIX path>\\n; includes all files under dist",
+  "artifactHashDefinition": "SHA-256 of UTF-8 records concatenated in each artifact's files[] array order: <file SHA-256>, two spaces, <relative POSIX path>, LF; includes all files under dist; no further sorting",
   "before": {
     "directory": "/tmp/ctt-next-evidence/task-1-before/dist",
     "fileCount": 246,
