@@ -182,3 +182,113 @@ test('deep and wide deletion cascades use iterative worklists', () => {
   expect(scheduling.deleteVertex(wideRoot).size).toBe(width + 1);
   expect(container.resolvedGraph.getVertexRefs()).toEqual([rootRef]);
 });
+
+test('detached anchors retain ownership after later discovery', () => {
+  const { container, scheduling, rootRef } = setup(['parent']);
+  const anchor = scheduling.acceptPrerequisite(
+    'anchor',
+    result('anchor', ['child']),
+  )!;
+  const parent = scheduling.acceptVertex(
+    context(rootRef, 0),
+    result('parent', ['anchor']),
+  )!;
+  scheduling.prepareSlots(parent, ['anchor']);
+  scheduling.acceptVertex(context(parent, 0), result('anchor'));
+  scheduling.prepareSlots(anchor, ['child']);
+  const child = scheduling.acceptVertex(context(anchor, 0), result('child'))!;
+  scheduling.deleteVertex(parent);
+  expect(container.resolvedGraph.has(anchor)).toBe(true);
+  expect(container.resolvedGraph.getParentsOf(anchor)).toEqual([]);
+  expect(container.resolvedGraph.has(child)).toBe(true);
+  expect(scheduling.deleteVertex(anchor)).toEqual(new Set([anchor, child]));
+  expect(container.isDetachedAnchor(anchor)).toBe(false);
+});
+
+test('deleting the original root includes detached anchors and their normal children', () => {
+  const { container, scheduling, rootRef } = setup([]);
+  const anchor = scheduling.acceptPrerequisite(
+    'anchor',
+    result('anchor', ['child']),
+  )!;
+  scheduling.prepareSlots(anchor, ['child']);
+  const child = scheduling.acceptVertex(context(anchor, 0), result('child'))!;
+  expect(scheduling.deleteVertex(rootRef)).toEqual(
+    new Set([rootRef, anchor, child]),
+  );
+  expect(container.resolvedGraph.getVertexRefs()).toEqual([]);
+  expect(scheduling.acceptPrerequisite('anchor', result('anchor'))).toBeNull();
+  expect(container.isDetachedAnchor(anchor)).toBe(false);
+});
+
+test('lookup acceptance honors live identity, omissions, and deleted prerequisite cascades', () => {
+  const { container, scheduling, rootRef } = setup(['deleted', 'dependent']);
+  const deleted = scheduling.acceptVertex(
+    context(rootRef, 0),
+    result('deleted'),
+  )!;
+  const dependent = scheduling.acceptVertex(
+    context(rootRef, 1),
+    result('dependent', [], ['lookup']),
+  )!;
+  scheduling.deleteVertex(deleted);
+  expect(
+    scheduling.acceptPrerequisite('lookup', result('lookup', [], ['deleted'])),
+  ).toBeNull();
+  expect(container.resolvedGraph.has(dependent)).toBe(false);
+  expect(container.store.getIdState('lookup')).toEqual({ kind: 'deleted' });
+  expect(
+    scheduling.acceptPrerequisite('root', result('root', ['ignored'])),
+  ).toBe(rootRef);
+  expect(
+    scheduling.acceptPrerequisite('omitted', { vertexContent: null }),
+  ).toBeNull();
+  expect(
+    scheduling.acceptPrerequisite('omitted', { vertexContent: null }),
+  ).toBeNull();
+  expect(() =>
+    scheduling.acceptPrerequisite('omitted', result('omitted')),
+  ).toThrow('Vertex omission conflicts with supplied content');
+});
+
+test('a quiescent scheduler restored from the container keeps detached anchor ownership', () => {
+  const { container, scheduling, rootRef } = setup(['parent']);
+  const anchor = scheduling.acceptPrerequisite('anchor', result('anchor'))!;
+  const parent = scheduling.acceptVertex(
+    context(rootRef, 0),
+    result('parent', ['anchor']),
+  )!;
+  scheduling.prepareSlots(parent, ['anchor']);
+  scheduling.acceptVertex(context(parent, 0), result('anchor'));
+  scheduling.markPreVisited(parent);
+  scheduling.closeExpansion(parent);
+  scheduling.closeExpansion(rootRef);
+  const restored = new GraphScheduling(container);
+  restored.restoreDagSeed([{ ref: anchor, order: 'ON_READY' }]);
+  expect(restored.deleteVertex(parent)).toEqual(new Set([parent]));
+  expect(container.resolvedGraph.has(anchor)).toBe(true);
+  expect(container.resolvedGraph.getParentsOf(anchor)).toEqual([]);
+  expect(restored.takeRemovedRefs()).toEqual(new Set([parent]));
+  expect(restored.takeRemovedRefs()).toEqual(new Set());
+});
+
+test('a dependency cascade reaching the ordinary root also removes independent anchors', () => {
+  const container = new ResolvedGraphsContainer<TestGraph>({
+    sourceMode: 'graph',
+    saveOriginal: false,
+  });
+  const scheduling = new GraphScheduling(container, undefined, false, true);
+  const root = scheduling.acceptRoot(result('root', [], ['prerequisite']))!;
+  const prerequisite = scheduling.acceptPrerequisite(
+    'prerequisite',
+    result('prerequisite'),
+  )!;
+  const independent = scheduling.acceptPrerequisite(
+    'independent',
+    result('independent'),
+  )!;
+  expect(scheduling.deleteVertex(prerequisite)).toEqual(
+    new Set([prerequisite, root, independent]),
+  );
+  expect(container.resolvedGraph.getVertexRefs()).toEqual([]);
+});

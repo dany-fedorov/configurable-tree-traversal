@@ -112,6 +112,17 @@ try {
     assert.deepEqual(completionRunner.summary().vertices.get('join').unmetCompletePrerequisiteIds, []);
     assert.deepEqual(completionRunner.getResolvedGraph().get(completionRunner.getResolvedGraph().getVertexById('join')).dependsOnComplete, ['bundle']);
 
+    const lookupCalls = [];
+    const lookupRunner = new dag.DagTraversal({ traversableGraph: {
+      makeRoot: () => ({ vertexId: 'app', dependsOnComplete: ['parser'], vertexContent: { $d: 'app', $c: [] } }),
+      makeVertex: () => ({ vertexContent: null }),
+      resolvePrerequisite: id => { lookupCalls.push(id); return { dependsOn: id === 'parser' ? ['lexer'] : [], vertexContent: { $d: id, $c: [] } }; },
+    } }).makeRunner().run();
+    assert.deepEqual(lookupCalls, ['parser', 'lexer']);
+    const parser = lookupRunner.getResolvedGraph().getVertexById('parser');
+    assert.deepEqual(lookupRunner.getResolvedGraph().getParentsOf(parser), []);
+    assert.equal(lookupRunner.summary().counts.subtreeCompleted, 3);
+
     const tree = new lib.TraversableObjectTree({ a: { b: 1 }, c: 2 });
     const depthVisits = [...new lib.DepthFirstTraversal({ traversableTree: tree }).makeRunner().getIterable({
       iterateOver: [lib.DepthFirstTraversalOrder.POST_ORDER],
@@ -159,6 +170,16 @@ try {
     deferredRunner.settle('task', { ok: true }, deferredRunner.summary().vertices.get('task').generation);
     await deferredRunner.run();
     assert.equal(deferredRunner.getStatus(), 'FINISHED');
+
+    const lookupEvents = [];
+    const lookupTraversal = new AsyncDagTraversal({ traversableGraph: {
+      makeRoot: () => ({ vertexId: 'app', dependsOn: ['parser'], vertexContent: { $d: 'app', $c: [] } }),
+      makeVertex: () => ({ vertexContent: null }),
+      resolvePrerequisite: async id => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
+    } });
+    lookupTraversal.addVisitorFor(DagTraversalOrder.ON_READY, v => { lookupEvents.push(v.getData()); });
+    await lookupTraversal.makeRunner().run();
+    assert.deepEqual(lookupEvents, ['parser', 'app']);
 
     const completionEvents = [];
     const completionTraversal = new AsyncDagTraversal({ discovery: 'eager', traversableGraph: {
@@ -252,8 +273,9 @@ try {
       makeRoot: () => ({ vertexId: 'root', dependsOnComplete: [] as readonly VertexId[], vertexContent: abstractRoot }),
       makeVertex: hint => ({ vertexId: hint, vertexContent: hint }),
       getVertexIdFromHint: hint => ({ vertexId: hint }),
+      resolvePrerequisite: id => id === undefined ? undefined : { vertexId: id, vertexContent: abstractRoot },
     };
-    const asyncGraph: AsyncTraversableGraph<Tree> = graph;
+    const asyncGraph: AsyncTraversableGraph<Tree> = { ...graph, resolvePrerequisite: id => Promise.resolve(graph.resolvePrerequisite!(id)) };
     const dagConfig: DagTraversalRunnerIterableConfigInput = { iterateOver: [DagTraversalOrder.ON_READY] };
     const dag = new DagTraversal({ traversableGraph: graph }).makeRunner();
     const resolvedGraph: ResolvedGraph<Tree> = dag.run(dagConfig).getResolvedGraph();

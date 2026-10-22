@@ -38,6 +38,7 @@ export type KernelOptions<
   inOrderConfig: DepthFirstTraversalInOrderTraversalConfig | null;
   hasSorter: boolean;
   hasHintIds: boolean;
+  hasPrerequisiteResolver?: boolean;
   concurrency: number;
   discovery?: 'lazy' | 'eager';
   completedWork?: ReadonlySet<VertexId>;

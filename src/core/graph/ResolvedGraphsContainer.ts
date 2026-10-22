@@ -49,6 +49,7 @@ export class ResolvedGraphsContainer<
     T,
     R
   > | null;
+  private readonly detachedAnchors = new Set<Ref<T | R>>();
   private readonly snapshot: StructuralGraphSnapshot<T, R> | null;
 
   constructor(options: ResolvedGraphsContainerOptions<T, R>) {
@@ -125,6 +126,28 @@ export class ResolvedGraphsContainer<
     this.commitSnapshotVertex(staged);
   }
 
+  acceptDetachedVertex(
+    ref: Ref<T | R>,
+    id: VertexId,
+    dependsOn: readonly VertexId[],
+    dependsOnComplete: readonly VertexId[],
+  ): void {
+    const staged = this.snapshot?.stageVertex(ref, id) ?? null;
+    this.store.insertVertex({
+      ref,
+      id,
+      dependsOn,
+      dependsOnComplete,
+      depth: this.syntheticRoot ? 1 : 0,
+    });
+    this.commitSnapshotVertex(staged);
+    this.detachedAnchors.add(ref);
+  }
+
+  isDetachedAnchor(ref: Ref<T | R>): boolean {
+    return this.detachedAnchors.has(ref);
+  }
+
   acceptEdge(
     parent: Ref<T | R>,
     index: number,
@@ -170,6 +193,7 @@ export class ResolvedGraphsContainer<
 
   deleteVertices(refs: ReadonlySet<Ref<T | R>>): void {
     if (this.treeContainer === null) {
+      for (const ref of refs) this.detachedAnchors.delete(ref);
       this.store.removeVertices(refs);
       return;
     }

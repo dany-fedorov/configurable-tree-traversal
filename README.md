@@ -238,13 +238,13 @@ remains the default. Eager discovery honors explicit root `dependsOn` entries.
 `priority` result metadata rejects with `TypeError('priority metadata is not supported')`.
 
 For compatibility, an ordinary lazy root without `completedWork` ignores its
-`dependsOn` declaration unless its result supplies a non-undefined
-`dependsOnComplete` value. Use `dependsOnComplete: []` to opt in to root W
-dependencies; absent or `undefined` retains the legacy behavior. Explicit root
+`dependsOn` declaration unless the source has `resolvePrerequisite` or its result
+supplies a non-undefined `dependsOnComplete` value. Use `dependsOnComplete: []` to opt in to root W
+dependencies without a resolver; absent or `undefined` retains the legacy behavior. Explicit root
 completion prerequisites always apply. Synthetic root metadata is ignored.
 
-A completion prerequisite does not fetch its target: it must be discovered or
-deliberately omitted. Omission satisfies W and C; deletion cascades through both
+Without `resolvePrerequisite`, a prerequisite must be discovered or deliberately
+omitted. Omission satisfies W and C; deletion cascades through both
 kinds of dependent. Completed-work seeds satisfy only W, so a seeded composite
 still completes its children and completion callback before releasing C gates.
 Original W/C declarations are validated even when W was seeded. Lazy discovery
@@ -256,6 +256,46 @@ Vertices with a nonempty completion declaration also expose
 `unmetCompletePrerequisiteIds`, which becomes `[]` when satisfied. Graph vertices
 expose a copied `dependsOnComplete` only when its normalized list is nonempty.
 See the runnable [build-join example](examples/dag-completion-dependencies-example.ts).
+
+Graph sources may define `resolvePrerequisite(id)` to find an unknown ID declared
+in either prerequisite list. It returns a vertex result (or a promise-like result
+for `AsyncDagTraversal`), with exactly the ID as its argument and no fabricated
+parent context. A result without its own `vertexId` inherits the requested ID;
+an explicit ID must match using SameValueZero identity. `undefined` means not
+found and eventually produces the existing typed missing-prerequisite stall.
+`{ vertexContent: null }` deliberately omits the ID and satisfies both W and C.
+Thrown/rejected values pass through unchanged. First-accepted identity wins when
+lookup and ordinary discovery race: a live vertex retains its original content
+and declarations, including when a later result is null. If omission was
+accepted first, later content rejects with the existing omission/content error.
+
+Lookup prefers available ordinary discovery. Eager traversal alternates natural
+discovery and lookup until both reach closure, then validates before visitors.
+Lazy traversal looks up unknown declarations when available work/discovery has
+been consumed; it preserves lazy expansion for known blocked vertices. Found
+vertices can declare further prerequisites. Shared W/C demand coalesces to one
+outstanding callback per ID. Not-found answers are cached for that runner;
+later ordinary discovery can still supply the vertex. Unused `completedWork`
+IDs are never fetched. All callbacks share the configured concurrency limit.
+
+A found prerequisite is a real detached component: no invented discovery edge,
+parent, or child slot, and public depth zero even with a synthetic root. It has
+an independent anchor that survives removal of a later discovery parent. Its
+normal children follow ordinary pruning; explicitly deleting the anchor or the
+ordinary traversal root still deletes it. The runner finishes only after all
+retained components finish. Structural graph snapshots include these components
+without adding dependency edges, so callers displaying a graph should enumerate
+`getVertexRefs()` instead of assuming everything is reachable from `getRoot()`.
+
+Deleting all consumers invalidates a queued lookup and ignores an already-started
+outcome. Accepted anchors remain retained even when their consumers finish or
+are deleted. Halting starts no new lookups; outcomes received while halted are
+stored and applied on resume. Summaries and inspection do not invoke callbacks
+or consume outcomes, and discovery remains partial while lookup is pending.
+A live runner owns pending lookup handles; they cannot be transferred through
+the data-only continuation seed. A new runner may repeat lookups. Durable lookup
+caches and persistence of handles remain the caller's responsibility.
+See the executable [module-registry lookup example](examples/dag-prerequisite-resolution-example.ts).
 
 Set `syntheticRoot: true` when `makeRoot()` returns a catalog holder whose child
 hints describe multiple graph sources. Its supplied ID is ignored in favor of a
@@ -515,6 +555,6 @@ The DAG inspector benchmark emits JSON with the loaded artifact/version, machine
 
 The lifecycle benchmark measures sync/async and eager/lazy runners separately, including bounded settlement batches, resumed runs, reconstruction from the same accepted completion facts, and summaries. Its async visitor awaits a resolved Promise, measuring callback scheduling overhead. JSON records exact settlement counts, partial lazy discovery, artifact tree hashes, raw ticks, and timing boundaries. Counts are bounded positive integers; `--library-path` selects a package directory or entry. See [the lifecycle measurements](docs/performance/2026-10-22-dag-lifecycle.md) for results and limitations. Both benchmark correctness suites run after the build in `npm run check`.
 
-Retries, durable checkpoints, callback cancellation, fetching undiscovered prerequisites by id, and dependencies on subtree completion are outside this release. User vertex data is not frozen. Discovery cycles are rejected; dependency cycles or missing dependencies fail as a scheduling stall.
+Retries, durable checkpoints, and callback cancellation are outside this release. User vertex data is not frozen. Discovery cycles are rejected; dependency cycles or missing dependencies fail as a scheduling stall.
 
 MIT licensed.

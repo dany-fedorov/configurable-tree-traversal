@@ -23,6 +23,7 @@ import type {
 import type { Ref } from '@core/graph/types';
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { ChainState, FrameState, KernelOptions } from '@core/kernelTypes';
+import { PrerequisiteResolution } from '@core/scheduling/PrerequisiteResolution';
 import { GraphScheduling } from '@core/scheduling/GraphScheduling';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { VisitorChain } from '@core/visitors/VisitorChain';
@@ -44,6 +45,7 @@ type PendingRequest<
 > = {
   call: CallSpec<T, R>;
   submitted: boolean;
+  invoked?: boolean;
   storedReply?: CallbackReply<T, R>;
 };
 
@@ -90,6 +92,7 @@ export class TraversalKernel<
   R extends TreeTypeParameters = T,
 > implements KernelPort<T, R>
 {
+  private readonly prerequisites: PrerequisiteResolution | null;
   private readonly scheduling: GraphScheduling<T, R>;
   private readonly rootOwner: OwnerToken = { kind: 'root', id: 1, epoch: 0 };
   private readonly ownerEpochs = new Map<string, number>([['root:1', 0]]);
@@ -135,7 +138,12 @@ export class TraversalKernel<
       options.container,
       options.completedWork,
       options.discovery === 'eager',
+      options.hasPrerequisiteResolver,
     );
+    this.prerequisites =
+      options.hasPrerequisiteResolver === true
+        ? new PrerequisiteResolution()
+        : null;
     this.orders = this.selectPolicy(options.kind);
     this.depthFirstPolicy =
       options.kind === 'depth-first'
@@ -226,6 +234,7 @@ export class TraversalKernel<
 
   poll(mode: PumpMode): KernelAction<T, R> {
     this.processSubmittedOutcomes();
+    this.retireKnownPrerequisiteRequests();
     const pendingBoundary = this.boundaries[0];
     if (pendingBoundary !== undefined) {
       return {
@@ -349,6 +358,25 @@ export class TraversalKernel<
         });
       }
 
+      if (
+        mode === 'drive' &&
+        this.prerequisites !== null &&
+        this.frames.size === 0
+      ) {
+        const next = this.prerequisites.next(
+          this.scheduling.getUnknownPrerequisiteIds(),
+        );
+        if (next !== null) {
+          const owner = this.newOwner('prerequisite');
+          this.prerequisites.start(next.id, owner);
+          return this.issue({
+            kind: 'RESOLVE_PREREQUISITE',
+            vertexId: next.id,
+            owner,
+          });
+        }
+      }
+
       if (this.isFinished()) {
         this.setStatus(TraversalRunnerStatus.FINISHED);
         return { kind: 'FINISHED' };
@@ -467,7 +495,9 @@ export class TraversalKernel<
     const pending = this.pendingRequests.get(requestId);
     if (pending === undefined || pending.submitted) return false;
     if (!this.isOwnerValid(pending.call.owner)) return false;
-    return mode !== 'drain' || pending.call.owner.kind === 'chain';
+    if (mode === 'drain' && pending.call.owner.kind !== 'chain') return false;
+    pending.invoked = true;
+    return true;
   }
 
   isRequestValid(requestId: number): boolean {
@@ -603,7 +633,7 @@ export class TraversalKernel<
         ...(state === 'deferred' ? { generation: deferred!.generation } : {}),
       });
     }
-    const complete = this.rootSettled && this.scheduling.isDiscoveryComplete();
+    const complete = this.rootSettled && this.isDiscoveryComplete();
     const diagnostics = this.scheduling.diagnoseTopology(
       work.map(({ ref }) => ref),
     );
@@ -699,6 +729,7 @@ export class TraversalKernel<
         if (!this.isOwnerValid(pending.call.owner)) continue;
         try {
           this.applyOutcome(pending.call, reply);
+          this.invalidateRemoved(pending.call.owner);
         } catch (error) {
           this.fail(error);
         }
@@ -729,6 +760,7 @@ export class TraversalKernel<
       this.pendingRequests.delete(reply.requestId);
       try {
         this.applyOutcome(pending.call, reply);
+        this.invalidateRemoved(pending.call.owner);
       } catch (error) {
         this.fail(error);
         continue;
@@ -795,6 +827,15 @@ export class TraversalKernel<
           this.scheduling.takeReady();
           this.depthFirstPolicy.push(this.newOwner('frame'), ref, 0);
         }
+        return;
+      }
+      case 'RESOLVE_PREREQUISITE': {
+        const result = reply.outcome.value as
+          | import('@core/TraversableTree').MakeVertexResult<T>
+          | undefined;
+        this.prerequisites!.settle(call.vertexId);
+        if (result !== undefined)
+          this.scheduling.acceptPrerequisite(call.vertexId, result);
         return;
       }
       case 'VISIT': {
@@ -1032,6 +1073,7 @@ export class TraversalKernel<
           break;
         case TraversalVisitorCommandName.DELETE_VERTEX: {
           const removed = this.scheduling.deleteVertex(runtime.state.ref);
+          this.scheduling.takeRemovedRefs();
           deleted = removed.has(runtime.state.ref);
           this.invalidateRefs(removed, runtime.state.owner);
           break;
@@ -1547,7 +1589,14 @@ export class TraversalKernel<
     }
     if (frame.stage === 'resolve') {
       while (frame.nextAdmissionIndex < frame.hints.length) {
-        const index = frame.nextAdmissionIndex++;
+        const index = frame.nextAdmissionIndex;
+        const pendingHint = frame.hintIds.get(index);
+        if (
+          pendingHint !== undefined &&
+          this.prerequisites?.isPending(pendingHint.vertexId)
+        )
+          return null;
+        frame.nextAdmissionIndex += 1;
         const context = {
           depth: this.options.container.store.getDiscoveryDepth(frame.ref) + 1,
           parentVertex: frame.ref.unref(),
@@ -1701,9 +1750,10 @@ export class TraversalKernel<
       !this.discoveryValidated &&
       (this.options.discovery === 'eager' ||
         this.options.completedWork !== undefined ||
-        this.scheduling.usesCompletionDependencies())
+        this.scheduling.usesCompletionDependencies() ||
+        this.prerequisites !== null)
     ) {
-      if (this.rootSettled && this.scheduling.isDiscoveryComplete()) {
+      if (this.rootSettled && this.isDiscoveryComplete()) {
         this.scheduling.validateDiscoveredGraph();
         this.discoveryValidated = true;
       } else if (this.options.discovery === 'eager') {
@@ -1860,6 +1910,31 @@ export class TraversalKernel<
     return { kind: 'CALL', call };
   }
 
+  private retireKnownPrerequisiteRequests(): void {
+    if (this.prerequisites === null) return;
+    for (const { call, invoked } of this.pendingRequests.values()) {
+      if (
+        call.kind === 'RESOLVE_PREREQUISITE' &&
+        !invoked &&
+        this.isOwnerValid(call.owner) &&
+        this.options.container.store.getIdState(call.vertexId) !== undefined
+      ) {
+        this.prerequisites!.settle(call.vertexId);
+        this.invalidateOwner(call.owner);
+      }
+    }
+  }
+
+  private isDiscoveryComplete(): boolean {
+    return (
+      this.scheduling.isDiscoveryComplete() &&
+      (this.prerequisites === null ||
+        this.prerequisites.isComplete(
+          this.scheduling.getUnknownPrerequisiteIds(),
+        ))
+    );
+  }
+
   private isFinished(): boolean {
     if (!this.rootSettled) return false;
     return (
@@ -1898,10 +1973,20 @@ export class TraversalKernel<
     return { kind: 'HALTED' };
   }
 
+  private invalidateRemoved(except: OwnerToken): void {
+    const removed = this.scheduling.takeRemovedRefs();
+    if (removed.size > 0) this.invalidateRefs(removed, except);
+  }
+
   private invalidateRefs(
     refs: ReadonlySet<Ref<T | R>>,
     except: OwnerToken,
   ): void {
+    for (const owner of this.prerequisites?.invalidateUnused((id) =>
+      this.scheduling.hasPrerequisiteDemand(id),
+    ) ?? []) {
+      this.invalidateOwner(owner);
+    }
     for (const [id, frame] of this.frames) {
       if (refs.has(frame.ref)) {
         this.invalidateOwner(frame.owner);
@@ -1932,7 +2017,11 @@ export class TraversalKernel<
     const key = `${owner.kind}:${owner.id}`;
     return (
       this.ownerEpochs.get(key) === owner.epoch &&
-      !this.invalidOwners.has(this.ownerKey(owner))
+      !this.invalidOwners.has(this.ownerKey(owner)) &&
+      (owner.kind !== 'prerequisite' ||
+        this.prerequisites!.isValid(owner, (id) =>
+          this.scheduling.hasPrerequisiteDemand(id),
+        ))
     );
   }
 

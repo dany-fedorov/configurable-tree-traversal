@@ -40,9 +40,20 @@ const graph: TraversableGraph<Input, Output> = {
     return { vertexContent: null, vertexId: hint };
   },
   getVertexIdFromHint: (hint): HintVertexId => ({ vertexId: hint }),
+  resolvePrerequisite: (id) =>
+    typeof id === 'string'
+      ? {
+          vertexId: id,
+          dependsOnComplete: [null],
+          vertexContent: { $d: { input: id }, $c: [] },
+        }
+      : undefined,
 };
 
-const asyncGraph: AsyncTraversableGraph<Input, Output> = graph;
+const asyncGraph: AsyncTraversableGraph<Input, Output> = {
+  ...graph,
+  resolvePrerequisite: (id) => Promise.resolve(graph.resolvePrerequisite!(id)),
+};
 const tree: TraversableTree<Input, Output> = {
   makeRoot: () => ({ vertexContent: { $d: { input: 'root' }, $c: [] } }),
   makeVertex: () => ({ vertexContent: null }),

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add optional graph-source `resolvePrerequisite(id)` through the shared callback transport, with transitive W/C demand, coalesced lookups, runner-local not-found caching, and exact error/ID semantics.
+- Retain resolved prerequisites as detached components with independent anchors, structural snapshots, public depth zero, and safe deletion/halt/resume ownership; eager validation waits for discovery and lookup closure.
+
 - Add graph-source `dependsOnComplete` prerequisites, released only after committed structural completion, with conjunctive work/completion gates and original milestone cycle diagnostics.
 - Preserve completion gates across seeds, continuation, omission, deletion, and async halt/resume; expose optional copied completion metadata and progress fields.
 - Keep legacy lazy-root work dependencies unless a non-undefined completion declaration opts in (including `[]`); tree sources continue ignoring completion metadata. Graph `priority` remains unsupported.

@@ -163,6 +163,7 @@ export class DagTraversalRunner<
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,
       hasSorter: input.sortChildrenHints !== null,
+      hasPrerequisiteResolver: source.resolvePrerequisite !== undefined,
       hasHintIds:
         sourceMode === 'graph' &&
         graphSource!.getVertexIdFromHint !== undefined,

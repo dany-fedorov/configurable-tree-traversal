@@ -9,6 +9,7 @@ import type {
   HintVertexId,
   MaybePromise,
   Ref,
+  VertexId,
   VisitResult,
 } from '@core/graph/types';
 import type { KernelInspection } from '@core/CoreInspection';
@@ -26,7 +27,7 @@ export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 export type PumpMode = 'drive' | 'settle' | 'drain';
 
 export type OwnerToken = {
-  kind: 'root' | 'frame' | 'chain';
+  kind: 'root' | 'frame' | 'chain' | 'prerequisite';
   id: number;
   epoch: number;
 };
@@ -43,6 +44,7 @@ export type CallSpec<
   R extends TreeTypeParameters = T,
 > = { requestId: number; owner: OwnerToken } & (
   | { kind: 'MAKE_ROOT' }
+  | { kind: 'RESOLVE_PREREQUISITE'; vertexId: VertexId }
   | { kind: 'SORT_HINTS'; hints: (T | R)['VertexHint'][] }
   | { kind: 'HINT_ID'; hint: (T | R)['VertexHint']; hintIndex: number }
   | { kind: 'MAKE_VERTEX'; context: VertexResolutionContext<T | R> }
@@ -60,6 +62,7 @@ export type CallbackValues<
   R extends TreeTypeParameters = T,
 > = {
   MAKE_ROOT: MakeVertexResult<T>;
+  RESOLVE_PREREQUISITE: MakeVertexResult<T> | undefined;
   MAKE_VERTEX: MakeVertexResult<T>;
   SORT_HINTS: (T | R)['VertexHint'][];
   HINT_ID: HintVertexId | undefined;
