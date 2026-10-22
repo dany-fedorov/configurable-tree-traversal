@@ -121,7 +121,7 @@ export class ResolvedGraphsContainer<
       parent === this.syntheticRootRef
         ? null
         : this.snapshot?.stageEdge(parent, index, child) ?? null;
-    const oldSlot = this.resolvedGraph.get(parent)?.slots[index];
+    const oldSlot = this.store.getTraversalSlot(parent, index);
     const isAcknowledgment =
       oldSlot?.kind === 'linked' && oldSlot.childRef === child;
     let savedEdge: { parent: VertexResolved<T>; child: Ref<T> } | null = null;

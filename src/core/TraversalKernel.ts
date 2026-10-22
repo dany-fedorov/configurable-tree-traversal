@@ -599,24 +599,25 @@ export class TraversalKernel<
       });
     }
     const complete = this.rootSettled && this.scheduling.isDiscoveryComplete();
-    const diagnostics = this.scheduling.diagnoseStall({
-      dependencies: work.map(({ ref }) => ({
-        id: graph.getIdOf(ref),
-        missing: graph.get(ref)!.dependsOn.slice(),
-      })),
-      incomplete: [],
-    });
+    const diagnostics = this.scheduling.diagnoseTopology(
+      work.map(({ ref }) => ref),
+    );
     // Original edges expose invalid topology even after seeded success; progress
     // fields describe only work still waiting on scheduler prerequisites.
-    diagnostics.dependencies = work
-      .filter(({ initialCommitted, unmet }) => !initialCommitted && unmet.size > 0)
-      .map(({ ref, unmet }) => ({
-        id: graph.getIdOf(ref),
-        unmet: Array.from(unmet),
-      }));
-    diagnostics.dependencyBlockedIds = diagnostics.dependencyBlockedIds.filter(
-      (id) => vertices.get(id)!.work === 'pending',
-    );
+    if (diagnostics !== null) {
+      diagnostics.dependencies = work
+        .filter(
+          ({ initialCommitted, unmet }) => !initialCommitted && unmet.size > 0,
+        )
+        .map(({ ref, unmet }) => ({
+          id: graph.getIdOf(ref),
+          unmet: Array.from(unmet),
+        }));
+      diagnostics.dependencyBlockedIds =
+        diagnostics.dependencyBlockedIds.filter(
+          (id) => vertices.get(id)!.work === 'pending',
+        );
+    }
     return {
       discovery: { mode: this.options.discovery ?? 'lazy', complete },
       counts: {
@@ -636,8 +637,9 @@ export class TraversalKernel<
       completedSubtreeIds,
       unusedCompletedWorkIds: this.scheduling.getUnusedCompletedWorkIds(),
       diagnostics:
-        diagnostics.dependencyCycles.length > 0 ||
-        (complete && diagnostics.unknownPrerequisiteIds.length > 0)
+        diagnostics !== null &&
+        (diagnostics.dependencyCycles.length > 0 ||
+          (complete && diagnostics.unknownPrerequisiteIds.length > 0))
           ? diagnostics
           : null,
     };
@@ -1483,9 +1485,8 @@ export class TraversalKernel<
       while (frame.nextConsumeIndex < frame.hints.length) {
         if (this.hasPendingFor(frame.owner)) return null;
         const index = frame.nextConsumeIndex;
-        const parent = this.options.container.resolvedGraph.get(frame.ref)!;
         const context = {
-          depth: parent.discoveryDepth + 1,
+          depth: this.options.container.store.getDiscoveryDepth(frame.ref) + 1,
           parentVertex: frame.ref.unref(),
           parentVertexRef: frame.ref,
           hintIndex: index,
@@ -1541,9 +1542,8 @@ export class TraversalKernel<
     if (frame.stage === 'resolve') {
       while (frame.nextAdmissionIndex < frame.hints.length) {
         const index = frame.nextAdmissionIndex++;
-        const parent = this.options.container.resolvedGraph.get(frame.ref)!;
         const context = {
-          depth: parent.discoveryDepth + 1,
+          depth: this.options.container.store.getDiscoveryDepth(frame.ref) + 1,
           parentVertex: frame.ref.unref(),
           parentVertexRef: frame.ref,
           hintIndex: index,
@@ -1815,12 +1815,11 @@ export class TraversalKernel<
       return true;
     }
     const owner = this.newOwner('frame');
-    const vertex = this.options.container.resolvedGraph.get(ref)!;
     const hints = ref.unref().getChildrenHints().slice();
     const frame: FrameState<T, R> = {
       owner,
       ref,
-      depth: vertex.discoveryDepth,
+      depth: this.options.container.store.getDiscoveryDepth(ref),
       stage: this.options.hasSorter
         ? 'sort'
         : this.options.hasHintIds
