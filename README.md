@@ -13,7 +13,11 @@ Package: [configurable-tree-traversal on npm](https://www.npmjs.com/package/conf
 npm install configurable-tree-traversal
 ```
 
-The package includes CommonJS JavaScript and TypeScript declarations. Node ESM consumers can use named imports or the default import (`import library from 'configurable-tree-traversal'`).
+The package includes CommonJS JavaScript, native ESM entry facades, and TypeScript declarations. ESM consumers can use named imports or the default import (`import library from 'configurable-tree-traversal'`).
+
+Every ESM entry, including historical deep imports, uses Node-compatible `createRequire` to load the same CommonJS core as `require()`. Classes, functions, namespace objects, and `DEFER_READY` keep their exact identity across both loaders; the default import is the CommonJS module object. Declaration facades share the same canonical types.
+
+This supports Node 22/24 and Bun 1.4.4; it does not promise a standalone browser ESM graph or tree shaking.
 
 ## Traverse an object
 
@@ -550,7 +554,7 @@ npm run tsfile -- examples/tree-from-image-example.ts
 
 The tests cover deterministic generated trees and DAGs, mutations, dependencies, async races, pause/resume, failures, snapshots, original-tree isolation, object reconstruction, deep chains, and wide trees. `npm run check` requires 100% statements, branches, functions, and lines across all source files and executes every example. See [the testing guide](docs/testing.md) for the test layout and regression workflow.
 
-The packed consumer check runs CommonJS, ESM, and strict TypeScript imports from a temporary extracted tarball, using installed runtime dependencies. It checks both classic Node and Node16 TypeScript resolution, public subpaths, and historical deep imports. It uses `tar` and runs in CI on Linux. CI checks Node 22 and 24. No package is published by the verification commands. The benchmark compares deep and wide trees with both traversal strategies; timings depend on the machine and are not performance guarantees.
+The packed consumer check runs CommonJS, native ESM, and strict TypeScript imports from a temporary extracted tarball, using installed runtime dependencies. It checks classic Node and Node16 TypeScript resolution, mixed `.mts`/`.cts` consumers, every emitted deep-import path, native ESM resolution, and cross-loader identity and DAG lifecycle behavior. It uses `tar` and runs in CI on Linux. Node 22 and 24 run the full check; a separate Bun 1.4.4 lane runs the packed consumers and facade/benchmark correctness tests after an npm build. Jest and source coverage remain Node checks. No package is published by the verification commands. The benchmark compares deep and wide trees with both traversal strategies; timings depend on the machine and are not performance guarantees.
 
 The DAG inspector benchmark emits JSON with the loaded artifact/version, machine details, raw samples, and warmup-excluded medians/ranges. It covers five dependency shapes with empty and prerequisite-closed prefix seeds, full eager discovery, deferral admission, and repeated summaries. For registry-package reproduction, exact timing boundaries, and the limited independent Kahn baseline, see [the DAG baseline](docs/performance/2026-10-22-dag-baseline.md). Run `npm run build && npm run test:benchmark` for focused fixture, frontier, purity, and CLI checks.
 

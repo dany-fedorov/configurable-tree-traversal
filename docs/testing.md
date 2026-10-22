@@ -7,7 +7,7 @@ npm ci
 npm run check
 ```
 
-The check type-checks source, examples, and compile-time API assertions; lints TypeScript; runs Jest with coverage; executes every top-level `examples/*.ts` program; builds clean JavaScript and declarations; and tests an extracted npm tarball as a consumer. GitHub Actions runs the same command on Node 22 and 24. Verification does not publish a package.
+The check type-checks source, examples, and compile-time API assertions; lints TypeScript; runs Jest with coverage; executes every top-level `examples/*.ts` program; builds clean JavaScript and declarations; and tests an extracted npm tarball as a consumer. GitHub Actions runs the same command on Node 22 and 24, including facade-generator and benchmark correctness tests. Verification does not publish a package.
 
 ## Test layout
 
@@ -52,7 +52,13 @@ npm run verify-package
 
 Jest writes the HTML coverage report to `coverage/lcov-report/index.html`. The full check requires 100% statements, branches, functions, and lines across `src/**/*.ts`, including compatibility exports and helpers. Source files and branches are not excluded to meet the threshold. New behavior must include tests that exercise its outcomes and error paths; reaching the coverage threshold does not replace reviewing the assertions.
 
-The package check extracts a fresh tarball into a temporary directory outside the source checkout and supplies only installed runtime dependencies. It exercises root and subpath imports, historical `.js` and extensionless deep imports, CommonJS and ESM execution, and strict TypeScript consumers with `node` and `node16` module resolution. It requires the `tar` command. Temporary consumer directories are cleaned up afterward.
+The package check extracts a fresh tarball into a temporary directory outside the source checkout and supplies only installed runtime dependencies. It exercises root and subpath imports and every emitted historical `.js` and extensionless deep import. Import resolution must select native `.mjs` facades while require resolution selects `.js`.
+
+In a single process it checks named/default export parity, exact class/symbol/function/namespace identity, cross-loader `instanceof`, and sync/async DAG deferral, seeds, settlement, completion prerequisites and prerequisite lookup.
+
+Strict `.ts` consumers use `node` and `node16` resolution; real `.cts` and mixed `.mts` consumers use Node16, assign classes and `DEFER_READY` across import/require branches, and reject promise-returning sync callbacks and tree-sentinel misuse. Every `.mjs` and `.d.mts` companion must be packed. ESM declaration facades re-export canonical `.d.ts` types rather than duplicating nominal declarations.
+
+Runtime facades use Node-compatible `createRequire(import.meta.url)` to preserve the entire CommonJS module object, including modules with an own default export. This is a shared CJS core, without a standalone browser ESM or tree-shaking promise. It requires the `tar` command. Temporary consumer directories are cleaned up afterward.
 
 ## Adding a regression
 
@@ -64,3 +70,26 @@ The package check extracts a fresh tarball into a temporary directory outside th
 For traversal changes, cover every affected sync/async and tree/DAG family when the contract is shared. Assert exact synchronous event sequences and dependency constraints for concurrent DAG events, plus resolved topology around pauses, errors, and mutations. For error handling, distinguish exceptions raised inside traversal from exceptions in consumer code. A failed runner must retain and rethrow the original value, including `null` or `undefined`; a consumer loop error must leave traversal resumable.
 
 For package changes, update `scripts/verify-package.cjs` as well as source-level type assertions. Imports that work only inside this checkout are insufficient evidence that the published package is usable.
+
+## Bun and compiler checks
+
+CI pins `oven-sh/setup-bun@v2` to Bun **1.4.4**, installs locked dependencies with `npm ci` on Node 24, and builds with npm. It then runs actual Bun consumers and script correctness tests:
+
+```sh
+bun --version
+npm run build
+bun scripts/verify-package.cjs
+bun test scripts/build-esm.test.cjs scripts/benchmark-dag.test.cjs scripts/benchmark-dag-lifecycle.test.cjs
+```
+
+The verifier launches runtime and compiler subprocesses with `process.execPath`, so invoking it with Bun executes the packed consumers under Bun. `bun test` runs these focused `node:test` scripts; Jest and the 100% source coverage gate remain on Node 22/24. `bun run check` alone is not evidence of Bun execution because nested npm scripts explicitly call Node. No Bun lockfile is used.
+
+Local implementation validation used Node **v24.20.0**, Bun **1.4.4**, locked TypeScript **4.9.5**, and isolated minimum TypeScript **4.7.4**. Run the verifier with the locked compiler by default, or supply an isolated compiler path to test the same packed `.ts`/`.cts`/`.mts` consumers without changing dependencies:
+
+```sh
+node node_modules/typescript/bin/tsc --version
+node /tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typescript/bin/tsc --version
+CTT_TYPESCRIPT_COMPILER=/tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typescript/bin/tsc node scripts/verify-package.cjs
+```
+
+The `/tmp` compiler and checksum-verified Bun binary are local evidence tooling, not repository dependencies. The full Node 22/24 CI checks and the pinned Bun lane are separate required gates.

@@ -9,11 +9,11 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests examples --ext .ts",
     "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
-    "build": "npm run clean && tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json -s ./src",
+    "build": "npm run clean && tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json -s ./src && node scripts/build-esm.cjs",
     "prepack": "npm run build",
     "verify-package": "npm run build && node scripts/verify-package.cjs",
     "verify-examples": "node scripts/verify-examples.cjs",
-    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run verify-examples && npm run verify-package && npm run test:benchmark",
+    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run verify-examples && npm run verify-package && npm run test:benchmark && npm run test:packaging",
     "prepare-me": "npm run build",
     "prepublish-me": "npm run check",
     "publish-me": "npm run check && npm publish --access public",
@@ -22,7 +22,8 @@
     "benchmark": "npm run build && node scripts/benchmark.cjs",
     "benchmark:dag": "npm run build && node scripts/benchmark-dag.cjs",
     "test:benchmark": "node --test scripts/benchmark-dag.test.cjs scripts/benchmark-dag-lifecycle.test.cjs",
-    "benchmark:dag:lifecycle": "npm run build && node scripts/benchmark-dag-lifecycle.cjs"
+    "benchmark:dag:lifecycle": "npm run build && node scripts/benchmark-dag-lifecycle.cjs",
+    "test:packaging": "node --test scripts/build-esm.test.cjs"
   },
   "repository": {
     "type": "git",
@@ -76,40 +77,103 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
       "default": "./dist/index.js"
     },
     "./package.json": "./package.json",
     "./core": {
-      "types": "./dist/core/index.d.ts",
+      "import": {
+        "types": "./dist/core/index.d.mts",
+        "default": "./dist/core/index.mjs"
+      },
+      "require": {
+        "types": "./dist/core/index.d.ts",
+        "default": "./dist/core/index.js"
+      },
       "default": "./dist/core/index.js"
     },
     "./traversals/depth-first-traversal": {
-      "types": "./dist/traversals/depth-first-traversal/index.d.ts",
+      "import": {
+        "types": "./dist/traversals/depth-first-traversal/index.d.mts",
+        "default": "./dist/traversals/depth-first-traversal/index.mjs"
+      },
+      "require": {
+        "types": "./dist/traversals/depth-first-traversal/index.d.ts",
+        "default": "./dist/traversals/depth-first-traversal/index.js"
+      },
       "default": "./dist/traversals/depth-first-traversal/index.js"
     },
     "./traversals/breadth-first-traversal": {
-      "types": "./dist/traversals/breadth-first-traversal/index.d.ts",
+      "import": {
+        "types": "./dist/traversals/breadth-first-traversal/index.d.mts",
+        "default": "./dist/traversals/breadth-first-traversal/index.mjs"
+      },
+      "require": {
+        "types": "./dist/traversals/breadth-first-traversal/index.d.ts",
+        "default": "./dist/traversals/breadth-first-traversal/index.js"
+      },
       "default": "./dist/traversals/breadth-first-traversal/index.js"
     },
     "./traversals/dag-traversal": {
-      "types": "./dist/traversals/dag-traversal/index.d.ts",
+      "import": {
+        "types": "./dist/traversals/dag-traversal/index.d.mts",
+        "default": "./dist/traversals/dag-traversal/index.mjs"
+      },
+      "require": {
+        "types": "./dist/traversals/dag-traversal/index.d.ts",
+        "default": "./dist/traversals/dag-traversal/index.js"
+      },
       "default": "./dist/traversals/dag-traversal/index.js"
     },
     "./traversable-tree-implementations/traversable-object-tree": {
-      "types": "./dist/traversable-tree-implementations/traversable-object-tree/index.d.ts",
+      "import": {
+        "types": "./dist/traversable-tree-implementations/traversable-object-tree/index.d.mts",
+        "default": "./dist/traversable-tree-implementations/traversable-object-tree/index.mjs"
+      },
+      "require": {
+        "types": "./dist/traversable-tree-implementations/traversable-object-tree/index.d.ts",
+        "default": "./dist/traversable-tree-implementations/traversable-object-tree/index.js"
+      },
       "default": "./dist/traversable-tree-implementations/traversable-object-tree/index.js"
     },
     "./tools/rewrite-object": {
-      "types": "./dist/tools/rewrite-object/index.d.ts",
+      "import": {
+        "types": "./dist/tools/rewrite-object/index.d.mts",
+        "default": "./dist/tools/rewrite-object/index.mjs"
+      },
+      "require": {
+        "types": "./dist/tools/rewrite-object/index.d.ts",
+        "default": "./dist/tools/rewrite-object/index.js"
+      },
       "default": "./dist/tools/rewrite-object/index.js"
     },
     "./*.js": {
-      "types": "./dist/*.d.ts",
+      "import": {
+        "types": "./dist/*.d.mts",
+        "default": "./dist/*.mjs"
+      },
+      "require": {
+        "types": "./dist/*.d.ts",
+        "default": "./dist/*.js"
+      },
       "default": "./dist/*.js"
     },
     "./*": {
-      "types": "./dist/*.d.ts",
+      "import": {
+        "types": "./dist/*.d.mts",
+        "default": "./dist/*.mjs"
+      },
+      "require": {
+        "types": "./dist/*.d.ts",
+        "default": "./dist/*.js"
+      },
       "default": "./dist/*.js"
     }
   },
