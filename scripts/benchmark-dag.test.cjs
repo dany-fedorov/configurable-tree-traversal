@@ -123,7 +123,7 @@ test('CLI emits artifact-linked JSON and checks every shape with both seeds', ()
   );
   assert.equal(child.status, 0, child.stderr);
   const result = JSON.parse(child.stdout);
-  assert.equal(result.artifact.version, '0.9.0');
+  assert.equal(result.artifact.version, require('../package.json').version);
   assert.equal(result.policy.warmupsPerCase, 1);
   assert.equal(result.cases.length, 10);
   for (const entry of result.cases) {
