@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 — 2026-10-22
 
-- Add structured DAG stall diagnostics preserving arbitrary vertex ID identity.
-- Add seeded completed work, eager discovery and synthetic catalog roots, plus callback-free progress summaries and guarded settlement of deferred ready work in synchronous and asynchronous DAG runners.
+- Add `DagTraversalStallError` with structured diagnostics preserving arbitrary SameValueZero vertex ID identity.
+- Add graph-source `completedWork` seeds, eager discovery with original dependency validation, and synthetic catalog roots for both DAG runners.
+- Add `DEFER_READY`, callback-free `summary()`, guarded `settle()`, and exported progress/settlement types for synchronous and asynchronous DAG traversal.
+- Document host-owned business outcomes, ranking over `readyIds`, artifacts, retries, and persistence. Vertex data remains opaque; settlement reports traversal completion or a fatal traversal error.
+
+Compatibility limits: lazy discovery and FIFO scheduling remain the defaults. Progress configuration requires a fresh graph-source runner; eager discovery rejects child-hint rewrites and subtree-disabling commands after validation. Lazy summaries can expose only a partial frontier. Settlement generations belong to one retained runner and cannot be persisted or transferred; `{ ok: false, error }` fails that runner with the exact error. Existing tree/DAG exports and dependencies are preserved.
 
 ## 0.8.0 — 2026-10-21
 
