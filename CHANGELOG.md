@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Reduce measured DAG discovery and summary costs through narrow internal graph reads, incremental discovery accounting, and reuse of successful topology validation.
+- Add reproducible sync/async, eager/lazy DAG lifecycle benchmarks for settlement, resume, reconstruction, and callback-free summaries, with artifact provenance and independent correctness checks.
+
 ## 0.9.0 — 2026-10-22
 
 - Add `DagTraversalStallError` with structured diagnostics preserving arbitrary SameValueZero vertex ID identity.

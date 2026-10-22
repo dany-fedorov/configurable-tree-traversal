@@ -35,7 +35,7 @@
 
 ### Task 2: Extend lifecycle benchmark coverage
 
-**Files:** scripts/benchmark-dag-lifecycle.cjs and scripts/benchmark-dag-lifecycle.test.cjs; package.json commands/check integration; README Development; docs/performance/2026-10-22-dag-lifecycle.md and raw JSON.
+**Files:** scripts/benchmark-dag-lifecycle.cjs and scripts/benchmark-dag-lifecycle.test.cjs; package.json commands/check integration; README Development; CHANGELOG.md Unreleased notes; docs/performance/2026-10-22-dag-lifecycle.md and raw JSON.
 
 **Interfaces:** Public sync/async DAG constructors, ON_READY/DEFER_READY, eager/lazy, syntheticRoot, completedWork, summary and settle. Reuse pure fixtures/Kahn helpers from benchmark-dag.cjs where appropriate; never duplicate scheduler logic as production code.
 
@@ -43,6 +43,7 @@
 - [ ] Implement bounded public-API lifecycle measurements. Default100vertices,3samples,10summaries,5ticks,batch64,async concurrency4; CLI maxima vertices10000,samples100,summary iterations10000,ticks100,batch10000,concurrency1000. Track exact settled counts and early completion; rank by deterministic fixture ID order outside timing. Use one excluded warmup. All correctness assertions outside measured regions.
 - [ ] Measure sync/async and eager/lazy separately. Settlement, resumed run, reconstruction and summary metrics must state inclusions/overlap. Async visitor uses a resolved Promise and DEFER_READY; report it as callback scheduling overhead, not external I/O. Keep independent Kahn parity over equivalent facts and explicit partial-discovery labels.
 - [ ] Emit JSON with artifact path/hash/version, environment, exact command, V/E,seeds/ticks/batches/concurrency, callbacks and raw per-case/tick data/statistics. Minimal positive-integer CLI; optional --library-path works with package directory or entry. Keep snapshots bounded rather than retaining all graph states.
+- [ ] Record the discovery/summary optimization and lifecycle tooling in CHANGELOG.md under Unreleased; do not change the package version or claim publication.
 - [ ] Wire npm run benchmark:dag:lifecycle and correctness tests into check after build. Run representative100/1000vertex measurements; record concise findings and limitations. Run frozen full npm run check and diff check; commit with full ignored report. No runtime changes in this task.
 
 **Deliverable:** Broader reproducible performance/correctness evidence, independent of later graph/packaging stages.
