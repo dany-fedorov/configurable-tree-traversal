@@ -99,6 +99,19 @@ try {
     assert.equal(progressRunner.getStatus(), 'FINISHED');
     assert.equal(progressRunner.settle('build', { ok: true }, generation), false);
 
+    const completion = new dag.DagTraversal({ traversableGraph: {
+      makeRoot: () => ({ vertexId: 'root', vertexContent: { $d: 'root', $c: ['join', 'bundle'] } }),
+      makeVertex: id => ({ vertexId: id, ...(id === 'join' ? { dependsOnComplete: ['bundle'] } : {}), vertexContent: { $d: id, $c: id === 'bundle' ? ['compile'] : [] } }),
+    } });
+    const completeEvents = [];
+    completion.addVisitorFor(dag.DagTraversalOrder.ON_READY, v => { completeEvents.push('W:' + v.getData()); });
+    completion.addVisitorFor(dag.DagTraversalOrder.ON_COMPLETE, v => { completeEvents.push('C:' + v.getData()); });
+    const completionRunner = completion.makeRunner().run();
+    assert(completeEvents.indexOf('W:join') > completeEvents.indexOf('C:bundle'));
+    assert(completeEvents.indexOf('C:bundle') > completeEvents.indexOf('C:compile'));
+    assert.deepEqual(completionRunner.summary().vertices.get('join').unmetCompletePrerequisiteIds, []);
+    assert.deepEqual(completionRunner.getResolvedGraph().get(completionRunner.getResolvedGraph().getVertexById('join')).dependsOnComplete, ['bundle']);
+
     const tree = new lib.TraversableObjectTree({ a: { b: 1 }, c: 2 });
     const depthVisits = [...new lib.DepthFirstTraversal({ traversableTree: tree }).makeRunner().getIterable({
       iterateOver: [lib.DepthFirstTraversalOrder.POST_ORDER],
@@ -146,6 +159,16 @@ try {
     deferredRunner.settle('task', { ok: true }, deferredRunner.summary().vertices.get('task').generation);
     await deferredRunner.run();
     assert.equal(deferredRunner.getStatus(), 'FINISHED');
+
+    const completionEvents = [];
+    const completionTraversal = new AsyncDagTraversal({ discovery: 'eager', traversableGraph: {
+      makeRoot: () => ({ vertexId: 'bundle', dependsOnComplete: ['compile'], vertexContent: { $d: 'bundle', $c: ['compile'] } }),
+      makeVertex: id => ({ vertexId: id, dependsOn: [], vertexContent: { $d: id, $c: [] } }),
+    } });
+    completionTraversal.addVisitorFor(DagTraversalOrder.ON_READY, v => { completionEvents.push('W:' + v.getData()); });
+    completionTraversal.addVisitorFor(DagTraversalOrder.ON_COMPLETE, async v => { await Promise.resolve(); completionEvents.push('C:' + v.getData()); });
+    await completionTraversal.makeRunner().run();
+    assert.deepEqual(completionEvents, ['W:compile', 'C:compile', 'W:bundle', 'C:bundle']);
 
     const runner = new AsyncDagTraversal({
       traversableGraph: {
@@ -226,7 +249,7 @@ try {
     const bfs = new BreadthFirstTraversal({ traversableTree: tree }).makeRunner();
     for (const { vertex } of bfs.getIterable()) { const key: string | number | symbol = vertex.getData().key; void key; }
     const graph: TraversableGraph<Tree> = {
-      makeRoot: () => ({ vertexId: 'root', vertexContent: abstractRoot }),
+      makeRoot: () => ({ vertexId: 'root', dependsOnComplete: [] as readonly VertexId[], vertexContent: abstractRoot }),
       makeVertex: hint => ({ vertexId: hint, vertexContent: hint }),
       getVertexIdFromHint: hint => ({ vertexId: hint }),
     };
@@ -243,6 +266,10 @@ try {
     const summary: DagSummary = progressRunner.summary();
     const subpathSummary: SubpathSummary = asyncDag.summary();
     const entry: DagVertexProgress | undefined = summary.vertices.get('root');
+    const completeGates: readonly VertexId[] | undefined = entry?.unmetCompletePrerequisiteIds;
+    const completeDeclaration: readonly VertexId[] | undefined = dag.getResolvedGraph().get(dag.getResolvedGraph().getRoot()!)?.dependsOnComplete;
+    const legacyProgress: DagVertexProgress = { id: 'old', work: 'pending', subtreeComplete: false, unmetPrerequisiteIds: [] };
+    void [completeGates, completeDeclaration, legacyProgress];
     const state: DagWorkState | undefined = entry?.work;
     const generation: DagSettlementGeneration = Symbol();
     const outcome: DagSettlementOutcome = { ok: false, error: undefined };

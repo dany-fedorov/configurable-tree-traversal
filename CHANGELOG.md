@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add graph-source `dependsOnComplete` prerequisites, released only after committed structural completion, with conjunctive work/completion gates and original milestone cycle diagnostics.
+- Preserve completion gates across seeds, continuation, omission, deletion, and async halt/resume; expose optional copied completion metadata and progress fields.
+- Keep legacy lazy-root work dependencies unless a non-undefined completion declaration opts in (including `[]`); tree sources continue ignoring completion metadata. Graph `priority` remains unsupported.
+
 - Reduce measured DAG discovery and summary costs through narrow internal graph reads, incremental discovery accounting, and reuse of successful topology validation.
 - Add reproducible sync/async, eager/lazy DAG lifecycle benchmarks for settlement, resume, reconstruction, and callback-free summaries, with artifact provenance and independent correctness checks.
 

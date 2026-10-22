@@ -160,7 +160,7 @@ Set `concurrency` to a positive integer to bound invoked callbacks; the default 
 
 ## DAG traversal
 
-`DagTraversal` and `AsyncDagTraversal` traverse a discovered acyclic graph in two lifecycle orders: `ON_READY` after the vertex's initial visitor chain satisfies dependents, and `ON_COMPLETE` after its entire discovered descendant subgraph completes. A dependency waits for a task's `ON_READY`, not its subtree completion. Dependencies do not create graph edges, and an explicit `dependsOn` replaces the default parent dependency.
+`DagTraversal` and `AsyncDagTraversal` traverse a discovered acyclic graph in two lifecycle orders: `ON_READY` after the vertex's initial visitor chain satisfies dependents, and `ON_COMPLETE` after its entire discovered descendant subgraph completes. `dependsOn: [p]` waits for p's successful initial work (W); `dependsOnComplete: [p]` waits for p's committed `ON_COMPLETE` transition (C), including closed discovery and completion of every retained child. Both lists gate `ON_READY` conjunctively. Completion admission or an unfinished async completion callback does not satisfy C. Dependencies do not create discovery edges; explicit `dependsOn` replaces the default parent W dependency, while `dependsOnComplete` leaves that default intact.
 
 ```ts
 import {
@@ -202,7 +202,7 @@ function makeJob(id: string) {
 }
 ```
 
-A DAG constructor accepts exactly one source mode. Use `traversableGraph` for graph callback options, explicit ids and dependencies; use `traversableTree` to adapt an existing tree source while visitors receive the graph facade. The source mode is fixed at construction, although `configure()` can replace the adapter within that mode. Tree-source results cannot add graph identity or dependency fields.
+A DAG constructor accepts exactly one source mode. Use `traversableGraph` for graph callback options, explicit ids and dependencies; use `traversableTree` to adapt an existing tree source while visitors receive the graph facade. The source mode is fixed at construction, although `configure()` can replace the adapter within that mode. Tree-source results reject graph identity and `dependsOn` fields; they continue to ignore `dependsOnComplete` as extra metadata.
 
 Graph ids use `Map`/`Set` SameValueZero equality, so `NaN`, `null`, explicit `undefined`, symbols, and object references are valid. `getVertexIdFromHint()` returns a wrapper, not a bare id: return `{ vertexId: undefined }` for the real id `undefined`, or return `undefined` when the hint has no identity. A known hint id can reuse a vertex without resolving it; if both the hint hook and resolver supply ids, they must match.
 
@@ -210,7 +210,7 @@ Stalled DAG runners throw `DagTraversalStallError` (available from the root, `co
 
 - `dependencies`: `{ id, unmet }` entries for vertices waiting on prerequisites.
 - `unknownPrerequisiteIds`: unmet IDs absent from the discovered graph; lazy discovery may still hide those vertices in the source.
-- `dependencyCycles`: dependency strongly connected components with multiple vertices or a self-loop.
+- `dependencyCycles`: stable raw-ID projections of W/C milestone cycles, including structural completion waits. A child waiting for ancestor C is invalid; ordinary child waits for parent W remain valid.
 - `dependencyBlockedIds`: vertices with unmet prerequisites outside those cycles, including direct missing-prerequisite dependents and downstream blocked work.
 - `structurallyIncompleteIds`: unfinished vertices without unmet prerequisites, typically ancestors waiting for children.
 
@@ -235,8 +235,27 @@ cycles, even when `completedWork` has already satisfied those dependencies.
 Unknown seed IDs also fail before visitors in eager mode. Seeded lazy runners
 validate original dependencies when discovery closes; ordinary lazy traversal
 remains the default. Eager discovery honors explicit root `dependsOn` entries.
-`priority` and `dependsOnComplete` result metadata are not supported and reject
-explicitly.
+`priority` result metadata rejects with `TypeError('priority metadata is not supported')`.
+
+For compatibility, an ordinary lazy root without `completedWork` ignores its
+`dependsOn` declaration unless its result supplies a non-undefined
+`dependsOnComplete` value. Use `dependsOnComplete: []` to opt in to root W
+dependencies; absent or `undefined` retains the legacy behavior. Explicit root
+completion prerequisites always apply. Synthetic root metadata is ignored.
+
+A completion prerequisite does not fetch its target: it must be discovered or
+deliberately omitted. Omission satisfies W and C; deletion cascades through both
+kinds of dependent. Completed-work seeds satisfy only W, so a seeded composite
+still completes its children and completion callback before releasing C gates.
+Original W/C declarations are validated even when W was seeded. Lazy discovery
+retains its existing admission order and reports known invalid stalls; eager
+discovery validates the full reachable topology before visitors.
+
+Progress `unmetPrerequisiteIds` is the stable union of unsatisfied W and C gates.
+Vertices with a nonempty completion declaration also expose
+`unmetCompletePrerequisiteIds`, which becomes `[]` when satisfied. Graph vertices
+expose a copied `dependsOnComplete` only when its normalized list is nonempty.
+See the runnable [build-join example](examples/dag-completion-dependencies-example.ts).
 
 Set `syntheticRoot: true` when `makeRoot()` returns a catalog holder whose child
 hints describe multiple graph sources. Its supplied ID is ignored in favor of a

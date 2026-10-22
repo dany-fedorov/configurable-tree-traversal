@@ -52,6 +52,7 @@ export type GraphVertex<T extends TreeTypeParameters> = Readonly<{
   vertexId: VertexId;
   discoveryDepth: number;
   dependsOn: readonly VertexId[];
+  dependsOnComplete?: readonly VertexId[];
   status: GraphVertexStatus;
   incoming: readonly GraphEdge<T>[];
   slots: readonly ChildSlot<T>[];
@@ -77,11 +78,14 @@ export interface GraphStoreContract<T extends TreeTypeParameters> {
   getTraversalSlot(ref: Ref<T>, index: number): ChildSlot<T> | undefined;
   getDiscoveryDepth(ref: Ref<T>): number;
   getDeclaredDependencies(ref: Ref<T>): VertexId[];
+  getDeclaredCompleteDependencies(ref: Ref<T>): VertexId[];
+  hasCompleteDependencies(ref: Ref<T>): boolean;
   getTopologyVersion(): number;
   insertVertex(input: {
     ref: Ref<T>;
     id: VertexId;
     dependsOn: readonly VertexId[];
+    dependsOnComplete?: readonly VertexId[];
     depth: number;
   }): void;
   setRoot(ref: Ref<T> | null): void;

@@ -75,6 +75,7 @@ export class ResolvedGraphsContainer<
     ref: Ref<T | R>,
     id: VertexId,
     dependsOn: readonly VertexId[] = [],
+    dependsOnComplete: readonly VertexId[] = [],
   ): void {
     if (this.syntheticRoot) {
       this.syntheticRootRef = ref;
@@ -87,7 +88,13 @@ export class ResolvedGraphsContainer<
       this.store.insertVertex({ ref, id, dependsOn: [], depth: 0 });
       this.treeContainer.setRoot(ref);
     } else {
-      this.store.insertVertex({ ref, id, dependsOn, depth: 0 });
+      this.store.insertVertex({
+        ref,
+        id,
+        dependsOn,
+        dependsOnComplete,
+        depth: 0,
+      });
       this.store.setRoot(ref);
     }
     this.commitSnapshotVertex(staged);
@@ -99,6 +106,7 @@ export class ResolvedGraphsContainer<
     id: VertexId,
     dependsOn: readonly VertexId[],
     context: VertexResolutionContext<T | R>,
+    dependsOnComplete: readonly VertexId[] = [],
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
@@ -106,7 +114,13 @@ export class ResolvedGraphsContainer<
       this.store.insertVertex({ ref, id, dependsOn, depth: context.depth });
       this.treeContainer.setWithResolutionContext(ref, context);
     } else {
-      this.store.insertVertex({ ref, id, dependsOn, depth: context.depth });
+      this.store.insertVertex({
+        ref,
+        id,
+        dependsOn,
+        dependsOnComplete,
+        depth: context.depth,
+      });
     }
     this.commitSnapshotVertex(staged);
   }

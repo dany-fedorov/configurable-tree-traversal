@@ -178,7 +178,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(seen).toEqual(['a', 'root']);
   });
 
-  test.each(['priority', 'dependsOnComplete'])(
+  test.each(['priority'])(
     `${Constructor.name} rejects unsupported %s graph metadata`,
     async (key) => {
       for (const root of [false, true]) {
@@ -363,6 +363,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         makeVertex: () => ({
           priority: 2,
+          dependsOnComplete: ['also ignored'],
           vertexContent: { $d: 'child', $c: [] },
         }),
       },

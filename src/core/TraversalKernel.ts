@@ -581,7 +581,7 @@ export class TraversalKernel<
         ? 'running'
         : deferred !== undefined
         ? 'deferred'
-        : item.unmet.size === 0
+        : item.unmet.size === 0 && item.unmetComplete.size === 0
         ? 'ready'
         : 'pending';
       if (state === 'pending') pending += 1;
@@ -594,7 +594,12 @@ export class TraversalKernel<
         id,
         work: state,
         subtreeComplete: item.completionCommitted,
-        unmetPrerequisiteIds: Array.from(item.unmet),
+        unmetPrerequisiteIds: Array.from(
+          new Set([...item.unmet, ...item.unmetComplete]),
+        ),
+        ...(this.options.container.store.hasCompleteDependencies(item.ref)
+          ? { unmetCompletePrerequisiteIds: Array.from(item.unmetComplete) }
+          : {}),
         ...(state === 'deferred' ? { generation: deferred!.generation } : {}),
       });
     }
@@ -607,11 +612,12 @@ export class TraversalKernel<
     if (diagnostics !== null) {
       diagnostics.dependencies = work
         .filter(
-          ({ initialCommitted, unmet }) => !initialCommitted && unmet.size > 0,
+          ({ initialCommitted, unmet, unmetComplete }) =>
+            !initialCommitted && (unmet.size > 0 || unmetComplete.size > 0),
         )
-        .map(({ ref, unmet }) => ({
+        .map(({ ref, unmet, unmetComplete }) => ({
           id: graph.getIdOf(ref),
-          unmet: Array.from(unmet),
+          unmet: Array.from(new Set([...unmet, ...unmetComplete])),
         }));
       diagnostics.dependencyBlockedIds =
         diagnostics.dependencyBlockedIds.filter(
@@ -1694,7 +1700,8 @@ export class TraversalKernel<
     if (
       !this.discoveryValidated &&
       (this.options.discovery === 'eager' ||
-        this.options.completedWork !== undefined)
+        this.options.completedWork !== undefined ||
+        this.scheduling.usesCompletionDependencies())
     ) {
       if (this.rootSettled && this.scheduling.isDiscoveryComplete()) {
         this.scheduling.validateDiscoveredGraph();

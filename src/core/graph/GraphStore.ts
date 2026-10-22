@@ -17,6 +17,7 @@ type Entry<T extends TreeTypeParameters> = {
   ref: Ref<T>;
   id: VertexId;
   dependsOn: VertexId[];
+  dependsOnComplete: VertexId[];
   depth: number;
   status: GraphVertexStatus;
   incoming: GraphEdge<T>[];
@@ -76,6 +77,14 @@ export class GraphStore<T extends TreeTypeParameters>
     return this.getEntry(ref).dependsOn.slice();
   }
 
+  getDeclaredCompleteDependencies(ref: Ref<T>): VertexId[] {
+    return this.getEntry(ref).dependsOnComplete.slice();
+  }
+
+  hasCompleteDependencies(ref: Ref<T>): boolean {
+    return this.getEntry(ref).dependsOnComplete.length > 0;
+  }
+
   getTopologyVersion(): number {
     return this.topologyVersion;
   }
@@ -84,6 +93,7 @@ export class GraphStore<T extends TreeTypeParameters>
     ref: Ref<T>;
     id: VertexId;
     dependsOn: readonly VertexId[];
+    dependsOnComplete?: readonly VertexId[];
     depth: number;
   }): void {
     if (this.ids.has(input.id)) throw new Error('Vertex id is already indexed');
@@ -94,6 +104,7 @@ export class GraphStore<T extends TreeTypeParameters>
       ref: input.ref,
       id: input.id,
       dependsOn: input.dependsOn.slice(),
+      dependsOnComplete: input.dependsOnComplete?.slice() ?? [],
       depth: input.depth,
       status: 'DISCOVERED',
       incoming: [],
@@ -248,6 +259,7 @@ export class GraphStore<T extends TreeTypeParameters>
         ref,
         id,
         dependsOn: [],
+        dependsOnComplete: [],
         depth: context?.depth ?? 0,
         status: 'DISCOVERED',
         incoming: [],
@@ -296,6 +308,9 @@ export class GraphStore<T extends TreeTypeParameters>
       vertexId: entry.id,
       discoveryDepth: this.getDiscoveryDepth(ref),
       dependsOn: entry.dependsOn.slice(),
+      ...(entry.dependsOnComplete.length > 0
+        ? { dependsOnComplete: entry.dependsOnComplete.slice() }
+        : {}),
       status: entry.status,
       incoming,
       slots,

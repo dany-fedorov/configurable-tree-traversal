@@ -17,6 +17,7 @@ export type MakeVertexResult<TTP extends TreeTypeParameters> = {
   vertexContent: VertexContent<TTP> | null;
   vertexId?: VertexId;
   dependsOn?: readonly VertexId[];
+  dependsOnComplete?: readonly VertexId[];
 };
 
 export type TraversableTree<
