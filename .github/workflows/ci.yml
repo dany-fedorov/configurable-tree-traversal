@@ -16,3 +16,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+  bun:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
+      - run: npm ci
+      - run: bun --version
+      - run: npm run build
+      - run: bun scripts/verify-package.cjs
+      - run: bun test scripts/build-esm.test.cjs scripts/benchmark-dag.test.cjs scripts/benchmark-dag-lifecycle.test.cjs

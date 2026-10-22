@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add native ESM entry and declaration facades for every emitted module, including historical deep imports, backed by one canonical CommonJS runtime and type graph; mixed import/require consumers preserve class, namespace, and `DEFER_READY` identity.
+- Verify real mixed `.mts`/`.cts` consumers with TypeScript 4.7.4 and the locked compiler, and add a pinned Bun 1.4.4 packed-consumer and script-correctness CI lane alongside the Node 22/24 full checks.
+
 - Add optional graph-source `resolvePrerequisite(id)` through the shared callback transport, with transitive W/C demand, coalesced lookups, runner-local not-found caching, and exact error/ID semantics.
 - Retain resolved prerequisites as detached components with independent anchors, structural snapshots, public depth zero, and safe deletion/halt/resume ownership; eager validation waits for discovery and lookup closure.
 
