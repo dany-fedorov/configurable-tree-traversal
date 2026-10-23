@@ -58,8 +58,7 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
     return {
       commands: [
         {
-          commandName:
-            TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+          commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
           commandArguments: {
             newHints: getChildrenOfPropertyDefault({
               key: v.getData().key,

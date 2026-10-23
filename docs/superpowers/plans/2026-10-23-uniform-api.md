@@ -33,16 +33,16 @@ tests/public-api.typecheck.ts; add tests/vertex-content-api.test.ts if useful.
 canonical content fields plus a compatibility input type/normalizer and legacy
 Vertex property aliases. Getters and ref identity stay unchanged.
 
-- [ ] Add public regressions for canonical root/child construction, canonical
+- [x] Add public regressions for canonical root/child construction, canonical
   clone with undefined data, legacy construction, aliases, and mixed-shape rejection.
   The real traversal test must see data and follow hints, not only inspect fields:
   `new Vertex({ $data: 'root', $childHints: ['child'] }).getChildrenHints()`
   must return `['child']`; `clone({ $data: undefined }).getData()` must be undefined.
-- [ ] Run focused tests and typecheck to observe missing API failures.
-- [ ] Implement normalization and types; keep resolved structural child metadata
+- [x] Run focused tests and typecheck to observe missing API failures.
+- [x] Implement normalization and types; keep resolved structural child metadata
   semantically separate. Update directly affected source callers.
-- [ ] Run focused tests, typecheck, full tests once; report red/green evidence.
-- [ ] Commit and obtain task-scoped review.
+- [x] Run focused tests, typecheck, full tests once; report red/green evidence.
+- [x] Commit and obtain task-scoped review.
 
 ## Task 2: Orthogonal dependency and source resolution contracts (findings 1, 3, 7)
 
@@ -54,18 +54,18 @@ both DAG configs/runners, public exports, affected dependency tests.
 `implicitParentDependency?: boolean`, found/omitted resolution unions plus
 lookup-only missing as specified. Normalize to existing internal result shape.
 
-- [ ] Write root missing-dependency regression comparing omitted and empty
+- [x] Write root missing-dependency regression comparing omitted and empty
   completedWork (both reject before root visitors), sync and async. Write
   deferred parent/child case: default graph readiness includes both; explicit
   inheritance includes parent only. Test ignore policy independent of seeds.
-- [ ] Write canonical source result cases: found root/hints; missing lookup
+- [x] Write canonical source result cases: found root/hints; missing lookup
   remains blocked; deliberate omission satisfies W and C; explicit undefined
   and object IDs preserve identity; invalid root/hint missing rejects.
-- [ ] Run new regressions and observe failure before implementation.
-- [ ] Implement shared normalization and explicit scheduling options, preserving
+- [x] Run new regressions and observe failure before implementation.
+- [x] Implement shared normalization and explicit scheduling options, preserving
   tree semantics. Update old fixtures to explicitly declare dependencies they
   actually require; never restore implicit graph defaults via a hidden heuristic.
-- [ ] Run focused DAG lookup/completion/discovery and tree suites; typecheck;
+- [x] Run focused DAG lookup/completion/discovery and tree suites; typecheck;
   full tests once. Commit and obtain task-scoped review.
 
 ## Task 3: Unified commands, batching and phase typing (findings 2, 4, 5, 8)
@@ -80,20 +80,20 @@ command/graph/public typechecks, command and deferred-settlement tests.
 and results with a singleton deferral command tuple. Deprecated sentinel,
 resolutionStyle and old hint command normalize to canonical semantics.
 
-- [ ] Add regressions proving command deferral does not satisfy work, frees
+- [x] Add regressions proving command deferral does not satisfy work, frees
   capacity, discards buffered group effects, skips remaining callbacks, and
   resumes correctly through settlement. Verify symbol form matches.
-- [ ] Test mixed deferral/mutation results reject before applying any command.
+- [x] Test mixed deferral/mutation results reject before applying any command.
   Test canonical hint rewrite in DFS PRE_ORDER, BFS LEVEL_ORDER and DAG ON_READY;
   invalid phases/eager topology reject.
-- [ ] Test afterGroup visibility/order against afterEachVisitor across sync/async;
+- [x] Test afterGroup visibility/order against afterEachVisitor across sync/async;
   contradictory explicit old/new batching options reject.
-- [ ] Add compiler tests: ON_COMPLETE returning deferral is `@ts-expect-error`,
+- [x] Add compiler tests: ON_COMPLETE returning deferral is `@ts-expect-error`,
   POST_ORDER returning hint rewrite is `@ts-expect-error`, valid initial phase
   visitors compile and receive a narrow order.
-- [ ] Observe new test failures, then implement one shared command transition
+- [x] Observe new test failures, then implement one shared command transition
   with source/phase validation and compatibility normalization.
-- [ ] Run affected visitor/driver/lifecycle/tree suites and typecheck; full tests
+- [x] Run affected visitor/driver/lifecycle/tree suites and typecheck; full tests
   once. Commit and obtain task-scoped review.
 
 ## Task 4: Traversal completion vocabulary (finding 6)
@@ -105,12 +105,12 @@ progress/settlement tests and typechecks.
 `{ kind: 'workCompleted' } | { kind: 'traversalFailed', error }` and deprecated
 ok-form inputs. Keep existing identity/generation/replay rules.
 
-- [ ] Add canonical settlement regressions releasing W and completing C, fatal
+- [x] Add canonical settlement regressions releasing W and completing C, fatal
   traversal failure preserving undefined/null/object errors, and cross-form
   replay equivalence. Assert no independent business failure state appears.
-- [ ] Observe failures, implement shared outcome normalization and state naming.
-- [ ] Run progress/settlement/lifecycle suites and typecheck, full tests once.
-- [ ] Commit and obtain task-scoped review.
+- [x] Observe failures, implement shared outcome normalization and state naming.
+- [x] Run progress/settlement/lifecycle suites and typecheck, full tests once.
+- [x] Commit and obtain task-scoped review.
 
 ## Task 5: Uniform convenience helpers (finding 9)
 
@@ -120,14 +120,14 @@ add tests/traversal-helper-options.test.ts and public type cases.
 **Interfaces:** Each helper accepts one options object with its existing source
 key and phase-keyed callback `visitors`; legacy positional call forms remain.
 
-- [ ] Test DFS/BFS/DAG sync and async options forms perform real traversal and
+- [x] Test DFS/BFS/DAG sync and async options forms perform real traversal and
   invoke the declared phases, propagate failures, and honor config. Test legacy
   positional compatibility, including its established source precedence.
-- [ ] Add compiler cases rejecting conflicting DAG sources and wrong phase
+- [x] Add compiler cases rejecting conflicting DAG sources and wrong phase
   callbacks/commands in helper maps.
-- [ ] Observe failures; implement both call forms and shared normalization where useful.
-- [ ] Run helper/type/affected traversal suites and full tests once.
-- [ ] Commit and obtain task-scoped review.
+- [x] Observe failures; implement both call forms and shared normalization where useful.
+- [x] Run helper/type/affected traversal suites and full tests once.
+- [x] Commit and obtain task-scoped review.
 
 ## Task 6: Agent-first docs, migration, and package integration
 
@@ -139,12 +139,12 @@ files list, scripts/verify-package.cjs and packaging/type consumers.
 maps all old forms and behavior changes; documents exclusive deferral result,
 group ordering, dependency policies and host completion semantics.
 
-- [ ] Convert current guides/examples to canonical fields, commands, outcomes,
+- [x] Convert current guides/examples to canonical fields, commands, outcomes,
   helper shapes and explicit dependencies. Preserve public anchors and history.
-- [ ] Extend packed runtime/type consumers to exercise canonical and deprecated
+- [x] Extend packed runtime/type consumers to exercise canonical and deprecated
   forms with shared CJS/ESM identities and existing minimum TS compatibility.
-- [ ] Execute examples, validate relative links/anchors and package files.
-- [ ] Run `npm run check`; resolve failures and coverage gaps without weakening
+- [x] Execute examples, validate relative links/anchors and package files.
+- [x] Run `npm run check`; resolve failures and coverage gaps without weakening
   gates. Run existing minimum Node/Bun/type consumer checks where available.
 - [ ] Commit and obtain final whole-branch review against every numbered spec
   section. Fix confirmed issues and verify the amended areas.

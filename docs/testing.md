@@ -34,6 +34,7 @@ The check type-checks source, examples, and compile-time API assertions; lints T
 | `async-callback-scheduler.test.ts`, `async-driver.test.ts`, `async-runner-session.test.ts`                  | Callback limiting, immediate rejection capture, wakeups, buffering, shared async execution, and iterator ownership                                               |
 | `async-tree-prefetch.test.ts`, `async-depth-first.test.ts`, `async-breadth-first.test.ts`                   | Prefetch boundaries, value-or-promise callbacks, qualified tree parity, halt/resume, and snapshots                                                               |
 | `async-dag-kernel.test.ts`, `async-dag.test.ts`, `async-dag-lifecycle.test.ts`                              | Concurrent DAG admission, dependency partial order, lifecycle races, failure, close, and inspection                                                              |
+| `vertex-content-api.test.ts`, `uniform-source-results.test.ts`, `uniform-dependencies.test.ts`, `uniform-commands.test.ts`, `dag-completion-vocabulary.test.ts`, `traversal-helper-options.test.ts` | Uniform content/source contracts, explicit dependency policies, exclusive commands/batching/phases, completion terminology, and all six helpers                  |
 | `async-helpers.test.ts`                                                                                     | Async helper return types, visitor registration, execution, and source precedence                                                                                |
 | `commands.typecheck.ts`, `public-api.typecheck.ts`, `graph-api.typecheck.ts`, `async-tree-api.typecheck.ts` | Public generic inference, six-family root/subpath APIs, source modes, callback return types, and rejected configurations                                         |
 
@@ -55,6 +56,8 @@ npm run verify-package
 Jest writes the HTML coverage report to `coverage/lcov-report/index.html`. The full check requires 100% statements, branches, functions, and lines across `src/**/*.ts`, including compatibility exports and helpers. Source files and branches are not excluded to meet the threshold. New behavior must include tests that exercise its outcomes and error paths; reaching the coverage threshold does not replace reviewing the assertions.
 
 The package check extracts a fresh tarball into a temporary directory outside the source checkout and supplies only installed runtime dependencies. It exercises root and subpath imports and every emitted historical `.js` and extensionless deep import. Import resolution must select native `.mjs` facades while require resolution selects `.js`.
+
+The separate `scripts/package-consumers/uniform-api.mjs` and `.ts` fixtures check canonical and deprecated content, source results, dependency policies, command batching, deferral, completion feedback, and all six helper forms. Strict fixture checks include invalid phases, exclusive deferral, and readonly metadata-only callback contexts. They execute against the extracted package alongside the historical consumers.
 
 In a single process it checks named/default export parity, exact class/symbol/function/namespace identity, cross-loader `instanceof`, and sync/async DAG deferral, seeds, settlement, completion prerequisites and prerequisite lookup.
 

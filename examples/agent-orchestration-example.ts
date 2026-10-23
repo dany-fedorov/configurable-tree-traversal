@@ -1,8 +1,8 @@
+import { TraversalVisitorCommandName as Command } from '../src';
 import assert from 'node:assert/strict';
 import {
   DagTraversal,
   DagTraversalOrder,
-  DEFER_READY,
   type TreeTypeParameters,
 } from '../src';
 
@@ -22,16 +22,24 @@ function reconstruct() {
     completedWork: accepted,
     traversableGraph: {
       makeRoot: () => ({
-        vertexContent: { $d: '', $c: Object.keys(dependencies) },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: '', $childHints: Object.keys(dependencies) },
+        },
       }),
       makeVertex: (id) => ({
-        vertexId: id,
-        dependsOn: dependencies[id]!,
-        vertexContent: { $d: id, $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: id,
+          dependsOn: dependencies[id]!,
+          vertexContent: { $data: id, $childHints: [] },
+        },
       }),
     },
   });
-  traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => DEFER_READY);
+  traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => ({
+    commands: [{ commandName: Command.DEFER_READY }],
+  }));
   return traversal.makeRunner().run();
 }
 
@@ -44,10 +52,16 @@ const generation = snapshot.vertices.get('implement')!.generation!;
 // A real host claims work, dispatches an agent, validates its attempt/revision,
 // and durably accepts its result BEFORE settling it. This example simulates that.
 accepted.add('implement');
-assert.equal(runner.settle('implement', { ok: true }, generation), true);
+assert.equal(
+  runner.settle('implement', { kind: 'workCompleted' }, generation),
+  true,
+);
 runner.run();
 assert.deepEqual(runner.summary().readyIds, ['testPlan']);
-assert.equal(runner.settle('implement', { ok: true }, generation), false);
+assert.equal(
+  runner.settle('implement', { kind: 'workCompleted' }, generation),
+  false,
+);
 
 // A restart rebuilds from accepted facts, never saved runner/generation objects.
 assert.deepEqual(reconstruct().summary().readyIds, ['testPlan']);

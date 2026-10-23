@@ -6,13 +6,13 @@
 - **Finding a public contract:** [API reference](docs/reference.md). [Documentation map](docs/index.md) links runnable examples.
 - **Changing this repository:** use the source/test map below and [testing guide](docs/testing.md).
 
-Current published API: **0.11.0**. `docs/research/` and `docs/superpowers/` contain historical research, plans, and downstream proposals. They are not a substitute for current documentation or evidence that a proposed feature exists. Reconcile discrepancies against source and behavioral tests; update the current guide when changing behavior.
+Current published API: **0.11.0**; this checkout implements the unreleased uniform API documented in the [migration guide](docs/migration-uniform-api.md). Keep published release facts distinct from checkout behavior. `docs/research/` and `docs/superpowers/` contain historical research, plans, and downstream proposals. They are not a substitute for current documentation or evidence that a proposed feature exists. Reconcile discrepancies against source and behavioral tests; update the current guide when changing behavior.
 
 ## Scope and boundaries
 
-CTT owns generic tree/DAG discovery, work/completion dependencies, callback scheduling, traversal lifecycle, diagnostics, and in-memory progress. Keep task types, agent dispatch, business priority/outcomes, attempts/retries, claims, artifact policy, and durable storage in the host. `$d` is opaque caller data. There is no public `planDag`, storage-provider port, durable runner checkpoint, or built-in LLM integration.
+CTT owns generic tree/DAG discovery, work/completion dependencies, callback scheduling, traversal lifecycle, diagnostics, and in-memory progress. Keep task types, agent dispatch, business priority/outcomes, attempts/retries, claims, artifact policy, and durable storage in the host. `$data` is opaque caller data; `$childHints` contains opaque discovery hints. `$d`/`$c` remain deprecated input/access aliases; Vertex own fields and serialization use canonical names. There is no public `planDag`, storage-provider port, durable runner checkpoint, or built-in LLM integration.
 
-Dependency edges and structural child edges are different. Normal `ON_READY` completion satisfies W; committed `ON_COMPLETE` satisfies C. A sole `DEFER_READY` visitor keeps externally executed work incomplete. Settlement generations are local symbols; reconstruction uses host-accepted `completedWork` facts.
+Dependency edges and structural child edges are different. Normal `ON_READY` completion satisfies W; committed `ON_COMPLETE` satisfies C. A sole `ON_READY` visitor returning `{ commands: [{ commandName: TraversalVisitorCommandName.DEFER_READY }] }` keeps externally executed work incomplete. Graph sources default to `rootDependencies: 'honor'` and `implicitParentDependency: false`; express execution dependencies explicitly. Tree order is preserved. Source callbacks use tagged `found`/`omitted` results; only prerequisite lookup accepts `missing`. `commandCommitMode` controls command batches independently of async concurrency. Settlement generations are local symbols; reconstruction uses host-accepted `completedWork` facts.
 
 ## Source and regression map
 

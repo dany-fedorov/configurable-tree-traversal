@@ -3,7 +3,7 @@ import {
   AsyncDagTraversal,
   DagTraversalOrder as Order,
 } from '../src/traversals/dag-traversal';
-import type { MakeVertexResult } from '../src/core/TraversableTree';
+import type { FoundVertexResult } from '../src/core/TraversableTree';
 import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
 
 type ModuleGraph = TreeTypeParameters<string, string>;
@@ -19,9 +19,13 @@ const moduleRegistry = {
     return modules.get(id);
   },
 };
-const generatedStep = (id: string): MakeVertexResult<ModuleGraph> => ({
-  vertexId: id,
-  vertexContent: { $d: id, $c: [] },
+const generatedStep = (id: string): FoundVertexResult<ModuleGraph> => ({
+  kind: 'found' as const,
+  vertex: {
+    vertexId: id,
+    dependsOn: ['module:parser'],
+    vertexContent: { $data: id, $childHints: [] },
+  },
 });
 
 async function main() {
@@ -29,21 +33,30 @@ async function main() {
   const traversal = new AsyncDagTraversal<ModuleGraph>({
     traversableGraph: {
       makeRoot: () => ({
-        vertexId: 'app',
-        // C includes parser's generated child step. Use dependsOn for W alone.
-        dependsOnComplete: ['module:parser'],
-        vertexContent: { $d: 'app', $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'app',
+          // C includes parser's generated child step. Use dependsOn for W alone.
+          dependsOnComplete: ['module:parser'],
+          vertexContent: { $data: 'app', $childHints: [] },
+        },
       }),
       makeVertex: generatedStep,
       resolvePrerequisite: async (id) => {
-        if (typeof id !== 'string') return undefined;
+        if (typeof id !== 'string') return { kind: 'missing' };
         const definition = await moduleRegistry.find(id);
         return definition === undefined
-          ? undefined
+          ? { kind: 'missing' }
           : {
-              vertexId: id,
-              dependsOn: definition.imports,
-              vertexContent: { $d: id, $c: definition.generatedSteps },
+              kind: 'found' as const,
+              vertex: {
+                vertexId: id,
+                dependsOn: definition.imports,
+                vertexContent: {
+                  $data: id,
+                  $childHints: definition.generatedSteps,
+                },
+              },
             };
       },
     },

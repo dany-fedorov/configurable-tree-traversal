@@ -10,16 +10,24 @@ const events: string[] = [];
 const traversal = new DagTraversal<Build>({
   traversableGraph: {
     makeRoot: () => ({
-      vertexId: 'build',
-      vertexContent: { $d: 'build', $c: ['package', 'compile'] },
+      kind: 'found' as const,
+      vertex: {
+        vertexId: 'build',
+        vertexContent: { $data: 'build', $childHints: ['package', 'compile'] },
+      },
     }),
     makeVertex: (id) => ({
-      vertexId: id,
-      // Packaging needs the compiled bundle, including both retained children.
-      ...(id === 'package' ? { dependsOnComplete: ['compile'] } : {}),
-      vertexContent: {
-        $d: id,
-        $c: id === 'compile' ? ['compile-client', 'compile-server'] : [],
+      kind: 'found' as const,
+      vertex: {
+        vertexId: id,
+        dependsOn: [id === 'package' || id === 'compile' ? 'build' : 'compile'],
+        // Packaging needs the compiled bundle, including both retained children.
+        ...(id === 'package' ? { dependsOnComplete: ['compile'] } : {}),
+        vertexContent: {
+          $data: id,
+          $childHints:
+            id === 'compile' ? ['compile-client', 'compile-server'] : [],
+        },
       },
     }),
   },

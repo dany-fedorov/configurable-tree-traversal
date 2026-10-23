@@ -1,8 +1,8 @@
+import { TraversalVisitorCommandName as Command } from '../src';
 import assert from 'node:assert/strict';
 import {
   DagTraversal,
   DagTraversalOrder,
-  DEFER_READY,
   TraversalRunnerStatus,
   type TreeTypeParameters,
 } from '../src';
@@ -25,17 +25,25 @@ function reconstruct() {
     traversableGraph: {
       // Supply the complete catalog, including disconnected components.
       makeRoot: () => ({
-        vertexContent: { $d: '', $c: Object.keys(dependencies) },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: '', $childHints: Object.keys(dependencies) },
+        },
       }),
       makeVertex: (id) => ({
-        vertexId: id,
-        dependsOn: dependencies[id]!,
-        vertexContent: { $d: id, $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: id,
+          dependsOn: dependencies[id]!,
+          vertexContent: { $data: id, $childHints: [] },
+        },
       }),
     },
   });
   // Inspection never executes business work or publishes success.
-  traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => DEFER_READY);
+  traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => ({
+    commands: [{ commandName: Command.DEFER_READY }],
+  }));
   return traversal.makeRunner().run();
 }
 
@@ -48,11 +56,11 @@ const backendGeneration = retained.summary().vertices.get('backend')!
 // The host claims/runs the activity, validates its attempt identity and durably
 // accepts success before reporting it. Readiness alone is not host admission.
 acceptedCompletedWork.add('backend');
-retained.settle('backend', { ok: true }, backendGeneration);
+retained.settle('backend', { kind: 'workCompleted' }, backendGeneration);
 retained.run();
 assert.deepEqual(retained.summary().readyIds, ['frontend']);
 assert.equal(
-  retained.settle('backend', { ok: true }, backendGeneration),
+  retained.settle('backend', { kind: 'workCompleted' }, backendGeneration),
   false,
 );
 
