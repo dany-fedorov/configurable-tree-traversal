@@ -1,6 +1,6 @@
 {
   "name": "configurable-tree-traversal",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Walk trees and DAGs your way: DFS or BFS, pre/in/post-order, prune, pause, resume. No recursion, no stack overflows.",
   "main": "./dist/index.js",
   "scripts": {

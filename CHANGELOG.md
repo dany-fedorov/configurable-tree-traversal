@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.10.0 — 2026-10-23
+
 - Add native ESM entry and declaration facades for every emitted module, including historical deep imports, backed by one canonical CommonJS runtime and type graph; mixed import/require consumers preserve class, namespace, and `DEFER_READY` identity.
 - Verify real mixed `.mts`/`.cts` consumers with TypeScript 4.7.4 and the locked compiler, and add a pinned Bun 1.4.4 packed-consumer and script-correctness CI lane alongside the Node 22/24 full checks.
 
