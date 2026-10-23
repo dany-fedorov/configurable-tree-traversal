@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Lead documentation with autonomous-agent workflows, add navigation and repository-agent guidance, retain detailed API contracts in a dedicated reference, and include consumer guides in package builds. Add an executable agent-coordination and recovery example.
+
 ## 0.10.0 — 2026-10-23
 
 - Add native ESM entry and declaration facades for every emitted module, including historical deep imports, backed by one canonical CommonJS runtime and type graph; mixed import/require consumers preserve class, namespace, and `DEFER_READY` identity.

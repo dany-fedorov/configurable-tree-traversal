@@ -1,5 +1,7 @@
 # Testing
 
+[Documentation map](index.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md)
+
 Run the complete verification from the repository root:
 
 ```sh

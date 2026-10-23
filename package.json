@@ -72,6 +72,9 @@
     "README.md",
     "Sorted_binary_tree_ALL_RGB.svg.png",
     "CHANGELOG.md",
+    "docs/index.md",
+    "docs/agent-workflows.md",
+    "docs/reference.md",
     "docs/testing.md"
   ],
   "sideEffects": false,
