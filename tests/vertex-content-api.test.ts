@@ -50,6 +50,26 @@ describe('canonical vertex content', () => {
     expect(copied.getChildrenHints()).toBe(legacy.$c);
   });
 
+  test.each(['replacement', undefined])(
+    'clones an existing Vertex with replacement data %s and unchanged hint identity',
+    (data) => {
+      const original = new Vertex<T>({
+        $d: 'original',
+        $c: ['original-child'],
+      });
+      const hints = ['replacement-child'];
+      const replacement = new Vertex<T>({ $d: data, $c: hints });
+      const clone = original.clone(replacement);
+
+      expect(clone.getData()).toBe(data);
+      expect(clone.getChildrenHints()).toBe(hints);
+      expect(clone).not.toBe(original);
+      expect(clone).not.toBe(replacement);
+      expect(original.getData()).toBe('original');
+      expect(original.getChildrenHints()).toEqual(['original-child']);
+    },
+  );
+
   test('clones canonical fields with explicitly undefined data', () => {
     const vertex = new Vertex<T>({ $data: 'root', $childHints: ['child'] });
     expect(vertex.clone({ $data: undefined }).getData()).toBeUndefined();

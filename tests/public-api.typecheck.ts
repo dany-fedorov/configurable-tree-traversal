@@ -198,6 +198,8 @@ const legacyData: string = canonicalVertex.$d;
 const canonicalHints: Array<Node | null> = canonicalVertex.$childHints;
 canonicalVertex.clone({ $data: 'changed', $childHints: [] });
 canonicalVertex.clone({ $d: 'changed', $c: [] });
+const cloneFromVertex: Vertex<Tree> = canonicalVertex.clone(copiedVertex);
+void cloneFromVertex;
 const optionalDataVertex = new Vertex<
   TreeTypeParameters<string | undefined, string>
 >({ $data: 'root', $childHints: [] });

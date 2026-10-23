@@ -23,7 +23,8 @@ export type VertexContentInput<TTP extends TreeTypeParameters> =
 
 export type VertexCloneContent<TTP extends TreeTypeParameters> =
   | Partial<CanonicalContentInput<TTP>>
-  | Partial<LegacyContentInput<TTP>>;
+  | Partial<LegacyContentInput<TTP>>
+  | Vertex<TTP>;
 
 function assertUnmixedContent(content: object): void {
   if (
@@ -84,6 +85,7 @@ export class Vertex<TTP extends TreeTypeParameters>
   }
 
   clone(content?: VertexCloneContent<TTP>): Vertex<TTP> {
+    if (content instanceof Vertex) return new Vertex<TTP>(content);
     if (content !== undefined) assertUnmixedContent(content);
     let data = this.$data;
     if (content !== undefined) {
