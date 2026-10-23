@@ -237,3 +237,44 @@ const duplicateLegacy: import('../src').VertexContentInput<Tree> = {
 void mixedContent;
 void duplicateContent;
 void duplicateLegacy;
+
+const canonicalFound: import('../src').FoundVertexResult<Tree> = {
+  kind: 'found',
+  vertex: {
+    vertexId: undefined,
+    vertexContent: { $data: 'root', $childHints: [] },
+  },
+};
+const canonicalOmitted: import('../src').OmittedVertexResult = {
+  kind: 'omitted',
+  satisfiesDependencies: true,
+};
+const canonicalMissing: import('../src').PrerequisiteResolutionResult<Tree> = {
+  kind: 'missing',
+};
+const canonicalSource: import('../src').TraversableGraph<Tree> = {
+  makeRoot: () => canonicalFound,
+  makeVertex: () => canonicalOmitted,
+  resolvePrerequisite: () => canonicalMissing,
+};
+const missingRoot: import('../src').SourceVertexResult<Tree> = {
+  // @ts-expect-error A missing lookup is not a root/hint source result.
+  kind: 'missing',
+};
+const nullFound: import('../src').FoundVertexResult<Tree> = {
+  kind: 'found',
+  // @ts-expect-error Found content must be non-null.
+  vertex: { vertexContent: null },
+};
+// @ts-expect-error Omission must explicitly satisfy dependencies.
+const incompleteOmission: import('../src').OmittedVertexResult = {
+  kind: 'omitted',
+};
+// @ts-expect-error A bare null is not a resolution result.
+const nullResolution: import('../src').PrerequisiteResolutionResult<Tree> =
+  null;
+void canonicalSource;
+void missingRoot;
+void nullFound;
+void incompleteOmission;
+void nullResolution;

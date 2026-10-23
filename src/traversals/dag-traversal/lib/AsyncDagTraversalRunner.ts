@@ -61,6 +61,19 @@ export class AsyncDagTraversalRunner<
   private readonly execution: AsyncCoreExecution<Event<T, R>>;
 
   constructor(input: AsyncDagTraversalInstanceConfig<T, R>) {
+    if (
+      input.rootDependencies !== undefined &&
+      input.rootDependencies !== 'honor' &&
+      input.rootDependencies !== 'ignore'
+    ) {
+      throw new TypeError('rootDependencies must be honor or ignore');
+    }
+    if (
+      input.implicitParentDependency !== undefined &&
+      typeof input.implicitParentDependency !== 'boolean'
+    ) {
+      throw new TypeError('implicitParentDependency must be a boolean');
+    }
     this.icfg = mergeAsyncDagTraversalInstanceConfigs(input, {});
     this.icfg.visitors = Object.fromEntries(
       Object.entries(this.icfg.visitors).map(([order, records]) => [
@@ -154,6 +167,12 @@ export class AsyncDagTraversalRunner<
     const kernel = (this.kernel = new TraversalKernel({
       kind: 'dag',
       discovery: input.discovery ?? 'lazy',
+      ...(input.rootDependencies === undefined
+        ? {}
+        : { rootDependencies: input.rootDependencies }),
+      ...(input.implicitParentDependency === undefined
+        ? {}
+        : { implicitParentDependency: input.implicitParentDependency }),
       ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'async',
       sourceMode,

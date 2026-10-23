@@ -316,6 +316,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         makeVertex: (id) => ({
           vertexId: id,
+          dependsOn: [id === 'child' ? 'root' : 'child'],
           vertexContent: { $d: id, $c: id === 'child' ? ['leaf'] : [] },
         }),
       },

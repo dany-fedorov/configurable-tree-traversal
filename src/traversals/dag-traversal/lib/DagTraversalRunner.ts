@@ -61,6 +61,19 @@ export class DagTraversalRunner<
   private readonly bindings: CallbackBindings<T, R>;
 
   constructor(input: DagTraversalInstanceConfig<T, R>) {
+    if (
+      input.rootDependencies !== undefined &&
+      input.rootDependencies !== 'honor' &&
+      input.rootDependencies !== 'ignore'
+    ) {
+      throw new TypeError('rootDependencies must be honor or ignore');
+    }
+    if (
+      input.implicitParentDependency !== undefined &&
+      typeof input.implicitParentDependency !== 'boolean'
+    ) {
+      throw new TypeError('implicitParentDependency must be a boolean');
+    }
     this.icfg = { ...input, visitors: initDagVisitors(input) };
     const injectedState = input.traversalRunnerInternalObjects.state;
     this.state = injectedState ?? new DagTraversalRunnerState<T, R>();
@@ -151,6 +164,12 @@ export class DagTraversalRunner<
     this.kernel = new TraversalKernel({
       kind: 'dag',
       discovery: input.discovery ?? 'lazy',
+      ...(input.rootDependencies === undefined
+        ? {}
+        : { rootDependencies: input.rootDependencies }),
+      ...(input.implicitParentDependency === undefined
+        ? {}
+        : { implicitParentDependency: input.implicitParentDependency }),
       ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'sync',
       sourceMode,

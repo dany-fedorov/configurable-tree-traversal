@@ -98,7 +98,10 @@ Found content is non-null. Explicit omission means deliberately omitting the
 vertex and satisfying its work/completion prerequisites. Missing means lookup
 did not find the ID and cannot satisfy dependencies. Tree and graph root/hint
 sources accept found/omitted; prerequisite resolution additionally accepts
-missing. Keep old MakeVertexResult/null/undefined forms as deprecated inputs.
+missing. Keep old MakeVertexResult (including `vertexContent: null`) and
+lookup-only `undefined` forms as deprecated inputs. Bare `null` results are
+invalid; bare `undefined` is invalid for root/hint resolution. Do not add new
+silent omission paths.
 Normalize at a shared source boundary, preserving own-property ID presence,
 including an explicitly supplied undefined ID, and preserving arbitrary IDs.
 Do not permit missing to silently act as omission for root/hint resolution.

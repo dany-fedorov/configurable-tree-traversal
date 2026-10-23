@@ -37,7 +37,6 @@ export class GraphScheduling<
   private validatedTopologyVersion: number | null = null;
 
   private readonly unusedCompletedWork: Set<VertexId>;
-  private readonly validateRootDependencies: boolean;
   private readonly catalogIds = new Map<VertexId, number>();
   private readonly discoveryExpansion: Ref<T | R>[] = [];
   private readonly seededExpansion: Ref<T | R>[] = [];
@@ -46,11 +45,10 @@ export class GraphScheduling<
     private readonly container: ResolvedGraphsContainer<T, R>,
     completedWork?: ReadonlySet<VertexId>,
     private readonly eager = false,
-    hasPrerequisiteResolver = false,
+    private readonly rootDependencies: 'honor' | 'ignore' = 'honor',
+    private readonly implicitParentDependency = false,
   ) {
     this.unusedCompletedWork = new Set(completedWork);
-    this.validateRootDependencies =
-      eager || completedWork !== undefined || hasPrerequisiteResolver;
   }
 
   getUnusedCompletedWorkIds(): VertexId[] {
@@ -300,9 +298,8 @@ export class GraphScheduling<
           }
         : this.makeUniqueRef(result.vertexContent);
     const dependencies =
-      (this.validateRootDependencies ||
-        (this.container.sourceMode === 'graph' &&
-          result.dependsOnComplete !== undefined)) &&
+      this.container.sourceMode === 'graph' &&
+      this.rootDependencies === 'honor' &&
       !this.container.syntheticRoot
         ? Array.from(new Set(result.dependsOn))
         : [];
@@ -844,7 +841,9 @@ export class GraphScheduling<
   ): VertexId[] {
     const declared = result.dependsOn;
     if (declared !== undefined) return Array.from(new Set(declared));
-    return context.parentVertexRef === this.container.syntheticRootRef
+    return (this.container.sourceMode === 'graph' &&
+      !this.implicitParentDependency) ||
+      context.parentVertexRef === this.container.syntheticRootRef
       ? []
       : [this.container.resolvedGraph.getIdOf(context.parentVertexRef)];
   }

@@ -10,6 +10,8 @@ import type { DagVisitor } from './DagTraversalVisitor';
 
 export type DagDiscoveryOptions = {
   discovery?: 'lazy' | 'eager';
+  rootDependencies?: 'honor' | 'ignore';
+  implicitParentDependency?: boolean;
   syntheticRoot?: boolean;
 };
 

@@ -138,7 +138,8 @@ export class TraversalKernel<
       options.container,
       options.completedWork,
       options.discovery === 'eager',
-      options.hasPrerequisiteResolver,
+      options.rootDependencies,
+      options.implicitParentDependency,
     );
     this.prerequisites =
       options.hasPrerequisiteResolver === true

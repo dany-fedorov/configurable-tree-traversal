@@ -1,3 +1,8 @@
+import {
+  mapSourceResult,
+  normalizeSourceResult,
+} from './normalizeSourceResult';
+import type { SourceVertexResult } from '@core/TraversableTree';
 import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult, TraversableTree } from '@core/TraversableTree';
@@ -58,23 +63,19 @@ function assertTreeResult<T extends TreeTypeParameters>(
   return result;
 }
 
-function isPromiseLike<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
-  try {
-    return typeof (value as PromiseLike<T>).then === 'function';
-  } catch {
-    // The sync transport owns thenable diagnostics, including accessor errors.
-    return false;
-  }
+function normalizeVertexResult<T extends TreeTypeParameters>(
+  result: SourceVertexResult<T>,
+): MakeVertexResult<T> {
+  return normalizeSourceResult(result, false)!;
 }
 
 function validateTreeResult<T extends TreeTypeParameters>(
-  result: MaybePromise<MakeVertexResult<T>>,
+  result: MaybePromise<SourceVertexResult<T>>,
   runnerName?: string,
 ): MaybePromise<MakeVertexResult<T>> {
-  if (isPromiseLike(result)) {
-    return result.then((value) => assertTreeResult(value, runnerName));
-  }
-  return assertTreeResult(result, runnerName);
+  return mapSourceResult(result, (value) =>
+    assertTreeResult(normalizeVertexResult(value), runnerName),
+  );
 }
 
 function asInputHint<
@@ -121,20 +122,26 @@ export function bindGraphSource<
     throw new TypeError('Graph source binding requires a graph-mode container');
   }
   const bound: BoundSource<T, R> = {
-    makeRoot: () => adapter.makeRoot(),
+    makeRoot: () => mapSourceResult(adapter.makeRoot(), normalizeVertexResult),
     makeVertex: (context) =>
-      adapter.makeVertex(asInputHint<T, R>(context.vertexHint), {
-        resolutionContext: context,
-        resolvedGraph: container.publicResolvedGraph,
-        notMutatedResolvedGraph: container.notMutatedResolvedGraph,
-      }),
+      mapSourceResult(
+        adapter.makeVertex(asInputHint<T, R>(context.vertexHint), {
+          resolutionContext: context,
+          resolvedGraph: container.publicResolvedGraph,
+          notMutatedResolvedGraph: container.notMutatedResolvedGraph,
+        }),
+        normalizeVertexResult,
+      ),
   };
   if (adapter.getVertexIdFromHint !== undefined) {
     bound.getVertexIdFromHint = (hint) =>
       adapter.getVertexIdFromHint!(asInputHint<T, R>(hint));
   }
   if (adapter.resolvePrerequisite !== undefined) {
-    bound.resolvePrerequisite = (id) => adapter.resolvePrerequisite!(id);
+    bound.resolvePrerequisite = (id) =>
+      mapSourceResult(adapter.resolvePrerequisite!(id), (value) =>
+        normalizeSourceResult(value, true),
+      );
   }
   return bound;
 }
