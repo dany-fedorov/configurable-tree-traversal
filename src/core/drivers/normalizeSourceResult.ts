@@ -56,9 +56,13 @@ export function mapSourceResult<I, O>(
   let then: PromiseLike<I>['then'] | undefined;
   try {
     then = (result as PromiseLike<I>)?.then;
-  } catch {
-    // Let the transport observe the original accessor and retain its cause.
-    return result as unknown as PromiseLike<O>;
+  } catch (error) {
+    // Retain the first accessor failure while leaving diagnostics to transport.
+    return {
+      get then(): PromiseLike<O>['then'] {
+        throw error;
+      },
+    };
   }
   if (typeof then !== 'function') return normalize(result as I);
   return {

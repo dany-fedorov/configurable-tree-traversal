@@ -87,3 +87,113 @@ for (const Constructor of [
     ]);
   });
 }
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  for (const callback of ['root', 'hint', 'prerequisite'] as const) {
+    for (const laterAccess of [
+      'succeeds',
+      'throws a different error',
+    ] as const) {
+      test.each([undefined, null, { original: true }])(
+        `${Constructor.name} ${callback} preserves the first then getter error %p when later access ${laterAccess}`,
+        async (originalError) => {
+          let getterCalls = 0;
+          const badResult = Object.defineProperty(
+            { vertexContent: null },
+            'then',
+            {
+              get() {
+                getterCalls += 1;
+                if (getterCalls === 1) throw originalError;
+                if (laterAccess === 'succeeds') return undefined;
+                throw { replacement: true };
+              },
+            },
+          );
+          const runner = new Constructor<T>({
+            traversableGraph: {
+              makeRoot: () =>
+                callback === 'root'
+                  ? badResult
+                  : {
+                      vertexId: 'root',
+                      dependsOn:
+                        callback === 'prerequisite' ? ['external'] : [],
+                      vertexContent: {
+                        $data: 'root',
+                        $childHints: callback === 'hint' ? ['child'] : [],
+                      },
+                    },
+              makeVertex: () => badResult,
+              resolvePrerequisite: () => badResult,
+            },
+          }).makeRunner();
+          let failure: { error: unknown } | undefined;
+          try {
+            await runner.run();
+          } catch (error) {
+            failure = { error };
+          }
+          expect(failure).toBeDefined();
+          if (Constructor === DagTraversal) {
+            expect(failure!.error).toBeInstanceOf(TypeError);
+            expect(failure!.error).toHaveProperty('cause');
+            expect(
+              (failure!.error as TypeError & { cause: unknown }).cause,
+            ).toBe(originalError);
+          } else {
+            expect(failure!.error).toBe(originalError);
+          }
+          expect(getterCalls).toBe(1);
+        },
+      );
+    }
+  }
+}
+
+for (const Constructor of [
+  DepthFirstTraversal,
+  AsyncDepthFirstTraversal,
+  BreadthFirstTraversal,
+  AsyncBreadthFirstTraversal,
+  DagTraversal,
+  AsyncDagTraversal,
+]) {
+  test(`${Constructor.name} tree root observes a throwing then getter only once`, async () => {
+    const originalError = {};
+    let getterCalls = 0;
+    const badResult = Object.defineProperty({ vertexContent: null }, 'then', {
+      get() {
+        getterCalls += 1;
+        if (getterCalls === 1) throw originalError;
+        return undefined;
+      },
+    });
+    const runner = new Constructor<T>({
+      traversableTree: {
+        makeRoot: () => badResult,
+        makeVertex: () => ({ vertexContent: null }),
+      },
+    }).makeRunner();
+    let failure: { error: unknown } | undefined;
+    try {
+      await runner.run();
+    } catch (error) {
+      failure = { error };
+    }
+    expect(failure).toBeDefined();
+    if (
+      Constructor === DepthFirstTraversal ||
+      Constructor === BreadthFirstTraversal ||
+      Constructor === DagTraversal
+    ) {
+      expect(failure!.error).toBeInstanceOf(TypeError);
+      expect((failure!.error as TypeError & { cause: unknown }).cause).toBe(
+        originalError,
+      );
+    } else {
+      expect(failure!.error).toBe(originalError);
+    }
+    expect(getterCalls).toBe(1);
+  });
+}
