@@ -2,7 +2,7 @@
 
 [Home and quickstart](../README.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md)
 
-These pages describe **CTT 0.10.0**. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
+These pages describe **CTT 0.11.0**. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
 
 ## Read by task
 
@@ -29,7 +29,7 @@ Examples are executable programs; the DAG and agent coordination examples includ
 | [Async tree adapter](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts) | Promise-returning discovery and visitors |
 | [Object rewrite](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts) | Transforming nested values |
 
-Package builds from this checkout include the current guides and reference. Published 0.10.0 predates this documentation reorganization; use these repository pages for the updated reading path. Examples, contributor instructions, and measurement artifacts are linked to the repository rather than bundled.
+The npm package includes these guides and the reference. Examples, contributor instructions, and measurement artifacts are linked to the repository rather than bundled.
 
 ## Evidence and history
 

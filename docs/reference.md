@@ -2,7 +2,7 @@
 
 [Documentation index](index.md) · [Agent workflow guide](agent-workflows.md) · [Quickstart](../README.md#quickstart-find-the-next-agent-tasks)
 
-Current behavior: CTT 0.10.0. Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts.
+Current behavior: CTT 0.11.0. Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts.
 
 ## On this page
 
@@ -605,7 +605,7 @@ With `saveNotMutatedResolvedTree: true`, visitors can inspect a separate origina
 
 ## API compatibility
 
-The checkout’s upcoming UUID 14 update requires Node 22.12.0+ for synchronous ESM dependency loading, or Bun 1.4.4. Public CJS/ESM entry points and TypeScript 4.7.4/4.9.5 consumer compatibility remain covered by packed checks. Published 0.10.0 predates this dependency update.
+CTT 0.11.0 uses UUID 14 and requires Node 22.12.0+ for synchronous ESM dependency loading, or Bun 1.4.4. Public CJS/ESM entry points and TypeScript 4.7.4/4.9.5 consumer compatibility remain covered by packed checks.
 
 Namespace exports `core`, `depthFirstTraversal`, `breadthFirstTraversal`, `dagTraversal`, `traversableObjectTree`, and `rewriteObject` remain available, alongside named exports for all six traversal classes, helpers, and types. Public subpaths include `core` and each traversal family. Historical deep imports such as `configurable-tree-traversal/core/Vertex` and `configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner` also work.
 
