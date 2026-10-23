@@ -25,7 +25,7 @@ CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool
 npm install configurable-tree-traversal
 ```
 
-Current published release: **0.10.0**. The upcoming UUID update requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
+Current release: **0.11.0**. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
 
 ## Quickstart: find the next agent tasks
 

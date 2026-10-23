@@ -6,7 +6,7 @@
 - **Finding a public contract:** [API reference](docs/reference.md). [Documentation map](docs/index.md) links runnable examples.
 - **Changing this repository:** use the source/test map below and [testing guide](docs/testing.md).
 
-Current published API: **0.10.0**. `docs/research/` and `docs/superpowers/` contain historical research, plans, and downstream proposals. They are not a substitute for current documentation or evidence that a proposed feature exists. Reconcile discrepancies against source and behavioral tests; update the current guide when changing behavior.
+Current published API: **0.11.0**. `docs/research/` and `docs/superpowers/` contain historical research, plans, and downstream proposals. They are not a substitute for current documentation or evidence that a proposed feature exists. Reconcile discrepancies against source and behavioral tests; update the current guide when changing behavior.
 
 ## Scope and boundaries
 

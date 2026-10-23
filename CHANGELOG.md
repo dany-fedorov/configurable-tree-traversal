@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.11.0 — 2026-10-23
+
 - Update UUID to 14.0.3 and remove obsolete `@types/uuid`; preserve synchronous reference IDs and mixed CJS/ESM entry identity. Require Node 22.12.0+ for synchronous loading of the ESM-only dependency (Bun 1.4.4 also verified), and add an exact-minimum Node package check. Adapt the Jest loader for the real dependency.
 
 - Lead documentation with autonomous-agent workflows, add navigation and repository-agent guidance, retain detailed API contracts in a dedicated reference, and include consumer guides in package builds. Add an executable agent-coordination and recovery example.
