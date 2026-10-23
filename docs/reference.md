@@ -2,7 +2,7 @@
 
 [Documentation index](index.md) · [Agent workflow guide](agent-workflows.md) · [Quickstart](../README.md#quickstart-find-the-next-agent-tasks)
 
-Current behavior: CTT 0.11.0. Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts.
+Current behavior: the unreleased uniform API in this checkout. Published npm 0.11.0 differs; see the [migration guide](migration-uniform-api.md). Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts.
 
 ## On this page
 
@@ -25,7 +25,7 @@ Current behavior: CTT 0.11.0. Start with the workflow guide for integration; use
 
 ## DAG traversal
 
-`DagTraversal` and `AsyncDagTraversal` traverse a discovered acyclic graph in two lifecycle orders: `ON_READY` visits eligible initial work, and `ON_COMPLETE` visits structural completion after the vertex’s work, discovery, and retained children complete. Successful initial visitor-chain completion satisfies work dependents; committed completion satisfies completion dependents. `dependsOn: [p]` waits for p's successful initial work (W); `dependsOnComplete: [p]` waits for p's committed `ON_COMPLETE` transition (C), including closed discovery and completion of every retained child. Both lists gate `ON_READY` conjunctively. Completion admission or an unfinished async completion callback does not satisfy C. Dependencies do not create structural parent/child edges; explicit `dependsOn` replaces the default parent W dependency, while `dependsOnComplete` leaves that default intact.
+`DagTraversal` and `AsyncDagTraversal` traverse a discovered acyclic graph in two lifecycle orders: `ON_READY` visits eligible initial work, and `ON_COMPLETE` visits structural completion after the vertex’s work, discovery, and retained children complete. Normal initial visitor-chain completion satisfies work dependents; committed completion satisfies completion dependents. `dependsOn: [p]` waits for p's completed initial work (W); `dependsOnComplete: [p]` waits for p's committed `ON_COMPLETE` transition (C), including closed discovery and completion of every retained child. Both lists gate `ON_READY` conjunctively. Completion admission or an unfinished async completion callback does not satisfy C. Dependencies do not create structural parent/child edges; graph sources have no implicit parent W by default. Set `implicitParentDependency: true` to inherit parent W when `dependsOn` is omitted; explicit lists, including `[]`, always win. Tree sources retain structural order and parent dependencies.
 
 ```ts
 import {
@@ -60,9 +60,12 @@ function makeJob(id: string) {
   const job = jobs[id];
   if (job === undefined) throw new Error(`Unknown job: ${id}`);
   return {
-    vertexId: id,
-    dependsOn: job.dependsOn,
-    vertexContent: { $d: id, $c: job.children },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: id,
+      dependsOn: job.dependsOn,
+      vertexContent: { $data: id, $childHints: job.children },
+    },
   };
 }
 ```
@@ -91,17 +94,17 @@ their work is eligible. These relationships need not have the same shape.
 
 | Concern | Declared through | Meaning |
 | --- | --- | --- |
-| Discovery and structure | `makeRoot()`, `makeVertex(hint)`, and `$c` child hints | Find vertices and establish structural parent/child relationships. |
+| Discovery and structure  | `makeRoot()`, `makeVertex(hint)`, and `$childHints` child hints                            | Find vertices and establish structural parent/child relationships.                       |
 | Work prerequisites | `dependsOn` vertex IDs | Hold a vertex's initial work until its prerequisites have completed their work. |
 | Completion prerequisites | `dependsOnComplete` vertex IDs | Hold initial work until the prerequisite vertices and their retained subgraphs complete. |
 | Work completion | Normal initial visitor-chain completion, `completedWork`, or successful guarded `settle()` | Supply the completion facts that release dependents. |
 | Subtree completion | Structural children and the `ON_COMPLETE` lifecycle | Wait for a vertex's own work and its discovered descendant subgraph to complete. |
 
 For example, a synthetic root can list a flat catalog of `a`, `b`, `c`, and `d`.
-Every real vertex can have `$c: []`, while `dependsOn` declares a diamond:
+Every real vertex can have `$childHints: []`, while `dependsOn` declares a diamond:
 
-| Vertex | Child hints (`$c`) | Prerequisites (`dependsOn`) |
-| --- | --- | --- |
+| Vertex | Child hints (`$childHints`) | Prerequisites (`dependsOn`) |
+| ------ | --------------------------- | --------------------------- |
 | `a` | `[]` | `[]` |
 | `b` | `[]` | `['a']` |
 | `c` | `[]` | `['a']` |
@@ -113,9 +116,9 @@ from `a` to `b` or from `b` to `d` is needed to express these prerequisites.
 Discovery order does not satisfy a dependency or override its readiness rule.
 It can still influence FIFO order among equally ready vertices.
 
-This independence is explicit: for an ordinary child, omitting `dependsOn`
-defaults to a dependency on its discovery parent. Supply `dependsOn: []` for no
-work prerequisites, or an explicit ID list to replace that default. Children of
+Graph sources default to `implicitParentDependency: false`: omitting `dependsOn`
+means no work prerequisites. Set it to `true` to inherit discovery-parent W
+only for omitted lists. Explicit `dependsOn: []` or an ID list always wins. Children of
 a synthetic catalog root have no implicit dependency on the catalog holder.
 Real child hints still define structure, paths, and subtree-completion
 obligations even when work dependencies are supplied separately.
@@ -130,7 +133,7 @@ discovery; the guarantee is a boundary before visitors, not separate public
 execution instead.
 
 For a host-controlled execution phase, combine eager discovery with a complete
-synthetic-root catalog and a sole `ON_READY` visitor returning `DEFER_READY`.
+synthetic-root catalog and a sole `ON_READY` visitor returning the `Command.DEFER_READY` command.
 After `run()` reaches quiescence, read `summary().readyIds`; the host can execute
 selected work and report accepted completion through guarded `settle()`, or
 rebuild from `completedWork` on its next tick. A successful no-op visitor would
@@ -164,11 +167,10 @@ validate original dependencies when discovery closes; ordinary lazy traversal
 remains the default. Eager discovery honors explicit root `dependsOn` entries.
 `priority` result metadata rejects with `TypeError('priority metadata is not supported')`.
 
-For compatibility, an ordinary lazy root without `completedWork` ignores its
-`dependsOn` declaration unless the source has `resolvePrerequisite` or its result
-supplies a non-undefined `dependsOnComplete` value. Use `dependsOnComplete: []` to opt in to root W
-dependencies without a resolver; absent or `undefined` retains the legacy behavior. Explicit root
-completion prerequisites always apply. Synthetic root metadata is ignored.
+Ordinary roots honor declared W and C prerequisites in lazy/eager mode, with or
+without seeds or lookup. `rootDependencies: 'honor'` is the default. Explicit
+`rootDependencies: 'ignore'` restores ignoring root W only; root C still applies.
+Synthetic catalog roots are bookkeeping and have no work dependencies.
 
 Without `resolvePrerequisite`, a prerequisite must be discovered or deliberately
 omitted. Omission satisfies W and C; deletion cascades through both
@@ -185,15 +187,18 @@ expose a copied `dependsOnComplete` only when its normalized list is nonempty.
 See the runnable [build-join example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts).
 
 Graph sources may define `resolvePrerequisite(id)` to find an unknown ID declared
-in either prerequisite list. It returns a vertex result (or a promise-like result
+in either prerequisite list. It returns a tagged `found`, `omitted`, or `missing` result (or a promise-like result
 for `AsyncDagTraversal`), with exactly the ID as its argument and no fabricated
 parent context. A result without its own `vertexId` inherits the requested ID;
-an explicit ID must match using SameValueZero identity. `undefined` means not
-found and eventually produces the existing typed missing-prerequisite stall.
-`{ vertexContent: null }` deliberately omits the ID and satisfies both W and C.
+an explicit ID must match using SameValueZero identity. `{ kind: 'missing' }` means not found and eventually produces the typed
+missing-prerequisite stall. `{ kind: 'omitted', satisfiesDependencies: true }`
+deliberately omits the requested ID and satisfies both W and C. A `found`
+result wraps the non-null content and optional declarations under `vertex`.
+Deprecated lookup `undefined` and `{ vertexContent: null }` inputs still normalize
+to missing and omission respectively.
 Thrown/rejected values pass through unchanged. First-accepted identity wins when
 lookup and ordinary discovery race: a live vertex retains its original content
-and declarations, including when a later result is null. If omission was
+and declarations, including when a later result deliberately omits it. If omission was
 accepted first, later content rejects with the existing omission/content error.
 
 Lookup prefers available ordinary discovery. Eager traversal alternates natural
@@ -249,9 +254,9 @@ validation; data rewrites and vertex deletion retain their existing behavior.
 
 ### Deferred DAG progress and reconciliation
 
-Register a sole deterministic `ON_READY` visitor returning `DEFER_READY` to inspect
+Register a sole deterministic `ON_READY` visitor returning the `Command.DEFER_READY` command to inspect
 candidates without completing their work. Both DAG runners expose `summary()` and
-`settle(id, outcome, expectedGeneration)`. Import the sentinel and `DagSummary`,
+`settle(id, outcome, expectedGeneration)`. Import `TraversalVisitorCommandName as Command` from the root or `core`, and `DagSummary`,
 `DagVertexProgress`, `DagWorkState`, `DagSettlementGeneration`, and
 `DagSettlementOutcome` from the package root or DAG subpath.
 
@@ -259,7 +264,7 @@ candidates without completing their work. Both DAG runners expose `summary()` an
 import {
   DagTraversal,
   DagTraversalOrder,
-  DEFER_READY,
+  TraversalVisitorCommandName as Command,
   type TreeTypeParameters,
 } from 'configurable-tree-traversal';
 
@@ -278,16 +283,24 @@ const traversal = new DagTraversal<Graph>({
   syntheticRoot: true,
   traversableGraph: {
     makeRoot: () => ({
-      vertexContent: { $d: '', $c: Object.keys(prerequisites) },
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: '', $childHints: Object.keys(prerequisites) },
+      },
     }),
     makeVertex: (id) => ({
-      vertexId: id,
-      dependsOn: prerequisites[id]!,
-      vertexContent: { $d: id, $c: [] },
+      kind: 'found' as const,
+      vertex: {
+        vertexId: id,
+        dependsOn: prerequisites[id]!,
+        vertexContent: { $data: id, $childHints: [] },
+      },
     }),
   },
 });
-traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => DEFER_READY);
+traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => ({
+  commands: [{ commandName: Command.DEFER_READY }],
+}));
 const runner = traversal.makeRunner().run(); // HALTED, waiting for the host
 const snapshot = runner.summary();
 console.log(snapshot.readyIds); // ['b', 'c']
@@ -295,16 +308,17 @@ const generation = snapshot.vertices.get('b')!.generation!;
 
 // A real host validates and durably accepts its result before settlement.
 acceptedCompletedWork.add('b');
-runner.settle('b', { ok: true }, generation);
+runner.settle('b', { kind: 'workCompleted' }, generation);
 runner.run();
 console.log(runner.summary().readyIds); // ['c']; d still waits for c
 ```
 
-`DEFER_READY` ends the initial visitor chain, discards its uncommitted buffered
+The `DEFER_READY` command ends the initial visitor chain, discards its uncommitted buffered
 commands, and skips remaining visitors. It emits no event or dependency success
 and holds no physical callback permit. Already committed changes and external
-visitor effects cannot be undone. The sentinel is rejected in completion and
-tree traversal callbacks. Deferred vertices may expand their own hints in lazy
+visitor effects cannot be undone. Deferral is rejected in completion and tree callbacks. It must be the only
+command in its result: mixed batches reject before any commands apply. The
+deprecated exported symbol remains a compatibility input with the same behavior. Deferred vertices may expand their own hints in lazy
 mode; use eager discovery and a complete synthetic-root catalog for a global
 frontier, including descendants of deferred parents.
 
@@ -321,26 +335,26 @@ alone. Before root discovery, completeness is false. Lazy partial snapshots do
 not promise a complete global frontier. Synthetic bookkeeping is absent.
 
 A generation is local to a deferred vertex in one retained runner. Accepted
-success commits work and publishes its configured initial event once without
+work completion commits work and publishes its configured initial event once without
 replaying visitors. Identical reports return `false`, including after completion;
 unknown, deleted, wrong-generation, cross-runner and conflicting reports throw.
-Accepted failure (`{ ok: false, error }`) fails the runner; execution rethrows the
+Accepted failure (`{ kind: 'traversalFailed', error }`) fails the runner; execution rethrows the
 exact error, including `null` or `undefined`. Failure replay equality uses
 `Object.is`. Halting is resumable and retains generation validity. Settlement
 wakes an active async consumer; after an idle settlement, call `run()` again.
 
 ### Host policy and traversal feedback
 
-`{ ok: true }` means the host accepts this vertex's work as complete for traversal
+`{ kind: 'workCompleted' }` means the host accepts this vertex's work as complete for traversal
 and allows its dependents to proceed. It does not classify the business result as
 positive. A rejected proposal, negative decision, or other accepted business
 outcome can still complete a vertex when the host's policy says its work is done.
-`{ ok: false, error }` instead aborts traversal with a fatal error; it is not a
+`{ kind: 'traversalFailed', error }` instead aborts traversal with a fatal error; it is not a
 per-vertex business failure state or a request to retry. A host retaining work
 for another attempt keeps it incomplete and manages that attempt itself.
-The progress state named `succeeded` records traversal work completion only.
+The progress state named `completed` records traversal work completion only.
 
-CTT treats `$d` as opaque caller data. The host can associate accepted outcomes,
+CTT treats `$data` as opaque caller data. The host can associate accepted outcomes,
 artifact references, or other facts with IDs or vertex data; CTT does not infer
 business dependencies or ranking from those facts. The host ranks a copy of
 `summary().readyIds` and applies its own capacity, claims, and admission policy.
@@ -388,7 +402,7 @@ Ancestor cycles throw a descriptive error before descent; shared objects in sepa
 
 ## Abstract trees
 
-A tree adapter supplies `makeRoot()` and `makeVertex(hint, options)`. Both return `{ vertexContent }`, where content is `{ $d: data, $c: childHints }`. Return `{ vertexContent: null }` for an empty tree or a skipped child.
+A tree adapter supplies `makeRoot()` and `makeVertex(hint, options)`. Return `{ kind: 'found', vertex: { vertexContent: { $data: data, $childHints: childHints } } }` for a vertex, or `{ kind: 'omitted', satisfiesDependencies: true }` for an empty tree or skipped child. `FoundVertexResult`, `OmittedVertexResult`, `MissingVertexResult`, `SourceVertexResult`, and `PrerequisiteResolutionResult` are exported types. Only prerequisite lookup accepts `missing`. Bare `null` is invalid everywhere; bare `undefined` is invalid for root/hint resolution. Legacy untagged `MakeVertexResult` (including null content) remains accepted. Own `vertexId` presence is preserved, including an explicitly supplied `undefined` ID.
 
 ```ts
 import {
@@ -397,19 +411,25 @@ import {
   type TreeTypeParameters,
 } from 'configurable-tree-traversal';
 
-type Node = { $d: string; $c: Node[] };
+type Node = { $data: string; $childHints: Node[] };
 type Tree = TreeTypeParameters<string, Node>;
 const root: Node = {
-  $d: 'A',
-  $c: [
-    { $d: 'B', $c: [{ $d: 'D', $c: [] }] },
-    { $d: 'C', $c: [] },
+  $data: 'A',
+  $childHints: [
+    { $data: 'B', $childHints: [{ $data: 'D', $childHints: [] }] },
+    { $data: 'C', $childHints: [] },
   ],
 };
 const traversal = new DepthFirstTraversal<Tree>({
   traversableTree: {
-    makeRoot: () => ({ vertexContent: root }),
-    makeVertex: (hint) => ({ vertexContent: hint }),
+    makeRoot: () => ({
+      kind: 'found' as const,
+      vertex: { vertexContent: root },
+    }),
+    makeVertex: (hint) => ({
+      kind: 'found' as const,
+      vertex: { vertexContent: hint },
+    }),
   },
 });
 traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) => {
@@ -468,7 +488,25 @@ const keys = [...traversal.makeRunner().getIterable()]
 // ['a', 'c', 'b']
 ```
 
-Register visitors using `BreadthFirstTraversalOrder.LEVEL_ORDER`. `traverseBreadthFirst(tree, visitor, config?)` creates and runs a traversal. The corresponding depth-first helper is `traverseDepthFirst(tree, { preOrderVisitor?, inOrderVisitor?, postOrderVisitor? }, config?)`. Both helpers return the runner; pass `null` in place of visitors to just resolve the tree.
+Register visitors using `BreadthFirstTraversalOrder.LEVEL_ORDER`. All six convenience helpers accept one options object with the source exactly once, an optional phase-keyed callback map, and traversal options:
+
+```ts
+import {
+  traverseBreadthFirst,
+  BreadthFirstTraversalOrder as Order,
+  TraversableObjectTree,
+} from 'configurable-tree-traversal';
+const runner = traverseBreadthFirst({
+  traversableTree: new TraversableObjectTree({ a: 1 }),
+  visitors: {
+    [Order.LEVEL_ORDER]: (vertex) => {
+      console.log(vertex.getData());
+    },
+  },
+});
+```
+
+`traverseDepthFirst` uses `PRE_ORDER`/`IN_ORDER`/`POST_ORDER`; `traverseDag` uses `ON_READY`/`ON_COMPLETE` with exactly one `traversableGraph` or `traversableTree`. `traverseDepthFirstAsync`, `traverseBreadthFirstAsync`, and `traverseDagAsync` use the same shapes and return promises of runners; sync helpers return runners. Omit `visitors` to just resolve the source. These maps contain callbacks; constructor/configuration maps contain full visitor records. Deprecated positional overloads remain; see the [migration guide](migration-uniform-api.md#convenience-helpers) for conversions and the generic sync/async union limitation.
 
 ## Async traversal
 
@@ -488,9 +526,15 @@ async function listChildren(path: string): Promise<string[]> {
 const traversal = new AsyncDepthFirstTraversal<Files>({
   concurrency: 4,
   traversableTree: {
-    makeRoot: () => ({ vertexContent: { $d: '/', $c: ['src'] } }),
+    makeRoot: () => ({
+      kind: 'found' as const,
+      vertex: { vertexContent: { $data: '/', $childHints: ['src'] } },
+    }),
     makeVertex: async (path) => ({
-      vertexContent: { $d: path, $c: await listChildren(path) },
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: path, $childHints: await listChildren(path) },
+      },
     }),
   },
 });
@@ -510,17 +554,20 @@ Visitors receive `(vertex, options)` and may return `{ commands: [...] }`. Comma
 
 | Command                             | Effect                                                                       |
 | ----------------------------------- | ---------------------------------------------------------------------------- |
+| `DEFER_READY`                     | Defer DAG initial work; must be the sole command in its result               |
 | `NOOP`                              | No change                                                                    |
 | `HALT_TRAVERSAL`                    | Pause after the current visitor's command batch                              |
 | `DELETE_VERTEX`                     | Remove the vertex and its resolved descendants, and skip pending descendants |
 | `REWRITE_VERTEX_DATA`               | Replace data using `{ newData }`, including `null` or `undefined`            |
 | `DISABLE_SUBTREE_TRAVERSAL`         | Skip remaining descendants while retaining this vertex                       |
-| `REWRITE_VERTEX_HINTS_ON_PRE_ORDER` | Replace pending child hints using `{ newHints }` before descent              |
+| `REWRITE_CHILD_HINTS`             | Replace pending child hints using `{ newHints }` before descent              |
 | `SET_VERTEX_VISITORS_CHAIN_STATE`   | Pass `{ vertexVisitorsChainState }` to the next sequential visitor           |
 
-Hint rewriting is accepted during depth-first pre-order or breadth-first level-order and throws at other orders. Deleting the root produces an empty resolved tree. Deleted vertices have no further visitor calls or yielded events.
+Hint rewriting is accepted during depth-first `PRE_ORDER`, breadth-first `LEVEL_ORDER`, and DAG `ON_READY`; other phases reject it. Eager DAG validation rejects topology rewrites at runtime. `REWRITE_VERTEX_HINTS_ON_PRE_ORDER` remains a deprecated alias with the same phase restrictions. Deleting the root produces an empty resolved tree. Deleted vertices have no further visitor calls or yielded events.
 
-Visitors have a numeric `priority` (default `100`; higher runs earlier). Equal priorities retain registration order. By default, each visitor's commands are applied before the next visitor runs. With `resolutionStyle: TraversalVisitorFunctionResolutionStyle.CONCURRENT`, all concurrent visitors run first, and their commands apply after that group completes. These are synchronous callbacks; `CONCURRENT` describes command timing, not parallel or asynchronous execution.
+Visitors have a numeric `priority` (default `100`; higher runs earlier). Equal priorities retain registration order within a group. `commandCommitMode: 'afterGroup'` visitors execute first, in priority/registration order, and their commands commit after that group. Then `'afterEachVisitor'` visitors execute in priority/registration order, committing after each visitor (the default). This controls batching, independently of async `concurrency`; it does not imply parallel execution. Deprecated `resolutionStyle: CONCURRENT`/`SEQUENTIAL` values map to `afterGroup`/`afterEachVisitor`; contradictory explicit old/new settings throw.
+
+The actual phase is inferred in registration, configuration records, and helper maps, including `options.order`. Reusable callbacks typed with general `TraversalVisitor`/`DagVisitor` aliases can return common commands across entry points. `options.visitorRecord` exposes readonly, phase-neutral `VisitorRegistrationMetadata` (`addedIndex`, `priority`, `commandCommitMode`, and deprecated `resolutionStyle`). It has no callable `visitor` in the supported TypeScript context; retain your callback reference or retrieve full typed records with `listVisitorsFor()`. Full records remain in configuration/list/set APIs; see the [migration guide](migration-uniform-api.md#phase-aware-visitors).
 
 Visitor options include `resolvedTree`, `vertexRef`, `order`, root flags, and per-order indices. `vertexVisitIndex` and `curVertexVisitorVisitIndex` start at zero. `previousVisitedVertexRef` points to the preceding vertex for that order, or `null` on its first visit. Chain state starts at `null` for each visit. Each runner takes a snapshot of the configured visitor records and in-order configuration. Configuration copies include nested in-order ranges and iteration filter arrays. Exported traversal defaults are frozen; use constructor options or `configure()` to customize a traversal.
 
@@ -604,6 +651,8 @@ With `saveNotMutatedResolvedTree: true`, visitors can inspect a separate origina
 `ResolvedTree.getPathTo(ref, { noRoot?, noSelf? })` returns the resolved ancestry in root-to-vertex order and throws if the reference is absent from that tree. Saved-tree paths use saved references from `notMutatedResolvedTreeRefsMap`. Deleting a resolved vertex removes its resolved descendants and detaches it from its parent; deleting the root clears the root pointer.
 
 ## API compatibility
+
+The [uniform API migration guide](migration-uniform-api.md) lists all deprecated spellings and intentional behavior/type changes. `Vertex` owns enumerable `$data`/`$childHints`; legacy `$d`/`$c` property access uses prototype getters. Object spread, `Object.keys`, and JSON output therefore use canonical names, even for legacy inputs. `clone({ $data: undefined })` explicitly replaces data. Mixed canonical/legacy content fields reject. Built-in object and resolved-tree source adapters emit canonical content; resolved-tree structural child references remain structural refs.
 
 CTT 0.11.0 uses UUID 14 and requires Node 22.12.0+ for synchronous ESM dependency loading, or Bun 1.4.4. Public CJS/ESM entry points and TypeScript 4.7.4/4.9.5 consumer compatibility remain covered by packed checks.
 

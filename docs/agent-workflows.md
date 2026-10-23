@@ -2,6 +2,8 @@
 
 [Documentation map](index.md) · [Quickstart](../README.md#quickstart-find-the-next-agent-tasks) · [API reference](reference.md)
 
+This guide describes the unreleased checkout API; published npm 0.11.0 users should read the [migration guide](migration-uniform-api.md).
+
 Use CTT when agents or tools perform work with dependencies: research before implementation, independent specialist tasks in parallel, verification after several branches, or review after an entire composite completes. CTT supplies graph discovery, dependency readiness, lifecycle transitions, and inspection. Your coordinator supplies the workflow and executes it.
 
 ## On this page
@@ -18,7 +20,7 @@ Use CTT when agents or tools perform work with dependencies: research before imp
 
 | Model | How it works | Appropriate when |
 | --- | --- | --- |
-| Host-controlled frontier | Use a sole deterministic `ON_READY` visitor returning `DEFER_READY`; run to quiescence, then inspect `summary()` | Agents run externally, work needs claims/approval, or state must survive process loss |
+| Host-controlled frontier | Use a sole deterministic `ON_READY` visitor returning `{ commands: [{ commandName: Command.DEFER_READY }] }` (import `TraversalVisitorCommandName as Command`); run to quiescence, then inspect `summary()` | Agents run externally, work needs claims/approval, or state must survive process loss |
 | Work inside visitors | Use `AsyncDagTraversal` and await work in `ON_READY` visitors; normal chain completion releases dependents | One process owns execution and immediate callback failure should fail traversal |
 
 Start with the host-controlled model for a durable agent coordinator. `DagTraversal` is sufficient when graph facts are already in memory; use `AsyncDagTraversal` for asynchronous adapters. The host can run asynchronous agents independently of which runner it uses.
@@ -48,17 +50,17 @@ CTT traverses the graph your adapter provides; it does not generate a plan from 
 | Concept | CTT representation | Host responsibility |
 | --- | --- | --- |
 | Stable work identity | `vertexId` | Choose IDs that can be reconstructed and matched to accepted facts |
-| Opaque task data | `vertexContent.$d` | Agent role, prompt/artifact references, policy and metadata |
-| Discovery and structure | `makeRoot()`, `makeVertex(hint)`, `vertexContent.$c` | Supply the complete intended catalog and structural relationships |
+| Opaque task data                 | `vertexContent.$data`                                         | Agent role, prompt/artifact references, policy and metadata        |
+| Discovery and structure          | `makeRoot()`, `makeVertex(hint)`, `vertexContent.$childHints` | Supply the complete intended catalog and structural relationships  |
 | Initial-work dependency | `dependsOn` | Declare which work must be accepted first |
 | Structural-completion dependency | `dependsOnComplete` | Declare which composite must finish before work begins |
 | Missing prerequisite lookup | Optional `resolvePrerequisite(id)` | Fetch graph facts from a catalog/service |
 
-For a known set of independent work items, use `syntheticRoot: true`, list every item in its `$c`, use `$c: []` on real vertices, and declare explicit `dependsOn` lists. `discovery: 'eager'` discovers and validates the reachable graph before visitors execute. This includes disconnected catalog entries; it cannot detect work omitted from the supplied domain.
+For a known set of independent work items, use `syntheticRoot: true`, list every item in its `$childHints`, use `$childHints: []` on real vertices, and declare explicit `dependsOn` lists. `discovery: 'eager'` discovers and validates the reachable graph before visitors execute. This includes disconnected catalog entries; it cannot detect work omitted from the supplied domain.
 
-Discovery and execution dependencies are distinct. Omitting `dependsOn` on an ordinary child adds a default dependency on its discovery parent; `dependsOn: []` removes that work prerequisite. Children of a synthetic root have no implicit dependency on the holder. See [discovery versus execution](reference.md#discovery-and-execution-as-separate-phases).
+Discovery and execution dependencies are distinct. Graph sources default to `implicitParentDependency: false`: omitting `dependsOn` means no work prerequisites. Declare explicit lists (including `[]`), or set `implicitParentDependency: true` to inherit the discovery parent's W when the list is omitted. Ordinary roots honor W by default; `rootDependencies: 'ignore'` suppresses root W only, never C. Children of a synthetic root have no implicit dependency on the holder. See [discovery versus execution](reference.md#discovery-and-execution-as-separate-phases).
 
-A prerequisite ID alone does not make a vertex discoverable. Include it through hints/catalog entries or supply `resolvePrerequisite`. That hook may find further prerequisites transitively; concurrent demand is coalesced. Return `undefined` for not found. Returning `{ vertexContent: null }` deliberately omits the vertex and satisfies its dependencies, so it is not a representation of a failed agent or a temporary service outage. Let adapter errors propagate as appropriate. See [lookup and identity rules](reference.md#discovery-and-completed-work).
+A prerequisite ID alone does not make a vertex discoverable. Include it through hints/catalog entries or supply `resolvePrerequisite`. That hook may find further prerequisites transitively; concurrent demand is coalesced. Return `{ kind: 'found', vertex: { vertexId, vertexContent: { $data, $childHints }, dependsOn } }` for content, `{ kind: 'missing' }` for not found, or `{ kind: 'omitted', satisfiesDependencies: true }` for intentional omission. Omission deliberately omits the vertex and satisfies its dependencies, so it is not a representation of a failed agent or a temporary service outage. Let adapter errors propagate as appropriate. See [lookup and identity rules](reference.md#discovery-and-completed-work).
 
 For a global ready frontier, use eager discovery with a complete catalog. Lazy mode interleaves discovery and execution; its snapshots may be partial. `summary()` is observational and will never fetch missing vertices. The public API has no separate `discover()`/`execute()` pair.
 
@@ -72,7 +74,7 @@ For a global ready frontier, use eager discovery with a complete catalog. Lazy m
 
 Use work dependencies for flat agent tasks. Use completion dependencies when structural children are meaningful parts of a composite. Seeds in `completedWork` satisfy W only; children and completion visitors still have to complete before C is released.
 
-Avoid making a child wait on its own ancestor's C when that ancestor must wait for the child to complete. CTT validates combined milestone cycles; seeding W does not make an invalid graph valid. Completion prerequisites do not remove a child's default parent W dependency. The [completion example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts) demonstrates a valid sibling join.
+Avoid making a child wait on its own ancestor's C when that ancestor must wait for the child to complete. CTT validates combined milestone cycles; seeding W does not make an invalid graph valid. Completion prerequisites add C gates independently of the declared W lists and the optional parent-inheritance policy. The [completion example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts) demonstrates a valid sibling join.
 
 ## Accept results and resume
 
@@ -82,7 +84,7 @@ Start from the [quickstart](../README.md#quickstart-find-the-next-agent-tasks). 
 const generation = runner.summary().vertices.get('implement')!.generation!;
 // First validate the host's revision/attempt and durably accept the result.
 accepted.add('implement'); // In-memory simulation only.
-runner.settle('implement', { ok: true }, generation);
+runner.settle('implement', { kind: 'workCompleted' }, generation);
 runner.run();
 console.log(runner.summary().readyIds); // ['testPlan']
 ```
@@ -91,7 +93,7 @@ For an async runner, await `runner.run()`. `settle()` itself is synchronous. A s
 
 Capture the generation belonging to the deferred work you dispatched. It is a local guard, not a durable attempt ID, distributed lease, or authentication token. The host must separately reject stale revisions, stale attempts, duplicate result delivery, and lost claims before accepting a result. An identical accepted settlement returns `false`; invalid, conflicting, or cross-runner settlement throws.
 
-`{ ok: true }` means the work is complete for dependency traversal. An accepted review rejection can still complete a review vertex if host policy says the review work is done. `{ ok: false, error }` fails the whole runner and preserves the exact thrown value; it is not a retry request or a business outcome field. The progress state `succeeded` means traversal work completion.
+`{ kind: 'workCompleted' }` means the work is complete for dependency traversal. An accepted review rejection can still complete a review vertex if host policy says the review work is done. `{ kind: 'traversalFailed', error }` fails the whole runner and preserves the exact thrown value; it is not a retry request or a business outcome field. The progress state `completed` means traversal work completion.
 
 ## Persist facts and reconstruct
 
@@ -120,7 +122,7 @@ The [reconciliation example](https://github.com/dany-fedorov/configurable-tree-t
 
 ## Retries, human waits, and graph revisions
 
-- **Agent retry:** retain the task as incomplete; record the failed attempt and retry policy in the host. Do not send fatal `ok: false` unless you intend to fail the runner.
+- **Agent retry:** retain the task as incomplete; record the failed attempt and retry policy in the host. Do not send fatal `kind: 'traversalFailed'` unless you intend to fail the runner. Deferral must be the only command in its result; mixed results are rejected before any commands apply.
 - **Human input or approval:** keep the task deferred and record a host wait. Exclude it from dispatch until the response is accepted; readiness alone will keep listing it.
 - **New plan or graph revision:** construct a new runner and discard the previous runner's generations. Carry completion facts forward only when the host validates their meaning for the new revision. Do not seed every historic success blindly.
 - **Cancellation or timeout:** cancel host executor work separately. Halting CTT does not cancel already-started callbacks or remote agents. Async close may wait for a pending callback.
@@ -130,12 +132,12 @@ The [reconciliation example](https://github.com/dany-fedorov/configurable-tree-t
 
 | Symptom | Check |
 | --- | --- |
-| Work completed without an agent running | A visitor returned normally instead of `DEFER_READY`, or a seeded ID already marked W complete |
+| Work completed without an agent running              | A visitor returned normally instead of the sole `DEFER_READY` command, or a seeded ID already marked W complete                           |
 | The same agent task dispatches again | Host claim/attempt state must filter `readyIds`; deferral intentionally leaves work ready |
 | Ready work seems absent | Run discovery first; inspect discovery completeness, seed IDs, and unmet W/C dependencies |
 | Missing prerequisite or cycle | Catch `DagTraversalStallError`; inspect typed diagnostics. Check catalog coverage, lookup results, W/C declarations, and structural edges |
 | A seeded composite still blocks review | Seeds complete W, not C; its retained children and completion transition must finish |
-| A retry aborts everything | `settle(..., { ok: false, error }, ...)` is fatal; keep retryable work incomplete in host policy |
+| A retry aborts everything                            | `settle(..., { kind: 'traversalFailed', error }, ...)` is fatal; keep retryable work incomplete in host policy                            |
 | Settlement fails after restart | Generations are runner-local; reconstruct from accepted facts rather than replaying an old handle |
 | An external task still runs after halt | Callback/executor cancellation belongs to the host |
 | A node fetched by lookup is missing from a root walk | Resolved prerequisites may be detached; enumerate `getVertexRefs()` instead of only walking `getRoot()` |

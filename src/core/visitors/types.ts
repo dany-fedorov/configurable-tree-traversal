@@ -1,12 +1,16 @@
+import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { CTTRef } from '@core/CTTRef';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
+import type {
+  TraversalVisitorCommand,
+  VisitorRegistrationMetadata,
+} from '@core/TraversalVisitor';
 import type { Vertex } from '@core/Vertex';
-import type { VisitResult, VisitorRecord } from '@core/graph/types';
+import type { VisitResult } from '@core/graph/types';
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
-export type RegistrationMetadata = Omit<VisitorRecord<never>, 'visitor'>;
+export type RegistrationMetadata = VisitorRegistrationMetadata;
 
 export type VisitorChainMetadata<T extends TreeTypeParameters> = {
   vertexVisitIndex: number;
@@ -29,6 +33,7 @@ export type VisitorChainPoll<
   | { kind: 'WAIT' | 'PAUSED' | 'DONE' };
 
 export type VisitorBatchCommit = {
+  deferred?: boolean;
   halt: boolean;
   deleted: boolean;
   vertexVisitorsChainState?: unknown;
@@ -42,8 +47,9 @@ export type VisitorChainInput<
   records: readonly RegistrationMetadata[];
   metadata: VisitorChainMetadata<T | R>;
   family: 'tree' | 'dag';
+  order?: string;
 };
 
 export type VisitorOutcome<R extends TreeTypeParameters> = Outcome<
-  VisitResult<R>
+  VisitResult<R> | typeof DEFER_READY
 >;

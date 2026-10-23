@@ -258,14 +258,18 @@ test('rewrites hints at ON_READY and rejects the same command at ON_COMPLETE', (
   const invalid = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter({ root: { id: 'root', children: [] } }),
   });
-  invalid.addVisitorFor(Order.ON_COMPLETE, () => ({
-    commands: [
-      {
-        commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
-        commandArguments: { newHints: [] },
-      },
-    ],
-  }));
+  invalid.addVisitorFor(
+    Order.ON_COMPLETE,
+    () =>
+      ({
+        commands: [
+          {
+            commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+            commandArguments: { newHints: [] },
+          },
+        ],
+      } as never),
+  );
   expect(() => invalid.makeRunner().run()).toThrow(/only.*ON_READY|pre-order/i);
 });
 

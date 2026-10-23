@@ -238,3 +238,29 @@ test('rejects every unknown style at admission and rethrows callback errors', ()
   }
   expect(caught).toBe(failure);
 });
+
+test('tree visitor chains reject canonical deferral before exposing a command batch', () => {
+  const chain = new VisitorChain<Tree>({
+    ref: new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] })),
+    family: 'tree',
+    records: [
+      { addedIndex: 0, priority: 1, commandCommitMode: 'afterEachVisitor' },
+    ],
+    metadata: {
+      vertexVisitIndex: 0,
+      curVertexVisitorVisitIndex: 0,
+      previousVisitedVertexRef: null,
+      vertexVisitorsChainState: null,
+    },
+  });
+  // First poll commits the empty afterGroup batch.
+  expect(chain.poll().kind).toBe('COMMANDS');
+  chain.commitBatch({ halt: false, deleted: false });
+  expect(chain.poll().kind).toBe('VISIT');
+  expect(() =>
+    chain.submit({
+      ok: true,
+      value: { commands: [{ commandName: Command.DEFER_READY }] },
+    }),
+  ).toThrow(/ON_READY/);
+});

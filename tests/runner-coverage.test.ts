@@ -210,15 +210,19 @@ test('depth-first hint rewrites outside pre-order fail the runner', () => {
   const traversal = new DepthFirstTraversal<Tree>({
     traversableTree: adapter(node('root')),
   });
-  traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, () => ({
-    commands: [
-      {
-        commandName:
-          TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
-        commandArguments: { newHints: [node('late')] },
-      },
-    ],
-  }));
+  traversal.addVisitorFor(
+    DepthFirstTraversalOrder.POST_ORDER,
+    () =>
+      ({
+        commands: [
+          {
+            commandName:
+              TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+            commandArguments: { newHints: [node('late')] },
+          },
+        ],
+      } as never),
+  );
   const runner = traversal.makeRunner();
 
   expect(() => runner.run()).toThrow(/only be rewritten during pre-order/i);

@@ -1,5 +1,5 @@
 import type { CTTRef } from '@core/CTTRef';
-import type { TraversalVisitorFunctionResolutionStyle } from '@core/TraversalVisitor';
+import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import type { TraversalVisitorResult } from '@core/TraversalVisitor';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -12,10 +12,10 @@ export type MaybePromise<T> = T | PromiseLike<T>;
 
 export type Ref<T extends TreeTypeParameters> = CTTRef<Vertex<T>>;
 
-export type VisitResult<R extends TreeTypeParameters> =
-  | TraversalVisitorResult<R>
-  | undefined
-  | void;
+export type VisitResult<
+  R extends TreeTypeParameters,
+  ORDER extends string = never,
+> = TraversalVisitorResult<R, ORDER> | undefined | void;
 
 export type HintVertexId = { vertexId: VertexId };
 
@@ -60,10 +60,8 @@ export type GraphVertex<T extends TreeTypeParameters> = Readonly<{
 
 export type VisitorRecord<F> = {
   addedIndex: number;
-  priority: number;
-  resolutionStyle: TraversalVisitorFunctionResolutionStyle;
   visitor: F;
-};
+} & TraversalVisitorFunctionOptions;
 
 export type IdState<T extends TreeTypeParameters> =
   | { kind: 'live'; ref: Ref<T> }

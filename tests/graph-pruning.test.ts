@@ -277,7 +277,7 @@ test('a dependency cascade reaching the ordinary root also removes independent a
     sourceMode: 'graph',
     saveOriginal: false,
   });
-  const scheduling = new GraphScheduling(container, undefined, false, true);
+  const scheduling = new GraphScheduling(container, undefined, false, 'honor');
   const root = scheduling.acceptRoot(result('root', [], ['prerequisite']))!;
   const prerequisite = scheduling.acceptPrerequisite(
     'prerequisite',

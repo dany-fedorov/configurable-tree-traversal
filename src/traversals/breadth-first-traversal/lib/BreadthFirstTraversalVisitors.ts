@@ -6,9 +6,5 @@ export type BreadthFirstTraversalVisitors<
   TTP extends TreeTypeParameters = TreeTypeParameters,
   RW_TTP extends TreeTypeParameters = TTP,
 > = {
-  [K in BreadthFirstTraversalOrder]: TraversalVisitorRecord<
-    BreadthFirstTraversalOrder,
-    TTP,
-    RW_TTP
-  >[];
+  [K in BreadthFirstTraversalOrder]: TraversalVisitorRecord<K, TTP, RW_TTP>[];
 };

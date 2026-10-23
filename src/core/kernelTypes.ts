@@ -41,6 +41,8 @@ export type KernelOptions<
   hasPrerequisiteResolver?: boolean;
   concurrency: number;
   discovery?: 'lazy' | 'eager';
+  rootDependencies?: 'honor' | 'ignore';
+  implicitParentDependency?: boolean;
   completedWork?: ReadonlySet<VertexId>;
   dagSeed?: {
     readyVisits: readonly EligibleVisit<T | R>[];

@@ -49,20 +49,15 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       return { traversal, add };
     }
 
-    test('rejects an unknown visitor style before running callbacks', () => {
-      const { traversal, add } = makeTraversal();
+    test('rejects an unknown visitor style during registration', () => {
+      const { add } = makeTraversal();
       const calls: string[] = [];
-      add(() => {
-        calls.push('invalid');
-      }, 'ASYNC' as Style);
-      add(() => {
-        calls.push('valid');
-      }, Style.SEQUENTIAL);
-      const runner = traversal.makeRunner();
-
-      expect(() => runner.run()).toThrow(/unknown visitor resolution style/i);
+      expect(() =>
+        add(() => {
+          calls.push('invalid');
+        }, 'ASYNC' as Style),
+      ).toThrow(/unknown visitor resolution style/i);
       expect(calls).toEqual([]);
-      expect(runner.getStatus()).toBe(Status.FAILED);
     });
 
     test('a concurrent halt retains deferred commands and the pending sequential chain', () => {

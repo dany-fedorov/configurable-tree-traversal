@@ -74,6 +74,7 @@
     "docs/index.md",
     "docs/agent-workflows.md",
     "docs/reference.md",
+    "docs/migration-uniform-api.md",
     "docs/testing.md"
   ],
   "sideEffects": false,

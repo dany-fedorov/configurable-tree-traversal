@@ -102,21 +102,27 @@ process.on('beforeExit', () => {
 // @webstorm-formatter:off
 // prettier-ignore
 const treeData =
-  { $d: 'F', $c: [
-      { $d: 'B', $c: [
-          { $d: 'A', $c: [] },
-          { $d: 'D', $c: [
-              { $d: 'C', $c: [] },
-              { $d: 'E', $c: [] }] }] },
-      { $d: 'G', $c: [
+  { $data: 'F', $childHints: [
+      { $data: 'B', $childHints: [
+          { $data: 'A', $childHints: [] },
+          { $data: 'D', $childHints: [
+              { $data: 'C', $childHints: [] },
+              { $data: 'E', $childHints: [] }] }] },
+      { $data: 'G', $childHints: [
           null,
-          { $d: 'I', $c: [
-              { $d: 'H', $c: [] }] }] }] };
+          { $data: 'I', $childHints: [
+              { $data: 'H', $childHints: [] }] }] }] };
 
 const traversal = new DepthFirstTraversal({
   traversableTree: {
-    makeRoot: () => ({ vertexContent: treeData }),
-    makeVertex: (childHint: any) => ({ vertexContent: childHint }),
+    makeRoot: () => ({
+      kind: 'found' as const,
+      vertex: { vertexContent: treeData },
+    }),
+    makeVertex: (childHint: any) =>
+      childHint === null
+        ? { kind: 'omitted', satisfiesDependencies: true }
+        : { kind: 'found', vertex: { vertexContent: childHint } },
   },
 });
 traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) =>

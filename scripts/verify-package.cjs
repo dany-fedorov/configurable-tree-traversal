@@ -458,6 +458,25 @@ try {
     void [esmSentinel, cjsSentinel, subpath, defaultSentinel, fromSubpath, fromDefault, summary, cjsSummary, fromEsmVertex, coreVertex, asyncEsm, asyncCjs, invalidGraph];
   `,
   );
+  // Keep uniform-API contracts in reviewable fixtures, separate from historical
+  // deep-import and loader-identity consumers above. Fixtures run only against
+  // the extracted package, never this checkout's source aliases.
+  for (const file of ['uniform-api.mjs', 'uniform-api.ts']) {
+    fs.copyFileSync(
+      path.join(root, 'scripts/package-consumers', file),
+      path.join(consumer, file),
+    );
+  }
+  for (const extension of ['cts', 'mts']) {
+    fs.copyFileSync(
+      path.join(consumer, 'uniform-api.ts'),
+      path.join(consumer, 'uniform-api.' + extension),
+    );
+  }
+  execFileSync(process.execPath, ['uniform-api.mjs'], {
+    cwd: consumer,
+    stdio: 'inherit',
+  });
   const compiler =
     process.env.CTT_TYPESCRIPT_COMPILER ||
     path.join(root, 'node_modules/typescript/bin/tsc');
@@ -475,8 +494,15 @@ try {
         '--moduleResolution',
         resolution,
         ...(resolution === 'node16'
-          ? ['consumer.ts', 'consumer.cts', 'consumer.mts']
-          : ['consumer.ts']),
+          ? [
+              'consumer.ts',
+              'consumer.cts',
+              'consumer.mts',
+              'uniform-api.ts',
+              'uniform-api.cts',
+              'uniform-api.mts',
+            ]
+          : ['consumer.ts', 'uniform-api.ts']),
       ],
       { cwd: consumer, stdio: 'inherit' },
     );
@@ -487,6 +513,10 @@ try {
     'CHANGELOG.md',
     'LICENSE',
     'docs/testing.md',
+    'docs/index.md',
+    'docs/agent-workflows.md',
+    'docs/reference.md',
+    'docs/migration-uniform-api.md',
     'dist/index.js',
     'dist/index.d.ts',
     'dist/core/index.js',

@@ -53,7 +53,7 @@ function setup(rootHints: string[] = []) {
   });
   const scheduling = new GraphScheduling(container);
   const rootRef = scheduling.acceptRoot(
-    result('root', { id: 'root', dependsOn: ['ignored'], hints: rootHints }),
+    result('root', { id: 'root', hints: rootHints }),
   )!;
   container.store.prepareSlots(rootRef, rootHints);
   return { container, scheduling, rootRef };
@@ -262,7 +262,7 @@ test('consumes a wide eligible FIFO with a cursor and preserves head blocking', 
   }
 });
 
-test('defaults child dependencies to the parent and ignores root dependencies', () => {
+test('graph children have no work prerequisites unless explicitly declared', () => {
   const { container, scheduling, rootRef } = setup(['child']);
   const childRef = scheduling.acceptVertex(
     context(rootRef, 0),
@@ -270,11 +270,10 @@ test('defaults child dependencies to the parent and ignores root dependencies', 
   )!;
 
   expect(container.resolvedGraph.get(rootRef)?.dependsOn).toEqual([]);
-  expect(container.resolvedGraph.get(childRef)?.dependsOn).toEqual(['root']);
+  expect(container.resolvedGraph.get(childRef)?.dependsOn).toEqual([]);
   expect(scheduling.takeReady()).toBe(rootRef);
-  expect(scheduling.takeReady()).toBeNull();
-  scheduling.markPreVisited(rootRef);
   expect(scheduling.takeReady()).toBe(childRef);
+  expect(scheduling.takeReady()).toBeNull();
 });
 
 test('deduplicates dependencies with SameValueZero and accepts COMPLETING as satisfied', () => {

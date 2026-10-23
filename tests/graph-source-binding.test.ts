@@ -230,7 +230,7 @@ test('tree binding rejects a graph-mode container', () => {
   ).toThrow(/tree graph container/i);
 });
 
-test('tree binding leaves a throwing then accessor for sync diagnostics', () => {
+test('tree binding preserves a throwing then accessor for sync diagnostics', () => {
   const treeContainer = new DepthFirstTraversal<InputTTP>({
     traversableTree: {
       makeRoot: () => ({ vertexContent: null }),
@@ -258,5 +258,6 @@ test('tree binding leaves a throwing then accessor for sync diagnostics', () => 
     },
     container,
   );
-  expect(bound.makeRoot()).toBe(result);
+  const value = bound.makeRoot();
+  expect(() => Reflect.get(value, 'then')).toThrow('then getter');
 });

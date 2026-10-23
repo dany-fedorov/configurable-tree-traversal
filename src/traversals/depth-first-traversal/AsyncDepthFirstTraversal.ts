@@ -1,11 +1,10 @@
+import type { NoInferPhase } from '@core/TraversalVisitor';
+import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import {
-  DEFAULT_VISITOR_FN_OPTIONS,
-  type TraversalVisitorFunctionOptions,
-} from '@core/TraversalVisitor';
+import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import {
   ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncDepthFirstTraversalInstanceConfigs,
@@ -47,41 +46,52 @@ export class AsyncDepthFirstTraversal<
     return this;
   }
 
-  addVisitorFor(
-    order: DepthFirstTraversalOrder,
-    visitor: AsyncTraversalVisitor<DepthFirstTraversalOrder, TTP, RW_TTP>,
-    options: Partial<TraversalVisitorFunctionOptions> = DEFAULT_VISITOR_FN_OPTIONS,
+  addVisitorFor<ORDER extends DepthFirstTraversalOrder>(
+    order: ORDER,
+    visitor: AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
+    options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    const effectiveOptions = { ...DEFAULT_VISITOR_FN_OPTIONS, ...options };
-    this.visitors[order].push({
-      priority: effectiveOptions.priority,
+    const effectiveOptions = normalizeVisitorOptions(options);
+    (
+      this.visitors[order] as VisitorRecord<
+        AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
+      >[]
+    ).push({
       visitor,
       addedIndex:
         this.visitors[order].reduce(
           (max, record) => Math.max(max, record.addedIndex),
           -1,
         ) + 1,
-      resolutionStyle: effectiveOptions.resolutionStyle,
+      ...effectiveOptions,
     });
-    this.visitors[order] = sortVisitorRecords(this.visitors[order]);
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
+      >
+    )[order] = sortVisitorRecords(this.visitors[order]);
     return this;
   }
 
-  listVisitorsFor(
-    order: DepthFirstTraversalOrder,
-  ): VisitorRecord<
-    AsyncTraversalVisitor<DepthFirstTraversalOrder, TTP, RW_TTP>
-  >[] {
+  listVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
+    order: ORDER,
+  ): AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
     return this.visitors[order];
   }
 
-  setVisitorsFor(
-    order: DepthFirstTraversalOrder,
+  setVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
+    order: ORDER,
     visitorRecords: VisitorRecord<
-      AsyncTraversalVisitor<DepthFirstTraversalOrder, TTP, RW_TTP>
+      AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
     >[],
   ): this {
-    this.visitors[order] = sortVisitorRecords(visitorRecords);
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
+      >
+    )[order] = sortVisitorRecords(visitorRecords);
     return this;
   }
 

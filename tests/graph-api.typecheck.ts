@@ -74,10 +74,13 @@ const promisedTreeVisitor: AsyncTraversalVisitor<
   Output
 > = async () => undefined;
 
-const dagVisitor: DagVisitor<Input, Output> = (vertex, options) => {
+const dagVisitor: DagVisitor<Input, Output, DagTraversalOrder.ON_READY> = (
+  vertex,
+  options,
+) => {
   const data: { input: string } | { output: number } = vertex.getData();
   const order: DagTraversalOrder = options.order;
-  void [data, order, options.resolvedGraph, options.visitorRecord.visitor];
+  void [data, order, options.resolvedGraph, options.visitorRecord.priority];
   return {
     commands: [
       {
@@ -113,8 +116,8 @@ declare const asyncOptions: AsyncTraversalVisitorInputOptions<
   Input,
   Output
 >;
-const recursiveAsyncVisitor: AsyncTraversalVisitor<'ORDER', Input, Output> =
-  asyncOptions.visitorRecord.visitor;
+const asyncVisitorMetadata: import('../src').VisitorRegistrationMetadata =
+  asyncOptions.visitorRecord;
 
 const asyncGraphTraversal = new AsyncDagTraversal<Input, Output>({
   traversableGraph: asyncGraph,
@@ -125,11 +128,11 @@ asyncGraphTraversal.addVisitorFor(
   'ON_READY' as DagTraversalOrder,
   async (vertex, options) => {
     const data: { input: string } | { output: number } = vertex.getData();
-    const recursive: AsyncDagVisitor<Input, Output> =
-      options.visitorRecord.visitor;
+    const metadata: import('../src').VisitorRegistrationMetadata =
+      options.visitorRecord;
     void [
       data,
-      recursive,
+      metadata,
       options.resolvedGraph,
       options.notMutatedResolvedGraph,
     ];
@@ -180,7 +183,7 @@ void [
   plainAsyncDagVisitor,
   promisedAsyncDagVisitor,
   invalidRewriteVisitor,
-  recursiveAsyncVisitor,
+  asyncVisitorMetadata,
   asyncDagEvents,
   asyncDagRun,
   ref,

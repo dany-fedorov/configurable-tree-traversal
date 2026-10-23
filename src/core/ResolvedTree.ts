@@ -231,8 +231,8 @@ export class ResolvedTree<
     }
     return {
       vertexContent: {
-        $d: root,
-        $c: this.getChildrenOf(root) ?? [],
+        $data: root,
+        $childHints: this.getChildrenOf(root) ?? [],
       },
     };
   }
@@ -242,8 +242,8 @@ export class ResolvedTree<
   ): MakeVertexResult<ResolvedTreeTypeParameters<TTP>> {
     return {
       vertexContent: {
-        $d: vertexHint,
-        $c: this.getChildrenOf(vertexHint) ?? [],
+        $data: vertexHint,
+        $childHints: this.getChildrenOf(vertexHint) ?? [],
       },
     };
   }

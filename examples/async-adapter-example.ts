@@ -21,15 +21,24 @@ const traversal = new AsyncDepthFirstTraversal<ExampleTree>({
   traversableTree: {
     // Async adapters may return either a value or a promise from every callback.
     makeRoot: () => ({
-      vertexContent: { $d: 'root', $c: ['fast', 'slow'] },
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: 'root', $childHints: ['fast', 'slow'] },
+      },
     }),
     makeVertex: (hint) => {
       if (hint === 'fast') {
-        return { vertexContent: { $d: hint, $c: [] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        };
       }
       reportSlowStarted();
       return slowGate.then(() => ({
-        vertexContent: { $d: hint, $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: hint, $childHints: [] },
+        },
       }));
     },
   },

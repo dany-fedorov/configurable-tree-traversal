@@ -1,10 +1,9 @@
+import type { NoInferPhase } from '@core/TraversalVisitor';
+import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import {
-  DEFAULT_VISITOR_FN_OPTIONS,
-  type TraversalVisitorFunctionOptions,
-} from '@core/TraversalVisitor';
+import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import {
   ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncDagTraversalInstanceConfigs,
@@ -57,36 +56,47 @@ export class AsyncDagTraversal<
     return this;
   }
 
-  addVisitorFor(
-    order: DagTraversalOrder,
-    visitor: AsyncDagVisitor<T, R>,
-    options: Partial<TraversalVisitorFunctionOptions> = DEFAULT_VISITOR_FN_OPTIONS,
+  addVisitorFor<ORDER extends DagTraversalOrder>(
+    order: ORDER,
+    visitor: AsyncDagVisitor<T, R, NoInferPhase<ORDER>>,
+    options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    const effective = { ...DEFAULT_VISITOR_FN_OPTIONS, ...options };
-    const records = this.visitors[order];
+    const effective = normalizeVisitorOptions(options);
+    const records = this.visitors[order] as VisitorRecord<
+      AsyncDagVisitor<T, R, ORDER>
+    >[];
     records.push({
       addedIndex:
         records.reduce((max, record) => Math.max(max, record.addedIndex), -1) +
         1,
-      priority: effective.priority,
-      resolutionStyle: effective.resolutionStyle,
+      ...effective,
       visitor,
     });
-    this.visitors[order] = sortVisitorRecords(records);
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[]
+      >
+    )[order] = sortVisitorRecords(records);
     return this;
   }
 
-  listVisitorsFor(
-    order: DagTraversalOrder,
-  ): VisitorRecord<AsyncDagVisitor<T, R>>[] {
+  listVisitorsFor<ORDER extends DagTraversalOrder>(
+    order: ORDER,
+  ): AsyncDagTraversalVisitors<T, R>[ORDER] {
     return this.visitors[order];
   }
 
-  setVisitorsFor(
-    order: DagTraversalOrder,
-    records: VisitorRecord<AsyncDagVisitor<T, R>>[],
+  setVisitorsFor<ORDER extends DagTraversalOrder>(
+    order: ORDER,
+    records: VisitorRecord<AsyncDagVisitor<T, R, NoInferPhase<ORDER>>>[],
   ): this {
-    this.visitors[order] = sortVisitorRecords(records);
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[]
+      >
+    )[order] = sortVisitorRecords(records);
     return this;
   }
 

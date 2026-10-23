@@ -1,3 +1,4 @@
+import { normalizeVertexContent } from '@core/Vertex';
 import {
   AbstractTraversableTree,
   MakeVertexOptions,
@@ -90,8 +91,8 @@ export class TraversableObjectTree<
     const children = getChildrenOfProperty(rootProp);
     return {
       vertexContent: {
-        $d: rootProp,
-        $c: children,
+        $data: rootProp,
+        $childHints: children,
       },
     };
   }
@@ -108,16 +109,17 @@ export class TraversableObjectTree<
       if (res.returnMe === null) {
         return { vertexContent: null };
       }
-      this.assertNoObjectIdentityCycle(res.returnMe.$d, options);
-      return { vertexContent: res.returnMe };
+      const content = normalizeVertexContent(res.returnMe);
+      this.assertNoObjectIdentityCycle(content.$data, options);
+      return { vertexContent: content };
     }
     const { getChildrenOfProperty } = this.icfg;
     this.assertNoObjectIdentityCycle(vertexHint, options);
     const hints = getChildrenOfProperty(vertexHint);
     return {
       vertexContent: {
-        $d: vertexHint,
-        $c: hints,
+        $data: vertexHint,
+        $childHints: hints,
       },
     };
   }

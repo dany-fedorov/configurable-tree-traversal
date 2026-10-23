@@ -24,9 +24,12 @@ function resolveTask(id: string) {
   const task = tasks[id];
   if (task === undefined) throw new Error(`Unknown task: ${id}`);
   return {
-    vertexId: id,
-    dependsOn: task.dependsOn,
-    vertexContent: { $d: id, $c: task.children },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: id,
+      dependsOn: task.dependsOn,
+      vertexContent: { $data: id, $childHints: task.children },
+    },
   };
 }
 

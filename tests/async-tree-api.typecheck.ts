@@ -51,8 +51,11 @@ const visitor: AsyncTraversalVisitor<
   Input,
   Output
 > = async (_vertex, options) => {
-  const recursive: typeof visitor = options.visitorRecord.visitor;
-  void recursive;
+  const metadata: import('../src').VisitorRegistrationMetadata =
+    options.visitorRecord;
+  void metadata;
+  // @ts-expect-error Callback context metadata does not expose an executable callback.
+  options.visitorRecord.visitor;
   return {
     commands: [
       {

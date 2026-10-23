@@ -43,7 +43,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     });
     const summary = runner.summary();
     expect(summary.discovery.complete).toBe(true);
-    expect(summary.vertices.get('done')!.work).toBe('succeeded');
+    expect(summary.vertices.get('done')!.work).toBe('completed');
     expect(summary.vertices.get('ready')!.work).toBe('ready');
     expect(summary.vertices.get('ready')!.unmetPrerequisiteIds).toEqual([]);
     expect(summary.vertices.get('bad')!.work).toBe('pending');
@@ -107,7 +107,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(snapshots).toHaveLength(1);
     const partial = snapshots[0]!;
     expect(partial.discovery.complete).toBe(false);
-    expect(partial.vertices.get(cycle)!.work).toBe('succeeded');
+    expect(partial.vertices.get(cycle)!.work).toBe('completed');
     expect(partial.diagnostics).toEqual({
       dependencies: [{ id: bad, unmet: [missing] }],
       unknownPrerequisiteIds: [missing],
@@ -316,6 +316,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         makeVertex: (id) => ({
           vertexId: id,
+          dependsOn: [id === 'child' ? 'root' : 'child'],
           vertexContent: { $d: id, $c: id === 'child' ? ['leaf'] : [] },
         }),
       },
@@ -392,7 +393,7 @@ test('async summary excludes unresolved callbacks and includes active completion
   root.resolve({ vertexId: 'root', vertexContent: { $d: 'root', $c: [] } });
   await eventLoopTurn();
   expect(runner.summary().inFlightIds).toEqual(['root']);
-  expect(runner.summary().vertices.get('root')!.work).toBe('succeeded');
+  expect(runner.summary().vertices.get('root')!.work).toBe('completed');
   expect(runner.summary().completedWorkIds).toEqual(['root']);
   expect(runner.summary().completedSubtreeIds).toEqual([]);
   complete.resolve();

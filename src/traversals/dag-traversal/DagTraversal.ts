@@ -1,9 +1,8 @@
+import type { NoInferPhase } from '@core/TraversalVisitor';
+import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import {
-  DEFAULT_VISITOR_FN_OPTIONS,
-  type TraversalVisitorFunctionOptions,
-} from '@core/TraversalVisitor';
+import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import type { VisitorRecord } from '@core/graph/types';
 import { initDagVisitors } from './init-helpers/initVisitors';
 import {
@@ -60,34 +59,41 @@ export class DagTraversal<
     return this;
   }
 
-  addVisitorFor(
-    order: DagTraversalOrder,
-    visitor: DagVisitor<T, R>,
-    options: Partial<TraversalVisitorFunctionOptions> = DEFAULT_VISITOR_FN_OPTIONS,
+  addVisitorFor<ORDER extends DagTraversalOrder>(
+    order: ORDER,
+    visitor: DagVisitor<T, R, NoInferPhase<ORDER>>,
+    options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    const effective = { ...DEFAULT_VISITOR_FN_OPTIONS, ...options };
-    const records = this.visitors[order];
+    const effective = normalizeVisitorOptions(options);
+    const records = this.visitors[order] as VisitorRecord<
+      DagVisitor<T, R, ORDER>
+    >[];
     records.push({
       addedIndex:
         records.reduce((max, record) => Math.max(max, record.addedIndex), -1) +
         1,
-      priority: effective.priority,
-      resolutionStyle: effective.resolutionStyle,
+      ...effective,
       visitor,
     });
-    this.visitors[order] = sortVisitorRecords(records);
+    (this.visitors as Record<ORDER, VisitorRecord<DagVisitor<T, R, ORDER>>[]>)[
+      order
+    ] = sortVisitorRecords(records);
     return this;
   }
 
-  listVisitorsFor(order: DagTraversalOrder): VisitorRecord<DagVisitor<T, R>>[] {
+  listVisitorsFor<ORDER extends DagTraversalOrder>(
+    order: ORDER,
+  ): DagTraversalVisitors<T, R>[ORDER] {
     return this.visitors[order];
   }
 
-  setVisitorsFor(
-    order: DagTraversalOrder,
-    records: VisitorRecord<DagVisitor<T, R>>[],
+  setVisitorsFor<ORDER extends DagTraversalOrder>(
+    order: ORDER,
+    records: VisitorRecord<DagVisitor<T, R, NoInferPhase<ORDER>>>[],
   ): this {
-    this.visitors[order] = sortVisitorRecords(records);
+    (this.visitors as Record<ORDER, VisitorRecord<DagVisitor<T, R, ORDER>>[]>)[
+      order
+    ] = sortVisitorRecords(records);
     return this;
   }
 
@@ -98,7 +104,9 @@ export class DagTraversal<
 
 function assertNoConcurrency(input: object): void {
   if (Object.prototype.hasOwnProperty.call(input, 'concurrency')) {
-    throw new TypeError('Synchronous DAG traversal does not accept concurrency');
+    throw new TypeError(
+      'Synchronous DAG traversal does not accept concurrency',
+    );
   }
 }
 
@@ -110,7 +118,9 @@ function assertExactlyOneSource(input: object): 'tree' | 'graph' {
     Object.prototype.hasOwnProperty.call(input, 'traversableTree') &&
     (input as { traversableTree?: unknown }).traversableTree !== undefined;
   if (graph === tree) {
-    throw new TypeError('DAG traversal requires exactly one tree or graph source');
+    throw new TypeError(
+      'DAG traversal requires exactly one tree or graph source',
+    );
   }
   return graph ? 'graph' : 'tree';
 }

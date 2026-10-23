@@ -1,10 +1,11 @@
+import type { NoInferPhase } from '@core/TraversalVisitor';
+import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import { Traversal } from '@core/Traversal';
-import {
-  DEFAULT_VISITOR_FN_OPTIONS,
-  type TraversalVisitor,
-  type TraversalVisitorFunctionOptions,
-  type TraversalVisitorRecord,
+import type {
+  TraversalVisitor,
+  TraversalVisitorFunctionOptions,
+  TraversalVisitorRecord,
 } from '@core/TraversalVisitor';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { initBreadthFirstVisitors } from './init-helpers/initVisitors';
@@ -50,40 +51,49 @@ export class BreadthFirstTraversal<
     return this;
   }
 
-  addVisitorFor(
-    order: BreadthFirstTraversalOrder,
-    visitor: TraversalVisitor<BreadthFirstTraversalOrder, TTP, RW_TTP>,
-    options: Partial<TraversalVisitorFunctionOptions> = DEFAULT_VISITOR_FN_OPTIONS,
+  addVisitorFor<ORDER extends BreadthFirstTraversalOrder>(
+    order: ORDER,
+    visitor: TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
+    options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    const effectiveOptions = { ...DEFAULT_VISITOR_FN_OPTIONS, ...options };
-    const records = this.visitors[order];
+    const effectiveOptions = normalizeVisitorOptions(options);
+    const records = this.visitors[order] as TraversalVisitorRecord<
+      ORDER,
+      TTP,
+      RW_TTP
+    >[];
     records.push({
       addedIndex:
         records.reduce((max, record) => Math.max(max, record.addedIndex), -1) +
         1,
-      priority: effectiveOptions.priority,
-      resolutionStyle: effectiveOptions.resolutionStyle,
+      ...effectiveOptions,
       visitor,
     });
-    this.visitors[order] = sortVisitorRecords(records);
+    (
+      this.visitors as Record<
+        ORDER,
+        TraversalVisitorRecord<ORDER, TTP, RW_TTP>[]
+      >
+    )[order] = sortVisitorRecords(records);
     return this;
   }
 
-  listVisitorsFor(
-    order: BreadthFirstTraversalOrder,
-  ): TraversalVisitorRecord<BreadthFirstTraversalOrder, TTP, RW_TTP>[] {
+  listVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
+    order: ORDER,
+  ): BreadthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
     return this.visitors[order];
   }
 
-  setVisitorsFor(
-    order: BreadthFirstTraversalOrder,
-    visitorRecords: TraversalVisitorRecord<
-      BreadthFirstTraversalOrder,
-      TTP,
-      RW_TTP
-    >[],
+  setVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
+    order: ORDER,
+    visitorRecords: TraversalVisitorRecord<NoInferPhase<ORDER>, TTP, RW_TTP>[],
   ): this {
-    this.visitors[order] = sortVisitorRecords(visitorRecords);
+    (
+      this.visitors as Record<
+        ORDER,
+        TraversalVisitorRecord<ORDER, TTP, RW_TTP>[]
+      >
+    )[order] = sortVisitorRecords(visitorRecords);
     return this;
   }
 

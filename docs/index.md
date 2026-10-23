@@ -2,7 +2,7 @@
 
 [Home and quickstart](../README.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md)
 
-These pages describe **CTT 0.11.0**. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
+These pages describe the **unreleased uniform API in this checkout**. The published npm release remains **0.11.0**. The [migration guide](migration-uniform-api.md) covers changed defaults and deprecated forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
 
 ## Read by task
 
@@ -13,6 +13,7 @@ These pages describe **CTT 0.11.0**. Read only the path relevant to your task; i
 | Debug missing work or a stalled graph | [Troubleshooting](agent-workflows.md#troubleshoot-a-workflow) → [DAG diagnostics](reference.md#dag-traversal) | A complete catalog or lookup adapter and the relevant diagnostics |
 | Walk an object or abstract tree | [Objects](reference.md#traverse-an-object) → [abstract trees](reference.md#abstract-trees) → [orders](reference.md#traversal-orders) | The correct adapter, traversal family, and order |
 | Use async callbacks | [Execution models](agent-workflows.md#choose-an-execution-model) → [async traversal](reference.md#async-traversal) → [pause/resume](reference.md#pause-and-resume) | A callback concurrency limit and clear iterator ownership |
+| Migrate from published 0.11.0               | [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                                                      | Updated adapters, dependency policies, visitor contracts, and serialization |
 | Modify CTT | [AGENTS.md](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/AGENTS.md) → [testing](testing.md) | The relevant implementation and regression tests |
 
 ## Runnable examples
@@ -33,7 +34,7 @@ The npm package includes these guides and the reference. Examples, contributor i
 
 ## Evidence and history
 
-- [Changelog](../CHANGELOG.md): released capabilities and compatibility changes.
+- [Changelog](../CHANGELOG.md): unreleased changes and historical release facts.
 - [Testing](testing.md): commands, coverage requirements, package/runtime checks.
 - [Performance reports](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/performance): measured artifacts and explicit limits; not universal speed guarantees.
 - [Research](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/research) and [design plans](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/superpowers): decision history. Some proposals are superseded or describe downstream work that CTT does not implement. Use current guides and source/tests to establish behavior.

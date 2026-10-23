@@ -74,7 +74,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           }),
           makeVertex: (id) => ({
             vertexId: id,
-            ...(kind === 'mixed' ? { dependsOn: id === 'b' ? ['a'] : [] } : {}),
+            ...(['mixed', 'parent-child'].includes(kind)
+              ? { dependsOn: id === 'b' ? ['a'] : [] }
+              : {}),
             dependsOnComplete:
               kind === 'child-ancestor'
                 ? ['root']
@@ -126,7 +128,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   });
 
   test.each(['absent', 'undefined', 'empty'])(
-    `${Constructor.name} root completion %s preserves explicit opt-in`,
+    `${Constructor.name} root completion %s does not control work prerequisite policy`,
     async (mode) => {
       const runner = new Constructor<G>({
         traversableGraph: {
@@ -144,16 +146,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           makeVertex: () => ({ vertexContent: null }),
         },
       }).makeRunner();
-      if (mode === 'empty') {
-        await expect(async () => {
-          await runner.run();
-        }).rejects.toMatchObject({
-          diagnostics: { unknownPrerequisiteIds: ['missing'] },
-        });
-      } else {
+      await expect(async () => {
         await runner.run();
-        expect(runner.summary().completedWorkIds).toEqual(['root']);
-      }
+      }).rejects.toMatchObject({
+        diagnostics: { unknownPrerequisiteIds: ['missing'] },
+      });
     },
   );
 }

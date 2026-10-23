@@ -7,6 +7,7 @@ import {
   DepthFirstTraversal,
   DepthFirstTraversalOrder,
   TraversableObjectTree,
+  Vertex,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   traverseDepthFirst,
@@ -177,3 +178,103 @@ void [
   order,
   publicTypes,
 ];
+
+// Canonical content is descriptive; input boundaries preserve legacy shapes.
+const canonicalContent: import('../src').VertexContent<Tree> = {
+  $data: 'canonical',
+  $childHints: [],
+};
+const legacyContent: import('../src').LegacyVertexContent<Tree> = {
+  $d: 'legacy',
+  $c: [],
+};
+const canonicalInput: import('../src/core').VertexContentInput<Tree> =
+  canonicalContent;
+const legacyInput: import('../src').VertexContentInput<Tree> = legacyContent;
+const canonicalVertex = new Vertex<Tree>(canonicalInput);
+const copiedVertex = new Vertex<Tree>(canonicalVertex);
+const canonicalData: string = canonicalVertex.$data;
+const legacyData: string = canonicalVertex.$d;
+const canonicalHints: Array<Node | null> = canonicalVertex.$childHints;
+canonicalVertex.clone({ $data: 'changed', $childHints: [] });
+canonicalVertex.clone({ $d: 'changed', $c: [] });
+const cloneFromVertex: Vertex<Tree> = canonicalVertex.clone(copiedVertex);
+void cloneFromVertex;
+const optionalDataVertex = new Vertex<
+  TreeTypeParameters<string | undefined, string>
+>({ $data: 'root', $childHints: [] });
+optionalDataVertex.clone({ $data: undefined });
+// @ts-expect-error Clone updates cannot mix canonical data and legacy hints.
+canonicalVertex.clone({ $data: 'changed', $c: [] });
+// @ts-expect-error Canonical data retains its declared type.
+canonicalVertex.clone({ $data: 42 });
+// @ts-expect-error Canonical hints retain their declared type.
+canonicalVertex.clone({ $childHints: ['wrong hint'] });
+void copiedVertex;
+void canonicalData;
+void legacyData;
+void canonicalHints;
+void canonicalVertex;
+void legacyInput;
+
+// @ts-expect-error Content inputs cannot mix canonical data with legacy hints.
+const mixedContent: import('../src').VertexContentInput<Tree> = {
+  $data: 'root',
+  $c: [],
+};
+// @ts-expect-error Complete canonical content cannot carry legacy data as well.
+const duplicateContent: import('../src').VertexContentInput<Tree> = {
+  $data: 'root',
+  $childHints: [],
+  $d: 'root',
+};
+// @ts-expect-error Complete legacy content cannot carry canonical hints as well.
+const duplicateLegacy: import('../src').VertexContentInput<Tree> = {
+  $d: 'root',
+  $c: [],
+  $childHints: [],
+};
+void mixedContent;
+void duplicateContent;
+void duplicateLegacy;
+
+const canonicalFound: import('../src').FoundVertexResult<Tree> = {
+  kind: 'found',
+  vertex: {
+    vertexId: undefined,
+    vertexContent: { $data: 'root', $childHints: [] },
+  },
+};
+const canonicalOmitted: import('../src').OmittedVertexResult = {
+  kind: 'omitted',
+  satisfiesDependencies: true,
+};
+const canonicalMissing: import('../src').PrerequisiteResolutionResult<Tree> = {
+  kind: 'missing',
+};
+const canonicalSource: import('../src').TraversableGraph<Tree> = {
+  makeRoot: () => canonicalFound,
+  makeVertex: () => canonicalOmitted,
+  resolvePrerequisite: () => canonicalMissing,
+};
+const missingRoot: import('../src').SourceVertexResult<Tree> = {
+  // @ts-expect-error A missing lookup is not a root/hint source result.
+  kind: 'missing',
+};
+const nullFound: import('../src').FoundVertexResult<Tree> = {
+  kind: 'found',
+  // @ts-expect-error Found content must be non-null.
+  vertex: { vertexContent: null },
+};
+// @ts-expect-error Omission must explicitly satisfy dependencies.
+const incompleteOmission: import('../src').OmittedVertexResult = {
+  kind: 'omitted',
+};
+// @ts-expect-error A bare null is not a resolution result.
+const nullResolution: import('../src').PrerequisiteResolutionResult<Tree> =
+  null;
+void canonicalSource;
+void missingRoot;
+void nullFound;
+void incompleteOmission;
+void nullResolution;

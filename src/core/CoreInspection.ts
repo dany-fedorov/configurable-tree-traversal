@@ -42,6 +42,8 @@ export type KernelInspection = Readonly<{
     vertexRefId: string;
     order: VisitOrder;
     phase: 'running' | 'paused' | 'done' | 'invalid';
+    commandCommitMode: import('@core/TraversalVisitor').CommandCommitMode;
+    /** @deprecated Use commandCommitMode. */
     group: 'concurrent' | 'sequential';
     position: number;
     waitingFor: 'none' | 'callback' | 'batch';

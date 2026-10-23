@@ -1,7 +1,8 @@
+import { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
+import { normalizeVisitorOptions } from './normalizeVisitorOptions';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
-import { TraversalVisitorFunctionResolutionStyle } from '@core/TraversalVisitor';
 import type {
   VisitorBatchCommit,
   VisitorChainInput,
@@ -16,6 +17,7 @@ export class VisitorChain<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
 > {
+  private readonly canDeferReady: boolean;
   private readonly ref: VisitorChainInput<T, R>['ref'];
   private readonly concurrentRecordIndices: number[] = [];
   private readonly sequentialRecordIndices: number[] = [];
@@ -33,6 +35,7 @@ export class VisitorChain<
 
   constructor(input: VisitorChainInput<T, R>) {
     this.ref = input.ref;
+    this.canDeferReady = input.family === 'dag' && input.order === 'ON_READY';
     this.metadata = {
       ...input.metadata,
       curVertexVisitorVisitIndex: 0,
@@ -40,15 +43,13 @@ export class VisitorChain<
     };
 
     input.records.forEach((record, index) => {
-      switch (record.resolutionStyle) {
-        case TraversalVisitorFunctionResolutionStyle.CONCURRENT:
+      switch (normalizeVisitorOptions(record).commandCommitMode) {
+        case 'afterGroup':
           this.concurrentRecordIndices.push(index);
           break;
-        case TraversalVisitorFunctionResolutionStyle.SEQUENTIAL:
+        case 'afterEachVisitor':
           this.sequentialRecordIndices.push(index);
           break;
-        default:
-          throw new TypeError('Unknown visitor resolution style');
       }
     });
   }
@@ -99,7 +100,31 @@ export class VisitorChain<
 
     this.awaitingOutcome = false;
     this.metadata.curVertexVisitorVisitIndex++;
-    const commands = outcome.value?.commands ?? [];
+    const value =
+      outcome.value === DEFER_READY
+        ? {
+            commands: [
+              { commandName: TraversalVisitorCommandName.DEFER_READY as const },
+            ],
+          }
+        : outcome.value;
+    const commands = value?.commands ?? [];
+    if (
+      commands.some(
+        (command) =>
+          command.commandName === TraversalVisitorCommandName.DEFER_READY,
+      )
+    ) {
+      if (commands.length !== 1)
+        throw new TypeError('DEFER_READY must be the sole command');
+      if (!this.canDeferReady)
+        throw new TypeError(
+          'DEFER_READY is only valid for DAG ON_READY visitors',
+        );
+      this.concurrentCommands.length = 0;
+      this.pendingCommands = commands.slice();
+      return;
+    }
     this.groupPosition++;
     if (this.group === 'concurrent') {
       this.concurrentCommands.push(...commands);
@@ -125,6 +150,7 @@ export class VisitorChain<
     this.pendingCommands = null;
     this.commandsEmitted = false;
     this.deleted = result.deleted;
+    if (result.deferred) this.done = true;
     this.paused = result.halt && ownHalt;
   }
 

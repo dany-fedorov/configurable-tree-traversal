@@ -19,7 +19,7 @@ export type RewriteFnOptions<
   InK extends TraversableObjectPropKey,
   InV,
 > = TraversalVisitorInputOptions<
-  DepthFirstTraversalOrder,
+  DepthFirstTraversalOrder.POST_ORDER,
   TraversableObjectTTP<InK, InV>,
   TraversableObjectTTP<InK, InV>
 > &
@@ -154,7 +154,7 @@ export function rewriteObject<
           TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
         >,
         options: TraversalVisitorInputOptions<
-          DepthFirstTraversalOrder,
+          DepthFirstTraversalOrder.POST_ORDER,
           TraversableObjectTTP<InK, InV>,
           TraversableObjectTTP<OutK, OutV>
         >,

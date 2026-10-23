@@ -4,7 +4,7 @@
 
 Give CTT a graph of work and accepted completion facts. It determines what can run next, enforces work and structural-completion dependencies, and exposes progress without executing business work. Your host chooses agents, dispatches tasks, accepts results, and persists state.
 
-[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [npm](https://www.npmjs.com/package/configurable-tree-traversal)
+[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Migration guide](docs/migration-uniform-api.md) · [npm](https://www.npmjs.com/package/configurable-tree-traversal)
 
 ## Start with autonomous agents
 
@@ -25,11 +25,11 @@ CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool
 npm install configurable-tree-traversal
 ```
 
-Current release: **0.11.0**. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
+**This checkout documents the unreleased uniform API.** The published npm release is **0.11.0**; its API differs from the examples below. See the [migration guide](docs/migration-uniform-api.md) for changed defaults and compatibility forms. The package version stays unchanged until release. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
 
 ## Quickstart: find the next agent tasks
 
-After `research` completes, `implement` and `testPlan` can run independently. `review` waits for both. The catalog is flat; `$c` discovers tasks and `dependsOn` expresses the work graph.
+After `research` completes, `implement` and `testPlan` can run independently. `review` waits for both. The catalog is flat; `$childHints` discovers tasks and `dependsOn` expresses the work graph.
 
 ```text
 research ──┬── implement ──┬── review
@@ -40,7 +40,7 @@ research ──┬── implement ──┬── review
 import {
   DagTraversal,
   DagTraversalOrder,
-  DEFER_READY,
+  TraversalVisitorCommandName as Command,
   type TreeTypeParameters,
 } from 'configurable-tree-traversal';
 
@@ -60,16 +60,24 @@ function reconstruct() {
     completedWork: accepted,
     traversableGraph: {
       makeRoot: () => ({
-        vertexContent: { $d: '', $c: Object.keys(dependencies) },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: '', $childHints: Object.keys(dependencies) },
+        },
       }),
       makeVertex: (id) => ({
-        vertexId: id,
-        dependsOn: dependencies[id]!,
-        vertexContent: { $d: id, $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: id,
+          dependsOn: dependencies[id]!,
+          vertexContent: { $data: id, $childHints: [] },
+        },
       }),
     },
   });
-  traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => DEFER_READY);
+  traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => ({
+    commands: [{ commandName: Command.DEFER_READY }],
+  }));
   return traversal.makeRunner().run();
 }
 
@@ -78,7 +86,7 @@ const snapshot = runner.summary();
 console.log(snapshot.readyIds); // ['implement', 'testPlan']
 ```
 
-The sole `ON_READY` visitor returns `DEFER_READY`, so `run()` discovers and validates the graph, then halts with eligible work still incomplete. A no-op visitor would mark work complete; `summary()` alone does not discover the graph. `readyIds` is dependency readiness, not a claim or evidence that an external agent is idle.
+The `ON_READY` visitor returns the sole `Command.DEFER_READY` command, so `run()` discovers and validates the graph, then halts with eligible work still incomplete. A no-op visitor would mark work complete; `summary()` alone does not discover the graph. `readyIds` is dependency readiness, not a claim or evidence that an external agent is idle.
 
 The host can now claim a candidate, dispatch an agent, validate and persist its result, and either settle the retained runner or reconstruct on the next tick. See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and the [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts), which also checks settlement, duplicate reports, and restart reconstruction. The example uses an in-memory set; production durability belongs to the host.
 
@@ -93,14 +101,20 @@ The host can now claim a candidate, dispatch an agent, validate and persist its 
 ## Imports and compatibility
 
 ```ts
-import { DagTraversal, DEFER_READY } from 'configurable-tree-traversal';
+import {
+  DagTraversal,
+  TraversalVisitorCommandName,
+} from 'configurable-tree-traversal';
 ```
 
 ```js
-const { DagTraversal, DEFER_READY } = require('configurable-tree-traversal');
+const {
+  DagTraversal,
+  TraversalVisitorCommandName,
+} = require('configurable-tree-traversal');
 ```
 
-Native ESM `.mjs` entries and `.d.mts` declarations share one CommonJS implementation and canonical types. Named/default imports, classes, namespaces, and `DEFER_READY` preserve identity across loaders. ESM entries use Node-compatible `createRequire`; standalone browser ESM and tree shaking are not promised. Public subpaths and historical deep imports remain supported; see [compatibility details](docs/reference.md#api-compatibility).
+Native ESM `.mjs` entries and `.d.mts` declarations share one CommonJS implementation and canonical types. Named/default imports, classes, namespaces, commands, and the deprecated `DEFER_READY` sentinel preserve identity across loaders. ESM entries use Node-compatible `createRequire`; standalone browser ESM and tree shaking are not promised. Public subpaths and historical deep imports remain supported; see [compatibility details](docs/reference.md#api-compatibility).
 
 ## Reference shortcuts
 

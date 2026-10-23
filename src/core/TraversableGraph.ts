@@ -1,6 +1,9 @@
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { MakeVertexResult } from '@core/TraversableTree';
+import type {
+  SourceVertexResult,
+  PrerequisiteResolutionResult,
+} from '@core/TraversableTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { HintVertexId, MaybePromise, VertexId } from '@core/graph/types';
 
@@ -17,12 +20,12 @@ export interface TraversableGraph<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
 > {
-  resolvePrerequisite?(id: VertexId): MakeVertexResult<T> | undefined;
-  makeRoot(): MakeVertexResult<T>;
+  resolvePrerequisite?(id: VertexId): PrerequisiteResolutionResult<T>;
+  makeRoot(): SourceVertexResult<T>;
   makeVertex(
     hint: T['VertexHint'],
     options: MakeGraphVertexOptions<T, R>,
-  ): MakeVertexResult<T>;
+  ): SourceVertexResult<T>;
   getVertexIdFromHint?(hint: T['VertexHint']): HintVertexId | undefined;
 }
 
@@ -32,12 +35,12 @@ export interface AsyncTraversableGraph<
 > {
   resolvePrerequisite?(
     id: VertexId,
-  ): MaybePromise<MakeVertexResult<T> | undefined>;
-  makeRoot(): MaybePromise<MakeVertexResult<T>>;
+  ): MaybePromise<PrerequisiteResolutionResult<T>>;
+  makeRoot(): MaybePromise<SourceVertexResult<T>>;
   makeVertex(
     hint: T['VertexHint'],
     options: MakeGraphVertexOptions<T, R>,
-  ): MaybePromise<MakeVertexResult<T>>;
+  ): MaybePromise<SourceVertexResult<T>>;
   getVertexIdFromHint?(
     hint: T['VertexHint'],
   ): MaybePromise<HintVertexId | undefined>;
