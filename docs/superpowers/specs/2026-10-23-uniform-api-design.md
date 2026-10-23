@@ -130,8 +130,13 @@ All six helpers support canonical single options objects, containing the
 source in exactly one location, a phase-keyed simple visitor map, and traversal
 options. Tree source key is `traversableTree`; DAG uses its existing exclusive
 `traversableGraph`/`traversableTree` choice. `visitors` maps phases to callbacks
-instead of internal registration records. Legacy positional overloads remain
-deprecated and preserve their established behavior. Canonical configuration
+instead of internal registration records. Legacy positional call forms remain
+deprecated and preserve their established behavior for direct calls. Use precise
+canonical and legacy overloads. TypeScript cannot consistently call a union of
+the generic sync/async overloaded functions: callers selecting a helper first
+may need to select wrapper functions or branch at the call site. Document this
+type migration; do not weaken phase safety or add complex signature machinery
+to conceal the compiler limitation. Canonical configuration
 does not accept a second nested source. Sync returns runner; async returns its
 promise. Share option normalization only where it reduces genuine duplication.
 

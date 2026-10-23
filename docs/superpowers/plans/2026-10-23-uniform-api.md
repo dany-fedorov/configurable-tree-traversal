@@ -118,14 +118,14 @@ ok-form inputs. Keep existing identity/generation/replay rules.
 add tests/traversal-helper-options.test.ts and public type cases.
 
 **Interfaces:** Each helper accepts one options object with its existing source
-key and phase-keyed callback `visitors`; legacy positional overloads remain.
+key and phase-keyed callback `visitors`; legacy positional call forms remain.
 
 - [ ] Test DFS/BFS/DAG sync and async options forms perform real traversal and
   invoke the declared phases, propagate failures, and honor config. Test legacy
   positional compatibility, including its established source precedence.
 - [ ] Add compiler cases rejecting conflicting DAG sources and wrong phase
   callbacks/commands in helper maps.
-- [ ] Observe failures; implement overloads and shared normalization where useful.
+- [ ] Observe failures; implement both call forms and shared normalization where useful.
 - [ ] Run helper/type/affected traversal suites and full tests once.
 - [ ] Commit and obtain task-scoped review.
 

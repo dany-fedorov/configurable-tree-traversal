@@ -202,8 +202,8 @@ for (const traversal of [
     },
   ]);
 }
-for (const helper of [traverseDepthFirst<T>, traverseDepthFirstAsync<T>]) {
-  helper(tree.traversableTree!, {
+{
+  traverseDepthFirst<T>(tree.traversableTree!, {
     // @ts-expect-error Legacy helper map controls phase.
     postOrderVisitor: () => ({
       commands: [
@@ -215,9 +215,26 @@ for (const helper of [traverseDepthFirst<T>, traverseDepthFirstAsync<T>]) {
     }),
   });
 }
-for (const helper of [traverseDag<T>, traverseDagAsync<T>]) {
+{
+  traverseDepthFirstAsync<T>(tree.traversableTree!, {
+    // @ts-expect-error Legacy helper map controls phase.
+    postOrderVisitor: () => ({
+      commands: [
+        {
+          commandName: C.REWRITE_CHILD_HINTS,
+          commandArguments: { newHints: [] },
+        },
+      ],
+    }),
+  });
+}
+{
   // @ts-expect-error Simple helper map controls phase.
-  helper(graph, { onCompleteVisitor: () => DEFER_READY });
+  traverseDag<T>(graph, { onCompleteVisitor: () => DEFER_READY });
+}
+{
+  // @ts-expect-error Simple helper map controls phase.
+  traverseDagAsync<T>(graph, { onCompleteVisitor: () => DEFER_READY });
 }
 const commonVisitor: DagVisitor<T> = () => ({
   commands: [{ commandName: C.NOOP }],
@@ -273,13 +290,21 @@ for (const traversal of [
     { addedIndex: 0, priority: 1, visitor: pre },
   ]);
 }
-for (const helper of [traverseDepthFirst<T>, traverseDepthFirstAsync<T>]) {
+{
   // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
-  helper(tree.traversableTree, { postOrderVisitor: pre });
+  traverseDepthFirst<T>(tree.traversableTree, { postOrderVisitor: pre });
 }
-for (const helper of [traverseDag<T>, traverseDagAsync<T>]) {
+{
   // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
-  helper(graph, { onCompleteVisitor: ready });
+  traverseDepthFirstAsync<T>(tree.traversableTree, { postOrderVisitor: pre });
+}
+{
+  // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
+  traverseDag<T>(graph, { onCompleteVisitor: ready });
+}
+{
+  // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
+  traverseDagAsync<T>(graph, { onCompleteVisitor: ready });
 }
 
 new DagTraversal<T>(graph).addVisitorFor(D.ON_READY, commonVisitor);
@@ -288,8 +313,8 @@ const asyncCommon: import('../src').AsyncDagVisitor<T> = async () => ({
 });
 new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_READY, asyncCommon);
 
-for (const helper of [importedBreadth, importedBreadthAsync]) {
-  helper(tree.traversableTree, (_v, options) => {
+{
+  importedBreadth(tree.traversableTree, (_v, options) => {
     const phase: B.LEVEL_ORDER = options.order;
     void phase;
     return {
@@ -302,7 +327,25 @@ for (const helper of [importedBreadth, importedBreadthAsync]) {
     };
   });
   // @ts-expect-error Breadth-first helpers cannot defer DAG readiness.
-  helper(tree.traversableTree, () => ({
+  importedBreadth(tree.traversableTree, () => ({
+    commands: [{ commandName: C.DEFER_READY }],
+  }));
+}
+{
+  importedBreadthAsync(tree.traversableTree, (_v, options) => {
+    const phase: B.LEVEL_ORDER = options.order;
+    void phase;
+    return {
+      commands: [
+        {
+          commandName: C.REWRITE_CHILD_HINTS,
+          commandArguments: { newHints: [] },
+        },
+      ],
+    };
+  });
+  // @ts-expect-error Breadth-first helpers cannot defer DAG readiness.
+  importedBreadthAsync(tree.traversableTree, () => ({
     commands: [{ commandName: C.DEFER_READY }],
   }));
 }
