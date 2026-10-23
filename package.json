@@ -46,7 +46,6 @@
     "@tsconfig/node16-strictest": "^1.0.3",
     "@types/jest": "^28.1.4",
     "@types/node": "^18.7.3",
-    "@types/uuid": "^8.3.4",
     "@typescript-eslint/eslint-plugin": "5.29.0",
     "@typescript-eslint/parser": "5.29.0",
     "chokidar": "^3.5.3",
@@ -62,7 +61,7 @@
     "typescript": "^4.7.4"
   },
   "dependencies": {
-    "uuid": "^9.0.0"
+    "uuid": "^14.0.3"
   },
   "types": "./dist/index.d.ts",
   "type": "commonjs",
@@ -207,5 +206,8 @@
         "dist/*"
       ]
     }
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

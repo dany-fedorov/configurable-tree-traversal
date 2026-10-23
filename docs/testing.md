@@ -95,3 +95,11 @@ CTT_TYPESCRIPT_COMPILER=/tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typ
 ```
 
 The `/tmp` compiler and checksum-verified Bun binary are local evidence tooling, not repository dependencies. The full Node 22/24 CI checks and the pinned Bun lane are separate required gates.
+
+## UUID dependency compatibility
+
+The checkout uses UUID 14.0.3, an ESM-only dependency, while CTT keeps its canonical CommonJS implementation and synchronous reference creation. Node **22.12.0+** can synchronously require that dependency; Bun **1.4.4** also passes packed consumers. CI tests the exact minimum Node version in addition to current Node 22/24 and Bun. The minimum Node job runs `npm run verify-package` with the real dependency. Node 22.12 may emit its built-in experimental ESM-loading warning; newer Node 22 releases have removed that warning.
+
+Jest 28 has its own module loader. For source tests, ts-jest transforms only UUID's JavaScript dependency files in addition to the existing TypeScript inputs. This uses the real UUID implementation; it is not mocked. Native loader behavior is checked separately through packed CJS/ESM consumers.
+
+UUID types do not appear in CTT's emitted public declarations. Strict packed TypeScript 4.7.4/4.9.5 consumers remain supported without `skipLibCheck`; UUID's newer source declarations are internal to building CTT. The source build retains its existing `skipLibCheck` configuration. Obsolete `@types/uuid` is removed because UUID provides its own declarations.

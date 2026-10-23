@@ -82,6 +82,14 @@ try {
     assert.equal(dag.traverseDag, lib.traverseDag);
     assert.equal(dag.traverseDagAsync, lib.traverseDagAsync);
     assert.equal(lib.TraversalRunnerStatus.FAILED, 'FAILED');
+    const reference = new core.CTTRef('first');
+    const referenceId = reference.getId();
+    assert.match(referenceId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    reference.setPointsTo('replacement');
+    assert.equal(reference.getId(), referenceId);
+    assert.equal(reference.unref(), 'replacement');
+    assert.notEqual(new core.CTTRef('other').getId(), referenceId);
+
 
     const progress = new dag.DagTraversal({
       discovery: 'eager', syntheticRoot: true, completedWork: new Set(['design']),

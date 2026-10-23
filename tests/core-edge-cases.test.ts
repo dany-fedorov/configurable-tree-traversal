@@ -508,6 +508,10 @@ describe('CTTRef identity', () => {
     const second = makeRef('second');
     const firstId = first.getId();
 
+    expect(firstId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+
     first.setPointsTo(makeRef('replacement').unref());
 
     expect(first.getId()).toBe(firstId);
