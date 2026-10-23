@@ -4,13 +4,19 @@ import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStal
 /** @deprecated Return the DEFER_READY visitor command instead. */
 export const DEFER_READY: unique symbol = Symbol('DEFER_READY');
 export type DagSettlementGeneration = symbol;
-export type DagSettlementOutcome = { ok: true } | { ok: false; error: unknown };
+export type DagSettlementOutcome =
+  | { kind: 'workCompleted'; ok?: never; error?: never }
+  | { kind: 'traversalFailed'; error: unknown; ok?: never }
+  /** @deprecated Use { kind: 'workCompleted' } instead. */
+  | { ok: true; kind?: never; error?: never }
+  /** @deprecated Use { kind: 'traversalFailed', error } instead. */
+  | { ok: false; error: unknown; kind?: never };
 export type DagWorkState =
   | 'pending'
   | 'ready'
   | 'running'
   | 'deferred'
-  | 'succeeded';
+  | 'completed';
 export type DagVertexProgress = Readonly<{
   id: VertexId;
   work: DagWorkState;

@@ -39,6 +39,38 @@ import {
 } from '@breadth-first-traversal/lib/BreadthFirstPolicy';
 import { DagPolicy } from '../traversals/dag-traversal/lib/DagPolicy';
 
+type NormalizedDagSettlementOutcome =
+  | { kind: 'workCompleted' }
+  | { kind: 'traversalFailed'; error: unknown };
+
+function normalizeDagSettlementOutcome(
+  outcome: DagSettlementOutcome,
+): NormalizedDagSettlementOutcome {
+  if (outcome !== null && typeof outcome === 'object') {
+    if ('kind' in outcome) {
+      if ('ok' in outcome) {
+        throw new TypeError('DAG settlement cannot mix kind and ok feedback');
+      }
+      const kind = outcome.kind;
+      if (kind === 'workCompleted' && !('error' in outcome)) {
+        return { kind: 'workCompleted' };
+      }
+      if (kind === 'traversalFailed' && 'error' in outcome) {
+        return { kind: 'traversalFailed', error: outcome.error };
+      }
+    } else {
+      const ok = outcome.ok;
+      if (ok === true && !('error' in outcome)) {
+        return { kind: 'workCompleted' };
+      }
+      if (ok === false && 'error' in outcome) {
+        return { kind: 'traversalFailed', error: outcome.error };
+      }
+    }
+  }
+  throw new TypeError('Invalid DAG settlement outcome');
+}
+
 type PendingRequest<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
@@ -109,7 +141,7 @@ export class TraversalKernel<
     {
       state: ChainState<T, R>;
       generation: DagSettlementGeneration;
-      outcome?: DagSettlementOutcome;
+      outcome?: NormalizedDagSettlementOutcome;
     }
   >();
   private discoveryValidated = false;
@@ -609,7 +641,7 @@ export class TraversalKernel<
       const deferred = this.deferred.get(item.ref);
       const running = inFlight.has(item.ref);
       const state = item.initialCommitted
-        ? 'succeeded'
+        ? 'completed'
         : running
         ? 'running'
         : deferred !== undefined
@@ -695,23 +727,23 @@ export class TraversalKernel<
     if (deferred === undefined || deferred.generation !== expectedGeneration) {
       throw new TypeError('Unknown, deleted or stale DAG settlement');
     }
+    const normalized = normalizeDagSettlementOutcome(outcome);
     const previous = deferred.outcome;
     if (previous !== undefined) {
       if (
-        previous.ok === outcome.ok &&
-        (previous.ok ||
-          (!outcome.ok && Object.is(previous.error, outcome.error)))
+        previous.kind === normalized.kind &&
+        (previous.kind === 'workCompleted' ||
+          (normalized.kind === 'traversalFailed' &&
+            Object.is(previous.error, normalized.error)))
       )
         return false;
       throw new TypeError('Conflicting DAG settlement');
     }
     if (this.failure !== null)
       throw new TypeError('Cannot settle a failed runner');
-    deferred.outcome = outcome.ok
-      ? { ok: true }
-      : { ok: false, error: outcome.error };
-    if (outcome.ok) this.commitChain(deferred.state);
-    else this.fail(outcome.error);
+    deferred.outcome = normalized;
+    if (normalized.kind === 'workCompleted') this.commitChain(deferred.state);
+    else this.fail(normalized.error);
     return true;
   }
 
