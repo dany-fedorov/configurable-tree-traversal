@@ -283,15 +283,17 @@ export class AsyncDagTraversalRunner<
       isGraphRoot: this.isGraphRootVertex(call.ref),
       isTraversalRoot: this.isTraversalRootVertex(call.ref),
       visitorRecord,
-    });
+      // The record and options share the same phase selected above.
+    } as never);
   }
 
   private metadataFor(order: DagTraversalOrder) {
     return this.icfg.visitors[order].map(
-      ({ addedIndex, priority, resolutionStyle }) => ({
+      ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
         addedIndex,
         priority,
         resolutionStyle,
+        commandCommitMode,
       }),
     );
   }

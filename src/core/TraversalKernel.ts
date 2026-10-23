@@ -1,13 +1,13 @@
-import {
-  DEFER_READY,
-  type DagSummary,
-  type DagSettlementOutcome,
-  type DagSettlementGeneration,
-  type DagVertexProgress,
+import type {
+  DagSummary,
+  DagSettlementOutcome,
+  DagSettlementGeneration,
+  DagVertexProgress,
 } from '../traversals/dag-traversal/lib/DagProgress';
 import type { VertexId } from '@core/graph/types';
 import type { KernelInspection } from '@core/CoreInspection';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
+import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 import type {
   CallbackReply,
@@ -570,6 +570,8 @@ export class TraversalKernel<
         order: state.order,
         phase: state.phase,
         group: state.group,
+        commandCommitMode:
+          state.group === 'concurrent' ? 'afterGroup' : 'afterEachVisitor',
         position: state.position,
         waitingFor: state.waitingFor,
         config: copyFilters(state.config),
@@ -841,23 +843,8 @@ export class TraversalKernel<
       }
       case 'VISIT': {
         const runtime = this.chains.get(call.owner.id)!;
-        if (reply.outcome.value === DEFER_READY) {
-          if (this.options.kind !== 'dag' || call.order !== 'ON_READY') {
-            throw new TypeError(
-              'DEFER_READY is only valid for DAG ON_READY visitors',
-            );
-          }
-          runtime.state.metadata.curVertexVisitorVisitIndex += 1;
-          this.deferred.set(runtime.state.ref, {
-            state: runtime.state,
-            generation: Symbol('DAG settlement'),
-          });
-          this.chains.delete(call.owner.id);
-          this.expansionQueue.push(runtime.state.ref);
-          return;
-        }
         runtime.machine.submit(
-          reply.outcome as Outcome<import('@core/graph/types').VisitResult<R>>,
+          reply.outcome as import('@core/visitors/types').VisitorOutcome<R>,
         );
         runtime.state.waitingFor = 'none';
         runtime.state.position += 1;
@@ -1003,9 +990,11 @@ export class TraversalKernel<
       switch (action.kind) {
         case 'VISIT': {
           const metadata = this.options.visitorMetadata[runtime.state.order]!;
-          const style = metadata[action.recordIndex]!.resolutionStyle;
+          const style = normalizeVisitorOptions(
+            metadata[action.recordIndex]!,
+          ).commandCommitMode;
           runtime.state.group =
-            style === 'CONCURRENT' ? 'concurrent' : 'sequential';
+            style === 'afterGroup' ? 'concurrent' : 'sequential';
           runtime.state.waitingFor = 'callback';
           return this.issue({
             kind: 'VISIT',
@@ -1023,6 +1012,15 @@ export class TraversalKernel<
           runtime.machine.commitBatch(result);
           runtime.state.commands = [];
           runtime.state.waitingFor = 'none';
+          if (result.deferred) {
+            this.deferred.set(runtime.state.ref, {
+              state: runtime.state,
+              generation: Symbol('DAG settlement'),
+            });
+            this.chains.delete(id);
+            this.expansionQueue.push(runtime.state.ref);
+            return null;
+          }
           if (result.halt) runtime.state.phase = 'paused';
           if (result.deleted) runtime.state.phase = 'invalid';
           break;
@@ -1045,6 +1043,7 @@ export class TraversalKernel<
     runtime: ChainRuntime<T, R>,
     commands: ChainState<T, R>['commands'],
   ): {
+    deferred?: boolean;
     halt: boolean;
     deleted: boolean;
     vertexVisitorsChainState?: unknown;
@@ -1059,13 +1058,17 @@ export class TraversalKernel<
         (command.commandName ===
           TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL ||
           command.commandName ===
-            TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER)
+            TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER ||
+          command.commandName ===
+            TraversalVisitorCommandName.REWRITE_CHILD_HINTS)
       ) {
         throw new TypeError(
           'Cannot change child topology after eager discovery',
         );
       }
       switch (command.commandName) {
+        case TraversalVisitorCommandName.DEFER_READY:
+          return { halt: false, deleted: false, deferred: true };
         case TraversalVisitorCommandName.NOOP:
           break;
         case TraversalVisitorCommandName.HALT_TRAVERSAL:
@@ -1116,6 +1119,7 @@ export class TraversalKernel<
             }),
           );
           break;
+        case TraversalVisitorCommandName.REWRITE_CHILD_HINTS:
         case TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER:
           if (
             (this.depthFirstPolicy !== null &&
@@ -1827,11 +1831,9 @@ export class TraversalKernel<
     const concurrentIndices: number[] = [];
     const sequentialIndices: number[] = [];
     records.forEach((record, index) => {
-      if (record.resolutionStyle === 'CONCURRENT')
+      if (normalizeVisitorOptions(record).commandCommitMode === 'afterGroup')
         concurrentIndices.push(index);
-      else if (record.resolutionStyle === 'SEQUENTIAL')
-        sequentialIndices.push(index);
-      else throw new TypeError('Unknown visitor resolution style');
+      else sequentialIndices.push(index);
     });
     const state: ChainState<T, R> = {
       owner,
@@ -1854,6 +1856,7 @@ export class TraversalKernel<
         records,
         metadata,
         family: this.options.kind === 'dag' ? 'dag' : 'tree',
+        order,
       }),
     });
     return owner;

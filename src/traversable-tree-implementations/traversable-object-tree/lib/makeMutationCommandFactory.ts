@@ -19,19 +19,19 @@ export type TO_MakeMutationCommandFunctionFactoryConfiguration<
 > = {
   isArray?: (vertexData: IN_TO_TTP['VertexData']) => boolean;
   isObject?: (vertexData: IN_TO_TTP['VertexData']) => boolean;
-  assembleArray?: (
+  assembleArray?: <ORDER extends string>(
     processedChildren: OUT_TO_TTP['VertexData'][],
     vertexData: IN_TO_TTP['VertexData'],
     visitorArguments: Parameters<
-      TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
+      TraversalVisitor<ORDER, IN_TO_TTP, OUT_TO_TTP>
     >,
     isCompositeAssertions: TO_IsCompositeAssertionsMixin,
   ) => OUT_TO_TTP['VertexData']['value'];
-  assembleObject?: (
+  assembleObject?: <ORDER extends string>(
     processedChildren: OUT_TO_TTP['VertexData'][],
     vertexData: IN_TO_TTP['VertexData'],
     visitorArguments: Parameters<
-      TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
+      TraversalVisitor<ORDER, IN_TO_TTP, OUT_TO_TTP>
     >,
     isCompositeAssertions: TO_IsCompositeAssertionsMixin,
   ) => OUT_TO_TTP['VertexData']['value'];
@@ -51,9 +51,9 @@ export type TO_MakeMutationCommandFactoryResult<
 export type TO_MakeMutationCommandFunctionFactory_2<
   IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-> = (
+> = <ORDER extends string>(
   ...visitorArguments: Parameters<
-    TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
+    TraversalVisitor<ORDER, IN_TO_TTP, OUT_TO_TTP>
   >
 ) => TO_MakeMutationCommandFactoryResult<OUT_TO_TTP>;
 
@@ -89,9 +89,11 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
     };
     const assembledMap = assembledMapInput ?? new Map();
 
-    return function TraversableObjectTree_makeMutationCommandFactory_1(
+    return function TraversableObjectTree_makeMutationCommandFactory_1<
+      ORDER extends string,
+    >(
       ...visitorArguments: Parameters<
-        TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
+        TraversalVisitor<ORDER, IN_TO_TTP, OUT_TO_TTP>
       >
     ): TO_MakeMutationCommandFactoryResult<OUT_TO_TTP> {
       const [vertex, options] = visitorArguments;

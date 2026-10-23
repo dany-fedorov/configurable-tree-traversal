@@ -98,7 +98,8 @@ export class AsyncDepthFirstTraversalRunner<
               visitorRecord,
               vertexVisitorsChainState: call.metadata.vertexVisitorsChainState,
               order,
-            });
+              // The record and options share the same phase selected above.
+            } as never);
           },
         ]),
       ),
@@ -114,11 +115,14 @@ export class AsyncDepthFirstTraversalRunner<
       visitorMetadata: Object.fromEntries(
         Object.entries(this.icfg.visitors).map(([order, records]) => [
           order,
-          records.map(({ addedIndex, priority, resolutionStyle }) => ({
-            addedIndex,
-            priority,
-            resolutionStyle,
-          })),
+          records.map(
+            ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+              addedIndex,
+              priority,
+              resolutionStyle,
+              commandCommitMode,
+            }),
+          ),
         ]),
       ),
       iterableConfig,

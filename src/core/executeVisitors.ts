@@ -1,3 +1,4 @@
+import { normalizeVisitorOptions } from './visitors/normalizeVisitorOptions';
 import type { CTTRef } from './CTTRef';
 import type { Vertex } from './Vertex';
 import type { TreeTypeParameters } from './TreeTypeParameters';
@@ -42,14 +43,20 @@ export function* executeVisitors<
   isDeleted: () => boolean;
 }): Generator<void> {
   const { vertexRef, state } = input;
-  const records = input.records.slice();
+  const records = input.records.map((record) => ({
+    ...record,
+    ...normalizeVisitorOptions(record),
+  }));
   const chain = new VisitorChain<TTP, RW_TTP>({
     ref: vertexRef,
-    records: records.map(({ addedIndex, priority, resolutionStyle }) => ({
-      addedIndex,
-      priority,
-      resolutionStyle,
-    })),
+    records: records.map(
+      ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+        addedIndex,
+        priority,
+        resolutionStyle,
+        commandCommitMode,
+      }),
+    ),
     metadata: {
       ...state,
       vertexVisitorsChainState: null,
@@ -69,7 +76,10 @@ export function* executeVisitors<
           action.ref.unref(),
           input.getOptions(record, action.metadata.vertexVisitorsChainState),
         );
-        chain.submit({ ok: true, value: result });
+        chain.submit({
+          ok: true,
+          value: result as import('./graph/types').VisitResult<RW_TTP>,
+        });
         state.curVertexVisitorVisitIndex++;
         break;
       }
@@ -110,12 +120,12 @@ export function sortVisitorRecords<
   records: TraversalVisitorRecord<ORDER, TTP, RW_TTP>[],
 ): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[];
 export function sortVisitorRecords<
-  R extends { addedIndex: number; priority: number },
->(records: R[]): R[];
-export function sortVisitorRecords<R extends { addedIndex: number; priority: number }>(
-  records: R[],
-): R[] {
+  R extends readonly { addedIndex: number; priority: number }[],
+>(records: R): R[number][];
+export function sortVisitorRecords<
+  R extends readonly { addedIndex: number; priority: number }[],
+>(records: R): R[number][] {
   return records
-    .map((record) => ({ ...record }))
+    .map((record) => ({ ...record, ...normalizeVisitorOptions(record) }))
     .sort((a, b) => b.priority - a.priority || a.addedIndex - b.addedIndex);
 }

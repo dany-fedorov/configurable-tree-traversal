@@ -1,3 +1,5 @@
+import type { NoInferPhase } from '@core/TraversalVisitor';
+import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { Traversal } from '@core/Traversal';
@@ -15,7 +17,6 @@ import type {
   TraversalVisitorFunctionOptions,
   TraversalVisitorRecord,
 } from '@core/TraversalVisitor';
-import { DEFAULT_VISITOR_FN_OPTIONS } from '@core/TraversalVisitor';
 import { initVisitors } from '@depth-first-traversal/init-helpers/initVisitors';
 import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { DepthFirstTraversalRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
@@ -51,24 +52,35 @@ export class DepthFirstTraversal<
     return this;
   }
 
-  addVisitorFor(
-    order: DepthFirstTraversalOrder,
-    visitor: TraversalVisitor<DepthFirstTraversalOrder, TTP, RW_TTP>,
-    options: Partial<TraversalVisitorFunctionOptions> = DEFAULT_VISITOR_FN_OPTIONS,
+  // VIEW permits pre-typed callbacks whose input covers more phases. Both result
+  // contracts remain enforced; only the order argument determines allowed commands.
+  addVisitorFor<
+    ORDER extends DepthFirstTraversalOrder,
+    VIEW extends string = ORDER,
+  >(
+    order: ORDER & ([NoInferPhase<ORDER>] extends [VIEW] ? unknown : never),
+    visitor: (
+      vertex: Parameters<TraversalVisitor<VIEW, TTP, RW_TTP>>[0],
+      input: Parameters<TraversalVisitor<VIEW, TTP, RW_TTP>>[1],
+    ) => ReturnType<TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>> &
+      ReturnType<TraversalVisitor<NoInferPhase<VIEW>, TTP, RW_TTP>>,
+    options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    const effectiveOptions: TraversalVisitorFunctionOptions = {
-      ...DEFAULT_VISITOR_FN_OPTIONS,
-      ...options,
-    };
-    this.visitors[order].push({
-      priority: effectiveOptions.priority,
-      visitor,
+    const effectiveOptions = normalizeVisitorOptions(options);
+    (
+      this.visitors[order as ORDER] as TraversalVisitorRecord<
+        ORDER,
+        TTP,
+        RW_TTP
+      >[]
+    ).push({
+      visitor: visitor as unknown as TraversalVisitor<ORDER, TTP, RW_TTP>,
       addedIndex:
         this.visitors[order].reduce(
           (max, record) => Math.max(max, record.addedIndex),
           -1,
         ) + 1,
-      resolutionStyle: effectiveOptions.resolutionStyle,
+      ...effectiveOptions,
     });
     this.visitors[order].sort((a, b) => {
       if (b.priority !== a.priority) {
@@ -80,21 +92,26 @@ export class DepthFirstTraversal<
     return this;
   }
 
-  listVisitorsFor(
-    order: DepthFirstTraversalOrder,
-  ): TraversalVisitorRecord<DepthFirstTraversalOrder, TTP, RW_TTP>[] {
-    return this.visitors[order];
-  }
-
-  setVisitorsFor(
-    order: DepthFirstTraversalOrder,
-    visitorRecords: TraversalVisitorRecord<
-      DepthFirstTraversalOrder,
+  listVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
+    order: ORDER,
+  ): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[] {
+    return this.visitors[order as ORDER] as TraversalVisitorRecord<
+      ORDER,
       TTP,
       RW_TTP
-    >[],
+    >[];
+  }
+
+  setVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
+    order: ORDER,
+    visitorRecords: TraversalVisitorRecord<NoInferPhase<ORDER>, TTP, RW_TTP>[],
   ): this {
-    this.visitors[order] = sortVisitorRecords(visitorRecords);
+    (
+      this.visitors as Record<
+        ORDER,
+        TraversalVisitorRecord<ORDER, TTP, RW_TTP>[]
+      >
+    )[order] = sortVisitorRecords(visitorRecords);
     return this;
   }
 

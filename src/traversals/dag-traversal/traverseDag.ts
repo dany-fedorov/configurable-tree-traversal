@@ -12,8 +12,8 @@ export type DagTraversalVisitorsSimple<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
 > = {
-  onReadyVisitor?: DagVisitor<T, R>;
-  onCompleteVisitor?: DagVisitor<T, R>;
+  onReadyVisitor?: DagVisitor<T, R, DagTraversalOrder.ON_READY>;
+  onCompleteVisitor?: DagVisitor<T, R, DagTraversalOrder.ON_COMPLETE>;
 };
 
 export type DagTraversalHelperConfig<

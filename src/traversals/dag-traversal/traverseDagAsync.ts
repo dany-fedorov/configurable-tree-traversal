@@ -12,8 +12,8 @@ export type AsyncDagTraversalVisitorsSimple<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
 > = {
-  onReadyVisitor?: AsyncDagVisitor<T, R>;
-  onCompleteVisitor?: AsyncDagVisitor<T, R>;
+  onReadyVisitor?: AsyncDagVisitor<T, R, DagTraversalOrder.ON_READY>;
+  onCompleteVisitor?: AsyncDagVisitor<T, R, DagTraversalOrder.ON_COMPLETE>;
 };
 
 export type AsyncDagTraversalHelperConfig<

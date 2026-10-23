@@ -1,6 +1,7 @@
 import type { VertexId } from '@core/graph/types';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 
+/** @deprecated Return the DEFER_READY visitor command instead. */
 export const DEFER_READY: unique symbol = Symbol('DEFER_READY');
 export type DagSettlementGeneration = symbol;
 export type DagSettlementOutcome = { ok: true } | { ok: false; error: unknown };

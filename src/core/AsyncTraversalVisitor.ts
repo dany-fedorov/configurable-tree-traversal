@@ -15,10 +15,10 @@ export type AsyncTraversalVisitorInputOptions<
 };
 
 export type AsyncTraversalVisitor<
-  ORDER extends string,
-  T extends TreeTypeParameters,
+  ORDER extends string = string,
+  T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
 > = (
   vertex: Vertex<T | R>,
   options: AsyncTraversalVisitorInputOptions<ORDER, T, R>,
-) => MaybePromise<TraversalVisitorResult<R> | undefined | void>;
+) => MaybePromise<TraversalVisitorResult<R, ORDER> | undefined | void>;

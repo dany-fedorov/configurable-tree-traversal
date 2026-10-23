@@ -98,9 +98,10 @@ export class BreadthFirstTraversalRunner<
         ? {}
         : {
             sortHints: (hints: (TTP | RW_TTP)['VertexHint'][]) =>
-              this.icfg.sortChildrenHints!(
-                hints as TTP['VertexHint'][],
-              ) as (TTP | RW_TTP)['VertexHint'][],
+              this.icfg.sortChildrenHints!(hints as TTP['VertexHint'][]) as (
+                | TTP
+                | RW_TTP
+              )['VertexHint'][],
           }),
       visit: {
         [BreadthFirstTraversalOrder.LEVEL_ORDER]: (
@@ -117,8 +118,7 @@ export class BreadthFirstTraversalRunner<
             isTraversalRoot: this.isTraversalRootVertex(call.ref),
             vertexRef: call.ref,
             visitorRecord,
-            vertexVisitorsChainState:
-              call.metadata.vertexVisitorsChainState,
+            vertexVisitorsChainState: call.metadata.vertexVisitorsChainState,
             order,
           });
         },
@@ -133,11 +133,14 @@ export class BreadthFirstTraversalRunner<
       visitorMetadata: {
         [BreadthFirstTraversalOrder.LEVEL_ORDER]: this.icfg.visitors[
           BreadthFirstTraversalOrder.LEVEL_ORDER
-        ].map(({ addedIndex, priority, resolutionStyle }) => ({
-          addedIndex,
-          priority,
-          resolutionStyle,
-        })),
+        ].map(
+          ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+            addedIndex,
+            priority,
+            resolutionStyle,
+            commandCommitMode,
+          }),
+        ),
       },
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,

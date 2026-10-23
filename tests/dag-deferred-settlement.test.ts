@@ -91,6 +91,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
   test(`${Constructor.name} rejects completion deferral`, async () => {
     const traversal = new Constructor<G>({ traversableGraph: rootOnly });
+    // @ts-expect-error Runtime validation for JavaScript callers.
     traversal.addVisitorFor(Order.ON_COMPLETE, () => DEFER_READY);
     await expect(async () => {
       await traversal.makeRunner().run();

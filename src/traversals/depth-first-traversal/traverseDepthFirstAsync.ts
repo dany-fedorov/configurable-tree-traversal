@@ -11,16 +11,20 @@ export type AsyncDepthFirstTraversalVisitorsSimple<
   RW_TTP extends TreeTypeParameters,
 > = {
   preOrderVisitor?: AsyncTraversalVisitor<
-    DepthFirstTraversalOrder,
+    DepthFirstTraversalOrder.PRE_ORDER,
     TTP,
     RW_TTP
   >;
   postOrderVisitor?: AsyncTraversalVisitor<
-    DepthFirstTraversalOrder,
+    DepthFirstTraversalOrder.POST_ORDER,
     TTP,
     RW_TTP
   >;
-  inOrderVisitor?: AsyncTraversalVisitor<DepthFirstTraversalOrder, TTP, RW_TTP>;
+  inOrderVisitor?: AsyncTraversalVisitor<
+    DepthFirstTraversalOrder.IN_ORDER,
+    TTP,
+    RW_TTP
+  >;
 };
 
 export function traverseDepthFirstAsync<

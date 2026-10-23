@@ -26,7 +26,7 @@ export type DagTraversalVisitors<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
 > = {
-  [K in DagTraversalOrder]: VisitorRecord<DagVisitor<T, R>>[];
+  [K in DagTraversalOrder]: VisitorRecord<DagVisitor<T, R, K>>[];
 };
 
 export type DagSortChildrenHintsFn<T extends TreeTypeParameters> = (

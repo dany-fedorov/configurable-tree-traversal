@@ -83,17 +83,20 @@ export class DepthFirstTraversalRunner<
         ? {}
         : {
             sortHints: (hints: (TTP | RW_TTP)['VertexHint'][]) =>
-              this.icfg.sortChildrenHints!(
-                hints as TTP['VertexHint'][],
-              ) as (TTP | RW_TTP)['VertexHint'][],
+              this.icfg.sortChildrenHints!(hints as TTP['VertexHint'][]) as (
+                | TTP
+                | RW_TTP
+              )['VertexHint'][],
           }),
       visit: Object.fromEntries(
         Object.values(DepthFirstTraversalOrder).map((order) => [
           order,
-          (call: Extract<
-            import('@core/effects/types').CallSpec<TTP, RW_TTP>,
-            { kind: 'VISIT' }
-          >) => {
+          (
+            call: Extract<
+              import('@core/effects/types').CallSpec<TTP, RW_TTP>,
+              { kind: 'VISIT' }
+            >,
+          ) => {
             const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
             return visitorRecord.visitor(call.ref.unref(), {
               ...call.metadata,
@@ -104,10 +107,10 @@ export class DepthFirstTraversalRunner<
               isTraversalRoot: this.isTraversalRootVertex(call.ref),
               vertexRef: call.ref,
               visitorRecord,
-              vertexVisitorsChainState:
-                call.metadata.vertexVisitorsChainState,
+              vertexVisitorsChainState: call.metadata.vertexVisitorsChainState,
               order,
-            });
+              // The record and options share the same phase selected above.
+            } as never);
           },
         ]),
       ),
@@ -121,11 +124,14 @@ export class DepthFirstTraversalRunner<
       visitorMetadata: Object.fromEntries(
         Object.entries(this.icfg.visitors).map(([order, records]) => [
           order,
-          records.map(({ addedIndex, priority, resolutionStyle }) => ({
-            addedIndex,
-            priority,
-            resolutionStyle,
-          })),
+          records.map(
+            ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+              addedIndex,
+              priority,
+              resolutionStyle,
+              commandCommitMode,
+            }),
+          ),
         ]),
       ),
       iterableConfig: this.iterableConfig,

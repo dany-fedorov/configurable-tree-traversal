@@ -1,6 +1,7 @@
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitor,
+  NoInferPhase,
   TraversalVisitorFunctionOptions,
   TraversalVisitorRecord,
 } from '@core/TraversalVisitor';
@@ -11,20 +12,20 @@ export abstract class Traversal<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > {
-  abstract addVisitorFor(
-    order: ORDER,
-    visitor: TraversalVisitor<ORDER, TTP, RW_TTP>,
+  abstract addVisitorFor<PHASE extends ORDER>(
+    order: PHASE,
+    visitor: TraversalVisitor<NoInferPhase<PHASE>, TTP, RW_TTP>,
     options?: TraversalVisitorFunctionOptions,
   ): this;
 
-  abstract setVisitorsFor(
-    order: ORDER,
-    visitorRecords: TraversalVisitorRecord<ORDER, TTP, RW_TTP>[],
+  abstract setVisitorsFor<PHASE extends ORDER>(
+    order: PHASE,
+    visitorRecords: TraversalVisitorRecord<NoInferPhase<PHASE>, TTP, RW_TTP>[],
   ): this;
 
-  abstract listVisitorsFor(
-    order: ORDER,
-  ): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[];
+  abstract listVisitorsFor<PHASE extends ORDER>(
+    order: PHASE,
+  ): TraversalVisitorRecord<NoInferPhase<PHASE>, TTP, RW_TTP>[];
 
   abstract makeRunner(): TraversalRunner<ORDER, TTP, RW_TTP>;
 }

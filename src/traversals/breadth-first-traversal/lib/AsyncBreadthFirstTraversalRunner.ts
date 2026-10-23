@@ -125,11 +125,14 @@ export class AsyncBreadthFirstTraversalRunner<
       visitorMetadata: {
         [BreadthFirstTraversalOrder.LEVEL_ORDER]: this.icfg.visitors[
           BreadthFirstTraversalOrder.LEVEL_ORDER
-        ].map(({ addedIndex, priority, resolutionStyle }) => ({
-          addedIndex,
-          priority,
-          resolutionStyle,
-        })),
+        ].map(
+          ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+            addedIndex,
+            priority,
+            resolutionStyle,
+            commandCommitMode,
+          }),
+        ),
       },
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,

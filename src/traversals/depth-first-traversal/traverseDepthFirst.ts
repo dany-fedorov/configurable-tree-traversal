@@ -10,9 +10,21 @@ export type DepthFirstTraversalVisitorsSimple<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
 > = {
-  preOrderVisitor?: TraversalVisitor<DepthFirstTraversalOrder, TTP, RW_TTP>;
-  postOrderVisitor?: TraversalVisitor<DepthFirstTraversalOrder, TTP, RW_TTP>;
-  inOrderVisitor?: TraversalVisitor<DepthFirstTraversalOrder, TTP, RW_TTP>;
+  preOrderVisitor?: TraversalVisitor<
+    DepthFirstTraversalOrder.PRE_ORDER,
+    TTP,
+    RW_TTP
+  >;
+  postOrderVisitor?: TraversalVisitor<
+    DepthFirstTraversalOrder.POST_ORDER,
+    TTP,
+    RW_TTP
+  >;
+  inOrderVisitor?: TraversalVisitor<
+    DepthFirstTraversalOrder.IN_ORDER,
+    TTP,
+    RW_TTP
+  >;
 };
 
 export function traverseDepthFirst<

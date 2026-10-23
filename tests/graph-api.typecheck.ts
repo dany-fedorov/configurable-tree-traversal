@@ -74,7 +74,10 @@ const promisedTreeVisitor: AsyncTraversalVisitor<
   Output
 > = async () => undefined;
 
-const dagVisitor: DagVisitor<Input, Output> = (vertex, options) => {
+const dagVisitor: DagVisitor<Input, Output, DagTraversalOrder.ON_READY> = (
+  vertex,
+  options,
+) => {
   const data: { input: string } | { output: number } = vertex.getData();
   const order: DagTraversalOrder = options.order;
   void [data, order, options.resolvedGraph, options.visitorRecord.visitor];

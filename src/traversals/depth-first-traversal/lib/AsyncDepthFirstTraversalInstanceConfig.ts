@@ -17,7 +17,7 @@ export type AsyncDepthFirstTraversalVisitors<
   RW_TTP extends TreeTypeParameters,
 > = {
   [K in DepthFirstTraversalOrder]: VisitorRecord<
-    AsyncTraversalVisitor<DepthFirstTraversalOrder, TTP, RW_TTP>
+    AsyncTraversalVisitor<K, TTP, RW_TTP>
   >[];
 };
 
