@@ -56,22 +56,13 @@ export class AsyncDagTraversal<
     return this;
   }
 
-  // VIEW permits pre-typed callbacks whose input covers more phases. Both result
-  // contracts remain enforced; only the order argument determines allowed commands.
-  addVisitorFor<
-    ORDER extends DagTraversalOrder,
-    VIEW extends DagTraversalOrder = ORDER,
-  >(
-    order: ORDER & ([NoInferPhase<ORDER>] extends [VIEW] ? unknown : never),
-    visitor: (
-      vertex: Parameters<AsyncDagVisitor<T, R, VIEW>>[0],
-      input: Parameters<AsyncDagVisitor<T, R, VIEW>>[1],
-    ) => ReturnType<AsyncDagVisitor<T, R, NoInferPhase<ORDER>>> &
-      ReturnType<AsyncDagVisitor<T, R, NoInferPhase<VIEW>>>,
+  addVisitorFor<ORDER extends DagTraversalOrder>(
+    order: ORDER,
+    visitor: AsyncDagVisitor<T, R, NoInferPhase<ORDER>>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
     const effective = normalizeVisitorOptions(options);
-    const records = this.visitors[order as ORDER] as VisitorRecord<
+    const records = this.visitors[order] as VisitorRecord<
       AsyncDagVisitor<T, R, ORDER>
     >[];
     records.push({
@@ -79,7 +70,7 @@ export class AsyncDagTraversal<
         records.reduce((max, record) => Math.max(max, record.addedIndex), -1) +
         1,
       ...effective,
-      visitor: visitor as unknown as AsyncDagVisitor<T, R, ORDER>,
+      visitor,
     });
     (
       this.visitors as Record<
@@ -92,10 +83,8 @@ export class AsyncDagTraversal<
 
   listVisitorsFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-  ): VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[] {
-    return this.visitors[order as ORDER] as VisitorRecord<
-      AsyncDagVisitor<T, R, ORDER>
-    >[];
+  ): AsyncDagTraversalVisitors<T, R>[ORDER] {
+    return this.visitors[order];
   }
 
   setVisitorsFor<ORDER extends DagTraversalOrder>(

@@ -3,11 +3,8 @@ import type { CTTRef } from '@core/CTTRef';
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type {
-  MaybePromise,
-  VisitResult,
-  VisitorRecord,
-} from '@core/graph/types';
+import type { MaybePromise, VisitResult } from '@core/graph/types';
+import type { VisitorRegistrationMetadata } from '@core/TraversalVisitor';
 import type { DagTraversalOrder } from './DagTraversalOrder';
 
 export type DagVisitorOptions<
@@ -25,39 +22,41 @@ export type DagVisitorOptions<
   curVertexVisitorVisitIndex: number;
   previousVisitedVertexRef: CTTRef<Vertex<T | R>> | null;
   vertexVisitorsChainState: unknown;
-  visitorRecord: VisitorRecord<DagVisitor<T, R, ORDER>>;
+  visitorRecord: VisitorRegistrationMetadata;
 };
 
 export type DagVisitor<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
-> = (
-  vertex: Vertex<T | R>,
-  options: DagVisitorOptions<T, R, ORDER>,
-) =>
+> =
   | VisitResult<R, ORDER>
-  | ([ORDER] extends ['ON_READY'] ? typeof DEFER_READY : never);
+  | ([ORDER] extends ['ON_READY']
+      ? typeof DEFER_READY
+      : never) extends infer RESULT
+  ? (vertex: Vertex<T | R>, options: DagVisitorOptions<T, R, ORDER>) => RESULT
+  : never;
 
 export type AsyncDagVisitorOptions<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
-> = Omit<DagVisitorOptions<T, R, ORDER>, 'visitorRecord'> & {
-  visitorRecord: VisitorRecord<AsyncDagVisitor<T, R, ORDER>>;
-};
+> = DagVisitorOptions<T, R, ORDER>;
 
 export type AsyncDagVisitor<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
-> = (
-  vertex: Vertex<T | R>,
-  options: AsyncDagVisitorOptions<T, R, ORDER>,
-) => MaybePromise<
+> =
   | VisitResult<R, ORDER>
-  | ([ORDER] extends ['ON_READY'] ? typeof DEFER_READY : never)
->;
+  | ([ORDER] extends ['ON_READY']
+      ? typeof DEFER_READY
+      : never) extends infer RESULT
+  ? (
+      vertex: Vertex<T | R>,
+      options: AsyncDagVisitorOptions<T, R, ORDER>,
+    ) => MaybePromise<RESULT>
+  : never;
 
 export type DagEvent<T extends TreeTypeParameters> = {
   vertex: Vertex<T>;

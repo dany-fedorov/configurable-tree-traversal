@@ -2,6 +2,7 @@ import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { ResolvedTree } from '@core/ResolvedTree';
 import type { CTTRef } from '@core/CTTRef';
+import type { VisitorRecord } from '@core/graph/types';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export enum TraversalVisitorCommandName {
@@ -99,7 +100,7 @@ export type TraversalVisitorInputOptions<
   isTraversalRoot: boolean;
   vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
   vertexVisitorsChainState: unknown;
-  visitorRecord: TraversalVisitorRecord<ORDER, TTP, RW_TTP>;
+  visitorRecord: VisitorRegistrationMetadata;
   order: ORDER;
 };
 
@@ -118,18 +119,16 @@ export type TraversalVisitorFunctionOptions = {
   resolutionStyle?: TraversalVisitorFunctionResolutionStyle | undefined;
 };
 
+/** Descriptive callback-context metadata. Executable records remain on the traversal. */
+export type VisitorRegistrationMetadata = Readonly<
+  TraversalVisitorFunctionOptions & { addedIndex: number }
+>;
+
 export type TraversalVisitorRecord<
   ORDER extends string,
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
-> = {
-  addedIndex: number;
-  priority: number;
-  commandCommitMode?: CommandCommitMode | undefined;
-  /** @deprecated Use commandCommitMode. */
-  resolutionStyle?: TraversalVisitorFunctionResolutionStyle | undefined;
-  visitor: TraversalVisitor<ORDER, TTP, RW_TTP>;
-};
+> = VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>;
 
 export const DEFAULT_VISITOR_PRIORITY = 100;
 
@@ -139,11 +138,16 @@ export const DEFAULT_VISITOR_FN_OPTIONS = deepFreeze({
   resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
 });
 
+// Resolve the result before constructing the callback so TypeScript compares
+// concrete return contracts structurally across phases (broad common results
+// remain assignable to a narrower phase's superset of allowed commands).
 export type TraversalVisitor<
   ORDER extends string = string,
   TTP extends TreeTypeParameters = TreeTypeParameters,
   RW_TTP extends TreeTypeParameters = TTP,
-> = (
-  vertex: Vertex<TTP | RW_TTP>,
-  options: TraversalVisitorInputOptions<ORDER, TTP, RW_TTP>,
-) => TraversalVisitorResult<RW_TTP, ORDER> | undefined | void;
+> = TraversalVisitorResult<RW_TTP, ORDER> extends infer RESULT
+  ? (
+      vertex: Vertex<TTP | RW_TTP>,
+      options: TraversalVisitorInputOptions<ORDER, TTP, RW_TTP>,
+    ) => RESULT | undefined | void
+  : never;

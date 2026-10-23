@@ -52,36 +52,23 @@ export class DepthFirstTraversal<
     return this;
   }
 
-  // VIEW permits pre-typed callbacks whose input covers more phases. Both result
-  // contracts remain enforced; only the order argument determines allowed commands.
-  addVisitorFor<
-    ORDER extends DepthFirstTraversalOrder,
-    VIEW extends string = ORDER,
-  >(
-    order: ORDER & ([NoInferPhase<ORDER>] extends [VIEW] ? unknown : never),
-    visitor: (
-      vertex: Parameters<TraversalVisitor<VIEW, TTP, RW_TTP>>[0],
-      input: Parameters<TraversalVisitor<VIEW, TTP, RW_TTP>>[1],
-    ) => ReturnType<TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>> &
-      ReturnType<TraversalVisitor<NoInferPhase<VIEW>, TTP, RW_TTP>>,
+  addVisitorFor<ORDER extends DepthFirstTraversalOrder>(
+    order: ORDER,
+    visitor: TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
     const effectiveOptions = normalizeVisitorOptions(options);
-    (
-      this.visitors[order as ORDER] as TraversalVisitorRecord<
-        ORDER,
-        TTP,
-        RW_TTP
-      >[]
-    ).push({
-      visitor: visitor as unknown as TraversalVisitor<ORDER, TTP, RW_TTP>,
-      addedIndex:
-        this.visitors[order].reduce(
-          (max, record) => Math.max(max, record.addedIndex),
-          -1,
-        ) + 1,
-      ...effectiveOptions,
-    });
+    (this.visitors[order] as TraversalVisitorRecord<ORDER, TTP, RW_TTP>[]).push(
+      {
+        visitor,
+        addedIndex:
+          this.visitors[order].reduce(
+            (max, record) => Math.max(max, record.addedIndex),
+            -1,
+          ) + 1,
+        ...effectiveOptions,
+      },
+    );
     this.visitors[order].sort((a, b) => {
       if (b.priority !== a.priority) {
         return b.priority - a.priority;
@@ -94,12 +81,8 @@ export class DepthFirstTraversal<
 
   listVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
     order: ORDER,
-  ): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[] {
-    return this.visitors[order as ORDER] as TraversalVisitorRecord<
-      ORDER,
-      TTP,
-      RW_TTP
-    >[];
+  ): DepthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
+    return this.visitors[order];
   }
 
   setVisitorsFor<ORDER extends DepthFirstTraversalOrder>(

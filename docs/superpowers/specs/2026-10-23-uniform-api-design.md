@@ -70,7 +70,18 @@ Infer the actual phase in `addVisitorFor`, configuration visitor maps, simple
 helper maps, and visitor input `order` for DFS, BFS, DAG and async counterparts.
 Permit deferral only in ON_READY. Permit child-hint rewriting only in PRE_ORDER,
 LEVEL_ORDER, and ON_READY. Keep runtime checks for JavaScript and unsafe casts.
-General visitor type aliases remain usable with default phase parameters.
+General visitor type aliases remain usable with default phase parameters,
+including reusable common-command callbacks across registration, configuration,
+replacement, and helper maps. Callback context `visitorRecord` exposes a
+phase-neutral readonly `VisitorRegistrationMetadata` view: addedIndex, priority,
+commandCommitMode, and deprecated resolutionStyle. It does not expose an
+executable callback in the supported TypeScript context contract. Full typed
+callback records remain available through traversal configuration/list/set APIs.
+The existing runtime record object may retain its visitor field for JavaScript
+compatibility. Code that invokes `options.visitorRecord.visitor` migrates to its
+own callback reference or the traversal's listed records. This separates
+inspection metadata from execution and removes recursive variance that otherwise
+makes safe callback reuse depend on the chosen registration entry point.
 Eager-discovery topology restrictions remain runtime-validated; do not invent
 a large static configuration state machine to encode them.
 

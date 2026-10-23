@@ -268,8 +268,8 @@ for (const traversal of [
       [F.POST_ORDER]: [{ addedIndex: 0, priority: 1, visitor: pre }],
     },
   });
-  // @ts-expect-error A pre-typed narrow callback cannot evade setVisitorsFor restrictions.
   traversal.setVisitorsFor(dfsOrder, [
+    // @ts-expect-error A pre-typed narrow callback cannot evade setVisitorsFor restrictions.
     { addedIndex: 0, priority: 1, visitor: pre },
   ]);
 }
@@ -396,7 +396,11 @@ for (const traversal of [
 // Match async callback types to async entry points so phase errors cannot be
 // masked by the independent sync/async recursive visitor-record distinction.
 declare const asyncReady: import('../src').AsyncDagVisitor<T, T, D.ON_READY>;
-declare const asyncPre: import('../src').AsyncTraversalVisitor<F.PRE_ORDER, T, T>;
+declare const asyncPre: import('../src').AsyncTraversalVisitor<
+  F.PRE_ORDER,
+  T,
+  T
+>;
 const asyncDag = new AsyncDagTraversal<T>(graph);
 const asyncDfs = new AsyncDepthFirstTraversal<T>(tree);
 asyncDag.addVisitorFor(D.ON_READY, asyncReady);
@@ -405,18 +409,33 @@ asyncDfs.addVisitorFor(F.PRE_ORDER, asyncPre);
 asyncDag.addVisitorFor(dagOrder, asyncReady);
 // @ts-expect-error An async PRE_ORDER callback cannot run at a union phase.
 asyncDfs.addVisitorFor(dfsOrder, asyncPre);
-// @ts-expect-error Async configuration maps preserve phases of pre-typed callbacks.
-asyncDag.configure({ visitors: { [D.ON_COMPLETE]: [{ addedIndex: 0, priority: 1, visitor: asyncReady }] } });
-// @ts-expect-error Async configuration maps preserve phases of pre-typed callbacks.
-asyncDfs.configure({ visitors: { [F.POST_ORDER]: [{ addedIndex: 0, priority: 1, visitor: asyncPre }] } });
-// @ts-expect-error Async replacement maps preserve phases of pre-typed callbacks.
-asyncDag.setVisitorsFor(dagOrder, [{ addedIndex: 0, priority: 1, visitor: asyncReady }]);
-// @ts-expect-error Async replacement maps preserve phases of pre-typed callbacks.
-asyncDfs.setVisitorsFor(dfsOrder, [{ addedIndex: 0, priority: 1, visitor: asyncPre }]);
+asyncDag.configure({
+  visitors: {
+    // @ts-expect-error Async configuration maps preserve phases of pre-typed callbacks.
+    [D.ON_COMPLETE]: [{ addedIndex: 0, priority: 1, visitor: asyncReady }],
+  },
+});
+asyncDfs.configure({
+  visitors: {
+    // @ts-expect-error Async configuration maps preserve phases of pre-typed callbacks.
+    [F.POST_ORDER]: [{ addedIndex: 0, priority: 1, visitor: asyncPre }],
+  },
+});
+asyncDag.setVisitorsFor(dagOrder, [
+  // @ts-expect-error Async replacement maps preserve phases of pre-typed callbacks.
+  { addedIndex: 0, priority: 1, visitor: asyncReady },
+]);
+asyncDfs.setVisitorsFor(dfsOrder, [
+  // @ts-expect-error Async replacement maps preserve phases of pre-typed callbacks.
+  { addedIndex: 0, priority: 1, visitor: asyncPre },
+]);
 // @ts-expect-error Async helper maps preserve phases of pre-typed callbacks.
 traverseDagAsync(graph, { onCompleteVisitor: asyncReady });
 // @ts-expect-error Async helper maps preserve phases of pre-typed callbacks.
 traverseDepthFirstAsync(tree.traversableTree, { postOrderVisitor: asyncPre });
-const defaultTreeVisitor: import('../src').TraversalVisitor = () => ({ commands: [{ commandName: C.NOOP }] });
-const defaultAsyncVisitor: import('../src').AsyncTraversalVisitor = async () => ({ commands: [{ commandName: C.NOOP }] });
+const defaultTreeVisitor: import('../src').TraversalVisitor = () => ({
+  commands: [{ commandName: C.NOOP }],
+});
+const defaultAsyncVisitor: import('../src').AsyncTraversalVisitor =
+  async () => ({ commands: [{ commandName: C.NOOP }] });
 void [defaultTreeVisitor, defaultAsyncVisitor];

@@ -15,7 +15,7 @@ export abstract class Traversal<
   abstract addVisitorFor<PHASE extends ORDER>(
     order: PHASE,
     visitor: TraversalVisitor<NoInferPhase<PHASE>, TTP, RW_TTP>,
-    options?: TraversalVisitorFunctionOptions,
+    options?: Partial<TraversalVisitorFunctionOptions>,
   ): this;
 
   abstract setVisitorsFor<PHASE extends ORDER>(
@@ -25,7 +25,7 @@ export abstract class Traversal<
 
   abstract listVisitorsFor<PHASE extends ORDER>(
     order: PHASE,
-  ): TraversalVisitorRecord<NoInferPhase<PHASE>, TTP, RW_TTP>[];
+  ): { [P in PHASE]: TraversalVisitorRecord<P, TTP, RW_TTP>[] }[PHASE];
 
   abstract makeRunner(): TraversalRunner<ORDER, TTP, RW_TTP>;
 }

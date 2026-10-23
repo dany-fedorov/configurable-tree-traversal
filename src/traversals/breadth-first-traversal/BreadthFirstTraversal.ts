@@ -51,22 +51,13 @@ export class BreadthFirstTraversal<
     return this;
   }
 
-  // VIEW permits pre-typed callbacks whose input covers more phases. Both result
-  // contracts remain enforced; only the order argument determines allowed commands.
-  addVisitorFor<
-    ORDER extends BreadthFirstTraversalOrder,
-    VIEW extends string = ORDER,
-  >(
-    order: ORDER & ([NoInferPhase<ORDER>] extends [VIEW] ? unknown : never),
-    visitor: (
-      vertex: Parameters<TraversalVisitor<VIEW, TTP, RW_TTP>>[0],
-      input: Parameters<TraversalVisitor<VIEW, TTP, RW_TTP>>[1],
-    ) => ReturnType<TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>> &
-      ReturnType<TraversalVisitor<NoInferPhase<VIEW>, TTP, RW_TTP>>,
+  addVisitorFor<ORDER extends BreadthFirstTraversalOrder>(
+    order: ORDER,
+    visitor: TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
     const effectiveOptions = normalizeVisitorOptions(options);
-    const records = this.visitors[order as ORDER] as TraversalVisitorRecord<
+    const records = this.visitors[order] as TraversalVisitorRecord<
       ORDER,
       TTP,
       RW_TTP
@@ -76,7 +67,7 @@ export class BreadthFirstTraversal<
         records.reduce((max, record) => Math.max(max, record.addedIndex), -1) +
         1,
       ...effectiveOptions,
-      visitor: visitor as unknown as TraversalVisitor<ORDER, TTP, RW_TTP>,
+      visitor,
     });
     (
       this.visitors as Record<
@@ -89,12 +80,8 @@ export class BreadthFirstTraversal<
 
   listVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
     order: ORDER,
-  ): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[] {
-    return this.visitors[order as ORDER] as TraversalVisitorRecord<
-      ORDER,
-      TTP,
-      RW_TTP
-    >[];
+  ): BreadthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
+    return this.visitors[order];
   }
 
   setVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
