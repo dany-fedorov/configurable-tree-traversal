@@ -1,4 +1,4 @@
-import type { VertexContent } from '@core/Vertex';
+import type { VertexContentInput } from '@core/Vertex';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { ResolvedTree } from '@core/ResolvedTree';
@@ -14,7 +14,7 @@ export type MakeVertexOptions<
 };
 
 export type MakeVertexResult<TTP extends TreeTypeParameters> = {
-  vertexContent: VertexContent<TTP> | null;
+  vertexContent: VertexContentInput<TTP> | null;
   vertexId?: VertexId;
   dependsOn?: readonly VertexId[];
   dependsOnComplete?: readonly VertexId[];

@@ -1111,7 +1111,7 @@ export class TraversalKernel<
         case TraversalVisitorCommandName.REWRITE_VERTEX_DATA:
           runtime.state.ref.setPointsTo(
             runtime.state.ref.unref().clone({
-              $d: command.commandArguments.newData,
+              $data: command.commandArguments.newData,
             }),
           );
           break;
@@ -1129,7 +1129,7 @@ export class TraversalKernel<
           }
           runtime.state.ref.setPointsTo(
             runtime.state.ref.unref().clone({
-              $c: command.commandArguments.newHints.slice(),
+              $childHints: command.commandArguments.newHints.slice(),
             }),
           );
           break;

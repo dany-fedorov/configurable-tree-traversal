@@ -57,12 +57,12 @@ describe('resolved-tree public fallbacks', () => {
     expect(tree.getChildrenOf(unresolvedRef)).toBeNull();
     expect(tree.getResolutionContextOf(unresolvedRef)).toBeNull();
     expect(tree.makeVertex(unresolvedRef)).toEqual({
-      vertexContent: { $d: unresolvedRef, $c: [] },
+      vertexContent: { $data: unresolvedRef, $childHints: [] },
     });
 
     tree.setRoot(unresolvedRef);
     expect(tree.makeRoot()).toEqual({
-      vertexContent: { $d: unresolvedRef, $c: [] },
+      vertexContent: { $data: unresolvedRef, $childHints: [] },
     });
   });
 

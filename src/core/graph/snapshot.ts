@@ -68,8 +68,8 @@ export class StructuralGraphSnapshot<
       activeRef: ref,
       snapshotRef: new CTTRef(
         new Vertex<T>({
-          $d: vertex.getData() as T['VertexData'],
-          $c: vertex.getChildrenHints().slice() as T['VertexHint'][],
+          $data: vertex.getData() as T['VertexData'],
+          $childHints: vertex.getChildrenHints().slice() as T['VertexHint'][],
         }),
       ),
       id,

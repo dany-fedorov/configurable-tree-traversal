@@ -2,7 +2,7 @@ import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/Trav
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
 import type { MakeVertexOptions } from '@core/TraversableTree';
-import type { VertexContent } from '@core/Vertex';
+import type { VertexContentInput } from '@core/Vertex';
 
 export type TraversableObjectTreeInstanceConfig_makeVertexHook<
   InK extends TraversableObjectPropKey,
@@ -16,7 +16,7 @@ export type TraversableObjectTreeInstanceConfig_makeVertexHook<
     TraversableObjectTTP<OutK, OutV>
   >,
 ) => {
-  returnMe?: VertexContent<TraversableObjectTTP<InK, InV>> | null;
+  returnMe?: VertexContentInput<TraversableObjectTTP<InK, InV>> | null;
 };
 
 export type TraversableObjectTreeInstanceConfigInput<
