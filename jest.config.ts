@@ -7,7 +7,7 @@ const config: Config.InitialOptions = {
     '^.+\\.ts?$': 'ts-jest',
     // Jest 28 does not implement Node's synchronous ESM loading. Transform the
     // real uuid modules for source tests; packed checks exercise native loading.
-    '^.+/uuid/.+\\.js$': 'ts-jest',
+    '^.+[\\\\/]uuid[\\\\/].+\\.js$': 'ts-jest',
   },
   globals: {
     'ts-jest': { tsconfig: { allowJs: true, checkJs: false } },
