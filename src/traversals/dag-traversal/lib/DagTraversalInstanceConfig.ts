@@ -1,3 +1,5 @@
+import type { VisitorInputs } from '@core/TraversalVisitor';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import type { VertexId } from '@core/graph/types';
 import type { TraversableGraph } from '@core/TraversableGraph';
 import type { TraversableTree } from '@core/TraversableTree';
@@ -61,7 +63,7 @@ type DagTraversalOptionsInput<
 > = Partial<
   Omit<DagTraversalOptions<T, R>, 'visitors' | 'traversalRunnerInternalObjects'>
 > & {
-  visitors?: Partial<DagTraversalVisitors<T, R>>;
+  visitors?: VisitorInputs<DagTraversalVisitors<T, R>>;
   traversalRunnerInternalObjects?: Partial<
     DagTraversalOptions<T, R>['traversalRunnerInternalObjects']
   >;
@@ -110,10 +112,12 @@ export function mergeDagTraversalInstanceConfigs<
     ...base,
     ...input,
     visitors: {
-      [DagTraversalOrder.ON_READY]:
-        visitors[DagTraversalOrder.ON_READY].slice(),
-      [DagTraversalOrder.ON_COMPLETE]:
-        visitors[DagTraversalOrder.ON_COMPLETE].slice(),
+      [DagTraversalOrder.ON_READY]: normalizeVisitorDefinitions(
+        visitors[DagTraversalOrder.ON_READY],
+      ),
+      [DagTraversalOrder.ON_COMPLETE]: normalizeVisitorDefinitions(
+        visitors[DagTraversalOrder.ON_COMPLETE],
+      ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,

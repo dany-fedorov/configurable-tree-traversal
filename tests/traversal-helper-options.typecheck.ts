@@ -243,7 +243,6 @@ traverseBreadthFirstAsync<T>({
 traverseDag<T>({
   traversableGraph: graph,
   visitors: {
-    // @ts-expect-error Canonical maps take callbacks, not registration records.
     [D.ON_READY]: [{ visitor: dagCommon, priority: 1, addedIndex: 0 }],
   },
 });

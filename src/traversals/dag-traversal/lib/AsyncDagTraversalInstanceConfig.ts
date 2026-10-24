@@ -1,3 +1,5 @@
+import type { VisitorInputs } from '@core/TraversalVisitor';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import { assertDagWorkCompletion } from './DagTraversalInstanceConfig';
 import type { DagDiscoveryOptions } from './DagTraversalInstanceConfig';
 import type { VertexId } from '@core/graph/types';
@@ -65,7 +67,7 @@ type AsyncDagTraversalOptionsInput<
     'visitors' | 'traversalRunnerInternalObjects'
   >
 > & {
-  visitors?: Partial<AsyncDagTraversalVisitors<T, R>>;
+  visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R>>;
   traversalRunnerInternalObjects?: Partial<
     AsyncDagTraversalOptions<T, R>['traversalRunnerInternalObjects']
   >;
@@ -121,10 +123,12 @@ export function mergeAsyncDagTraversalInstanceConfigs<
     ...base,
     ...input,
     visitors: {
-      [DagTraversalOrder.ON_READY]:
-        visitors[DagTraversalOrder.ON_READY].slice(),
-      [DagTraversalOrder.ON_COMPLETE]:
-        visitors[DagTraversalOrder.ON_COMPLETE].slice(),
+      [DagTraversalOrder.ON_READY]: normalizeVisitorDefinitions(
+        visitors[DagTraversalOrder.ON_READY],
+      ),
+      [DagTraversalOrder.ON_COMPLETE]: normalizeVisitorDefinitions(
+        visitors[DagTraversalOrder.ON_COMPLETE],
+      ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,

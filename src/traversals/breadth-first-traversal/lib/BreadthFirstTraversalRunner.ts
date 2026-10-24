@@ -135,11 +135,18 @@ export class BreadthFirstTraversalRunner<
         [BreadthFirstTraversalOrder.LEVEL_ORDER]: this.icfg.visitors[
           BreadthFirstTraversalOrder.LEVEL_ORDER
         ].map(
-          ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+          ({
             addedIndex,
             priority,
             resolutionStyle,
             commandCommitMode,
+            visitorGroup,
+          }) => ({
+            addedIndex,
+            priority,
+            resolutionStyle,
+            commandCommitMode,
+            visitorGroup,
           }),
         ),
       },

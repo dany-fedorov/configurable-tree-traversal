@@ -1,3 +1,4 @@
+import type { VisitorPhaseInput } from '@core/TraversalVisitor';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { AsyncDagTraversal } from './AsyncDagTraversal';
 import type {
@@ -31,7 +32,9 @@ export type AsyncDagTraversalHelperOptions<
   R extends TreeTypeParameters = T,
 > = Omit<AsyncDagTraversalHelperConfig<T, R>, 'visitors'> &
   AsyncDagSource<T, R> & {
-    visitors?: { [K in DagTraversalOrder]?: AsyncDagVisitor<T, R, K> };
+    visitors?: {
+      [K in DagTraversalOrder]?: VisitorPhaseInput<AsyncDagVisitor<T, R, K>>;
+    };
   };
 
 export function traverseDagAsync<
@@ -58,14 +61,10 @@ export function traverseDagAsync<
   config?: AsyncDagTraversalHelperConfig<T, R>,
 ): Promise<AsyncDagTraversalRunner<T, R>> {
   let traversalConfig: AsyncDagTraversalInstanceConfigInput<T, R>;
-  let onReadyVisitor = visitors?.onReadyVisitor;
-  let onCompleteVisitor = visitors?.onCompleteVisitor;
+  const onReadyVisitor = visitors?.onReadyVisitor;
+  const onCompleteVisitor = visitors?.onCompleteVisitor;
   if (arguments.length === 1) {
-    const { visitors: callbacks, ...options } =
-      sourceOrOptions as AsyncDagTraversalHelperOptions<T, R>;
-    traversalConfig = options;
-    onReadyVisitor = callbacks?.[DagTraversalOrder.ON_READY];
-    onCompleteVisitor = callbacks?.[DagTraversalOrder.ON_COMPLETE];
+    traversalConfig = sourceOrOptions as AsyncDagTraversalHelperOptions<T, R>;
   } else {
     traversalConfig = {
       ...config,

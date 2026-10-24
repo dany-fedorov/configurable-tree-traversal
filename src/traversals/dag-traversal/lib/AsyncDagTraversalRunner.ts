@@ -290,11 +290,18 @@ export class AsyncDagTraversalRunner<
 
   private metadataFor(order: DagTraversalOrder) {
     return this.icfg.visitors[order].map(
-      ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+      ({
         addedIndex,
         priority,
         resolutionStyle,
         commandCommitMode,
+        visitorGroup,
+      }) => ({
+        addedIndex,
+        priority,
+        resolutionStyle,
+        commandCommitMode,
+        visitorGroup,
       }),
     );
   }

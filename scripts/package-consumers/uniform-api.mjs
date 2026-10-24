@@ -178,6 +178,22 @@ for (const [api, other] of [
       },
     );
     await batched.makeRunner().run();
+    assert.deepEqual(events, ['root', 'group', 'root']);
+
+    // Consumers that intend group-first execution express explicit ordered groups.
+    const [high, ...low] = batched.listVisitorsFor(Order.ON_READY);
+    batched.setVisitorsFor(Order.ON_READY, {
+      groups: [
+        {
+          commandCommitMode: 'afterGroup',
+          visitors: low.map(({ visitor, priority }) => ({ visitor, priority })),
+        },
+        { visitors: [{ visitor: high.visitor, priority: high.priority }] },
+      ],
+    });
+    batched.setVisitorsFor(Order.ON_READY, batched.listVisitorsFor(Order.ON_READY));
+    events.length = 0;
+    await batched.makeRunner().run();
     assert.deepEqual(events, ['group', 'root', 'changed']);
 
     const fatal = new Traversal({

@@ -1,3 +1,5 @@
+import type { VisitorInputs } from '@core/TraversalVisitor';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import type { MaybePromise, VisitorRecord } from '@core/graph/types';
@@ -41,19 +43,22 @@ export type AsyncDepthFirstTraversalInstanceConfig<
 export type AsyncDepthFirstTraversalInstanceConfigInput<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters = TTP,
-> = DepthFirstTraversalInstanceConfigDeepPartial<
-  AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-  | keyof AsyncDepthFirstTraversalInstanceConfig<
-      TTP,
-      RW_TTP
-    >['inOrderTraversalConfig']
-  | keyof AsyncDepthFirstTraversalInstanceConfig<
-      TTP,
-      RW_TTP
-    >['traversalRunnerInternalObjects']
-  | keyof AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>['visitors']
-  | 'traversableTree'
->;
+> = Omit<
+  DepthFirstTraversalInstanceConfigDeepPartial<
+    AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
+    | keyof AsyncDepthFirstTraversalInstanceConfig<
+        TTP,
+        RW_TTP
+      >['inOrderTraversalConfig']
+    | keyof AsyncDepthFirstTraversalInstanceConfig<
+        TTP,
+        RW_TTP
+      >['traversalRunnerInternalObjects']
+    | keyof AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>['visitors']
+    | 'traversableTree'
+  >,
+  'visitors'
+> & { visitors?: VisitorInputs<AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>> };
 
 export const ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   AsyncDepthFirstTraversalInstanceConfig<TreeTypeParameters>,
@@ -85,9 +90,11 @@ export function mergeAsyncDepthFirstTraversalInstanceConfigs<
     ...base,
     ...input,
     visitors: {
-      [Order.PRE_ORDER]: visitors[Order.PRE_ORDER].slice(),
-      [Order.IN_ORDER]: visitors[Order.IN_ORDER].slice(),
-      [Order.POST_ORDER]: visitors[Order.POST_ORDER].slice(),
+      [Order.PRE_ORDER]: normalizeVisitorDefinitions(visitors[Order.PRE_ORDER]),
+      [Order.IN_ORDER]: normalizeVisitorDefinitions(visitors[Order.IN_ORDER]),
+      [Order.POST_ORDER]: normalizeVisitorDefinitions(
+        visitors[Order.POST_ORDER],
+      ),
     },
     inOrderTraversalConfig: {
       ...inOrder,

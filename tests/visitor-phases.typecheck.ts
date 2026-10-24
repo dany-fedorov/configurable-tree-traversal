@@ -48,21 +48,7 @@ for (const traversal of [
     // @ts-expect-error Deferral cannot be combined with another command.
     commands: [{ commandName: C.DEFER_READY }, { commandName: C.NOOP }],
   }));
-  traversal.configure({
-    visitors: {
-      [D.ON_READY]: [
-        {
-          addedIndex: 0,
-          priority: 100,
-          visitor: (_v, o) => {
-            const phase: D.ON_READY = o.order;
-            void phase;
-            return DEFER_READY;
-          },
-        },
-      ],
-    },
-  });
+
   traversal.configure({
     visitors: {
       [D.ON_COMPLETE]: [
@@ -88,6 +74,36 @@ for (const traversal of [
     },
   ]);
 }
+new DagTraversal<T>(graph).configure({
+  visitors: {
+    [D.ON_READY]: [
+      {
+        addedIndex: 0,
+        priority: 100,
+        visitor: (_v, o) => {
+          const phase: D.ON_READY = o.order;
+          void phase;
+          return DEFER_READY;
+        },
+      },
+    ],
+  },
+});
+new AsyncDagTraversal<T>(graph).configure({
+  visitors: {
+    [D.ON_READY]: [
+      {
+        addedIndex: 0,
+        priority: 100,
+        visitor: (_v, o) => {
+          const phase: D.ON_READY = o.order;
+          void phase;
+          return DEFER_READY;
+        },
+      },
+    ],
+  },
+});
 for (const traversal of [
   new DepthFirstTraversal<T>(tree),
   new AsyncDepthFirstTraversal<T>(tree),
@@ -353,88 +369,140 @@ import {
   traverseBreadthFirst as importedBreadth,
   traverseBreadthFirstAsync as importedBreadthAsync,
 } from '../src';
-for (const traversal of [
-  new DepthFirstTraversal<T>(tree),
-  new AsyncDepthFirstTraversal<T>(tree),
-]) {
-  traversal.configure({
-    visitors: {
-      [F.PRE_ORDER]: [
-        {
-          addedIndex: 0,
-          priority: 1,
-          visitor: (_v, o) => {
-            const phase: F.PRE_ORDER = o.order;
-            void phase;
-            return {
-              commands: [
-                {
-                  commandName: C.REWRITE_CHILD_HINTS,
-                  commandArguments: { newHints: [] },
-                },
-              ],
-            };
-          },
+new DepthFirstTraversal<T>(tree).configure({
+  visitors: {
+    [F.PRE_ORDER]: [
+      {
+        addedIndex: 0,
+        priority: 1,
+        visitor: (_v, o) => {
+          const phase: F.PRE_ORDER = o.order;
+          void phase;
+          return {
+            commands: [
+              {
+                commandName: C.REWRITE_CHILD_HINTS,
+                commandArguments: { newHints: [] },
+              },
+            ],
+          };
         },
-      ],
-    },
-  });
-  traversal.setVisitorsFor(F.PRE_ORDER, [
-    {
-      addedIndex: 0,
-      priority: 1,
-      visitor: (_v, o) => {
-        const phase: F.PRE_ORDER = o.order;
-        void phase;
       },
-    },
-  ]);
-}
-for (const traversal of [
-  new BreadthFirstTraversal<T>(tree),
-  new AsyncBreadthFirstTraversal<T>(tree),
-]) {
-  traversal.configure({
-    visitors: {
-      [B.LEVEL_ORDER]: [
-        {
-          addedIndex: 0,
-          priority: 1,
-          visitor: (_v, o) => {
-            const phase: B.LEVEL_ORDER = o.order;
-            void phase;
-          },
+    ],
+  },
+});
+new AsyncDepthFirstTraversal<T>(tree).configure({
+  visitors: {
+    [F.PRE_ORDER]: [
+      {
+        addedIndex: 0,
+        priority: 1,
+        visitor: (_v, o) => {
+          const phase: F.PRE_ORDER = o.order;
+          void phase;
+          return {
+            commands: [
+              {
+                commandName: C.REWRITE_CHILD_HINTS,
+                commandArguments: { newHints: [] },
+              },
+            ],
+          };
         },
-      ],
-    },
-  });
-  traversal.setVisitorsFor(B.LEVEL_ORDER, [
-    {
-      addedIndex: 0,
-      priority: 1,
-      visitor: (_v, o) => {
-        const phase: B.LEVEL_ORDER = o.order;
-        void phase;
       },
+    ],
+  },
+});
+new DepthFirstTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
+  {
+    addedIndex: 0,
+    priority: 1,
+    visitor: (_v, o) => {
+      const phase: F.PRE_ORDER = o.order;
+      void phase;
     },
-  ]);
-}
-for (const traversal of [
-  new DagTraversal<T>(graph),
-  new AsyncDagTraversal<T>(graph),
-]) {
-  traversal.setVisitorsFor(D.ON_READY, [
-    {
-      addedIndex: 0,
-      priority: 1,
-      visitor: (_v, o) => {
-        const phase: D.ON_READY = o.order;
-        void phase;
-        return { commands: [{ commandName: C.DEFER_READY }] };
+  },
+]);
+new AsyncDepthFirstTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
+  {
+    addedIndex: 0,
+    priority: 1,
+    visitor: (_v, o) => {
+      const phase: F.PRE_ORDER = o.order;
+      void phase;
+    },
+  },
+]);
+new BreadthFirstTraversal<T>(tree).configure({
+  visitors: {
+    [B.LEVEL_ORDER]: [
+      {
+        addedIndex: 0,
+        priority: 1,
+        visitor: (_v, o) => {
+          const phase: B.LEVEL_ORDER = o.order;
+          void phase;
+        },
       },
+    ],
+  },
+});
+new AsyncBreadthFirstTraversal<T>(tree).configure({
+  visitors: {
+    [B.LEVEL_ORDER]: [
+      {
+        addedIndex: 0,
+        priority: 1,
+        visitor: (_v, o) => {
+          const phase: B.LEVEL_ORDER = o.order;
+          void phase;
+        },
+      },
+    ],
+  },
+});
+new BreadthFirstTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
+  {
+    addedIndex: 0,
+    priority: 1,
+    visitor: (_v, o) => {
+      const phase: B.LEVEL_ORDER = o.order;
+      void phase;
     },
-  ]);
-}
+  },
+]);
+new AsyncBreadthFirstTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
+  {
+    addedIndex: 0,
+    priority: 1,
+    visitor: (_v, o) => {
+      const phase: B.LEVEL_ORDER = o.order;
+      void phase;
+    },
+  },
+]);
+new DagTraversal<T>(graph).setVisitorsFor(D.ON_READY, [
+  {
+    addedIndex: 0,
+    priority: 1,
+    visitor: (_v, o) => {
+      const phase: D.ON_READY = o.order;
+      void phase;
+      return { commands: [{ commandName: C.DEFER_READY }] };
+    },
+  },
+]);
+new AsyncDagTraversal<T>(graph).setVisitorsFor(D.ON_READY, [
+  {
+    addedIndex: 0,
+    priority: 1,
+    visitor: (_v, o) => {
+      const phase: D.ON_READY = o.order;
+      void phase;
+      return { commands: [{ commandName: C.DEFER_READY }] };
+    },
+  },
+]);
 
 // Match async callback types to async entry points so phase errors cannot be
 // masked by the independent sync/async recursive visitor-record distinction.

@@ -116,11 +116,18 @@ export class AsyncDepthFirstTraversalRunner<
         Object.entries(this.icfg.visitors).map(([order, records]) => [
           order,
           records.map(
-            ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+            ({
               addedIndex,
               priority,
               resolutionStyle,
               commandCommitMode,
+              visitorGroup,
+            }) => ({
+              addedIndex,
+              priority,
+              resolutionStyle,
+              commandCommitMode,
+              visitorGroup,
             }),
           ),
         ]),

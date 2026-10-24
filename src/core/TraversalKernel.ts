@@ -1886,21 +1886,12 @@ export class TraversalKernel<
     ) {
       visitorState.curVertexVisitorVisitIndex = 0;
     }
-    const concurrentIndices: number[] = [];
-    const sequentialIndices: number[] = [];
-    records.forEach((record, index) => {
-      if (normalizeVisitorOptions(record).commandCommitMode === 'afterGroup')
-        concurrentIndices.push(index);
-      else sequentialIndices.push(index);
-    });
     const state: ChainState<T, R> = {
       owner,
       ref,
       order,
       phase: 'running',
       group: 'concurrent',
-      concurrentIndices,
-      sequentialIndices,
       position: 0,
       waitingFor: 'none',
       commands: [],

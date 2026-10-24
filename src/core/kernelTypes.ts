@@ -88,8 +88,6 @@ export type ChainState<
   order: VisitOrder;
   phase: 'running' | 'paused' | 'done' | 'invalid';
   group: 'concurrent' | 'sequential';
-  concurrentIndices: number[];
-  sequentialIndices: number[];
   position: number;
   waitingFor: 'none' | 'callback' | 'batch';
   commands: TraversalVisitorCommand<R>[];

@@ -132,6 +132,9 @@ Commit mode belongs to the explicit group; per-visitor explicit batching options
 inside an explicit group are rejected to avoid conflicting policy ownership.
 Default group mode is afterEachVisitor. A grouped afterGroup batch commits at
 the end of that group. A later group's priority never crosses a group boundary.
+An empty explicit group is inert after its shape and policy are validated: it
+registers no callbacks and creates no ordering barrier, including on append and
+list/set round trips. Express ordering boundaries by grouping actual callbacks.
 
 Flat definitions and addVisitorFor remain convenient: sort them by priority and
 registration index FIRST. Legacy per-visitor batching options then define

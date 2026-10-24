@@ -1,3 +1,4 @@
+import { orderVisitorRecords } from './visitors/normalizeVisitorDefinitions';
 import { normalizeVisitorOptions } from './visitors/normalizeVisitorOptions';
 import type { CTTRef } from './CTTRef';
 import type { Vertex } from './Vertex';
@@ -50,11 +51,18 @@ export function* executeVisitors<
   const chain = new VisitorChain<TTP, RW_TTP>({
     ref: vertexRef,
     records: records.map(
-      ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+      ({
         addedIndex,
         priority,
         resolutionStyle,
         commandCommitMode,
+        visitorGroup,
+      }) => ({
+        addedIndex,
+        priority,
+        resolutionStyle,
+        commandCommitMode,
+        visitorGroup,
       }),
     ),
     metadata: {
@@ -125,7 +133,10 @@ export function sortVisitorRecords<
 export function sortVisitorRecords<
   R extends readonly { addedIndex: number; priority: number }[],
 >(records: R): R[number][] {
-  return records
-    .map((record) => ({ ...record, ...normalizeVisitorOptions(record) }))
-    .sort((a, b) => b.priority - a.priority || a.addedIndex - b.addedIndex);
+  return orderVisitorRecords(
+    records.map((record) => ({
+      ...record,
+      ...normalizeVisitorOptions(record),
+    })),
+  );
 }

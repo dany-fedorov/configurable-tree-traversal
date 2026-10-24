@@ -1,3 +1,5 @@
+import type { VisitorInputs } from '@core/TraversalVisitor';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import type { TraversableTree } from '@core/TraversableTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
@@ -39,7 +41,7 @@ export type BreadthFirstTraversalInstanceConfigInput<
     'visitors' | 'traversalRunnerInternalObjects'
   >
 > & {
-  visitors?: Partial<BreadthFirstTraversalVisitors<TTP, RW_TTP>>;
+  visitors?: VisitorInputs<BreadthFirstTraversalVisitors<TTP, RW_TTP>>;
   traversalRunnerInternalObjects?: Partial<
     BreadthFirstTraversalInstanceConfig<
       TTP,
@@ -78,8 +80,9 @@ export function mergeBreadthFirstTraversalInstanceConfigs<
     ...base,
     ...input,
     visitors: {
-      [BreadthFirstTraversalOrder.LEVEL_ORDER]:
-        visitors[BreadthFirstTraversalOrder.LEVEL_ORDER].slice(),
+      [BreadthFirstTraversalOrder.LEVEL_ORDER]: normalizeVisitorDefinitions(
+        visitors[BreadthFirstTraversalOrder.LEVEL_ORDER],
+      ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
