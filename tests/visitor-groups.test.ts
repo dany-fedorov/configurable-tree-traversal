@@ -423,13 +423,19 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       {
         groups: [
           {
-            visitors: [{ visitor: () => undefined, commandCommitMode: 'afterGroup' }],
+            visitors: [
+              { visitor: () => undefined, commandCommitMode: 'afterGroup' },
+            ],
           },
         ],
       },
       {
         groups: [
-          { visitors: [{ visitor: () => undefined, resolutionStyle: undefined }] },
+          {
+            visitors: [
+              { visitor: () => undefined, resolutionStyle: undefined },
+            ],
+          },
         ],
       },
     ];
@@ -456,4 +462,36 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await t.makeRunner().run();
     expect(seen).toEqual(['original']);
   });
+}
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test.each(['definition', 'group'] as const)(
+    `${Constructor.name}: captures a %s callback getter once before registration`,
+    async (shape) => {
+      let reads = 0;
+      const calls: string[] = [];
+      const member = {
+        get visitor() {
+          reads++;
+          return reads === 1
+            ? () => {
+                calls.push('captured');
+              }
+            : null;
+        },
+      };
+      const input =
+        shape === 'definition'
+          ? member
+          : {
+              groups: [{ commandCommitMode: 'afterGroup', visitors: [member] }],
+            };
+      const t = new Constructor<T>({ traversableGraph });
+      t.configure({ visitors: { [D.ON_READY]: input as never } });
+      expect(reads).toBe(1);
+      await t.makeRunner().run();
+      expect(calls).toEqual(['captured']);
+      expect(reads).toBe(1);
+    },
+  );
 }

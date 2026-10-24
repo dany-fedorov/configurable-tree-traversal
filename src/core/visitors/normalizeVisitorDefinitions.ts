@@ -1,3 +1,4 @@
+import { DEFAULT_VISITOR_PRIORITY } from '@core/TraversalVisitor';
 import type {
   CommandCommitMode,
   VisitorDefinition,
@@ -26,12 +27,11 @@ function definition<F>(
   explicit = false,
 ): VisitorRecord<F> {
   const value = typeof input === 'function' ? { visitor: input } : input;
-  if (
-    value === null ||
-    typeof value !== 'object' ||
-    !('visitor' in value) ||
-    typeof value.visitor !== 'function'
-  ) {
+  if (value === null || typeof value !== 'object' || !('visitor' in value)) {
+    throw new TypeError('Visitor definition requires a callback');
+  }
+  const visitor = value.visitor;
+  if (typeof visitor !== 'function') {
     throw new TypeError('Visitor definition requires a callback');
   }
   const options = value as Partial<VisitorRecord<F>>;
@@ -43,7 +43,10 @@ function definition<F>(
   }
   const effective = normalizeVisitorOptions(
     explicit
-      ? { ...options, commandCommitMode: visitorGroup.commandCommitMode }
+      ? {
+          priority: options.priority ?? DEFAULT_VISITOR_PRIORITY,
+          commandCommitMode: visitorGroup.commandCommitMode,
+        }
       : options,
   );
   if (
@@ -55,7 +58,7 @@ function definition<F>(
     );
   }
   return {
-    visitor: value.visitor as F,
+    visitor: visitor as F,
     addedIndex,
     ...effective,
     visitorGroup,
