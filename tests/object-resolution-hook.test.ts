@@ -1,0 +1,228 @@
+import {
+  TraversableObjectTree,
+  DepthFirstTraversal,
+  DepthFirstTraversalOrder,
+} from '../src';
+import {
+  rewriteObject,
+  type RewriteObjectOptions,
+} from '../src/tools/rewrite-object/rewriteObject';
+
+type Options = RewriteObjectOptions<
+  unknown,
+  string,
+  unknown,
+  unknown,
+  string,
+  unknown
+>;
+function rewriteWithHook(
+  input: unknown,
+  resolveVertexHook: (hint: { key: string; value: unknown }) => unknown,
+) {
+  return rewriteObject(input, { resolveVertexHook } as Options).outputObject;
+}
+
+test('canonical hook replaces and omits properties in reconstructed output and delegates defaults', () => {
+  expect(
+    rewriteWithHook({ keep: { leaf: 1 }, replace: 2, skip: 3 }, (hint) =>
+      hint.key === 'skip'
+        ? { kind: 'omitted', satisfiesDependencies: true }
+        : hint.key === 'replace'
+        ? {
+            kind: 'found',
+            vertex: {
+              vertexContent: {
+                $data: { key: 'replacement', value: 9 },
+                $childHints: [],
+              },
+            },
+          }
+        : { kind: 'useDefault' },
+    ),
+  ).toEqual({ keep: { leaf: 1 }, replacement: 9 });
+});
+
+test('canonical found preserves exact data and child hint identity', () => {
+  const hint = { key: 'nested', value: 2 };
+  const data = { key: 'replacement', value: {} };
+  const childHints = [hint];
+  const tree = new TraversableObjectTree({ original: 1 }, {
+    resolveVertexHook: (input: { key: string }) =>
+      input.key === 'original'
+        ? {
+            kind: 'found',
+            vertex: { vertexContent: { $data: data, $childHints: childHints } },
+          }
+        : { kind: 'useDefault' },
+  } as Options);
+  const seen: unknown[] = [];
+  new DepthFirstTraversal({ traversableTree: tree })
+    .addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+      seen.push(vertex.getData());
+      if (vertex.getData() === data)
+        expect(vertex.getChildrenHints()).toBe(childHints);
+    })
+    .makeRunner()
+    .run();
+  expect(seen.slice(1)).toEqual([data, hint]);
+  expect(seen[1]).toBe(data);
+  expect(seen[2]).toBe(hint);
+});
+
+test('canonical found still detects ancestor cycles and permits shared sibling objects', () => {
+  const input = { child: 1 };
+  expect(() =>
+    rewriteWithHook(input, () => ({
+      kind: 'found',
+      vertex: {
+        vertexContent: {
+          $data: { key: 'back', value: input },
+          $childHints: [],
+        },
+      },
+    })),
+  ).toThrow(/cycle/i);
+  const shared = { leaf: 1 };
+  expect(
+    rewriteWithHook({ a: shared, b: shared }, () => ({ kind: 'useDefault' })),
+  ).toEqual({ a: { leaf: 1 }, b: { leaf: 1 } });
+});
+
+test.each([
+  undefined,
+  null,
+  {},
+  { kind: 'other' },
+  { kind: 'found', vertex: null },
+  { kind: 'found', vertex: { vertexContent: null } },
+  { kind: 'omitted' },
+])('rejects malformed canonical result %p', (result) => {
+  expect(() => rewriteWithHook({ a: 1 }, () => result)).toThrow(TypeError);
+});
+
+test.each(['vertexId', 'dependsOn', 'dependsOnComplete'])(
+  'rejects hook %s before omission/default discards it',
+  (field) => {
+    for (const result of [
+      { kind: 'useDefault', [field]: undefined },
+      { kind: 'omitted', satisfiesDependencies: true, [field]: undefined },
+      {
+        kind: 'found',
+        vertex: {
+          vertexContent: { $data: { key: 'a', value: 2 }, $childHints: [] },
+          [field]: undefined,
+        },
+      },
+    ])
+      expect(() => rewriteWithHook({ a: 1 }, () => result)).toThrow(
+        /graph metadata/i,
+      );
+  },
+);
+
+test('active canonical and legacy hooks conflict; disabled legacy hooks remain compatible', () => {
+  const canonical = () => ({ kind: 'useDefault' as const });
+  expect(() =>
+    rewriteObject({ a: 1 }, {
+      resolveVertexHook: canonical,
+      makeVertexHook: () => ({}),
+    } as Options),
+  ).toThrow(TypeError);
+  for (const makeVertexHook of [undefined, null]) {
+    expect(
+      rewriteObject({ a: 1 }, {
+        resolveVertexHook: canonical,
+        makeVertexHook,
+      } as Options).outputObject,
+    ).toEqual({ a: 1 });
+  }
+});
+
+test('legacy returnMe and canonical results reconstruct equivalent output', () => {
+  const content = { $data: { key: 'changed', value: 4 }, $childHints: [] };
+  const legacy = rewriteObject(
+    { a: 1, skip: 2 },
+    {
+      makeVertexHook: (hint) => ({
+        returnMe: hint.key === 'skip' ? null : content,
+      }),
+    },
+  ).outputObject;
+  const canonical = rewriteWithHook({ a: 1, skip: 2 }, (hint) =>
+    hint.key === 'skip'
+      ? { kind: 'omitted', satisfiesDependencies: true }
+      : { kind: 'found', vertex: { vertexContent: content } },
+  );
+  expect(canonical).toEqual({ changed: 4 });
+  expect(canonical).toEqual(legacy);
+});
+
+test.each(['resolveVertexHook', 'makeVertexHook'] as const)(
+  'rewriteObject captures the %s configuration getter once',
+  (name) => {
+    let reads = 0;
+    const options = Object.defineProperty({}, name, {
+      get() {
+        reads += 1;
+        if (reads > 1) throw new Error('configuration read twice');
+        return name === 'resolveVertexHook'
+          ? () => ({ kind: 'omitted', satisfiesDependencies: true })
+          : () => ({ returnMe: null });
+      },
+    });
+    expect(rewriteObject({ a: 1 }, options).outputObject).toEqual({});
+    expect(reads).toBe(1);
+  },
+);
+
+test.each([undefined, null, false, Symbol('hook failure')])(
+  'preserves exact hook/result accessor failure %p',
+  (failure) => {
+    for (const hook of [
+      () => {
+        throw failure;
+      },
+      () =>
+        Object.defineProperty({}, 'kind', {
+          get() {
+            throw failure;
+          },
+        }),
+    ]) {
+      let caught = false;
+      try {
+        rewriteWithHook({ a: 1 }, hook);
+      } catch (error) {
+        caught = true;
+        expect(error).toBe(failure);
+      }
+      expect(caught).toBe(true);
+    }
+  },
+);
+
+test.each(['vertexId', 'dependsOn', 'dependsOnComplete'])(
+  'legacy hook cannot discard %s metadata before default/pruning',
+  (field) => {
+    for (const returnMe of [undefined, null]) {
+      expect(() =>
+        rewriteObject(
+          { a: 1 },
+          {
+            makeVertexHook: () => ({
+              ...(returnMe === undefined ? {} : { returnMe }),
+              [field]: undefined,
+            }),
+          },
+        ),
+      ).toThrow(/graph metadata/i);
+    }
+  },
+);
+
+test('rejects a nonfunction canonical hook before traversal', () => {
+  expect(() =>
+    rewriteObject({}, { resolveVertexHook: null } as unknown as Options),
+  ).toThrow(TypeError);
+});

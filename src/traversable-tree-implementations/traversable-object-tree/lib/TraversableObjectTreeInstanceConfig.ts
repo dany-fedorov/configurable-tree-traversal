@@ -1,9 +1,25 @@
+import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
-import type { MakeVertexOptions } from '@core/TraversableTree';
+import type {
+  TreeFoundVertexResult,
+  TreeOmittedVertexResult,
+  MakeVertexOptions,
+} from '@core/TraversableTree';
 import type { VertexContentInput } from '@core/Vertex';
 
+export type ObjectVertexHookResult<T extends TreeTypeParameters> =
+  | {
+      kind: 'useDefault';
+      vertexId?: never;
+      dependsOn?: never;
+      dependsOnComplete?: never;
+    }
+  | TreeFoundVertexResult<T>
+  | TreeOmittedVertexResult;
+
+/** @deprecated Use resolveVertexHook and tagged results. */
 export type TraversableObjectTreeInstanceConfig_makeVertexHook<
   InK extends TraversableObjectPropKey,
   InV,
@@ -32,6 +48,14 @@ export type TraversableObjectTreeInstanceConfigInput<
   getRootPropertyFromInputObject?: (
     inputObj: In,
   ) => TraversableObjectProp<InK, InV>;
+  resolveVertexHook?: (
+    vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
+    options: MakeVertexOptions<
+      TraversableObjectTTP<InK, InV>,
+      TraversableObjectTTP<OutK, OutV>
+    >,
+  ) => ObjectVertexHookResult<TraversableObjectTTP<InK, InV>>;
+  /** @deprecated Use resolveVertexHook. */
   makeVertexHook?: TraversableObjectTreeInstanceConfig_makeVertexHook<
     InK,
     InV,
@@ -47,5 +71,16 @@ export type TraversableObjectTreeInstanceConfig<
   OutK extends TraversableObjectPropKey,
   OutV,
 > = Required<
-  TraversableObjectTreeInstanceConfigInput<In, InK, InV, OutK, OutV>
->;
+  Omit<
+    TraversableObjectTreeInstanceConfigInput<In, InK, InV, OutK, OutV>,
+    'resolveVertexHook'
+  >
+> & {
+  resolveVertexHook: TraversableObjectTreeInstanceConfigInput<
+    In,
+    InK,
+    InV,
+    OutK,
+    OutV
+  >['resolveVertexHook'];
+};

@@ -1,8 +1,13 @@
+import {
+  assertNoTreeMetadata,
+  normalizeSourceResult,
+} from '@core/drivers/normalizeSourceResult';
 import { normalizeVertexContent } from '@core/Vertex';
 import {
   AbstractTraversableTree,
   MakeVertexOptions,
-  MakeVertexResult,
+  MakeTreeVertexResult,
+  TreeSourceVertexResult,
 } from '@core/TraversableTree';
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
@@ -67,21 +72,35 @@ export class TraversableObjectTree<
   ) {
     super();
     this.rootObject = rootObject;
+    const { resolveVertexHook, makeVertexHook, ...otherOptions } =
+      icfgInput ?? {};
+    if (
+      resolveVertexHook !== undefined &&
+      typeof resolveVertexHook !== 'function'
+    ) {
+      throw new TypeError('resolveVertexHook must be a function');
+    }
+    if (resolveVertexHook !== undefined && makeVertexHook != null) {
+      throw new TypeError(
+        'resolveVertexHook and makeVertexHook cannot both be active',
+      );
+    }
     this.icfg = {
-      makeVertexHook: null,
       getChildrenOfProperty:
-        icfgInput?.getChildrenOfProperty ??
+        otherOptions.getChildrenOfProperty ??
         TraversableObjectTree.getChildrenOfPropertyDefault,
       getRootPropertyFromInputObject:
-        icfgInput?.getRootPropertyFromInputObject ??
+        otherOptions.getRootPropertyFromInputObject ??
         TraversableObjectTree.getRootPropertyFromInputObjectDefault(),
-      ...(icfgInput || {}),
+      ...otherOptions,
+      resolveVertexHook,
+      makeVertexHook: makeVertexHook ?? null,
     };
   }
 
   static makeMutationCommandFactory = makeMutationCommandFactory;
 
-  makeRoot(): MakeVertexResult<TraversableObjectTTP<InK, InV>> {
+  makeRoot(): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
     const { getChildrenOfProperty, getRootPropertyFromInputObject } = this.icfg;
     const rootProp = getRootPropertyFromInputObject(this.rootObject);
     this.originalIdentityByVertexData.set(
@@ -103,13 +122,35 @@ export class TraversableObjectTree<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >,
-  ): MakeVertexResult<TraversableObjectTTP<InK, InV>> {
-    const res = this.icfg.makeVertexHook?.(vertexHint, options);
-    if (res?.returnMe !== undefined) {
-      if (res.returnMe === null) {
-        return { vertexContent: null };
+  ): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
+    const canonicalHook = this.icfg.resolveVertexHook;
+    let result:
+      | TreeSourceVertexResult<TraversableObjectTTP<InK, InV>>
+      | undefined;
+    if (canonicalHook !== undefined) {
+      const resolved = canonicalHook(vertexHint, options);
+      if (resolved === null || typeof resolved !== 'object') {
+        throw new TypeError('Invalid object resolution hook result');
       }
-      const content = normalizeVertexContent(res.returnMe);
+      assertNoTreeMetadata(resolved);
+      if (resolved.kind !== 'useDefault') {
+        if (resolved.kind !== 'found' && resolved.kind !== 'omitted') {
+          throw new TypeError('Invalid object resolution hook kind');
+        }
+        result = resolved;
+      }
+    } else {
+      const legacy = this.icfg.makeVertexHook?.(vertexHint, options);
+      if (legacy != null) assertNoTreeMetadata(legacy);
+      const returnMe = legacy?.returnMe;
+      if (returnMe !== undefined) {
+        result = { vertexContent: returnMe };
+      }
+    }
+    if (result !== undefined) {
+      const normalized = normalizeSourceResult(result, false, 'Tree source')!;
+      if (normalized.vertexContent === null) return { vertexContent: null };
+      const content = normalizeVertexContent(normalized.vertexContent);
       this.assertNoObjectIdentityCycle(content.$data, options);
       return { vertexContent: content };
     }

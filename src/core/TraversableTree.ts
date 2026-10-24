@@ -49,16 +49,43 @@ export type PrerequisiteResolutionResult<T extends TreeTypeParameters> =
   | MissingVertexResult
   | undefined;
 
+/** Graph identity and prerequisites are unsupported by tree sources. */
+type TreeMetadataRestrictions = {
+  vertexId?: never;
+  dependsOn?: never;
+  dependsOnComplete?: never;
+};
+
+/** @deprecated Return a tagged tree found or omitted result. */
+export type MakeTreeVertexResult<T extends TreeTypeParameters> =
+  TreeMetadataRestrictions & { vertexContent: VertexContentInput<T> | null };
+
+export type TreeFoundVertexResult<T extends TreeTypeParameters> =
+  TreeMetadataRestrictions & {
+    kind: 'found';
+    vertex: TreeMetadataRestrictions & { vertexContent: VertexContentInput<T> };
+  };
+
+export type TreeOmittedVertexResult = TreeMetadataRestrictions & {
+  kind: 'omitted';
+  satisfiesDependencies: true;
+};
+
+export type TreeSourceVertexResult<T extends TreeTypeParameters> =
+  | TreeFoundVertexResult<T>
+  | TreeOmittedVertexResult
+  | MakeTreeVertexResult<T>;
+
 export type TraversableTree<
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters = TTP,
 > = {
-  makeRoot(): SourceVertexResult<TTP>;
+  makeRoot(): TreeSourceVertexResult<TTP>;
 
   makeVertex(
     vertexHint: TTP['VertexHint'],
     options: MakeVertexOptions<TTP, RW_TTP>,
-  ): SourceVertexResult<TTP>;
+  ): TreeSourceVertexResult<TTP>;
 };
 
 export abstract class AbstractTraversableTree<
@@ -66,10 +93,10 @@ export abstract class AbstractTraversableTree<
   RW_TTP extends TreeTypeParameters = TTP,
 > implements TraversableTree<TTP, RW_TTP>
 {
-  abstract makeRoot(): SourceVertexResult<TTP>;
+  abstract makeRoot(): TreeSourceVertexResult<TTP>;
 
   abstract makeVertex(
     vertexHint: TTP['VertexHint'],
     options: MakeVertexOptions<TTP, RW_TTP>,
-  ): SourceVertexResult<TTP>;
+  ): TreeSourceVertexResult<TTP>;
 }

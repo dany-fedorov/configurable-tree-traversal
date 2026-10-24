@@ -101,6 +101,7 @@ test('projects level-order events and asynchronous visitor metadata', async () =
 test('rejects graph metadata returned by an asynchronous tree source', async () => {
   const runner = new AsyncBreadthFirstTraversal<TestGraph>({
     traversableTree: {
+      // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
       makeRoot: async () => ({
         vertexContent: { $d: 'root', $c: [] },
         vertexId: 'root',

@@ -105,11 +105,14 @@ export function rewriteObject<
     typeof options?.getOutputObjectFromRootValue === 'function'
       ? options.getOutputObjectFromRootValue
       : (rootValue: OutV | null) => rootValue as unknown as Out;
+  const resolveVertexHook = options?.resolveVertexHook;
+  const makeVertexHook = options?.makeVertexHook;
   const tree = new TraversableObjectTree<In, InK, InV, OutK, OutV>(object, {
-    ...(!options?.['makeVertexHook']
+    ...(resolveVertexHook === undefined ? {} : { resolveVertexHook }),
+    ...(!makeVertexHook
       ? {}
       : {
-          makeVertexHook: options?.['makeVertexHook'],
+          makeVertexHook,
         }),
     ...(!options?.['getChildrenOfProperty']
       ? {}

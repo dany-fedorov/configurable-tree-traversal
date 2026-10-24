@@ -97,7 +97,9 @@ test.each(['vertexId', 'dependsOn'] as const)(
     const metadata =
       field === 'vertexId' ? { vertexId: 'id' } : { dependsOn: [] };
     const adapter: AsyncTraversableTree<InputTTP> = {
+      // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
       makeRoot: async () => ({ vertexContent: null, ...metadata }),
+      // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
       makeVertex: async () => ({ vertexContent: null, ...metadata }),
     };
     const treeContainer = new DepthFirstTraversal<InputTTP>({
@@ -140,7 +142,9 @@ test.each([
     });
     const source = bindTreeSource(
       {
+        // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
         makeRoot: () => ({ vertexContent: null, ...metadata }),
+        // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
         makeVertex: () => ({ vertexContent: null, ...metadata }),
       },
       container,

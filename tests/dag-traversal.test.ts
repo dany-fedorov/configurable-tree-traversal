@@ -382,6 +382,7 @@ test('tree source rejects graph metadata', () => {
     makeVertex: () => ({ vertexContent: null }),
   };
   const runner = new DagTraversal<TestGraph>({
+    // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
     traversableTree: tree,
   }).makeRunner();
 

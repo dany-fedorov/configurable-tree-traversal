@@ -4,7 +4,7 @@ import type { CTTRef } from '@core/CTTRef';
 import type { CTTAbstractParent } from '@core/CTTAbstractParent';
 import {
   AbstractTraversableTree,
-  MakeVertexResult,
+  MakeTreeVertexResult,
 } from '@core/TraversableTree';
 import type { ResolvedTreeTypeParameters } from '@core/ResolvedTreeTypeParameters';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
@@ -224,7 +224,7 @@ export class ResolvedTree<
     return straightPath;
   }
 
-  makeRoot(): MakeVertexResult<ResolvedTreeTypeParameters<TTP>> {
+  makeRoot(): MakeTreeVertexResult<ResolvedTreeTypeParameters<TTP>> {
     const root = this.getRoot();
     if (root === null) {
       return { vertexContent: null };
@@ -239,7 +239,7 @@ export class ResolvedTree<
 
   makeVertex(
     vertexHint: ResolvedTreeTypeParameters<TTP>['VertexHint'],
-  ): MakeVertexResult<ResolvedTreeTypeParameters<TTP>> {
+  ): MakeTreeVertexResult<ResolvedTreeTypeParameters<TTP>> {
     return {
       vertexContent: {
         $data: vertexHint,
