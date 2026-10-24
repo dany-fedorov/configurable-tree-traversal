@@ -130,5 +130,7 @@ test('ResolvedTree retains supplied records and their child arrays', () => {
   tree.set(rootRef, suppliedRecord);
 
   expect(tree.get(rootRef)).toBe(suppliedRecord);
-  expect(tree.getChildrenOf(rootRef)).toBe(children);
+  expect(tree.get(rootRef)?.getChildren()).toBe(children);
+  expect(tree.getChildrenOf(rootRef)).toEqual(children);
+  expect(tree.getChildrenOf(rootRef)).not.toBe(children);
 });

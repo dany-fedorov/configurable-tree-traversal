@@ -1,3 +1,4 @@
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import type {
   DagSummary,
@@ -247,6 +248,13 @@ export class AsyncDagTraversalRunner<
 
   inspect(): CoreInspection {
     return this.execution.inspect();
+  }
+
+  getResolvedTreeView(): ResolvedTreeView<T | R> | null {
+    return (
+      this.resolvedGraphsContainer.treeContainer?.resolvedTree.asReadOnly() ??
+      null
+    );
   }
 
   getResolvedGraph(): ResolvedGraph<T | R> {

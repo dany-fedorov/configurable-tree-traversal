@@ -95,7 +95,7 @@ test('BFS can traverse a completed injected resolved-tree container again', () =
   const root = first.getResolvedTree().getRoot();
   if (root === null) throw new Error('Expected a resolved root');
   const rootRecord = first.getResolvedTree().get(root);
-  const originalChildren = first.getResolvedTree().getChildrenOf(root);
+  const originalChildren = first.getResolvedTree().get(root)?.getChildren();
   const originalChild = originalChildren?.[0];
   if (originalChild === undefined) throw new Error('Expected a resolved child');
   const childRecord = first.getResolvedTree().get(originalChild);
@@ -120,7 +120,8 @@ test('BFS can traverse a completed injected resolved-tree container again', () =
   expect(events[1]?.vertexRef).toBe(originalChild);
   expect(second.getResolvedTree().getRoot()).toBe(root);
   expect(second.getResolvedTree().get(root)).toBe(rootRecord);
-  expect(second.getResolvedTree().getChildrenOf(root)).toBe(originalChildren);
+  expect(second.getResolvedTree().get(root)?.getChildren()).toBe(originalChildren);
+  expect(second.getResolvedTree().getChildrenOf(root)).not.toBe(originalChildren);
   expect(second.getResolvedTree().getChildrenOf(root)).toEqual([originalChild]);
   expect(second.getResolvedTree().get(originalChild)).toBe(childRecord);
   expect(second.getResolvedGraph().getVertexRefs()).toEqual([

@@ -1,3 +1,4 @@
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
@@ -170,6 +171,10 @@ export class AsyncBreadthFirstTraversalRunner<
 
   getResolvedTree(): ResolvedTree<TTP | RW_TTP> {
     return this.resolvedTreesContainer.resolvedTree;
+  }
+
+  getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP> {
+    return this.getResolvedTree().asReadOnly();
   }
 
   getResolvedGraph(): ResolvedGraph<TTP | RW_TTP> {

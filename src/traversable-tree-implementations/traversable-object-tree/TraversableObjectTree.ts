@@ -244,7 +244,9 @@ export class TraversableObjectTree<
     const vertexData = vertexRef.unref().getData();
     let identity = this.originalIdentityByVertexData.get(vertexData);
     if (identity === undefined) {
-      const context = options.resolvedTree.getResolutionContextOf(vertexRef);
+      // This cache tracks the identity of the accepted resolution context.
+      const context =
+        options.resolvedTree.get(vertexRef)?.getResolutionContext() ?? null;
       identity =
         context !== null &&
         this.originalIdentityByResolutionContext.has(context)

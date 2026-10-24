@@ -145,6 +145,46 @@ describe('object identity bookkeeping', () => {
     );
   });
 
+  test('retains hook-substituted ancestor identity after data rewriting', () => {
+    const branch: { self?: unknown } = {};
+    branch.self = branch;
+    const traversal = new DepthFirstTraversal({
+      traversableTree: new TraversableObjectTree(
+        { branch: 0 },
+        {
+          resolveVertexHook: (hint) =>
+            hint.key === 'branch'
+              ? {
+                  kind: 'found',
+                  vertex: {
+                    vertexContent: {
+                      $data: { key: 'branch', value: branch },
+                      $childHints: [{ key: 'self', value: branch }],
+                    },
+                  },
+                }
+              : { kind: 'useDefault' },
+        },
+      ),
+    });
+    traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+      if (vertex.getData().key === 'branch') {
+        return {
+          commands: [
+            {
+              commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+              commandArguments: { newData: { key: 'branch', value: {} } },
+            },
+          ],
+        };
+      }
+      return undefined;
+    });
+    expect(() => traversal.makeRunner().run()).toThrow(
+      'Object identity cycle detected at $.branch.self; value repeats ancestor at $.branch',
+    );
+  });
+
   test('a rewritten root keeps its original child hints after data rewriting', () => {
     const visited: PropertyKey[] = [];
     const traversal = new DepthFirstTraversal({

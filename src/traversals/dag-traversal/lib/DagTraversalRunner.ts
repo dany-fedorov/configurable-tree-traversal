@@ -1,3 +1,4 @@
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
 import type {
@@ -232,6 +233,13 @@ export class DagTraversalRunner<
 
   isHalted(): boolean {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
+  }
+
+  getResolvedTreeView(): ResolvedTreeView<T | R> | null {
+    return (
+      this.resolvedGraphsContainer.treeContainer?.resolvedTree.asReadOnly() ??
+      null
+    );
   }
 
   getResolvedGraph(): ResolvedGraph<T | R> {

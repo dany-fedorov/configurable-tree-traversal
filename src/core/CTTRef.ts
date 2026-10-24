@@ -17,7 +17,12 @@ export class CTTRef<T> {
     this._ref = ref;
   }
 
-  getId(): string {
+  getRefId(): string {
     return this._id;
+  }
+
+  /** @deprecated Use getRefId to distinguish reference UUIDs from host vertex IDs. */
+  getId(): string {
+    return this.getRefId();
   }
 }

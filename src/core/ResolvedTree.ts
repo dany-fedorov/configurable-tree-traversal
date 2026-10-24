@@ -7,6 +7,7 @@ import {
   MakeTreeVertexResult,
 } from '@core/TraversableTree';
 import type { ResolvedTreeTypeParameters } from '@core/ResolvedTreeTypeParameters';
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import { GraphStore } from '@core/graph/GraphStore';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
@@ -91,10 +92,26 @@ export class ResolvedTree<
   TTP extends TreeTypeParameters,
 > extends AbstractTraversableTree<ResolvedTreeTypeParameters<TTP>> {
   private readonly store: GraphStore<TTP>;
+  private readonly readOnly: ResolvedTreeView<TTP>;
 
   constructor(/*config: ResolvedTreeConfig<TTP, RW_TTP>*/) {
     super();
     this.store = new GraphStore<TTP>('tree');
+    this.readOnly = Object.freeze({
+      getRoot: () => this.getRoot(),
+      has: (ref: CTTRef<Vertex<TTP>>) => this.has(ref),
+      getChildrenOf: (ref: CTTRef<Vertex<TTP>>) => this.getChildrenOf(ref),
+      getParentOf: (ref: CTTRef<Vertex<TTP>>) => this.getParentOf(ref),
+      getPathTo: (ref: CTTRef<Vertex<TTP>>, options?: GetPathToOptions) =>
+        this.getPathTo(ref, options),
+      getResolutionContextOf: (ref: CTTRef<Vertex<TTP>>) =>
+        this.getResolutionContextOf(ref),
+    });
+  }
+
+  /** A stable live facade without editing methods or mutable records. */
+  asReadOnly(): ResolvedTreeView<TTP> {
+    return this.readOnly;
   }
 
   getRoot(): CTTRef<Vertex<TTP>> | null {
@@ -117,7 +134,7 @@ export class ResolvedTree<
   getChildrenOf(
     vertexRef: CTTRef<Vertex<TTP>>,
   ): Array<CTTRef<Vertex<TTP>>> | null {
-    return this.get(vertexRef)?.getChildren() ?? null;
+    return this.get(vertexRef)?.getChildren().slice() ?? null;
   }
 
   getParentOf(vertexRef: CTTRef<Vertex<TTP>>): CTTRef<Vertex<TTP>> | null {
@@ -179,7 +196,8 @@ export class ResolvedTree<
   getResolutionContextOf(
     vertexRef: CTTRef<Vertex<TTP>>,
   ): VertexResolutionContext<TTP> | null {
-    return this.get(vertexRef)?.getResolutionContext() ?? null;
+    const context = this.get(vertexRef)?.getResolutionContext() ?? null;
+    return context === null ? null : { ...context };
   }
 
   pushChildrenTo(

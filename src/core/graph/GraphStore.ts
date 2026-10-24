@@ -36,13 +36,17 @@ export class GraphStore<T extends TreeTypeParameters>
   private topologyVersion = 0;
 
   constructor(readonly mode: 'tree' | 'dag') {
+    const getVertexRefById = (id: VertexId) => this.getVertexById(id);
+    const getVertexId = (ref: Ref<T>) => this.getEntry(ref).id;
     this.graph = Object.freeze({
       get: (ref: Ref<T>) => this.getGraphVertex(ref),
       has: (ref: Ref<T>) => this.has(ref),
       getRoot: () => this.root,
       getVertexRefs: () => Array.from(this.entries.keys()),
-      getVertexById: (id: VertexId) => this.getVertexById(id),
-      getIdOf: (ref: Ref<T>) => this.getEntry(ref).id,
+      getVertexRefById,
+      getVertexId,
+      getVertexById: getVertexRefById,
+      getIdOf: getVertexId,
       getStatusOf: (ref: Ref<T>) => this.entries.get(ref)?.status ?? null,
       getParentsOf: (ref: Ref<T>) => this.getParents(ref),
       getChildrenOf: (ref: Ref<T>) => this.getChildren(ref),

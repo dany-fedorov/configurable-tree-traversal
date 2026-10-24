@@ -188,9 +188,9 @@ Tests: new `tests/tree-query-ownership.test.ts`, new public view/identity type c
 existing tree/container/graph/snapshot/identity tests.
 
 **Interfaces:** ResolvedTreeView/asReadOnly/getResolvedTreeView and canonical
-getRefId/getVertexId/getVertexRefById aliases. Graph-mode DAG tree view returns
-null wherever the corresponding mutable tree getter returns null; tree runners
-return a live stable query facade. Task7 uses canonical read/identity names.
+getRefId/getVertexId/getVertexRefById aliases. DAG tree-source mode exposes its internal resolved tree through the new facade;
+graph-source mode returns null. DFS/BFS tree runners return a live stable query
+facade. Task7 uses canonical read/identity names.
 
 - [ ] Reproduce child-array topology corruption and context mutation. Test detached arrays/contexts through old query methods and the new facade; assert child/parent/path invariants stay unchanged. Test live view updates after explicit supported edits and saved-tree isolation, keeping shallow refs/data identity.
 

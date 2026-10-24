@@ -184,7 +184,9 @@ hints, and user data remain shallow identities. Introduce an exported
 `getChildrenOf`, `getParentOf`, `getPathTo`, `getResolutionContextOf`) with readonly
 collection/context types and no mutators/raw records. `ResolvedTree.asReadOnly()`
 returns a stable live facade, and each tree runner exposes
-`getResolvedTreeView()` for canonical querying. Existing getResolvedTree and
+`getResolvedTreeView()` for canonical querying. DAG runners expose their internal
+tree through this facade in tree-source mode and return null in graph-source mode.
+Existing getResolvedTree and
 explicit mutable container/record methods remain advanced compatibility APIs;
 document those mutation ownership boundaries. Do not change raw record getters
 used by internal assembly or pretend refs/data are deeply immutable.
