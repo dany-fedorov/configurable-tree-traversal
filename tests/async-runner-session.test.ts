@@ -20,6 +20,8 @@ const inspection: DriverInspection = Object.freeze({
   hasSorter: false,
   hasHintIds: false,
   iterableConfig: Object.freeze({
+    emitPhases: Object.freeze<VisitOrder[]>([]),
+    visitorPhases: 'all' as const,
     iterateOver: Object.freeze<VisitOrder[]>([]),
     enableVisitorFunctionsFor: null,
     disableVisitorFunctionsFor: null,
@@ -438,7 +440,7 @@ test('run drains the session iterator, returns itself, and applies its config', 
     { kind: 'FINISHED' },
   );
   const session = new AsyncRunnerSession(control);
-  const config = { iterateOver: ['PRE_ORDER' as const] };
+  const config = { emitPhases: ['PRE_ORDER' as const] };
 
   await expect(session.run(config)).resolves.toBe(session);
   expect(control.resumedWith).toEqual([config]);
@@ -497,4 +499,18 @@ test('inspection is synchronous, detached, and does not advance pending work', a
   await close;
   await pending;
   expect(session.isHalted()).toBe(true);
+});
+
+test('internal resume errors remain terminal with their exact thrown value', async () => {
+  const control = new FakeAsyncSessionControl<string>();
+  control.resume = () => {
+    throw undefined;
+  };
+  const session = new AsyncRunnerSession(control);
+  await expect(session.run()).rejects.toBeUndefined();
+  expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+  await expect(
+    session.run({ visitorPhases: { include: ['ON_READY'] } }),
+  ).rejects.toBeUndefined();
+  await expect(session.run()).rejects.toBeUndefined();
 });

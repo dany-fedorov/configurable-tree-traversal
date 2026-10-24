@@ -1,32 +1,34 @@
-import type { TraversalRunnerIterableConfig } from '@core/TraversalRunnerIterableConfig';
-import { deepFreeze } from '@utils/deepFreeze';
 import { DagTraversalOrder } from './DagTraversalOrder';
+import type {
+  TraversalRunnerIterableConfig,
+  TraversalIterableConfigInput,
+} from '@core/TraversalRunnerIterableConfig';
+import {
+  normalizeTraversalExecutionOptions,
+  toLegacyTraversalExecutionConfig,
+} from '@core/normalizeTraversalExecutionOptions';
+import { deepFreeze } from '@utils/deepFreeze';
 
 export type DagTraversalRunnerIterableConfig =
   TraversalRunnerIterableConfig<DagTraversalOrder>;
-
 export type DagTraversalRunnerIterableConfigInput =
-  Partial<DagTraversalRunnerIterableConfig>;
+  TraversalIterableConfigInput<DagTraversalOrder>;
 
 export const DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT: DagTraversalRunnerIterableConfig =
-  deepFreeze({
-    enableVisitorFunctionsFor: null,
-    disableVisitorFunctionsFor: null,
-    iterateOver: Object.values(DagTraversalOrder),
-  });
+  deepFreeze(makeEffectiveDagTraversalRunnerIterableConfig());
 
 export function makeEffectiveDagTraversalRunnerIterableConfig(
   config?: DagTraversalRunnerIterableConfigInput,
+  previous?: DagTraversalRunnerIterableConfig,
 ): DagTraversalRunnerIterableConfig {
-  const effective = {
-    ...DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
-    ...config,
-  };
-  return {
-    iterateOver: effective.iterateOver.slice(),
-    enableVisitorFunctionsFor:
-      effective.enableVisitorFunctionsFor?.slice() ?? null,
-    disableVisitorFunctionsFor:
-      effective.disableVisitorFunctionsFor?.slice() ?? null,
-  };
+  const phases = Object.values(DagTraversalOrder);
+  return toLegacyTraversalExecutionConfig(
+    normalizeTraversalExecutionOptions(
+      phases,
+      config,
+      previous === undefined
+        ? undefined
+        : normalizeTraversalExecutionOptions(phases, previous),
+    ),
+  );
 }

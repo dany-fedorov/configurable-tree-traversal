@@ -2,7 +2,11 @@ import type { DepthFirstTraversalInOrderTraversalConfig } from '@depth-first-tra
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TraversalRunnerIterableConfig } from '@core/TraversalRunnerIterableConfig';
+import type {
+  EffectiveTraversalExecutionOptions,
+  TraversalRunnerIterableConfig,
+  TraversalIterableConfigInput,
+} from '@core/TraversalRunnerIterableConfig';
 import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
 import type { MakeVertexResult } from '@core/TraversableTree';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
@@ -86,7 +90,7 @@ export type ChainState<
   waitingFor: 'none' | 'callback' | 'batch';
   commands: TraversalVisitorCommand<R>[];
   metadata: VisitMetadata<T | R>;
-  config: TraversalRunnerIterableConfig<VisitOrder>;
+  config: EffectiveTraversalExecutionOptions<VisitOrder>;
 };
 
 export type VertexWork<T extends TreeTypeParameters> = {
@@ -112,7 +116,7 @@ export interface AsyncSessionControl<E> {
   acknowledgeEvent(boundaryId: number): void;
   requestHalt(): void;
   isHaltRequested(): boolean;
-  resume(config?: Partial<TraversalRunnerIterableConfig<VisitOrder>>): void;
+  resume(config?: TraversalIterableConfigInput<VisitOrder>): void;
   getStatus(): TraversalRunnerStatus;
   getFailure(): { error: unknown } | null;
   inspect(): import('@core/CoreInspection').DriverInspection;

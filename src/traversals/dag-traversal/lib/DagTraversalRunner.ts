@@ -1,3 +1,4 @@
+import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
 import type {
   DagSummary,
   DagSettlementOutcome,
@@ -252,12 +253,15 @@ export class DagTraversalRunner<
       throw new Error('A traversal runner can only have one active iterator');
     }
     if (this.getStatus() === TraversalRunnerStatus.FINISHED) return;
-    if (config !== undefined) {
-      this.iterableConfig =
-        makeEffectiveDagTraversalRunnerIterableConfig(config);
-    }
+    const patch =
+      config === undefined
+        ? undefined
+        : detachTraversalExecutionOptions(
+            Object.values(DagTraversalOrder),
+            config,
+          );
     this.policy.claim();
-    this.kernel.resume(this.iterableConfig);
+    this.kernel.resume(patch);
     this.curGenerator ??= this.getInternalGenerator();
     this.activeIterator = true;
     this.state.status = TraversalRunnerStatus.RUNNING;

@@ -100,8 +100,12 @@ All public registration entry points use a shared visitor-definition model:
 
 ```ts
 type VisitorDefinition<F> = F | ({ visitor: F } & Partial<TraversalVisitorFunctionOptions>);
+type VisitorGroupMember<F> = F | {
+  visitor: F; priority?: number;
+  commandCommitMode?: never; resolutionStyle?: never;
+};
 type VisitorGroupDefinition<F> = {
-  visitors: readonly VisitorDefinition<F>[];
+  visitors: readonly VisitorGroupMember<F>[];
   commandCommitMode?: 'afterEachVisitor' | 'afterGroup';
 };
 type VisitorPhaseInput<F> =

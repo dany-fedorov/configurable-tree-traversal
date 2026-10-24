@@ -721,7 +721,11 @@ test('rejects a deferred competing claim for shared DAG objects', () => {
   const iterator = first.getIterable();
   iterator.next();
 
-  expect(() => second.getIterable().next()).toThrow(/another active runner/i);
+  const before = second.inspect().iterableConfig;
+  expect(() => second.getIterable({ emitPhases: [] }).next()).toThrow(
+    /another active runner/i,
+  );
+  expect(second.inspect().iterableConfig).toEqual(before);
   iterator.return?.(undefined);
 });
 

@@ -1,3 +1,11 @@
+import {
+  getTraversalExecutionPhases,
+  normalizeTraversalExecutionOptions,
+} from './normalizeTraversalExecutionOptions';
+import type {
+  EffectiveTraversalExecutionOptions,
+  TraversalIterableConfigInput,
+} from './TraversalRunnerIterableConfig';
 import type {
   DagSummary,
   DagSettlementOutcome,
@@ -165,7 +173,19 @@ export class TraversalKernel<
   private failure: { error: unknown } | null = null;
   private readonly boundaries: Boundary<T | R>[] = [];
 
+  private readonly phases: readonly VisitOrder[];
+  private executionConfig: EffectiveTraversalExecutionOptions<VisitOrder>;
+
   constructor(private readonly options: KernelOptions<T, R>) {
+    this.phases = getTraversalExecutionPhases(options.kind);
+    // Constructor compatibility fields may come from an already normalized family helper.
+    this.executionConfig = normalizeTraversalExecutionOptions(this.phases, {
+      iterateOver: options.iterableConfig.iterateOver,
+      enableVisitorFunctionsFor:
+        options.iterableConfig.enableVisitorFunctionsFor,
+      disableVisitorFunctionsFor:
+        options.iterableConfig.disableVisitorFunctionsFor,
+    });
     this.scheduling = new GraphScheduling(
       options.container,
       options.completedWork,
@@ -485,31 +505,13 @@ export class TraversalKernel<
     }
   }
 
-  resume(
-    config?: Partial<
-      import('@core/TraversalRunnerIterableConfig').TraversalRunnerIterableConfig<VisitOrder>
-    >,
-  ): void {
+  resume(config?: TraversalIterableConfigInput<VisitOrder>): void {
     if (this.failure !== null) return;
-    if (config !== undefined) {
-      this.options.iterableConfig = {
-        ...this.options.iterableConfig,
-        ...config,
-        iterateOver:
-          config.iterateOver?.slice() ??
-          this.options.iterableConfig.iterateOver.slice(),
-        enableVisitorFunctionsFor:
-          config.enableVisitorFunctionsFor === undefined
-            ? this.options.iterableConfig.enableVisitorFunctionsFor?.slice() ??
-              null
-            : config.enableVisitorFunctionsFor?.slice() ?? null,
-        disableVisitorFunctionsFor:
-          config.disableVisitorFunctionsFor === undefined
-            ? this.options.iterableConfig.disableVisitorFunctionsFor?.slice() ??
-              null
-            : config.disableVisitorFunctionsFor?.slice() ?? null,
-      };
-    }
+    this.executionConfig = normalizeTraversalExecutionOptions(
+      this.phases,
+      config,
+      this.executionConfig,
+    );
     this.haltRequested = false;
     for (const runtime of this.chains.values()) {
       if (runtime.state.phase === 'paused') {
@@ -551,13 +553,6 @@ export class TraversalKernel<
   }
 
   inspect(): KernelInspection {
-    const copyFilters = (config: typeof this.options.iterableConfig) => ({
-      iterateOver: config.iterateOver.slice(),
-      enableVisitorFunctionsFor:
-        config.enableVisitorFunctionsFor?.slice() ?? null,
-      disableVisitorFunctionsFor:
-        config.disableVisitorFunctionsFor?.slice() ?? null,
-    });
     return deepFreeze({
       status: this.getStatus(),
       haltRequested: this.haltRequested,
@@ -567,7 +562,7 @@ export class TraversalKernel<
       concurrency: this.options.concurrency,
       hasSorter: this.options.hasSorter,
       hasHintIds: this.options.hasHintIds,
-      iterableConfig: copyFilters(this.options.iterableConfig),
+      iterableConfig: this.copyConfig(this.executionConfig),
       readyVisits: this.scheduling.inspectEligible().map((visit) => ({
         vertexRefId: visit.ref.getId(),
         order:
@@ -606,7 +601,7 @@ export class TraversalKernel<
           state.group === 'concurrent' ? 'afterGroup' : 'afterEachVisitor',
         position: state.position,
         waitingFor: state.waitingFor,
-        config: copyFilters(state.config),
+        config: this.copyConfig(state.config),
       })),
       pendingRequests: Array.from(
         this.pendingRequests.values(),
@@ -1236,7 +1231,7 @@ export class TraversalKernel<
         state.metadata.curVertexVisitorVisitIndex;
       visitorState.previousVisitedVertexRef = state.ref;
     }
-    if (state.config.iterateOver.includes(state.order)) {
+    if (state.config.emitPhases.includes(state.order)) {
       this.boundaries.push({
         id: this.nextBoundaryId++,
         event: {
@@ -1826,7 +1821,7 @@ export class TraversalKernel<
 
   private admitChain(ref: Ref<T | R>, order: VisitOrder): OwnerToken {
     const owner = this.newOwner('chain');
-    const config = this.copyConfig(this.options.iterableConfig);
+    const config = this.copyConfig(this.executionConfig);
     const records = this.visitorsEnabled(order)
       ? (this.options.visitorMetadata[order] ?? []).slice()
       : [];
@@ -2101,29 +2096,24 @@ export class TraversalKernel<
   }
 
   private visitorsEnabled(order: VisitOrder): boolean {
-    return this.visitorsEnabledFor(this.options.iterableConfig, order);
+    return this.visitorsEnabledFor(this.executionConfig, order);
   }
 
   private visitorsEnabledFor(
-    config: typeof this.options.iterableConfig,
+    config: typeof this.executionConfig,
     order: VisitOrder,
   ): boolean {
+    const selection = config.visitorPhases;
     return (
-      (config.enableVisitorFunctionsFor === null ||
-        config.enableVisitorFunctionsFor.includes(order)) &&
-      (config.disableVisitorFunctionsFor === null ||
-        !config.disableVisitorFunctionsFor.includes(order))
+      selection === 'all' ||
+      ('include' in selection
+        ? selection.include!.includes(order)
+        : !selection.exclude.includes(order))
     );
   }
 
-  private copyConfig(config: typeof this.options.iterableConfig) {
-    return {
-      iterateOver: config.iterateOver.slice(),
-      enableVisitorFunctionsFor:
-        config.enableVisitorFunctionsFor?.slice() ?? null,
-      disableVisitorFunctionsFor:
-        config.disableVisitorFunctionsFor?.slice() ?? null,
-    };
+  private copyConfig(config: typeof this.executionConfig) {
+    return normalizeTraversalExecutionOptions(this.phases, undefined, config);
   }
 
   private setStatus(status: TraversalRunnerStatus): void {

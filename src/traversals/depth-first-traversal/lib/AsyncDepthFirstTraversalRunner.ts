@@ -24,7 +24,6 @@ import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
 import { DepthFirstTraversalResolvedTreesContainer } from './DepthFirstTraversalResolvedTreesContainer';
 import {
   makeEffectiveDepthFirstTraversalRunnerIterableConfig,
-  type DepthFirstTraversalRunnerIterableConfig,
   type DepthFirstTraversalRunnerIterableConfigInput,
 } from './DepthFirstTraversalRunnerIterableConfig';
 import { DepthFirstTraversalRunnerState } from './DepthFirstTraversalRunnerState';
@@ -205,10 +204,7 @@ export class AsyncDepthFirstTraversalRunner<
       acknowledgeEvent: (boundaryId) => control.acknowledgeEvent(boundaryId),
       requestHalt: () => control.requestHalt(),
       isHaltRequested: () => control.isHaltRequested(),
-      resume: (config) =>
-        control.resume(
-          config as Partial<DepthFirstTraversalRunnerIterableConfig>,
-        ),
+      resume: (config) => control.resume(config),
       getStatus: () => control.getStatus(),
       getFailure: () => control.getFailure(),
       inspect: () => control.inspect(),

@@ -209,11 +209,7 @@ export class BreadthFirstTraversalRunner<
       throw new Error('A traversal runner can only have one active iterator');
     }
     if (this.getStatus() === TraversalRunnerStatus.FINISHED) return;
-    if (config !== undefined) {
-      this.iterableConfig =
-        makeEffectiveBreadthFirstTraversalRunnerIterableConfig(config);
-    }
-    this.kernel.resume(this.iterableConfig);
+    this.kernel.resume(config);
     if (this.curGenerator === null) {
       this.curGenerator = this.getInternalGenerator();
     }

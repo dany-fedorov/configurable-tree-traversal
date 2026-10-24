@@ -2,7 +2,7 @@ import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TraversalRunnerIterableConfig } from '@core/TraversalRunnerIterableConfig';
+import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 import type { MakeVertexResult } from '@core/TraversableTree';
 import type { Vertex } from '@core/Vertex';
 import type {
@@ -125,7 +125,7 @@ export interface KernelPort<
   discardRequest(requestId: number): void;
   acknowledgeEvent(boundaryId: number): void;
   requestHalt(): void;
-  resume(config?: Partial<TraversalRunnerIterableConfig<VisitOrder>>): void;
+  resume(config?: TraversalIterableConfigInput<VisitOrder>): void;
   isRequestEligible(requestId: number, mode: PumpMode): boolean;
   isRequestValid(requestId: number): boolean;
   isHaltRequested(): boolean;

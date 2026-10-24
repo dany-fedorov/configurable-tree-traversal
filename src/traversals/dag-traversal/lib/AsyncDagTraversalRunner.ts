@@ -255,19 +255,11 @@ export class AsyncDagTraversalRunner<
   getIterable(
     config?: DagTraversalRunnerIterableConfigInput,
   ): AsyncGenerator<Event<T, R>, void, unknown> {
-    return this.execution.getIterable(
-      config === undefined
-        ? undefined
-        : makeEffectiveDagTraversalRunnerIterableConfig(config),
-    );
+    return this.execution.getIterable(config);
   }
 
   async run(config?: DagTraversalRunnerIterableConfigInput): Promise<this> {
-    await this.execution.run(
-      config === undefined
-        ? undefined
-        : makeEffectiveDagTraversalRunnerIterableConfig(config),
-    );
+    await this.execution.run(config);
     return this;
   }
 
@@ -331,12 +323,7 @@ export class AsyncDagTraversalRunner<
       isHaltRequested: () => control.isHaltRequested(),
       resume: (config) => {
         policy.claim();
-        if (config !== undefined) {
-          this.iterableConfig = makeEffectiveDagTraversalRunnerIterableConfig(
-            config as DagTraversalRunnerIterableConfig,
-          );
-        }
-        control.resume(this.iterableConfig);
+        control.resume(config);
       },
       getStatus: () => control.getStatus(),
       getFailure: () =>

@@ -1,32 +1,34 @@
-import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import type { TraversalRunnerIterableConfig } from '@core/TraversalRunnerIterableConfig';
+import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
+import type {
+  TraversalRunnerIterableConfig,
+  TraversalIterableConfigInput,
+} from '@core/TraversalRunnerIterableConfig';
+import {
+  normalizeTraversalExecutionOptions,
+  toLegacyTraversalExecutionConfig,
+} from '@core/normalizeTraversalExecutionOptions';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type DepthFirstTraversalRunnerIterableConfig =
   TraversalRunnerIterableConfig<DepthFirstTraversalOrder>;
-
 export type DepthFirstTraversalRunnerIterableConfigInput =
-  Partial<DepthFirstTraversalRunnerIterableConfig>;
+  TraversalIterableConfigInput<DepthFirstTraversalOrder>;
 
 export const DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT: DepthFirstTraversalRunnerIterableConfig =
-  deepFreeze({
-    enableVisitorFunctionsFor: null,
-    disableVisitorFunctionsFor: null,
-    iterateOver: Object.values(DepthFirstTraversalOrder),
-  });
+  deepFreeze(makeEffectiveDepthFirstTraversalRunnerIterableConfig());
 
 export function makeEffectiveDepthFirstTraversalRunnerIterableConfig(
   config?: DepthFirstTraversalRunnerIterableConfigInput,
+  previous?: DepthFirstTraversalRunnerIterableConfig,
 ): DepthFirstTraversalRunnerIterableConfig {
-  const effective = {
-    ...DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
-    ...config,
-  };
-  return {
-    iterateOver: effective.iterateOver.slice(),
-    enableVisitorFunctionsFor:
-      effective.enableVisitorFunctionsFor?.slice() ?? null,
-    disableVisitorFunctionsFor:
-      effective.disableVisitorFunctionsFor?.slice() ?? null,
-  };
+  const phases = Object.values(DepthFirstTraversalOrder);
+  return toLegacyTraversalExecutionConfig(
+    normalizeTraversalExecutionOptions(
+      phases,
+      config,
+      previous === undefined
+        ? undefined
+        : normalizeTraversalExecutionOptions(phases, previous),
+    ),
+  );
 }

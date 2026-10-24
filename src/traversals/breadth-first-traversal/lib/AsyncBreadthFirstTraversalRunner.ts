@@ -175,21 +175,13 @@ export class AsyncBreadthFirstTraversalRunner<
   getIterable(
     config?: BreadthFirstTraversalRunnerIterableConfigInput,
   ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown> {
-    return this.execution.getIterable(
-      config === undefined
-        ? undefined
-        : makeEffectiveBreadthFirstTraversalRunnerIterableConfig(config),
-    );
+    return this.execution.getIterable(config);
   }
 
   async run(
     config?: BreadthFirstTraversalRunnerIterableConfigInput,
   ): Promise<this> {
-    await this.execution.run(
-      config === undefined
-        ? undefined
-        : makeEffectiveBreadthFirstTraversalRunnerIterableConfig(config),
-    );
+    await this.execution.run(config);
     return this;
   }
 
@@ -215,15 +207,7 @@ export class AsyncBreadthFirstTraversalRunner<
       acknowledgeEvent: (boundaryId) => control.acknowledgeEvent(boundaryId),
       requestHalt: () => control.requestHalt(),
       isHaltRequested: () => control.isHaltRequested(),
-      resume: (config) => {
-        if (config !== undefined) {
-          this.iterableConfig =
-            makeEffectiveBreadthFirstTraversalRunnerIterableConfig(
-              config as BreadthFirstTraversalRunnerIterableConfig,
-            );
-        }
-        control.resume(this.iterableConfig);
-      },
+      resume: (config) => control.resume(config),
       getStatus: () => control.getStatus(),
       getFailure: () => control.getFailure(),
       inspect: () => control.inspect(),

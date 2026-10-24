@@ -207,10 +207,7 @@ export class DepthFirstTraversalRunner<
     if (this.activeIterator)
       throw new Error('A traversal runner can only have one active iterator');
     if (this.getStatus() === TraversalRunnerStatus.FINISHED) return;
-    if (config !== undefined)
-      this.iterableConfig =
-        makeEffectiveDepthFirstTraversalRunnerIterableConfig(config);
-    this.kernel.resume(this.iterableConfig);
+    this.kernel.resume(config);
     if (this.curGenerator === null)
       this.curGenerator = this.getInternalGenerator();
     this.activeIterator = true;
