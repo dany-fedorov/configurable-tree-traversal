@@ -106,11 +106,12 @@ export function mergeDagTraversalInstanceConfigs<
   base: DagTraversalInstanceConfig<T, R>,
   input: DagTraversalConfigureInput<T, R>,
 ): DagTraversalInstanceConfig<T, R> {
-  assertDagWorkCompletion(input.workCompletion);
+  const capturedInput = { ...input };
+  assertDagWorkCompletion(capturedInput.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
   return {
     ...base,
-    ...input,
+    ...capturedInput,
     visitors: {
       [DagTraversalOrder.ON_READY]: normalizeVisitorDefinitions(
         visitors[DagTraversalOrder.ON_READY],

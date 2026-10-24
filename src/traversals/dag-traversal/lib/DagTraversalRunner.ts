@@ -168,9 +168,9 @@ export class DagTraversalRunner<
       kind: 'dag',
       discovery: input.discovery ?? 'lazy',
       workCompletion:
-        input.workCompletion === undefined
+        this.icfg.workCompletion === undefined
           ? 'visitorReturn'
-          : input.workCompletion,
+          : this.icfg.workCompletion,
       ...(input.rootDependencies === undefined
         ? {}
         : { rootDependencies: input.rootDependencies }),

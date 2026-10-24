@@ -117,11 +117,12 @@ export function mergeAsyncDagTraversalInstanceConfigs<
   base: AsyncDagTraversalInstanceConfig<T, R>,
   input: AsyncDagTraversalConfigureInput<T, R>,
 ): AsyncDagTraversalInstanceConfig<T, R> {
-  assertDagWorkCompletion(input.workCompletion);
+  const capturedInput = { ...input };
+  assertDagWorkCompletion(capturedInput.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
   const merged = {
     ...base,
-    ...input,
+    ...capturedInput,
     visitors: {
       [DagTraversalOrder.ON_READY]: normalizeVisitorDefinitions(
         visitors[DagTraversalOrder.ON_READY],

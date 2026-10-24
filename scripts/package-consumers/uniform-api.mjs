@@ -186,6 +186,41 @@ for (const [api, other] of [
       assert.equal(runner.getStatus(), 'FINISHED');
     }
 
+    for (const entry of ['constructor', 'configure', 'runner']) {
+      let reads = 0;
+      const input = {
+        traversableGraph: {
+          makeRoot: () => found('owned'),
+          makeVertex: (id) => found(id),
+        },
+        get workCompletion() {
+          return ++reads === 1 ? 'externalSettlement' : 'visitorReturn';
+        },
+      };
+      const traversal =
+        entry === 'constructor'
+          ? new Traversal(input)
+          : new Traversal({ traversableGraph: input.traversableGraph });
+      if (entry === 'configure') traversal.configure(input);
+      const Runner = asyncMode
+        ? api.AsyncDagTraversalRunner
+        : api.DagTraversalRunner;
+      const runner =
+        entry === 'runner'
+          ? new Runner({
+              ...traversal.icfg,
+              get workCompletion() {
+                return input.workCompletion;
+              },
+            })
+          : traversal.makeRunner();
+      await runner.run();
+      assert.deepEqual(runner.summary().completedWorkIds, []);
+      assert.deepEqual(runner.summary().deferredIds, ['owned']);
+      assert.equal(runner.getStopReason(), 'awaitingSettlement');
+      assert.equal(reads, 1);
+    }
+
     const external = new Traversal({
       workCompletion: 'externalSettlement',
       saveNotMutatedResolvedGraph: true,
