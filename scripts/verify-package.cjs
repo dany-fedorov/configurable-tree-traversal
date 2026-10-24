@@ -507,6 +507,108 @@ try {
       { cwd: consumer, stdio: 'inherit' },
     );
   }
+  // Validate navigation in both the checkout and actual packed guides.
+  const guides = [
+    'README.md',
+    'CHANGELOG.md',
+    'docs/index.md',
+    'docs/agent-workflows.md',
+    'docs/reference.md',
+    'docs/migration-uniform-api.md',
+    'docs/testing.md',
+  ];
+  const anchors = (markdown) => {
+    const result = new Set();
+    const seen = new Map();
+    for (const match of markdown.matchAll(/^#{1,6} (.+)$/gm)) {
+      const base = match[1]
+        .toLowerCase()
+        .replace(/<[^>]*>/g, '')
+        .replace(/[^\p{L}\p{N}_\-\s]/gu, '')
+        .replace(/ /g, '-');
+      const count = seen.get(base) || 0;
+      seen.set(base, count + 1);
+      result.add(base + (count ? '-' + count : ''));
+    }
+    for (const match of markdown.matchAll(/<a\s+id="([^"]+)"/g))
+      result.add(match[1]);
+    return result;
+  };
+  let guideCount = 0;
+  for (const directory of [root, install]) {
+    for (const guide of directory === root
+      ? [...guides, 'AGENTS.md']
+      : guides) {
+      const markdown = fs.readFileSync(path.join(directory, guide), 'utf8');
+      for (const match of markdown.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+        const link = match[1];
+        if (/^[a-z]+:/i.test(link)) continue;
+        const [relative, fragment] = link.split('#');
+        const target = path.resolve(
+          directory,
+          path.dirname(guide),
+          relative || path.basename(guide),
+        );
+        assert(
+          fs.existsSync(target),
+          `${guide}: missing ${link} in ${directory}`,
+        );
+        if (fragment)
+          assert(
+            anchors(fs.readFileSync(target, 'utf8')).has(
+              decodeURIComponent(fragment),
+            ),
+            `${guide}: missing fragment ${link} in ${directory}`,
+          );
+      }
+      for (const match of markdown.matchAll(/<img[^>]+src="([^"]+)"/g)) {
+        assert(
+          fs.existsSync(path.resolve(directory, path.dirname(guide), match[1])),
+          `${guide}: missing image ${match[1]}`,
+        );
+      }
+      if (directory !== install) continue;
+      for (const match of markdown.matchAll(
+        /<!-- standalone -->\s*```ts\n([\s\S]*?)```/g,
+      )) {
+        const imports = [];
+        const body = match[1].replace(/^import\s[\s\S]*?;/gm, (statement) => {
+          imports.push(statement);
+          return '';
+        });
+        const filename = `guide-${guideCount++}.ts`;
+        fs.writeFileSync(
+          path.join(consumer, filename),
+          imports.join('\n') +
+            '\nasync function main() {\n' +
+            body +
+            '\n}\nvoid main();\n',
+        );
+        execFileSync(
+          process.execPath,
+          [
+            compiler,
+            '--strict',
+            '--target',
+            'ES2020',
+            '--module',
+            'commonjs',
+            '--moduleResolution',
+            'node',
+            filename,
+          ],
+          { cwd: consumer, stdio: 'inherit' },
+        );
+        execFileSync(process.execPath, [filename.replace(/\.ts$/, '.js')], {
+          cwd: consumer,
+          stdio: 'pipe',
+        });
+      }
+    }
+  }
+  console.log(
+    `Verified guide navigation in checkout and tarball, and ${guideCount} standalone snippets.`,
+  );
   for (const expected of [
     'README.md',
     'Sorted_binary_tree_ALL_RGB.svg.png',

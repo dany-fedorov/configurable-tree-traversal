@@ -20,12 +20,12 @@ Use CTT when agents or tools perform work with dependencies: research before imp
 
 | Model | How it works | Appropriate when |
 | --- | --- | --- |
-| Host-controlled frontier | Use a sole deterministic `ON_READY` visitor returning `{ commands: [{ commandName: Command.DEFER_READY }] }` (import `TraversalVisitorCommandName as Command`); run to quiescence, then inspect `summary()` | Agents run externally, work needs claims/approval, or state must survive process loss |
+| Host-controlled frontier | Set `workCompletion: 'externalSettlement'`; run to quiescence, then dispatch from the deferred frontier in `summary()` with its generations | Agents run externally, work needs claims/approval, or state must survive process loss |
 | Work inside visitors | Use `AsyncDagTraversal` and await work in `ON_READY` visitors; normal chain completion releases dependents | One process owns execution and immediate callback failure should fail traversal |
 
 Start with the host-controlled model for a durable agent coordinator. `DagTraversal` is sufficient when graph facts are already in memory; use `AsyncDagTraversal` for asynchronous adapters. The host can run asynchronous agents independently of which runner it uses.
 
-With visitor execution, `concurrency` bounds invoked callbacks, including adapters and visitors. It does not bound externally dispatched agents after `DEFER_READY`, enforce a token budget, or provide distributed claims. A returned/awaited callback must represent completion of its work: launching a background job and returning immediately releases its dependents too early.
+With visitor execution, `concurrency` bounds invoked callbacks, including adapters and visitors. It does not bound externally dispatched agents after external deferral, enforce a token budget, or provide distributed claims. A returned/awaited callback must represent completion of its work: launching a background job and returning immediately releases its dependents too early.
 
 A host-controlled tick follows this sequence:
 
@@ -91,6 +91,8 @@ console.log(runner.summary().readyIds); // ['testPlan']
 
 For an async runner, await `runner.run()`. `settle()` itself is synchronous. A settlement wakes an active async consumer; after idle settlement, resume explicitly. Only one iterator may own a runner at a time.
 
+Dispatch from `summary().deferredIds` (or its ready frontier filtered by host policy), capturing each vertex's generation. Emitted `ON_READY` events occur when deferred work is settled; they are not the pre-work dispatch signal. Alternatively, an actual enabled `ON_READY` callback can dispatch before the external policy defers its chain. All callback commands commit before normal external deferral. `ON_COMPLETE` remains automatic once W, discovery, children, and C prerequisites permit it.
+
 Capture the generation belonging to the deferred work you dispatched. It is a local guard, not a durable attempt ID, distributed lease, or authentication token. The host must separately reject stale revisions, stale attempts, duplicate result delivery, and lost claims before accepting a result. An identical accepted settlement returns `false`; invalid, conflicting, or cross-runner settlement throws.
 
 `{ kind: 'workCompleted' }` means the work is complete for dependency traversal. An accepted review rejection can still complete a review vertex if host policy says the review work is done. `{ kind: 'traversalFailed', error }` fails the whole runner and preserves the exact thrown value; it is not a retry request or a business outcome field. The progress state `completed` means traversal work completion.
@@ -112,7 +114,7 @@ On startup or each reconciliation tick:
 
 1. Load a consistent graph revision and its host-accepted facts.
 2. Construct a fresh graph-source runner with `completedWork`, eager discovery, and the full catalog (plus lookup if required).
-3. Register the sole deferring visitor and run to quiescence.
+3. Set `workCompletion: 'externalSettlement'` and run to quiescence.
 4. Read `summary()` and filter readiness using persisted claims, waits, retries, and host capacity.
 5. Claim and dispatch selected work. Validate incoming results and durably record accepted completion before settling a retained runner.
 
@@ -132,7 +134,7 @@ The [reconciliation example](https://github.com/dany-fedorov/configurable-tree-t
 
 | Symptom | Check |
 | --- | --- |
-| Work completed without an agent running              | A visitor returned normally instead of the sole `DEFER_READY` command, or a seeded ID already marked W complete                           |
+| Work completed without an agent running              | Check `workCompletion: 'externalSettlement'`; the default `visitorReturn` completes W on normal callback-chain return. Seeds also mark W complete                           |
 | The same agent task dispatches again | Host claim/attempt state must filter `readyIds`; deferral intentionally leaves work ready |
 | Ready work seems absent | Run discovery first; inspect discovery completeness, seed IDs, and unmet W/C dependencies |
 | Missing prerequisite or cycle | Catch `DagTraversalStallError`; inspect typed diagnostics. Check catalog coverage, lookup results, W/C declarations, and structural edges |

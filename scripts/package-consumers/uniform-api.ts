@@ -22,7 +22,6 @@ import type {
   TraversableGraph,
   SourceVertexResult,
   FoundVertexResult,
-  OmittedVertexResult,
   MissingVertexResult,
   PrerequisiteResolutionResult,
   VertexContent,
@@ -46,7 +45,7 @@ const found: FoundVertexResult<T> = {
   kind: 'found',
   vertex: { vertexId: undefined, vertexContent: canonical },
 };
-const omitted: OmittedVertexResult = {
+const omitted: TreeOmittedVertexResult = {
   kind: 'omitted',
   satisfiesDependencies: true,
 };
@@ -195,4 +194,128 @@ void [
   oldWork,
   syncHelpers,
   asyncHelpers,
+];
+
+// All new contracts compile through both declaration loader branches.
+import type {
+  TreeSourceVertexResult,
+  MakeTreeVertexResult,
+  TreeFoundVertexResult,
+  TreeOmittedVertexResult,
+  TraversalExecutionOptions,
+  TraversalStopReason,
+  VisitorPhaseInput,
+  VisitorGroupMember,
+  ResolvedTreeView,
+  ObjectVertexHookResult,
+  TraversableObjectTTP,
+  MakeMutationCommandFunction,
+  TO_MutationPropertyPatch,
+} from 'configurable-tree-traversal';
+import {
+  TraversableObjectTree,
+  rewriteObject,
+} from 'configurable-tree-traversal';
+const treeFound: TreeFoundVertexResult<T> = {
+  kind: 'found',
+  vertex: { vertexContent: canonical },
+};
+const treeOmitted: TreeOmittedVertexResult = omitted;
+const treeResult: TreeSourceVertexResult<T> = treeFound;
+const oldTreeResult: MakeTreeVertexResult<T> = { vertexContent: canonical };
+// @ts-expect-error tree sources do not accept graph identity
+const wrongTree: TreeSourceVertexResult<T> = found;
+const execution: TraversalExecutionOptions<F> = {
+  emitPhases: [],
+  visitorPhases: { exclude: [] },
+};
+const bothSelectors: TraversalExecutionOptions<F> = {
+  // @ts-expect-error a callback selector has exactly one mode
+  visitorPhases: { include: [], exclude: [] },
+};
+const mixedSelectors: TraversalExecutionOptions<F> = {
+  emitPhases: [],
+  // @ts-expect-error canonical and legacy emission names cannot coexist
+  iterateOver: [],
+};
+const phaseDefinition: VisitorPhaseInput<typeof common> = {
+  groups: [
+    {
+      commandCommitMode: 'afterGroup',
+      visitors: [{ visitor: common, priority: 1 }],
+    },
+    { visitors: [common] },
+  ],
+};
+depth.configure({ visitors: { [F.POST_ORDER]: phaseDefinition } });
+depth.setVisitorsFor(F.POST_ORDER, depth.listVisitorsFor(F.POST_ORDER));
+depth.addVisitorGroupFor(F.POST_ORDER, { visitors: [common] });
+const badMember: VisitorGroupMember<typeof common> = {
+  visitor: common,
+  // @ts-expect-error explicit group policy cannot be set by members
+  commandCommitMode: 'afterGroup',
+};
+const externalDag = new DagTraversal({
+  traversableGraph: graph,
+  workCompletion: 'externalSettlement',
+});
+const externalRunner = externalDag.makeRunner();
+const reason: TraversalStopReason | null = externalRunner.getStopReason();
+const treeView: ResolvedTreeView<T> | null =
+  externalRunner.getResolvedTreeView();
+if (treeView) {
+  // @ts-expect-error safe facades have no raw records
+  treeView.get(treeView.getRoot()!);
+  // @ts-expect-error query collections are readonly
+  treeView.getChildrenOf(treeView.getRoot()!)!.push(treeView.getRoot()!);
+}
+const resolved = externalRunner.getResolvedGraph();
+const vertexRef = resolved.getVertexRefById(undefined);
+if (vertexRef) {
+  const referenceId: string = vertexRef.getRefId();
+  const hostId: unknown = resolved.getVertexId(vertexRef);
+  void [referenceId, hostId];
+}
+const hookResult: ObjectVertexHookResult<TraversableObjectTTP<string, number>> =
+  { kind: 'useDefault' };
+new TraversableObjectTree({ a: 1 }, { resolveVertexHook: () => hookResult });
+new TraversableObjectTree(
+  { a: 1 },
+  { makeVertexHook: () => ({ returnMe: null }) },
+);
+type Prop = TraversableObjectTTP<string, number | undefined>;
+const objectPatch: TO_MutationPropertyPatch<Prop> = { value: undefined };
+const objectFactory = TraversableObjectTree.makeMutationCommandFactory<
+  Prop,
+  Prop
+>();
+const objectVisitor: TraversalVisitor<F.POST_ORDER, Prop, Prop> = (
+  v,
+  options,
+) => {
+  const { makeMutationCommand } = objectFactory(v, options);
+  makeMutationCommand({ rewrite: objectPatch });
+  makeMutationCommand({ rewrite: { key: 'renamed' } });
+  // @ts-expect-error typed object helper rejects wrong value types
+  makeMutationCommand({ rewrite: { value: 'wrong' } });
+};
+declare const replace: MakeMutationCommandFunction<Prop>;
+replace({ rewrite: { key: 'new', value: 1 } });
+// @ts-expect-error generic builder requires complete data by default
+replace({ rewrite: { key: 'incomplete' } });
+rewriteObject.rewriteObject(
+  { a: 1 },
+  { resolveVertexHook: () => ({ kind: 'useDefault' }) },
+);
+void [
+  treeOmitted,
+  treeResult,
+  oldTreeResult,
+  wrongTree,
+  execution,
+  bothSelectors,
+  mixedSelectors,
+  badMember,
+  reason,
+  objectVisitor,
 ];

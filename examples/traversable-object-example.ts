@@ -28,11 +28,11 @@ const obj = {
 };
 
 const traversableTree = new TraversableObjectTree(obj, {
-  makeVertexHook: (vertexHint) => {
+  resolveVertexHook: (vertexHint) => {
     if (vertexHint.value === null) {
-      return { returnMe: null };
+      return { kind: 'omitted', satisfiesDependencies: true };
     }
-    return {};
+    return { kind: 'useDefault' };
   },
 });
 const traversal = new DepthFirstTraversal({

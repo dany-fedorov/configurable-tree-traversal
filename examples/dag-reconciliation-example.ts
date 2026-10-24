@@ -1,8 +1,6 @@
-import { TraversalVisitorCommandName as Command } from '../src';
 import assert from 'node:assert/strict';
 import {
   DagTraversal,
-  DagTraversalOrder,
   TraversalRunnerStatus,
   type TreeTypeParameters,
 } from '../src';
@@ -21,6 +19,7 @@ function reconstruct() {
   const traversal = new DagTraversal<Workflow>({
     completedWork: acceptedCompletedWork,
     discovery: 'eager',
+    workCompletion: 'externalSettlement',
     syntheticRoot: true,
     traversableGraph: {
       // Supply the complete catalog, including disconnected components.
@@ -40,15 +39,12 @@ function reconstruct() {
       }),
     },
   });
-  // Inspection never executes business work or publishes success.
-  traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => ({
-    commands: [{ commandName: Command.DEFER_READY }],
-  }));
   return traversal.makeRunner().run();
 }
 
 const retained = reconstruct();
 assert.equal(retained.getStatus(), TraversalRunnerStatus.HALTED);
+assert.equal(retained.getStopReason(), 'awaitingSettlement');
 assert.deepEqual(retained.summary().readyIds, ['backend', 'frontend']);
 const backendGeneration = retained.summary().vertices.get('backend')!
   .generation!;

@@ -73,7 +73,7 @@ async function main() {
     'app',
   ]);
   const graph = runner.getResolvedGraph();
-  const parser = graph.getVertexById('module:parser')!;
+  const parser = graph.getVertexRefById('module:parser')!;
   assert.deepEqual(graph.getParentsOf(parser), []);
   assert.deepEqual(graph.getPathsTo(parser), [[parser]]);
   assert.equal(runner.summary().counts.subtreeCompleted, 4);

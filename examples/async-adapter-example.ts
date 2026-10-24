@@ -47,7 +47,7 @@ const traversal = new AsyncDepthFirstTraversal<ExampleTree>({
 async function main() {
   const runner = traversal.makeRunner();
   const iterator = runner.getIterable({
-    iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
+    emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
   });
   const rootEvent = await iterator.next();
   if (rootEvent.done) throw new Error('Expected the root event');
