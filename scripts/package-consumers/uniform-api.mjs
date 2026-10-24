@@ -67,10 +67,58 @@ for (const [api, other] of [
       };
       const runner = await api[helper + suffix](options);
       assert.equal(runner.getStatus(), 'FINISHED');
+      assert.equal(runner.getStopReason(), 'finished');
+      assert.equal(runner.inspect().stopReason, 'finished');
+      const view = runner.getResolvedTreeView();
+      assert.equal(view, runner.getResolvedTreeView());
+      assert.equal(typeof view.add, 'undefined');
+      const root = view.getRoot();
+      const detached = view.getChildrenOf(root);
+      detached.length = 0;
+      assert.equal(view.getChildrenOf(root).length, 1);
+      const child = view.getChildrenOf(root)[0];
+      const context = view.getResolutionContextOf(child);
+      context.depth = 100;
+      assert.notEqual(view.getResolutionContextOf(child).depth, 100);
+      assert.equal(root.getRefId(), root.getId());
+
       assert.deepEqual(
         visits,
         helper === 'traverseDepthFirst' ? ['leaf', 'root'] : ['root', 'leaf'],
       );
+      const groupCalls = [];
+      await api[helper + suffix]({
+        ...options,
+        visitors: {
+          [phase]: {
+            groups: [
+              {
+                visitors: [
+                  {
+                    visitor: () => {
+                      groupCalls.push('first');
+                    },
+                    priority: 1,
+                  },
+                ],
+                commandCommitMode: 'afterGroup',
+              },
+              { visitors: [] },
+              {
+                visitors: [
+                  {
+                    visitor: () => {
+                      groupCalls.push('second');
+                    },
+                    priority: 1000,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      });
+      assert.deepEqual(groupCalls, ['first', 'second', 'first', 'second']);
       const legacyVisitors =
         helper === 'traverseDepthFirst'
           ? { postOrderVisitor: () => {} }
@@ -138,6 +186,107 @@ for (const [api, other] of [
       assert.equal(runner.getStatus(), 'FINISHED');
     }
 
+    for (const entry of ['constructor', 'configure', 'runner']) {
+      let reads = 0;
+      const input = {
+        traversableGraph: {
+          makeRoot: () => found('owned'),
+          makeVertex: (id) => found(id),
+        },
+        get workCompletion() {
+          return ++reads === 1 ? 'externalSettlement' : 'visitorReturn';
+        },
+      };
+      const traversal =
+        entry === 'constructor'
+          ? new Traversal(input)
+          : new Traversal({ traversableGraph: input.traversableGraph });
+      if (entry === 'configure') traversal.configure(input);
+      const Runner = asyncMode
+        ? api.AsyncDagTraversalRunner
+        : api.DagTraversalRunner;
+      const runner =
+        entry === 'runner'
+          ? new Runner({
+              ...traversal.icfg,
+              get workCompletion() {
+                return input.workCompletion;
+              },
+            })
+          : traversal.makeRunner();
+      await runner.run();
+      assert.deepEqual(runner.summary().completedWorkIds, []);
+      assert.deepEqual(runner.summary().deferredIds, ['owned']);
+      assert.equal(runner.getStopReason(), 'awaitingSettlement');
+      assert.equal(reads, 1);
+    }
+
+    const external = new Traversal({
+      workCompletion: 'externalSettlement',
+      saveNotMutatedResolvedGraph: true,
+      traversableGraph: {
+        makeRoot: () => found(undefined),
+        makeVertex: (id) => found(id),
+      },
+    }).makeRunner();
+    const deferredEvents = [];
+    for await (const event of external.getIterable({
+      emitPhases: [Order.ON_READY],
+      visitorPhases: { include: [] },
+    }))
+      deferredEvents.push(event);
+    assert.deepEqual(deferredEvents, []);
+    assert.equal(external.getStopReason(), 'awaitingSettlement');
+    assert.equal(external.inspect().stopReason, 'awaitingSettlement');
+    assert.equal(external.getResolvedTreeView(), null);
+    const graph = external.getResolvedGraph();
+    const ref = graph.getVertexRefById(undefined);
+    assert.equal(ref, graph.getVertexById(undefined));
+    assert.equal(graph.getVertexId(ref), graph.getIdOf(ref));
+    const saved = external.notMutatedResolvedGraph;
+    const savedRef = saved.getVertexRefById(undefined);
+    assert.equal(saved.getVertexId(savedRef), undefined);
+    assert.equal(savedRef, saved.getVertexById(undefined));
+    const token = external.summary().vertices.get(undefined).generation;
+    external.settle(undefined, { kind: 'workCompleted' }, token);
+    assert.equal(external.getStopReason(), 'awaitingSettlement');
+    // Emission-only update retains callback selection; ON_READY now emits.
+    for await (const event of external.getIterable({
+      emitPhases: [Order.ON_READY],
+    }))
+      deferredEvents.push(event);
+    assert.equal(deferredEvents.length, 1);
+    assert.equal(external.getStopReason(), 'finished');
+
+    const selectedCalls = [];
+    const selected = new Traversal({
+      traversableTree: tree,
+      visitors: {
+        [Order.ON_READY]: {
+          visitor: () => {
+            selectedCalls.push('ready');
+          },
+          priority: 1,
+        },
+      },
+    }).makeRunner();
+    await selected.run({ emitPhases: [], visitorPhases: { exclude: [] } });
+    assert.deepEqual(selectedCalls, ['ready', 'ready']);
+    const legacySelected = new Traversal({
+      traversableTree: tree,
+      visitors: {
+        [Order.ON_READY]: () => {
+          selectedCalls.push('legacy');
+        },
+      },
+    }).makeRunner();
+    await legacySelected.run({
+      iterateOver: [],
+      enableVisitorFunctionsFor: [Order.ON_READY],
+      disableVisitorFunctionsFor: [Order.ON_READY],
+    });
+    assert.deepEqual(selectedCalls, ['ready', 'ready', 'legacy', 'legacy']);
+
     const events = [];
     const batched = new Traversal({
       traversableGraph: {
@@ -177,6 +326,25 @@ for (const [api, other] of [
         priority: 0,
       },
     );
+    await batched.makeRunner().run();
+    assert.deepEqual(events, ['root', 'group', 'root']);
+
+    // Consumers that intend group-first execution express explicit ordered groups.
+    const [high, ...low] = batched.listVisitorsFor(Order.ON_READY);
+    batched.setVisitorsFor(Order.ON_READY, {
+      groups: [
+        {
+          commandCommitMode: 'afterGroup',
+          visitors: low.map(({ visitor, priority }) => ({ visitor, priority })),
+        },
+        { visitors: [{ visitor: high.visitor, priority: high.priority }] },
+      ],
+    });
+    batched.setVisitorsFor(
+      Order.ON_READY,
+      batched.listVisitorsFor(Order.ON_READY),
+    );
+    events.length = 0;
     await batched.makeRunner().run();
     assert.deepEqual(events, ['group', 'root', 'changed']);
 
@@ -220,6 +388,56 @@ for (const [api, other] of [
     }).makeRunner();
     await lookup.run();
     assert.equal(lookup.summary().vertices.get('app').work, 'completed');
+  }
+
+  for (const hook of [
+    {
+      resolveVertexHook: (hint) =>
+        hint.key === 'skip'
+          ? { kind: 'omitted', satisfiesDependencies: true }
+          : { kind: 'useDefault' },
+    },
+    {
+      makeVertexHook: (hint) => (hint.key === 'skip' ? { returnMe: null } : {}),
+    },
+  ]) {
+    const result = api.rewriteObject.rewriteObject(
+      { keep: 1, skip: 2 },
+      {
+        ...hook,
+        rewrite: ({ key }) =>
+          key === 'keep' ? { rewrite: { value: undefined } } : undefined,
+      },
+    );
+    assert.deepEqual(result.outputObject, { keep: undefined });
+  }
+  assert.throws(
+    () =>
+      api.rewriteObject.rewriteObject(
+        { a: 1 },
+        {
+          rewrite: () => ({ rewrite: undefined }),
+        },
+      ),
+    TypeError,
+  );
+  for (const field of ['vertexId', 'dependsOn', 'dependsOnComplete']) {
+    assert.throws(
+      () =>
+        api.traverseDepthFirst({
+          traversableTree: {
+            makeRoot: () => ({
+              kind: 'found',
+              vertex: {
+                [field]: undefined,
+                vertexContent: { $data: '', $childHints: [] },
+              },
+            }),
+            makeVertex: () => treeFound('unused'),
+          },
+        }),
+      TypeError,
+    );
   }
 
   for (const commandName of [

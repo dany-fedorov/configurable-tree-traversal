@@ -1,5 +1,13 @@
 import type { NoInferPhase } from '@core/TraversalVisitor';
-import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
+import {
+  appendVisitorDefinition,
+  appendVisitorGroup,
+  normalizeVisitorDefinitions,
+} from '@core/visitors/normalizeVisitorDefinitions';
+import type {
+  VisitorPhaseInput,
+  VisitorGroupDefinition,
+} from '@core/TraversalVisitor';
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
@@ -51,23 +59,39 @@ export class AsyncBreadthFirstTraversal<
     visitor: AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    const effectiveOptions = normalizeVisitorOptions(options);
-    const records = this.visitors[order] as VisitorRecord<
-      AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
-    >[];
-    records.push({
-      addedIndex:
-        records.reduce((max, record) => Math.max(max, record.addedIndex), -1) +
-        1,
-      ...effectiveOptions,
-      visitor,
-    });
     (
       this.visitors as Record<
         ORDER,
         VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
       >
-    )[order] = sortVisitorRecords(records);
+    )[order] = appendVisitorDefinition<
+      AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
+    >(
+      this.visitors[order] as VisitorRecord<
+        AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
+      >[],
+      { visitor, ...options },
+    );
+    return this;
+  }
+
+  addVisitorGroupFor<ORDER extends BreadthFirstTraversalOrder>(
+    order: ORDER,
+    group: VisitorGroupDefinition<
+      AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
+    >,
+  ): this {
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
+      >
+    )[order] = appendVisitorGroup<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>(
+      this.visitors[order] as VisitorRecord<
+        AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
+      >[],
+      group,
+    );
     return this;
   }
 
@@ -79,16 +103,19 @@ export class AsyncBreadthFirstTraversal<
 
   setVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
     order: ORDER,
-    visitorRecords: VisitorRecord<
+    input: VisitorPhaseInput<
       AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
-    >[],
+    >,
   ): this {
     (
       this.visitors as Record<
         ORDER,
         VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
       >
-    )[order] = sortVisitorRecords(visitorRecords);
+    )[order] =
+      normalizeVisitorDefinitions<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>(
+        input,
+      );
     return this;
   }
 

@@ -1,16 +1,18 @@
 import type { CoreInspection } from '@core/CoreInspection';
-import type { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TraversalRunnerIterableConfig } from '@core/TraversalRunnerIterableConfig';
+import type {
+  TraversalRunnerStatus,
+  TraversalStopReason,
+} from '@core/TraversalRunner';
+import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 import type { VisitOrder } from '@core/effects/types';
 
 export interface AsyncCoreExecution<E> {
   getStatus(): TraversalRunnerStatus;
+  getStopReason(): TraversalStopReason | null;
   isHalted(): boolean;
   inspect(): CoreInspection;
   getIterable(
-    config?: Partial<TraversalRunnerIterableConfig<VisitOrder>>,
+    config?: TraversalIterableConfigInput<VisitOrder>,
   ): AsyncGenerator<E, void, unknown>;
-  run(
-    config?: Partial<TraversalRunnerIterableConfig<VisitOrder>>,
-  ): Promise<this>;
+  run(config?: TraversalIterableConfigInput<VisitOrder>): Promise<this>;
 }

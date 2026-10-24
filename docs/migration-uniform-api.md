@@ -50,7 +50,7 @@ traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => ({
 
 Deferral is valid only in DAG `ON_READY` and must be the **only command in its result**. Mixing it with `NOOP`, a rewrite, halt, or any other command rejects before applying that result's commands. The deprecated sentinel normalizes to the same transition.
 
-Deferral ends the visitor chain, discards uncommitted group commands, skips remaining visitors, leaves work incomplete, and releases callback capacity. Already committed changes and external effects remain. `HALT_TRAVERSAL` instead retains its runner-wide resumable behavior. A normally returning no-op `ON_READY` visitor completes work and releases dependents; use deferral for externally executed work.
+Deferral ends the visitor chain, discards uncommitted group commands, skips remaining visitors, leaves work incomplete, and releases callback capacity. Already committed changes and external effects remain. `HALT_TRAVERSAL` instead retains its runner-wide resumable behavior. The default `workCompletion: 'visitorReturn'` completes W on normal `ON_READY` chain return. Prefer `workCompletion: 'externalSettlement'` for external work: the chain's commands commit, then W remains incomplete with a guarded deferred generation, even for zero or filtered callbacks. Explicit DEFER remains useful for ending a chain early and skipping later callbacks. Synthetic roots and `completedWork` seeds do not require new settlement. ON_COMPLETE remains automatic. Dispatch from the deferred summary frontier (or an actual enabled callback); emitted deferred ON_READY events arrive only on settlement. Generations remain runner-local symbols, not durable claims.
 
 ## Command batching
 
@@ -59,7 +59,43 @@ Deferral ends the visitor chain, discards uncommitted group commands, skips rema
 | `resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL` | `commandCommitMode: 'afterEachVisitor'` (default) |
 | `resolutionStyle: TraversalVisitorFunctionResolutionStyle.CONCURRENT` | `commandCommitMode: 'afterGroup'`                 |
 
-The `afterGroup` group runs **before** the `afterEachVisitor` group, even when an individual priority in the second group is higher. Each group uses descending priority and then registration order. Group commands commit after that group; remaining commands commit after each visitor. This preserves execution order and names command timing accurately. Async `concurrency` is independent. Aliases remain accepted and records normalize both views; contradictory explicit old/new settings throw.
+Flat callbacks now run by descending priority, then registration order, **before** batching is applied. Adjacent `afterGroup` entries buffer until the next `afterEachVisitor` or phase end. A priority-1000 `afterEachVisitor` runs before a priority-1 `afterGroup`; changing commit mode alone cannot reorder callbacks. This intentionally corrects historical group-first ordering. Express the previous desired order with explicit ordered groups below. Async concurrency remains independent. Deprecated aliases normalize to batching; contradictory explicit old/new modes reject.
+
+## Shared visitor definitions and ordered groups
+
+The same phase input configures a class, `configure`, `setVisitorsFor`, or a helper: callback, `{ visitor, priority?, commandCommitMode? }`, readonly flat definitions, or `{ groups: [...] }`. No caller `addedIndex` is needed; compatibility indexes are ignored. This standalone example uses one definition in both entry points and verifies an explicit ordering boundary:
+
+<!-- standalone -->
+
+```ts
+import {
+  DepthFirstTraversal, DepthFirstTraversalOrder as Order,
+  TraversableObjectTree, traverseDepthFirst,
+  type VisitorPhaseInput, type TraversalVisitor,
+  type TraversableObjectTTP,
+} from 'configurable-tree-traversal';
+
+type Tree = TraversableObjectTTP<string, number>;
+const source = new TraversableObjectTree<number, string, number>(1);
+const calls: string[] = [];
+const definition: VisitorPhaseInput<TraversalVisitor<Order.POST_ORDER, Tree, Tree>> = {
+  groups: [
+    { commandCommitMode: 'afterGroup', visitors: [
+      { visitor: () => { calls.push('first'); }, priority: 1 },
+    ] },
+    { visitors: [{ visitor: () => { calls.push('second'); }, priority: 1000 }] },
+  ],
+};
+const traversal = new DepthFirstTraversal({
+  traversableTree: source, visitors: { [Order.POST_ORDER]: definition },
+});
+traversal.setVisitorsFor(Order.POST_ORDER, traversal.listVisitorsFor(Order.POST_ORDER));
+traversal.makeRunner().run();
+traverseDepthFirst({ traversableTree: source, visitors: { [Order.POST_ORDER]: definition } });
+if (calls.join(',') !== 'first,second,first,second') throw new Error('Unexpected group order');
+```
+
+Explicit groups run in array order, sorting priority only inside a group. Policy has one owner: a member's `commandCommitMode` or `resolutionStyle` is invalid, even if undefined. Empty groups validate then are inert, including append and list/set; they create no ordering barrier. `addVisitorGroupFor` appends a group. Individual `addVisitorFor` appends to a final implicit flat group. Full normalized list/set arrays preserve group metadata; when regrouping, map records to `{ visitor, priority }` and choose the new group policy. Callbacks see previously committed chain state; callbacks in an uncommitted batch share that prior state. HALT preserves continuation; explicit DEFER discards only its current uncommitted batch. Concrete sync/async receivers retain inference; narrow a mixed traversal receiver union before inline callback registration. Standalone mode strings need `as const` or a public input annotation on TypeScript 4.7.
 
 ## Phase-aware visitors
 
@@ -91,6 +127,8 @@ The boolean settlement forms remain deprecated inputs; the old progress string i
 
 `found` contains non-null content. `omitted` deliberately excludes a vertex and satisfies its W and C prerequisites. `missing` cannot satisfy prerequisites and is valid only from `resolvePrerequisite`; it is invalid from `makeRoot`/`makeVertex`. Bare `null` is invalid everywhere; bare `undefined` is invalid from root/hint callbacks. Existing untagged `MakeVertexResult` and lookup-only `undefined` remain deprecated inputs. These rules add no silent omission path.
 
+<!-- standalone -->
+
 ```ts
 import type {
   PrerequisiteResolutionResult,
@@ -110,7 +148,7 @@ function resolvePrerequisite(id: unknown): PrerequisiteResolutionResult<Tasks> {
 }
 ```
 
-Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Roots/hints accept `SourceVertexResult`; prerequisite lookup accepts `PrerequisiteResolutionResult`, including `MissingVertexResult`. Async adapters accept value-or-promise equivalents.
+Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Graph roots/hints accept `SourceVertexResult`; prerequisite lookup accepts `PrerequisiteResolutionResult`, including `MissingVertexResult`. Tree adapters instead use `MakeTreeVertexResult<T>`, `TreeFoundVertexResult<T>`, `TreeOmittedVertexResult`, and `TreeSourceVertexResult<T>`. Remove tree annotations using graph-capable result types (or infer them). Tree callbacks reject `vertexId`, `dependsOn`, and `dependsOnComplete`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Async adapters accept value-or-promise equivalents.
 
 ## Child hint command
 
@@ -141,7 +179,7 @@ const dag = traverseDag({
 });
 ```
 
-Use the same options shapes with `traverseDepthFirstAsync`, `traverseBreadthFirstAsync`, and `traverseDagAsync`; they return promises of runners, while synchronous helpers return runners. DAG helpers accept exactly one `traversableGraph`/`traversableTree`; tree helpers use `traversableTree`. Omit `visitors` to just resolve the source. Helper maps contain callbacks, while constructor/configuration maps contain full registration records. Direct positional calls remain deprecated overloads with their established behavior; the canonical form has no second nested source/configuration location.
+Use the same options shapes with `traverseDepthFirstAsync`, `traverseBreadthFirstAsync`, and `traverseDagAsync`; they return promises of runners, while synchronous helpers return runners. DAG helpers accept exactly one `traversableGraph`/`traversableTree`; tree helpers use `traversableTree`. Omit `visitors` to just resolve the source. Helper and constructor/configuration maps share the visitor definitions and explicit groups described above; normalized full records remain accepted. Direct positional calls remain deprecated overloads with their established behavior; the canonical form has no second nested source/configuration location.
 
 TypeScript may reject calling a generic union such as `const traverse = asyncMode ? traverseDagAsync : traverseDag`. Branch at the call site or select wrapper functions with concrete argument types. Direct canonical and positional calls retain phase inference and command safety.
 
@@ -160,3 +198,25 @@ Legacy construction and property access remain accepted. Mixed shapes, including
 `Vertex` owns enumerable `$data` and `$childHints`; deprecated `$d`/`$c` are prototype getters. Consequently `Object.keys(vertex)`, `{ ...vertex }`, and JSON serialization emit canonical fields even when constructed with legacy content. Update serializers, snapshot expectations, and consumers of stored vertex-shaped JSON. Data follows ordinary JSON rules (for example, undefined data is omitted by JSON). Built-in object and resolved-tree source adapters emit canonical content. Resolved-tree structural child collections remain actual references and are not renamed to hints.
 
 Package root, subpaths, namespaces, classes, commands, and the deprecated sentinel retain shared CJS/ESM runtime and declaration identity. Node 22.12.0+, Bun 1.4.4, and minimum TypeScript 4.7.4 remain verified compatibility targets. See [testing](testing.md) for the full checks.
+
+## Independent execution selectors
+
+Use `emitPhases` for event selection and `visitorPhases: 'all' | { include: [...] } | { exclude: [...] }` for callbacks. Empty include means no callbacks; empty exclude means all callbacks; empty emit means no events. Every execution request patches fields independently: omitted fields, `{}`, and no object retain previous effective settings. Caller arrays are copied on activation; already-admitted chains retain their snapshot until the boundary finishes.
+
+Deprecated `iterateOver` aliases emission. A non-null legacy enable list wins over disable, including empty enable. Legacy fields patch against retained effective legacy fields, so an emission-only change preserves callbacks; disable-only updates cannot override a retained enable. Clearing enable with null activates the retained disable list. A canonical callback selector replaces that concern and clears dormant legacy fields. Equivalent canonical/legacy aliases for one concern in one request reject, even with undefined alias fields; unrelated concerns may mix. Invalid phases/malformed selectors reject before changing configuration. Inspection includes both views; project the desired fields when building another request.
+
+## Stop reasons
+
+Statuses remain compatible. `getStopReason()` and inspection `stopReason` return null for INITIAL/RUNNING, `paused` for HALT/iterator close after admitted chains drain, `awaitingSettlement` for deferred quiescence, and `finished`/`failed` for terminal states. Successful settlement while halted preserves the preceding reason; resume clears it until the next stop. Exact failure values remain intact. Async execution/session surfaces expose the same contract.
+
+## Typed mutation inputs and object hooks
+
+Generic `MakeMutationCommandFunction<Output, RewriteInput = Output['VertexData']>` requires full replacement by default; name an explicit rewrite-input parameter for custom adapters. Object helpers use `TO_MutationPropertyPatch<Output>` (`Partial<Output['VertexData']>`), supporting typed key-only/value-only patches. Incorrect key/value types and incomplete generic replacements now fail compilation. Omit `rewrite` for no patch; present null/undefined/primitive rewrites throw TypeError. `{ rewrite: { value: undefined } }` sets undefined when allowed by the output type. Assembler errors retain exact identity.
+
+Use `resolveVertexHook` in object adapters and `rewriteObject`: return `{ kind: 'useDefault' }`, tagged tree `found` replacement content, or `{ kind: 'omitted', satisfiesDependencies: true }`. Null/undefined canonical results and graph metadata reject. The hook applies to child/hint resolution. Deprecated `makeVertexHook`/`returnMe` normalize to the same behavior; two active hooks reject. Undefined hooks and the old null-disabled hook do not conflict. Cycle checks and shallow identities remain unchanged.
+
+## Safe queries and identity names
+
+Use `runner.getResolvedTreeView()` or `ResolvedTree.asReadOnly()` for a stable live shallow `ResolvedTreeView<T>` facade. Its root/has/children/parent/path/context queries have readonly collection/context types; no mutators or raw records are exposed. Tree children arrays and context objects are now detached copies. Refs, hints and data keep shallow identity. Mutating a query result no longer edits topology. DAG tree-source mode returns its internal tree view; graph-source mode returns null. `getResolvedTree()` and raw records remain advanced editing APIs with caller-owned consistency; no durable/deep snapshot is added.
+
+Use `CTTRef.getRefId()` for the generated reference UUID, `ResolvedGraph.getVertexId(ref)` for the arbitrary host ID, and `getVertexRefById(id)` for the reference lookup. These names also exist on graph snapshots/facades. Deprecated `getId`/`getIdOf`/`getVertexById` preserve identity as aliases. Host IDs, including explicit undefined, symbols and object references, are not coerced.

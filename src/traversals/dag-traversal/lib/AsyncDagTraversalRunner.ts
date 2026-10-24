@@ -1,3 +1,5 @@
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import type {
   DagSummary,
   DagSettlementOutcome,
@@ -167,6 +169,10 @@ export class AsyncDagTraversalRunner<
     const kernel = (this.kernel = new TraversalKernel({
       kind: 'dag',
       discovery: input.discovery ?? 'lazy',
+      workCompletion:
+        this.icfg.workCompletion === undefined
+          ? 'visitorReturn'
+          : this.icfg.workCompletion,
       ...(input.rootDependencies === undefined
         ? {}
         : { rootDependencies: input.rootDependencies }),
@@ -232,12 +238,23 @@ export class AsyncDagTraversalRunner<
     return this.execution.getStatus();
   }
 
+  getStopReason(): TraversalStopReason | null {
+    return this.execution.getStopReason();
+  }
+
   isHalted(): boolean {
     return this.execution.isHalted();
   }
 
   inspect(): CoreInspection {
     return this.execution.inspect();
+  }
+
+  getResolvedTreeView(): ResolvedTreeView<T | R> | null {
+    return (
+      this.resolvedGraphsContainer.treeContainer?.resolvedTree.asReadOnly() ??
+      null
+    );
   }
 
   getResolvedGraph(): ResolvedGraph<T | R> {
@@ -255,19 +272,11 @@ export class AsyncDagTraversalRunner<
   getIterable(
     config?: DagTraversalRunnerIterableConfigInput,
   ): AsyncGenerator<Event<T, R>, void, unknown> {
-    return this.execution.getIterable(
-      config === undefined
-        ? undefined
-        : makeEffectiveDagTraversalRunnerIterableConfig(config),
-    );
+    return this.execution.getIterable(config);
   }
 
   async run(config?: DagTraversalRunnerIterableConfigInput): Promise<this> {
-    await this.execution.run(
-      config === undefined
-        ? undefined
-        : makeEffectiveDagTraversalRunnerIterableConfig(config),
-    );
+    await this.execution.run(config);
     return this;
   }
 
@@ -289,11 +298,18 @@ export class AsyncDagTraversalRunner<
 
   private metadataFor(order: DagTraversalOrder) {
     return this.icfg.visitors[order].map(
-      ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+      ({
         addedIndex,
         priority,
         resolutionStyle,
         commandCommitMode,
+        visitorGroup,
+      }) => ({
+        addedIndex,
+        priority,
+        resolutionStyle,
+        commandCommitMode,
+        visitorGroup,
       }),
     );
   }
@@ -331,14 +347,10 @@ export class AsyncDagTraversalRunner<
       isHaltRequested: () => control.isHaltRequested(),
       resume: (config) => {
         policy.claim();
-        if (config !== undefined) {
-          this.iterableConfig = makeEffectiveDagTraversalRunnerIterableConfig(
-            config as DagTraversalRunnerIterableConfig,
-          );
-        }
-        control.resume(this.iterableConfig);
+        control.resume(config);
       },
       getStatus: () => control.getStatus(),
+      getStopReason: () => control.getStopReason(),
       getFailure: () =>
         control.getFailure() ??
         (this.state.status === TraversalRunnerStatus.FAILED

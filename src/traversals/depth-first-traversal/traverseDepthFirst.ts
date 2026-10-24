@@ -1,3 +1,4 @@
+import type { VisitorPhaseInput } from '@core/TraversalVisitor';
 import { DepthFirstTraversal } from '@depth-first-traversal/DepthFirstTraversal';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversableTree } from '@core/TraversableTree';
@@ -36,7 +37,9 @@ export type DepthFirstTraversalHelperOptions<
   'visitors' | 'traversableTree'
 > & { traversableTree: TraversableTree<TTP, RW_TTP> } & {
   visitors?: {
-    [K in DepthFirstTraversalOrder]?: TraversalVisitor<K, TTP, RW_TTP>;
+    [K in DepthFirstTraversalOrder]?: VisitorPhaseInput<
+      TraversalVisitor<K, TTP, RW_TTP>
+    >;
   };
 };
 
@@ -66,16 +69,14 @@ export function traverseDepthFirst<
   config?: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
 ): DepthFirstTraversalRunner<TTP, RW_TTP> {
   let traversalConfig: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>;
-  let preOrderVisitor = visitors?.preOrderVisitor;
-  let inOrderVisitor = visitors?.inOrderVisitor;
-  let postOrderVisitor = visitors?.postOrderVisitor;
+  const preOrderVisitor = visitors?.preOrderVisitor;
+  const inOrderVisitor = visitors?.inOrderVisitor;
+  const postOrderVisitor = visitors?.postOrderVisitor;
   if (arguments.length === 1) {
-    const { visitors: callbacks, ...options } =
-      sourceOrOptions as DepthFirstTraversalHelperOptions<TTP, RW_TTP>;
-    traversalConfig = options;
-    preOrderVisitor = callbacks?.[DepthFirstTraversalOrder.PRE_ORDER];
-    inOrderVisitor = callbacks?.[DepthFirstTraversalOrder.IN_ORDER];
-    postOrderVisitor = callbacks?.[DepthFirstTraversalOrder.POST_ORDER];
+    traversalConfig = sourceOrOptions as DepthFirstTraversalHelperOptions<
+      TTP,
+      RW_TTP
+    >;
   } else {
     traversalConfig = {
       traversableTree: sourceOrOptions as TraversableTree<TTP, RW_TTP>,

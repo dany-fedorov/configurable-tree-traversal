@@ -1,3 +1,4 @@
+import { assertNoTreeMetadata } from '@core/drivers/normalizeSourceResult';
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 import { dependencyMilestoneCycles } from './dependencyMilestones';
@@ -816,12 +817,8 @@ export class GraphScheduling<
     ) {
       throw new TypeError('priority metadata is not supported');
     }
-    if (
-      this.container.sourceMode === 'tree' &&
-      (hasVertexId(result) ||
-        Object.prototype.hasOwnProperty.call(result, 'dependsOn'))
-    ) {
-      throw new Error('Tree-source results cannot contain graph metadata');
+    if (this.container.sourceMode === 'tree') {
+      assertNoTreeMetadata(result);
     }
   }
 

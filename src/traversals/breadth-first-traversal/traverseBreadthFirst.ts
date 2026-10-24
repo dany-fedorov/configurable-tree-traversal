@@ -1,3 +1,4 @@
+import type { VisitorPhaseInput } from '@core/TraversalVisitor';
 import type { TraversableTree } from '@core/TraversableTree';
 import type { TraversalVisitor } from '@core/TraversalVisitor';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
@@ -15,7 +16,9 @@ export type BreadthFirstTraversalHelperOptions<
   'visitors' | 'traversableTree'
 > & { traversableTree: TraversableTree<TTP, RW_TTP> } & {
   visitors?: {
-    [K in BreadthFirstTraversalOrder]?: TraversalVisitor<K, TTP, RW_TTP>;
+    [K in BreadthFirstTraversalOrder]?: VisitorPhaseInput<
+      TraversalVisitor<K, TTP, RW_TTP>
+    >;
   };
 };
 
@@ -45,12 +48,12 @@ export function traverseBreadthFirst<
   config?: BreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
 ): BreadthFirstTraversalRunner<TTP, RW_TTP> {
   let traversalConfig: BreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>;
-  let levelOrderVisitor = visitor;
+  const levelOrderVisitor = visitor;
   if (arguments.length === 1) {
-    const { visitors: callbacks, ...options } =
-      sourceOrOptions as BreadthFirstTraversalHelperOptions<TTP, RW_TTP>;
-    traversalConfig = options;
-    levelOrderVisitor = callbacks?.[BreadthFirstTraversalOrder.LEVEL_ORDER];
+    traversalConfig = sourceOrOptions as BreadthFirstTraversalHelperOptions<
+      TTP,
+      RW_TTP
+    >;
   } else {
     traversalConfig = {
       traversableTree: sourceOrOptions as TraversableTree<TTP, RW_TTP>,

@@ -1,6 +1,14 @@
+import type { VisitorRecord } from '@core/graph/types';
 import type { NoInferPhase } from '@core/TraversalVisitor';
-import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
-import { sortVisitorRecords } from '@core/executeVisitors';
+import {
+  appendVisitorDefinition,
+  appendVisitorGroup,
+  normalizeVisitorDefinitions,
+} from '@core/visitors/normalizeVisitorDefinitions';
+import type {
+  VisitorPhaseInput,
+  VisitorGroupDefinition,
+} from '@core/TraversalVisitor';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { Traversal } from '@core/Traversal';
 import type {
@@ -15,7 +23,6 @@ import {
 import type {
   TraversalVisitor,
   TraversalVisitorFunctionOptions,
-  TraversalVisitorRecord,
 } from '@core/TraversalVisitor';
 import { initVisitors } from '@depth-first-traversal/init-helpers/initVisitors';
 import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
@@ -57,25 +64,37 @@ export class DepthFirstTraversal<
     visitor: TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    const effectiveOptions = normalizeVisitorOptions(options);
-    (this.visitors[order] as TraversalVisitorRecord<ORDER, TTP, RW_TTP>[]).push(
-      {
-        visitor,
-        addedIndex:
-          this.visitors[order].reduce(
-            (max, record) => Math.max(max, record.addedIndex),
-            -1,
-          ) + 1,
-        ...effectiveOptions,
-      },
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>[]
+      >
+    )[order] = appendVisitorDefinition<TraversalVisitor<ORDER, TTP, RW_TTP>>(
+      this.visitors[order] as VisitorRecord<
+        TraversalVisitor<ORDER, TTP, RW_TTP>
+      >[],
+      { visitor, ...options },
     );
-    this.visitors[order].sort((a, b) => {
-      if (b.priority !== a.priority) {
-        return b.priority - a.priority;
-      } else {
-        return a.addedIndex - b.addedIndex;
-      }
-    });
+    return this;
+  }
+
+  addVisitorGroupFor<ORDER extends DepthFirstTraversalOrder>(
+    order: ORDER,
+    group: VisitorGroupDefinition<
+      TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
+    >,
+  ): this {
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>[]
+      >
+    )[order] = appendVisitorGroup<TraversalVisitor<ORDER, TTP, RW_TTP>>(
+      this.visitors[order] as VisitorRecord<
+        TraversalVisitor<ORDER, TTP, RW_TTP>
+      >[],
+      group,
+    );
     return this;
   }
 
@@ -87,14 +106,17 @@ export class DepthFirstTraversal<
 
   setVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
     order: ORDER,
-    visitorRecords: TraversalVisitorRecord<NoInferPhase<ORDER>, TTP, RW_TTP>[],
+    input: VisitorPhaseInput<
+      TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
+    >,
   ): this {
     (
       this.visitors as Record<
         ORDER,
-        TraversalVisitorRecord<ORDER, TTP, RW_TTP>[]
+        VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>[]
       >
-    )[order] = sortVisitorRecords(visitorRecords);
+    )[order] =
+      normalizeVisitorDefinitions<TraversalVisitor<ORDER, TTP, RW_TTP>>(input);
     return this;
   }
 

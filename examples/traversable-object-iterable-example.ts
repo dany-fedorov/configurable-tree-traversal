@@ -41,11 +41,11 @@ const obj = {
 };
 
 const traversableTree = new TraversableObjectTree(obj, {
-  makeVertexHook: (vertexHint) => {
+  resolveVertexHook: (vertexHint) => {
     if (vertexHint.value === null) {
-      return { returnMe: null };
+      return { kind: 'omitted', satisfiesDependencies: true };
     }
-    return {};
+    return { kind: 'useDefault' };
   },
 });
 const traversal = new DepthFirstTraversal({
@@ -102,8 +102,8 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
 const traversalRunner = traversal.makeRunner();
 
 const traversalIterable = traversalRunner.getIterable({
-  enableVisitorFunctionsFor: [DepthFirstTraversalOrder.POST_ORDER],
-  iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
+  visitorPhases: { include: [DepthFirstTraversalOrder.POST_ORDER] },
+  emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
 });
 
 for (const { vertex, order } of traversalIterable) {
@@ -125,7 +125,7 @@ console.log('----');
 console.log('----');
 
 const traversalIterable2 = traversalRunner.getIterable({
-  enableVisitorFunctionsFor: [],
+  visitorPhases: { include: [] },
 });
 
 for (const { vertex, order } of traversalIterable2) {
@@ -143,7 +143,7 @@ console.log('----');
 console.log('----');
 
 const traversalIterable3 = traversalRunner.getIterable({
-  enableVisitorFunctionsFor: [],
+  visitorPhases: { include: [] },
 });
 
 for (const { vertex, order } of traversalIterable3) {

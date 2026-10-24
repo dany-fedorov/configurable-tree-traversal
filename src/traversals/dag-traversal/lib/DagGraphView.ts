@@ -8,6 +8,14 @@ export function makeDagGraphView<T extends TreeTypeParameters>(
   hiddenRoot: () => Ref<T> | null,
 ): ResolvedGraph<T> {
   const visible = (ref: Ref<T>) => ref !== hiddenRoot();
+  const getVertexRefById = (id: unknown) => {
+    const ref = graph.getVertexRefById(id);
+    return ref !== null && visible(ref) ? ref : null;
+  };
+  const getVertexId = (ref: Ref<T>) => {
+    if (!visible(ref)) throw new Error('Unknown vertex reference');
+    return graph.getVertexId(ref);
+  };
   return Object.freeze({
     get: (ref: Ref<T>) => {
       const vertex = visible(ref) ? graph.get(ref) : null;
@@ -24,14 +32,10 @@ export function makeDagGraphView<T extends TreeTypeParameters>(
     has: (ref: Ref<T>) => visible(ref) && graph.has(ref),
     getRoot: () => null,
     getVertexRefs: () => graph.getVertexRefs().filter(visible),
-    getVertexById: (id: unknown) => {
-      const ref = graph.getVertexById(id);
-      return ref !== null && visible(ref) ? ref : null;
-    },
-    getIdOf: (ref: Ref<T>) => {
-      if (!visible(ref)) throw new Error('Unknown vertex reference');
-      return graph.getIdOf(ref);
-    },
+    getVertexRefById,
+    getVertexId,
+    getVertexById: getVertexRefById,
+    getIdOf: getVertexId,
     getStatusOf: (ref: Ref<T>) =>
       visible(ref) ? graph.getStatusOf(ref) : null,
     getParentsOf: (ref: Ref<T>) =>

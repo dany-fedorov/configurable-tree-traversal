@@ -15,7 +15,7 @@ import { Vertex } from '../src/core/Vertex';
 type Tree = TreeTypeParameters<string, string>;
 type Record = TraversalVisitorRecord<'ORDER', Tree, Tree>;
 
-test('yields for an external halt committed by an empty concurrent group', () => {
+test('yields for an external halt after the first callback batch', () => {
   const vertexRef = new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
   const calls: string[] = [];
   let halted = false;
@@ -49,7 +49,7 @@ test('yields for an external halt committed by an empty concurrent group', () =>
   });
 
   expect(execution.next()).toEqual({ done: false, value: undefined });
-  expect(calls).toEqual([]);
+  expect(calls).toEqual(['sequential']);
   halted = false;
   expect(execution.next()).toEqual({ done: true, value: undefined });
   expect(calls).toEqual(['sequential']);
@@ -94,7 +94,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
   };
   const execution = executeVisitors({
     vertexRef,
-    records,
+    records: records.slice().reverse(),
     state,
     getOptions: (visitorRecord, vertexVisitorsChainState) => ({
       resolvedTree: null as never,

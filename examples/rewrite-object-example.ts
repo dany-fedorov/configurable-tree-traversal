@@ -23,11 +23,11 @@ console.log(jsonStringifySafe(obj, 2));
 console.log();
 
 const { outputObject } = rewriteObject(obj, {
-  makeVertexHook: (vertexHint) => {
+  resolveVertexHook: (vertexHint) => {
     if (vertexHint.value === null) {
-      return { returnMe: null };
+      return { kind: 'omitted', satisfiesDependencies: true };
     }
-    return {};
+    return { kind: 'useDefault' };
   },
   rewrite: function rewrite({ key, value }, options) {
     const depth =

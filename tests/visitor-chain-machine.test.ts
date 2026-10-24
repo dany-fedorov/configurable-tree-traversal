@@ -22,24 +22,17 @@ const record = (resolutionStyle: Style) => ({
   resolutionStyle,
 });
 
-test('commits an empty concurrent group before sequential work', () => {
+test('starts directly with the first callback and committed state is initially null', () => {
   const chain = new VisitorChain<Tree>({
     ref: ref(),
     records: [record(Style.SEQUENTIAL)],
     metadata: metadata(),
     family: 'tree',
   });
-
-  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
-  chain.commitBatch({
-    halt: false,
-    deleted: false,
-    vertexVisitorsChainState: undefined,
-  });
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 0,
-    metadata: { vertexVisitorsChainState: undefined },
+    metadata: { vertexVisitorsChainState: null },
   });
 });
 
@@ -51,8 +44,6 @@ test('waits for a sequential command batch and resumes after its halt', () => {
     family: 'tree',
   });
 
-  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
-  chain.commitBatch({ halt: false, deleted: false });
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 0,
@@ -82,9 +73,9 @@ test('batches concurrent records in input order and passes null chain state', ()
   const chain = new VisitorChain<Tree>({
     ref: ref(),
     records: [
+      record(Style.CONCURRENT),
+      record(Style.CONCURRENT),
       record(Style.SEQUENTIAL),
-      record(Style.CONCURRENT),
-      record(Style.CONCURRENT),
     ],
     metadata: metadata(),
     family: 'dag',
@@ -92,7 +83,7 @@ test('batches concurrent records in input order and passes null chain state', ()
 
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
-    recordIndex: 1,
+    recordIndex: 0,
     metadata: { vertexVisitorsChainState: null },
   });
   chain.submit({
@@ -101,7 +92,7 @@ test('batches concurrent records in input order and passes null chain state', ()
   });
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
-    recordIndex: 2,
+    recordIndex: 1,
     metadata: {
       curVertexVisitorVisitIndex: 1,
       vertexVisitorsChainState: null,
@@ -125,7 +116,7 @@ test('batches concurrent records in input order and passes null chain state', ()
   });
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
-    recordIndex: 0,
+    recordIndex: 2,
     metadata: {
       curVertexVisitorVisitIndex: 2,
       vertexVisitorsChainState: undefined,
@@ -141,8 +132,6 @@ test('does not pause for a halt that was not requested by its command batch', ()
     family: 'dag',
   });
 
-  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
-  chain.commitBatch({ halt: false, deleted: false });
   chain.poll();
   chain.submit({ ok: true, value: undefined });
   expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
@@ -158,8 +147,6 @@ test('stops before another callback after deletion or invalidation', () => {
     metadata: metadata(),
     family: 'tree',
   });
-  expect(deleted.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
-  deleted.commitBatch({ halt: false, deleted: false });
   deleted.poll();
   deleted.submit({ ok: true, value: undefined });
   deleted.poll();
@@ -192,8 +179,6 @@ test('rejects submit and commit calls outside their transition boundaries', () =
     /no command batch to commit/i,
   );
 
-  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
-  chain.commitBatch({ halt: false, deleted: false });
   chain.poll();
   chain.submit({ ok: true, value: undefined });
   expect(() => chain.commitBatch({ halt: false, deleted: false })).toThrow(
@@ -227,8 +212,6 @@ test('rejects every unknown style at admission and rethrows callback errors', ()
     family: 'tree',
   });
   const failure = { reason: 'visitor failed' };
-  expect(chain.poll()).toEqual({ kind: 'COMMANDS', commands: [] });
-  chain.commitBatch({ halt: false, deleted: false });
   chain.poll();
   let caught: unknown;
   try {
@@ -253,9 +236,6 @@ test('tree visitor chains reject canonical deferral before exposing a command ba
       vertexVisitorsChainState: null,
     },
   });
-  // First poll commits the empty afterGroup batch.
-  expect(chain.poll().kind).toBe('COMMANDS');
-  chain.commitBatch({ halt: false, deleted: false });
   expect(chain.poll().kind).toBe('VISIT');
   expect(() =>
     chain.submit({

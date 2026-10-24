@@ -119,9 +119,47 @@ export type TraversalVisitorFunctionOptions = {
   resolutionStyle?: TraversalVisitorFunctionResolutionStyle | undefined;
 };
 
+/** A callback or caller definition; registration bookkeeping is assigned internally. */
+export type VisitorDefinition<F> =
+  | F
+  | ({
+      visitor: F;
+      /** @deprecated Registration indexes are assigned internally. */
+      addedIndex?: number;
+    } & Partial<TraversalVisitorFunctionOptions>);
+
+export type VisitorGroupMember<F> =
+  | F
+  | {
+      visitor: F;
+      priority?: number;
+      commandCommitMode?: never;
+      resolutionStyle?: never;
+    };
+
+export type VisitorGroupDefinition<F> = {
+  visitors: readonly VisitorGroupMember<F>[];
+  commandCommitMode?: CommandCommitMode;
+};
+
+export type VisitorPhaseInput<F> =
+  | VisitorDefinition<F>
+  | readonly VisitorDefinition<F>[]
+  | { groups: readonly VisitorGroupDefinition<F>[] };
+
+/** Immutable execution boundary retained by normalized list/set records. */
+export type VisitorGroupMetadata = Readonly<{
+  identity: symbol;
+  explicit: boolean;
+  commandCommitMode: CommandCommitMode;
+}>;
+
 /** Descriptive callback-context metadata. Executable records remain on the traversal. */
 export type VisitorRegistrationMetadata = Readonly<
-  TraversalVisitorFunctionOptions & { addedIndex: number }
+  TraversalVisitorFunctionOptions & {
+    addedIndex: number;
+    visitorGroup?: VisitorGroupMetadata | undefined;
+  }
 >;
 
 export type TraversalVisitorRecord<
@@ -151,3 +189,10 @@ export type TraversalVisitor<
       options: TraversalVisitorInputOptions<ORDER, TTP, RW_TTP>,
     ) => RESULT | undefined | void
   : never;
+
+/** Phase-keyed caller inputs corresponding to a normalized visitor map. */
+export type VisitorInputs<M> = {
+  [K in keyof M]?: M[K] extends readonly VisitorRecord<infer F>[]
+    ? VisitorPhaseInput<F>
+    : never;
+};

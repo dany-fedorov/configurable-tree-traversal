@@ -9,7 +9,7 @@ import {
 
 type TestGraph = TreeTypeParameters<string, string>;
 
-test('the tree facade retains supplied records and live child arrays', () => {
+test('the advanced tree API retains supplied mutable records with detached child queries', () => {
   const tree = new ResolvedTree<TestGraph>();
   const ref = new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: [] }));
   const record = new VertexResolved<TestGraph>({
@@ -18,7 +18,13 @@ test('the tree facade retains supplied records and live child arrays', () => {
   });
   tree.set(ref, record);
   expect(tree.get(ref)).toBe(record);
-  expect(tree.getChildrenOf(ref)).toBe(record.getChildren());
+  expect(tree.getChildrenOf(ref)).toEqual(record.getChildren());
+  expect(tree.getChildrenOf(ref)).not.toBe(record.getChildren());
+  const child = new CTTRef(
+    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
+  );
+  record.getChildren().push(child);
+  expect(tree.getChildrenOf(ref)).toEqual([child]);
   expect(tree.getResolvedGraph().getVertexById(ref.getId())).toBe(ref);
 });
 

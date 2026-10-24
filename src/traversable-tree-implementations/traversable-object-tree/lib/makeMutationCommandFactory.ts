@@ -9,7 +9,6 @@ import type {
   MakeMutationCommandFunctionInput,
   MakeMutationCommandFunctionResult,
 } from '@core/MakeMutationCommandFunctionFactory';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
@@ -41,10 +40,18 @@ export type TO_MakeMutationCommandFunctionFactoryConfiguration<
   >;
 };
 
+/** Object helpers merge only the supplied output property fields. */
+export type TO_MutationPropertyPatch<
+  OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
+> = Partial<OUT_TO_TTP['VertexData']>;
+
 export type TO_MakeMutationCommandFactoryResult<
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
 > = TO_IsCompositeAssertionsMixin & {
-  makeMutationCommand: MakeMutationCommandFunction<OUT_TO_TTP>;
+  makeMutationCommand: MakeMutationCommandFunction<
+    OUT_TO_TTP,
+    TO_MutationPropertyPatch<OUT_TO_TTP>
+  >;
   assembleComposite: (saveToMap?: boolean) => OUT_TO_TTP['VertexData']['value'];
 };
 
@@ -58,8 +65,8 @@ export type TO_MakeMutationCommandFunctionFactory_2<
 ) => TO_MakeMutationCommandFactoryResult<OUT_TO_TTP>;
 
 export type TO_MakeMutationCommandFunctionFactory = <
-  IN_TO_TTP extends TreeTypeParameters<any, any>, // See [1]
-  OUT_TO_TTP extends TreeTypeParameters<any, any>, // See [1]
+  IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
+  OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
 >(
   input_0?: TO_MakeMutationCommandFunctionFactoryConfiguration<
     IN_TO_TTP,
@@ -151,7 +158,9 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
       }
 
       function TraversableObjectTree_makeMutationCommand_2(
-        input_2?: MakeMutationCommandFunctionInput<OUT_TO_TTP['VertexData']>,
+        input_2?: MakeMutationCommandFunctionInput<
+          TO_MutationPropertyPatch<OUT_TO_TTP>
+        >,
       ): MakeMutationCommandFunctionResult<OUT_TO_TTP> {
         const inputOk = input_2 && typeof input_2 === 'object';
         const toDelete =
@@ -160,21 +169,25 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
           input_2?.delete === true;
         const hasRewrite =
           inputOk && Object.prototype.hasOwnProperty.call(input_2, 'rewrite');
+        const rewrite = hasRewrite ? input_2.rewrite : undefined;
+        if (hasRewrite && (rewrite === null || typeof rewrite !== 'object')) {
+          throw new TypeError(
+            'rewrite must be a non-null object property patch',
+          );
+        }
         const hasRewriteValue =
-          hasRewrite &&
-          Object.prototype.hasOwnProperty.call(input_2.rewrite, 'value');
+          hasRewrite && Object.prototype.hasOwnProperty.call(rewrite, 'value');
         const hasRewriteKey =
-          hasRewrite &&
-          Object.prototype.hasOwnProperty.call(input_2.rewrite, 'key');
+          hasRewrite && Object.prototype.hasOwnProperty.call(rewrite, 'key');
         const rewriteKeyObject = !hasRewriteKey
           ? {}
           : {
-              key: input_2?.rewrite?.key,
+              key: rewrite?.key,
             };
         const rewriteValueObject = !hasRewriteValue
           ? {}
           : {
-              value: input_2?.rewrite?.value,
+              value: rewrite?.value,
             };
         if (toDelete) {
           return {

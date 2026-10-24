@@ -1,3 +1,5 @@
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTree } from '@core/ResolvedTree';
@@ -125,11 +127,18 @@ export class DepthFirstTraversalRunner<
         Object.entries(this.icfg.visitors).map(([order, records]) => [
           order,
           records.map(
-            ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+            ({
               addedIndex,
               priority,
               resolutionStyle,
               commandCommitMode,
+              visitorGroup,
+            }) => ({
+              addedIndex,
+              priority,
+              resolutionStyle,
+              commandCommitMode,
+              visitorGroup,
             }),
           ),
         ]),
@@ -146,12 +155,20 @@ export class DepthFirstTraversalRunner<
     return this.state.status;
   }
 
+  getStopReason(): TraversalStopReason | null {
+    return this.kernel.getStopReason();
+  }
+
   isHalted(): boolean {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
   }
 
   getResolvedTree(): ResolvedTree<TTP | RW_TTP> {
     return this.resolvedTreesContainer.resolvedTree;
+  }
+
+  getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP> {
+    return this.getResolvedTree().asReadOnly();
   }
 
   getResolvedGraph(): ResolvedGraph<TTP | RW_TTP> {
@@ -207,10 +224,7 @@ export class DepthFirstTraversalRunner<
     if (this.activeIterator)
       throw new Error('A traversal runner can only have one active iterator');
     if (this.getStatus() === TraversalRunnerStatus.FINISHED) return;
-    if (config !== undefined)
-      this.iterableConfig =
-        makeEffectiveDepthFirstTraversalRunnerIterableConfig(config);
-    this.kernel.resume(this.iterableConfig);
+    this.kernel.resume(config);
     if (this.curGenerator === null)
       this.curGenerator = this.getInternalGenerator();
     this.activeIterator = true;

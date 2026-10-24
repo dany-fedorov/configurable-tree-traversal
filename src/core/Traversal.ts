@@ -4,6 +4,8 @@ import type {
   NoInferPhase,
   TraversalVisitorFunctionOptions,
   TraversalVisitorRecord,
+  VisitorPhaseInput,
+  VisitorGroupDefinition,
 } from '@core/TraversalVisitor';
 import type { TraversalRunner } from '@core/TraversalRunner';
 
@@ -18,9 +20,18 @@ export abstract class Traversal<
     options?: Partial<TraversalVisitorFunctionOptions>,
   ): this;
 
+  abstract addVisitorGroupFor<PHASE extends ORDER>(
+    order: PHASE,
+    group: VisitorGroupDefinition<
+      TraversalVisitor<NoInferPhase<PHASE>, TTP, RW_TTP>
+    >,
+  ): this;
+
   abstract setVisitorsFor<PHASE extends ORDER>(
     order: PHASE,
-    visitorRecords: TraversalVisitorRecord<NoInferPhase<PHASE>, TTP, RW_TTP>[],
+    visitorRecords: VisitorPhaseInput<
+      TraversalVisitor<NoInferPhase<PHASE>, TTP, RW_TTP>
+    >,
   ): this;
 
   abstract listVisitorsFor<PHASE extends ORDER>(

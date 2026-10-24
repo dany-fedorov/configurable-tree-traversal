@@ -145,6 +145,46 @@ describe('object identity bookkeeping', () => {
     );
   });
 
+  test('retains hook-substituted ancestor identity after data rewriting', () => {
+    const branch: { self?: unknown } = {};
+    branch.self = branch;
+    const traversal = new DepthFirstTraversal({
+      traversableTree: new TraversableObjectTree(
+        { branch: 0 },
+        {
+          resolveVertexHook: (hint) =>
+            hint.key === 'branch'
+              ? {
+                  kind: 'found',
+                  vertex: {
+                    vertexContent: {
+                      $data: { key: 'branch', value: branch },
+                      $childHints: [{ key: 'self', value: branch }],
+                    },
+                  },
+                }
+              : { kind: 'useDefault' },
+        },
+      ),
+    });
+    traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+      if (vertex.getData().key === 'branch') {
+        return {
+          commands: [
+            {
+              commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+              commandArguments: { newData: { key: 'branch', value: {} } },
+            },
+          ],
+        };
+      }
+      return undefined;
+    });
+    expect(() => traversal.makeRunner().run()).toThrow(
+      'Object identity cycle detected at $.branch.self; value repeats ancestor at $.branch',
+    );
+  });
+
   test('a rewritten root keeps its original child hints after data rewriting', () => {
     const visited: PropertyKey[] = [];
     const traversal = new DepthFirstTraversal({
@@ -373,6 +413,214 @@ describe('public mutation command factory', () => {
     };
     return { vertex, options };
   };
+
+  test.each([null, undefined, 3, 'invalid', true, Symbol('patch')])(
+    'rejects malformed rewrite patch %p before assembly or mutation',
+    (rewrite) => {
+      const { vertex, options } = makeArguments({ child: 1 });
+      const assembledMap = new Map();
+      let assemblyCount = 0;
+      const mutation = TraversableObjectTree.makeMutationCommandFactory<
+        ObjectTree,
+        ObjectTree
+      >({
+        assembledMap,
+        assembleObject: () => {
+          assemblyCount += 1;
+          return {};
+        },
+      })(vertex, options);
+      const before = vertex.getData();
+      const input = { rewrite } as unknown as Parameters<
+        typeof mutation.makeMutationCommand
+      >[0];
+
+      expect(() => mutation.makeMutationCommand(input)).toThrow(TypeError);
+      expect(() => mutation.makeMutationCommand(input)).toThrow(
+        /rewrite.*non-null object.*patch/i,
+      );
+      expect(vertex.getData()).toBe(before);
+      expect(assembledMap.size).toBe(0);
+      expect(assemblyCount).toBe(0);
+    },
+  );
+
+  test.each([null, undefined, 3, 'invalid', true, Symbol('patch')])(
+    'rejects an invalid first accessor patch %p without consuming later values',
+    (firstPatch) => {
+      const { vertex, options } = makeArguments({ child: 1 });
+      const before = vertex.getData();
+      const assembledMap = new Map();
+      let assemblyCount = 0;
+      let reads = 0;
+      const { makeMutationCommand } =
+        TraversableObjectTree.makeMutationCommandFactory<
+          ObjectTree,
+          ObjectTree
+        >({
+          assembledMap,
+          assembleObject: () => {
+            assemblyCount += 1;
+            return {};
+          },
+        })(vertex, options);
+      const input = {
+        get rewrite() {
+          return ++reads === 1 ? firstPatch : {};
+        },
+      } as unknown as Parameters<typeof makeMutationCommand>[0];
+
+      expect(() => makeMutationCommand(input)).toThrow(
+        /rewrite.*non-null object.*patch/i,
+      );
+      expect(reads).toBe(1);
+      expect(assemblyCount).toBe(0);
+      expect(assembledMap.size).toBe(0);
+      expect(vertex.getData()).toBe(before);
+    },
+  );
+
+  test.each([
+    {
+      patch: {},
+      newData: { key: 'root', value: { assembled: true } },
+      assemblies: 1,
+    },
+    {
+      patch: { key: 'captured' },
+      newData: { key: 'captured', value: { assembled: true } },
+      assemblies: 1,
+    },
+    {
+      patch: { value: undefined },
+      newData: { key: 'root', value: undefined },
+      assemblies: 0,
+    },
+    {
+      patch: { key: 'captured', value: 4 },
+      newData: { key: 'captured', value: 4 },
+      assemblies: 0,
+    },
+  ])(
+    'reads a valid accessor patch once and consumes only $patch',
+    ({ patch, newData, assemblies }) => {
+      const { vertex, options } = makeArguments({ child: 1 });
+      const before = vertex.getData();
+      const assembledMap = new Map();
+      let assemblyCount = 0;
+      let reads = 0;
+      const { makeMutationCommand } =
+        TraversableObjectTree.makeMutationCommandFactory<
+          ObjectTree,
+          ObjectTree
+        >({
+          assembledMap,
+          assembleObject: () => {
+            assemblyCount += 1;
+            return { assembled: true };
+          },
+        })(vertex, options);
+      const input = {
+        get rewrite() {
+          return ++reads <= 2 ? patch : 3;
+        },
+      } as unknown as Parameters<typeof makeMutationCommand>[0];
+
+      expect(makeMutationCommand(input)).toEqual({
+        commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+        commandArguments: { newData },
+      });
+      expect(reads).toBe(1);
+      expect(assemblyCount).toBe(assemblies);
+      expect(assembledMap.size).toBe(0);
+      expect(vertex.getData()).toBe(before);
+    },
+  );
+
+  test.each([undefined, { getterFailure: true }])(
+    'preserves exact accessor error %p before assembly or mutation',
+    (error) => {
+      const { vertex, options } = makeArguments({ child: 1 });
+      const before = vertex.getData();
+      const assembledMap = new Map();
+      let assemblyCount = 0;
+      let reads = 0;
+      const { makeMutationCommand } =
+        TraversableObjectTree.makeMutationCommandFactory<
+          ObjectTree,
+          ObjectTree
+        >({
+          assembledMap,
+          assembleObject: () => {
+            assemblyCount += 1;
+            return {};
+          },
+        })(vertex, options);
+      let didThrow = false;
+      try {
+        makeMutationCommand({
+          get rewrite(): never {
+            reads += 1;
+            throw error;
+          },
+        });
+      } catch (thrown) {
+        didThrow = true;
+        expect(thrown).toBe(error);
+      }
+      expect(didThrow).toBe(true);
+      expect(reads).toBe(1);
+      expect(assemblyCount).toBe(0);
+      expect(assembledMap.size).toBe(0);
+      expect(vertex.getData()).toBe(before);
+    },
+  );
+
+  test('honors own undefined values and key-only patches on primitives', () => {
+    const { vertex, options } = makeArguments(1);
+    const { makeMutationCommand } =
+      TraversableObjectTree.makeMutationCommandFactory<
+        ObjectTree,
+        ObjectTree
+      >()(vertex, options);
+    expect(makeMutationCommand({ rewrite: { value: undefined } })).toEqual({
+      commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+      commandArguments: { newData: { key: 'root', value: undefined } },
+    });
+    expect(makeMutationCommand({ rewrite: { key: 'renamed' } })).toEqual({
+      commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+      commandArguments: { newData: { key: 'renamed', value: 1 } },
+    });
+    expect(makeMutationCommand({ delete: true })).toEqual({
+      commandName: TraversalVisitorCommandName.DELETE_VERTEX,
+    });
+    expect(vertex.getData()).toEqual({ key: 'root', value: 1 });
+  });
+
+  test.each([[], {}])(
+    'preserves exact user assembler errors for %p',
+    (value) => {
+      const error = { assemblerFailure: true };
+      const { vertex, options } = makeArguments(value);
+      const failAssembly = (): never => {
+        throw error;
+      };
+      const { makeMutationCommand } =
+        TraversableObjectTree.makeMutationCommandFactory<
+          ObjectTree,
+          ObjectTree
+        >({ assembleArray: failAssembly, assembleObject: failAssembly })(
+          vertex,
+          options,
+        );
+      try {
+        makeMutationCommand();
+        throw new Error('Expected assembler to throw');
+      } catch (thrown) {
+        expect(thrown).toBe(error);
+      }
+    },
+  );
 
   test('default array assembly handles a ref with no resolved child entry', () => {
     const makeMutationCommand =

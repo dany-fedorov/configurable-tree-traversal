@@ -15,6 +15,12 @@ export type TraversalRunnerIteratorResultContent<
   isTraversalRoot: boolean;
 };
 
+export type TraversalStopReason =
+  | 'paused'
+  | 'awaitingSettlement'
+  | 'finished'
+  | 'failed';
+
 export enum TraversalRunnerStatus {
   INITIAL = 'INITIAL',
   RUNNING = 'RUNNING',
@@ -40,6 +46,8 @@ export abstract class TraversalRunner<
   RW_TTP extends TreeTypeParameters,
 > {
   abstract getStatus(): TraversalRunnerStatus;
+
+  abstract getStopReason(): TraversalStopReason | null;
 
   abstract run(config?: TraversalIterableConfigInput<ORDER>): this;
 

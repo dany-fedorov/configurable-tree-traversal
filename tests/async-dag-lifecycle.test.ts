@@ -301,9 +301,12 @@ test('shared DAG objects retain one runner owner through halt and release at fin
   const ownerNext = ownerIterator.next();
   await eventLoopTurn();
 
-  await expect(competitor.getIterable().next()).rejects.toThrow(
-    /another active runner/i,
-  );
+  const competitorConfig = competitor.inspect().iterableConfig;
+  await expect(
+    competitor.getIterable({ emitPhases: [] }).next(),
+  ).rejects.toThrow(/another active runner/i);
+  expect(competitor.inspect().iterableConfig).toEqual(competitorConfig);
+  expect(owner.getStatus()).toBe(Status.RUNNING);
   halt.resolve();
   await expect(ownerNext).resolves.toEqual({ done: true, value: undefined });
   expect(owner.getStatus()).toBe(Status.HALTED);

@@ -2,6 +2,7 @@ export * from './CTTAbstractParent';
 export * from './CTTRef';
 export * from './MakeMutationCommandFunctionFactory';
 export * from './ResolvedTree';
+export * from './ResolvedTreeView';
 export * from './ResolvedTreeTypeParameters';
 export * from './TraversableTree';
 export * from './TraversalVisitor';

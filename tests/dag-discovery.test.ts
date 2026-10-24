@@ -352,26 +352,30 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 }
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
-  test(`${Constructor.name} preserves tree-source treatment of unsupported graph-only metadata`, async () => {
-    const seen: string[] = [];
+  test(`${Constructor.name} rejects graph completion metadata in tree-source mode`, async () => {
+    let visits = 0;
     const traversal = new Constructor<G>({
       traversableTree: {
         makeRoot: () => ({
           priority: 1,
+          // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
           dependsOnComplete: ['unused'],
           vertexContent: { $d: 'root', $c: ['child'] },
         }),
         makeVertex: () => ({
           priority: 2,
+          // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
           dependsOnComplete: ['also ignored'],
           vertexContent: { $d: 'child', $c: [] },
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
-      seen.push(vertex.getData());
+    traversal.addVisitorFor(Order.ON_READY, () => {
+      visits += 1;
     });
-    await traversal.makeRunner().run();
-    expect(seen).toEqual(['root', 'child']);
+    await expect(async () => {
+      await traversal.makeRunner().run();
+    }).rejects.toThrow(/graph metadata/i);
+    expect(visits).toBe(0);
   });
 }

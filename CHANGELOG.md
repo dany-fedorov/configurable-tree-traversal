@@ -4,9 +4,16 @@
 
 - Adopt descriptive `$data`/`$childHints` vertex fields and tagged `found`/`omitted`/lookup-only `missing` source results. Preserve deprecated input/access aliases; Vertex own fields, spread and JSON now use canonical names.
 - Honor ordinary root work prerequisites by default (`rootDependencies: 'honor'`) and make graph parent work inheritance opt-in (`implicitParentDependency: false`). Tree order is preserved. These are intentional behavior changes; see the [migration guide](docs/migration-uniform-api.md).
-- Add exclusive `DEFER_READY` commands and phase-neutral `REWRITE_CHILD_HINTS`; retain deprecated sentinel/command inputs. Name batching `commandCommitMode`, preserve group ordering, and infer command phases across registration/configuration/helpers. Callback context exposes readonly metadata; retrieve executable records through traversal APIs.
+- Add exclusive `DEFER_READY` commands and phase-neutral `REWRITE_CHILD_HINTS`; retain deprecated sentinel/command inputs. Name batching `commandCommitMode`, correct flat priority order before batching, add explicit ordered groups, and infer command phases across registration/configuration/helpers. Callback context exposes readonly metadata; retrieve executable records through traversal APIs.
 - Use progress `work: 'completed'` and tagged `workCompleted`/`traversalFailed` settlement outcomes, retaining deprecated boolean outcome inputs. All six helpers accept one options object with phase-keyed callbacks; direct positional overloads remain deprecated.
 - Refresh agent-first guides, runnable examples, and packed CJS/ESM runtime/type consumers. This revision is unreleased; the package version remains 0.11.0 pending a separately requested release.
+
+- Add independent `emitPhases`/`visitorPhases` selectors with field-wise updates and corrected legacy enable precedence; expose `getStopReason()` on runners/sessions.
+- Add `workCompletion: 'externalSettlement'` without dummy callbacks; retain guarded settlement and explicit early deferral.
+- Unify visitor definitions across classes/helpers, with group-owned batching, inert empty groups, and normalized list/set round trips.
+- Separate tree-only source result types from graph metadata; add tagged `resolveVertexHook` with deprecated hook compatibility.
+- Enforce generic mutation replacement types and typed partial object patches; reject malformed present rewrites.
+- Detach tree query arrays/contexts, add live shallow `ResolvedTreeView` facades, and distinguish reference IDs (`getRefId`) from graph IDs (`getVertexId`/`getVertexRefById`).
 
 ## 0.11.0 — 2026-10-23
 

@@ -1,3 +1,5 @@
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { CTTRef } from '@core/CTTRef';
@@ -24,7 +26,6 @@ import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
 import { DepthFirstTraversalResolvedTreesContainer } from './DepthFirstTraversalResolvedTreesContainer';
 import {
   makeEffectiveDepthFirstTraversalRunnerIterableConfig,
-  type DepthFirstTraversalRunnerIterableConfig,
   type DepthFirstTraversalRunnerIterableConfigInput,
 } from './DepthFirstTraversalRunnerIterableConfig';
 import { DepthFirstTraversalRunnerState } from './DepthFirstTraversalRunnerState';
@@ -116,11 +117,18 @@ export class AsyncDepthFirstTraversalRunner<
         Object.entries(this.icfg.visitors).map(([order, records]) => [
           order,
           records.map(
-            ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+            ({
               addedIndex,
               priority,
               resolutionStyle,
               commandCommitMode,
+              visitorGroup,
+            }) => ({
+              addedIndex,
+              priority,
+              resolutionStyle,
+              commandCommitMode,
+              visitorGroup,
             }),
           ),
         ]),
@@ -139,6 +147,10 @@ export class AsyncDepthFirstTraversalRunner<
     return this.execution.getStatus();
   }
 
+  getStopReason(): TraversalStopReason | null {
+    return this.execution.getStopReason();
+  }
+
   isHalted(): boolean {
     return this.execution.isHalted();
   }
@@ -149,6 +161,10 @@ export class AsyncDepthFirstTraversalRunner<
 
   getResolvedTree(): ResolvedTree<TTP | RW_TTP> {
     return this.resolvedTreesContainer.resolvedTree;
+  }
+
+  getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP> {
+    return this.getResolvedTree().asReadOnly();
   }
 
   getResolvedGraph(): ResolvedGraph<TTP | RW_TTP> {
@@ -205,11 +221,9 @@ export class AsyncDepthFirstTraversalRunner<
       acknowledgeEvent: (boundaryId) => control.acknowledgeEvent(boundaryId),
       requestHalt: () => control.requestHalt(),
       isHaltRequested: () => control.isHaltRequested(),
-      resume: (config) =>
-        control.resume(
-          config as Partial<DepthFirstTraversalRunnerIterableConfig>,
-        ),
+      resume: (config) => control.resume(config),
       getStatus: () => control.getStatus(),
+      getStopReason: () => control.getStopReason(),
       getFailure: () => control.getFailure(),
       inspect: () => control.inspect(),
       waitForProgress: () => control.waitForProgress(),

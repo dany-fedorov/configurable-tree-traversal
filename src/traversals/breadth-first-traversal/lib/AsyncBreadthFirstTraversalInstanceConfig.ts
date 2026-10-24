@@ -1,3 +1,5 @@
+import type { VisitorInputs } from '@core/TraversalVisitor';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import type { MaybePromise, VisitorRecord } from '@core/graph/types';
@@ -44,7 +46,7 @@ export type AsyncBreadthFirstTraversalInstanceConfigInput<
     'visitors' | 'traversalRunnerInternalObjects'
   >
 > & {
-  visitors?: Partial<AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>>;
+  visitors?: VisitorInputs<AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>>;
   traversalRunnerInternalObjects?: Partial<
     AsyncBreadthFirstTraversalInstanceConfig<
       TTP,
@@ -77,8 +79,9 @@ export function mergeAsyncBreadthFirstTraversalInstanceConfigs<
     ...base,
     ...input,
     visitors: {
-      [BreadthFirstTraversalOrder.LEVEL_ORDER]:
-        visitors[BreadthFirstTraversalOrder.LEVEL_ORDER].slice(),
+      [BreadthFirstTraversalOrder.LEVEL_ORDER]: normalizeVisitorDefinitions(
+        visitors[BreadthFirstTraversalOrder.LEVEL_ORDER],
+      ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,

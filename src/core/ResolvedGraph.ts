@@ -13,7 +13,11 @@ export interface ResolvedGraph<T extends TreeTypeParameters> {
   has(ref: CTTRef<Vertex<T>>): boolean;
   getRoot(): CTTRef<Vertex<T>> | null;
   getVertexRefs(): CTTRef<Vertex<T>>[];
+  getVertexRefById(id: VertexId): CTTRef<Vertex<T>> | null;
+  getVertexId(ref: CTTRef<Vertex<T>>): VertexId;
+  /** @deprecated Use getVertexRefById. */
   getVertexById(id: VertexId): CTTRef<Vertex<T>> | null;
+  /** @deprecated Use getVertexId. */
   getIdOf(ref: CTTRef<Vertex<T>>): VertexId;
   getStatusOf(ref: CTTRef<Vertex<T>>): GraphVertexStatus | null;
   getParentsOf(ref: CTTRef<Vertex<T>>): CTTRef<Vertex<T>>[] | null;
@@ -29,6 +33,8 @@ export type ResolvedGraphSnapshot<T extends TreeTypeParameters> = Pick<
   | 'has'
   | 'getRoot'
   | 'getVertexRefs'
+  | 'getVertexRefById'
+  | 'getVertexId'
   | 'getVertexById'
   | 'getIdOf'
   | 'getParentsOf'

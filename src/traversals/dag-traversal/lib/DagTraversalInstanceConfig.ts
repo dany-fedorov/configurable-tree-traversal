@@ -1,3 +1,5 @@
+import type { VisitorInputs } from '@core/TraversalVisitor';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import type { VertexId } from '@core/graph/types';
 import type { TraversableGraph } from '@core/TraversableGraph';
 import type { TraversableTree } from '@core/TraversableTree';
@@ -9,6 +11,7 @@ import { DagTraversalOrder } from './DagTraversalOrder';
 import type { DagVisitor } from './DagTraversalVisitor';
 
 export type DagDiscoveryOptions = {
+  workCompletion?: 'visitorReturn' | 'externalSettlement';
   discovery?: 'lazy' | 'eager';
   rootDependencies?: 'honor' | 'ignore';
   implicitParentDependency?: boolean;
@@ -60,7 +63,7 @@ type DagTraversalOptionsInput<
 > = Partial<
   Omit<DagTraversalOptions<T, R>, 'visitors' | 'traversalRunnerInternalObjects'>
 > & {
-  visitors?: Partial<DagTraversalVisitors<T, R>>;
+  visitors?: VisitorInputs<DagTraversalVisitors<T, R>>;
   traversalRunnerInternalObjects?: Partial<
     DagTraversalOptions<T, R>['traversalRunnerInternalObjects']
   >;
@@ -103,19 +106,36 @@ export function mergeDagTraversalInstanceConfigs<
   base: DagTraversalInstanceConfig<T, R>,
   input: DagTraversalConfigureInput<T, R>,
 ): DagTraversalInstanceConfig<T, R> {
+  const capturedInput = { ...input };
+  assertDagWorkCompletion(capturedInput.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
   return {
     ...base,
-    ...input,
+    ...capturedInput,
     visitors: {
-      [DagTraversalOrder.ON_READY]:
-        visitors[DagTraversalOrder.ON_READY].slice(),
-      [DagTraversalOrder.ON_COMPLETE]:
-        visitors[DagTraversalOrder.ON_COMPLETE].slice(),
+      [DagTraversalOrder.ON_READY]: normalizeVisitorDefinitions(
+        visitors[DagTraversalOrder.ON_READY],
+      ),
+      [DagTraversalOrder.ON_COMPLETE]: normalizeVisitorDefinitions(
+        visitors[DagTraversalOrder.ON_COMPLETE],
+      ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
       ...(input.traversalRunnerInternalObjects ?? {}),
     },
   } as DagTraversalInstanceConfig<T, R>;
+}
+
+/** Validate configuration before changing traversal ownership or executing callbacks. */
+export function assertDagWorkCompletion(policy: unknown): void {
+  if (
+    policy !== undefined &&
+    policy !== 'visitorReturn' &&
+    policy !== 'externalSettlement'
+  ) {
+    throw new TypeError(
+      'workCompletion must be visitorReturn or externalSettlement',
+    );
+  }
 }

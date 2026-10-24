@@ -1,6 +1,13 @@
 import type { NoInferPhase } from '@core/TraversalVisitor';
-import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
-import { sortVisitorRecords } from '@core/executeVisitors';
+import {
+  appendVisitorDefinition,
+  appendVisitorGroup,
+  normalizeVisitorDefinitions,
+} from '@core/visitors/normalizeVisitorDefinitions';
+import type {
+  VisitorPhaseInput,
+  VisitorGroupDefinition,
+} from '@core/TraversalVisitor';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import type { VisitorRecord } from '@core/graph/types';
@@ -64,20 +71,25 @@ export class DagTraversal<
     visitor: DagVisitor<T, R, NoInferPhase<ORDER>>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    const effective = normalizeVisitorOptions(options);
-    const records = this.visitors[order] as VisitorRecord<
-      DagVisitor<T, R, ORDER>
-    >[];
-    records.push({
-      addedIndex:
-        records.reduce((max, record) => Math.max(max, record.addedIndex), -1) +
-        1,
-      ...effective,
-      visitor,
-    });
     (this.visitors as Record<ORDER, VisitorRecord<DagVisitor<T, R, ORDER>>[]>)[
       order
-    ] = sortVisitorRecords(records);
+    ] = appendVisitorDefinition<DagVisitor<T, R, ORDER>>(
+      this.visitors[order] as VisitorRecord<DagVisitor<T, R, ORDER>>[],
+      { visitor, ...options },
+    );
+    return this;
+  }
+
+  addVisitorGroupFor<ORDER extends DagTraversalOrder>(
+    order: ORDER,
+    group: VisitorGroupDefinition<DagVisitor<T, R, NoInferPhase<ORDER>>>,
+  ): this {
+    (this.visitors as Record<ORDER, VisitorRecord<DagVisitor<T, R, ORDER>>[]>)[
+      order
+    ] = appendVisitorGroup<DagVisitor<T, R, ORDER>>(
+      this.visitors[order] as VisitorRecord<DagVisitor<T, R, ORDER>>[],
+      group,
+    );
     return this;
   }
 
@@ -89,11 +101,11 @@ export class DagTraversal<
 
   setVisitorsFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-    records: VisitorRecord<DagVisitor<T, R, NoInferPhase<ORDER>>>[],
+    input: VisitorPhaseInput<DagVisitor<T, R, NoInferPhase<ORDER>>>,
   ): this {
     (this.visitors as Record<ORDER, VisitorRecord<DagVisitor<T, R, ORDER>>[]>)[
       order
-    ] = sortVisitorRecords(records);
+    ] = normalizeVisitorDefinitions<DagVisitor<T, R, ORDER>>(input);
     return this;
   }
 

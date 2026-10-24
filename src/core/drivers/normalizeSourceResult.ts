@@ -5,15 +5,32 @@ import type {
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
 
+/** Validate before tagged branches can discard unsupported source fields. */
+export function assertNoTreeMetadata(
+  result: object,
+  sourceName = 'Tree source',
+): void {
+  if (
+    Object.prototype.hasOwnProperty.call(result, 'vertexId') ||
+    Object.prototype.hasOwnProperty.call(result, 'dependsOn') ||
+    Object.prototype.hasOwnProperty.call(result, 'dependsOnComplete')
+  ) {
+    throw new TypeError(`${sourceName} results cannot include graph metadata`);
+  }
+}
+
 /** Normalize adapter vocabulary before any scheduling or identity decisions. */
 export function normalizeSourceResult<T extends TreeTypeParameters>(
   result: PrerequisiteResolutionResult<T>,
   prerequisite: boolean,
+  treeSourceName?: string,
 ): MakeVertexResult<T> | undefined {
   if (result === undefined && prerequisite) return undefined;
   if (result === null || typeof result !== 'object') {
     throw new TypeError('Invalid source resolution result');
   }
+  if (treeSourceName !== undefined)
+    assertNoTreeMetadata(result, treeSourceName);
   if (!('kind' in result)) return result;
   switch (result.kind) {
     case 'found':
@@ -26,6 +43,8 @@ export function normalizeSourceResult<T extends TreeTypeParameters>(
           'Found source result requires non-null vertexContent',
         );
       }
+      if (treeSourceName !== undefined)
+        assertNoTreeMetadata(result.vertex, treeSourceName);
       return result.vertex;
     case 'omitted':
       if (result.satisfiesDependencies !== true) {

@@ -36,11 +36,11 @@ research ──┬── implement ──┬── review
            └── testPlan ───┘
 ```
 
+<!-- standalone -->
+
 ```ts
 import {
   DagTraversal,
-  DagTraversalOrder,
-  TraversalVisitorCommandName as Command,
   type TreeTypeParameters,
 } from 'configurable-tree-traversal';
 
@@ -56,6 +56,7 @@ const accepted = new Set(['research']);
 function reconstruct() {
   const traversal = new DagTraversal<Workflow>({
     discovery: 'eager',
+    workCompletion: 'externalSettlement',
     syntheticRoot: true,
     completedWork: accepted,
     traversableGraph: {
@@ -75,9 +76,6 @@ function reconstruct() {
       }),
     },
   });
-  traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => ({
-    commands: [{ commandName: Command.DEFER_READY }],
-  }));
   return traversal.makeRunner().run();
 }
 
@@ -86,7 +84,7 @@ const snapshot = runner.summary();
 console.log(snapshot.readyIds); // ['implement', 'testPlan']
 ```
 
-The `ON_READY` visitor returns the sole `Command.DEFER_READY` command, so `run()` discovers and validates the graph, then halts with eligible work still incomplete. A no-op visitor would mark work complete; `summary()` alone does not discover the graph. `readyIds` is dependency readiness, not a claim or evidence that an external agent is idle.
+`workCompletion: 'externalSettlement'` leaves eligible work incomplete after callbacks commit, even with no callbacks. `run()` discovers and validates the graph, then stops with `getStopReason() === 'awaitingSettlement'`. Read the deferred frontier and capture its generations before dispatch; emitted `ON_READY` events arrive on settlement. `summary()` alone does not discover the graph. `readyIds` is dependency readiness, not a claim or evidence that an external agent is idle.
 
 The host can now claim a candidate, dispatch an agent, validate and persist its result, and either settle the retained runner or reconstruct on the next tick. See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and the [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts), which also checks settlement, duplicate reports, and restart reconstruction. The example uses an in-memory set; production durability belongs to the host.
 
@@ -99,6 +97,8 @@ The host can now claim a candidate, dispatch an agent, validate and persist its 
 - **Checking releases:** [Changelog](CHANGELOG.md).
 
 ## Imports and compatibility
+
+<!-- standalone -->
 
 ```ts
 import {

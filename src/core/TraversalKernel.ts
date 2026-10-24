@@ -1,3 +1,11 @@
+import {
+  getTraversalExecutionPhases,
+  normalizeTraversalExecutionOptions,
+} from './normalizeTraversalExecutionOptions';
+import type {
+  EffectiveTraversalExecutionOptions,
+  TraversalIterableConfigInput,
+} from './TraversalRunnerIterableConfig';
 import type {
   DagSummary,
   DagSettlementOutcome,
@@ -6,6 +14,8 @@ import type {
 } from '../traversals/dag-traversal/lib/DagProgress';
 import type { VertexId } from '@core/graph/types';
 import type { KernelInspection } from '@core/CoreInspection';
+import { assertDagWorkCompletion } from '../traversals/dag-traversal/lib/DagTraversalInstanceConfig';
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
@@ -162,10 +172,24 @@ export class TraversalKernel<
   private rootRequested = false;
   private rootSettled = false;
   private haltRequested = false;
+  private haltReason: 'paused' | 'awaitingSettlement' | null = null;
   private failure: { error: unknown } | null = null;
   private readonly boundaries: Boundary<T | R>[] = [];
 
+  private readonly phases: readonly VisitOrder[];
+  private executionConfig: EffectiveTraversalExecutionOptions<VisitOrder>;
+
   constructor(private readonly options: KernelOptions<T, R>) {
+    assertDagWorkCompletion(options.workCompletion);
+    this.phases = getTraversalExecutionPhases(options.kind);
+    // Constructor compatibility fields may come from an already normalized family helper.
+    this.executionConfig = normalizeTraversalExecutionOptions(this.phases, {
+      iterateOver: options.iterableConfig.iterateOver,
+      enableVisitorFunctionsFor:
+        options.iterableConfig.enableVisitorFunctionsFor,
+      disableVisitorFunctionsFor:
+        options.iterableConfig.disableVisitorFunctionsFor,
+    });
     this.scheduling = new GraphScheduling(
       options.container,
       options.completedWork,
@@ -422,7 +446,7 @@ export class TraversalKernel<
         const stall = this.scheduling.getStall();
         if (stall !== null) {
           if (this.hasDeferredWork() && this.summary().diagnostics === null)
-            return this.halt();
+            return this.halt('awaitingSettlement');
           const error = new DagTraversalStallError(
             this.scheduling.diagnoseStall(stall),
           );
@@ -485,32 +509,15 @@ export class TraversalKernel<
     }
   }
 
-  resume(
-    config?: Partial<
-      import('@core/TraversalRunnerIterableConfig').TraversalRunnerIterableConfig<VisitOrder>
-    >,
-  ): void {
+  resume(config?: TraversalIterableConfigInput<VisitOrder>): void {
     if (this.failure !== null) return;
-    if (config !== undefined) {
-      this.options.iterableConfig = {
-        ...this.options.iterableConfig,
-        ...config,
-        iterateOver:
-          config.iterateOver?.slice() ??
-          this.options.iterableConfig.iterateOver.slice(),
-        enableVisitorFunctionsFor:
-          config.enableVisitorFunctionsFor === undefined
-            ? this.options.iterableConfig.enableVisitorFunctionsFor?.slice() ??
-              null
-            : config.enableVisitorFunctionsFor?.slice() ?? null,
-        disableVisitorFunctionsFor:
-          config.disableVisitorFunctionsFor === undefined
-            ? this.options.iterableConfig.disableVisitorFunctionsFor?.slice() ??
-              null
-            : config.disableVisitorFunctionsFor?.slice() ?? null,
-      };
-    }
+    this.executionConfig = normalizeTraversalExecutionOptions(
+      this.phases,
+      config,
+      this.executionConfig,
+    );
     this.haltRequested = false;
+    this.haltReason = null;
     for (const runtime of this.chains.values()) {
       if (runtime.state.phase === 'paused') {
         runtime.machine.resume();
@@ -550,16 +557,23 @@ export class TraversalKernel<
     return this.options.stateBridge.status;
   }
 
+  getStopReason(): TraversalStopReason | null {
+    switch (this.getStatus()) {
+      case TraversalRunnerStatus.HALTED:
+        return this.haltReason ?? 'paused';
+      case TraversalRunnerStatus.FINISHED:
+        return 'finished';
+      case TraversalRunnerStatus.FAILED:
+        return 'failed';
+      default:
+        return null;
+    }
+  }
+
   inspect(): KernelInspection {
-    const copyFilters = (config: typeof this.options.iterableConfig) => ({
-      iterateOver: config.iterateOver.slice(),
-      enableVisitorFunctionsFor:
-        config.enableVisitorFunctionsFor?.slice() ?? null,
-      disableVisitorFunctionsFor:
-        config.disableVisitorFunctionsFor?.slice() ?? null,
-    });
     return deepFreeze({
       status: this.getStatus(),
+      stopReason: this.getStopReason(),
       haltRequested: this.haltRequested,
       kind: this.options.kind,
       execution: this.options.execution,
@@ -567,7 +581,7 @@ export class TraversalKernel<
       concurrency: this.options.concurrency,
       hasSorter: this.options.hasSorter,
       hasHintIds: this.options.hasHintIds,
-      iterableConfig: copyFilters(this.options.iterableConfig),
+      iterableConfig: this.copyConfig(this.executionConfig),
       readyVisits: this.scheduling.inspectEligible().map((visit) => ({
         vertexRefId: visit.ref.getId(),
         order:
@@ -606,7 +620,7 @@ export class TraversalKernel<
           state.group === 'concurrent' ? 'afterGroup' : 'afterEachVisitor',
         position: state.position,
         waitingFor: state.waitingFor,
-        config: copyFilters(state.config),
+        config: this.copyConfig(state.config),
       })),
       pendingRequests: Array.from(
         this.pendingRequests.values(),
@@ -1045,12 +1059,7 @@ export class TraversalKernel<
           runtime.state.commands = [];
           runtime.state.waitingFor = 'none';
           if (result.deferred) {
-            this.deferred.set(runtime.state.ref, {
-              state: runtime.state,
-              generation: Symbol('DAG settlement'),
-            });
-            this.chains.delete(id);
-            this.expansionQueue.push(runtime.state.ref);
+            this.deferChain(id, runtime.state);
             return null;
           }
           if (result.halt) runtime.state.phase = 'paused';
@@ -1064,11 +1073,28 @@ export class TraversalKernel<
           return null;
         case 'DONE':
           runtime.state.phase = 'done';
-          this.commitChain(runtime.state);
-          this.chains.delete(id);
+          if (
+            this.options.workCompletion === 'externalSettlement' &&
+            runtime.state.order === 'ON_READY' &&
+            this.options.container.resolvedGraph.has(runtime.state.ref)
+          ) {
+            this.deferChain(id, runtime.state);
+          } else {
+            this.commitChain(runtime.state);
+            this.chains.delete(id);
+          }
           return null;
       }
     }
+  }
+
+  private deferChain(id: number, state: ChainState<T, R>): void {
+    this.deferred.set(state.ref, {
+      state,
+      generation: Symbol('DAG settlement'),
+    });
+    this.chains.delete(id);
+    this.expansionQueue.push(state.ref);
   }
 
   private commitCommands(
@@ -1236,7 +1262,7 @@ export class TraversalKernel<
         state.metadata.curVertexVisitorVisitIndex;
       visitorState.previousVisitedVertexRef = state.ref;
     }
-    if (state.config.iterateOver.includes(state.order)) {
+    if (state.config.emitPhases.includes(state.order)) {
       this.boundaries.push({
         id: this.nextBoundaryId++,
         event: {
@@ -1826,7 +1852,7 @@ export class TraversalKernel<
 
   private admitChain(ref: Ref<T | R>, order: VisitOrder): OwnerToken {
     const owner = this.newOwner('chain');
-    const config = this.copyConfig(this.options.iterableConfig);
+    const config = this.copyConfig(this.executionConfig);
     const records = this.visitorsEnabled(order)
       ? (this.options.visitorMetadata[order] ?? []).slice()
       : [];
@@ -1860,21 +1886,12 @@ export class TraversalKernel<
     ) {
       visitorState.curVertexVisitorVisitIndex = 0;
     }
-    const concurrentIndices: number[] = [];
-    const sequentialIndices: number[] = [];
-    records.forEach((record, index) => {
-      if (normalizeVisitorOptions(record).commandCommitMode === 'afterGroup')
-        concurrentIndices.push(index);
-      else sequentialIndices.push(index);
-    });
     const state: ChainState<T, R> = {
       owner,
       ref,
       order,
       phase: 'running',
       group: 'concurrent',
-      concurrentIndices,
-      sequentialIndices,
       position: 0,
       waitingFor: 'none',
       commands: [],
@@ -2004,7 +2021,10 @@ export class TraversalKernel<
     this.readyCalls.length = 0;
   }
 
-  private halt(): KernelAction<T, R> {
+  private halt(
+    reason: 'paused' | 'awaitingSettlement' = 'paused',
+  ): KernelAction<T, R> {
+    this.haltReason = reason;
     this.setStatus(TraversalRunnerStatus.HALTED);
     return { kind: 'HALTED' };
   }
@@ -2101,29 +2121,24 @@ export class TraversalKernel<
   }
 
   private visitorsEnabled(order: VisitOrder): boolean {
-    return this.visitorsEnabledFor(this.options.iterableConfig, order);
+    return this.visitorsEnabledFor(this.executionConfig, order);
   }
 
   private visitorsEnabledFor(
-    config: typeof this.options.iterableConfig,
+    config: typeof this.executionConfig,
     order: VisitOrder,
   ): boolean {
+    const selection = config.visitorPhases;
     return (
-      (config.enableVisitorFunctionsFor === null ||
-        config.enableVisitorFunctionsFor.includes(order)) &&
-      (config.disableVisitorFunctionsFor === null ||
-        !config.disableVisitorFunctionsFor.includes(order))
+      selection === 'all' ||
+      ('include' in selection
+        ? selection.include!.includes(order)
+        : !selection.exclude.includes(order))
     );
   }
 
-  private copyConfig(config: typeof this.options.iterableConfig) {
-    return {
-      iterateOver: config.iterateOver.slice(),
-      enableVisitorFunctionsFor:
-        config.enableVisitorFunctionsFor?.slice() ?? null,
-      disableVisitorFunctionsFor:
-        config.disableVisitorFunctionsFor?.slice() ?? null,
-    };
+  private copyConfig(config: typeof this.executionConfig) {
+    return normalizeTraversalExecutionOptions(this.phases, undefined, config);
   }
 
   private setStatus(status: TraversalRunnerStatus): void {

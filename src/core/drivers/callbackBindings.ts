@@ -2,7 +2,10 @@ import {
   mapSourceResult,
   normalizeSourceResult,
 } from './normalizeSourceResult';
-import type { SourceVertexResult } from '@core/TraversableTree';
+import type {
+  SourceVertexResult,
+  TreeSourceVertexResult,
+} from '@core/TraversableTree';
 import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult, TraversableTree } from '@core/TraversableTree';
@@ -46,23 +49,6 @@ type GraphSource<T extends TreeTypeParameters, R extends TreeTypeParameters> =
   | TraversableGraph<T, R>
   | AsyncTraversableGraph<T, R>;
 
-function assertTreeResult<T extends TreeTypeParameters>(
-  result: MakeVertexResult<T>,
-  runnerName?: string,
-): MakeVertexResult<T> {
-  if (
-    Object.prototype.hasOwnProperty.call(result, 'vertexId') ||
-    Object.prototype.hasOwnProperty.call(result, 'dependsOn')
-  ) {
-    throw new TypeError(
-      `${
-        runnerName === undefined ? 'Tree source' : `${runnerName} tree source`
-      } results cannot include graph metadata`,
-    );
-  }
-  return result;
-}
-
 function normalizeVertexResult<T extends TreeTypeParameters>(
   result: SourceVertexResult<T>,
 ): MakeVertexResult<T> {
@@ -70,11 +56,17 @@ function normalizeVertexResult<T extends TreeTypeParameters>(
 }
 
 function validateTreeResult<T extends TreeTypeParameters>(
-  result: MaybePromise<SourceVertexResult<T>>,
+  result: MaybePromise<TreeSourceVertexResult<T>>,
   runnerName?: string,
 ): MaybePromise<MakeVertexResult<T>> {
-  return mapSourceResult(result, (value) =>
-    assertTreeResult(normalizeVertexResult(value), runnerName),
+  return mapSourceResult(
+    result,
+    (value) =>
+      normalizeSourceResult(
+        value,
+        false,
+        runnerName === undefined ? 'Tree source' : `${runnerName} tree source`,
+      )!,
   );
 }
 

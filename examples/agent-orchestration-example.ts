@@ -1,10 +1,5 @@
-import { TraversalVisitorCommandName as Command } from '../src';
 import assert from 'node:assert/strict';
-import {
-  DagTraversal,
-  DagTraversalOrder,
-  type TreeTypeParameters,
-} from '../src';
+import { DagTraversal, type TreeTypeParameters } from '../src';
 
 type Workflow = TreeTypeParameters<string, string>;
 const dependencies: Record<string, string[]> = {
@@ -18,6 +13,7 @@ const accepted = new Set(['research']);
 function reconstruct() {
   const traversal = new DagTraversal<Workflow>({
     discovery: 'eager',
+    workCompletion: 'externalSettlement',
     syntheticRoot: true,
     completedWork: accepted,
     traversableGraph: {
@@ -37,13 +33,11 @@ function reconstruct() {
       }),
     },
   });
-  traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => ({
-    commands: [{ commandName: Command.DEFER_READY }],
-  }));
   return traversal.makeRunner().run();
 }
 
 const runner = reconstruct();
+assert.equal(runner.getStopReason(), 'awaitingSettlement');
 const snapshot = runner.summary();
 console.log(snapshot.readyIds); // ['implement', 'testPlan']
 assert.deepEqual(snapshot.readyIds, ['implement', 'testPlan']);

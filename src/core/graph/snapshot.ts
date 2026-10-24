@@ -45,12 +45,16 @@ export class StructuralGraphSnapshot<
   private root: Ref<T> | null = null;
 
   constructor() {
+    const getVertexRefById = (id: VertexId) => this.ids.get(id) ?? null;
+    const getVertexId = (ref: Ref<T>) => this.getEntry(ref).id;
     this.graph = Object.freeze({
       has: (ref: Ref<T>) => this.entries.has(ref),
       getRoot: () => this.root,
       getVertexRefs: () => Array.from(this.entries.keys()),
-      getVertexById: (id: VertexId) => this.ids.get(id) ?? null,
-      getIdOf: (ref: Ref<T>) => this.getEntry(ref).id,
+      getVertexRefById,
+      getVertexId,
+      getVertexById: getVertexRefById,
+      getIdOf: getVertexId,
       getParentsOf: (ref: Ref<T>) => this.getParents(ref),
       getChildrenOf: (ref: Ref<T>) => this.getChildren(ref),
       getPathsTo: (ref: Ref<T>, options?: GetPathToOptions) =>

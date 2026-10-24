@@ -1,3 +1,4 @@
+import type { VisitorPhaseInput } from '@core/TraversalVisitor';
 import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
@@ -15,7 +16,9 @@ export type AsyncBreadthFirstTraversalHelperOptions<
   'visitors' | 'traversableTree'
 > & { traversableTree: AsyncTraversableTree<TTP, RW_TTP> } & {
   visitors?: {
-    [K in BreadthFirstTraversalOrder]?: AsyncTraversalVisitor<K, TTP, RW_TTP>;
+    [K in BreadthFirstTraversalOrder]?: VisitorPhaseInput<
+      AsyncTraversalVisitor<K, TTP, RW_TTP>
+    >;
   };
 };
 
@@ -56,12 +59,10 @@ export function traverseBreadthFirstAsync<
     TTP,
     RW_TTP
   >;
-  let levelOrderVisitor = visitor;
+  const levelOrderVisitor = visitor;
   if (arguments.length === 1) {
-    const { visitors: callbacks, ...options } =
+    traversalConfig =
       sourceOrOptions as AsyncBreadthFirstTraversalHelperOptions<TTP, RW_TTP>;
-    traversalConfig = options;
-    levelOrderVisitor = callbacks?.[BreadthFirstTraversalOrder.LEVEL_ORDER];
   } else {
     traversalConfig = {
       traversableTree: sourceOrOptions as AsyncTraversableTree<TTP, RW_TTP>,

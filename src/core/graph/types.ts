@@ -1,5 +1,8 @@
 import type { CTTRef } from '@core/CTTRef';
-import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
+import type {
+  TraversalVisitorFunctionOptions,
+  VisitorGroupMetadata,
+} from '@core/TraversalVisitor';
 import type { TraversalVisitorResult } from '@core/TraversalVisitor';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -61,6 +64,7 @@ export type GraphVertex<T extends TreeTypeParameters> = Readonly<{
 export type VisitorRecord<F> = {
   addedIndex: number;
   visitor: F;
+  readonly visitorGroup?: VisitorGroupMetadata | undefined;
 } & TraversalVisitorFunctionOptions;
 
 export type IdState<T extends TreeTypeParameters> =

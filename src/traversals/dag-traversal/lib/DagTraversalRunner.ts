@@ -1,3 +1,6 @@
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { TraversalStopReason } from '@core/TraversalRunner';
+import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
 import type {
   DagSummary,
   DagSettlementOutcome,
@@ -164,6 +167,10 @@ export class DagTraversalRunner<
     this.kernel = new TraversalKernel({
       kind: 'dag',
       discovery: input.discovery ?? 'lazy',
+      workCompletion:
+        this.icfg.workCompletion === undefined
+          ? 'visitorReturn'
+          : this.icfg.workCompletion,
       ...(input.rootDependencies === undefined
         ? {}
         : { rootDependencies: input.rootDependencies }),
@@ -220,8 +227,19 @@ export class DagTraversalRunner<
     return this.state.status;
   }
 
+  getStopReason(): TraversalStopReason | null {
+    return this.kernel.getStopReason();
+  }
+
   isHalted(): boolean {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
+  }
+
+  getResolvedTreeView(): ResolvedTreeView<T | R> | null {
+    return (
+      this.resolvedGraphsContainer.treeContainer?.resolvedTree.asReadOnly() ??
+      null
+    );
   }
 
   getResolvedGraph(): ResolvedGraph<T | R> {
@@ -252,12 +270,15 @@ export class DagTraversalRunner<
       throw new Error('A traversal runner can only have one active iterator');
     }
     if (this.getStatus() === TraversalRunnerStatus.FINISHED) return;
-    if (config !== undefined) {
-      this.iterableConfig =
-        makeEffectiveDagTraversalRunnerIterableConfig(config);
-    }
+    const patch =
+      config === undefined
+        ? undefined
+        : detachTraversalExecutionOptions(
+            Object.values(DagTraversalOrder),
+            config,
+          );
     this.policy.claim();
-    this.kernel.resume(this.iterableConfig);
+    this.kernel.resume(patch);
     this.curGenerator ??= this.getInternalGenerator();
     this.activeIterator = true;
     this.state.status = TraversalRunnerStatus.RUNNING;
@@ -334,11 +355,18 @@ export class DagTraversalRunner<
 
   private metadataFor(order: DagTraversalOrder) {
     return this.icfg.visitors[order].map(
-      ({ addedIndex, priority, resolutionStyle, commandCommitMode }) => ({
+      ({
         addedIndex,
         priority,
         resolutionStyle,
         commandCommitMode,
+        visitorGroup,
+      }) => ({
+        addedIndex,
+        priority,
+        resolutionStyle,
+        commandCommitMode,
+        visitorGroup,
       }),
     );
   }

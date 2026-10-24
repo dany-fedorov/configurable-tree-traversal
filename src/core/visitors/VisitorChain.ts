@@ -11,23 +11,19 @@ import type {
   VisitorOutcome,
 } from '@core/visitors/types';
 
-type Group = 'concurrent' | 'sequential';
-
 export class VisitorChain<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
 > {
   private readonly canDeferReady: boolean;
   private readonly ref: VisitorChainInput<T, R>['ref'];
-  private readonly concurrentRecordIndices: number[] = [];
-  private readonly sequentialRecordIndices: number[] = [];
+  private readonly batchEnds: boolean[];
   private readonly metadata: VisitorChainMetadata<T | R>;
-  private group: Group = 'concurrent';
-  private groupPosition = 0;
+  private position = 0;
   private awaitingOutcome = false;
   private pendingCommands: TraversalVisitorCommand<R>[] | null = null;
   private commandsEmitted = false;
-  private readonly concurrentCommands: TraversalVisitorCommand<R>[] = [];
+  private readonly bufferedCommands: TraversalVisitorCommand<R>[] = [];
   private paused = false;
   private deleted = false;
   private done = false;
@@ -42,15 +38,18 @@ export class VisitorChain<
       vertexVisitorsChainState: null,
     };
 
-    input.records.forEach((record, index) => {
-      switch (normalizeVisitorOptions(record).commandCommitMode) {
-        case 'afterGroup':
-          this.concurrentRecordIndices.push(index);
-          break;
-        case 'afterEachVisitor':
-          this.sequentialRecordIndices.push(index);
-          break;
-      }
+    const records = input.records.map((record) => ({
+      ...record,
+      ...normalizeVisitorOptions(record),
+    }));
+    this.batchEnds = records.map((record, index) => {
+      const next = records[index + 1];
+      return (
+        record.commandCommitMode === 'afterEachVisitor' ||
+        next === undefined ||
+        next.commandCommitMode !== 'afterGroup' ||
+        next.visitorGroup !== record.visitorGroup
+      );
     });
   }
 
@@ -67,20 +66,9 @@ export class VisitorChain<
       return { kind: 'DONE' };
     }
 
-    if (this.group === 'concurrent') {
-      const recordIndex = this.concurrentRecordIndices[this.groupPosition];
-      if (recordIndex !== undefined) return this.emitVisit(recordIndex, null);
-
-      this.group = 'sequential';
-      this.groupPosition = 0;
-      this.pendingCommands = this.concurrentCommands.slice();
-      return this.poll();
-    }
-
-    const recordIndex = this.sequentialRecordIndices[this.groupPosition];
-    if (recordIndex !== undefined) {
+    if (this.position < this.batchEnds.length) {
       return this.emitVisit(
-        recordIndex,
+        this.position,
         this.metadata.vertexVisitorsChainState,
       );
     }
@@ -121,15 +109,13 @@ export class VisitorChain<
         throw new TypeError(
           'DEFER_READY is only valid for DAG ON_READY visitors',
         );
-      this.concurrentCommands.length = 0;
+      this.bufferedCommands.length = 0;
       this.pendingCommands = commands.slice();
       return;
     }
-    this.groupPosition++;
-    if (this.group === 'concurrent') {
-      this.concurrentCommands.push(...commands);
-    } else {
-      this.pendingCommands = commands.slice();
+    this.bufferedCommands.push(...commands);
+    if (this.batchEnds[this.position++]) {
+      this.pendingCommands = this.bufferedCommands.splice(0);
     }
   }
 

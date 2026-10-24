@@ -1,5 +1,13 @@
 import type { NoInferPhase } from '@core/TraversalVisitor';
-import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
+import {
+  appendVisitorDefinition,
+  appendVisitorGroup,
+  normalizeVisitorDefinitions,
+} from '@core/visitors/normalizeVisitorDefinitions';
+import type {
+  VisitorPhaseInput,
+  VisitorGroupDefinition,
+} from '@core/TraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
@@ -61,23 +69,31 @@ export class AsyncDagTraversal<
     visitor: AsyncDagVisitor<T, R, NoInferPhase<ORDER>>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    const effective = normalizeVisitorOptions(options);
-    const records = this.visitors[order] as VisitorRecord<
-      AsyncDagVisitor<T, R, ORDER>
-    >[];
-    records.push({
-      addedIndex:
-        records.reduce((max, record) => Math.max(max, record.addedIndex), -1) +
-        1,
-      ...effective,
-      visitor,
-    });
     (
       this.visitors as Record<
         ORDER,
         VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[]
       >
-    )[order] = sortVisitorRecords(records);
+    )[order] = appendVisitorDefinition<AsyncDagVisitor<T, R, ORDER>>(
+      this.visitors[order] as VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[],
+      { visitor, ...options },
+    );
+    return this;
+  }
+
+  addVisitorGroupFor<ORDER extends DagTraversalOrder>(
+    order: ORDER,
+    group: VisitorGroupDefinition<AsyncDagVisitor<T, R, NoInferPhase<ORDER>>>,
+  ): this {
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[]
+      >
+    )[order] = appendVisitorGroup<AsyncDagVisitor<T, R, ORDER>>(
+      this.visitors[order] as VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[],
+      group,
+    );
     return this;
   }
 
@@ -89,14 +105,14 @@ export class AsyncDagTraversal<
 
   setVisitorsFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-    records: VisitorRecord<AsyncDagVisitor<T, R, NoInferPhase<ORDER>>>[],
+    input: VisitorPhaseInput<AsyncDagVisitor<T, R, NoInferPhase<ORDER>>>,
   ): this {
     (
       this.visitors as Record<
         ORDER,
         VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[]
       >
-    )[order] = sortVisitorRecords(records);
+    )[order] = normalizeVisitorDefinitions<AsyncDagVisitor<T, R, ORDER>>(input);
     return this;
   }
 

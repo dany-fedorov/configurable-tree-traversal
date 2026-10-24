@@ -57,13 +57,15 @@ Jest writes the HTML coverage report to `coverage/lcov-report/index.html`. The f
 
 The package check extracts a fresh tarball into a temporary directory outside the source checkout and supplies only installed runtime dependencies. It exercises root and subpath imports and every emitted historical `.js` and extensionless deep import. Import resolution must select native `.mjs` facades while require resolution selects `.js`.
 
-The separate `scripts/package-consumers/uniform-api.mjs` and `.ts` fixtures check canonical and deprecated content, source results, dependency policies, command batching, deferral, completion feedback, and all six helper forms. Strict fixture checks include invalid phases, exclusive deferral, and readonly metadata-only callback contexts. They execute against the extracted package alongside the historical consumers.
+The separate `scripts/package-consumers/uniform-api.mjs` and `.ts` fixtures check canonical and deprecated content, source results, dependency policies, command batching, deferral, completion feedback, and all six helper forms. Strict fixture checks include independent selectors, external settlement/stop reasons, shared definitions/groups, tree-only source types, typed mutations, canonical/legacy hooks, safe views and identity aliases. They retain invalid-phase, exclusive-deferral and readonly metadata assertions. They execute against the extracted package alongside the historical consumers.
 
 In a single process it checks named/default export parity, exact class/symbol/function/namespace identity, cross-loader `instanceof`, and sync/async DAG deferral, seeds, settlement, completion prerequisites and prerequisite lookup.
 
 Strict `.ts` consumers use `node` and `node16` resolution; real `.cts` and mixed `.mts` consumers use Node16, assign classes and `DEFER_READY` across import/require branches, and reject promise-returning sync callbacks and tree-sentinel misuse. Every `.mjs` and `.d.mts` companion must be packed. ESM declaration facades re-export canonical `.d.ts` types rather than duplicating nominal declarations.
 
 Runtime facades use Node-compatible `createRequire(import.meta.url)` to preserve the entire CommonJS module object, including modules with an own default export. This is a shared CJS core, without a standalone browser ESM or tree-shaking promise. It requires the `tar` command. Temporary consumer directories are cleaned up afterward.
+
+The package verifier resolves relative guide links/fragments and images in both the checkout and extracted tarball, preserving public anchors. It compiles and executes all 13 complete standalone TypeScript snippets (marked with an invisible `<!-- standalone -->` comment) against the built package. Partial snippets depend on their nearby setup. Every top-level example also executes during the full check.
 
 ## Adding a regression
 

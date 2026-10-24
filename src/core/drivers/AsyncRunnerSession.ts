@@ -1,7 +1,12 @@
+import {
+  getTraversalExecutionPhases,
+  detachTraversalExecutionOptions,
+} from '@core/normalizeTraversalExecutionOptions';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TraversalRunnerIterableConfig } from '@core/TraversalRunnerIterableConfig';
+import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 import type { PumpMode, VisitOrder } from '@core/effects/types';
 import type { AsyncSessionControl } from '@core/kernelTypes';
 import { Wakeup } from '@core/drivers/Wakeup';
@@ -19,7 +24,7 @@ type CloseWaiter = {
 
 type IteratorState<E> = {
   phase: 'unopened' | 'active' | 'closing' | 'closed';
-  config: Partial<TraversalRunnerIterableConfig<VisitOrder>> | undefined;
+  config: TraversalIterableConfigInput<VisitOrder> | undefined;
   nextWaiters: NextWaiter<E>[];
   closeWaiters: CloseWaiter[];
 };
@@ -47,6 +52,12 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
       : TraversalRunnerStatus.FAILED;
   }
 
+  public getStopReason(): TraversalStopReason | null {
+    return this.observedFailure === null
+      ? this.control.getStopReason()
+      : 'failed';
+  }
+
   public isHalted(): boolean {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
   }
@@ -55,12 +66,13 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
     return Object.freeze({
       ...this.control.inspect(),
       status: this.getStatus(),
+      stopReason: this.getStopReason(),
       bufferedEventCount: this.bufferedEvents.length,
     });
   }
 
   public getIterable(
-    config?: Partial<TraversalRunnerIterableConfig<VisitOrder>>,
+    config?: TraversalIterableConfigInput<VisitOrder>,
   ): AsyncGenerator<E, void, unknown> {
     const state: IteratorState<E> = {
       phase: 'unopened',
@@ -80,7 +92,7 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
   }
 
   public async run(
-    config?: Partial<TraversalRunnerIterableConfig<VisitOrder>>,
+    config?: TraversalIterableConfigInput<VisitOrder>,
   ): Promise<this> {
     const iterator = this.getIterable(config);
     while (!(await iterator.next()).done) {
@@ -101,7 +113,7 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
       state.phase = 'active';
       this.activeIterator = state;
       try {
-        const failure = this.control.getFailure();
+        const failure = this.observedFailure ?? this.control.getFailure();
         if (failure !== null) {
           this.release(state);
           return Promise.reject(failure.error);
@@ -109,6 +121,22 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
         if (this.control.getStatus() === TraversalRunnerStatus.FINISHED) {
           this.release(state);
           return Promise.resolve(done);
+        }
+        if (state.config !== undefined) {
+          const phases = getTraversalExecutionPhases(
+            this.control.inspect().kind,
+          );
+          try {
+            // Validate caller input before claiming the underlying runtime. Keep
+            // internal control failures on the normal terminal failure path.
+            state.config = detachTraversalExecutionOptions(
+              phases,
+              state.config,
+            );
+          } catch (error) {
+            this.release(state);
+            return Promise.reject(error);
+          }
         }
         this.control.resume(state.config);
       } catch (error) {
