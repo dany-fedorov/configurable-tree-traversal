@@ -169,29 +169,25 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
           input_2?.delete === true;
         const hasRewrite =
           inputOk && Object.prototype.hasOwnProperty.call(input_2, 'rewrite');
-        if (
-          hasRewrite &&
-          (input_2.rewrite === null || typeof input_2.rewrite !== 'object')
-        ) {
+        const rewrite = hasRewrite ? input_2.rewrite : undefined;
+        if (hasRewrite && (rewrite === null || typeof rewrite !== 'object')) {
           throw new TypeError(
             'rewrite must be a non-null object property patch',
           );
         }
         const hasRewriteValue =
-          hasRewrite &&
-          Object.prototype.hasOwnProperty.call(input_2.rewrite, 'value');
+          hasRewrite && Object.prototype.hasOwnProperty.call(rewrite, 'value');
         const hasRewriteKey =
-          hasRewrite &&
-          Object.prototype.hasOwnProperty.call(input_2.rewrite, 'key');
+          hasRewrite && Object.prototype.hasOwnProperty.call(rewrite, 'key');
         const rewriteKeyObject = !hasRewriteKey
           ? {}
           : {
-              key: input_2?.rewrite?.key,
+              key: rewrite?.key,
             };
         const rewriteValueObject = !hasRewriteValue
           ? {}
           : {
-              value: input_2?.rewrite?.value,
+              value: rewrite?.value,
             };
         if (toDelete) {
           return {

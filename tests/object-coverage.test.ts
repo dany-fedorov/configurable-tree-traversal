@@ -405,6 +405,137 @@ describe('public mutation command factory', () => {
     },
   );
 
+  test.each([null, undefined, 3, 'invalid', true, Symbol('patch')])(
+    'rejects an invalid first accessor patch %p without consuming later values',
+    (firstPatch) => {
+      const { vertex, options } = makeArguments({ child: 1 });
+      const before = vertex.getData();
+      const assembledMap = new Map();
+      let assemblyCount = 0;
+      let reads = 0;
+      const { makeMutationCommand } =
+        TraversableObjectTree.makeMutationCommandFactory<
+          ObjectTree,
+          ObjectTree
+        >({
+          assembledMap,
+          assembleObject: () => {
+            assemblyCount += 1;
+            return {};
+          },
+        })(vertex, options);
+      const input = {
+        get rewrite() {
+          return ++reads === 1 ? firstPatch : {};
+        },
+      } as unknown as Parameters<typeof makeMutationCommand>[0];
+
+      expect(() => makeMutationCommand(input)).toThrow(
+        /rewrite.*non-null object.*patch/i,
+      );
+      expect(reads).toBe(1);
+      expect(assemblyCount).toBe(0);
+      expect(assembledMap.size).toBe(0);
+      expect(vertex.getData()).toBe(before);
+    },
+  );
+
+  test.each([
+    {
+      patch: {},
+      newData: { key: 'root', value: { assembled: true } },
+      assemblies: 1,
+    },
+    {
+      patch: { key: 'captured' },
+      newData: { key: 'captured', value: { assembled: true } },
+      assemblies: 1,
+    },
+    {
+      patch: { value: undefined },
+      newData: { key: 'root', value: undefined },
+      assemblies: 0,
+    },
+    {
+      patch: { key: 'captured', value: 4 },
+      newData: { key: 'captured', value: 4 },
+      assemblies: 0,
+    },
+  ])(
+    'reads a valid accessor patch once and consumes only $patch',
+    ({ patch, newData, assemblies }) => {
+      const { vertex, options } = makeArguments({ child: 1 });
+      const before = vertex.getData();
+      const assembledMap = new Map();
+      let assemblyCount = 0;
+      let reads = 0;
+      const { makeMutationCommand } =
+        TraversableObjectTree.makeMutationCommandFactory<
+          ObjectTree,
+          ObjectTree
+        >({
+          assembledMap,
+          assembleObject: () => {
+            assemblyCount += 1;
+            return { assembled: true };
+          },
+        })(vertex, options);
+      const input = {
+        get rewrite() {
+          return ++reads <= 2 ? patch : 3;
+        },
+      } as unknown as Parameters<typeof makeMutationCommand>[0];
+
+      expect(makeMutationCommand(input)).toEqual({
+        commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+        commandArguments: { newData },
+      });
+      expect(reads).toBe(1);
+      expect(assemblyCount).toBe(assemblies);
+      expect(assembledMap.size).toBe(0);
+      expect(vertex.getData()).toBe(before);
+    },
+  );
+
+  test.each([undefined, { getterFailure: true }])(
+    'preserves exact accessor error %p before assembly or mutation',
+    (error) => {
+      const { vertex, options } = makeArguments({ child: 1 });
+      const before = vertex.getData();
+      const assembledMap = new Map();
+      let assemblyCount = 0;
+      let reads = 0;
+      const { makeMutationCommand } =
+        TraversableObjectTree.makeMutationCommandFactory<
+          ObjectTree,
+          ObjectTree
+        >({
+          assembledMap,
+          assembleObject: () => {
+            assemblyCount += 1;
+            return {};
+          },
+        })(vertex, options);
+      let didThrow = false;
+      try {
+        makeMutationCommand({
+          get rewrite(): never {
+            reads += 1;
+            throw error;
+          },
+        });
+      } catch (thrown) {
+        didThrow = true;
+        expect(thrown).toBe(error);
+      }
+      expect(didThrow).toBe(true);
+      expect(reads).toBe(1);
+      expect(assemblyCount).toBe(0);
+      expect(assembledMap.size).toBe(0);
+      expect(vertex.getData()).toBe(before);
+    },
+  );
+
   test('honors own undefined values and key-only patches on primitives', () => {
     const { vertex, options } = makeArguments(1);
     const { makeMutationCommand } =
