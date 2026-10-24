@@ -1,3 +1,4 @@
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
 import type {
   DagSummary,
@@ -165,6 +166,10 @@ export class DagTraversalRunner<
     this.kernel = new TraversalKernel({
       kind: 'dag',
       discovery: input.discovery ?? 'lazy',
+      workCompletion:
+        input.workCompletion === undefined
+          ? 'visitorReturn'
+          : input.workCompletion,
       ...(input.rootDependencies === undefined
         ? {}
         : { rootDependencies: input.rootDependencies }),
@@ -219,6 +224,10 @@ export class DagTraversalRunner<
 
   getStatus(): TraversalRunnerStatus {
     return this.state.status;
+  }
+
+  getStopReason(): TraversalStopReason | null {
+    return this.kernel.getStopReason();
   }
 
   isHalted(): boolean {

@@ -1,3 +1,4 @@
+import { assertDagWorkCompletion } from './DagTraversalInstanceConfig';
 import type { DagDiscoveryOptions } from './DagTraversalInstanceConfig';
 import type { VertexId } from '@core/graph/types';
 import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
@@ -114,6 +115,7 @@ export function mergeAsyncDagTraversalInstanceConfigs<
   base: AsyncDagTraversalInstanceConfig<T, R>,
   input: AsyncDagTraversalConfigureInput<T, R>,
 ): AsyncDagTraversalInstanceConfig<T, R> {
+  assertDagWorkCompletion(input.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
   const merged = {
     ...base,

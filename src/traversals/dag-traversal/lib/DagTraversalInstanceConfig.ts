@@ -9,6 +9,7 @@ import { DagTraversalOrder } from './DagTraversalOrder';
 import type { DagVisitor } from './DagTraversalVisitor';
 
 export type DagDiscoveryOptions = {
+  workCompletion?: 'visitorReturn' | 'externalSettlement';
   discovery?: 'lazy' | 'eager';
   rootDependencies?: 'honor' | 'ignore';
   implicitParentDependency?: boolean;
@@ -103,6 +104,7 @@ export function mergeDagTraversalInstanceConfigs<
   base: DagTraversalInstanceConfig<T, R>,
   input: DagTraversalConfigureInput<T, R>,
 ): DagTraversalInstanceConfig<T, R> {
+  assertDagWorkCompletion(input.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
   return {
     ...base,
@@ -118,4 +120,17 @@ export function mergeDagTraversalInstanceConfigs<
       ...(input.traversalRunnerInternalObjects ?? {}),
     },
   } as DagTraversalInstanceConfig<T, R>;
+}
+
+/** Validate configuration before changing traversal ownership or executing callbacks. */
+export function assertDagWorkCompletion(policy: unknown): void {
+  if (
+    policy !== undefined &&
+    policy !== 'visitorReturn' &&
+    policy !== 'externalSettlement'
+  ) {
+    throw new TypeError(
+      'workCompletion must be visitorReturn or externalSettlement',
+    );
+  }
 }

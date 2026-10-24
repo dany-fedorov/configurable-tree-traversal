@@ -12,6 +12,7 @@ import { eventLoopTurn } from './helpers/graph-fixtures';
 
 const inspection: DriverInspection = Object.freeze({
   status: TraversalRunnerStatus.INITIAL,
+  stopReason: null,
   haltRequested: false,
   kind: 'depth-first',
   execution: 'async',
@@ -104,6 +105,19 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
     return this.status;
   }
 
+  public getStopReason(): import('../src').TraversalStopReason | null {
+    switch (this.status) {
+      case TraversalRunnerStatus.HALTED:
+        return 'paused';
+      case TraversalRunnerStatus.FINISHED:
+        return 'finished';
+      case TraversalRunnerStatus.FAILED:
+        return 'failed';
+      default:
+        return null;
+    }
+  }
+
   public getFailure(): { error: unknown } | null {
     return this.failure;
   }
@@ -112,6 +126,7 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
     return {
       ...inspection,
       status: this.status,
+      stopReason: this.getStopReason(),
       haltRequested: this.haltRequested,
     };
   }
@@ -398,6 +413,8 @@ test('captures an undefined control exception without rejecting the detached pum
     ]),
   ).rejects.toBeUndefined();
   expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+  expect(session.getStopReason()).toBe('failed');
+  expect(session.inspect().stopReason).toBe('failed');
 });
 
 test('fails the session when acknowledging a delivered boundary throws', async () => {
@@ -416,6 +433,8 @@ test('fails the session when acknowledging a delivered boundary throws', async (
 
   await expect(iterator.next()).rejects.toBe(error);
   expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+  expect(session.getStopReason()).toBe('failed');
+  expect(session.inspect().stopReason).toBe('failed');
 });
 
 test('rejects close and pending demand when requesting halt throws', async () => {
@@ -431,6 +450,8 @@ test('rejects close and pending demand when requesting halt throws', async () =>
   await expect(iterator.return(undefined)).rejects.toBe(error);
   await expect(pending).rejects.toBe(error);
   expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+  expect(session.getStopReason()).toBe('failed');
+  expect(session.inspect().stopReason).toBe('failed');
 });
 
 test('run drains the session iterator, returns itself, and applies its config', async () => {
@@ -509,6 +530,8 @@ test('internal resume errors remain terminal with their exact thrown value', asy
   const session = new AsyncRunnerSession(control);
   await expect(session.run()).rejects.toBeUndefined();
   expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+  expect(session.getStopReason()).toBe('failed');
+  expect(session.inspect().stopReason).toBe('failed');
   await expect(
     session.run({ visitorPhases: { include: ['ON_READY'] } }),
   ).rejects.toBeUndefined();

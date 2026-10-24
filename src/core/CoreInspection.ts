@@ -1,6 +1,9 @@
 import type { VisitorPhaseSelection } from './TraversalRunnerIterableConfig';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { TraversalRunnerStatus } from '@core/TraversalRunner';
+import type {
+  TraversalRunnerStatus,
+  TraversalStopReason,
+} from '@core/TraversalRunner';
 import type {
   CallbackValues,
   OwnerToken,
@@ -17,6 +20,7 @@ export type InspectionFilters = Readonly<{
 
 export type KernelInspection = Readonly<{
   status: TraversalRunnerStatus;
+  stopReason: TraversalStopReason | null;
   haltRequested: boolean;
   kind: 'depth-first' | 'breadth-first' | 'dag';
   execution: 'sync' | 'async';

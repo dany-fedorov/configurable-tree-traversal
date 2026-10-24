@@ -1,3 +1,4 @@
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { CTTRef } from '@core/CTTRef';
@@ -148,6 +149,10 @@ export class AsyncBreadthFirstTraversalRunner<
     return this.execution.getStatus();
   }
 
+  getStopReason(): TraversalStopReason | null {
+    return this.execution.getStopReason();
+  }
+
   isHalted(): boolean {
     return this.execution.isHalted();
   }
@@ -209,6 +214,7 @@ export class AsyncBreadthFirstTraversalRunner<
       isHaltRequested: () => control.isHaltRequested(),
       resume: (config) => control.resume(config),
       getStatus: () => control.getStatus(),
+      getStopReason: () => control.getStopReason(),
       getFailure: () => control.getFailure(),
       inspect: () => control.inspect(),
       waitForProgress: () => control.waitForProgress(),

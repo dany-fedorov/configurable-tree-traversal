@@ -1,7 +1,10 @@
 import type { DepthFirstTraversalInOrderTraversalConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { TraversalRunnerStatus } from '@core/TraversalRunner';
+import type {
+  TraversalRunnerStatus,
+  TraversalStopReason,
+} from '@core/TraversalRunner';
 import type {
   EffectiveTraversalExecutionOptions,
   TraversalRunnerIterableConfig,
@@ -45,6 +48,7 @@ export type KernelOptions<
   hasPrerequisiteResolver?: boolean;
   concurrency: number;
   discovery?: 'lazy' | 'eager';
+  workCompletion?: 'visitorReturn' | 'externalSettlement';
   rootDependencies?: 'honor' | 'ignore';
   implicitParentDependency?: boolean;
   completedWork?: ReadonlySet<VertexId>;
@@ -118,6 +122,7 @@ export interface AsyncSessionControl<E> {
   isHaltRequested(): boolean;
   resume(config?: TraversalIterableConfigInput<VisitOrder>): void;
   getStatus(): TraversalRunnerStatus;
+  getStopReason(): TraversalStopReason | null;
   getFailure(): { error: unknown } | null;
   inspect(): import('@core/CoreInspection').DriverInspection;
   waitForProgress(): Promise<void>;

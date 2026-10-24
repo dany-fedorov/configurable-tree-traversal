@@ -278,3 +278,30 @@ void missingRoot;
 void nullFound;
 void incompleteOmission;
 void nullResolution;
+
+const completionPolicyRunner = new DagTraversal({
+  traversableGraph: graph,
+  workCompletion: 'externalSettlement',
+}).makeRunner();
+const stopReason: import('../src').TraversalStopReason | null =
+  completionPolicyRunner.getStopReason();
+const coreStopReason: import('../src/core').TraversalStopReason | null =
+  asyncExecution.getStopReason();
+const inspectionStopReason: import('../src').TraversalStopReason | null =
+  inspection.stopReason;
+new AsyncDagTraversal({
+  traversableGraph: graph,
+  workCompletion: 'visitorReturn',
+}).configure({ workCompletion: 'externalSettlement' });
+new DagTraversal({ traversableGraph: graph }).configure({
+  workCompletion: 'visitorReturn',
+});
+// @ts-expect-error Completion policy accepts only the two explicit ownership modes.
+new DagTraversal({ traversableGraph: graph, workCompletion: 'automatic' });
+// @ts-expect-error Async DAG configuration has the same completion policy contract.
+new AsyncDagTraversal({ traversableGraph: graph, workCompletion: true });
+new DagTraversal({ traversableGraph: graph }).configure({
+  // @ts-expect-error Null is not an explicit completion policy.
+  workCompletion: null,
+});
+void [stopReason, coreStopReason, inspectionStopReason];

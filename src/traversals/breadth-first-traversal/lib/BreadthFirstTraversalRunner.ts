@@ -1,3 +1,4 @@
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { CTTRef } from '@core/CTTRef';
 import {
@@ -152,6 +153,10 @@ export class BreadthFirstTraversalRunner<
 
   getStatus(): TraversalRunnerStatus {
     return this.state.status;
+  }
+
+  getStopReason(): TraversalStopReason | null {
+    return this.kernel.getStopReason();
   }
 
   isHalted(): boolean {

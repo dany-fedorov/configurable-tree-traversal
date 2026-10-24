@@ -1,3 +1,4 @@
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import type {
   DagSummary,
   DagSettlementOutcome,
@@ -167,6 +168,10 @@ export class AsyncDagTraversalRunner<
     const kernel = (this.kernel = new TraversalKernel({
       kind: 'dag',
       discovery: input.discovery ?? 'lazy',
+      workCompletion:
+        input.workCompletion === undefined
+          ? 'visitorReturn'
+          : input.workCompletion,
       ...(input.rootDependencies === undefined
         ? {}
         : { rootDependencies: input.rootDependencies }),
@@ -230,6 +235,10 @@ export class AsyncDagTraversalRunner<
 
   getStatus(): TraversalRunnerStatus {
     return this.execution.getStatus();
+  }
+
+  getStopReason(): TraversalStopReason | null {
+    return this.execution.getStopReason();
   }
 
   isHalted(): boolean {
@@ -326,6 +335,7 @@ export class AsyncDagTraversalRunner<
         control.resume(config);
       },
       getStatus: () => control.getStatus(),
+      getStopReason: () => control.getStopReason(),
       getFailure: () =>
         control.getFailure() ??
         (this.state.status === TraversalRunnerStatus.FAILED

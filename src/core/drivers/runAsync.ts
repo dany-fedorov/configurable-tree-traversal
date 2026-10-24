@@ -123,6 +123,7 @@ export function createAsyncDriver<
       kernel.resume(config);
     },
     getStatus: () => kernel.getStatus(),
+    getStopReason: () => kernel.getStopReason(),
     getFailure: () => kernel.getFailure(),
     inspect(): DriverInspection {
       return Object.freeze({

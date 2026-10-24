@@ -14,6 +14,8 @@ import type {
 } from '../traversals/dag-traversal/lib/DagProgress';
 import type { VertexId } from '@core/graph/types';
 import type { KernelInspection } from '@core/CoreInspection';
+import { assertDagWorkCompletion } from '../traversals/dag-traversal/lib/DagTraversalInstanceConfig';
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
@@ -170,6 +172,7 @@ export class TraversalKernel<
   private rootRequested = false;
   private rootSettled = false;
   private haltRequested = false;
+  private haltReason: 'paused' | 'awaitingSettlement' | null = null;
   private failure: { error: unknown } | null = null;
   private readonly boundaries: Boundary<T | R>[] = [];
 
@@ -177,6 +180,7 @@ export class TraversalKernel<
   private executionConfig: EffectiveTraversalExecutionOptions<VisitOrder>;
 
   constructor(private readonly options: KernelOptions<T, R>) {
+    assertDagWorkCompletion(options.workCompletion);
     this.phases = getTraversalExecutionPhases(options.kind);
     // Constructor compatibility fields may come from an already normalized family helper.
     this.executionConfig = normalizeTraversalExecutionOptions(this.phases, {
@@ -442,7 +446,7 @@ export class TraversalKernel<
         const stall = this.scheduling.getStall();
         if (stall !== null) {
           if (this.hasDeferredWork() && this.summary().diagnostics === null)
-            return this.halt();
+            return this.halt('awaitingSettlement');
           const error = new DagTraversalStallError(
             this.scheduling.diagnoseStall(stall),
           );
@@ -513,6 +517,7 @@ export class TraversalKernel<
       this.executionConfig,
     );
     this.haltRequested = false;
+    this.haltReason = null;
     for (const runtime of this.chains.values()) {
       if (runtime.state.phase === 'paused') {
         runtime.machine.resume();
@@ -552,9 +557,23 @@ export class TraversalKernel<
     return this.options.stateBridge.status;
   }
 
+  getStopReason(): TraversalStopReason | null {
+    switch (this.getStatus()) {
+      case TraversalRunnerStatus.HALTED:
+        return this.haltReason ?? 'paused';
+      case TraversalRunnerStatus.FINISHED:
+        return 'finished';
+      case TraversalRunnerStatus.FAILED:
+        return 'failed';
+      default:
+        return null;
+    }
+  }
+
   inspect(): KernelInspection {
     return deepFreeze({
       status: this.getStatus(),
+      stopReason: this.getStopReason(),
       haltRequested: this.haltRequested,
       kind: this.options.kind,
       execution: this.options.execution,
@@ -1040,12 +1059,7 @@ export class TraversalKernel<
           runtime.state.commands = [];
           runtime.state.waitingFor = 'none';
           if (result.deferred) {
-            this.deferred.set(runtime.state.ref, {
-              state: runtime.state,
-              generation: Symbol('DAG settlement'),
-            });
-            this.chains.delete(id);
-            this.expansionQueue.push(runtime.state.ref);
+            this.deferChain(id, runtime.state);
             return null;
           }
           if (result.halt) runtime.state.phase = 'paused';
@@ -1059,11 +1073,28 @@ export class TraversalKernel<
           return null;
         case 'DONE':
           runtime.state.phase = 'done';
-          this.commitChain(runtime.state);
-          this.chains.delete(id);
+          if (
+            this.options.workCompletion === 'externalSettlement' &&
+            runtime.state.order === 'ON_READY' &&
+            this.options.container.resolvedGraph.has(runtime.state.ref)
+          ) {
+            this.deferChain(id, runtime.state);
+          } else {
+            this.commitChain(runtime.state);
+            this.chains.delete(id);
+          }
           return null;
       }
     }
+  }
+
+  private deferChain(id: number, state: ChainState<T, R>): void {
+    this.deferred.set(state.ref, {
+      state,
+      generation: Symbol('DAG settlement'),
+    });
+    this.chains.delete(id);
+    this.expansionQueue.push(state.ref);
   }
 
   private commitCommands(
@@ -1999,7 +2030,10 @@ export class TraversalKernel<
     this.readyCalls.length = 0;
   }
 
-  private halt(): KernelAction<T, R> {
+  private halt(
+    reason: 'paused' | 'awaitingSettlement' = 'paused',
+  ): KernelAction<T, R> {
+    this.haltReason = reason;
     this.setStatus(TraversalRunnerStatus.HALTED);
     return { kind: 'HALTED' };
   }

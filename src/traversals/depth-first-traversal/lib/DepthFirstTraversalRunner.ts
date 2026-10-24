@@ -1,3 +1,4 @@
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTree } from '@core/ResolvedTree';
@@ -144,6 +145,10 @@ export class DepthFirstTraversalRunner<
 
   getStatus(): TraversalRunnerStatus {
     return this.state.status;
+  }
+
+  getStopReason(): TraversalStopReason | null {
+    return this.kernel.getStopReason();
   }
 
   isHalted(): boolean {

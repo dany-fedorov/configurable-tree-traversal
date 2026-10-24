@@ -4,6 +4,7 @@ import {
 } from '@core/normalizeTraversalExecutionOptions';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 import type { PumpMode, VisitOrder } from '@core/effects/types';
@@ -51,6 +52,12 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
       : TraversalRunnerStatus.FAILED;
   }
 
+  public getStopReason(): TraversalStopReason | null {
+    return this.observedFailure === null
+      ? this.control.getStopReason()
+      : 'failed';
+  }
+
   public isHalted(): boolean {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
   }
@@ -59,6 +66,7 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
     return Object.freeze({
       ...this.control.inspect(),
       status: this.getStatus(),
+      stopReason: this.getStopReason(),
       bufferedEventCount: this.bufferedEvents.length,
     });
   }
