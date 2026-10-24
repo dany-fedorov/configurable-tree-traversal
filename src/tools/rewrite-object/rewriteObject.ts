@@ -8,7 +8,10 @@ import type { GetPathToOptions } from '@core/ResolvedTree';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import type { MakeMutationCommandFunctionInput } from '@core/MakeMutationCommandFunctionFactory';
 import type { TraversableObjectTreeInstanceConfigInput } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
-import type { TO_MakeMutationCommandFunctionFactoryConfiguration } from '@traversable-object-tree/lib/makeMutationCommandFactory';
+import type {
+  TO_MakeMutationCommandFunctionFactoryConfiguration,
+  TO_MutationPropertyPatch,
+} from '@traversable-object-tree/lib/makeMutationCommandFactory';
 import type { DepthFirstTraversalInstanceConfigInput } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
 import { TraversableObjectTree } from '@traversable-object-tree/TraversableObjectTree';
@@ -43,7 +46,9 @@ export type RewriteFn<
   prop: RewriteFnPropInput<InK, InV, OutV>,
   options: RewriteFnOptions<InK, InV>,
 ) =>
-  | MakeMutationCommandFunctionInput<Partial<TraversableObjectProp<OutK, OutV>>>
+  | MakeMutationCommandFunctionInput<
+      TO_MutationPropertyPatch<TraversableObjectTTP<OutK, OutV>>
+    >
   | undefined;
 
 export const __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ =

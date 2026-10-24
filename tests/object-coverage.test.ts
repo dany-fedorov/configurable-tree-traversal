@@ -374,6 +374,83 @@ describe('public mutation command factory', () => {
     return { vertex, options };
   };
 
+  test.each([null, undefined, 3, 'invalid', true, Symbol('patch')])(
+    'rejects malformed rewrite patch %p before assembly or mutation',
+    (rewrite) => {
+      const { vertex, options } = makeArguments({ child: 1 });
+      const assembledMap = new Map();
+      let assemblyCount = 0;
+      const mutation = TraversableObjectTree.makeMutationCommandFactory<
+        ObjectTree,
+        ObjectTree
+      >({
+        assembledMap,
+        assembleObject: () => {
+          assemblyCount += 1;
+          return {};
+        },
+      })(vertex, options);
+      const before = vertex.getData();
+      const input = { rewrite } as unknown as Parameters<
+        typeof mutation.makeMutationCommand
+      >[0];
+
+      expect(() => mutation.makeMutationCommand(input)).toThrow(TypeError);
+      expect(() => mutation.makeMutationCommand(input)).toThrow(
+        /rewrite.*non-null object.*patch/i,
+      );
+      expect(vertex.getData()).toBe(before);
+      expect(assembledMap.size).toBe(0);
+      expect(assemblyCount).toBe(0);
+    },
+  );
+
+  test('honors own undefined values and key-only patches on primitives', () => {
+    const { vertex, options } = makeArguments(1);
+    const { makeMutationCommand } =
+      TraversableObjectTree.makeMutationCommandFactory<
+        ObjectTree,
+        ObjectTree
+      >()(vertex, options);
+    expect(makeMutationCommand({ rewrite: { value: undefined } })).toEqual({
+      commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+      commandArguments: { newData: { key: 'root', value: undefined } },
+    });
+    expect(makeMutationCommand({ rewrite: { key: 'renamed' } })).toEqual({
+      commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+      commandArguments: { newData: { key: 'renamed', value: 1 } },
+    });
+    expect(makeMutationCommand({ delete: true })).toEqual({
+      commandName: TraversalVisitorCommandName.DELETE_VERTEX,
+    });
+    expect(vertex.getData()).toEqual({ key: 'root', value: 1 });
+  });
+
+  test.each([[], {}])(
+    'preserves exact user assembler errors for %p',
+    (value) => {
+      const error = { assemblerFailure: true };
+      const { vertex, options } = makeArguments(value);
+      const failAssembly = (): never => {
+        throw error;
+      };
+      const { makeMutationCommand } =
+        TraversableObjectTree.makeMutationCommandFactory<
+          ObjectTree,
+          ObjectTree
+        >({ assembleArray: failAssembly, assembleObject: failAssembly })(
+          vertex,
+          options,
+        );
+      try {
+        makeMutationCommand();
+        throw new Error('Expected assembler to throw');
+      } catch (thrown) {
+        expect(thrown).toBe(error);
+      }
+    },
+  );
+
   test('default array assembly handles a ref with no resolved child entry', () => {
     const makeMutationCommand =
       TraversableObjectTree.makeMutationCommandFactory<
