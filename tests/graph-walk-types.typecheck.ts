@@ -290,3 +290,58 @@ void [
   unsafePaths,
   promisedCounts,
 ];
+
+const registered = new GraphWalk({ source });
+const sameFactory: typeof registered = registered.addVisitorFor(
+  Phase.EDGE,
+  (event, context) => {
+    const phase: Phase.EDGE = context.order;
+    const kind: 'edge' = event.kind;
+    const edgeData: number = event.edge.data;
+    const id: undefined = event.source.vertexId;
+    // @ts-expect-error Exact phase registration cannot see a vertex event.
+    event.vertex;
+    // @ts-expect-error Context metadata exposes no executable callback.
+    context.visitorRecord.visitor;
+    void [phase, kind, edgeData, id];
+    return { commands: [{ commandName: Command.NOOP }] };
+  },
+);
+registered.addVisitorGroupFor(Phase.PATH, {
+  visitors: [
+    (event) => {
+      const data: string = event.vertices[0]!.data;
+      // @ts-expect-error A path callback cannot receive an edge event.
+      event.edge;
+      void data;
+    },
+  ],
+});
+registered.setVisitorsFor(Phase.VERTEX, (event, context) => {
+  const phase: Phase.VERTEX = context.order;
+  const data: string = event.vertex.data;
+  void [phase, data];
+});
+const exactRecords: import('../src/core/graph/types').VisitorRecord<
+  import('../src').GraphWalkVisitor<string, number, Phase.EDGE, undefined>
+>[] = registered.listVisitorsFor(Phase.EDGE);
+// @ts-expect-error Appending async visitors to a sync factory is forbidden.
+registered.addVisitorFor(Phase.VERTEX, async () => undefined);
+registered.addVisitorFor(Phase.EDGE, () => ({
+  // @ts-expect-error Invalid return commands must not widen the registered phase.
+  commands: [{ commandName: Command.DELETE_VERTEX }],
+}));
+registered.addVisitorGroupFor(Phase.EDGE, {
+  visitors: [
+    // @ts-expect-error Group callbacks cannot widen the registered phase.
+    (_event: GraphWalkEventFor<string, number, Phase.VERTEX, undefined>) =>
+      undefined,
+  ],
+});
+registered.setVisitorsFor(
+  Phase.EDGE,
+  // @ts-expect-error Setter callbacks cannot widen the registered phase.
+  (_event: GraphWalkEventFor<string, number, Phase.PATH, undefined>) =>
+    undefined,
+);
+void [sameFactory, exactRecords];

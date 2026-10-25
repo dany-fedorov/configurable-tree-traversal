@@ -7,7 +7,7 @@ import type { WalkKernel } from './WalkKernel';
 import { rejectThenable } from './rejectThenable';
 
 export class SyncWalkSession<Data, Edge, ID> {
-  private owned = false;
+  private owner: symbol | null = null;
   constructor(private readonly kernel: WalkKernel<Data, Edge, ID>) {}
   getIterable(
     config?: TraversalIterableConfigInput<GraphWalkPhase>,
@@ -24,10 +24,13 @@ export class SyncWalkSession<Data, Edge, ID> {
   private *iterate(
     config?: TraversalIterableConfigInput<GraphWalkPhase>,
   ): Generator<GraphWalkEvent<Data, Edge, ID>, void, unknown> {
-    if (this.owned)
+    if (this.owner !== null)
       throw new Error('Graph walk already has an execution owner');
     this.kernel.resume(config);
-    this.owned = true;
+    // Acquisition occurs on first next(), so returning an unstarted iterator
+    // cannot pause or release another lease. Competing execution fails above
+    // before configuration or the current lease is changed.
+    this.owner = Symbol('synchronous walking iterator lease');
     try {
       for (;;) {
         const action = this.kernel.poll();
@@ -53,7 +56,7 @@ export class SyncWalkSession<Data, Edge, ID> {
         else return;
       }
     } finally {
-      this.owned = false;
+      this.owner = null;
       this.kernel.requestPause();
       this.kernel.poll();
     }

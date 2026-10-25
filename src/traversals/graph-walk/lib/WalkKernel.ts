@@ -1,3 +1,6 @@
+import { WalkVisitorChain } from './WalkVisitorChain';
+import type { WalkVisitor } from './normalizeWalkOptions';
+import type { VisitorRecord } from '@core/graph/types';
 import { TraversalRunnerStatus as Status } from '@core/TraversalRunner';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { Outcome } from '@core/effects/types';
@@ -28,7 +31,7 @@ const phases = [Phase.VERTEX, Phase.EDGE, Phase.PATH];
 type Observation<Data, Edge, ID> = Extract<
   WalkAction<Data, Edge, ID>,
   { kind: 'OBSERVATION' }
->;
+> & { occurrenceIndex: number };
 type Request<Data, Edge, ID> = Extract<
   WalkAction<Data, Edge, ID>,
   { kind: 'CALL' }
@@ -55,6 +58,7 @@ export class WalkKernel<Data, Edge, ID> {
   private readonly cache = new WalkSourceCache<Data, Edge, ID>();
   private readonly frontier: WalkFrontier<Data, Edge, ID>;
   private readonly observations: Observation<Data, Edge, ID>[] = [];
+  private chain: WalkVisitorChain<Data, Edge, ID> | null = null;
   private expansion: WalkRoute<Data, Edge, ID> | null = null;
   private depthLimited = false;
   private counts = {
@@ -98,6 +102,7 @@ export class WalkKernel<Data, Edge, ID> {
     if (this.status !== Status.FINISHED && this.status !== Status.FAILED) {
       this.status = Status.RUNNING;
       this.haltRequested = false;
+      this.chain?.resume();
     }
   }
   beginClose(): void {
@@ -143,6 +148,7 @@ export class WalkKernel<Data, Edge, ID> {
       throw new Error('Invalid walking observation acknowledgement');
     this.counts.observations[observation.phase]++;
     this.observations.shift();
+    this.chain = null;
   }
   private observe(
     phase: Phase,
@@ -151,6 +157,7 @@ export class WalkKernel<Data, Edge, ID> {
     this.observations.push({
       kind: 'OBSERVATION',
       phase,
+      occurrenceIndex: this.counts.occurrences - 1,
       boundaryId: this.boundaryId++,
       event,
     });
@@ -306,17 +313,56 @@ export class WalkKernel<Data, Edge, ID> {
         return { kind: 'FAILED', error: this.outcome.error };
       if (this.status === Status.FINISHED) return { kind: 'FINISHED' };
       if (this.request !== null && this.request.issued) return { kind: 'WAIT' };
-      if (this.haltRequested || this.status === Status.HALTED) {
+      if (this.status === Status.HALTED) return { kind: 'HALTED' };
+      if (this.status === Status.INITIAL) return { kind: 'WAIT' };
+      // An admitted callback chain drains on cooperative pause. HALT keeps the
+      // same chain at its next callback until a new execution lease resumes it.
+      if (this.chain !== null) {
+        const chain = this.chain;
+        if (chain.paused) {
+          this.status = Status.HALTED;
+          return { kind: 'HALTED' };
+        }
+        if (chain.done) return this.observations[0]!;
+        this.call(
+          'visitor',
+          () => chain.invoke(),
+          (value) => chain.submit(value),
+        );
+      } else if (this.haltRequested) {
         this.status = Status.HALTED;
         return { kind: 'HALTED' };
       }
-      if (this.status === Status.INITIAL) return { kind: 'WAIT' };
       if (this.request !== null) {
         this.request.issued = true;
         const { kind, requestId, operation, invoke } = this.request;
         return { kind, requestId, operation, invoke };
       }
-      if (this.observations.length > 0) return this.observations[0]!;
+      if (this.observations.length > 0) {
+        const observation = this.observations[0]!;
+        const {
+          enableVisitorFunctionsFor: include,
+          disableVisitorFunctionsFor: exclude,
+        } = this.execution;
+        const enabled =
+          include !== null
+            ? include.includes(observation.phase)
+            : exclude === null || !exclude.includes(observation.phase);
+        // The phase-keyed records and projection originate at the same boundary.
+        const records = enabled
+          ? (this.options.visitors[observation.phase] as VisitorRecord<
+              WalkVisitor<Data, Edge, Phase, ID>
+            >[])
+          : [];
+        this.chain = new WalkVisitorChain(
+          records,
+          observation.phase,
+          observation.event,
+          observation.occurrenceIndex,
+          this.counts.observations[observation.phase],
+        );
+        continue;
+      }
       if (this.expansion !== null) {
         const route = this.expansion;
         this.expansion = null;
@@ -461,7 +507,13 @@ export class WalkKernel<Data, Edge, ID> {
       pendingObservationKinds: Object.freeze(
         this.observations.map((item) => item.phase),
       ),
-      activeVisitor: null,
+      activeVisitor:
+        this.chain === null
+          ? null
+          : Object.freeze({
+              phase: this.chain.phase,
+              position: this.chain.position,
+            }),
       pendingRequests: Object.freeze(
         this.request === null
           ? []

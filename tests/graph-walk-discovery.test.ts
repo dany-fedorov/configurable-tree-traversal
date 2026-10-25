@@ -102,7 +102,10 @@ it('caches first accepted inline hydration and omission, copying wrappers but sh
     ['A', 'B', 2, 'omitted'],
     ['A', 'changed', 3, 'found'],
   ]);
-  expect(runner.summary().counts).toMatchObject({ foundVertices: 2, omittedVertices: 2 });
+  expect(runner.summary().counts).toMatchObject({
+    foundVertices: 2,
+    omittedVertices: 2,
+  });
   expect(Object.isFrozen(data)).toBe(false);
 });
 
@@ -244,7 +247,6 @@ it.each([
 it('rejects unsupported active options before source I/O', () => {
   const source = idGraph(['A'], [['A', []]]);
   for (const options of [
-    { visitors: { [Phase.VERTEX]: () => undefined } },
     { revisit: 'walks' as const, limits: { maxSteps: 1 } },
   ])
     expect(() => new GraphWalk({ source, ...options }).makeRunner()).toThrow(
