@@ -8,6 +8,7 @@ import type {
 } from './TraversalRunnerIterableConfig';
 import type {
   DagSummary,
+  DagDeferredWork,
   DagSettlementOutcome,
   DagSettlementGeneration,
   DagVertexProgress,
@@ -155,6 +156,8 @@ export class TraversalKernel<
     }
   >();
   private discoveryValidated = false;
+  private preparing = false;
+  private executionStarted = false;
   private readonly expansionQueue: Ref<T | R>[] = [];
   private readonly orders: PolicyOrders;
   private readonly depthFirstPolicy: DepthFirstPolicy<T | R> | null;
@@ -172,7 +175,8 @@ export class TraversalKernel<
   private rootRequested = false;
   private rootSettled = false;
   private haltRequested = false;
-  private haltReason: 'paused' | 'awaitingSettlement' | null = null;
+  private haltReason: 'prepared' | 'paused' | 'awaitingSettlement' | null =
+    null;
   private failure: { error: unknown } | null = null;
   private readonly boundaries: Boundary<T | R>[] = [];
 
@@ -323,7 +327,16 @@ export class TraversalKernel<
         return { kind: 'FAILED', error: chainFailure.error };
       }
       if (this.haltRequested) {
-        return this.hasRunningChain() ? { kind: 'WAIT' } : this.halt();
+        return this.hasRunningChain() ||
+          (this.preparing &&
+            Array.from(this.pendingRequests.values()).some(
+              (pending) =>
+                pending.invoked &&
+                !pending.submitted &&
+                this.isOwnerValid(pending.call.owner),
+            ))
+          ? { kind: 'WAIT' }
+          : this.halt();
       }
 
       const frameAction = this.runTransition(() =>
@@ -434,6 +447,9 @@ export class TraversalKernel<
         }
       }
 
+      if (this.preparing && this.rootSettled && this.discoveryValidated) {
+        return this.halt('prepared');
+      }
       if (this.isFinished()) {
         this.setStatus(TraversalRunnerStatus.FINISHED);
         return { kind: 'FINISHED' };
@@ -509,13 +525,35 @@ export class TraversalKernel<
     }
   }
 
-  resume(config?: TraversalIterableConfigInput<VisitOrder>): void {
+  validatePreparation(): void {
+    if (this.failure !== null) throw this.failure.error;
+    if (!this.options.canPrepare) {
+      throw new Error(
+        'Preparation requires a runner without injected state or containers',
+      );
+    }
+    if (this.executionStarted) {
+      throw new Error('Cannot prepare after execution has started');
+    }
+  }
+
+  resume(
+    config?: TraversalIterableConfigInput<VisitOrder>,
+    preparation = false,
+  ): void {
     if (this.failure !== null) return;
     this.executionConfig = normalizeTraversalExecutionOptions(
       this.phases,
       config,
       this.executionConfig,
     );
+    this.preparing = preparation;
+    if (preparation) {
+      this.options.discovery = 'eager';
+      this.scheduling.enableEagerDiscovery();
+    } else {
+      this.executionStarted = true;
+    }
     this.haltRequested = false;
     this.haltReason = null;
     for (const runtime of this.chains.values()) {
@@ -646,6 +684,7 @@ export class TraversalKernel<
     const vertices = new Map<VertexId, DagVertexProgress>();
     const readyIds: VertexId[] = [];
     const deferredIds: VertexId[] = [];
+    const deferredFrontier: DagDeferredWork[] = [];
     const inFlightIds: VertexId[] = [];
     const completedWorkIds: VertexId[] = [];
     const completedSubtreeIds: VertexId[] = [];
@@ -665,7 +704,15 @@ export class TraversalKernel<
         : 'pending';
       if (state === 'pending') pending += 1;
       if (state === 'ready' || state === 'deferred') readyIds.push(id);
-      if (state === 'deferred') deferredIds.push(id);
+      if (state === 'deferred') {
+        deferredIds.push(id);
+        if (deferred!.outcome === undefined) {
+          deferredFrontier.push({
+            vertexId: id,
+            generation: deferred!.generation,
+          });
+        }
+      }
       if (running) inFlightIds.push(id);
       if (item.initialCommitted) completedWorkIds.push(id);
       if (item.completionCommitted) completedSubtreeIds.push(id);
@@ -717,6 +764,7 @@ export class TraversalKernel<
       vertices,
       readyIds,
       deferredIds,
+      deferredFrontier,
       inFlightIds,
       completedWorkIds,
       completedSubtreeIds,
@@ -1823,6 +1871,7 @@ export class TraversalKernel<
         return false;
       }
     }
+    if (this.preparing) return false;
     if (
       this.options.kind === 'dag' &&
       this.options.execution === 'async' &&
@@ -2022,7 +2071,7 @@ export class TraversalKernel<
   }
 
   private halt(
-    reason: 'paused' | 'awaitingSettlement' = 'paused',
+    reason: 'prepared' | 'paused' | 'awaitingSettlement' = 'paused',
   ): KernelAction<T, R> {
     this.haltReason = reason;
     this.setStatus(TraversalRunnerStatus.HALTED);

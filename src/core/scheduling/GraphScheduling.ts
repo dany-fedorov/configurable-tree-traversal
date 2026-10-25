@@ -45,11 +45,15 @@ export class GraphScheduling<
   constructor(
     private readonly container: ResolvedGraphsContainer<T, R>,
     completedWork?: ReadonlySet<VertexId>,
-    private readonly eager = false,
+    private eager = false,
     private readonly rootDependencies: 'honor' | 'ignore' = 'honor',
     private readonly implicitParentDependency = false,
   ) {
     this.unusedCompletedWork = new Set(completedWork);
+  }
+
+  enableEagerDiscovery(): void {
+    this.eager = true;
   }
 
   getUnusedCompletedWorkIds(): VertexId[] {

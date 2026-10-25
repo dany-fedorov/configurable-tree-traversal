@@ -18,6 +18,7 @@ export type TraversalRunnerIteratorResultContent<
 };
 
 export type TraversalStopReason =
+  | 'prepared'
   | 'paused'
   | 'awaitingSettlement'
   | 'finished'

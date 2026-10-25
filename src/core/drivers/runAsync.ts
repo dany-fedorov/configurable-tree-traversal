@@ -120,9 +120,9 @@ export function createAsyncDriver<
       wakeup.notify();
     },
     isHaltRequested: () => kernel.isHaltRequested(),
-    resume: (config) => {
+    resume: (config, preparation) => {
       closing = false;
-      kernel.resume(config);
+      kernel.resume(config, preparation);
     },
     getStatus: () => kernel.getStatus(),
     getStopReason: () => kernel.getStopReason(),

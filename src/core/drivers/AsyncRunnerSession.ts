@@ -25,6 +25,7 @@ type CloseWaiter = {
 type IteratorState<E> = {
   phase: 'unopened' | 'active' | 'closing' | 'closed';
   config: TraversalIterableConfigInput<VisitOrder> | undefined;
+  preparation?: () => void;
   nextWaiters: NextWaiter<E>[];
   closeWaiters: CloseWaiter[];
 };
@@ -87,9 +88,24 @@ export class AsyncRunnerSession<E>
   public getIterable(
     config?: TraversalIterableConfigInput<VisitOrder>,
   ): AsyncGenerator<E, void, unknown> {
+    return this.makeIterator(config);
+  }
+
+  public async prepare(validate: () => void): Promise<void> {
+    const iterator = this.makeIterator(undefined, validate);
+    while (!(await iterator.next()).done) {
+      // Preparation shares the iterator lease and driver pump.
+    }
+  }
+
+  private makeIterator(
+    config?: TraversalIterableConfigInput<VisitOrder>,
+    preparation?: () => void,
+  ): AsyncGenerator<E, void, unknown> {
     const state: IteratorState<E> = {
       phase: 'unopened',
       config,
+      ...(preparation === undefined ? {} : { preparation }),
       nextWaiters: [],
       closeWaiters: [],
     };
@@ -131,6 +147,12 @@ export class AsyncRunnerSession<E>
           this.release(state);
           return Promise.reject(failure.error);
         }
+        try {
+          state.preparation?.();
+        } catch (error) {
+          this.release(state);
+          return Promise.reject(error);
+        }
         if (this.control.getStatus() === TraversalRunnerStatus.FINISHED) {
           this.release(state);
           return Promise.resolve(done);
@@ -151,7 +173,7 @@ export class AsyncRunnerSession<E>
             return Promise.reject(error);
           }
         }
-        this.control.resume(state.config);
+        this.control.resume(state.config, state.preparation !== undefined);
       } catch (error) {
         this.observeFailure(error);
         this.release(state);

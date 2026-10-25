@@ -3,6 +3,10 @@ import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStal
 /** @deprecated Return the DEFER_READY visitor command instead. */
 export const DEFER_READY: unique symbol = Symbol('DEFER_READY');
 export type DagSettlementGeneration = symbol;
+export type DagDeferredWork<ID = unknown> = Readonly<{
+  vertexId: ID;
+  generation: DagSettlementGeneration;
+}>;
 export type DagSettlementOutcome =
   | { kind: 'workCompleted'; ok?: never; error?: never }
   | { kind: 'traversalFailed'; error: unknown; ok?: never }
@@ -38,6 +42,7 @@ export type DagSummary<ID = unknown> = Readonly<{
   vertices: ReadonlyMap<ID, DagVertexProgress<ID>>;
   readyIds: readonly ID[];
   deferredIds: readonly ID[];
+  deferredFrontier: readonly DagDeferredWork<ID>[];
   inFlightIds: readonly ID[];
   completedWorkIds: readonly ID[];
   completedSubtreeIds: readonly ID[];

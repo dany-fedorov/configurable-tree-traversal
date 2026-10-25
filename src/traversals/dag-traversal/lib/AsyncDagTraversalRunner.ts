@@ -5,7 +5,6 @@ import type {
   DagSettlementOutcome,
   DagSettlementGeneration,
 } from './DagProgress';
-import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { CTTRef } from '@core/CTTRef';
 import {
@@ -61,10 +60,7 @@ export class AsyncDagTraversalRunner<
     makeEffectiveDagTraversalRunnerIterableConfig();
   private readonly kernel: TraversalKernel<T, R>;
   private readonly notifyProgress: () => void;
-  private readonly execution: AsyncCoreExecution<
-    Event<T, R>,
-    DagTraversalOrder
-  >;
+  private readonly execution: AsyncRunnerSession<Event<T, R>>;
 
   constructor(input: AsyncDagTraversalInstanceConfig<T, R, ID>) {
     if (
@@ -173,6 +169,9 @@ export class AsyncDagTraversalRunner<
     });
     const kernel = (this.kernel = new TraversalKernel({
       kind: 'dag',
+      canPrepare:
+        input.traversalRunnerInternalObjects.state === null &&
+        input.traversalRunnerInternalObjects.resolvedGraphsContainer === null,
       discovery: input.discovery ?? 'lazy',
       workCompletion:
         this.icfg.workCompletion === undefined
@@ -223,6 +222,11 @@ export class AsyncDagTraversalRunner<
     this.notifyProgress = driver.notifyProgress;
     const projectedControl = this.projectEvents(driver, policy);
     this.execution = new AsyncRunnerSession(projectedControl);
+  }
+
+  async prepare(): Promise<this> {
+    await this.execution.prepare(() => this.kernel.validatePreparation());
+    return this;
   }
 
   summary(): DagSummary<ID> {
@@ -339,6 +343,10 @@ export class AsyncDagTraversalRunner<
               vertex: progress.event.vertex,
               vertexRef: progress.event.vertexRef,
               order: progress.event.order as DagTraversalOrder,
+              kind:
+                progress.event.order === DagTraversalOrder.ON_READY
+                  ? 'workCompleted'
+                  : 'subgraphCompleted',
               isGraphRoot: progress.event.isRoot,
               isTraversalRoot: progress.event.isTraversalRoot,
             },
@@ -355,9 +363,9 @@ export class AsyncDagTraversalRunner<
       acknowledgeEvent: (boundaryId) => control.acknowledgeEvent(boundaryId),
       requestHalt: () => control.requestHalt(),
       isHaltRequested: () => control.isHaltRequested(),
-      resume: (config) => {
+      resume: (config, preparation) => {
         policy.claim();
-        control.resume(config);
+        control.resume(config, preparation);
       },
       getStatus: () => control.getStatus(),
       getStopReason: () => control.getStopReason(),

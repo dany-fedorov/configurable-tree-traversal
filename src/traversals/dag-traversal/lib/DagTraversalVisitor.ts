@@ -66,6 +66,7 @@ export type AsyncDagVisitor<
   : never;
 
 export type DagEvent<T extends TreeTypeParameters> = {
+  kind: 'workCompleted' | 'subgraphCompleted';
   vertex: Vertex<T>;
   vertexRef: CTTRef<Vertex<T>>;
   order: DagTraversalOrder;
