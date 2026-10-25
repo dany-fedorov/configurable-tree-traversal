@@ -605,3 +605,136 @@ it.each([null, undefined])(
     expect(returns).toEqual(['edges:A', 'roots']);
   },
 );
+
+it.each([GraphWalk, AsyncGraphWalk])(
+  '%p releases acquired iterators when their then getter throws before the first next',
+  async (factory) => {
+    for (const primary of [
+      null,
+      undefined,
+      { reason: 'iterator then getter' },
+    ]) {
+      for (const location of ['roots', 'outgoing']) {
+        const returns: string[] = [];
+        const cleanup = {
+          reason: 'cleanup must not replace acquisition error',
+        };
+        let openedAtValidation = -1;
+        let nextCalls = 0;
+        const acquired = {
+          [Symbol.iterator]() {
+            return {
+              get then(): never {
+                openedAtValidation = runner.inspect().openSourceIteratorCount;
+                throw primary;
+              },
+              next(): IteratorResult<never> {
+                nextCalls++;
+                return { done: true, value: undefined };
+              },
+              return(): IteratorResult<never> {
+                returns.push(location);
+                throw cleanup;
+              },
+            };
+          },
+        };
+        const source: GraphWalkSource<string, undefined, string> = {
+          roots: () =>
+            location === 'roots'
+              ? acquired
+              : manual(
+                  'roots',
+                  returns,
+                  () => ({
+                    done: false,
+                    value: {
+                      vertexId: 'A',
+                      resolution: { kind: 'found', data: 'A' },
+                    },
+                  }),
+                  () => {
+                    throw cleanup;
+                  },
+                ),
+          outgoing: () => acquired,
+        };
+        const runner = new factory({
+          source,
+          strategy: 'depthFirst',
+        }).makeRunner();
+        let caught = false;
+        try {
+          await runner.run();
+        } catch (error) {
+          caught = true;
+          expect(error).toBe(primary);
+        }
+        expect(caught).toBe(true);
+        expect(nextCalls).toBe(0);
+        expect(returns).toEqual(
+          location === 'roots' ? ['roots'] : ['outgoing', 'roots'],
+        );
+        expect(openedAtValidation).toBe(location === 'roots' ? 1 : 2);
+        expect(runner.getStatus()).toBe(Status.FAILED);
+        expect(runner.summary().outcome).toEqual({
+          kind: 'failed',
+          error: primary,
+        });
+        caught = false;
+        try {
+          await runner.close();
+        } catch (error) {
+          caught = true;
+          expect(error).toBe(primary);
+        }
+        expect(caught).toBe(true);
+        expect(returns).toEqual(
+          location === 'roots' ? ['roots'] : ['outgoing', 'roots'],
+        );
+        expect(runner.inspect().openSourceIteratorCount).toBe(0);
+      }
+    }
+  },
+);
+
+it.each([GraphWalk, AsyncGraphWalk])(
+  '%p still observes invalid callable factory thenables and rejects primitive iterators',
+  async (factory) => {
+    const rejection = { reason: 'invalid factory thenable' };
+    const rejected = Promise.reject(rejection);
+    const observed: unknown[] = [];
+    const callable = Object.assign(() => undefined, {
+      then(
+        onFulfilled: (value: unknown) => unknown,
+        onRejected: (error: unknown) => unknown,
+      ) {
+        return rejected.then(onFulfilled, (error: unknown) => {
+          observed.push(error);
+          return onRejected(error);
+        });
+      },
+    });
+    // A fallback keeps an intentionally failing regression from leaking rejection.
+    void rejected.catch(() => undefined);
+    for (const value of [callable, 42]) {
+      const source = {
+        roots: () => ({ [Symbol.iterator]: () => value }),
+        outgoing: () => [],
+      } as unknown as GraphWalkSource<never, never, never>;
+      const runner = new factory({ source }).makeRunner();
+      let caught = false;
+      try {
+        await runner.run();
+      } catch (error) {
+        caught = true;
+        expect(error).toBeInstanceOf(TypeError);
+      }
+      expect(caught).toBe(true);
+      expect(runner.getStatus()).toBe(Status.FAILED);
+      expect(runner.inspect().openSourceIteratorCount).toBe(0);
+    }
+    await Promise.resolve();
+    expect(observed).toEqual([rejection]);
+  },
+);

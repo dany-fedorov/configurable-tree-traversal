@@ -45,14 +45,18 @@ export function pullCursor(
     if (typeof factory !== 'function')
       throw new TypeError('Expected a walking source iterable');
     const value = factory.call(input);
+    // Acquiring an object transfers cleanup ownership before any source-owned
+    // getter is read, including the thenable guard's `then` lookup.
+    if (value !== null && typeof value === 'object') {
+      cursor.iterator = value as Iterator<unknown>;
+      resources.open(cursor.iterator, vertexToken);
+    }
     rejectThenable(value);
     const iterator = record(value);
-    cursor.iterator = iterator as unknown as Iterator<unknown>;
-    resources.open(cursor.iterator, vertexToken);
     if (typeof iterator['next'] !== 'function')
       throw new TypeError('Expected an iterator next method');
   }
-  return cursor.iterator.next();
+  return cursor.iterator!.next();
 }
 export function readStep(value: unknown): IteratorResult<unknown> {
   const input = record(value);
