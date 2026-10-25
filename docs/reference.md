@@ -9,6 +9,7 @@ Current behavior: the unreleased uniform and composable APIs in this checkout. P
 - [DAG traversal](#dag-traversal)
 - [Collection and forest sources](#collection-and-forest-sources)
 - [Reusable prepared DAGs](#reusable-prepared-dags)
+- [DAG fragments and composition](#dag-fragments-and-composition)
 - [Ticket coordination](#ticket-coordination)
 - [Filtered DAG visitors](#filtered-dag-visitors)
 - [Discovery and execution as separate phases](#discovery-and-execution-as-separate-phases)
@@ -154,6 +155,40 @@ A prepared definition is an in-memory value, not a durable checkpoint or editabl
 | `milestone` | `diagnostics` contains the existing `DagTraversalStallDiagnostics<ID>` for unknown W/C endpoints or combined milestone cycles. |
 
 Structural issues are deterministic and prevent replay; structurally valid definitions use the existing DAG milestone validator. Empty entries may retain known omitted IDs, including an omitted root, and those IDs remain recognized for completed-work seeds. An empty entry with live records is invalid. This API represents in-memory source topology; it carries no runner progress or automatic completion-fact migration.
+
+### DAG fragments and composition
+
+`defineDagFragment(definition, ports)` creates a `DagFragment<Data, ID, Port>` from a closed valid definition and a record of string-named live vertex IDs. It copies/freezes owned topology and port wrappers; caller data and IDs stay shallow and unfrozen. Port names retain literal keys. Unknown or omitted ports, symbol port names, malformed definitions, and semantically invalid local graphs throw `TypeError`. Local W/C endpoints must resolve within the live/omitted domain; add external edges during composition.
+
+`instantiateDagFragment(fragment, { mapId })` returns a `DagFragmentInstance<Data, MappedID, Port>` with `{ definition, ports }`. It calls `mapId` once per declared live identity in vertex order, then once per omitted identity in declaration order, caching results across entry, slots, W/C lists, omissions and ports. Arbitrary identities, including objects, symbols, `undefined` and `NaN`, retain SameValueZero semantics. Mapped live/live, live/omitted and omitted/omitted collisions throw `TypeError`. Caller-thrown mapping/accessor values propagate unchanged. No ID scheme or name binding is implicit.
+
+`composeDag(instances, options?)` returns `DagDefinitionResult<Data, ID>`. Entries concatenate in instance order beneath a hidden forest holder. Root entries contribute a vertex slot, forest entries retain ordered slots, and empty entries contribute ordered known omitted slots. An entirely empty instance contributes no slot. Vertex/omission declaration order, internal slots, and structurally detached prerequisite components are preserved.
+
+`DagCompositionOptions<ID>` has two independent ordered lists:
+
+- `children: { parent: ID, child: ID }[]` appends structural slots without adding parent-work dependencies.
+- `dependencies: { dependent: ID, prerequisite: { vertexId: ID, milestone: 'work' | 'completion' } }[]` appends explicit W/C waits without adding structural links. SameValueZero duplicates normalize within each dependency list.
+
+Cross-instance identity collisions and nonexistent wire endpoints throw `TypeError`. Structural parents/children and dependency dependents must be live; W/C prerequisites may also name known omitted identities. Wire endpoint fields and prerequisite `vertexId`/`milestone` must be own properties; an explicitly owned `undefined` ID remains valid. Invalid milestone names throw `TypeError`. For connections between existing endpoints, structural or combined W/C cycles return `{ kind: 'invalid', issues }` through the same validator as `prepareDagDefinition`, with no executable DAG. Inputs remain unchanged. Composition creates topology without carrying progress, tickets or accepted completion facts into a new session.
+
+<!-- standalone -->
+```ts
+import { defineDag, defineDagFragment, instantiateDagFragment, composeDag } from 'configurable-tree-traversal';
+
+const local = defineDag<string, 'task'>({
+  vertices: [{ vertexId: 'task', data: 'build', slots: [], dependsOn: [], dependsOnComplete: [] }],
+  omittedIds: [], entry: { kind: 'root', vertexId: 'task' },
+});
+const fragment = defineDagFragment(local, { start: 'task' });
+const first = instantiateDagFragment(fragment, { mapId: local => ({ project: 'first', local }) });
+const second = instantiateDagFragment(fragment, { mapId: local => ({ project: 'second', local }) });
+const result = composeDag([first, second], {
+  dependencies: [{ dependent: second.ports.start, prerequisite: { vertexId: first.ports.start, milestone: 'completion' } }],
+});
+if (result.kind === 'valid') result.dag.createRunner().run();
+```
+
+For heterogeneous fragments, declare the data and ID unions explicitly with `composeDag<DataA | DataB, IdA | IdB>(instances, options)`. Options cannot widen an inferred identity domain to admit foreign wire IDs. All functions and public types are exported from the root and DAG subpath. See the [runnable fragment example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts) for independent ticket-based sync/async execution.
 
 ### Ticket coordination
 

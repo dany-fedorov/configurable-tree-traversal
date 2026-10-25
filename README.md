@@ -68,7 +68,7 @@ if (boundary.kind === 'awaitingSettlement') {
 }
 ```
 
-`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts.
+`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
 
 See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) for independent sessions, duplicate reports, and recovery. Custom graph adapters and existing `runner.prepare()` / guarded `settle()` APIs remain available.
 

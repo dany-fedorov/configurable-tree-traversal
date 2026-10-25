@@ -44,6 +44,8 @@ The check type-checks source, examples, and compile-time API assertions; lints T
 
 Generated cases use fixed seeds and bounded trees so failures are reproducible. Separate deep-chain and wide-tree regressions exercise iterative traversal and subtree deletion without relying on timing thresholds.
 
+Materialized definitions and composition are covered by `dag-definition.test.ts`, `dag-definition-validation.test.ts`, `dag-fragments.test.ts` and their type assertions: faithful entry/omission order, detached prerequisites, structural/milestone validation, exact mapped identity, collision rejection, explicit child versus W/C links, precise port keys and foreign-wire rejection. Packed `dag-fragments.mjs` and `.ts` fixtures check definition/fragment APIs across root, DAG subpath and namespace CJS/ESM identity, sync/async execution and explicit heterogeneous unions. `dag-fragments-example.ts` executes ticket-based sessions from two object-ID instances.
+
 DAG dependency inspection is covered by `dag-inspection.test.ts`, `dag-inspection-explanations.test.ts`, and `dag-inspection.typecheck.ts`: exact W/C facts, original constraints, SameValueZero IDs, known omissions/deletions, unresolved endpoints, local discovery, callback commit boundaries, iterator ownership, detached captures, cycles and deep iterative walks. Packed `dag-inspection.mjs` and `.ts` fixtures cover root/DAG/namespace loader identity, sync/async behavior and exact public ID types through the extracted package.
 
 ## Focused checks

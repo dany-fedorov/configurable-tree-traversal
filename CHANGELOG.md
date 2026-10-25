@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add faithful immutable `DagDefinition` values, `prepareDagDefinition` validation, typed fragment ports, explicit identity mapping, and validated composition with separate structural and W/C connections.
+
 - Add observational `inspectDag(runner)` snapshots with original W/C prerequisite/dependent navigation and flat current-blocker explanations; preserve exact work waits and distinguish unknown, omitted, deleted, unresolved, discovery-open and completion-pending facts.
 
 - Add inferred collection/forest source adapters with async materialization, reusable `prepareDag` definitions, and independent ticket-based coordination sessions.

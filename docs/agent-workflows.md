@@ -8,6 +8,7 @@ Use CTT when agents or tools perform work with dependencies: research before imp
 
 ## On this page
 
+- [Reuse workflow fragments](#reuse-workflow-fragments)
 - [Choose an execution model](#choose-an-execution-model)
 - [Discover the graph](#discover-the-graph)
 - [Work dependencies and completion joins](#work-dependencies-and-completion-joins)
@@ -15,6 +16,14 @@ Use CTT when agents or tools perform work with dependencies: research before imp
 - [Persist facts and reconstruct](#persist-facts-and-reconstruct)
 - [Retries, human waits, and graph revisions](#retries-human-waits-and-graph-revisions)
 - [Troubleshoot a workflow](#troubleshoot-a-workflow)
+
+## Reuse workflow fragments
+
+Capture a discovered topology through `prepared.definition`, or author materialized source facts with `defineDag` and validate them with `prepareDagDefinition`. `defineDagFragment(definition, ports)` names live local boundary vertices. Keep each fragment closed over its live and known omitted identities; provide all cross-fragment dependencies when composing.
+
+Instantiate a template with `instantiateDagFragment(fragment, { mapId })`, giving each local identity a host-selected global ID. Mapping runs once per live/omitted identity and supports object IDs. Then `composeDag(instances, { dependencies, children })` concatenates ordered entries and validates the entire graph. Choose `milestone: 'work'` to wait for accepted initial work or `'completion'` to wait for the full retained subgraph. Structural child links and execution waits are separate options.
+
+Invalid ports, identity collisions and nonexistent wire endpoints throw `TypeError`; cycles between valid endpoints return invalid issues. Only a valid result exposes a prepared DAG. Create independent runners or sessions from that result, selecting accepted completion facts explicitly for each run. Templates, agent roles, claims and business outcomes remain host data and policy. See the [fragment contract](reference.md#dag-fragments-and-composition) and [runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts).
 
 ## Choose an execution model
 

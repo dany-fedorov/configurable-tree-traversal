@@ -1,6 +1,6 @@
 # Agent API phase two design
 
-Status: section 2A (roadmap item 7) is implemented in the unreleased checkout; sections 2B/2C (items 4/6) remain draft proposals. Phase one was pushed to `origin/main` at `1be1a28`. See the [current query contract](../../reference.md#dag-dependency-queries-and-explanations) for delivered behavior. Published npm remains 0.11.0.
+Status: sections 2A/2B (roadmap items 7/4) are implemented in the unreleased checkout; section 2C (item 6) remains a draft proposal. Phase one was pushed to `origin/main` at `1be1a28`. See the [current query contract](../../reference.md#dag-dependency-queries-and-explanations) for delivered behavior. Published npm remains 0.11.0.
 
 ## Scope and rationale
 
@@ -85,7 +85,7 @@ Add optional `unmetWorkPrerequisiteIds` to the public progress type for compatib
 
 ## 2B Definition values and graph fragments
 
-Introduce a copied immutable `DagDefinition<Data, ID>` representing the normalized in-memory source facts needed to prepare a new DAG. This is a source definition, not a runner checkpoint or a serialization format. Proposed structure:
+Introduce a copied immutable `DagDefinition<Data, ID>` representing the normalized in-memory source facts needed to prepare a new DAG. This is a source definition, not a runner checkpoint or a serialization format. Implemented structure:
 
 ```ts
 type DagDefinitionSlot<ID> =

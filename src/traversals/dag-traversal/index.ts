@@ -38,3 +38,9 @@ export type {
   DagDefinitionIssue,
   DagDefinitionResult,
 } from './lib/DagDefinition';
+export * from './dagFragments';
+export type {
+  DagFragment,
+  DagFragmentInstance,
+  DagCompositionOptions,
+} from './lib/DagFragment';
