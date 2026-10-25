@@ -110,7 +110,7 @@ runner.settle(42, { kind: 'workCompleted' }, Symbol());
 void ids;
 ```
 - [ ] Run typecheck and confirm missing generic/unused-negative failures; retain RED output.
-- [ ] Thread ID through public signatures and narrow internal adaptations. Do not introduce stringification, runtime schema checks or unsafe public any to satisfy fixtures. Reject typed-ID tree sources when their generated identity domain is unknown. Explain any erased adapter in a short comment/report.
+- [ ] Thread ID through public signatures and narrow internal adaptations. Do not introduce stringification, ID value schema checks or unsafe public any to satisfy fixtures. The authorized input-shape exception rejects inherited vertexId fields at graph normalization before generated or prerequisite-ID fallback, preserving own-property and explicit undefined semantics. Class adapters must materialize an own vertexId field in their returned result; legitimate absent-ID unknown fallback and tree behavior stay unchanged. Cover tagged/legacy root, hint and prerequisite callbacks in sync/async regressions, plus own getters and exact errors. Reject typed-ID tree sources when their generated identity domain is unknown. Explain any erased adapter in a short comment/report.
 - [ ] Run typecheck, graph identity/source/progress tests, lint/full coverage if runtime changed; build and compile real packed .cts/.mts consumers with minimum TS4.7.4. Self-review and commit `feat: preserve caller vertex ID types across graph APIs`.
 
 ### Task 4: Independent preparation and explicit guarded readiness
