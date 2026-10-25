@@ -24,6 +24,14 @@ Preparation returns `{ kind: 'valid', dag }` or `{ kind: 'invalid', diagnostics 
 
 Coordination requires external settlement. Frontier tickets are nominal readonly local capabilities, bound to their issuing facade and generation. First acceptance returns `{ kind: 'accepted' }`, identical reports return `{ kind: 'alreadyAccepted' }`, and conflicting/foreign/stale tickets reject. `fail(ticket, error)` is fatal, preserving exact errors. Reconstruct from accepted completion facts after restart; copied or serialized tickets cannot settle work. See [source and prepared contracts](reference.md#collection-and-forest-sources) and the [ticket contract](reference.md#ticket-coordination).
 
+## Materialized definitions, fragments, inspection, and revisions
+
+These optional APIs extend prepared DAGs in this unreleased checkout. `prepared.definition` retains entry mode, ordered discovery slots and omissions; rebuilding only from `.vertices` loses those facts. Author values with `defineDag`, validate with `prepareDagDefinition`, or reuse shapes through `defineDagFragment`, `instantiateDagFragment` and `composeDag`. Structural child links and W/C wires remain separate.
+
+Use `inspectDag(runner)` for detached milestone navigation and explanations. Use `reviseDag(prepared, operations)` for ordered atomic edits: success returns a fresh prepared DAG plus a shallow `diffDagDefinitions` result; graph invalidity returns issues. Full replacement records explicitly declare slots and both dependency lists. Removal requires explicit repair of dangling references. Programmer errors throw.
+
+Create a new session from the revised DAG. Old tickets, generations, callbacks and completion facts stay in the old execution. Select valid `completedWork` facts explicitly for the new definition; diffs do not infer artifact invalidation. See [definition contracts](reference.md#materialized-dag-definitions), [fragment contracts](reference.md#dag-fragments-and-composition), [inspection](reference.md#dag-dependency-queries-and-explanations), and [revisions](reference.md#validated-dag-revisions).
+
 ## Typed DAG event identities
 
 `DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_READY`, and `subgraphCompleted` means `ON_COMPLETE`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged.

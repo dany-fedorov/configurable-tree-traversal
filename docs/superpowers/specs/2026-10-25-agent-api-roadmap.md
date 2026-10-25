@@ -1,6 +1,6 @@
 # Agent engineering API roadmap
 
-Status: recorded on 2026-10-25. Proposals 1, 2, 3, 4, 7, and 8 are implemented in the checkout. The remaining four proposals are unimplemented; the phase-two draft covers 6. Published npm 0.11.0 remains distinct from these unreleased additions.
+Status: recorded on 2026-10-25. Proposals 1, 2, 3, 4, 6, 7, and 8 are implemented in the checkout, awaiting final phase-two integration review. Items 5, 9 and 10 remain backlog. Published npm 0.11.0 remains distinct from these unreleased additions.
 
 ## Purpose and acceptance criteria
 
@@ -17,7 +17,7 @@ Evaluate each addition against several realistic examples: does it remove custom
 | 3 | Reusable graph definitions and independent sessions | Implemented in checkout | Discover and validate once, then create independent executions without replaying source I/O. |
 | 4 | Composable graph fragments | Implemented in checkout | Instantiate reusable workflow shapes and connect explicit boundaries. |
 | 5 | Milestone dependency expressions | Backlog | Express conjunctions, alternatives, and eventual quorum joins over W/C. |
-| 6 | Validated graph revisions | Phase two draft | Represent decomposition and replanning with atomic structural changes. |
+| 6 | Validated graph revisions | Implemented in checkout | Represent decomposition and replanning with atomic structural changes. |
 | 7 | Dependency navigation and explanations | Implemented in checkout | Query prerequisites, dependents, and readiness causes during healthy execution. |
 | 8 | Host coordination interface | Implemented in checkout | Advance to a boundary and settle session-bound work tickets. |
 | 9 | General graph walking | Backlog | Walk shared and cyclic information graphs independently of DAG execution. |
@@ -65,8 +65,8 @@ Provide typed result-producing operations above visitors, specifying the travers
 
 ## Delivery
 
-The first phase is specified in [Agent API foundations](2026-10-25-agent-api-foundations-design.md) and tracked by its [implementation plan](../plans/2026-10-25-agent-api-foundations.md). Proposals 4–6, 9, and 10 remain separate design work; completing the first phase does not approve their exact signatures or implementation.
+The first phase is specified in [Agent API foundations](2026-10-25-agent-api-foundations-design.md) and tracked by its [implementation plan](../plans/2026-10-25-agent-api-foundations.md). The phase-two design specifies the delivered APIs for proposals 4, 6 and 7. Items 5, 9 and 10 remain separate design work.
 
 The first-phase full `npm run check` passed on Node v24.20.0: 88 suites, 1,901 tests, 100% source coverage, 14 runnable examples, 13 guide snippets, packed CJS/ESM runtime and TypeScript consumers, and benchmark/facade-generator checks. Independent review findings were fixed and re-reviewed.
 
-Phase one was merged and pushed to `origin/main` as `1be1a28`. [Phase two preparation](2026-10-25-agent-api-phase-two-design.md) proposes delivery order **7 → 4 → 6**, with separate linked plans for inspection, fragment composition, and revisions. Dependency inspection (7) is delivered in the checkout. Fragment composition (4) is delivered in the checkout; revisions (6) remain a draft proposal. Items 5, 9, and 10 remain backlog proposals.
+Phase one was merged and pushed to `origin/main` as `1be1a28`. [Phase two design](2026-10-25-agent-api-phase-two-design.md) records delivery order **7 → 4 → 6**, with separate linked plans for inspection, fragment composition, and revisions. Dependency inspection (7) is delivered in the checkout. Fragment composition (4) is delivered in the checkout; validated revisions (6) are delivered in the checkout. Final phase-two integration review remains pending. Items 5, 9, and 10 remain backlog proposals.

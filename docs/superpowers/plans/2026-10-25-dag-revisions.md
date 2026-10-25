@@ -1,6 +1,6 @@
 # Validated DAG revisions implementation plan
 
-> **For agentic workers:** Use test-driven development and verification-before-completion. This draft prepares phase 2C and depends on the definition-value delivery in the fragment plan.
+> **For agentic workers:** Use test-driven development and verification-before-completion. Phase 2C is implemented in the checkout, awaiting final review; it uses the definition-value delivery in the fragment plan.
 
 **Goal:** Implement roadmap item 6 with atomic definition edits, meaningful structural diffs, and isolated new sessions.
 

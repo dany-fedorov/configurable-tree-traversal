@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add atomic validated `reviseDag` edits and pure shallow `diffDagDefinitions` results; preserve old sessions/tickets and require explicit host-selected completion facts for new sessions.
+- Hide omitted and deleted synthetic holder identities from DAG inspection while preserving caller symbol IDs.
+
 - Add faithful immutable `DagDefinition` values, `prepareDagDefinition` validation, typed fragment ports, explicit identity mapping, and validated composition with separate structural and W/C connections.
 
 - Add observational `inspectDag(runner)` snapshots with original W/C prerequisite/dependent navigation and flat current-blocker explanations; preserve exact work waits and distinguish unknown, omitted, deleted, unresolved, discovery-open and completion-pending facts.

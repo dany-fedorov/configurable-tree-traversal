@@ -1,4 +1,6 @@
 import {
+  coordinateDagAsync,
+  DagTraversalOrder,
   defineDag,
   diffDagDefinitions,
   prepareDagDefinition,
@@ -8,6 +10,7 @@ import {
   type DagDefinitionVertex,
   type DagRevisionOperation,
 } from '../src';
+import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
 const vertex = <ID>(
   vertexId: ID,
@@ -945,5 +948,112 @@ test('adds a new reachable vertex with explicit parent and prerequisite edits', 
   expect(original.createSession().advance()).toMatchObject({
     kind: 'awaitingSettlement',
     frontier: [{ vertexId: 'root' }],
+  });
+});
+
+describe('revision session isolation', () => {
+  test.each([false, true])(
+    'keeps tickets and accepted facts local (async=%s)',
+    async (async) => {
+      const original = prepared([
+        vertex('build'),
+        vertex('review', { dependsOn: ['build'] }),
+      ]);
+      const old = async
+        ? await original.createAsyncSession()
+        : original.createSession();
+      const first = await old.advance();
+      if (first.kind !== 'awaitingSettlement')
+        throw new Error('Expected old frontier');
+      const build = first.frontier[0]!;
+      expect(old.complete(build)).toEqual({ kind: 'accepted' });
+      const waiting = await old.advance();
+      if (waiting.kind !== 'awaitingSettlement')
+        throw new Error('Expected review frontier');
+      const oldReview = waiting.frontier[0]!;
+      const revision = reviseDag(original, [
+        {
+          kind: 'replaceVertex',
+          vertex: vertex('review', {
+            data: { instructions: 'revised' },
+            dependsOn: ['build'],
+          }),
+        },
+      ]);
+      if (revision.kind !== 'valid') throw new Error('Expected valid revision');
+      const fresh = async
+        ? await revision.dag.createAsyncSession()
+        : revision.dag.createSession();
+      expect(fresh.summary().completedWorkIds).toEqual([]);
+      expect(await fresh.advance()).toMatchObject({
+        kind: 'awaitingSettlement',
+        frontier: [{ vertexId: 'build' }],
+      });
+      expect(() => fresh.complete(oldReview)).toThrow(TypeError);
+      expect(old.complete(oldReview)).toEqual({ kind: 'accepted' });
+      expect(await old.advance()).toEqual({ kind: 'finished' });
+      expect(fresh.summary().completedWorkIds).toEqual([]);
+      // The host has independently accepted build's unchanged artifact for this revision.
+      const selectedFacts = new Set(['build']);
+      const seeded = async
+        ? await revision.dag.createAsyncSession({
+            completedWork: selectedFacts,
+          })
+        : revision.dag.createSession({ completedWork: selectedFacts });
+      expect(await seeded.advance()).toMatchObject({
+        kind: 'awaitingSettlement',
+        frontier: [{ vertexId: 'review' }],
+      });
+      expect(seeded.summary().completedWorkIds).toEqual(['build']);
+      expect(() => seeded.complete(oldReview)).toThrow(TypeError);
+    },
+  );
+
+  test('revision leaves an admitted old async completion callback in its original execution', async () => {
+    const original = prepared([vertex('task', { data: 'original' })]);
+    const entered = deferred<void>();
+    const release = deferred<void>();
+    const completed: unknown[] = [];
+    const oldRunner = await original.createAsyncRunner({
+      workCompletion: 'externalSettlement',
+      visitors: {
+        [DagTraversalOrder.ON_COMPLETE]: async (vertex) => {
+          entered.resolve();
+          await release.promise;
+          completed.push(vertex.getData());
+        },
+      },
+    });
+    const old = coordinateDagAsync(oldRunner);
+    const boundary = await old.advance();
+    if (boundary.kind !== 'awaitingSettlement')
+      throw new Error('Expected ticket');
+    const oldTicket = boundary.frontier[0]!;
+    old.complete(oldTicket);
+    let drained = false;
+    const advancing = old.advance().then((value) => {
+      drained = true;
+      return value;
+    });
+    await entered.promise;
+    const revision = reviseDag(original, [
+      { kind: 'replaceVertex', vertex: vertex('task', { data: 'revised' }) },
+    ]);
+    if (revision.kind !== 'valid') throw new Error('Expected valid revision');
+    const fresh = await revision.dag.createAsyncSession();
+    const freshBoundary = await fresh.advance();
+    if (freshBoundary.kind !== 'awaitingSettlement')
+      throw new Error('Expected fresh ticket');
+    expect(() => fresh.complete(oldTicket)).toThrow(TypeError);
+    expect(fresh.summary().completedWorkIds).toEqual([]);
+    fresh.complete(freshBoundary.frontier[0]!);
+    expect(await fresh.advance()).toEqual({ kind: 'finished' });
+    await eventLoopTurn();
+    expect(drained).toBe(false);
+    expect(completed).toEqual([]);
+    release.resolve();
+    expect(await advancing).toEqual({ kind: 'finished' });
+    expect(completed).toEqual(['original']);
+    expect(old.complete(oldTicket)).toEqual({ kind: 'alreadyAccepted' });
   });
 });

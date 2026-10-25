@@ -1,6 +1,6 @@
 # Agent API phase two design
 
-Status: sections 2A/2B (roadmap items 7/4) are implemented in the unreleased checkout; section 2C (item 6) remains a draft proposal. Phase one was pushed to `origin/main` at `1be1a28`. See the [current query contract](../../reference.md#dag-dependency-queries-and-explanations) for delivered behavior. Published npm remains 0.11.0.
+Status: sections 2A/2B/2C (roadmap items 7/4/6) are implemented in the unreleased checkout, awaiting final integration review. Phase one was pushed to `origin/main` at `1be1a28`. See the [current query contract](../../reference.md#dag-dependency-queries-and-explanations) for delivered behavior. Published npm remains 0.11.0.
 
 ## Scope and rationale
 
@@ -150,7 +150,7 @@ Data and ID unions can be declared explicitly when composing heterogeneous fragm
 
 ## 2C Validated graph revisions
 
-Proposed API:
+Implemented API:
 
 ```ts
 const result = reviseDag(prepared, [
@@ -159,6 +159,8 @@ const result = reviseDag(prepared, [
   { kind: 'replaceEntry', entry: nextEntry },
 ]);
 ```
+
+Concrete signatures are `reviseDag<Data, ID = unknown>(prepared: PreparedDag<Data, ID>, operations: readonly DagRevisionOperation<Data, ID>[]): DagRevisionResult<Data, ID>` and `diffDagDefinitions<BeforeData, AfterData, ID = unknown>(before: DagDefinition<BeforeData, ID>, after: DagDefinition<AfterData, ID>): DagDefinitionDiff<ID>`. Operation inference is deferred internally so the prepared DAG determines both domains. The result union is `{ kind: 'valid'; dag: PreparedDag<Data, ID>; changes: DagDefinitionDiff<ID> } | { kind: 'invalid'; issues: readonly DagDefinitionIssue<ID>[] }`. Public revision/diff types are available through root, DAG subpath and namespace exports.
 
 `DagRevisionOperation<Data, ID>` is a tagged union of `addVertex`, `replaceVertex`, `removeVertex { vertexId }`, `replaceEntry`, and `replaceOmissions { omittedIds }`. Full records make edge changes explicit; a separate dependency-edit DSL is unnecessary. Operations apply in order to a private candidate. Replacement retains list position; additions append. Adding an existing ID or replacing/removing an unknown live ID throws `TypeError` before returning a result. Removing a vertex does not silently prune references, satisfy its work, or delete descendants. The batch may remove those references explicitly; validate the final candidate rather than rejecting temporarily dangling intermediate operations.
 

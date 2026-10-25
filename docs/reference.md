@@ -10,6 +10,7 @@ Current behavior: the unreleased uniform and composable APIs in this checkout. P
 - [Collection and forest sources](#collection-and-forest-sources)
 - [Reusable prepared DAGs](#reusable-prepared-dags)
 - [DAG fragments and composition](#dag-fragments-and-composition)
+- [Validated DAG revisions](#validated-dag-revisions)
 - [Ticket coordination](#ticket-coordination)
 - [Filtered DAG visitors](#filtered-dag-visitors)
 - [Discovery and execution as separate phases](#discovery-and-execution-as-separate-phases)
@@ -166,6 +167,26 @@ Structural issues are deterministic and prevent replay; structurally valid defin
 - `entryChanged` compares entry mode and its ordered contents. `omissionsChanged` compares the ordered omitted-ID declarations.
 
 IDs use SameValueZero throughout, including slots and dependencies. Slot kind and omission identity wrappers remain significant: anonymous omission differs from known `undefined`. Slot, dependency and omission ordering changes count. Data uses `Object.is`: replacing a data object counts even if its fields are equal; same-reference deep mutation cannot be detected. The host decides whether artifacts and accepted completion facts remain valid; the diff does not infer business invalidation.
+
+### Validated DAG revisions
+
+`reviseDag<Data, ID>(prepared, operations)` returns `DagRevisionResult<Data, ID>`: `{ kind: 'valid', dag, changes }` or `{ kind: 'invalid', issues }`. Only a valid result exposes a fresh prepared DAG. The prepared value fixes the data/ID domain; operations cannot widen it. All revision functions and types are exported from the root, DAG subpath and `dagTraversal` namespace.
+
+`DagRevisionOperation<Data, ID>` is a readonly tagged union:
+
+| Kind | Required payload | Effect |
+| --- | --- | --- |
+| `addVertex` | `vertex: DagDefinitionVertex<Data, ID>` | Append a full live declaration; an existing live ID throws `TypeError`. |
+| `replaceVertex` | `vertex: DagDefinitionVertex<Data, ID>` | Replace a full declaration in place; an unknown live ID throws `TypeError`. |
+| `removeVertex` | `vertexId: ID` | Remove only that declaration; an unknown live ID throws `TypeError`. |
+| `replaceEntry` | `entry: DagDefinition<Data, ID>['entry']` | Replace the root/forest/empty entry. |
+| `replaceOmissions` | `omittedIds: readonly ID[]` | Replace the ordered known-omission declarations. |
+
+Operations apply in order to a private candidate. Removal does not prune references, delete descendants or satisfy work. A batch may leave intermediate dangling references and repair them before final validation through `prepareDagDefinition`. Expected graph invalidity returns the same [definition issues](#materialized-dag-definitions); malformed shapes, duplicate final identity declarations and programmer errors throw `TypeError`. Exact caller-thrown values propagate. Rejected and successful batches leave the original definition and sessions unchanged. Empty batches also return a fresh prepared value. Owned topology is copied/frozen; data and IDs remain shallow caller values.
+
+`changes` is the [definition diff](#definition-diffs) between the original and final definitions, including vertex order. The diff reports declarations, not artifact validity. Old tickets remain governed by their original session and throw in new sessions. Revision neither cancels nor transfers admitted async callbacks, generations, progress, accepted facts or host revision IDs. New sessions start without completed work unless the host explicitly supplies an independently accepted `completedWork` set. Session factories still own their visitors; for callback execution use `createAsyncRunner({ visitors, workCompletion: 'externalSettlement' })` with `coordinateDagAsync`.
+
+See the [revision example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts) for an isolated old ticket and host-selected completion facts.
 
 ### DAG fragments and composition
 

@@ -154,9 +154,13 @@ The [reconciliation example](https://github.com/dany-fedorov/configurable-tree-t
 
 ## Retries, human waits, and graph revisions
 
+A revision returns invalid issues or a fresh `{ dag, changes }`; the original prepared value and its sessions remain usable. Removing a vertex leaves its references and descendants in place, so repair those references explicitly in the same batch. Data comparisons in `changes` are shallow and cannot determine whether a previously accepted artifact remains useful.
+
+Keep host revision/attempt checks when results arrive. A ticket issued before revision throws in the new session and can still settle its original work. An admitted old async callback continues in its original runner; revision does not cancel it. Supply `completedWork` explicitly to the new session only for facts independently accepted for its definition. See [validated revision contracts](reference.md#validated-dag-revisions) and the [executable revision example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts).
+
 - **Agent retry:** retain the task as incomplete; record the failed attempt and retry policy in the host. Do not send fatal `kind: 'traversalFailed'` unless you intend to fail the runner. Deferral must be the only command in its result; mixed results are rejected before any commands apply.
 - **Human input or approval:** keep the task deferred and record a host wait. Exclude it from dispatch until the response is accepted; readiness alone will keep listing it.
-- **New plan or graph revision:** construct a new runner and discard the previous runner's generations. Carry completion facts forward only when the host validates their meaning for the new revision. Do not seed every historic success blindly.
+- **New plan or graph revision:** use `reviseDag(prepared, operations)` to validate an atomic batch of full declaration edits, then start a session from the valid result. Carry completion facts forward only when the host validates their meaning for the new revision. Do not seed every historic success blindly.
 - **Cancellation or timeout:** cancel host executor work separately. Halting CTT does not cancel already-started callbacks or remote agents. Async close may wait for a pending callback.
 - **Completion side effects:** prefer durable result acceptance in the host. Reconstruction can invoke completion visitors again even when initial work was seeded; make any external effects idempotent.
 
