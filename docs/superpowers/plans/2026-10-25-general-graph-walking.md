@@ -393,7 +393,7 @@ Define `failingResourceSource` in this test: roots is an open manual iterator yi
 
 **Interfaces:** consume the same source cache and observation pipeline. Complete `revisit: 'simplePaths' | 'walks'`, route contexts, lazy path materialization, per-route logical adjacency positions, and mandatory bounds. `once` with PATH observations remains first-discovery paths and needs no route-enumeration bound.
 
-- [ ] Add exact simple-path and repeated-walk regressions over the diamond with D-to-A:
+- [x] Add exact simple-path and repeated-walk regressions over the diamond with D-to-A:
 
 ```ts
 const paths = [...new GraphWalk({
@@ -407,11 +407,11 @@ expect(paths.map(path => path.vertices.map(vertex => vertex.vertexId).join('')))
 ```
 
 For `walks` with the same bound, additionally expect ABDA and ACDA. For two parallel A-to-B links, assert different edge indices distinguish otherwise identical vertex routes. Include a self-loop at depth zero/one, roots reached earlier through another root, omission, and path-specific rejection of just one route to a shared target.
-- [ ] Run path suites to see failure. Store route ancestry in parent-linked frames; test simple-path membership iteratively using SameValueZero. Each frame keeps its own next-link index; replay from shared cached adjacency first, and only the frame at the current cache end requests a new physical pull. A cached end-of-stream is still a logical step for that frame. No recursive call stack or recursive path serialization.
-- [ ] Materialize `vertices`/`edges` only for PATH observers or route-sensitive predicates. Vertex/edge observers remain available under every policy and get repeated occurrences when that policy permits them. Suppress cycle-closing simple-path links before `followEdge`; preserve all relationships with `once`, including self-links. Source data remains once-per-ID while expansion predicates and follow predicates are per route.
-- [ ] Add async partial-cache reuse: pause after one path consumes only the first outgoing link of a shared vertex, resume another queued prefix, and prove no link is lost or read physically twice. Assert the source open/resolve counts remain once per ID under both route policies.
-- [ ] Verify admission counters are independent of mixed phase selectors and route expansion stops at depth/steps, including cases where every link is filtered. Prove zero bounds do no extra I/O, returning cached IDs do not falsely mark once walks depth-limited, and terminal cleanup closes partially consumed streams. For deep paths use a step bound to avoid asking tests to materialize a quadratic number of prefixes.
-- [ ] Run path suites, all walking limit/selection/resource suites, and `npm run typecheck`. Commit as `feat(graph-walk): enumerate bounded routes with cached lazy discovery`.
+- [x] Run path suites to see failure. Store route ancestry in parent-linked frames; test simple-path membership iteratively using SameValueZero. Each frame keeps its own next-link index; replay from shared cached adjacency first, and only the frame at the current cache end requests a new physical pull. A cached end-of-stream is still a logical step for that frame. No recursive call stack or recursive path serialization.
+- [x] Materialize `vertices`/`edges` only for PATH observers or route-sensitive predicates. Vertex/edge observers remain available under every policy and get repeated occurrences when that policy permits them. Suppress cycle-closing simple-path links before `followEdge`; preserve all relationships with `once`, including self-links. Source data remains once-per-ID while expansion predicates and follow predicates are per route.
+- [x] Add async partial-cache reuse: pause after one path consumes only the first outgoing link of a shared vertex, resume another queued prefix, and prove no link is lost or read physically twice. Assert the source open/resolve counts remain once per ID under both route policies.
+- [x] Verify admission counters are independent of mixed phase selectors and route expansion stops at depth/steps, including cases where every link is filtered. Prove zero bounds do no extra I/O, returning cached IDs do not falsely mark once walks depth-limited, and terminal cleanup closes partially consumed streams. For deep paths use a step bound to avoid asking tests to materialize a quadratic number of prefixes.
+- [x] Run path suites, all walking limit/selection/resource suites, and `npm run typecheck`. Commit as `feat(graph-walk): enumerate bounded routes with cached lazy discovery`.
 
 ## Task 8: Catalog and DAG-definition adapters
 
@@ -441,7 +441,7 @@ export declare function walkSourceFromAsync<Data, Edge, ID>(
 ): Promise<GraphWalkSource<Data, Edge, ID>>;
 ```
 
-`walkSourceFromDag<Data, ID>(definition, { relations })` returns `GraphWalkSource<Data, DagWalkRelation, ID>`. `relations` is a nonempty readonly tuple of `'children' | 'workDependencies' | 'completionDependencies'`, runtime validated; `DagWalkRelation` is `{ kind: 'child'; slotIndex: number } | { kind: 'workDependency' } | { kind: 'completionDependency' }`. Duplicate relation selectors are rejected; selection order does not override canonical child/work/completion ordering. Edges to known omissions remain observable.
+`walkSourceFromDag<Data, ID>(definition, { relations })` returns `GraphWalkSource<Data, GraphWalkDagRelation, ID>`. `relations` is a nonempty readonly tuple of `'children' | 'workDependencies' | 'completionDependencies'`, runtime validated; `GraphWalkDagRelation` is `{ kind: 'child'; slotIndex: number } | { kind: 'workDependency' } | { kind: 'completionDependency' }`. Duplicate relation selectors are rejected; selection order does not override canonical child/work/completion ordering. Edges to known omissions remain observable.
 
 - [ ] Add a catalog regression proving eager topology capture and shallow data ownership:
 
