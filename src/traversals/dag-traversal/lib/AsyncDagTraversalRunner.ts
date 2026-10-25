@@ -1,3 +1,4 @@
+import type { DagInspectionState } from '@core/graph/types';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import type {
@@ -228,6 +229,11 @@ export class AsyncDagTraversalRunner<
   async prepare(): Promise<this> {
     await this.execution.prepare(() => this.kernel.validatePreparation());
     return this;
+  }
+
+  /** @internal Synchronous observation without advancing the runner. */
+  inspectDagState(): DagInspectionState<ID> {
+    return this.kernel.inspectDagState() as DagInspectionState<ID>;
   }
 
   summary(): DagSummary<ID> {

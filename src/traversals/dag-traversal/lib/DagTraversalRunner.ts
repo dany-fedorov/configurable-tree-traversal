@@ -1,3 +1,4 @@
+import type { DagInspectionState } from '@core/graph/types';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
@@ -238,6 +239,11 @@ export class DagTraversalRunner<
       this.policy.releaseIfTerminal();
     }
     return this;
+  }
+
+  /** @internal Synchronous observation without advancing the runner. */
+  inspectDagState(): DagInspectionState<ID> {
+    return this.kernel.inspectDagState() as DagInspectionState<ID>;
   }
 
   summary(): DagSummary<ID> {

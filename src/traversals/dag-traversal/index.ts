@@ -18,3 +18,9 @@ export * from './coordinateDag';
 export * from './prepareDag';
 export * from './lib/PreparedDag';
 export * from './filterDagVisitor';
+export * from './inspectDag';
+export type {
+  DagInspection,
+  DagMilestoneQueryOptions,
+  DagMilestoneQueryResult,
+} from './lib/DagInspection';

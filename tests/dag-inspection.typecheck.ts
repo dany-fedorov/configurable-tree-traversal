@@ -1,3 +1,12 @@
+import { inspectDag } from '../src';
+import type {
+  DagInspection,
+  DagMilestoneQueryResult,
+  DagMilestoneQueryOptions,
+  AsyncTraversableGraph,
+  TraversableGraph,
+  TraversableTree,
+} from '../src';
 import { AsyncDagTraversal, DagTraversal, graphFrom } from '../src';
 import type { DagVertexProgress, DagSummary, TreeTypeParameters } from '../src';
 import type {
@@ -45,3 +54,55 @@ const wrongId: 'other' = state.identityStates[0]!.vertexId;
 declare const store: GraphStoreContract<TreeTypeParameters<string, string>, ID>;
 const identity: ID = store.inspectIdentityStates()[0]!.vertexId;
 void [waits, wrong, wrongId, identity];
+
+const inspections: DagInspection<ID>[] = [
+  inspectDag(sync),
+  inspectDag(asyncRunner),
+];
+const navigation: DagMilestoneQueryResult<ID> = inspections[0]!.prerequisitesOf(
+  { vertexId: 'review', milestone: 'work' },
+  { transitive: true },
+);
+const options: DagMilestoneQueryOptions = { transitive: false };
+const milestoneId: ID = navigation.milestones[0]!.vertexId;
+const edgeId: ID = navigation.edges[0]!.to.vertexId;
+// @ts-expect-error Navigation retains the declared source ID domain.
+inspections[0]!.dependentsOf({ vertexId: 'other', milestone: 'work' }, options);
+// @ts-expect-error Milestone kinds are qualified, not arbitrary strings.
+inspections[0]!.prerequisitesOf({ vertexId: 'work', milestone: 'ready' });
+// @ts-expect-error Public result arrays expose no mutators.
+navigation.milestones.push({ vertexId: 'work', milestone: 'work' });
+// @ts-expect-error Inspection results preserve exact IDs instead of unknown.
+const narrowed: 'other' = milestoneId;
+declare const nativeAsyncSource: AsyncTraversableGraph<
+  TreeTypeParameters<string, string>,
+  TreeTypeParameters<string, string>,
+  ID
+>;
+const nativeAsyncInspection: DagInspection<ID> = inspectDag(
+  new AsyncDagTraversal({ traversableGraph: nativeAsyncSource }).makeRunner(),
+);
+// @ts-expect-error Native async sources also retain their declared ID domain.
+nativeAsyncInspection.prerequisitesOf({ vertexId: 'other', milestone: 'work' });
+declare const numericSource: TraversableGraph<
+  TreeTypeParameters<string, string>,
+  TreeTypeParameters<string, string>,
+  number
+>;
+// @ts-expect-error A different declared domain cannot substitute for this inspection.
+const anotherDomain: DagInspection<ID> = inspectDag(
+  new DagTraversal({ traversableGraph: numericSource }).makeRunner(),
+);
+declare const treeSource: TraversableTree<TreeTypeParameters<string, string>>;
+const treeInspection: DagInspection<unknown> = inspectDag(
+  new DagTraversal({ traversableTree: treeSource }).makeRunner(),
+);
+void [
+  navigation,
+  options,
+  milestoneId,
+  edgeId,
+  narrowed,
+  anotherDomain,
+  treeInspection,
+];
