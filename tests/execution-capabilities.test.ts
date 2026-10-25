@@ -287,3 +287,59 @@ test('async pause drains admitted chains and retains undelivered events for the 
   expect(visits).toHaveLength(6);
   expect(runner.getStatus()).toBe(Status.FINISHED);
 });
+
+const queuedSourceFamilies = [
+  { name: 'DFS', Traversal: AsyncDepthFirstTraversal },
+  { name: 'BFS', Traversal: AsyncBreadthFirstTraversal },
+  { name: 'DAG tree', Traversal: AsyncDagTraversal },
+  { name: 'DAG graph', Traversal: AsyncDagTraversal },
+];
+
+test.each(queuedSourceFamilies)(
+  '$name stops queued source admission when a callback pauses within a scheduler batch',
+  async ({ name, Traversal }) => {
+    const found = (data: string, hints: string[] = []) => ({
+      kind: 'found' as const,
+      vertex: { vertexContent: { $data: data, $childHints: hints } },
+    });
+    const finishA = deferred<ReturnType<typeof found>>();
+    const finishB = deferred<ReturnType<typeof found>>();
+    const sources: string[] = [];
+    const requests: boolean[] = [];
+    const tree = {
+      makeRoot: () => found('root', ['A', 'B', 'C', 'D', 'E']),
+      makeVertex: (hint: string) => {
+        sources.push(hint);
+        if (hint === 'A') return finishA.promise;
+        if (hint === 'B') return finishB.promise;
+        if (hint === 'C') requests.push(runner.requestPause());
+        return found(hint);
+      },
+    };
+    const runner =
+      name === 'DAG graph'
+        ? new AsyncDagTraversal<Tree>({
+            concurrency: 2,
+            traversableGraph: tree,
+          }).makeRunner()
+        : new Traversal<Tree>({
+            concurrency: 2,
+            traversableTree: tree,
+          }).makeRunner();
+    const running = runner.run();
+    await eventLoopTurn();
+    expect(sources).toEqual(['A', 'B']);
+    // Free both slots together so C and D would share an admission batch.
+    finishA.resolve(found('A'));
+    finishB.resolve(found('B'));
+    await running;
+    expect(requests).toEqual([true]);
+    expect(sources).toEqual(['A', 'B', 'C']);
+    expect(runner.getStatus()).toBe(Status.HALTED);
+    expect(runner.getStopReason()).toBe('paused');
+    await runner.run();
+    expect(sources).toEqual(['A', 'B', 'C', 'D', 'E']);
+    expect(requests).toEqual([true]);
+    expect(runner.getStatus()).toBe(Status.FINISHED);
+  },
+);

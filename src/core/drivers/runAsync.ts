@@ -87,12 +87,14 @@ export function createAsyncDriver<
         let effectiveMode = mode;
         for (;;) {
           const action = kernel.poll(effectiveMode);
-          if (kernel.isHaltRequested()) effectiveMode = 'drain';
           discardInvalidQueued();
           if (action.kind === 'CALL') enqueue(action.call);
-          scheduler.startEligible((requestId) =>
-            kernel.isRequestEligible(requestId, effectiveMode),
-          );
+          scheduler.startEligible((requestId) => {
+            // Invoking one queued callback can request pause reentrantly, so
+            // refresh the mode before admitting each subsequent callback.
+            if (kernel.isHaltRequested()) effectiveMode = 'drain';
+            return kernel.isRequestEligible(requestId, effectiveMode);
+          });
           if (action.kind === 'EVENT') {
             if (action.boundaryId === emittedBoundaryId)
               return { kind: 'WAIT' };
