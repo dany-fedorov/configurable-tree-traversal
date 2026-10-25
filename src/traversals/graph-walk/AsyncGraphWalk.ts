@@ -88,12 +88,6 @@ export class AsyncGraphWalk<Data, Edge, ID> {
     >[];
   }
   makeRunner(): AsyncGraphWalkRunner<Data, Edge, ID> {
-    this.assertSupported();
     return new AsyncGraphWalkRunner(normalizeWalkOptions({}, this.options));
-  }
-  private assertSupported(): void {
-    if (this.options.revisit !== 'once') {
-      throw new TypeError('This walking configuration is not supported');
-    }
   }
 }

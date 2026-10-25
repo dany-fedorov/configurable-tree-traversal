@@ -17,7 +17,8 @@ import type { NormalizedWalkOptions } from './normalizeWalkOptions';
 import type { WalkAction, WalkOperation } from './WalkEffects';
 import type { GraphWalkSummary, GraphWalkOutcome } from './GraphWalkSummary';
 import type { GraphWalkInspection } from './GraphWalkInspection';
-import { WalkFrontier, projectPath } from './WalkFrontier';
+import { WalkFrontier, projectPath, routeContains } from './WalkFrontier';
+import type { GraphWalkRouteContext } from '../GraphWalkOptions';
 import type { WalkRoute } from './WalkFrontier';
 import {
   WalkSourceCache,
@@ -244,7 +245,7 @@ export class WalkKernel<Data, Edge, ID> {
         target.vertexId,
       );
     }
-    if (fresh && vertex !== null) {
+    if ((fresh || this.options.revisit !== 'once') && vertex !== null) {
       const route = { vertex, depth, via, parent };
       this.observe(
         Phase.VERTEX,
@@ -267,7 +268,21 @@ export class WalkKernel<Data, Edge, ID> {
     return value;
   }
 
+  private routeContext(
+    route: WalkRoute<Data, Edge, ID>,
+  ): GraphWalkRouteContext<Data, Edge, ID> {
+    const revisit = this.options.revisit;
+    return revisit === 'once'
+      ? { revisit }
+      : { revisit, path: projectPath(route) };
+  }
+
   private follow(candidate: Candidate<Data, Edge, ID>): void {
+    if (
+      this.options.revisit === 'simplePaths' &&
+      routeContains(candidate.parent!, candidate.target.vertexId)
+    )
+      return;
     const predicate = this.options.followEdge;
     if (predicate === undefined) this.admit(candidate);
     else {
@@ -277,7 +292,7 @@ export class WalkKernel<Data, Edge, ID> {
           predicate(
             { ...candidate.via! },
             {
-              revisit: 'once',
+              ...this.routeContext(candidate.parent!),
               source: { ...candidate.parent!.vertex },
               depth: candidate.parent!.depth + 1,
             },
@@ -307,7 +322,7 @@ export class WalkKernel<Data, Edge, ID> {
           predicate(
             { ...route.vertex },
             {
-              revisit: 'once',
+              ...this.routeContext(route),
               depth: route.depth,
               via: route.via === null ? null : { ...route.via },
             },
@@ -487,31 +502,41 @@ export class WalkKernel<Data, Edge, ID> {
             },
             this.token(route.vertex.vertexId),
           );
-        } else if (entries.cursor.done) {
-          this.frontier.remove();
         } else {
           if (this.limitBeforePull()) continue;
           const cursor = entries.cursor;
+          const cached = frame.index < entries.links.length || cursor.done;
           this.counts.steps++;
           this.call(
             'edgeNext',
             () =>
-              pullCursor(
-                cursor,
-                this.executionKind,
-                this.resources,
-                this.token(route.vertex.vertexId),
-              ),
+              cached
+                ? frame.index < entries.links.length
+                  ? { done: false, value: entries.links[frame.index] }
+                  : { done: true }
+                : pullCursor(
+                    cursor,
+                    this.executionKind,
+                    this.resources,
+                    this.token(route.vertex.vertexId),
+                  ),
             (value) => {
               const step = readStep(value);
               if (step.done) {
-                cursor.done = true;
-                this.resources.exhausted(cursor.iterator!);
+                if (!cached) {
+                  cursor.done = true;
+                  this.resources.exhausted(cursor.iterator!);
+                }
+                this.frontier.remove();
               } else {
-                const link = this.cache.copyLink(step.value);
+                const link = cached
+                  ? entries.links[frame.index]!
+                  : this.cache.copyLink(step.value);
                 const index = frame.index++;
-                entries.links.push(link);
-                this.counts.observedLinks++;
+                if (!cached) {
+                  entries.links.push(link);
+                  this.counts.observedLinks++;
+                }
                 this.follow({
                   target: link.target,
                   parent: route,

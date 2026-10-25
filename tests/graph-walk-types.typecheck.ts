@@ -424,3 +424,38 @@ void [
   asyncNarrowAll,
   asyncNarrowLegacy,
 ];
+
+new GraphWalk({
+  source,
+  revisit: 'walks',
+  limits: { maxSteps: 10 },
+  followEdge(edge, context) {
+    if (context.revisit === 'once') {
+      // @ts-expect-error Once predicates do not expose alternative route context.
+      void context.path;
+    } else {
+      const id: undefined = context.path.vertices[0]!.vertexId;
+      const data: string = context.path.vertices[0]!.data;
+      const weight: number = context.path.edges[0]!.data;
+      const to: undefined = edge.to;
+      void [id, data, weight, to];
+      // @ts-expect-error Route arrays are readonly snapshots.
+      context.path.vertices.push({ vertexId: undefined, data: '' });
+    }
+    return true;
+  },
+});
+new AsyncGraphWalk({
+  source: asyncSource,
+  revisit: 'simplePaths',
+  limits: { maxDepth: 2 },
+  async expandVertex(vertex, context) {
+    if (context.revisit !== 'once') {
+      const path: GraphWalkEventFor<string, number, Phase.PATH, undefined> =
+        context.path;
+      const data: string = vertex.data;
+      void [path, data];
+    }
+    return true;
+  },
+});

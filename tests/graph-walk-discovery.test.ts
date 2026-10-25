@@ -244,16 +244,6 @@ it.each([
   expect(runner.getStatus()).toBe(Status.FAILED);
 });
 
-it('rejects unsupported active options before source I/O', () => {
-  const source = idGraph(['A'], [['A', []]]);
-  for (const options of [
-    { revisit: 'walks' as const, limits: { maxSteps: 1 } },
-  ])
-    expect(() => new GraphWalk({ source, ...options }).makeRunner()).toThrow(
-      TypeError,
-    );
-});
-
 it('counts a candidate before rejecting malformed inline hydration', () => {
   const source = {
     roots: () => [{ vertexId: 'A', resolution: { kind: 'missing' } }],

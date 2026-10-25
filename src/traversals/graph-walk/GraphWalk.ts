@@ -88,12 +88,6 @@ export class GraphWalk<Data, Edge, ID> {
     >[];
   }
   makeRunner(): GraphWalkRunner<Data, Edge, ID> {
-    this.assertSupported();
     return new GraphWalkRunner(normalizeWalkOptions({}, this.options));
-  }
-  private assertSupported(): void {
-    if (this.options.revisit !== 'once') {
-      throw new TypeError('This walking configuration is not supported');
-    }
   }
 }

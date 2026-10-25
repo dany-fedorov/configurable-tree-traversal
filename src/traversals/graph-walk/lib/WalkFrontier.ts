@@ -46,6 +46,20 @@ export class WalkFrontier<Data, Edge, ID> {
   }
 }
 
+/** Route-local cycle membership, including NaN and signed-zero identities. */
+export function routeContains<Data, Edge, ID>(
+  route: WalkRoute<Data, Edge, ID>,
+  vertexId: ID,
+): boolean {
+  let current: WalkRoute<Data, Edge, ID> | null = route;
+  while (current !== null) {
+    const id = current.vertex.vertexId;
+    if (id === vertexId || (id !== id && vertexId !== vertexId)) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
 /** Only requested path records pay for materializing a prefix. */
 export function projectPath<Data, Edge, ID>(
   route: WalkRoute<Data, Edge, ID>,

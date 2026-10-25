@@ -180,7 +180,12 @@ it('registration and configure changes snapshot async callbacks and detach liste
   expect(() => walk.listVisitorsFor('invalid' as Phase)).toThrow(TypeError);
   expect(() => walk.configure({ revisit: 'walks' })).toThrow(TypeError);
   walk.configure({ limits: { maxDepth: 1 }, revisit: 'walks' });
-  expect(() => walk.makeRunner()).toThrow(TypeError);
+  const bounded = await walk.makeRunner().run();
+  // Replacing maxOccurrences admits A, E, AB, AB and AC at depth one.
+  expect(bounded.summary().counts.occurrences).toBe(5);
+  expect(calls.slice(3)).toEqual(
+    Array.from({ length: 5 }, () => ['group:first', 'group:second']).flat(),
+  );
 });
 
 it('accepts resolved thenables from async sources, predicates and visitors', async () => {
