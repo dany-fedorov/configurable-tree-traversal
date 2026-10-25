@@ -443,7 +443,7 @@ export declare function walkSourceFromAsync<Data, Edge, ID>(
 
 `walkSourceFromDag<Data, ID>(definition, { relations })` returns `GraphWalkSource<Data, GraphWalkDagRelation, ID>`. `relations` is a nonempty readonly tuple of `'children' | 'workDependencies' | 'completionDependencies'`, runtime validated; `GraphWalkDagRelation` is `{ kind: 'child'; slotIndex: number } | { kind: 'workDependency' } | { kind: 'completionDependency' }`. Duplicate relation selectors are rejected; selection order does not override canonical child/work/completion ordering. Edges to known omissions remain observable.
 
-- [ ] Add a catalog regression proving eager topology capture and shallow data ownership:
+- [x] Add a catalog regression proving eager topology capture and shallow data ownership:
 
 ```ts
 const adjacency = [{ to: 'B', data: { kind: 'cites' } }];
@@ -461,10 +461,10 @@ expect(events).toHaveLength(1);
 expect(events[0]!.source.data).toBe(a);
 ```
 
-- [ ] Run source adapter tests to see missing exports. Materialize catalogs/async selectors once, copy all topology wrappers, reject duplicate IDs even for the same item twice, reject unknown roots/targets, preserve multiple links and input order, and provide fresh root/adjacency iterators for each runner. Unknown lookup through the resulting source throws rather than inventing an omission. Empty catalogs with empty roots are valid.
-- [ ] Add DAG adapter tests starting from `defineDag` values, including a shape-valid cyclic definition that cannot execute as a DAG. Selecting children must walk it successfully; selecting W/C dependencies must preserve dependent-to-prerequisite direction and labelled edge data. Selected missing endpoints fail membership validation; unselected missing dependencies are irrelevant to walking. Neither preparation nor task callbacks may run.
-- [ ] Handle root/forest/empty entries, known omitted roots/children/prerequisites, anonymous omitted slots (skip), parent child slot indices, and cycles. Validate live/omitted ID consistency on a copied input; do not silently overwrite duplicate records. Use `defineDag`'s shape normalization where compatible but do not invoke DAG acyclicity validation. Result wrappers must remain detached from definition mutations or separately created runners.
-- [ ] Run source behavior/type tests plus `tests/collection-sources.test.ts`, `tests/dag-definition-validation.test.ts` and `npm run typecheck`. Commit as `feat(graph-walk): adapt catalogs and explicit DAG relations`.
+- [x] Run source adapter tests to see missing exports. Materialize catalogs/async selectors once, copy all topology wrappers, reject duplicate IDs even for the same item twice, reject unknown roots/targets, preserve multiple links and input order, and provide fresh root/adjacency iterators for each runner. Unknown lookup through the resulting source throws rather than inventing an omission. Empty catalogs with empty roots are valid.
+- [x] Add DAG adapter tests starting from `defineDag` values, including a shape-valid cyclic definition that cannot execute as a DAG. Selecting children must walk it successfully; selecting W/C dependencies must preserve dependent-to-prerequisite direction and labelled edge data. Selected missing endpoints fail membership validation; unselected missing dependencies are irrelevant to walking. Neither preparation nor task callbacks may run.
+- [x] Handle root/forest/empty entries, known omitted roots/children/prerequisites, anonymous omitted slots (skip), parent child slot indices, and cycles. Validate live/omitted ID consistency on a copied input; do not silently overwrite duplicate records. Use `defineDag`'s shape normalization where compatible but do not invoke DAG acyclicity validation. Result wrappers must remain detached from definition mutations or separately created runners.
+- [x] Run source behavior/type tests plus `tests/collection-sources.test.ts`, `tests/dag-definition-validation.test.ts` and `npm run typecheck`. Commit as `feat(graph-walk): adapt catalogs and explicit DAG relations`.
 
 ## Task 9: Helpers, public exports, and packed compatibility
 
