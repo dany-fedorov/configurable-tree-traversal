@@ -52,7 +52,10 @@ export class AsyncBreadthFirstTraversalRunner<
   >;
   private iterableConfig: BreadthFirstTraversalRunnerIterableConfig =
     makeEffectiveBreadthFirstTraversalRunnerIterableConfig();
-  private readonly execution: AsyncCoreExecution<Event<TTP, RW_TTP>>;
+  private readonly execution: AsyncCoreExecution<
+    Event<TTP, RW_TTP>,
+    BreadthFirstTraversalOrder
+  >;
 
   constructor(
     icfgInput: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
@@ -159,6 +162,10 @@ export class AsyncBreadthFirstTraversalRunner<
 
   getStopReason(): TraversalStopReason | null {
     return this.execution.getStopReason();
+  }
+
+  requestPause(): boolean {
+    return this.execution.requestPause();
   }
 
   isHalted(): boolean {

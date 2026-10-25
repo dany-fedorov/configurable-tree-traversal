@@ -60,7 +60,10 @@ export class AsyncDagTraversalRunner<
     makeEffectiveDagTraversalRunnerIterableConfig();
   private readonly kernel: TraversalKernel<T, R>;
   private readonly notifyProgress: () => void;
-  private readonly execution: AsyncCoreExecution<Event<T, R>>;
+  private readonly execution: AsyncCoreExecution<
+    Event<T, R>,
+    DagTraversalOrder
+  >;
 
   constructor(input: AsyncDagTraversalInstanceConfig<T, R>) {
     if (
@@ -240,6 +243,10 @@ export class AsyncDagTraversalRunner<
 
   getStopReason(): TraversalStopReason | null {
     return this.execution.getStopReason();
+  }
+
+  requestPause(): boolean {
+    return this.execution.requestPause();
   }
 
   isHalted(): boolean {

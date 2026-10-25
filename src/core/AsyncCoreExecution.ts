@@ -1,18 +1,9 @@
-import type { CoreInspection } from '@core/CoreInspection';
-import type {
-  TraversalRunnerStatus,
-  TraversalStopReason,
-} from '@core/TraversalRunner';
+import type { AsyncTraversalExecution } from '@core/TraversalExecution';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
-import type { VisitOrder } from '@core/effects/types';
 
-export interface AsyncCoreExecution<E> {
-  getStatus(): TraversalRunnerStatus;
-  getStopReason(): TraversalStopReason | null;
-  isHalted(): boolean;
-  inspect(): CoreInspection;
-  getIterable(
-    config?: TraversalIterableConfigInput<VisitOrder>,
-  ): AsyncGenerator<E, void, unknown>;
-  run(config?: TraversalIterableConfigInput<VisitOrder>): Promise<this>;
+/** Historical execution name. Erasing the phase type permits no explicit phases. */
+export interface AsyncCoreExecution<Event, Phase extends string = never>
+  extends AsyncTraversalExecution<Phase, Event> {
+  // Preserve the extensible historical interface and its fluent return type.
+  run: (config?: TraversalIterableConfigInput<Phase>) => Promise<this>;
 }

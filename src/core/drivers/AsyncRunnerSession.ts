@@ -36,7 +36,9 @@ const done = Object.freeze({ done: true, value: undefined }) as IteratorResult<
   void
 >;
 
-export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
+export class AsyncRunnerSession<E>
+  implements AsyncCoreExecution<E, VisitOrder>
+{
   private readonly bufferedEvents: BufferedEvent<E>[] = [];
   private activeIterator: IteratorState<E> | null = null;
   private deliveredBoundaryId: number | null = null;
@@ -60,6 +62,17 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
 
   public isHalted(): boolean {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
+  }
+
+  public requestPause(): boolean {
+    if (
+      this.getStatus() !== TraversalRunnerStatus.RUNNING ||
+      this.control.isHaltRequested()
+    )
+      return false;
+    this.control.requestHalt();
+    this.requestPump();
+    return true;
   }
 
   public inspect(): CoreInspection {

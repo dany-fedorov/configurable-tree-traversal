@@ -231,6 +231,16 @@ export class DagTraversalRunner<
     return this.kernel.getStopReason();
   }
 
+  requestPause(): boolean {
+    if (
+      this.getStatus() !== TraversalRunnerStatus.RUNNING ||
+      this.kernel.isHaltRequested()
+    )
+      return false;
+    this.kernel.requestHalt();
+    return true;
+  }
+
   isHalted(): boolean {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
   }
@@ -264,7 +274,7 @@ export class DagTraversalRunner<
 
   *getIterable(
     config?: DagTraversalRunnerIterableConfigInput,
-  ): Generator<Event<T, R>> {
+  ): Generator<Event<T, R>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
     if (this.activeIterator) {
       throw new Error('A traversal runner can only have one active iterator');
