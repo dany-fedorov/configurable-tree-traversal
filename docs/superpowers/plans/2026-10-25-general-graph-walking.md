@@ -238,7 +238,7 @@ expect(runner.summary().counts.occurrences).toBe(8);
 
 **Interfaces:** consume found occurrences and observation boundaries. Produce `followEdge`, `expandVertex`, all three limits, occurrence/step counters, outcome reasons, explicit-selector narrowing, and broad persisted-selector fallback. Summary uses `{ status, counts: { steps, occurrences, foundVertices, omittedVertices, observedLinks, observations: { vertex, edge, path } }, outcome }`; outcome variants are those in the design.
 
-- [ ] Add public regressions proving filtered links don't hydrate/resolve, pruned vertices still emit, and observer selection doesn't affect exploration:
+- [x] Add public regressions proving filtered links don't hydrate/resolve, pruned vertices still emit, and observer selection doesn't affect exploration:
 
 ```ts
 const first = new GraphWalk({ source: contextFixture().source }).makeRunner();
@@ -249,9 +249,9 @@ expect(first.summary().counts).toEqual(second.summary().counts);
 expect(first.summary().counts.occurrences).toBe(8);
 ```
 
-- [ ] Run the three new focused suites to observe failure. Implement candidate admission independently of event counts: root/link pull increments steps (including cached replay/done); distinct root or eligible followed link increments occurrences; rejected/duplicate candidates consume only steps. Increment logical observation counters even if no callback/delivery requests payload materialization. Never perform a speculative next pull or open a new enumeration after a global allowance reaches zero. If the final admitted pull proves all work exhausted, report exhausted rather than limited; test an empty root stream with maxSteps one and a leaf whose final permitted adjacency-done pull drains the frontier.
-- [ ] Invoke `followEdge` after simple-path candidate eligibility but before target cache hydration/resolution. Invoke `expandVertex` after occurrence observations and before depth cutoff. Both must return booleans. A false expansion predicate counts as host pruning, not a depth limit. `once` retains its first-discovery depth/prune choice; never silently re-expand after a later shorter route.
-- [ ] Pin exact depth and zero/global-cap behavior:
+- [x] Run the three new focused suites to observe failure. Implement candidate admission independently of event counts: root/link pull increments steps (including cached replay/done); distinct root or eligible followed link increments occurrences; rejected/duplicate candidates consume only steps. Increment logical observation counters even if no callback/delivery requests payload materialization. Never perform a speculative next pull or open a new enumeration after a global allowance reaches zero. If the final admitted pull proves all work exhausted, report exhausted rather than limited; test an empty root stream with maxSteps one and a leaf whose final permitted adjacency-done pull drains the frontier.
+- [x] Invoke `followEdge` after simple-path candidate eligibility but before target cache hydration/resolution. Invoke `expandVertex` after occurrence observations and before depth cutoff. Both must return booleans. A false expansion predicate counts as host pruning, not a depth limit. `once` retains its first-discovery depth/prune choice; never silently re-expand after a later shorter route.
+- [x] Pin exact depth and zero/global-cap behavior:
 
 ```ts
 const self = new GraphWalk({
@@ -268,7 +268,7 @@ expect(boundary.summary().outcome).toEqual({
 ```
 
 `idGraph(roots, adjacency)` is a test helper in `graph-walk-fixtures.ts`: data is the ID itself; every listed ID is found, unknown lookup throws, links carry `undefined`. Also cover zero steps/occurrences causing no source calls, zero depth allowing roots, exact caps without exhaustion probing, including exhaustion already proven by the final allowed pull, omitted/returning candidates, false predicates at a boundary, and DFS first-route depth versus BFS shortest depth.
-- [ ] Implement emission filtering at delivery with a broad capability signature plus a narrowing overload:
+- [x] Implement emission filtering at delivery with a broad capability signature plus a narrowing overload:
 
 ```ts
 type GraphWalkIterable<Data, Edge, ID> = {
@@ -280,7 +280,7 @@ type GraphWalkIterable<Data, Edge, ID> = {
 ```
 
 Validate/detach before mutation. No-argument, empty patch, and legacy-alias calls retain full result unions. Assert `emitPhases: []` yields `never`, mixed literal selectors exclude paths, and another family's enum is rejected. Copy selectors on activation; preserve explicit canonical/legacy conflict behavior through the shared normalizer.
-- [ ] Run the focused control/limit/selection suites and `npm run typecheck`; commit as `feat(graph-walk): separate exploration controls from observation`.
+- [x] Run the focused control/limit/selection suites and `npm run typecheck`; commit as `feat(graph-walk): separate exploration controls from observation`.
 
 ## Task 4: Familiar visitor registration and synchronous continuation
 
