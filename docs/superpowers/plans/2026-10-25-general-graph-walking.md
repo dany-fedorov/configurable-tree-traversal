@@ -324,8 +324,8 @@ expect(seen).toEqual(['first', 'second', 'third']);
 
 **Interfaces:** consume the same kernel/frontier and normalized async source/options. Produce `AsyncTraversalExecution<GraphWalkPhase, GraphWalkEvent<Data, Edge, ID>, GraphWalkInspection>` with value-or-promise source/predicates/visitors and async source streams. Reuse `captureOutcome`/`Wakeup`; do not add another graph algorithm in the async session.
 
-- [ ] Add sync/async parity tests on the mixed fixture, comparing event trace, counts, and outcome. Add an entirely hydrated async source with no resolver and assert shared targets open `outgoing` only once. Test a mixed source where only some targets need fallback resolution.
-- [ ] Add a controlled-promise test showing iterator close can request pause while a source callback is pending:
+- [x] Add sync/async parity tests on the mixed fixture, comparing event trace, counts, and outcome. Add an entirely hydrated async source with no resolver and assert shared targets open `outgoing` only once. Test a mixed source where only some targets need fallback resolution.
+- [x] Add a controlled-promise test showing iterator close can request pause while a source callback is pending:
 
 ```ts
 let release!: (value: GraphWalkVertexResult<string>) => void;
@@ -353,10 +353,10 @@ expect((await resumed.next()).value).toMatchObject({ kind: 'vertex' });
 await resumed.return(undefined);
 ```
 
-- [ ] Run focused async suites and observe missing behavior. Implement a manual async iterator/session with queued next waiters, a single owner, an immediate close/pause request, and a demand-driven pump. A raw async generator alone is insufficient because its `return()` queues behind a suspended `next()` rather than notifying the runner immediately.
-- [ ] Invoke at most one callback request at a time through `captureOutcome`; submit only the matching current request, then poll the same kernel. Attach rejection handlers at admission. Closing iteration drains already-admitted work, resolves pending next calls as done, retains pending observations, and does not pull another source item. A callback that never settles can delay pause; no cancellation promise is added.
-- [ ] Preserve strict backpressure: after delivering a vertex, do not call its expansion predicate or open its outgoing iterator before new demand. Test pending root enumeration, edge pulls, predicates and visitors; multiple queued next calls; concurrent run/iterator conflicts; exact rejected values; resolved thenables; throw/return on unopened and closed iterators; and independent async runners.
-- [ ] Run the async suites, sync walking suites, `tests/async-runner-session.test.ts`, and `npm run typecheck`. Commit as `feat(graph-walk): drive lazy async sources with shared walk semantics`.
+- [x] Run focused async suites and observe missing behavior. Implement a manual async iterator/session with queued next waiters, a single owner, an immediate close/pause request, and a demand-driven pump. A raw async generator alone is insufficient because its `return()` queues behind a suspended `next()` rather than notifying the runner immediately.
+- [x] Invoke at most one callback request at a time through `captureOutcome`; submit only the matching current request, then poll the same kernel. Attach rejection handlers at admission. Closing iteration drains already-admitted work, resolves pending next calls as done, retains pending observations, and does not pull another source item. A callback that never settles can delay pause; no cancellation promise is added.
+- [x] Preserve strict backpressure: after delivering a vertex, do not call its expansion predicate or open its outgoing iterator before new demand. Test pending root enumeration, edge pulls, predicates and visitors; multiple queued next calls; concurrent run/iterator conflicts; exact rejected values; resolved thenables; throw/return on unopened and closed iterators; and independent async runners.
+- [x] Run the async suites, sync walking suites, `tests/async-runner-session.test.ts`, and `npm run typecheck`. Commit as `feat(graph-walk): drive lazy async sources with shared walk semantics`.
 
 ## Task 6: Resource disposal, inspection, and failure precedence
 
