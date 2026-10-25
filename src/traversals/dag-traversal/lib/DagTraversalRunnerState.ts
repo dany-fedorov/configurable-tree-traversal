@@ -5,13 +5,16 @@ import type { Ref } from '@core/graph/types';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
+import { copyDagTerminalObservation } from './DagTerminalObservation';
 import { DagTraversalOrder } from './DagTraversalOrder';
 
 export type DagTraversalVisitorsState<T extends TreeTypeParameters> = {
   [K in DagTraversalOrder]: VisitorExecutionState<T>;
 };
 
-function initVisitorsState<T extends TreeTypeParameters>(): DagTraversalVisitorsState<T> {
+function initVisitorsState<
+  T extends TreeTypeParameters,
+>(): DagTraversalVisitorsState<T> {
   return {
     [DagTraversalOrder.ON_READY]: {
       vertexVisitIndex: 0,
@@ -47,5 +50,6 @@ export class DagTraversalRunnerState<
     this.readyVisits = from?.readyVisits ?? [];
     this.expansionQueue = from?.expansionQueue ?? [];
     this.failure = from?.failure ?? null;
+    if (from != null) copyDagTerminalObservation(from, this);
   }
 }

@@ -41,6 +41,11 @@ import {
 } from './DagTraversalRunnerIterableConfig';
 import { DagTraversalRunnerState } from './DagTraversalRunnerState';
 
+import {
+  captureDagTerminalObservation,
+  getDagTerminalObservation,
+} from './DagTerminalObservation';
+
 type Event<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
@@ -52,6 +57,9 @@ export class DagTraversalRunner<
   R extends TreeTypeParameters = T,
   ID = unknown,
 > {
+  private readonly terminalObservation: ReturnType<
+    typeof getDagTerminalObservation
+  >;
   readonly icfg: DagTraversalInstanceConfig<T, R, ID>;
   readonly state: DagTraversalRunnerState<T, R>;
   readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
@@ -138,6 +146,10 @@ export class DagTraversalRunner<
         treeContainer,
       } as ResolvedGraphsContainerOptions<T, R, ID>);
     }
+    this.terminalObservation = getDagTerminalObservation(
+      this.state,
+      this.resolvedGraphsContainer.resolvedGraph.getVertexRefs().length > 0,
+    );
     this.notMutatedResolvedGraph =
       this.resolvedGraphsContainer.notMutatedResolvedGraph;
     this.policy = new DagPolicy(this.state, this.resolvedGraphsContainer);
@@ -236,6 +248,7 @@ export class DagTraversalRunner<
       throw error;
     } finally {
       this.activeIterator = false;
+      captureDagTerminalObservation(this.state, this.kernel);
       this.policy.releaseIfTerminal();
     }
     return this;
@@ -243,12 +256,20 @@ export class DagTraversalRunner<
 
   /** @internal Synchronous observation without advancing the runner. */
   inspectDagState(): DagInspectionState<ID> {
-    return this.kernel.inspectDagState() as DagInspectionState<ID>;
+    return (
+      this.terminalObservation === undefined
+        ? this.kernel.inspectDagState()
+        : this.terminalObservation.inspectDagState()
+    ) as DagInspectionState<ID>;
   }
 
   summary(): DagSummary<ID> {
     // The kernel only receives identities from this runner's typed source/config.
-    return this.kernel.summary() as DagSummary<ID>;
+    return (
+      this.terminalObservation === undefined
+        ? this.kernel.summary()
+        : this.terminalObservation.summary()
+    ) as DagSummary<ID>;
   }
 
   settle(
@@ -353,6 +374,7 @@ export class DagTraversalRunner<
         this.kernel.requestHalt();
         this.state.status = TraversalRunnerStatus.HALTED;
       }
+      captureDagTerminalObservation(this.state, this.kernel);
       this.policy.releaseIfTerminal();
     }
   }

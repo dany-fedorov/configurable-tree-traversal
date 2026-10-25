@@ -43,6 +43,11 @@ import {
 } from './DagTraversalRunnerIterableConfig';
 import { DagTraversalRunnerState } from './DagTraversalRunnerState';
 
+import {
+  captureDagTerminalObservation,
+  getDagTerminalObservation,
+} from './DagTerminalObservation';
+
 type Event<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
@@ -54,6 +59,9 @@ export class AsyncDagTraversalRunner<
   R extends TreeTypeParameters = T,
   ID = unknown,
 > {
+  private readonly terminalObservation: ReturnType<
+    typeof getDagTerminalObservation
+  >;
   readonly icfg: AsyncDagTraversalInstanceConfig<T, R, ID>;
   readonly state: DagTraversalRunnerState<T, R>;
   readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
@@ -143,6 +151,10 @@ export class AsyncDagTraversalRunner<
         treeContainer,
       } as ResolvedGraphsContainerOptions<T, R, ID>);
     }
+    this.terminalObservation = getDagTerminalObservation(
+      this.state,
+      this.resolvedGraphsContainer.resolvedGraph.getVertexRefs().length > 0,
+    );
     this.notMutatedResolvedGraph =
       this.resolvedGraphsContainer.notMutatedResolvedGraph;
     const policy = new DagPolicy(this.state, this.resolvedGraphsContainer);
@@ -233,12 +245,20 @@ export class AsyncDagTraversalRunner<
 
   /** @internal Synchronous observation without advancing the runner. */
   inspectDagState(): DagInspectionState<ID> {
-    return this.kernel.inspectDagState() as DagInspectionState<ID>;
+    return (
+      this.terminalObservation === undefined
+        ? this.kernel.inspectDagState()
+        : this.terminalObservation.inspectDagState()
+    ) as DagInspectionState<ID>;
   }
 
   summary(): DagSummary<ID> {
     // The kernel only receives identities from this runner's typed source/config.
-    return this.kernel.summary() as DagSummary<ID>;
+    return (
+      this.terminalObservation === undefined
+        ? this.kernel.summary()
+        : this.terminalObservation.summary()
+    ) as DagSummary<ID>;
   }
 
   settle(
@@ -370,6 +390,7 @@ export class AsyncDagTraversalRunner<
           if (progress.kind === 'FAILED' && this.state.failure === null) {
             this.state.failure = { error: progress.error };
           }
+          captureDagTerminalObservation(this.state, this.kernel);
           policy.releaseIfTerminal();
         }
         return progress;

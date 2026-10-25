@@ -124,7 +124,7 @@ export function makeDagInspection<ID>(
   };
   const walk = makeMilestoneQuery(snapshot.edges);
   const explain = (input: DagDependencyMilestone<ID>): DagExplanation<ID> => {
-    const target = { ...input };
+    const target = { vertexId: input.vertexId, milestone: input.milestone };
     const discoveryComplete = snapshot.state.discoveryComplete;
     const kind = identities.get(target.vertexId);
     if (kind === undefined || kind === 'deleted')
@@ -189,15 +189,18 @@ export function makeDagInspection<ID>(
     };
   };
   const query = (
-    target: DagDependencyMilestone<ID>,
+    input: DagDependencyMilestone<ID>,
     direction: 'prerequisites' | 'dependents',
     options: DagMilestoneQueryOptions = {},
-  ): DagMilestoneQueryResult<ID> => ({
-    ...(identities.has(target.vertexId)
-      ? walk(target, direction, options.transitive ?? false)
-      : { milestones: [], edges: [] }),
-    discoveryComplete: snapshot.state.discoveryComplete,
-  });
+  ): DagMilestoneQueryResult<ID> => {
+    const target = { vertexId: input.vertexId, milestone: input.milestone };
+    return {
+      ...(identities.has(target.vertexId)
+        ? walk(target, direction, options.transitive ?? false)
+        : { milestones: [], edges: [] }),
+      discoveryComplete: snapshot.state.discoveryComplete,
+    };
+  };
   return {
     explain,
     prerequisitesOf: (target, options) =>

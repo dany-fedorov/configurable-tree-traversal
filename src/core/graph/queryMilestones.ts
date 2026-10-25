@@ -57,7 +57,7 @@ export function makeMilestoneQuery<ID>(
       pair.add(milestone.milestone);
       queue.push(milestone);
     };
-    visit({ ...target });
+    visit({ vertexId: target.vertexId, milestone: target.milestone });
     const result: DagDependencyEdge<ID>[] = [];
     for (let index = 0; index < queue.length; index++) {
       const current = queue[index]!;
