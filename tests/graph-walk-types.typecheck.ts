@@ -1,25 +1,23 @@
 import {
+  GraphWalk,
   TraversalVisitorCommandName as Command,
   DepthFirstTraversalOrder,
 } from '../src';
 import type { InspectionFilters } from '../src/core/CoreInspection';
-import { GraphWalkPhase as Phase } from '../src/traversals/graph-walk/GraphWalkPhase';
+import { GraphWalkPhase as Phase } from '../src';
 import type {
   GraphWalkSource,
   AsyncGraphWalkSource,
   GraphWalkTarget,
-} from '../src/traversals/graph-walk/GraphWalkSource';
+} from '../src';
 import type {
   GraphWalkOptions,
   AsyncGraphWalkOptions,
   GraphWalkConfigureInput,
   AsyncGraphWalkConfigureInput,
-} from '../src/traversals/graph-walk/GraphWalkOptions';
-import type {
-  GraphWalkEvent,
-  GraphWalkEventFor,
-} from '../src/traversals/graph-walk/GraphWalkEvent';
-import type { GraphWalkVisitorResult } from '../src/traversals/graph-walk/GraphWalkVisitor';
+} from '../src';
+import type { GraphWalkEvent, GraphWalkEventFor } from '../src';
+import type { GraphWalkVisitorResult } from '../src';
 
 const source: GraphWalkSource<string, number, undefined> = {
   roots: () => [
@@ -205,4 +203,50 @@ void [
   concurrency,
   selected,
   widened,
+];
+
+// Inferred concrete runners retain exact data/ID types and the broad capability.
+const runner = new GraphWalk({ source }).makeRunner();
+const execution: import('../src').SyncTraversalExecution<
+  Phase,
+  GraphWalkEvent<string, number, undefined>,
+  import('../src').GraphWalkInspection
+> = runner;
+const common: import('../src').SyncTraversalExecution<
+  Phase,
+  GraphWalkEvent<string, number, undefined>,
+  import('../src').ExecutionInspection
+> = runner;
+const edgeEvents: Generator<
+  GraphWalkEventFor<string, number, Phase.EDGE, undefined>,
+  void,
+  unknown
+> = runner.getIterable({ emitPhases: [Phase.EDGE] });
+const allEvents: Generator<
+  GraphWalkEvent<string, number, undefined>,
+  void,
+  unknown
+> = runner.getIterable();
+// @ts-expect-error Unselected calls cannot promise only edge events.
+const unsafeEdges: typeof edgeEvents = runner.getIterable();
+// @ts-expect-error Legacy selectors intentionally retain the full event union.
+const legacyEdges: typeof edgeEvents = runner.getIterable({
+  iterateOver: [Phase.EDGE],
+});
+// @ts-expect-error A walking runner cannot accept another family's phase.
+runner.getIterable({ emitPhases: [DepthFirstTraversalOrder.PRE_ORDER] });
+// @ts-expect-error Function-property variance forbids phase widening.
+const wideExecution: import('../src').SyncTraversalExecution<
+  string,
+  GraphWalkEvent<string, number, undefined>,
+  import('../src').ExecutionInspection
+> = runner;
+void [
+  execution,
+  common,
+  edgeEvents,
+  allEvents,
+  unsafeEdges,
+  legacyEdges,
+  wideExecution,
 ];
