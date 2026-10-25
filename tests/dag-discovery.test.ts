@@ -354,17 +354,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} rejects graph completion metadata in tree-source mode`, async () => {
     let visits = 0;
+    // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
     const traversal = new Constructor<G>({
       traversableTree: {
         makeRoot: () => ({
           priority: 1,
-          // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
           dependsOnComplete: ['unused'],
           vertexContent: { $d: 'root', $c: ['child'] },
         }),
         makeVertex: () => ({
           priority: 2,
-          // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
           dependsOnComplete: ['also ignored'],
           vertexContent: { $d: 'child', $c: [] },
         }),

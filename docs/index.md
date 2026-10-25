@@ -9,6 +9,7 @@ These pages describe the **unreleased uniform and composable APIs in this checko
 | Task | Reading order | Stop when you have… |
 | --- | --- | --- |
 | Build an autonomous-agent workflow | [Quickstart](../README.md#quickstart-find-the-next-agent-tasks) → [workflow guide](agent-workflows.md) | A graph adapter, execution model, and host-owned recovery design |
+| Reuse a graph across independent runs | [Collection sources](reference.md#collection-and-forest-sources) → [prepared definitions](reference.md#reusable-prepared-dags) → [ticket coordination](reference.md#ticket-coordination) | A validated topology, session boundaries, and accepted-fact recovery |
 | Add a work or subtree-completion dependency | [Join semantics](agent-workflows.md#work-dependencies-and-completion-joins) → [exact graph contracts](reference.md#discovery-and-completed-work) | Correct dependency declarations without structural/dependency cycles |
 | Debug missing work or a stalled graph | [Troubleshooting](agent-workflows.md#troubleshoot-a-workflow) → [DAG diagnostics](reference.md#dag-traversal) | A complete catalog or lookup adapter and the relevant diagnostics |
 | Walk an object or abstract tree | [Objects](reference.md#traverse-an-object) → [abstract trees](reference.md#abstract-trees) → [orders](reference.md#traversal-orders) | The correct adapter, traversal family, and order |
@@ -18,10 +19,11 @@ These pages describe the **unreleased uniform and composable APIs in this checko
 
 ## Runnable examples
 
-Examples are executable programs; the DAG and agent coordination examples include behavioral assertions. From a repository checkout, run `npm ci`, then `npm run tsfile -- examples/agent-orchestration-example.ts`. Run all examples with `npm run verify-examples`.
+Examples are executable programs; the DAG and agent coordination examples include behavioral assertions. From a repository checkout, run `npm ci`, then `npm run tsfile -- examples/agent-api-foundations-example.ts`. Run all examples with `npm run verify-examples`.
 
 | Example | Demonstrates |
 | --- | --- |
+| [Agent API foundations](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) | Collection → prepared definition → independent sync/async sessions, local tickets, duplicate reports, and recovery without source replay |
 | [Agent orchestration](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)         | Typed prepare → run → guarded frontier → settle → run, final completion, duplicate settlement, and restart reconstruction |
 | [Reconciliation](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-reconciliation-example.ts) | Retained-runner and rebuild-per-tick equivalence |
 | [Completion joins](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts) | Waiting for a composite and its retained children |
@@ -37,4 +39,5 @@ The npm package includes these guides and the reference. Examples, contributor i
 - [Changelog](../CHANGELOG.md): unreleased changes and historical release facts.
 - [Testing](testing.md): commands, coverage requirements, package/runtime checks.
 - [Performance reports](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/performance): measured artifacts and explicit limits; not universal speed guarantees.
+- [Agent API roadmap](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/docs/superpowers/specs/2026-10-25-agent-api-roadmap.md): ten proposals; the current reference documents the implemented collection, preparation, coordination, event and visitor APIs. Remaining proposals are future work.
 - [Research](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/research) and [design plans](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/superpowers): decision history. Some proposals are superseded or describe downstream work that CTT does not implement. Use current guides and source/tests to establish behavior.

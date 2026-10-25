@@ -386,7 +386,9 @@ export class GraphScheduling<
       return null;
     }
     if (known?.kind === 'omitted') {
-      this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
+      this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted', {
+        vertexId: suppliedId,
+      });
       return null;
     }
     if (known?.kind === 'live') {
@@ -402,7 +404,12 @@ export class GraphScheduling<
       if (hasSuppliedId) {
         this.acceptOmission(suppliedId);
       }
-      this.closeSlot(context.parentVertexRef, context.hintIndex, 'omitted');
+      this.closeSlot(
+        context.parentVertexRef,
+        context.hintIndex,
+        'omitted',
+        hasSuppliedId ? { vertexId: suppliedId } : undefined,
+      );
       return null;
     }
 
@@ -593,8 +600,9 @@ export class GraphScheduling<
     parent: Ref<T | R>,
     index: number,
     reason: 'omitted' | 'deleted' | 'disabled',
+    omittedIdentity?: HintVertexId,
   ): void {
-    this.container.store.closeSlot(parent, index, reason);
+    this.container.store.closeSlot(parent, index, reason, omittedIdentity);
     const vertexWork = this.work.get(parent);
     if (vertexWork === undefined) return;
     if (vertexWork.expansion === 'unprepared') vertexWork.expansion = 'open';

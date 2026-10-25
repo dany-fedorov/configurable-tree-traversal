@@ -37,7 +37,7 @@ export type GraphEdge<T extends TreeTypeParameters> = Readonly<{
   hint: T['VertexHint'];
 }>;
 
-export type ChildSlot<T extends TreeTypeParameters> =
+export type ChildSlot<T extends TreeTypeParameters, ID = unknown> =
   | Readonly<{ kind: 'pending'; hint: T['VertexHint'] }>
   | Readonly<{
       kind: 'linked';
@@ -45,7 +45,13 @@ export type ChildSlot<T extends TreeTypeParameters> =
       childRef: Ref<T>;
     }>
   | Readonly<{
-      kind: 'omitted' | 'deleted' | 'disabled';
+      kind: 'omitted';
+      hint: T['VertexHint'];
+      /** Own presence retains a known omitted identity, including undefined. */
+      vertexId?: ID;
+    }>
+  | Readonly<{
+      kind: 'deleted' | 'disabled';
       hint: T['VertexHint'];
     }>;
 
@@ -58,7 +64,7 @@ export type GraphVertex<T extends TreeTypeParameters, ID = unknown> = Readonly<{
   dependsOnComplete?: readonly ID[];
   status: GraphVertexStatus;
   incoming: readonly GraphEdge<T>[];
-  slots: readonly ChildSlot<T>[];
+  slots: readonly ChildSlot<T, ID>[];
 }>;
 
 export type VisitorRecord<F> = {
@@ -79,8 +85,8 @@ export interface GraphStoreContract<
   readonly mode: 'tree' | 'dag';
   readonly graph: ResolvedGraph<T, ID>;
   getIdState(id: ID): IdState<T> | undefined;
-  getTraversalSlots(ref: Ref<T>): readonly ChildSlot<T>[] | null;
-  getTraversalSlot(ref: Ref<T>, index: number): ChildSlot<T> | undefined;
+  getTraversalSlots(ref: Ref<T>): readonly ChildSlot<T, ID>[] | null;
+  getTraversalSlot(ref: Ref<T>, index: number): ChildSlot<T, ID> | undefined;
   getDiscoveryDepth(ref: Ref<T>): number;
   getDeclaredDependencies(ref: Ref<T>): ID[];
   getDeclaredCompleteDependencies(ref: Ref<T>): ID[];
@@ -107,6 +113,7 @@ export interface GraphStoreContract<
     parent: Ref<T>,
     index: number,
     reason: 'omitted' | 'deleted' | 'disabled',
+    omittedIdentity?: HintVertexId<ID>,
   ): void;
   markOmitted(id: ID): void;
   markDeleted(id: ID): void;

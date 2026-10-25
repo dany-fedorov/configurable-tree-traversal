@@ -10,3 +10,4 @@ export * from '@depth-first-traversal/index';
 export * from '@breadth-first-traversal/index';
 export * from '@traversable-object-tree/index';
 export * from './traversals/dag-traversal';
+export * from './sources';

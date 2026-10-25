@@ -1,4 +1,6 @@
 import type { NoInferPhase } from '@core/TraversalVisitor';
+import type { TraversableGraph } from '@core/TraversableGraph';
+import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
@@ -34,6 +36,26 @@ export class AsyncDagTraversal<
   visitors: AsyncDagTraversalVisitors<T, R, ID>;
   private readonly sourceMode: 'tree' | 'graph';
 
+  // Infer sync graph identities directly instead of through MaybePromise results.
+  constructor(
+    input: Omit<
+      AsyncDagTraversalInstanceConfigInput<T, R, ID>,
+      'traversableGraph' | 'traversableTree'
+    > &
+      (
+        | {
+            traversableGraph: TraversableGraph<T, R, ID>;
+            traversableTree?: never;
+          }
+        | {
+            traversableTree: unknown extends ID
+              ? AsyncTraversableTree<T, R>
+              : never;
+            traversableGraph?: never;
+          }
+      ),
+  );
+  constructor(input: AsyncDagTraversalInstanceConfigInput<T, R, ID>);
   constructor(input: AsyncDagTraversalInstanceConfigInput<T, R, ID>) {
     this.sourceMode = assertExactlyOneSource(input);
     this.icfg = mergeAsyncDagTraversalInstanceConfigs(

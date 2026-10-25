@@ -274,9 +274,9 @@ traverseDag({ traversableGraph: source }, null, {
   // @ts-expect-error Inferred old helpers cannot seed wrong-domain completed work.
   completedWork: new Set([42]),
 });
+// @ts-expect-error Inferred async constructors cannot seed wrong-domain completed work.
 new AsyncDagTraversal({
   traversableGraph: asyncSource,
-  // @ts-expect-error Inferred async constructors cannot seed wrong-domain completed work.
   completedWork: new Set([42]),
 });
 traverseDagAsync({

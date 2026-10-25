@@ -20,10 +20,10 @@ Use CTT when agents or tools perform work with dependencies: research before imp
 
 | Model | How it works | Appropriate when |
 | --- | --- | --- |
-| Host-controlled frontier | Set `workCompletion: 'externalSettlement'`; run to quiescence, then dispatch from the deferred frontier in `summary()` with its generations | Agents run externally, work needs claims/approval, or state must survive process loss |
+| Host-controlled frontier | Use a prepared DAG's `createSession()`, then `advance()` and dispatch its frontier tickets; custom runners can use `coordinateDag` / `coordinateDagAsync` | Agents run externally, work needs claims/approval, or state must survive process loss |
 | Work inside visitors | Use `AsyncDagTraversal` and await work in `ON_READY` visitors; normal chain completion releases dependents | One process owns execution and immediate callback failure should fail traversal |
 
-Start with the host-controlled model for a durable agent coordinator. `DagTraversal` is sufficient when graph facts are already in memory; use `AsyncDagTraversal` for asynchronous adapters. The host can run asynchronous agents independently of which runner it uses.
+Start with the host-controlled model for a durable agent coordinator. For in-memory collections, use `graphFrom` → `prepareDag` → `dag.createSession({ completedWork })`. Use `await prepareDagAsync(...)` for async source discovery and `await dag.createAsyncSession(...)` for an async session. `DagTraversal` is sufficient when graph facts are already in memory; use `AsyncDagTraversal` for asynchronous adapters. The host can run asynchronous agents independently of which runner it uses.
 
 With visitor execution, `concurrency` bounds invoked callbacks, including adapters and visitors. It does not bound externally dispatched agents after external deferral, enforce a token budget, or provide distributed claims. A returned/awaited callback must represent completion of its work: launching a background job and returning immediately releases its dependents too early.
 
@@ -32,13 +32,13 @@ A host-controlled tick follows this sequence:
 ```text
 load graph revision + accepted facts
               ↓
-construct runner → prepare preview → run → defer eligible work
+materialize source → prepare reusable definition → create session → advance
               ↓
-read deferredFrontier records → filter claims/waits → rank candidates → claim and dispatch agents
+read frontier tickets → filter claims/waits → rank candidates → claim and dispatch agents
               ↓
 validate result + attempt/revision → durably accept completion
               ↓
-settle retained runner + run again, or reconstruct next tick
+complete retained ticket + advance again, or reconstruct next tick
 ```
 
 The same vertex can remain in `readyIds` while an external agent is running. CTT's `inFlightIds` tracks its own visitor chains, not the host's external attempts. Always overlay host claims, capacity, and waits before dispatch.
@@ -56,7 +56,13 @@ CTT traverses the graph your adapter provides; it does not generate a plan from 
 | Structural-completion dependency | `dependsOnComplete` | Declare which composite must finish before work begins |
 | Missing prerequisite lookup | Optional `resolvePrerequisite(id)` | Fetch graph facts from a catalog/service |
 
-For a known set of independent work items, use `syntheticRoot: true`, list every item in its `$childHints`, use `$childHints: []` on real vertices, and declare explicit `dependsOn` lists. `discovery: 'eager'` discovers and validates the reachable graph before visitors execute. This includes disconnected catalog entries; it cannot detect work omitted from the supplied domain.
+For a known catalog, use `graphFrom(items, { id, children?, dependencies?, completionDependencies? })`. Every catalog item is discovered, including disconnected entries; `children` returns structural child IDs. A child ID absent from the catalog rejects immediately, while missing prerequisite IDs reach dependency validation. For nested records, `forestFrom(roots, selectors)` expands `children(item)` records iteratively and shares repeated references. Different forest records with the same ID reject; `graphFrom` rejects any duplicate ID. Async variants accept iterable/async-iterable inputs and value-or-promise selectors, then return the same ordinary synchronous source options.
+
+Both adapters copy membership and edge lists once. Item data and IDs retain shallow identity: editing an item field remains visible, but editing its original edge array does not change captured topology. The hidden synthetic holder never appears in public vertices, callbacks, or events. For custom adapters, the equivalent catalog pattern uses `syntheticRoot: true`, lists every item in its `$childHints`, and declares explicit `dependsOn` lists. Discovery cannot detect work omitted from the supplied domain.
+
+Call `prepareDag(source)` or `await prepareDagAsync(source)` to discover and validate once. A valid result exposes `dag.vertices` and factories for independent runners or sessions; an invalid result exposes dependency diagnostics. Source errors retain their exact thrown values, including a source-thrown `DagTraversalStallError`. Structural-store and malformed-source errors also throw. Only engine dependency validation failures become `{ kind: 'invalid', diagnostics }`.
+
+A prepared definition owns copied topology and detached readonly vertex descriptions. Each new session gets independent progress, accepted seeds, references, and settlement generations without calling the original adapter again. Replay hints are normalized to IDs; original opaque discovery hints are not retained. Preparation can perform source I/O, so business work belongs in host execution or visitors. See the [prepared definition contract](reference.md#reusable-prepared-dags).
 
 Discovery and execution dependencies are distinct. Graph sources default to `implicitParentDependency: false`: omitting `dependsOn` means no work prerequisites. Declare explicit lists (including `[]`), or set `implicitParentDependency: true` to inherit the discovery parent's W when the list is omitted. Ordinary roots honor W by default; `rootDependencies: 'ignore'` suppresses root W only, never C. Children of a synthetic root have no implicit dependency on the holder. See [discovery versus execution](reference.md#discovery-and-execution-as-separate-phases).
 
@@ -82,18 +88,27 @@ Avoid making a child wait on its own ancestor's C when that ancestor must wait f
 
 ## Accept results and resume
 
-Start from the [quickstart](../README.md#quickstart-find-the-next-agent-tasks). To advance its retained runner after the host has accepted `testPlan`:
+Start from the [quickstart](../README.md#quickstart-find-the-next-agent-tasks). To advance its session after the host accepts `testPlan`:
 
 ```ts
-const work = runner
-  .summary()
-  .deferredFrontier.find(({ vertexId }) => vertexId === 'testPlan')!; // Capture before dispatch, retain with the host attempt.
-// First validate the host's revision/attempt and durably accept the result.
-accepted.add('testPlan'); // In-memory simulation only.
-runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation);
-runner.run();
-console.log(runner.summary().readyIds); // ['review']
+const pending = session.advance();
+if (pending.kind === 'awaitingSettlement') {
+  const ticket = pending.frontier.find(work => work.vertexId === 'testPlan')!;
+  // Retain the ticket before dispatch; validate revision/attempt on the result.
+  accepted.add(ticket.vertexId); // In-memory simulation of durable acceptance.
+  session.complete(ticket);
+  const next = session.advance();
+  if (next.kind === 'awaitingSettlement') {
+    console.log(next.frontier.map(work => work.vertexId)); // ['review']
+  }
+}
 ```
+
+`advance()` drains execution and returns `awaitingSettlement` with readonly tickets, `paused`, or `finished`; async sessions return a promise. `complete(ticket)` and `fail(ticket, error)` are synchronous. The first accepted report returns `{ kind: 'accepted' }`; the identical report returns `{ kind: 'alreadyAccepted' }`. A failure fails the whole runner and the next advance throws the exact error. Conflicting reports, copied/forged tickets, and tickets from another facade or session reject. Repeated observations of the same deferred work stay usable. Follow completion with advance to observe new work.
+
+Tickets expose only `vertexId`; their provenance and generation are private. They are local capabilities: serializing or copying a ticket does not preserve settlement authority. Filter each frontier through host claims, waits, and capacity. A ticket is not a distributed lease or persistent attempt ID. `summary()` remains a detached progress observation, and `requestPause()` delegates cooperative pause to the runner.
+
+For existing custom-source runners, set `workCompletion: 'externalSettlement'` and wrap with `coordinateDag(runner)` or `coordinateDagAsync(runner)`. Wrapping runs no callbacks and acquires no separate execution owner; direct runner access remains available. The lower-level guarded frontier and settlement contract also remains available.
 
 For an async runner, await `runner.run()`. `settle()` itself is synchronous. A settlement wakes an active async consumer; after idle settlement, resume explicitly. Only one iterator may own a runner at a time. All runners expose `requestPause(): boolean`: true records a new request only while RUNNING, rather than acknowledging a halt. The active owner drains admitted chains to `HALTED` / `paused` without cancellation; a suspended iterator may need `next()` or `return()` to drive that boundary. Resume the same runner without replaying committed work.
 
@@ -114,15 +129,15 @@ CTT does not prescribe a storage engine or ship a persistence adapter. Define st
 | Attempts, claims/leases, wait state, retry decisions and deduplication keys | Prevent readiness from dispatching duplicate or ineligible work |
 | Accepted completion facts for the revision | Supply `completedWork` to a new runner |
 
-Keep runners, vertex references, generation symbols, pending promises, and lookup handles in memory. A serialized summary is useful for presentation, but is not a runner checkpoint. CTT allows arbitrary SameValueZero IDs; durable hosts should choose their own stable serializable ID convention, such as strings.
+Keep prepared definitions, runners, tickets, vertex references, generation symbols, pending promises, and lookup handles in memory. A serialized summary is useful for presentation, but is not a runner checkpoint. CTT allows arbitrary SameValueZero IDs; durable hosts should choose their own stable serializable ID convention, such as strings.
 
 On startup or each reconciliation tick:
 
 1. Load a consistent graph revision and its host-accepted facts.
-2. Construct a fresh graph-source runner with `completedWork`, eager discovery, and the full catalog (plus lookup if required).
-3. Set `workCompletion: 'externalSettlement'` and run to quiescence.
-4. Read `summary()` and filter readiness using persisted claims, waits, retries, and host capacity.
-5. Claim and dispatch selected work. Validate incoming results and durably record accepted completion before settling a retained runner.
+2. Prepare the full graph revision (plus lookup if required); reuse its in-memory definition while that revision remains valid.
+3. Create a fresh session with `completedWork` and call `advance()`.
+4. Filter frontier tickets using persisted claims, waits, retries, and host capacity.
+5. Claim and dispatch selected work. Validate incoming results and durably record accepted completion before completing a retained ticket.
 
 This ordering lets a crash after acceptance but before settlement recover by reconstruction. A crash during an external side effect still needs host idempotency, reconciliation, or compensation; CTT does not provide exactly-once external execution. Transactional claim/acceptance, compare-and-set revisions, and dispatch outboxes are host design choices, not built-in CTT guarantees.
 
@@ -143,7 +158,7 @@ The [reconciliation example](https://github.com/dany-fedorov/configurable-tree-t
 | Work completed without an agent running              | Check `workCompletion: 'externalSettlement'`; the default `visitorReturn` completes W on normal callback-chain return. Seeds also mark W complete                           |
 | The same agent task dispatches again | Host claim/attempt state must filter `readyIds`; deferral intentionally leaves work ready |
 | Ready work seems absent | Run discovery first; inspect discovery completeness, seed IDs, and unmet W/C dependencies |
-| Missing prerequisite or cycle | Catch `DagTraversalStallError`; inspect typed diagnostics. Check catalog coverage, lookup results, W/C declarations, and structural edges |
+| Missing prerequisite or cycle | Inspect an invalid preparation result, or catch `DagTraversalStallError` from direct runner execution; inspect typed diagnostics. Check catalog coverage, lookup results, W/C declarations, and structural edges |
 | A seeded composite still blocks review | Seeds complete W, not C; its retained children and completion transition must finish |
 | A retry aborts everything                            | `settle(..., { kind: 'traversalFailed', error }, ...)` is fatal; keep retryable work incomplete in host policy                            |
 | Settlement fails after restart | Generations are runner-local; reconstruct from accepted facts rather than replaying an old handle |

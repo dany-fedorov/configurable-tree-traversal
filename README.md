@@ -29,7 +29,7 @@ npm install configurable-tree-traversal
 
 ## Quickstart: find the next agent tasks
 
-After `research` completes, `implement` and `testPlan` can run independently. `review` waits for both. The catalog is flat; `$childHints` discovers tasks and `dependsOn` expresses the work graph.
+After `research` completes, `implement` and `testPlan` can run independently. `review` waits for both. Supply a flat task collection with explicit work dependencies:
 
 ```text
 research ──┬── implement ──┬── review
@@ -39,60 +39,38 @@ research ──┬── implement ──┬── review
 <!-- standalone -->
 
 ```ts
-import {
-  DagTraversal,
-  type TreeTypeParameters,
-} from 'configurable-tree-traversal';
+import { graphFrom, prepareDag } from 'configurable-tree-traversal';
 
-type TaskId = 'research' | 'implement' | 'testPlan' | 'review';
-type Workflow = TreeTypeParameters<string, TaskId>;
-const catalog: TaskId[] = ['research', 'implement', 'testPlan', 'review'];
-const dependencies: Record<TaskId, TaskId[]> = {
-  research: [],
-  implement: ['research'],
-  testPlan: ['research'],
-  review: ['implement', 'testPlan'],
-};
-// In-memory stand-in for completion facts already accepted by your host.
-const accepted = new Set<TaskId>(['research']);
-const runner = new DagTraversal<Workflow, Workflow, TaskId>({
-  workCompletion: 'externalSettlement',
-  syntheticRoot: true,
-  completedWork: accepted,
-  traversableGraph: {
-    makeRoot: () => ({
-      kind: 'found',
-      vertex: {
-        vertexId: 'research', // The synthetic holder is hidden from public views.
-        vertexContent: { $data: '', $childHints: catalog },
-      },
-    }),
-    makeVertex: (id) => ({
-      kind: 'found',
-      vertex: {
-        vertexId: id,
-        dependsOn: dependencies[id],
-        vertexContent: { $data: id, $childHints: [] },
-      },
-    }),
-  },
-}).makeRunner();
+const tasks = [
+  { id: 'research', requires: [] },
+  { id: 'implement', requires: ['research'] },
+  { id: 'testPlan', requires: ['research'] },
+  { id: 'review', requires: ['implement', 'testPlan'] },
+];
+const prepared = prepareDag(graphFrom(tasks, {
+  id: task => task.id,
+  dependencies: task => task.requires,
+}));
+if (prepared.kind === 'invalid') throw new Error('Invalid workflow');
 
-runner.prepare(); // HALTED / prepared: preview the validated graph, no visitors.
-console.log(runner.getResolvedGraph().getVertexRefs().length); // 4
-runner.run(); // HALTED / awaitingSettlement
-const frontier = runner.summary().deferredFrontier;
-console.log(frontier.map(({ vertexId }) => vertexId)); // ['implement', 'testPlan']
-// Retain each { vertexId, generation } while the host claims and dispatches it.
-const work = frontier.find(({ vertexId }) => vertexId === 'implement')!;
-accepted.add(work.vertexId); // Simulate host validation and durable acceptance.
-runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation);
-runner.run();
+// In-memory stand-in for completion facts already accepted by the host.
+const accepted = new Set(['research']);
+const session = prepared.dag.createSession({ completedWork: accepted });
+const boundary = session.advance();
+if (boundary.kind === 'awaitingSettlement') {
+  console.log(boundary.frontier.map(ticket => ticket.vertexId));
+  // ['implement', 'testPlan']; retain each ticket with its host attempt.
+  const ticket = boundary.frontier[0]!;
+  // Dispatch through host claims/capacity, then validate and persist the result.
+  accepted.add(ticket.vertexId); // Simulate durable acceptance.
+  session.complete(ticket); // { kind: 'accepted' }
+  session.advance(); // Observe newly eligible work after accepted completion.
+}
 ```
 
-`prepare()` discovers and validates without running visitors or completing new work; `run()` adopts that graph without replaying discovery. External settlement leaves eligible work deferred, including with zero callbacks. `deferredFrontier` atomically pairs each live deferred ID with its required generation. It is a snapshot, not a claim. `readyIds` remains dependency eligibility. Emitted `workCompleted`/`subgraphCompleted` events describe committed milestones; dispatch from the frontier after `run()`.
+`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts.
 
-The host can now claim a candidate, dispatch an agent, validate and persist its result, and either settle the retained runner or reconstruct on the next tick. See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and the [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts), which checks preparation, final completion, duplicate reports, and restart reconstruction. The example uses an in-memory set; production durability belongs to the host.
+See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) for independent sessions, duplicate reports, and recovery. Custom graph adapters and existing `runner.prepare()` / guarded `settle()` APIs remain available.
 
 ## Choose your next page
 

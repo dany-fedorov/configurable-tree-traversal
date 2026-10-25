@@ -6,6 +6,28 @@ This guide describes the **unreleased API in this checkout**, relative to publis
 
 CTT still owns generic discovery, dependencies, callback scheduling, traversal lifecycle, and in-memory progress. The host owns agent execution, business outcomes, retries, claims, artifacts, and durable storage. Data and hints remain opaque values.
 
+## Collection sources, prepared definitions, and sessions
+
+These additions compose with existing DAG constructors and runners; custom adapters and low-level preparation/settlement remain available.
+
+| Existing integration | Optional simpler surface |
+| --- | --- |
+| Hand-built synthetic catalog holder with `makeRoot` / `makeVertex` | `graphFrom(items, { id, dependencies, children?, completionDependencies? })`; use `forestFrom` when children are records |
+| Re-discovering the same source for each runner | `prepareDag(source)` / `await prepareDagAsync(source)` once, then independent `dag.createRunner()` or `await dag.createAsyncRunner()` |
+| External runner plus captured `{ vertexId, generation }` | `coordinateDag(runner)` / `coordinateDagAsync(runner)`, or prepared `createSession()` / `await createAsyncSession()` |
+| `run()` → summary frontier → `settle()` → `run()` | `advance()` → frontier ticket → `complete(ticket)` → `advance()` |
+| Callback-local data filtering | `filterDagVisitor(guard, (data, context) => ...)` or `filterAsyncDagVisitor`; the callback receives narrowed data |
+
+Collection adapters copy membership and edge lists while retaining shallow item/ID identity. Async source helpers materialize iterable/async-iterable inputs and selectors into ordinary synchronous sources. `graphFrom` children are catalog IDs; `forestFrom` children are records, with shared references allowed. Missing child IDs and conflicting record identities reject.
+
+Preparation returns `{ kind: 'valid', dag }` or `{ kind: 'invalid', diagnostics }` for engine dependency validation failures. Adapter-thrown errors retain their identity, even a caller-thrown stall error. Prepared replay normalizes hints to IDs, owns topology, and invokes no original adapters; original hint/context snapshots are not preserved. Async runner and session factories return promises. Runner options permit visitors, completed-work seeds, and completion policy; session options permit only `completedWork` plus async `concurrency`. Topology/source/state overrides reject, including own fields with `undefined`.
+
+Coordination requires external settlement. Frontier tickets are nominal readonly local capabilities, bound to their issuing facade and generation. First acceptance returns `{ kind: 'accepted' }`, identical reports return `{ kind: 'alreadyAccepted' }`, and conflicting/foreign/stale tickets reject. `fail(ticket, error)` is fatal, preserving exact errors. Reconstruct from accepted completion facts after restart; copied or serialized tickets cannot settle work. See [source and prepared contracts](reference.md#collection-and-forest-sources) and the [ticket contract](reference.md#ticket-coordination).
+
+## Typed DAG event identities
+
+`DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_READY`, and `subgraphCompleted` means `ON_COMPLETE`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged.
+
 ## Root dependencies
 
 Ordinary graph roots now honor both work and completion prerequisites, consistently across lazy/eager discovery, seeds, and prerequisite lookup. The old lazy-root behavior depended on unrelated options such as `completedWork`, `resolvePrerequisite`, or a non-undefined completion declaration.

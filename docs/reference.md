@@ -7,6 +7,10 @@ Current behavior: the unreleased uniform and composable APIs in this checkout. P
 ## On this page
 
 - [DAG traversal](#dag-traversal)
+- [Collection and forest sources](#collection-and-forest-sources)
+- [Reusable prepared DAGs](#reusable-prepared-dags)
+- [Ticket coordination](#ticket-coordination)
+- [Filtered DAG visitors](#filtered-dag-visitors)
 - [Discovery and execution as separate phases](#discovery-and-execution-as-separate-phases)
 - [Discovery and completed work](#discovery-and-completed-work)
 - [Deferred DAG progress and reconciliation](#deferred-dag-progress-and-reconciliation)
@@ -91,6 +95,78 @@ Stalled DAG runners throw `DagTraversalStallError` (available from the root, `co
 The familiar `DAG traversal stalled:` message safely labels arbitrary IDs without coercing user objects. These diagnostics describe the terminal discovered graph; they do not fetch prerequisites or change scheduling.
 
 `runner.getResolvedGraph()` provides read-only vertex, status, parent, child, path, and id queries. Query arrays are shallow snapshots: changing an array cannot edit topology, while contained references and user vertex data remain live. With `saveNotMutatedResolvedGraph: true`, DAG runners also expose a structural `notMutatedResolvedGraph` snapshot containing first-accepted content and discovery edges. Rewrites and deletions do not alter it, but user data is still shallowly shared.
+
+Known omitted discovery slots retain an own `vertexId` in `ChildSlot<T, ID>`; presence distinguishes a known `undefined` identity from an unidentified omission. These slots remain omitted rather than structural children. Prepared definitions preserve their discovery positions when replaying the source.
+
+### Collection and forest sources
+
+All four source helpers return ordinary `{ traversableGraph, syntheticRoot: true }` options for DAG constructors and preparation. Their data is the caller's item and their hints are IDs (`TreeTypeParameters<Item, ID>`).
+
+| Helper | Input and selectors | Membership and identity |
+| --- | --- | --- |
+| `graphFrom(items, selectors)` | Iterable items; required `id(item)`; optional `children(item)`, `dependencies(item)`, `completionDependencies(item)` return iterable IDs | Every item is catalogued, including disconnected entries. Any duplicate ID rejects, even the same record twice. Structural child IDs must exist in the catalog. |
+| `forestFrom(roots, selectors)` | Iterable root items; same selectors, but `children(item)` returns iterable items | Expands iteratively. The same record can appear under multiple parents; different records with the same ID reject. |
+| `graphFromAsync(items, selectors)` | Iterable/async-iterable items; value-or-promise selectors, with iterable/async-iterable edge results | Awaits materialization, then returns a synchronous source with the same graph rules. |
+| `forestFromAsync(roots, selectors)` | Iterable/async-iterable roots; value-or-promise selectors; children yield records | Awaits materialization with the same forest sharing rules. |
+
+Absent edge selectors mean empty lists. Structural child edges and work/completion dependency edges remain distinct. Missing prerequisite IDs are left to the existing validator; structural cycles retain the graph store's rejection behavior. The synthetic holder is hidden from public vertices, events, callbacks, and parent queries.
+
+Materialization copies collection membership and edge arrays once. Later edits to caller arrays do not change topology; item data and opaque IDs remain shared shallow values and are never frozen. SameValueZero IDs, including `undefined`, `null`, `NaN`, symbols, and objects, retain their identity. Selector errors and async rejections propagate unchanged. See the [quickstart](../README.md#quickstart-find-the-next-agent-tasks) for a complete flat catalog.
+
+### Reusable prepared DAGs
+
+`prepareDag(input)` returns `PrepareDagResult<Data, ID>`; `prepareDagAsync(input)` returns a promise of the same union:
+
+- `{ kind: 'valid', dag: PreparedDag<Data, ID> }` contains a reusable validated definition.
+- `{ kind: 'invalid', diagnostics: DagTraversalStallDiagnostics<ID> }` represents engine dependency validation failure and provides no executable definition.
+
+Inputs accept `traversableGraph`, `syntheticRoot`, `rootDependencies`, and `implicitParentDependency`; async preparation also accepts `concurrency`. Preparation eagerly discovers and validates without visitors or execution events. Visitors, completed-work seeds, injected continuation state, and source replacements belong outside this input. Source errors retain exact identity, even when the caller throws a `DagTraversalStallError`; malformed source contracts and structural-store errors also throw rather than becoming invalid results.
+
+`dag.vertices` is a detached readonly array of descriptions: `{ vertexId, data, children, dependsOn, dependsOnComplete }`. Owned records and edge arrays are immutable, while data and IDs retain shallow caller identity. The definition preserves structural order, real-root versus synthetic-forest semantics, omissions satisfying prerequisites, effective implicit dependencies, and the original root W policy. Replay normalizes discovery hints to ID links; original opaque hints and callback contexts are not captured.
+
+| Factory | Result | Options |
+| --- | --- | --- |
+| `dag.createRunner(options?)` | Prepared sync `DagTraversalRunner` | `visitors`, `completedWork`, `workCompletion`, `saveNotMutatedResolvedGraph` |
+| `dag.createAsyncRunner(options?)` | Promise of a prepared async runner | Same options, plus `concurrency` |
+| `dag.createSession(options?)` | `DagCoordinator<ID>` using external settlement | `completedWork` |
+| `dag.createAsyncSession(options?)` | Promise of `AsyncDagCoordinator<ID>` using external settlement | `completedWork`, `concurrency` |
+
+Each factory creates independent references, progress, visitors, seed copies, and settlement generations. New runners prepare replay topology before visitors execute and never call original source adapters. Replay may repeat in-memory validation. Runner data/hint types are `TreeTypeParameters<Data, ID>`; event/visitor phase selection remains available through ordinary runner execution methods. The definition owns topology: attempts to replace sources, discovery/root/implicit-parent policies, sorting, or continuation state reject, including JavaScript own fields explicitly set to `undefined`. Session factories accept only the options listed above; use a custom configured runner plus coordination when visitors are needed.
+
+A prepared definition is an in-memory value, not a durable checkpoint or editable graph. Reconstruct from source facts after process loss and create a new definition for a new graph revision. The [foundations example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) verifies independent sessions and no original-source replay.
+
+### Ticket coordination
+
+`coordinateDag(runner)` and `coordinateDagAsync(runner)` require runners configured with `workCompletion: 'externalSettlement'`. Wrapping executes nothing and creates no additional execution owner. Callers retain direct runner access; existing single-owner rules apply.
+
+| Operation | Result and contract |
+| --- | --- |
+| `advance()` | Drains the runner, then returns `{ kind: 'awaitingSettlement', frontier }`, `{ kind: 'paused' }`, or `{ kind: 'finished' }`. Async advance returns a promise; failures throw the exact original value. |
+| `complete(ticket)` | Reports accepted work completion; returns `{ kind: 'accepted' }` initially and `{ kind: 'alreadyAccepted' }` for identical replay. |
+| `fail(ticket, error)` | Reports fatal traversal failure; same acceptance result union. Identical failure replay compares errors with `Object.is`; conflicting reports reject. |
+| `summary()` | Returns the runner's detached `DagSummary<ID>` without execution or source I/O. |
+| `requestPause()` | Returns the runner's boolean cooperative pause request result; admitted callbacks drain before pause acknowledgement. |
+
+`DagCoordinationBoundary<ID>` discriminates the three advance results; its frontier contains readonly `DagWorkTicket<ID>` objects exposing only `vertexId`. Hidden provenance binds each ticket to its issuing facade and deferred generation. Foreign, copied, forged, and stale tickets reject before settlement mutation. Repeated observations of the same deferred work remain usable. Tickets do not transfer between two facades wrapping the same runner. The existing settlement implementation owns duplicate and conflict behavior.
+
+Tickets are local capabilities with no durable serialized representation. Persist host-accepted completion facts, then call `complete(ticket)` and advance to observe newly eligible work. Tickets provide neither external claims nor retry/attempt policy. Fatal failure applies to the whole traversal; keep retryable work deferred under host policy.
+
+### Filtered DAG visitors
+
+`filterDagVisitor(predicate, callback)` and `filterAsyncDagVisitor(predicate, callback)` wrap ordinary DAG visitors. The synchronous predicate sees vertex **data**. A type guard narrows the callback's first argument; a boolean predicate filters without narrowing. The callback receives `(data, context)`, retaining the ordinary graph, reference, phase, group metadata, and command-result types. A false predicate invokes no callback and returns no commands. The async helper supports value-or-promise callbacks; predicate and callback errors preserve exact identity.
+
+```ts
+traversal.addVisitorFor(DagTraversalOrder.ON_READY,
+  filterDagVisitor(
+    (data: Task | Group): data is Task => data.kind === 'task',
+    (task, context) => {
+      console.log(task.prompt, context.order);
+    },
+  ),
+);
+```
+
+The host defines `Task`, `Group`, and their discriminants. The helper preserves callback ordering, command handling, and phase restrictions, including exclusive `DEFER_READY` only in `ON_READY`. Filtering alone does not defer work under `visitorReturn`; use external settlement when the host owns completion.
 
 ### Discovery and execution as separate phases
 
@@ -322,7 +398,7 @@ console.log(runner.summary().readyIds); // ['c']; d still waits for c
 
 Dispatch external work from `summary().deferredFrontier`, whose `DagDeferredWork<ID>` records atomically contain readonly `{ vertexId, generation }`. Each snapshot lists exactly live deferred vertices without an accepted outcome, in discovery order, excluding queued-only, settled and deleted work. Arrays/records are detached and opaque ID objects retain identity; the snapshot does not claim host work. `readyIds` remains dependency eligibility.
 
-DAG iterator events expose `kind: 'workCompleted' | 'subgraphCompleted'`. The first retains `order: ON_READY` and denotes committed W; the second retains `order: ON_COMPLETE` and denotes committed C. Existing order, phase filtering and timing are unchanged. ON_READY visitor callbacks remain pre-work. Seeded W emits no synthetic work event. Deferred `ON_READY` events emit only on settlement, not when dispatch becomes possible. A real `ON_READY` callback can instead dispatch before its chain defers. Synthetic roots and `completedWork` seeds do not need new settlement. `ON_COMPLETE` remains automatic after W, discovery, children, and completion prerequisites are satisfied.
+DAG iterator events use `DagEvent<T, ID = unknown>` with required `vertexId: ID`, preserving sync/async runner identity inference. This discriminated union correlates `kind: 'workCompleted'` with `order: DagTraversalOrder.ON_READY` and `kind: 'subgraphCompleted'` with `order: DagTraversalOrder.ON_COMPLETE`; narrowing either field narrows the other. The first retains `order: ON_READY` and denotes committed W; the second retains `order: ON_COMPLETE` and denotes committed C. Existing order, phase filtering and timing are unchanged. ON_READY visitor callbacks remain pre-work. Seeded W emits no synthetic work event. Deferred `ON_READY` events emit only on settlement, not when dispatch becomes possible. A real `ON_READY` callback can instead dispatch before its chain defers. Synthetic roots and `completedWork` seeds do not need new settlement. `ON_COMPLETE` remains automatic after W, discovery, children, and completion prerequisites are satisfied.
 
 The explicit `DEFER_READY` command ends the initial visitor chain early, discards its uncommitted buffered
 commands, and skips remaining visitors. It emits no event or dependency success

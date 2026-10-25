@@ -14,3 +14,7 @@ export * from './lib/DagTraversalRunnerState';
 export * from './lib/DagTraversalVisitor';
 export * from '../../core/errors/DagTraversalStallError';
 export * from './lib/DagProgress';
+export * from './coordinateDag';
+export * from './prepareDag';
+export * from './lib/PreparedDag';
+export * from './filterDagVisitor';

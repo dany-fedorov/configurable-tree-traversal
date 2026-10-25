@@ -35,6 +35,10 @@ The check type-checks source, examples, and compile-time API assertions; lints T
 | `async-tree-prefetch.test.ts`, `async-depth-first.test.ts`, `async-breadth-first.test.ts`                   | Prefetch boundaries, value-or-promise callbacks, qualified tree parity, halt/resume, and snapshots                                                               |
 | `async-dag-kernel.test.ts`, `async-dag.test.ts`, `async-dag-lifecycle.test.ts`                              | Concurrent DAG admission, dependency partial order, lifecycle races, failure, close, and inspection                                                              |
 | `vertex-content-api.test.ts`, `uniform-source-results.test.ts`, `uniform-dependencies.test.ts`, `uniform-commands.test.ts`, `dag-completion-vocabulary.test.ts`, `traversal-helper-options.test.ts` | Uniform content/source contracts, explicit dependency policies, exclusive commands/batching/phases, completion terminology, and all six helpers                  |
+| `collection-sources.test.ts`, `collection-sources.typecheck.ts` | Collection/forest identity, topology copying, shared descendants, missing children, async materialization, selector errors and inference |
+| `prepared-dag.test.ts`, `prepared-dag.typecheck.ts` | Validation results, source-error provenance, independent seeded runners/sessions, normalized replay and source/topology option ownership |
+| `dag-coordination.test.ts`, `dag-coordination.typecheck.ts` | Ticket provenance, stale/duplicate/conflicting settlement, exact errors, arbitrary IDs, pause draining and iterator ownership |
+| `dag-event-types.test.ts`, `dag-event-types.typecheck.ts`, `dag-filtered-visitors.test.ts` | Typed event identity/discrimination and filtered data callbacks preserving context, commands and errors |
 | `async-helpers.test.ts`                                                                                     | Async helper return types, visitor registration, execution, and source precedence                                                                                |
 | `commands.typecheck.ts`, `public-api.typecheck.ts`, `graph-api.typecheck.ts`, `async-tree-api.typecheck.ts` | Public generic inference, six-family root/subpath APIs, source modes, callback return types, and rejected configurations                                         |
 
@@ -43,6 +47,8 @@ Generated cases use fixed seeds and bounded trees so failures are reproducible. 
 ## Focused checks
 
 ```sh
+npm test -- tests/collection-sources.test.ts tests/prepared-dag.test.ts tests/dag-coordination.test.ts
+npm run tsfile -- examples/agent-api-foundations-example.ts
 npm test -- tests/traversal-combinations.test.ts
 npm test -- tests/dag-traversal.test.ts tests/graph-readiness.test.ts
 npm test -- tests/async-depth-first.test.ts tests/async-breadth-first.test.ts tests/async-dag.test.ts
@@ -65,7 +71,7 @@ Strict `.ts` consumers use `node` and `node16` resolution; real `.cts` and mixed
 
 Runtime facades use Node-compatible `createRequire(import.meta.url)` to preserve the entire CommonJS module object, including modules with an own default export. This is a shared CJS core, without a standalone browser ESM or tree-shaking promise. It requires the `tar` command. Temporary consumer directories are cleaned up afterward.
 
-The package verifier resolves relative guide links/fragments and images in both the checkout and extracted tarball, preserving public anchors. It compiles and executes all 13 complete standalone TypeScript snippets (marked with an invisible `<!-- standalone -->` comment) against the built package. Partial snippets depend on their nearby setup. Every top-level example also executes during the full check.
+The package verifier resolves relative guide links/fragments and images in both the checkout and extracted tarball, preserving public anchors. It compiles and executes all complete standalone TypeScript snippets (marked with an invisible `<!-- standalone -->` comment) against the built package. Partial snippets depend on their nearby setup. Every top-level example also executes during the full check.
 
 ## Adding a regression
 

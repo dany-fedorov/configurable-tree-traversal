@@ -45,7 +45,8 @@ import { DagTraversalRunnerState } from './DagTraversalRunnerState';
 type Event<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
-> = DagEvent<T | R>;
+  ID,
+> = DagEvent<T | R, ID>;
 
 export class AsyncDagTraversalRunner<
   T extends TreeTypeParameters = TreeTypeParameters,
@@ -60,7 +61,7 @@ export class AsyncDagTraversalRunner<
     makeEffectiveDagTraversalRunnerIterableConfig();
   private readonly kernel: TraversalKernel<T, R>;
   private readonly notifyProgress: () => void;
-  private readonly execution: AsyncRunnerSession<Event<T, R>>;
+  private readonly execution: AsyncRunnerSession<Event<T, R, ID>>;
 
   constructor(input: AsyncDagTraversalInstanceConfig<T, R, ID>) {
     if (
@@ -285,7 +286,7 @@ export class AsyncDagTraversalRunner<
 
   getIterable(
     config?: DagTraversalRunnerIterableConfigInput,
-  ): AsyncGenerator<Event<T, R>, void, unknown> {
+  ): AsyncGenerator<Event<T, R, ID>, void, unknown> {
     return this.execution.getIterable(config);
   }
 
@@ -331,9 +332,9 @@ export class AsyncDagTraversalRunner<
   private projectEvents(
     control: AsyncSessionControl<KernelEvent<T | R>>,
     policy: DagPolicy<T, R>,
-  ): AsyncSessionControl<Event<T, R>> {
+  ): AsyncSessionControl<Event<T, R, ID>> {
     return {
-      advance: (mode): SessionProgress<Event<T, R>> => {
+      advance: (mode): SessionProgress<Event<T, R, ID>> => {
         const progress = control.advance(mode);
         if (progress.kind === 'EVENT') {
           return {
@@ -342,11 +343,18 @@ export class AsyncDagTraversalRunner<
             event: {
               vertex: progress.event.vertex,
               vertexRef: progress.event.vertexRef,
-              order: progress.event.order as DagTraversalOrder,
-              kind:
-                progress.event.order === DagTraversalOrder.ON_READY
-                  ? 'workCompleted'
-                  : 'subgraphCompleted',
+              vertexId: this.getResolvedGraph().getVertexId(
+                progress.event.vertexRef,
+              ),
+              ...(progress.event.order === DagTraversalOrder.ON_READY
+                ? ({
+                    kind: 'workCompleted',
+                    order: DagTraversalOrder.ON_READY,
+                  } as const)
+                : ({
+                    kind: 'subgraphCompleted',
+                    order: DagTraversalOrder.ON_COMPLETE,
+                  } as const)),
               isGraphRoot: progress.event.isRoot,
               isTraversalRoot: progress.event.isTraversalRoot,
             },

@@ -43,7 +43,8 @@ import { DagTraversalRunnerState } from './DagTraversalRunnerState';
 type Event<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
-> = DagEvent<T | R>;
+  ID,
+> = DagEvent<T | R, ID>;
 
 export class DagTraversalRunner<
   T extends TreeTypeParameters = TreeTypeParameters,
@@ -58,7 +59,7 @@ export class DagTraversalRunner<
     makeEffectiveDagTraversalRunnerIterableConfig();
   private activeIterator = false;
   private failure: { error: unknown } | null = null;
-  private curGenerator: Generator<Event<T, R> | null> | null = null;
+  private curGenerator: Generator<Event<T, R, ID> | null> | null = null;
   private readonly runtimeState: SyncDriverState = { inFlightCallbackCount: 0 };
   private readonly policy: DagPolicy<T, R>;
   private readonly kernel: TraversalKernel<T, R>;
@@ -304,7 +305,7 @@ export class DagTraversalRunner<
 
   *getIterable(
     config?: DagTraversalRunnerIterableConfigInput,
-  ): Generator<Event<T, R>, void, unknown> {
+  ): Generator<Event<T, R, ID>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
     if (this.activeIterator) {
       throw new Error('A traversal runner can only have one active iterator');
@@ -324,7 +325,7 @@ export class DagTraversalRunner<
     this.state.status = TraversalRunnerStatus.RUNNING;
     try {
       while (true) {
-        let next: IteratorResult<Event<T, R> | null>;
+        let next: IteratorResult<Event<T, R, ID> | null>;
         try {
           next = this.curGenerator.next();
         } catch (error) {
@@ -357,7 +358,7 @@ export class DagTraversalRunner<
     return this;
   }
 
-  private *getInternalGenerator(): Generator<Event<T, R> | null> {
+  private *getInternalGenerator(): Generator<Event<T, R, ID> | null> {
     for (const event of runSync(
       this.kernel,
       this.bindings,
@@ -369,11 +370,16 @@ export class DagTraversalRunner<
         yield {
           vertex: event.vertex,
           vertexRef: event.vertexRef,
-          order: event.order as DagTraversalOrder,
-          kind:
-            event.order === DagTraversalOrder.ON_READY
-              ? 'workCompleted'
-              : 'subgraphCompleted',
+          vertexId: this.getResolvedGraph().getVertexId(event.vertexRef),
+          ...(event.order === DagTraversalOrder.ON_READY
+            ? ({
+                kind: 'workCompleted',
+                order: DagTraversalOrder.ON_READY,
+              } as const)
+            : ({
+                kind: 'subgraphCompleted',
+                order: DagTraversalOrder.ON_COMPLETE,
+              } as const)),
           isGraphRoot: event.isRoot,
           isTraversalRoot: event.isTraversalRoot,
         };

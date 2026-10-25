@@ -1,0 +1,212 @@
+import {
+  prepareDag,
+  prepareDagAsync,
+} from '../src/traversals/dag-traversal/prepareDag';
+import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { TraversableGraph } from '../src/core/TraversableGraph';
+
+type G = TreeTypeParameters<string, string>;
+
+for (const prepare of [prepareDag, prepareDagAsync]) {
+  test(`${prepare.name} preserves non-enumerable own undefined identity`, async () => {
+    const vertex = Object.defineProperty(
+      { vertexContent: { $data: 'task', $childHints: [] } },
+      'vertexId',
+      { value: undefined },
+    );
+    const result = await prepare<G, unknown>({
+      traversableGraph: {
+        makeRoot: () => ({ kind: 'found', vertex }),
+        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      },
+    });
+    if (result.kind !== 'valid') throw new Error('Expected valid DAG');
+    expect(result.dag.vertices.map((entry) => entry.vertexId)).toEqual([
+      undefined,
+    ]);
+    expect(
+      result.dag
+        .createRunner({ completedWork: new Set([undefined]) })
+        .run()
+        .summary().completedWorkIds,
+    ).toEqual([undefined]);
+  });
+
+  test(`${prepare.name} rejects own non-enumerable priority without reading it`, async () => {
+    const vertex = Object.defineProperty(
+      { vertexId: 'task', vertexContent: { $data: 'task', $childHints: [] } },
+      'priority',
+      {
+        get() {
+          throw new Error('The engine checks presence, not priority value');
+        },
+      },
+    );
+    await expect(async () => {
+      await prepare<G, string>({
+        traversableGraph: {
+          makeRoot: () => ({ kind: 'found', vertex }),
+          makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        },
+      });
+    }).rejects.toThrow(/priority metadata is not supported/);
+  });
+
+  test.each(['vertexId', 'dependsOn', 'dependsOnComplete'])(
+    `${prepare.name} preserves exact non-enumerable %s getter errors`,
+    async (field) => {
+      const error = { field };
+      const vertex = Object.defineProperty(
+        { vertexId: 'task', vertexContent: { $data: 'task', $childHints: [] } },
+        field,
+        {
+          enumerable: false,
+          get() {
+            throw error;
+          },
+        },
+      );
+      await expect(async () => {
+        await prepare<G, string>({
+          traversableGraph: {
+            makeRoot: () => ({ kind: 'found', vertex }),
+            makeVertex: () => ({
+              kind: 'omitted',
+              satisfiesDependencies: true,
+            }),
+          },
+        });
+      }).rejects.toBe(error);
+    },
+  );
+
+  test(`${prepare.name} preserves legacy inherited content and both dependency kinds`, async () => {
+    class Entry {
+      constructor(readonly vertexId: string) {}
+      get vertexContent() {
+        return {
+          $data: this.vertexId,
+          $childHints: this.vertexId === 'root' ? ['a', 'b', 'c'] : [],
+        };
+      }
+      get dependsOn() {
+        return this.vertexId === 'b' ? ['a'] : [];
+      }
+      get dependsOnComplete() {
+        return this.vertexId === 'c' ? ['b'] : [];
+      }
+    }
+    const source: TraversableGraph<G, G, string> = {
+      makeRoot: () => new Entry('root'),
+      makeVertex: (id) => new Entry(id),
+    };
+    const result = await prepare<G, string>({ traversableGraph: source });
+    if (result.kind !== 'valid') throw new Error('Expected valid DAG');
+    expect(
+      result.dag.vertices.map(({ vertexId, dependsOn, dependsOnComplete }) => [
+        vertexId,
+        dependsOn,
+        dependsOnComplete,
+      ]),
+    ).toEqual([
+      ['root', [], []],
+      ['a', [], []],
+      ['b', ['a'], []],
+      ['c', [], ['b']],
+    ]);
+    expect(result.dag.createRunner().run().summary().completedWorkIds).toEqual([
+      'root',
+      'a',
+      'b',
+      'c',
+    ]);
+  });
+}
+
+for (const prepare of [prepareDag, prepareDagAsync]) {
+  test.each([false, true])(
+    `${prepare.name} ignores inherited hint identity without reading its getter (%s)`,
+    async (throwingGetter) => {
+      const prototype = throwingGetter
+        ? {
+            get vertexId(): string {
+              throw new Error('Inherited hint identity must not be read');
+            },
+          }
+        : { vertexId: 'wrong' };
+      const inherited = Object.create(prototype) as { vertexId: string };
+      const result = await prepare<G, string>({
+        traversableGraph: {
+          makeRoot: () => ({
+            kind: 'found',
+            vertex: {
+              vertexId: 'root',
+              vertexContent: { $data: 'root', $childHints: ['b'] },
+            },
+          }),
+          getVertexIdFromHint: () => inherited,
+          makeVertex: () => ({
+            kind: 'found',
+            vertex: {
+              vertexId: 'b',
+              vertexContent: { $data: 'b', $childHints: [] },
+            },
+          }),
+        },
+      });
+      if (result.kind !== 'valid') throw new Error('Expected valid DAG');
+      expect(result.dag.vertices.map(({ vertexId }) => vertexId)).toEqual([
+        'root',
+        'b',
+      ]);
+      expect(
+        result.dag.createRunner().run().summary().completedWorkIds,
+      ).toEqual(['root', 'b']);
+    },
+  );
+
+  test.each([undefined, 'omitted'])(
+    `${prepare.name} retains non-enumerable own hint identity %s for omitted work`,
+    async (id) => {
+      const wrapper = Object.defineProperty({}, 'vertexId', { value: id }) as {
+        vertexId: typeof id;
+      };
+      const result = await prepare<G, unknown>({
+        traversableGraph: {
+          makeRoot: () => ({
+            kind: 'found',
+            vertex: {
+              vertexId: 'root',
+              vertexContent: { $data: 'root', $childHints: ['skip', 'b'] },
+            },
+          }),
+          getVertexIdFromHint: (hint) =>
+            hint === 'skip' ? wrapper : { vertexId: hint },
+          makeVertex: (hint) =>
+            hint === 'skip'
+              ? { kind: 'omitted', satisfiesDependencies: true }
+              : {
+                  kind: 'found',
+                  vertex: {
+                    vertexId: 'b',
+                    dependsOn: [id],
+                    vertexContent: { $data: 'b', $childHints: [] },
+                  },
+                },
+        },
+      });
+      if (result.kind !== 'valid') throw new Error('Expected valid DAG');
+      expect(
+        result.dag.vertices.map(({ vertexId, dependsOn }) => [
+          vertexId,
+          dependsOn,
+        ]),
+      ).toEqual([
+        ['root', []],
+        ['b', [id]],
+      ]);
+      const runner = result.dag.createRunner({ completedWork: new Set([id]) });
+      expect(runner.run().summary().completedWorkIds).toEqual(['root', 'b']);
+    },
+  );
+}

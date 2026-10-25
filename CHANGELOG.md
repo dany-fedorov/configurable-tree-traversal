@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add inferred collection/forest source adapters with async materialization, reusable `prepareDag` definitions, and independent ticket-based coordination sessions.
+- Preserve typed IDs on discriminated DAG events and add data-guard filtered visitors. Keep exact ID inference when synchronous graph sources feed async APIs.
+- Preserve known omitted identities in discovery slots so prepared definitions replay prerequisite readiness in structural order; capture non-enumerable own IDs and inherited source content faithfully.
+
 - Add DAG `prepare()` for eager validated previews, atomic typed `deferredFrontier` records, and committed `workCompleted`/`subgraphCompleted` event kinds, preserving order/filter/timing.
 - Add family-safe sync/async execution capabilities and public cooperative `requestPause()` on all six runners.
 - Thread caller-selected ID types through graph/DAG APIs; require typed live IDs and reject inherited graph IDs. Raw container IDs include synthetic symbols; public views hide bookkeeping.

@@ -8,6 +8,7 @@ import type {
   GraphStoreContract,
   GraphVertex,
   GraphVertexStatus,
+  HintVertexId,
   IdState,
   Ref,
   VertexId,
@@ -193,11 +194,18 @@ export class GraphStore<T extends TreeTypeParameters>
     parent: Ref<T>,
     index: number,
     reason: 'omitted' | 'deleted' | 'disabled',
+    omittedIdentity?: HintVertexId,
   ): void {
     const entry = this.getEntry(parent);
     const slot = this.getSlot(entry, index);
     if (slot.kind !== 'pending') throw new Error('Slot is already resolved');
-    entry.slots![index] = { kind: reason, hint: slot.hint };
+    entry.slots![index] = {
+      kind: reason,
+      hint: slot.hint,
+      ...(omittedIdentity === undefined
+        ? {}
+        : { vertexId: omittedIdentity.vertexId }),
+    };
     this.topologyVersion += 1;
   }
 

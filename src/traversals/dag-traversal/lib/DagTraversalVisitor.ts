@@ -65,11 +65,13 @@ export type AsyncDagVisitor<
     ) => MaybePromise<RESULT>
   : never;
 
-export type DagEvent<T extends TreeTypeParameters> = {
-  kind: 'workCompleted' | 'subgraphCompleted';
+export type DagEvent<T extends TreeTypeParameters, ID = unknown> = {
+  vertexId: ID;
   vertex: Vertex<T>;
   vertexRef: CTTRef<Vertex<T>>;
-  order: DagTraversalOrder;
   isGraphRoot: boolean;
   isTraversalRoot: boolean;
-};
+} & (
+  | { kind: 'workCompleted'; order: DagTraversalOrder.ON_READY }
+  | { kind: 'subgraphCompleted'; order: DagTraversalOrder.ON_COMPLETE }
+);
