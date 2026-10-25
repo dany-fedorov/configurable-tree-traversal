@@ -44,3 +44,9 @@ export type {
   DagFragmentInstance,
   DagCompositionOptions,
 } from './lib/DagFragment';
+export * from './diffDagDefinitions';
+export type {
+  DagDefinitionChangeAspect,
+  DagDefinitionVertexChange,
+  DagDefinitionDiff,
+} from './lib/DagRevision';

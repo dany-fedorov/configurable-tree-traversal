@@ -156,6 +156,17 @@ A prepared definition is an in-memory value, not a durable checkpoint or editabl
 
 Structural issues are deterministic and prevent replay; structurally valid definitions use the existing DAG milestone validator. Empty entries may retain known omitted IDs, including an omitted root, and those IDs remain recognized for completed-work seeds. An empty entry with live records is invalid. This API represents in-memory source topology; it carries no runner progress or automatic completion-fact migration.
 
+#### Definition diffs
+
+`diffDagDefinitions(before, after)` compares immutable `DagDefinition` values and returns a `DagDefinitionDiff<ID>` with frozen owned arrays and records. It performs no preparation, execution, serialization or deep traversal. The definitions may have different data types; IDs retain their caller identity.
+
+- `addedIds` follows new vertex order; `removedIds` follows old vertex order.
+- `changedVertices` contains retained IDs in old vertex order, each with `aspects` in the fixed order `data`, `slots`, `workDependencies`, `completionDependencies`.
+- `vertexOrderChanged` compares the full ordered live-ID sequence, so additions and removals also set it. Reordering alone does not add a changed vertex record.
+- `entryChanged` compares entry mode and its ordered contents. `omissionsChanged` compares the ordered omitted-ID declarations.
+
+IDs use SameValueZero throughout, including slots and dependencies. Slot kind and omission identity wrappers remain significant: anonymous omission differs from known `undefined`. Slot, dependency and omission ordering changes count. Data uses `Object.is`: replacing a data object counts even if its fields are equal; same-reference deep mutation cannot be detected. The host decides whether artifacts and accepted completion facts remain valid; the diff does not infer business invalidation.
+
 ### DAG fragments and composition
 
 `defineDagFragment(definition, ports)` creates a `DagFragment<Data, ID, Port>` from a closed valid definition and a record of string-named live vertex IDs. It copies/freezes owned topology and port wrappers; caller data and IDs stay shallow and unfrozen. Port names retain literal keys. Unknown or omitted ports, symbol port names, malformed definitions, and semantically invalid local graphs throw `TypeError`. Local W/C endpoints must resolve within the live/omitted domain; add external edges during composition.
