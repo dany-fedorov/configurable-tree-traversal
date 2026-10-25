@@ -1,6 +1,6 @@
 # General graph walking: roadmap item 9
 
-Status (2026-10-26): independently reviewed and approved design, implemented on `feat/general-graph-walking`. Tasks 1–9 are independently approved; Task 10 current guides/examples, full local integration and all six runtime/compiler packed checks are verified. Whole-branch independent review remains pending. The design below retains approved planning rationale; use the [current reference](../../reference.md#general-graph-walking) for consumer contracts and the [implementation plan](../plans/2026-10-25-general-graph-walking.md#final-local-implementation-verification-2026-10-26) for execution evidence/rulings. Published npm remains 0.11.0.
+Status (2026-10-26): independently reviewed and approved design, implemented on `feat/general-graph-walking`. All ten tasks are independently approved; current guides/examples, full local integration and all six runtime/compiler packed checks are verified. Whole-branch independent review completed with no findings. The design below retains approved planning rationale; use the [current reference](../../reference.md#general-graph-walking) for consumer contracts and the [implementation plan](../plans/2026-10-25-general-graph-walking.md#final-local-implementation-verification-2026-10-26) for execution evidence/rulings. Published npm remains 0.11.0.
 
 Related: [library goals and acceptance criteria](2026-10-25-agent-api-roadmap.md#purpose-and-acceptance-criteria), [current API](../../reference.md), [exploration vocabulary](../../../CONTEXT.md).
 

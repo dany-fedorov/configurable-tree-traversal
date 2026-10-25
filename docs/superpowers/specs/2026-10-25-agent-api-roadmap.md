@@ -1,6 +1,6 @@
 # Agent engineering API roadmap
 
-Status: updated on 2026-10-26. Proposals 1, 2, 3, 4, 6, 7, and 8 are implemented and phase two is integrated. Item 9 is implemented on `feat/general-graph-walking` through independently approved Tasks 1–9, with Task 10 current guides/examples and full local integration/compatibility validation verified; whole-branch independent review remains pending; items 5 and 10 remain backlog. Published npm 0.11.0 remains distinct from these unreleased additions.
+Status: updated on 2026-10-26. Proposals 1, 2, 3, 4, 6, 7, and 8 are implemented and phase two is integrated. Item 9 is implemented on `feat/general-graph-walking` with all ten tasks independently approved, current guides/examples and full local integration/compatibility validation verified, and whole-branch review complete with no findings; items 5 and 10 remain backlog. Published npm 0.11.0 remains distinct from these unreleased additions.
 
 ## Purpose and acceptance criteria
 
@@ -22,7 +22,7 @@ Keep meaningful API conventions consistent across generic graphs, DAGs, and tree
 | 6 | Validated graph revisions | Implemented in checkout | Represent decomposition and replanning with atomic structural changes. |
 | 7 | Dependency navigation and explanations | Implemented in checkout | Query prerequisites, dependents, and readiness causes during healthy execution. |
 | 8 | Host coordination interface | Implemented in checkout | Advance to a boundary and settle session-bound work tickets. |
-| 9 | General graph walking | [Implemented on feature branch](../plans/2026-10-25-general-graph-walking.md); whole-branch independent review pending | Walk shared and cyclic information graphs independently of DAG execution. |
+| 9 | General graph walking | [Implemented on feature branch](../plans/2026-10-25-general-graph-walking.md); whole-branch independent review complete with no findings | Walk shared and cyclic information graphs independently of DAG execution. |
 | 10 | Typed folds and projections | Backlog | Build summaries, context, and transformed data without manually managed accumulator maps. |
 
 ## 1 Collection and forest sources
@@ -61,7 +61,7 @@ Expose an advance operation returning a discriminated boundary and a frontier of
 
 Add explicit vertex/edge/path occurrence semantics for general graph traversal, including shared nodes and cycles. Path occurrence walks require bounds. Keep these discovery operations independent of acyclic milestone execution. Reuse identity and source concepts where their contracts agree.
 
-The [reviewed design](2026-10-25-general-graph-walking-design.md) separates revisit policy from vertex/edge/path observation and supports hydrated lazy sources. Its [implementation plan](../plans/2026-10-25-general-graph-walking.md) includes a cross-family consistency matrix, dependency-ordered tasks, and public/packed validation. Walking APIs now exist in the implementation checkout; the [current reference](../../reference.md#general-graph-walking) documents them. Task 10 full local integration and all six runtime/compiler packed checks passed; whole-branch independent review remains pending.
+The [reviewed design](2026-10-25-general-graph-walking-design.md) separates revisit policy from vertex/edge/path observation and supports hydrated lazy sources. Its [implementation plan](../plans/2026-10-25-general-graph-walking.md) includes a cross-family consistency matrix, dependency-ordered tasks, and public/packed validation. Walking APIs now exist in the implementation checkout; the [current reference](../../reference.md#general-graph-walking) documents them. Task 10 full local integration and all six runtime/compiler packed checks passed; whole-branch independent review is complete with no findings.
 
 ## 10 Folds and projections
 
@@ -69,10 +69,10 @@ Provide typed result-producing operations above visitors, specifying the travers
 
 ## Delivery
 
-The first phase is specified in [Agent API foundations](2026-10-25-agent-api-foundations-design.md) and tracked by its [implementation plan](../plans/2026-10-25-agent-api-foundations.md). The phase-two design specifies the delivered APIs for proposals 4, 6 and 7. Item 9 is implemented on its feature branch with whole-branch independent review pending; items 5 and 10 remain separate design work.
+The first phase is specified in [Agent API foundations](2026-10-25-agent-api-foundations-design.md) and tracked by its [implementation plan](../plans/2026-10-25-agent-api-foundations.md). The phase-two design specifies the delivered APIs for proposals 4, 6 and 7. Item 9 is implemented on its feature branch with whole-branch independent review complete with no findings; items 5 and 10 remain separate design work.
 
 The first-phase full `npm run check` passed on Node v24.20.0: 88 suites, 1,901 tests, 100% source coverage, 14 runnable examples, 13 guide snippets, packed CJS/ESM runtime and TypeScript consumers, and benchmark/facade-generator checks. Independent review findings were fixed and re-reviewed.
 
-Phase one was merged and pushed to `origin/main` as `1be1a28`. [Phase two design](2026-10-25-agent-api-phase-two-design.md) records delivery order **7 → 4 → 6**, with separate linked plans for inspection, fragment composition, and revisions. Dependency inspection (7) is delivered in the checkout. Fragment composition (4) is delivered in the checkout; validated revisions (6) are delivered in the checkout. Independent phase-two review is complete; all material findings were fixed and re-reviewed. Phase two was merged and pushed as `c1e5840`. Items 5 and 10 remain backlog proposals; item 9 is implemented on its feature branch, with full local integration/compatibility gates passed and whole-branch independent review pending.
+Phase one was merged and pushed to `origin/main` as `1be1a28`. [Phase two design](2026-10-25-agent-api-phase-two-design.md) records delivery order **7 → 4 → 6**, with separate linked plans for inspection, fragment composition, and revisions. Dependency inspection (7) is delivered in the checkout. Fragment composition (4) is delivered in the checkout; validated revisions (6) are delivered in the checkout. Independent phase-two review is complete; all material findings were fixed and re-reviewed. Phase two was merged and pushed as `c1e5840`. Items 5 and 10 remain backlog proposals; item 9 is implemented on its feature branch, with full local integration/compatibility gates passed and whole-branch independent review complete with no findings.
 
 The phase-two full `npm run check` passed on Node v24.20.0: 96 suites, 2,135 tests, 100% source coverage, 17 runnable examples, 14 standalone guide snippets, 638 packed files, and benchmark/facade-generator checks. Packed consumers also passed on Node 22.12.0, Bun 1.4.4, and TypeScript 4.7.4.

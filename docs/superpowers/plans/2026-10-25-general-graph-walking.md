@@ -10,7 +10,7 @@
 
 **Spec:** [General graph walking design](../specs/2026-10-25-general-graph-walking-design.md). Read the complete revised design, including cross-family consistency, independent review disposition, and the self-link depth-bound example, before executing this plan.
 
-**Status (2026-10-26):** Tasks 1–9 are implemented and independently approved on `feat/general-graph-walking`. Task 10 consumer examples/current guides and final local integration/compatibility checks are verified. Whole-branch independent review remains a separate pending controller gate; the review checkbox below deliberately stays open. The original planning base was `c1e5840bdf89372955feedde9d18e2214e0ea663`; historical planning verification is distinct from implementation evidence. Published npm remains 0.11.0; no release, push or merge is implied.
+**Status (2026-10-26):** All ten tasks are implemented and independently approved on `feat/general-graph-walking`. Final local integration/compatibility checks passed, and whole-branch independent review found no Critical, Important, or Minor issues. See the [verification and final review record](2026-10-25-general-graph-walking-verification.md). The original planning base was `c1e5840bdf89372955feedde9d18e2214e0ea663`; historical planning verification is distinct from implementation evidence. Published npm remains 0.11.0; no release, push or merge is implied.
 
 ## Global Constraints
 
@@ -518,10 +518,10 @@ npm run check
 
 Expected: typecheck, lint, source coverage at 100% on all four metrics, all examples and standalone snippets, clean build, packed runtime/types, benchmarks and facade-generator checks succeed. Do not substitute a subset or lower coverage. Keep source test counts as observed values rather than predeclaring a target count.
 - [x] Confirm the built final tree under exact Node 22.12.0, current Node 24 and Bun 1.4.4 with the locked compiler and isolated TS4.7.4. Use the existing testing guide's commands and verified tool paths; inspect each runtime/compiler `--version`, and do not hardcode an old `/tmp` path as present. Build once and rerun `scripts/verify-package.cjs` under remaining runtime/compiler combinations using `CTT_TYPESCRIPT_COMPILER` when needed. Run the Bun facade/benchmark correctness scripts. Record which CI-required Node 22/24 lanes still require remote CI if not locally available.
-- [ ] Review the whole diff against the design and the conformance matrix below, with particular attention to shared files, exact error values, pending-close races, phase variance, and loader identity. Resolve material findings and rerun focused/full checks according to the changed area. No merge/push/publish is implicit in this planning task; use the execution session's current authorization.
+- [x] Review the whole diff against the design and the conformance matrix below, with particular attention to shared files, exact error values, pending-close races, phase variance, and loader identity. Resolve material findings and rerun focused/full checks according to the changed area. No merge/push/publish is implicit in this planning task; use the execution session's current authorization.
 - [x] Update statuses only when the corresponding implementation and checks exist. Stage only scoped source/tests/examples/docs/package changes and commit as `docs(graph-walk): document verified agent exploration APIs`.
 
-Task 10 local self-review covered all changed documentation/examples and their consumed public contracts, including exact errors, iterator-return versus terminal-close ownership, selector variance and loader identity. Final whole-branch independent review is owned by the controller and remains pending; the open review checkbox is not a claim of completion.
+Task 10 local self-review covered all changed documentation/examples and their consumed public contracts, including exact errors, iterator-return versus terminal-close ownership, selector variance and loader identity. Final whole-branch independent review completed on 2026-10-26 with no findings; the [review record](2026-10-25-general-graph-walking-verification.md#final-independent-review--2026-10-26) records scope and limitations.
 
 ## Concrete shared test fixtures
 
@@ -624,7 +624,7 @@ The trace records actual source callback/pull work; summary counters additionall
 
 The plan's file names and reuse decisions are grounded in the current source: generic registration/selector utilities can be reused directly, while tree/DAG kernel ports and sessions cannot represent walking events without an unsafe cast or a broad refactor. The execution inspection change is deliberately defaulted so existing callers retain their detailed types.
 
-Before calling this plan complete, perform an inline self-review: map every spec section to the matrix; scan for unresolved placeholders and invented existing paths; check all shared names/signatures across tasks; check relative document links/anchors; and compare the consistency table with the user's goal hierarchy. Planning checks validate the artifact, not the future implementation. Implementation tests, full coverage and package/runtime checks remain unchecked tasks above.
+Before calling this plan complete, perform an inline self-review: map every spec section to the matrix; scan for unresolved placeholders and invented existing paths; check all shared names/signatures across tasks; check relative document links/anchors; and compare the consistency table with the user's goal hierarchy. Planning checks validate the artifact, not the future implementation. At planning time, implementation tests, full coverage and package/runtime checks were future execution requirements; the completed evidence is recorded below.
 
 Execution order is Task 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10. Source policies, visitor boundaries and sessions share state, so do not dispatch these tasks concurrently against the same files. Adapters/package/documentation work may be delegated only after their consumed contracts exist and the active execution workflow authorizes delegation.
 
@@ -640,7 +640,7 @@ The final build then passed packed verification under all six runtime/compiler p
 
 The three walking examples cover mixed hydration with five vertex/six relationship callbacks, typed async code endpoints plus family-preserving execution wrappers, and simple/repeated provenance paths with explicit outcomes. Every original public guide heading/manual anchor remains. All autonomous ledger rulings are persisted verbatim below. Existing package guide membership is unchanged.
 
-Complete logs and exact commands are recorded in the execution handoff `task-10-report.md` (local ignored coordination artifact) and `/tmp/ctt-walk-task10-*.log`; reproducible matrix commands are in [testing](../../testing.md#bun-and-compiler-checks). These are local results, not remote CI results. The full current Node 22 source/coverage lane was not run locally; Node24 full coverage and minimum-Node packed results do not substitute for required remote Node 22/24 and pinned Bun CI jobs. Whole-branch independent review remains pending. No merge, push or publication was performed.
+Exact commands, log paths, hashes and final review are preserved in the [verification record](2026-10-25-general-graph-walking-verification.md); complete local outputs remain in `/tmp/ctt-walk-task10-*.log`; reproducible matrix commands are in [testing](../../testing.md#bun-and-compiler-checks). These are local results, not remote CI results. The full current Node 22 source/coverage lane was not run locally; Node24 full coverage and minimum-Node packed results do not substitute for required remote Node 22/24 and pinned Bun CI jobs. Whole-branch independent review completed with no findings. No merge, push or publication was performed.
 
 ## Autonomous implementation rulings
 
