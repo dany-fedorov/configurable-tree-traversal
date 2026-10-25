@@ -7,8 +7,8 @@ import {
   DagTraversalStallError,
   type DagTraversalStallDiagnostics,
 } from '@core/errors/DagTraversalStallError';
-import { DagTraversal } from './DagTraversal';
 import { AsyncDagTraversal } from './AsyncDagTraversal';
+import { prepareDagSource } from './lib/prepareDagSource';
 import type { PrepareDagResult } from './lib/PreparedDag';
 import { capturePreparedSource } from './lib/capturePreparedSource';
 import { makePreparedDag, assertPreparedOptions } from './lib/makePreparedDag';
@@ -51,34 +51,7 @@ const preparationFields = [
 export function prepareDag<T extends TreeTypeParameters, ID = unknown>(
   input: PrepareDagInput<T, ID>,
 ): PrepareDagResult<T['VertexData'], ID> {
-  assertPreparedOptions(input, preparationFields);
-  const captured = capturePreparedSource<T, ID>(input.traversableGraph, false);
-  const runner = new DagTraversal<T, T, ID>({
-    ...input,
-    // This capture path invokes only the synchronous source callbacks above.
-    traversableGraph: captured.adapter as TraversableGraph<T, T, ID>,
-  }).makeRunner();
-  try {
-    runner.prepare();
-  } catch (error) {
-    if (
-      !(error instanceof DagTraversalStallError) ||
-      captured.errors.has(error)
-    )
-      throw error;
-    return {
-      kind: 'invalid',
-      diagnostics: error.diagnostics as DagTraversalStallDiagnostics<ID>,
-    };
-  }
-  return {
-    kind: 'valid',
-    dag: makePreparedDag(
-      runner.resolvedGraphsContainer,
-      captured.candidates,
-      input.rootDependencies ?? 'honor',
-    ),
-  };
+  return prepareDagSource(input);
 }
 
 /** Async discovery produces the same reusable in-memory definition. */

@@ -1,3 +1,6 @@
+import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
+import type { PreparedDag } from './PreparedDag';
+
 /** Ordered source facts; anonymous omissions carry no public identity. */
 export type DagDefinitionSlot<ID> =
   | { readonly kind: 'vertex'; readonly vertexId: ID }
@@ -26,3 +29,26 @@ export type DagDefinition<Data, ID = unknown> = {
       }
     | { readonly kind: 'empty' };
 };
+
+export type DagDefinitionIssue<ID = unknown> =
+  | {
+      kind: 'missingStructuralEndpoint';
+      parent: { vertexId: ID } | null;
+      vertexId: ID;
+    }
+  | {
+      kind: 'invalidEntry';
+      reason: 'unknownRoot' | 'anonymousCatalogEntry' | 'emptyWithVertices';
+      vertexIds: readonly ID[];
+    }
+  | { kind: 'invalidOmission'; vertexIds: readonly ID[] }
+  | { kind: 'unreachable'; vertexIds: readonly ID[] }
+  | { kind: 'structuralCycle'; vertexIds: readonly ID[] }
+  | {
+      kind: 'milestone';
+      diagnostics: DagTraversalStallDiagnostics<ID>;
+    };
+
+export type DagDefinitionResult<Data, ID = unknown> =
+  | { kind: 'valid'; dag: PreparedDag<Data, ID> }
+  | { kind: 'invalid'; issues: readonly DagDefinitionIssue<ID>[] };

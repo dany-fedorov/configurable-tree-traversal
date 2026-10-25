@@ -33,3 +33,8 @@ export type {
   DagDefinitionSlot,
   DagDefinitionVertex,
 } from './lib/DagDefinition';
+export * from './prepareDagDefinition';
+export type {
+  DagDefinitionIssue,
+  DagDefinitionResult,
+} from './lib/DagDefinition';

@@ -122,7 +122,8 @@ export function definitionSource<Data, ID>(
           : { kind: 'omitted', satisfiesDependencies: true };
       },
       makeVertex: resolve,
-      resolvePrerequisite: resolve,
+      resolvePrerequisite: (id) =>
+        byId.has(id) || omitted.has(id) ? resolve(id) : { kind: 'missing' },
       getVertexIdFromHint: (vertexId) => ({ vertexId }),
     },
   };

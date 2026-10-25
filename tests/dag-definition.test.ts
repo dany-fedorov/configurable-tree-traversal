@@ -1,8 +1,12 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { definitionSource } from '../src/traversals/dag-traversal/lib/definitionSource';
 import { graphFrom } from '../src';
-import { defineDag, type DagDefinition, type DagDefinitionSlot } from '../src';
+import {
+  defineDag,
+  prepareDagDefinition,
+  type DagDefinition,
+  type DagDefinitionSlot,
+} from '../src';
 import { prepareDag } from '../src/traversals/dag-traversal/prepareDag';
 import type { TraversableGraph } from '../src/core/TraversableGraph';
 import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
@@ -235,14 +239,11 @@ for (const anonymous of [false, true]) {
             { kind: 'vertex', vertexId: 'c' },
           ],
     );
-    const replay = new DagTraversal(definitionSource(definition))
-      .makeRunner()
-      .prepare();
-    const replayAsync = await new AsyncDagTraversal(
-      definitionSource(definition),
-    )
-      .makeRunner()
-      .prepare();
+    const roundtrip = prepareDagDefinition(definition);
+    if (roundtrip.kind !== 'valid') throw new Error('Expected valid');
+    expect(roundtrip.dag.definition).toEqual(definition);
+    const replay = roundtrip.dag.createRunner();
+    const replayAsync = await roundtrip.dag.createAsyncRunner();
     const expected = [
       ['root', 'workCompleted'],
       ['b', 'workCompleted'],
@@ -385,9 +386,10 @@ test('definition replay retains structural sharing and detached prerequisites wi
   ]);
   expect(result.dag.definition.omittedIds).toEqual([undefined]);
   expect(result.dag.vertices[0]!.children).toEqual([sharedId, sharedId]);
-  const replay = new DagTraversal(definitionSource(result.dag.definition))
-    .makeRunner()
-    .prepare();
+  const roundtrip = prepareDagDefinition(result.dag.definition);
+  if (roundtrip.kind !== 'valid') throw new Error('Expected valid');
+  expect(roundtrip.dag.definition).toEqual(result.dag.definition);
+  const replay = roundtrip.dag.createRunner();
   const graph = replay.getResolvedGraph();
   expect(graph.getParentsOf(graph.getVertexRefById(remoteId)!)).toEqual([]);
   expect(graph.getVertexRefById(sharedId)!.unref().getData()).toBe(sharedId);
