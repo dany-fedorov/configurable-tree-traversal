@@ -1,4 +1,5 @@
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TraversalVisitorInputOptions } from '@core/TraversalVisitor';
 import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
@@ -61,7 +62,10 @@ export type RewriteObjectResult<
   OutK extends TraversableObjectPropKey,
   OutV,
 > = {
+  /** Snapshot converted when rewriteObject returns, possibly before completion. */
   outputObject: Out | null;
+  /** Final converted output; throws until the runner has finished. */
+  getOutput(): Out | null;
   traversalRunner: DepthFirstTraversalRunner<
     TraversableObjectTTP<InK, InV>,
     TraversableObjectTTP<OutK, OutV>
@@ -81,11 +85,15 @@ export type RewriteObjectOptions<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     > &
-    DepthFirstTraversalInstanceConfigInput<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
+    Omit<
+      DepthFirstTraversalInstanceConfigInput<
+        TraversableObjectTTP<InK, InV>,
+        TraversableObjectTTP<OutK, OutV>
+      >,
+      'traversableTree'
     >
 > & {
+  traversableTree?: never;
   rewrite?: RewriteFn<InK, InV, OutK, OutV>;
   getOutputObjectFromRootValue?: (value: OutV | null) => Out;
   assembleCompositesBeforeRewrite?: boolean;
@@ -95,13 +103,18 @@ export function rewriteObject<
   In = TraversableObject<TraversableObjectPropKey, unknown>,
   InK extends TraversableObjectPropKey = TraversableObjectPropKey,
   InV = TraversableObject<TraversableObjectPropKey, unknown> | unknown,
-  Out = In,
+  Out = unknown,
   OutK extends TraversableObjectPropKey = InK,
   OutV = InV,
 >(
   object: In,
   options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
 ): RewriteObjectResult<InK, InV, Out, OutK, OutV> {
+  if (options && 'traversableTree' in options) {
+    throw new TypeError(
+      'rewriteObject owns its source; traversableTree is unsupported',
+    );
+  }
   const assembleCompositeBeforeVisit =
     options?.assembleCompositesBeforeRewrite ?? false;
   const rewrite =
@@ -230,15 +243,59 @@ export function rewriteObject<
           }),
     },
   );
-  const resolvedTree = traversalRunner.getResolvedTree();
-  const rootRef = resolvedTree.getRoot();
-  const rootValue =
-    rootRef === null || !resolvedTree.has(rootRef)
-      ? null
-      : (rootRef.unref().getData().value as unknown as OutV);
-  const outputObject = getOutputObjectFromRootValue(rootValue);
+  const convertCurrentRoot = () => {
+    const resolvedTree = traversalRunner.getResolvedTreeView();
+    const rootRef = resolvedTree.getRoot();
+    const rootValue =
+      rootRef === null || !resolvedTree.has(rootRef)
+        ? null
+        : (rootRef.unref().getData().value as unknown as OutV);
+    return getOutputObjectFromRootValue(rootValue);
+  };
+  const outputObject = convertCurrentRoot();
+  let hasFinalOutput =
+    traversalRunner.getStatus() === TraversalRunnerStatus.FINISHED;
+  let finalOutput = outputObject;
   return {
     outputObject,
     traversalRunner,
+    getOutput() {
+      if (traversalRunner.getStatus() !== TraversalRunnerStatus.FINISHED) {
+        throw new Error('Rewrite output is not complete');
+      }
+      if (!hasFinalOutput) {
+        finalOutput = convertCurrentRoot();
+        hasFinalOutput = true;
+      }
+      return finalOutput;
+    },
   };
+}
+
+/** Select an output type as a caller assertion, without runtime schema validation. */
+export function rewriteObjectAs<Out>(
+  object: unknown,
+  options?: RewriteObjectOptions<
+    unknown,
+    TraversableObjectPropKey,
+    unknown,
+    Out,
+    TraversableObjectPropKey,
+    unknown
+  >,
+): RewriteObjectResult<
+  TraversableObjectPropKey,
+  unknown,
+  Out,
+  TraversableObjectPropKey,
+  unknown
+> {
+  return rewriteObject<
+    unknown,
+    TraversableObjectPropKey,
+    unknown,
+    Out,
+    TraversableObjectPropKey,
+    unknown
+  >(object, options);
 }

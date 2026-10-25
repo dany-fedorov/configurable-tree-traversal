@@ -1,5 +1,8 @@
 import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
-import { rewriteObject } from '../src/tools/rewrite-object/rewriteObject';
+import {
+  rewriteObject,
+  rewriteObjectAs,
+} from '../src/tools/rewrite-object/rewriteObject';
 import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal';
 import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { BreadthFirstTraversal } from '../src/traversals/breadth-first-traversal';
@@ -60,7 +63,7 @@ describe('object rewriting', () => {
     input.label = 'array';
     input[metadata] = 'symbol';
 
-    const { outputObject } = rewriteObject(input, {
+    const { outputObject } = rewriteObjectAs<typeof input>(input, {
       rewrite: ({ value }) =>
         typeof value === 'string'
           ? { rewrite: { value: value.toUpperCase() } }
