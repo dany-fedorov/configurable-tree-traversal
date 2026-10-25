@@ -1,12 +1,14 @@
 # Agent engineering API roadmap
 
-Status: recorded on 2026-10-25. Proposals 1, 2, 3, 4, 6, 7, and 8 are implemented in the checkout, awaiting final phase-two integration review. Items 5, 9 and 10 remain backlog. Published npm 0.11.0 remains distinct from these unreleased additions.
+Status: recorded on 2026-10-25. Proposals 1, 2, 3, 4, 6, 7, and 8 are implemented and phase two is integrated. Item 9 is designed and implementation-planned, but not implemented; items 5 and 10 remain backlog. Published npm 0.11.0 remains distinct from these unreleased additions.
 
 ## Purpose and acceptance criteria
 
 CTT gives TypeScript programs a small, composable vocabulary for discovering, inspecting, transforming, and coordinating interconnected work and information. Proven algorithms, correctness, and adequate performance are prerequisites. Its differentiator is a reusable API that is orthogonal, type-safe, idiomatic, and applicable to common agent engineering structures.
 
 Evaluate each addition against several realistic examples: does it remove custom graph plumbing, preserve useful types, and make misuse harder without introducing business policy? Keep structural children separate from dependencies. The host owns agent execution, accepted business outcomes, retries, attempts, claims, artifacts, and durable storage.
+
+Keep meaningful API conventions consistent across generic graphs, DAGs, and trees wherever possible. Preserve orthogonality, type safety, idiomatic use, and workflow coverage when deciding where family-specific contracts are necessary.
 
 ## Roadmap
 
@@ -20,7 +22,7 @@ Evaluate each addition against several realistic examples: does it remove custom
 | 6 | Validated graph revisions | Implemented in checkout | Represent decomposition and replanning with atomic structural changes. |
 | 7 | Dependency navigation and explanations | Implemented in checkout | Query prerequisites, dependents, and readiness causes during healthy execution. |
 | 8 | Host coordination interface | Implemented in checkout | Advance to a boundary and settle session-bound work tickets. |
-| 9 | General graph walking | Backlog | Walk shared and cyclic information graphs independently of DAG execution. |
+| 9 | General graph walking | [Implementation planned](../plans/2026-10-25-general-graph-walking.md), not implemented | Walk shared and cyclic information graphs independently of DAG execution. |
 | 10 | Typed folds and projections | Backlog | Build summaries, context, and transformed data without manually managed accumulator maps. |
 
 ## 1 Collection and forest sources
@@ -59,16 +61,18 @@ Expose an advance operation returning a discriminated boundary and a frontier of
 
 Add explicit vertex/edge/path occurrence semantics for general graph traversal, including shared nodes and cycles. Path occurrence walks require bounds. Keep these discovery operations independent of acyclic milestone execution. Reuse identity and source concepts where their contracts agree.
 
+The [reviewed design](2026-10-25-general-graph-walking-design.md) separates revisit policy from vertex/edge/path observation and supports hydrated lazy sources. Its [implementation plan](../plans/2026-10-25-general-graph-walking.md) includes a cross-family consistency matrix, dependency-ordered tasks, and public/packed validation. These artifacts do not establish that walking APIs exist.
+
 ## 10 Folds and projections
 
 Provide typed result-producing operations above visitors, specifying the traversed relation and synchronous/asynchronous combination. Distinguish computing a vertex once from counting its contribution once: shared descendants can otherwise be counted through multiple parents. Keep result types independent of source data and avoid asserting preservation of an arbitrary input shape.
 
 ## Delivery
 
-The first phase is specified in [Agent API foundations](2026-10-25-agent-api-foundations-design.md) and tracked by its [implementation plan](../plans/2026-10-25-agent-api-foundations.md). The phase-two design specifies the delivered APIs for proposals 4, 6 and 7. Items 5, 9 and 10 remain separate design work.
+The first phase is specified in [Agent API foundations](2026-10-25-agent-api-foundations-design.md) and tracked by its [implementation plan](../plans/2026-10-25-agent-api-foundations.md). The phase-two design specifies the delivered APIs for proposals 4, 6 and 7. Item 9 is implementation-planned; items 5 and 10 remain separate design work.
 
 The first-phase full `npm run check` passed on Node v24.20.0: 88 suites, 1,901 tests, 100% source coverage, 14 runnable examples, 13 guide snippets, packed CJS/ESM runtime and TypeScript consumers, and benchmark/facade-generator checks. Independent review findings were fixed and re-reviewed.
 
-Phase one was merged and pushed to `origin/main` as `1be1a28`. [Phase two design](2026-10-25-agent-api-phase-two-design.md) records delivery order **7 → 4 → 6**, with separate linked plans for inspection, fragment composition, and revisions. Dependency inspection (7) is delivered in the checkout. Fragment composition (4) is delivered in the checkout; validated revisions (6) are delivered in the checkout. Independent phase-two review is complete; all material findings were fixed and re-reviewed. Items 5, 9, and 10 remain backlog proposals.
+Phase one was merged and pushed to `origin/main` as `1be1a28`. [Phase two design](2026-10-25-agent-api-phase-two-design.md) records delivery order **7 → 4 → 6**, with separate linked plans for inspection, fragment composition, and revisions. Dependency inspection (7) is delivered in the checkout. Fragment composition (4) is delivered in the checkout; validated revisions (6) are delivered in the checkout. Independent phase-two review is complete; all material findings were fixed and re-reviewed. Phase two was merged and pushed as `c1e5840`. Items 5 and 10 remain backlog proposals; item 9 has a reviewed design and implementation plan.
 
 The phase-two full `npm run check` passed on Node v24.20.0: 96 suites, 2,135 tests, 100% source coverage, 17 runnable examples, 14 standalone guide snippets, 638 packed files, and benchmark/facade-generator checks. Packed consumers also passed on Node 22.12.0, Bun 1.4.4, and TypeScript 4.7.4.
