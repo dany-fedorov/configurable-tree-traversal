@@ -1,3 +1,35 @@
+import type {
+  DagDefinition,
+  DagDefinitionIssue,
+  DagDefinitionVertex,
+} from './DagDefinition';
+import type { PreparedDag } from './PreparedDag';
+
+/** Full declaration edits, applied in order before final graph validation. */
+export type DagRevisionOperation<Data, ID = unknown> =
+  | {
+      readonly kind: 'addVertex';
+      readonly vertex: DagDefinitionVertex<Data, ID>;
+    }
+  | {
+      readonly kind: 'replaceVertex';
+      readonly vertex: DagDefinitionVertex<Data, ID>;
+    }
+  | { readonly kind: 'removeVertex'; readonly vertexId: ID }
+  | {
+      readonly kind: 'replaceEntry';
+      readonly entry: DagDefinition<Data, ID>['entry'];
+    }
+  | { readonly kind: 'replaceOmissions'; readonly omittedIds: readonly ID[] };
+
+export type DagRevisionResult<Data, ID = unknown> =
+  | {
+      kind: 'valid';
+      dag: PreparedDag<Data, ID>;
+      changes: DagDefinitionDiff<ID>;
+    }
+  | { kind: 'invalid'; issues: readonly DagDefinitionIssue<ID>[] };
+
 /** Declaration aspects, listed in the order used by definition diffs. */
 export type DagDefinitionChangeAspect =
   | 'data'

@@ -50,3 +50,9 @@ export type {
   DagDefinitionVertexChange,
   DagDefinitionDiff,
 } from './lib/DagRevision';
+
+export * from './reviseDag';
+export type {
+  DagRevisionOperation,
+  DagRevisionResult,
+} from './lib/DagRevision';

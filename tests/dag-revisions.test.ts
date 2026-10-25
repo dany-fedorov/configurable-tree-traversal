@@ -1,9 +1,12 @@
 import {
   defineDag,
   diffDagDefinitions,
+  prepareDagDefinition,
+  reviseDag,
   type DagDefinition,
   type DagDefinitionSlot,
   type DagDefinitionVertex,
+  type DagRevisionOperation,
 } from '../src';
 
 const vertex = <ID>(
@@ -347,5 +350,600 @@ describe('diffDagDefinitions', () => {
     expect(Object.isFrozen(diff.changedVertices[0]!.aspects)).toBe(true);
     expect(Object.isFrozen(id)).toBe(false);
     expect(diffDagDefinitions(before, before)).toEqual(unchanged);
+  });
+});
+
+describe('reviseDag', () => {
+  test('rejects a dangling prerequisite without touching the original session', () => {
+    const result = prepareDagDefinition(
+      definition(
+        [vertex('review', { dependsOn: ['research'] }), vertex('research')],
+        { entry: { kind: 'root', vertexId: 'review' } },
+      ),
+    );
+    if (result.kind !== 'valid') throw new Error('Expected valid fixture');
+    const original = result.dag;
+    const before = original.createSession();
+    expect(
+      reviseDag(original, [{ kind: 'removeVertex', vertexId: 'research' }]),
+    ).toMatchObject({ kind: 'invalid', issues: [{ kind: 'milestone' }] });
+    expect(original.definition.vertices.map((v) => v.vertexId)).toEqual([
+      'review',
+      'research',
+    ]);
+    expect(before.advance()).toMatchObject({
+      kind: 'awaitingSettlement',
+      frontier: [{ vertexId: 'research' }],
+    });
+  });
+});
+
+const prepared = <ID>(
+  vertices: readonly DagDefinitionVertex<unknown, ID>[],
+  patch: Partial<DagDefinition<unknown, ID>> = {},
+) => {
+  const result = prepareDagDefinition(
+    definition(vertices, {
+      entry: {
+        kind: 'forest',
+        slots: vertices.map((v) => ({ kind: 'vertex', vertexId: v.vertexId })),
+      },
+      ...patch,
+    }),
+  );
+  if (result.kind !== 'valid') throw new Error('Expected valid fixture');
+  return result.dag;
+};
+
+const rawOperations = <ID = unknown>(value: unknown) =>
+  value as readonly DagRevisionOperation<unknown, ID>[];
+
+describe('ordered atomic revisions', () => {
+  test('validates only the final candidate after temporarily dangling edits', () => {
+    const original = prepared(
+      [
+        vertex('review', {
+          dependsOn: ['research'],
+          dependsOnComplete: ['research'],
+        }),
+        vertex('research'),
+      ],
+      { entry: { kind: 'root', vertexId: 'review' } },
+    );
+    const result = reviseDag(original, [
+      { kind: 'removeVertex', vertexId: 'research' },
+      { kind: 'replaceVertex', vertex: vertex('review') },
+    ]);
+    expect(result.kind).toBe('valid');
+    if (result.kind !== 'valid') throw new Error('Expected revision');
+    expect(result.dag.definition.vertices).toEqual([vertex('review')]);
+    expect(result.changes).toEqual({
+      ...unchanged,
+      removedIds: ['research'],
+      changedVertices: [
+        {
+          vertexId: 'review',
+          aspects: ['workDependencies', 'completionDependencies'],
+        },
+      ],
+      vertexOrderChanged: true,
+    });
+    expect(result.dag.createSession().advance()).toMatchObject({
+      kind: 'awaitingSettlement',
+      frontier: [{ vertexId: 'review' }],
+    });
+    expect(original.createSession().advance()).toMatchObject({
+      kind: 'awaitingSettlement',
+      frontier: [{ vertexId: 'research' }],
+    });
+  });
+
+  test('retains replacement position, appends additions and applies repeated edits in order', () => {
+    const original = prepared([vertex('a'), vertex('b'), vertex('c')]);
+    const result = reviseDag(original, [
+      { kind: 'replaceVertex', vertex: vertex('c', { data: 1 }) },
+      { kind: 'removeVertex', vertexId: 'b' },
+      { kind: 'addVertex', vertex: vertex('b', { data: 'new' }) },
+      { kind: 'replaceVertex', vertex: vertex('c', { data: 2 }) },
+    ]);
+    if (result.kind !== 'valid') throw new Error('Expected revision');
+    expect(
+      result.dag.definition.vertices.map((v) => [v.vertexId, v.data]),
+    ).toEqual([
+      ['a', undefined],
+      ['c', 2],
+      ['b', 'new'],
+    ]);
+    expect(result.changes).toEqual({
+      ...unchanged,
+      changedVertices: [
+        { vertexId: 'b', aspects: ['data'] },
+        { vertexId: 'c', aspects: ['data'] },
+      ],
+      vertexOrderChanged: true,
+    });
+    expect(original.definition.vertices.map((v) => v.data)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
+  test('can replace a root with its child without removing descendants implicitly', () => {
+    const original = prepared(
+      [
+        vertex('root', { slots: [{ kind: 'vertex', vertexId: 'child' }] }),
+        vertex('child'),
+      ],
+      { entry: { kind: 'root', vertexId: 'root' } },
+    );
+    const invalid = reviseDag(original, [
+      { kind: 'removeVertex', vertexId: 'root' },
+    ]);
+    expect(invalid).toEqual({
+      kind: 'invalid',
+      issues: [
+        { kind: 'invalidEntry', reason: 'unknownRoot', vertexIds: ['root'] },
+        { kind: 'unreachable', vertexIds: ['child'] },
+      ],
+    });
+    const result = reviseDag(original, [
+      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'replaceEntry', entry: { kind: 'root', vertexId: 'child' } },
+    ]);
+    if (result.kind !== 'valid') throw new Error('Expected revision');
+    expect(result.dag.definition.vertices).toEqual([vertex('child')]);
+    expect(result.changes).toEqual({
+      ...unchanged,
+      removedIds: ['root'],
+      vertexOrderChanged: true,
+      entryChanged: true,
+    });
+    expect(original.createSession().advance()).toMatchObject({
+      kind: 'awaitingSettlement',
+      frontier: [{ vertexId: 'root' }, { vertexId: 'child' }],
+    });
+  });
+
+  test('can remove every live record and replace the entry with empty', () => {
+    const original = prepared([vertex('root')], {
+      entry: { kind: 'root', vertexId: 'root' },
+    });
+    const result = reviseDag(original, [
+      { kind: 'replaceEntry', entry: { kind: 'empty' } },
+      { kind: 'removeVertex', vertexId: 'root' },
+    ]);
+    if (result.kind !== 'valid') throw new Error('Expected revision');
+    expect(result.dag.definition).toEqual({
+      vertices: [],
+      omittedIds: [],
+      entry: { kind: 'empty' },
+    });
+    expect(result.dag.createSession().advance().kind).toBe('finished');
+  });
+
+  test('can replace omitted identities and entry slots in one batch', () => {
+    const original = prepared<unknown>([vertex('root')], {
+      omittedIds: ['old'],
+      entry: {
+        kind: 'forest',
+        slots: [
+          { kind: 'omitted', identity: { vertexId: 'old' } },
+          { kind: 'vertex', vertexId: 'root' },
+        ],
+      },
+    });
+    const result = reviseDag(original, [
+      { kind: 'replaceOmissions', omittedIds: [undefined] },
+      {
+        kind: 'replaceEntry',
+        entry: {
+          kind: 'forest',
+          slots: [
+            { kind: 'vertex', vertexId: 'root' },
+            { kind: 'omitted', identity: { vertexId: undefined } },
+          ],
+        },
+      },
+    ]);
+    if (result.kind !== 'valid') throw new Error('Expected revision');
+    expect(result.changes).toEqual({
+      ...unchanged,
+      entryChanged: true,
+      omissionsChanged: true,
+    });
+    expect(result.dag.definition.omittedIds).toEqual([undefined]);
+    expect(original.definition.omittedIds).toEqual(['old']);
+  });
+
+  test('an empty batch creates a fresh unseeded prepared DAG and session', () => {
+    const original = prepared([vertex('task')]);
+    const old = original.createSession({ completedWork: new Set(['task']) });
+    expect(old.advance().kind).toBe('finished');
+    const result = reviseDag(original, []);
+    if (result.kind !== 'valid') throw new Error('Expected revision');
+    expect(result.dag).not.toBe(original);
+    expect(result.dag.definition).not.toBe(original.definition);
+    expect(result.dag.definition.vertices[0]).not.toBe(
+      original.definition.vertices[0],
+    );
+    expect(result.changes).toEqual(unchanged);
+    expect(result.dag.createSession().advance()).toMatchObject({
+      kind: 'awaitingSettlement',
+      frontier: [{ vertexId: 'task' }],
+    });
+    expect(old.advance().kind).toBe('finished');
+  });
+
+  test.each([
+    {
+      name: 'unreachable addition',
+      operations: [{ kind: 'addVertex', vertex: vertex('extra') }],
+      issue: 'unreachable',
+    },
+    {
+      name: 'dangling structural child',
+      operations: [
+        {
+          kind: 'replaceVertex',
+          vertex: vertex('root', {
+            slots: [{ kind: 'vertex', vertexId: 'missing' }],
+          }),
+        },
+      ],
+      issue: 'missingStructuralEndpoint',
+    },
+    {
+      name: 'structural cycle',
+      operations: [
+        {
+          kind: 'replaceVertex',
+          vertex: vertex('root', {
+            slots: [{ kind: 'vertex', vertexId: 'root' }],
+          }),
+        },
+      ],
+      issue: 'structuralCycle',
+    },
+    {
+      name: 'work cycle',
+      operations: [
+        {
+          kind: 'replaceVertex',
+          vertex: vertex('root', { dependsOn: ['root'] }),
+        },
+      ],
+      issue: 'milestone',
+    },
+    {
+      name: 'completion cycle',
+      operations: [
+        {
+          kind: 'replaceVertex',
+          vertex: vertex('root', { dependsOnComplete: ['root'] }),
+        },
+      ],
+      issue: 'milestone',
+    },
+    {
+      name: 'unknown omission reference',
+      operations: [
+        {
+          kind: 'replaceVertex',
+          vertex: vertex('root', {
+            slots: [{ kind: 'omitted', identity: { vertexId: 'missing' } }],
+          }),
+        },
+      ],
+      issue: 'invalidOmission',
+    },
+  ])(
+    'returns graph issues for $name and preserves old topology and work',
+    ({ operations, issue }) => {
+      const original = prepared([vertex('root')], {
+        entry: { kind: 'root', vertexId: 'root' },
+      });
+      const session = original.createSession();
+      const before = original.definition;
+      expect(
+        reviseDag(original, rawOperations<string>(operations)),
+      ).toMatchObject({
+        kind: 'invalid',
+        issues: [expect.objectContaining({ kind: issue })],
+      });
+      expect(original.definition).toBe(before);
+      expect(original.definition.vertices).toEqual([vertex('root')]);
+      expect(session.advance()).toMatchObject({
+        kind: 'awaitingSettlement',
+        frontier: [{ vertexId: 'root' }],
+      });
+    },
+  );
+
+  test.each([
+    { kind: 'addVertex', vertex: vertex('root') },
+    { kind: 'replaceVertex', vertex: vertex('unknown') },
+    { kind: 'removeVertex', vertexId: 'unknown' },
+    { kind: 'replaceOmissions', omittedIds: ['root'] },
+    { kind: 'replaceOmissions', omittedIds: ['x', 'x'] },
+  ])(
+    'throws on programmer error $kind without adopting preceding edits',
+    (operation) => {
+      const original = prepared([vertex('root')]);
+      const session = original.createSession();
+      expect(() =>
+        reviseDag(
+          original,
+          rawOperations<string>([
+            {
+              kind: 'replaceVertex',
+              vertex: vertex('root', { data: 'candidate' }),
+            },
+            operation,
+          ]),
+        ),
+      ).toThrow(TypeError);
+      expect(original.definition.vertices[0]!.data).toBeUndefined();
+      expect(session.advance()).toMatchObject({
+        kind: 'awaitingSettlement',
+        frontier: [{ vertexId: 'root' }],
+      });
+    },
+  );
+
+  test('allows a temporary live/omitted collision repaired before validation', () => {
+    const original = prepared([vertex('root')]);
+    const result = reviseDag(original, [
+      { kind: 'replaceOmissions', omittedIds: ['root'] },
+      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'replaceEntry', entry: { kind: 'empty' } },
+    ]);
+    if (result.kind !== 'valid') throw new Error('Expected revision');
+    expect(result.dag.definition).toEqual({
+      vertices: [],
+      omittedIds: ['root'],
+      entry: { kind: 'empty' },
+    });
+  });
+
+  test('preserves SameValueZero IDs, own undefined and distinct object identity', () => {
+    const id = {};
+    const other = {};
+    const symbol = Symbol('task');
+    const original = prepared<unknown>([
+      vertex(NaN),
+      vertex(-0),
+      vertex(undefined),
+      vertex(id),
+      vertex(symbol),
+      vertex(other),
+    ]);
+    const result = reviseDag(original, [
+      { kind: 'replaceVertex', vertex: vertex(NaN, { data: 'nan' }) },
+      { kind: 'replaceVertex', vertex: vertex(+0, { data: 'zero' }) },
+      { kind: 'replaceVertex', vertex: vertex(id, { data: 'object' }) },
+      { kind: 'replaceVertex', vertex: vertex(symbol, { data: 'symbol' }) },
+      { kind: 'removeVertex', vertexId: undefined },
+      {
+        kind: 'replaceEntry',
+        entry: {
+          kind: 'forest',
+          slots: [NaN, +0, id, symbol, other].map((vertexId) => ({
+            kind: 'vertex',
+            vertexId,
+          })),
+        },
+      },
+    ]);
+    if (result.kind !== 'valid') throw new Error('Expected revision');
+    expect(result.dag.definition.vertices.map((v) => v.data)).toEqual([
+      'nan',
+      'zero',
+      'object',
+      'symbol',
+      undefined,
+    ]);
+    expect(result.dag.definition.vertices[2]!.vertexId).toBe(id);
+    expect(result.dag.definition.vertices[4]!.vertexId).toBe(other);
+    expect(result.changes.removedIds).toEqual([undefined]);
+    expect(() =>
+      reviseDag(original, [{ kind: 'addVertex', vertex: vertex(NaN) }]),
+    ).toThrow(TypeError);
+    expect(() =>
+      reviseDag(original, [{ kind: 'addVertex', vertex: vertex(+0) }]),
+    ).toThrow(TypeError);
+    expect(() =>
+      reviseDag(original, rawOperations<string>([{ kind: 'removeVertex' }])),
+    ).toThrow(TypeError);
+  });
+
+  test.each([
+    null,
+    {},
+    'operations',
+    [null],
+    [false],
+    [[]],
+    [{ kind: 'unknown' }],
+    [Object.create({ kind: 'removeVertex', vertexId: undefined })],
+    [{ kind: 'removeVertex' }],
+    [{ kind: 'replaceVertex' }],
+    [{ kind: 'addVertex', vertex: null }],
+    [
+      {
+        kind: 'addVertex',
+        vertex: {
+          data: undefined,
+          slots: [],
+          dependsOn: [],
+          dependsOnComplete: [],
+        },
+      },
+    ],
+    [{ kind: 'replaceEntry', entry: { kind: 'root' } }],
+    [{ kind: 'replaceOmissions', omittedIds: null }],
+    [{ kind: 'replaceEntry' }],
+    [{ kind: 'replaceOmissions' }],
+  ])(
+    'rejects malformed operation shapes (%#) without mutating original',
+    (value) => {
+      const original = prepared<unknown>([vertex(undefined)]);
+      expect(() => reviseDag(original, rawOperations(value))).toThrow(
+        TypeError,
+      );
+      expect(original.createSession().advance()).toMatchObject({
+        kind: 'awaitingSettlement',
+        frontier: [{ vertexId: undefined }],
+      });
+    },
+  );
+
+  test('reads caller getters once, copies owned topology and never freezes opaque data or IDs', () => {
+    const id = { task: 'new' };
+    const data = { version: 1 };
+    const original = prepared<unknown>([vertex(id)]);
+    const reads: string[] = [];
+    const slots: DagDefinitionSlot<unknown>[] = [];
+    const dependsOn: unknown[] = [];
+    const replacement = {
+      get vertexId() {
+        reads.push('vertexId');
+        return id;
+      },
+      get data() {
+        reads.push('data');
+        return data;
+      },
+      get slots() {
+        reads.push('slots');
+        return slots;
+      },
+      get dependsOn() {
+        reads.push('dependsOn');
+        return dependsOn;
+      },
+      get dependsOnComplete() {
+        reads.push('dependsOnComplete');
+        return [];
+      },
+    };
+    const result = reviseDag(original, [
+      {
+        get kind() {
+          reads.push('kind');
+          return 'replaceVertex' as const;
+        },
+        get vertex() {
+          reads.push('vertex');
+          return replacement;
+        },
+      },
+    ]);
+    if (result.kind !== 'valid') throw new Error('Expected revision');
+    expect(reads).toEqual([
+      'kind',
+      'vertex',
+      'vertexId',
+      'data',
+      'slots',
+      'dependsOn',
+      'dependsOnComplete',
+    ]);
+    slots.push({ kind: 'vertex', vertexId: 'late' });
+    dependsOn.push('late');
+    data.version = 2;
+    id.task = 'changed';
+    expect(result.dag.definition.vertices[0]).toEqual({
+      vertexId: id,
+      data,
+      slots: [],
+      dependsOn: [],
+      dependsOnComplete: [],
+    });
+    expect(result.dag.definition.vertices[0]!.data).toBe(data);
+    expect(result.dag.definition.vertices[0]!.vertexId).toBe(id);
+    expect(Object.isFrozen(replacement)).toBe(false);
+    expect(Object.isFrozen(data)).toBe(false);
+    expect(Object.isFrozen(id)).toBe(false);
+    expect(Object.isFrozen(result.dag.definition.vertices[0])).toBe(true);
+  });
+
+  test.each([
+    'kind',
+    'vertex',
+    'vertexId',
+    'data',
+    'slots',
+    'dependsOn',
+    'dependsOnComplete',
+    'entry',
+    'omittedIds',
+  ])('propagates exact caller getter errors at %s', (field) => {
+    const error = { field };
+    const original = prepared([vertex('root')]);
+    const replacement = vertex('root');
+    const operation: Record<string, unknown> =
+      field === 'entry'
+        ? { kind: 'replaceEntry' }
+        : field === 'omittedIds'
+        ? { kind: 'replaceOmissions' }
+        : { kind: 'replaceVertex', vertex: replacement };
+    Object.defineProperty(
+      ['vertexId', 'data', 'slots', 'dependsOn', 'dependsOnComplete'].includes(
+        field,
+      )
+        ? replacement
+        : operation,
+      field,
+      {
+        get() {
+          throw error;
+        },
+      },
+    );
+    let caught: unknown;
+    try {
+      reviseDag(original, rawOperations<string>([operation]));
+    } catch (value) {
+      caught = value;
+    }
+    expect(caught).toBe(error);
+    expect(original.createSession().advance()).toMatchObject({
+      kind: 'awaitingSettlement',
+      frontier: [{ vertexId: 'root' }],
+    });
+  });
+});
+
+test('adds a new reachable vertex with explicit parent and prerequisite edits', () => {
+  const original = prepared([vertex('root')], {
+    entry: { kind: 'root', vertexId: 'root' },
+  });
+  const result = reviseDag(original, [
+    { kind: 'addVertex', vertex: vertex('new', { data: 'added' }) },
+    {
+      kind: 'replaceVertex',
+      vertex: vertex('root', {
+        slots: [{ kind: 'vertex', vertexId: 'new' }],
+        dependsOn: ['new'],
+      }),
+    },
+  ]);
+  if (result.kind !== 'valid') throw new Error('Expected revision');
+  expect(result.changes).toEqual({
+    ...unchanged,
+    addedIds: ['new'],
+    vertexOrderChanged: true,
+    changedVertices: [
+      { vertexId: 'root', aspects: ['slots', 'workDependencies'] },
+    ],
+  });
+  expect(result.dag.createSession().advance()).toMatchObject({
+    kind: 'awaitingSettlement',
+    frontier: [{ vertexId: 'new' }],
+  });
+  expect(original.createSession().advance()).toMatchObject({
+    kind: 'awaitingSettlement',
+    frontier: [{ vertexId: 'root' }],
   });
 });
