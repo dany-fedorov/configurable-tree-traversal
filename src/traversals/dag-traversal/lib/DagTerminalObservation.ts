@@ -12,21 +12,41 @@ type ObservationSource = {
 // state or a serialized checkpoint; it retains no kernel or callbacks.
 const observationKey = Symbol('DAG terminal observation');
 type ObservedState = { [observationKey]?: DagTerminalObservation };
+const observations = new WeakMap<object, DagTerminalObservation | undefined>();
+
+function readObservation(state: object): DagTerminalObservation | undefined {
+  return observations.get(state) ?? (state as ObservedState)[observationKey];
+}
 
 function retainObservation(
   state: object,
-  observation: DagTerminalObservation,
+  observation: DagTerminalObservation | undefined,
 ): void {
-  Object.defineProperty(state, observationKey, {
-    value: observation,
-    enumerable: true,
-    configurable: true,
-  });
+  // Caller-owned state may be sealed or have an immutable metadata descriptor.
+  // Always retain facts independently, and only write a permitted symbol value.
+  observations.set(state, observation);
+  const descriptor = Object.getOwnPropertyDescriptor(state, observationKey);
+  if (descriptor === undefined) {
+    if (Object.isExtensible(state)) {
+      Object.defineProperty(state, observationKey, {
+        value: observation,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    }
+  } else if (descriptor.writable === true) {
+    Object.defineProperty(state, observationKey, { value: observation });
+  }
 }
 
-export function copyDagTerminalObservation(from: object, to: object): void {
-  const observation = (from as ObservedState)[observationKey];
-  if (observation !== undefined) retainObservation(to, observation);
+export function copyDagTerminalObservation(
+  from: object | null | undefined,
+  to: object,
+): void {
+  // Reserve a writable slot before callers can seal a class instance. The slot
+  // also lets later object spread/Object.assign copies retain terminal facts.
+  retainObservation(to, from == null ? undefined : readObservation(from));
 }
 
 function unavailableObservation(): never {
@@ -48,7 +68,7 @@ export function getDagTerminalObservation(
     state.status !== TraversalRunnerStatus.FAILED
   )
     return undefined;
-  const observation = (state as ObservedState)[observationKey];
+  const observation = readObservation(state);
   return observation ?? (hasVertices ? unavailable : undefined);
 }
 

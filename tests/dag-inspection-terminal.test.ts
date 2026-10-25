@@ -11,6 +11,8 @@ import {
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
 
+import { captureDagTerminalObservation } from '../src/traversals/dag-traversal/lib/DagTerminalObservation';
+
 type G = TreeTypeParameters<string, string>;
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
@@ -400,3 +402,138 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }
   });
 }
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  for (const outcome of ['success', 'failure'] as const) {
+    for (const shape of [
+      'sealed class',
+      'nonextensible class',
+      'sealed structural',
+      'locked metadata',
+    ] as const) {
+      test(`${Constructor.name} preserves ${outcome} and observations with ${shape} state`, async () => {
+        const initial = new DagTraversalRunnerState<G>();
+        const state =
+          shape === 'sealed structural'
+            ? Object.seal({
+                status: initial.status,
+                traversalRootVertexRef: initial.traversalRootVertexRef,
+                subtreeTraversalDisabledRefs:
+                  initial.subtreeTraversalDisabledRefs,
+                visitorsState: initial.visitorsState,
+                readyVisits: initial.readyVisits,
+                expansionQueue: initial.expansionQueue,
+                failure: initial.failure,
+              })
+            : initial;
+        if (shape === 'sealed class') Object.seal(state);
+        if (shape === 'nonextensible class') Object.preventExtensions(state);
+        if (shape === 'locked metadata') {
+          for (const symbol of Object.getOwnPropertySymbols(state)) {
+            Object.defineProperty(state, symbol, {
+              writable: false,
+              configurable: false,
+            });
+          }
+        }
+        const extensible = Object.isExtensible(state);
+        const descriptors = Object.getOwnPropertySymbols(state).map(
+          (symbol) =>
+            [symbol, Object.getOwnPropertyDescriptor(state, symbol)!] as const,
+        );
+        let calls = 0;
+        const traversableGraph = {
+          makeRoot: () => {
+            calls++;
+            return {
+              vertexId: 'a',
+              vertexContent: { $data: 'a', $childHints: [] },
+            };
+          },
+          makeVertex: () => ({ vertexContent: null }),
+        };
+        const traversal = new Constructor<G>({
+          traversableGraph,
+          traversalRunnerInternalObjects: { state },
+        });
+        const failure = undefined;
+        traversal.addVisitorFor(Order.ON_READY, () => {
+          calls++;
+          if (outcome === 'failure') throw failure;
+        });
+        const runner = traversal.makeRunner();
+        if (outcome === 'success') await runner.run();
+        else await expect((async () => runner.run())()).rejects.toBe(failure);
+        const status = outcome === 'success' ? Status.FINISHED : Status.FAILED;
+        expect(runner.getStatus()).toBe(status);
+        expect(Object.isExtensible(state)).toBe(extensible);
+        for (const [symbol, descriptor] of descriptors) {
+          const after = Object.getOwnPropertyDescriptor(state, symbol)!;
+          expect({ ...after, value: undefined }).toEqual({
+            ...descriptor,
+            value: undefined,
+          });
+        }
+        const copies = [state, new DagTraversalRunnerState(state)];
+        if (shape === 'sealed class' || shape === 'nonextensible class')
+          copies.push({ ...state }, Object.assign({}, state));
+        for (const copied of copies) {
+          const restored = new Constructor<G>({
+            traversableGraph,
+            traversalRunnerInternalObjects: {
+              state: copied,
+              resolvedGraphsContainer: runner.resolvedGraphsContainer,
+            },
+          }).makeRunner();
+          for (const milestone of ['work', 'completion'] as const) {
+            expect(
+              inspectDag(restored).explain({ vertexId: 'a', milestone }),
+            ).toMatchObject({
+              kind: 'known',
+              satisfied: outcome === 'success',
+            });
+          }
+          expect(restored.summary()).toEqual(runner.summary());
+          expect(restored.getStatus()).toBe(status);
+          if (outcome === 'success') await restored.run();
+          else
+            await expect((async () => restored.run())()).rejects.toBe(failure);
+        }
+        expect(calls).toBe(2);
+      });
+    }
+  }
+}
+
+test('retaining a terminal observation again preserves an immutable metadata descriptor', () => {
+  const runner = new DagTraversal<G>({
+    traversableGraph: {
+      makeRoot: () => ({
+        vertexId: 'a',
+        vertexContent: { $data: 'a', $childHints: [] },
+      }),
+      makeVertex: () => ({ vertexContent: null }),
+    },
+  }).makeRunner();
+  runner.run();
+  for (const symbol of Object.getOwnPropertySymbols(runner.state))
+    Object.defineProperty(runner.state, symbol, {
+      writable: false,
+      configurable: false,
+    });
+  const before = Object.getOwnPropertyDescriptors(runner.state);
+  expect(() =>
+    captureDagTerminalObservation(runner.state, runner),
+  ).not.toThrow();
+  expect(Object.getOwnPropertyDescriptors(runner.state)).toEqual(before);
+  const restored = new DagTraversal<G>({
+    traversableGraph: runner.icfg.traversableGraph!,
+    traversalRunnerInternalObjects: {
+      state: new DagTraversalRunnerState(runner.state),
+      resolvedGraphsContainer: runner.resolvedGraphsContainer,
+    },
+  }).makeRunner();
+  expect(
+    inspectDag(restored).explain({ vertexId: 'a', milestone: 'completion' }),
+  ).toMatchObject({ kind: 'known', satisfied: true });
+});

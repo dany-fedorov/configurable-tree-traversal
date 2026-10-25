@@ -50,6 +50,6 @@ export class DagTraversalRunnerState<
     this.readyVisits = from?.readyVisits ?? [];
     this.expansionQueue = from?.expansionQueue ?? [];
     this.failure = from?.failure ?? null;
-    if (from != null) copyDagTerminalObservation(from, this);
+    copyDagTerminalObservation(from, this);
   }
 }
