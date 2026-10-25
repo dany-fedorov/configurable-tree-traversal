@@ -1,3 +1,4 @@
+import type { DagDefinition } from './DagDefinition';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalConfigureInput } from './DagTraversalInstanceConfig';
@@ -67,6 +68,7 @@ export type PreparedAsyncDagSessionOptions<ID> =
 /** An in-memory validated topology; data and identities remain shallow caller values. */
 export interface PreparedDag<Data, ID = unknown> {
   readonly vertices: readonly PreparedDagVertex<Data, ID>[];
+  readonly definition: DagDefinition<Data, ID>;
   createRunner(
     options?: PreparedDagRunnerOptions<Data, ID>,
   ): DagTraversalRunner<

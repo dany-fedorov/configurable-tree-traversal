@@ -27,3 +27,9 @@ export type {
   DagMilestoneQueryOptions,
   DagMilestoneQueryResult,
 } from './lib/DagInspection';
+export * from './defineDag';
+export type {
+  DagDefinition,
+  DagDefinitionSlot,
+  DagDefinitionVertex,
+} from './lib/DagDefinition';
