@@ -2,6 +2,7 @@ import type { NoInferPhase } from '@core/TraversalVisitor';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
+  copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
 import type {
@@ -104,7 +105,7 @@ export class AsyncDagTraversal<
   listVisitorsFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
   ): AsyncDagTraversalVisitors<T, R, ID>[ORDER] {
-    return this.visitors[order];
+    return copyVisitorRecords(this.visitors[order]);
   }
 
   setVisitorsFor<ORDER extends DagTraversalOrder>(

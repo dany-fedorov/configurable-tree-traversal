@@ -446,7 +446,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           visitors: { [D.ON_READY]: input as never },
         }),
       ).toThrow(TypeError);
-      expect(t.listVisitorsFor(D.ON_READY)).toBe(original);
+      expect(t.listVisitorsFor(D.ON_READY)).toEqual(original);
       expect(t.icfg.workCompletion).toBeUndefined();
     }
     expect(() =>

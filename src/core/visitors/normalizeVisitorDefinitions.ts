@@ -65,6 +65,14 @@ function definition<F>(
   };
 }
 
+/** Detach mutable registration wrappers while retaining callbacks and group identity. */
+export function copyVisitorRecords<Records extends VisitorRecord<unknown>[]>(
+  records: Records,
+): Records {
+  // Mapping copies each wrapper without changing the phase-indexed record shape.
+  return records.map((record) => ({ ...record })) as Records;
+}
+
 /** Sort within boundaries only; batching policy never participates in ordering. */
 export function orderVisitorRecords<
   R extends {
