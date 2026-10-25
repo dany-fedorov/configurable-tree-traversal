@@ -13,6 +13,7 @@ Current behavior: the unreleased uniform and composable APIs in this checkout. P
 - [Filtered DAG visitors](#filtered-dag-visitors)
 - [Discovery and execution as separate phases](#discovery-and-execution-as-separate-phases)
 - [Discovery and completed work](#discovery-and-completed-work)
+- [DAG dependency queries and explanations](#dag-dependency-queries-and-explanations)
 - [Deferred DAG progress and reconciliation](#deferred-dag-progress-and-reconciliation)
 - [Host policy and traversal feedback](#host-policy-and-traversal-feedback)
 - [Traverse an object](#traverse-an-object)
@@ -334,6 +335,37 @@ Enabled eager/synthetic options require a fresh graph-source runner. Explicit
 `discovery: 'lazy'` and `syntheticRoot: false` remain compatible with tree sources.
 Eager mode rejects child-hint rewrites and subtree-disabling commands after
 validation; data rewrites and vertex deletion retain their existing behavior.
+
+### DAG dependency queries and explanations
+
+`inspectDag(runner)` captures a synchronous detached `DagInspection<ID>` from either DAG runner, including tree-source runners with their existing unknown ID domain. Import it and `DagExplanation`, `DagBlocker`, `DagMilestoneStatus`, `DagMilestoneQueryOptions`, and `DagMilestoneQueryResult` from the package root or DAG subpath. Capture performs no callbacks, source lookup, scheduling, settlement, or iterator ownership changes. Methods reuse that capture after the runner advances; take another inspection for current facts. Owned arrays and result records are copied on every query. IDs and caller data retain shallow identity and are never frozen.
+
+Call `prerequisitesOf({ vertexId, milestone: 'work' | 'completion' }, { transitive?: boolean })` or `dependentsOf(...)`. Both return `{ milestones, edges, discoveryComplete }`, defaulting to direct constraints. Transitive queries use deterministic breadth-first order, preserve discovery/declaration order, deduplicate by SameValueZero ID and milestone, and exclude the starting milestone from the milestone list. Original edges retain **from waits for to** direction even for dependent queries, with reasons `workDependency`, `completionDependency`, `ownWork`, and `structuralChild`. They remain visible after satisfaction. Cycles terminate and retain returning edges. Unknown targets return empty navigation, including unresolved IDs appearing only as edge destinations. Hidden forest holders never appear.
+
+`explain(target)` distinguishes three results:
+
+| `kind` | Fields and meaning |
+| --- | --- |
+| `unknown` | `target`, `discoveryComplete`; identity is not known in this capture |
+| `deleted` | `target`, `discoveryComplete`; a known tombstone, never successful work |
+| `known` | `target`, `satisfied`, `progress`, `blockers`, `discoveryComplete`; live progress is a detached `DagVertexProgress<ID>`, while known omissions have null progress, satisfied true and no blockers |
+
+Live W is satisfied only after work commits (including accepted seeds); live C requires its own committed completion transition. A seed for a parent therefore does not satisfy C while retained children remain incomplete. Ready/deferred W remains unsatisfied. Readiness describes dependency eligibility and never proves a host claim, dispatch, or business outcome.
+
+`blockers` is a flat causal graph. Constraint records come first in breadth-first order; terminal facts then follow visited-milestone order. Only unmet original constraints reachable from the target appear, and traversal stops at satisfied milestones. The `DagBlocker<ID>` tagged union is:
+
+| `kind` | Fields and meaning |
+| --- | --- |
+| `constraint` | Original `from`, `to`, `reason`, plus `fromStatus` and `toStatus` |
+| `unfinishedWork` | Work `target` and `work: 'pending' | 'ready' | 'running' | 'deferred'`; a reachable unfinished W with no unmet outgoing constraint |
+| `discoveryOpen` | Completion `target`; this vertex's expansion is unprepared/open, so retained children are not yet fully known |
+| `completionPending` | Completion `target`; W and retained children are complete and expansion is closed, but C has not committed |
+
+Endpoint status is `{ kind: 'live', work: DagWorkState, satisfied: boolean }` or `{ kind: 'omitted' | 'deleted' | 'unresolved' }`. Thus an unsatisfied C endpoint can explicitly have `work: 'completed', satisfied: false`. Omitted endpoints satisfy their milestones and do not appear as blockers. Unresolved endpoints are unknown identities, even when global discovery is complete; during partial discovery they are not proof of a missing source vertex. `discoveryOpen` uses local expansion state, independently of global `discoveryComplete`. A closed leaf does not acquire that blocker because another lookup is pending.
+
+Engine-produced `DagVertexProgress` includes exact `unmetWorkPrerequisiteIds`, independent of `unmetCompletePrerequisiteIds`; the existing `unmetPrerequisiteIds` remains their union. The W field is optional in the public type for compatibility with manually constructed records. Do not recover W by subtracting C from the union when the same ID participates in both.
+
+See the runnable [DAG inspection example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts).
 
 ### Deferred DAG progress and reconciliation
 

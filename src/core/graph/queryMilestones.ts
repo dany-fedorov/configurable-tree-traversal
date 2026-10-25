@@ -39,6 +39,7 @@ export function makeMilestoneQuery<ID>(
     target: DagDependencyMilestone<ID>,
     direction: 'prerequisites' | 'dependents',
     transitive: boolean,
+    includeEdge: (edge: DagDependencyEdge<ID>) => boolean = () => true,
   ): {
     milestones: DagDependencyMilestone<ID>[];
     edges: DagDependencyEdge<ID>[];
@@ -63,6 +64,7 @@ export function makeMilestoneQuery<ID>(
       for (const edge of adjacency
         .get(current.vertexId)
         ?.get(current.milestone) ?? []) {
+        if (!includeEdge(edge)) continue;
         result.push({
           from: { ...edge.from },
           to: { ...edge.to },

@@ -21,6 +21,9 @@ export * from './filterDagVisitor';
 export * from './inspectDag';
 export type {
   DagInspection,
+  DagMilestoneStatus,
+  DagBlocker,
+  DagExplanation,
   DagMilestoneQueryOptions,
   DagMilestoneQueryResult,
 } from './lib/DagInspection';

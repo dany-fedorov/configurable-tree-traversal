@@ -761,6 +761,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const before = calls;
     const inspection = inspectDag(runner);
     expect(
+      inspection.explain({ vertexId: rootId, milestone: 'completion' }),
+    ).toMatchObject({ kind: 'known', satisfied: false });
+    expect(
       inspection.prerequisitesOf({ vertexId: rootId, milestone: 'completion' })
         .milestones,
     ).toEqual([{ vertexId: rootId, milestone: 'work' }]);
@@ -825,6 +828,9 @@ test('inspection of a native async source does not interfere with a pending sour
   }).makeRunner();
   const pending = runner.run();
   const inspection = inspectDag(runner);
+  expect(
+    inspection.explain({ vertexId: 'root', milestone: 'work' }),
+  ).toMatchObject({ kind: 'unknown', discoveryComplete: false });
   expect(
     inspection.prerequisitesOf({ vertexId: 'root', milestone: 'completion' }),
   ).toEqual({ milestones: [], edges: [], discoveryComplete: false });

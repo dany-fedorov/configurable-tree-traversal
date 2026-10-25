@@ -1,6 +1,6 @@
 # Agent engineering API roadmap
 
-Status: recorded on 2026-10-25. Proposals 1, 2, 3, and 8 are implemented and verified. The remaining six proposals are unimplemented; phase-two drafts cover 4, 6, and 7. Published npm 0.11.0 remains distinct from these unreleased additions.
+Status: recorded on 2026-10-25. Proposals 1, 2, 3, 7, and 8 are implemented in the checkout. The remaining five proposals are unimplemented; phase-two drafts cover 4 and 6. Published npm 0.11.0 remains distinct from these unreleased additions.
 
 ## Purpose and acceptance criteria
 
@@ -18,7 +18,7 @@ Evaluate each addition against several realistic examples: does it remove custom
 | 4 | Composable graph fragments | Phase two draft | Instantiate reusable workflow shapes and connect explicit boundaries. |
 | 5 | Milestone dependency expressions | Backlog | Express conjunctions, alternatives, and eventual quorum joins over W/C. |
 | 6 | Validated graph revisions | Phase two draft | Represent decomposition and replanning with atomic structural changes. |
-| 7 | Dependency navigation and explanations | Phase two draft | Query prerequisites, dependents, and readiness causes during healthy execution. |
+| 7 | Dependency navigation and explanations | Implemented in checkout | Query prerequisites, dependents, and readiness causes during healthy execution. |
 | 8 | Host coordination interface | Implemented in checkout | Advance to a boundary and settle session-bound work tickets. |
 | 9 | General graph walking | Backlog | Walk shared and cyclic information graphs independently of DAG execution. |
 | 10 | Typed folds and projections | Backlog | Build summaries, context, and transformed data without manually managed accumulator maps. |
@@ -49,7 +49,7 @@ Produce new definitions through atomic edits and expose structural diffs. Valida
 
 ## 7 Queries and explanations
 
-Provide direct/transitive prerequisite and dependent queries separately from structural navigation. Explain unmet W, incomplete C, missing vertices, and partial discovery with structured causes. Queries are observational and must state whether their discovered domain is complete. Hypothetical impact and observed readiness are distinct.
+`inspectDag(runner)` captures direct/transitive prerequisite and dependent queries separately from structural navigation, plus flat explanations of unmet W/C constraints, unfinished work, omissions/deletions, unresolved endpoints, local open discovery and pending completion commits. Queries are observational and report captured discovery completeness; accepted seeds satisfy W without implying C. See the [current query contract](../../reference.md#dag-dependency-queries-and-explanations). Hypothetical impact and observed readiness are distinct.
 
 ## 8 Host coordination
 
@@ -65,8 +65,8 @@ Provide typed result-producing operations above visitors, specifying the travers
 
 ## Delivery
 
-The first phase is specified in [Agent API foundations](2026-10-25-agent-api-foundations-design.md) and tracked by its [implementation plan](../plans/2026-10-25-agent-api-foundations.md). Proposals 4–7, 9, and 10 remain separate design work; completing the first phase does not approve their exact signatures or implementation.
+The first phase is specified in [Agent API foundations](2026-10-25-agent-api-foundations-design.md) and tracked by its [implementation plan](../plans/2026-10-25-agent-api-foundations.md). Proposals 4–6, 9, and 10 remain separate design work; completing the first phase does not approve their exact signatures or implementation.
 
 The first-phase full `npm run check` passed on Node v24.20.0: 88 suites, 1,901 tests, 100% source coverage, 14 runnable examples, 13 guide snippets, packed CJS/ESM runtime and TypeScript consumers, and benchmark/facade-generator checks. Independent review findings were fixed and re-reviewed.
 
-Phase one was merged and pushed to `origin/main` as `1be1a28`. [Phase two preparation](2026-10-25-agent-api-phase-two-design.md) proposes delivery order **7 → 4 → 6**, with separate linked plans for inspection, fragment composition, and revisions. These documents are drafts; no phase-two runtime behavior exists yet. Items 5, 9, and 10 remain backlog proposals.
+Phase one was merged and pushed to `origin/main` as `1be1a28`. [Phase two preparation](2026-10-25-agent-api-phase-two-design.md) proposes delivery order **7 → 4 → 6**, with separate linked plans for inspection, fragment composition, and revisions. Dependency inspection (7) is delivered in the checkout. Fragment composition (4) and revisions (6) remain draft proposals. Items 5, 9, and 10 remain backlog proposals.

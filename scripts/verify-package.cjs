@@ -473,6 +473,7 @@ try {
     'dag-preparation',
     'dag-milestone-diagnostics',
     'agent-api-foundations',
+    'dag-inspection',
   ];
   for (const name of typeFixtures) {
     for (const extension of ['ts', 'cts', 'mts']) {
@@ -486,6 +487,7 @@ try {
     'uniform-api.mjs',
     'composable-api.mjs',
     'agent-api-foundations.mjs',
+    'dag-inspection.mjs',
   ]) {
     fs.copyFileSync(
       path.join(root, 'scripts/package-consumers', file),

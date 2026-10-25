@@ -106,3 +106,37 @@ void [
   anotherDomain,
   treeInspection,
 ];
+
+const explanation = inspections[0]!.explain({
+  vertexId: 'review',
+  milestone: 'work',
+});
+const declaredExplanation: import('../src').DagExplanation<ID> = explanation;
+// @ts-expect-error Explanations preserve the source identity domain.
+inspections[0]!.explain({ vertexId: 'other', milestone: 'work' });
+if (explanation.kind === 'known') {
+  const progress: DagVertexProgress<ID> | null = explanation.progress;
+  const blocker: import('../src').DagBlocker<ID> | undefined =
+    explanation.blockers[0];
+  // @ts-expect-error Blocker collections are readonly.
+  explanation.blockers.pop();
+  if (blocker?.kind === 'unfinishedWork') {
+    const work: 'pending' | 'ready' | 'running' | 'deferred' = blocker.work;
+    const milestone: 'work' = blocker.target.milestone;
+    void [work, milestone];
+  }
+  if (
+    blocker?.kind === 'discoveryOpen' ||
+    blocker?.kind === 'completionPending'
+  ) {
+    const milestone: 'completion' = blocker.target.milestone;
+    void milestone;
+  }
+  if (blocker?.kind === 'constraint') {
+    const status: import('../src').DagMilestoneStatus = blocker.toStatus;
+    const id: ID = blocker.to.vertexId;
+    void [status, id];
+  }
+  void progress;
+}
+void declaredExplanation;

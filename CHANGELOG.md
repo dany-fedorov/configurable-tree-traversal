@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add observational `inspectDag(runner)` snapshots with original W/C prerequisite/dependent navigation and flat current-blocker explanations; preserve exact work waits and distinguish unknown, omitted, deleted, unresolved, discovery-open and completion-pending facts.
+
 - Add inferred collection/forest source adapters with async materialization, reusable `prepareDag` definitions, and independent ticket-based coordination sessions.
 - Preserve typed IDs on discriminated DAG events and add data-guard filtered visitors. Keep exact ID inference when synchronous graph sources feed async APIs.
 - Preserve known omitted identities in discovery slots so prepared definitions replay prerequisite readiness in structural order; capture non-enumerable own IDs and inherited source content faithfully.

@@ -44,6 +44,8 @@ The check type-checks source, examples, and compile-time API assertions; lints T
 
 Generated cases use fixed seeds and bounded trees so failures are reproducible. Separate deep-chain and wide-tree regressions exercise iterative traversal and subtree deletion without relying on timing thresholds.
 
+DAG dependency inspection is covered by `dag-inspection.test.ts`, `dag-inspection-explanations.test.ts`, and `dag-inspection.typecheck.ts`: exact W/C facts, original constraints, SameValueZero IDs, known omissions/deletions, unresolved endpoints, local discovery, callback commit boundaries, iterator ownership, detached captures, cycles and deep iterative walks. Packed `dag-inspection.mjs` and `.ts` fixtures cover root/DAG/namespace loader identity, sync/async behavior and exact public ID types through the extracted package.
+
 ## Focused checks
 
 ```sh

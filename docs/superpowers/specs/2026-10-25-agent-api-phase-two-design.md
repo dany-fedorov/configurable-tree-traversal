@@ -1,6 +1,6 @@
 # Agent API phase two design
 
-Status: draft prepared after phase one was pushed to `origin/main` at `1be1a28`. This is a proposed design for roadmap items 7, 4, and 6, in delivery order. No phase-two API is implemented by these documents. The user requested preparation; implementation is a separate next step.
+Status: section 2A (roadmap item 7) is implemented in the unreleased checkout; sections 2B/2C (items 4/6) remain draft proposals. Phase one was pushed to `origin/main` at `1be1a28`. See the [current query contract](../../reference.md#dag-dependency-queries-and-explanations) for delivered behavior. Published npm remains 0.11.0.
 
 ## Scope and rationale
 
@@ -34,7 +34,7 @@ Use free functions over explicit values and snapshots, with prepared DAGs contin
 
 ## 2A Dependency queries and explanations
 
-Proposed entry point:
+Implemented entry point:
 
 ```ts
 const inspection = inspectDag(runner);
@@ -58,6 +58,28 @@ The snapshot contains labelled original constraints, per-vertex progress, known 
 Blockers are a flat causal graph, not recursively duplicated prose. Each unmet original edge carries its milestone endpoints and reason. Endpoint status distinguishes live unfinished work, known omission, deletion, and unresolved identity. An unresolved endpoint in partial discovery is not a proven missing source vertex. Add explicit `discoveryOpen` for incomplete expansion and `completionPending` when W and retained children are complete but C has not committed. Use a narrow internal scheduling snapshot for expansion state instead of treating global discovery completeness as a per-vertex fact.
 
 Explain only unsatisfied constraints reachable from the target, stopping expansion at satisfied milestones. Static prerequisite/dependent queries continue to describe original constraints irrespective of progress. Unknown query targets return empty navigation results; `explain` distinguishes them from known leaves. Stable iterative traversal bounds explanations even when the inspected graph contains a cycle.
+
+The delivered blocker vocabulary is a tagged union. `DagMilestoneStatus` is `{ kind: 'live', work: DagWorkState, satisfied: boolean }` or `{ kind: 'omitted' | 'deleted' | 'unresolved' }`. Keeping work state and milestone satisfaction separate makes a C endpoint with completed W explicitly unsatisfied.
+
+```ts
+type DagBlocker<ID> =
+  | (DagDependencyEdge<ID> & {
+      kind: 'constraint';
+      fromStatus: DagMilestoneStatus;
+      toStatus: DagMilestoneStatus;
+    })
+  | {
+      kind: 'unfinishedWork';
+      target: { vertexId: ID; milestone: 'work' };
+      work: Exclude<DagWorkState, 'completed'>;
+    }
+  | {
+      kind: 'discoveryOpen' | 'completionPending';
+      target: { vertexId: ID; milestone: 'completion' };
+    };
+```
+
+Constraints appear first in breadth-first order, followed by terminal facts in visited-milestone order. An `unfinishedWork` terminal identifies unsatisfied live W with no unmet outgoing constraint, including a ready/deferred leaf. `discoveryOpen` applies only to C whose local expansion is unprepared/open. `completionPending` applies only to uncommitted C after W commits, expansion closes and all retained children complete. Omitted endpoints satisfy milestones and stop traversal. The shared iterative milestone queue admits only unmet endpoints for explanations while static navigation retains original constraints regardless of progress.
 
 Add optional `unmetWorkPrerequisiteIds` to the public progress type for compatibility with manually constructed records; engine-produced summaries always populate it. Keep the existing union field unchanged. Readiness remains dependency eligibility; inspection never claims externally dispatched work or applies host capacity. A ready/deferred W milestone is still unsatisfied until committed.
 
