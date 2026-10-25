@@ -472,16 +472,16 @@ expect(events[0]!.source.data).toBe(a);
 
 **Interfaces:** `walkGraph(options): GraphWalkRunner<Data, Edge, ID>` and `walkGraphAsync(options): Promise<AsyncGraphWalkRunner<Data, Edge, ID>>` create a fresh configured traversal and run it. Root named exports and `graphWalk` namespace point to the same implementation as `configurable-tree-traversal/traversals/graph-walk`.
 
-- [ ] Add helper tests for phase-keyed visitors, HALT returning a resumable runner, exact sync/async errors, and correct inferred ID/data/relationship types. Helpers take only the canonical options object; do not add obsolete positional overloads to a new API.
-- [ ] Implement helpers by delegating to constructors/makeRunner/run, with no second execution path:
+- [x] Add helper tests for phase-keyed visitors, HALT returning a resumable runner, exact sync/async errors, and correct inferred ID/data/relationship types. Helpers take only the canonical options object; do not add obsolete positional overloads to a new API.
+- [x] Implement helpers by delegating to constructors/makeRunner/run, with no second execution path:
 
 ```ts
 return new GraphWalk(options).makeRunner().run();
 // Async helper delegates identically and returns the awaited runner.
 ```
 
-- [ ] Add explicit `./traversals/graph-walk` export conditions pointing to `dist/traversals/graph-walk/index.{mjs,js,d.mts,d.ts}` and the matching `typesVersions` entry. Root exports both `export * from './traversals/graph-walk'` and `export * as graphWalk from './traversals/graph-walk'`. Retain the existing historical deep-import wildcard rules. The recursive facade generator already discovers new built modules; change it only if a regression demonstrates a real gap.
-- [ ] Add runtime packed-consumer assertions using the real extracted package:
+- [x] Add explicit `./traversals/graph-walk` export conditions pointing to `dist/traversals/graph-walk/index.{mjs,js,d.mts,d.ts}` and the matching `typesVersions` entry. Root exports both `export * from './traversals/graph-walk'` and `export * as graphWalk from './traversals/graph-walk'`. Retain the existing historical deep-import wildcard rules. The recursive facade generator already discovers new built modules; change it only if a regression demonstrates a real gap.
+- [x] Add runtime packed-consumer assertions using the real extracted package:
 
 ```js
 import assert from 'node:assert/strict';
@@ -497,8 +497,8 @@ assert.equal(root.TraversalVisitorCommandName, cjs.TraversalVisitorCommandName);
 ```
 
 Also execute a cyclic mixed-observation walk, hydrated async stream, bounded repeated path, and pause/close cleanup. Check cross-loader `instanceof` for both runner families. Add `graph-walk` to the verifier's type fixture list so `.ts`, `.cts`, `.mts` copies compile with strict node/node16 resolution; add the `.mjs` fixture to its runtime list and assert the new subpath companions are packed.
-- [ ] Packed type fixtures must exercise literal mixed-event narrowing, typed source endpoints, arbitrary ID unions, omitted targets, mandatory route bounds, rejected async sync callbacks, rejected DAG phases/commands, and old/common/detailed execution inspection assignments. Ensure no `@ts-expect-error` passes because an unrelated import is missing. Use concrete calls and assignments from the extracted package.
-- [ ] Run `npm run typecheck`, helper tests, `npm run verify-package`, and `npm run test:packaging`. Commit as `feat(graph-walk): expose coherent root and subpath APIs`.
+- [x] Packed type fixtures must exercise literal mixed-event narrowing, typed source endpoints, arbitrary ID unions, omitted targets, mandatory route bounds, rejected async sync callbacks, rejected DAG phases/commands, and old/common/detailed execution inspection assignments. Ensure no `@ts-expect-error` passes because an unrelated import is missing. Use concrete calls and assignments from the extracted package.
+- [x] Run `npm run typecheck`, helper tests, `npm run verify-package`, and `npm run test:packaging`. Commit as `feat(graph-walk): expose coherent root and subpath APIs`.
 
 ## Task 10: Consumer examples, consistency audit, and integration validation
 
