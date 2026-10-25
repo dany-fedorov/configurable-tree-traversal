@@ -71,7 +71,10 @@ export class WalkKernel<Data, Edge, ID> {
   };
   private execution;
 
-  constructor(private readonly options: NormalizedWalkOptions<Data, Edge, ID>) {
+  constructor(
+    private readonly options: NormalizedWalkOptions<Data, Edge, ID>,
+    private readonly executionKind: 'sync' | 'async' = 'sync',
+  ) {
     this.frontier = new WalkFrontier(options.strategy);
     this.execution = options.execution;
   }
@@ -307,7 +310,7 @@ export class WalkKernel<Data, Edge, ID> {
       reasons.length > 0 ? { kind: 'limited', reasons } : { kind: 'exhausted' };
   }
 
-  poll(): WalkAction<Data, Edge, ID> {
+  poll(retainObservation = false): WalkAction<Data, Edge, ID> {
     for (;;) {
       if (this.outcome?.kind === 'failed')
         return { kind: 'FAILED', error: this.outcome.error };
@@ -319,7 +322,10 @@ export class WalkKernel<Data, Edge, ID> {
       // same chain at its next callback until a new execution lease resumes it.
       if (this.chain !== null) {
         const chain = this.chain;
-        if (chain.paused) {
+        if (
+          chain.paused ||
+          (chain.done && retainObservation && this.haltRequested)
+        ) {
           this.status = Status.HALTED;
           return { kind: 'HALTED' };
         }
@@ -388,7 +394,7 @@ export class WalkKernel<Data, Edge, ID> {
         this.counts.steps++;
         this.call(
           'rootNext',
-          () => pullCursor(roots),
+          () => pullCursor(roots, this.executionKind),
           (value) => {
             const step = readStep(value);
             if (step.done) roots.done = true;
@@ -422,7 +428,7 @@ export class WalkKernel<Data, Edge, ID> {
           this.counts.steps++;
           this.call(
             'edgeNext',
-            () => pullCursor(cursor),
+            () => pullCursor(cursor, this.executionKind),
             (value) => {
               const step = readStep(value);
               if (step.done) cursor.done = true;
@@ -497,7 +503,7 @@ export class WalkKernel<Data, Edge, ID> {
       status: this.status,
       stopReason: this.getStopReason(),
       haltRequested: this.haltRequested,
-      execution: 'sync',
+      execution: this.executionKind,
       strategy: this.options.strategy,
       revisit: this.options.revisit,
       iterableConfig: Object.freeze(execution),

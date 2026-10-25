@@ -21,7 +21,7 @@ export function copyResolution<Data>(
 
 export type WalkCursor = {
   input: unknown;
-  iterator: Iterator<unknown> | null;
+  iterator: Iterator<unknown> | AsyncIterator<unknown> | null;
   done: boolean;
 };
 export function makeCursor(input: unknown): WalkCursor {
@@ -29,12 +29,18 @@ export function makeCursor(input: unknown): WalkCursor {
 }
 
 /** Invoked inside a session CALL, never while polling or inspecting the kernel. */
-export function pullCursor(cursor: WalkCursor): unknown {
+export function pullCursor(
+  cursor: WalkCursor,
+  execution: 'sync' | 'async',
+): unknown {
   if (cursor.iterator === null) {
     const input = record(cursor.input);
-    const factory = input[Symbol.iterator];
+    const factory =
+      execution === 'async'
+        ? input[Symbol.asyncIterator] ?? input[Symbol.iterator]
+        : input[Symbol.iterator];
     if (typeof factory !== 'function')
-      throw new TypeError('Expected a synchronous iterable');
+      throw new TypeError('Expected a walking source iterable');
     const value = factory.call(input);
     rejectThenable(value);
     const iterator = record(value);

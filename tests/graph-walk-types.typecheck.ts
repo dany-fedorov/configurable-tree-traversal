@@ -1,5 +1,6 @@
 import {
   GraphWalk,
+  AsyncGraphWalk,
   TraversalVisitorCommandName as Command,
   DepthFirstTraversalOrder,
 } from '../src';
@@ -345,3 +346,81 @@ registered.setVisitorsFor(
     undefined,
 );
 void [sameFactory, exactRecords];
+
+const asyncWalk = new AsyncGraphWalk({ source: asyncSource });
+const asyncRegistered: typeof asyncWalk = asyncWalk.addVisitorFor(
+  Phase.EDGE,
+  async (event, context) => {
+    const kind: 'edge' = event.kind;
+    const data: number = event.edge.data;
+    const id: undefined = event.edge.to;
+    const phase: Phase.EDGE = context.order;
+    // @ts-expect-error Exact async phase inference does not widen.
+    event.vertex;
+    void [kind, data, id, phase];
+    return { commands: [{ commandName: Command.NOOP }] };
+  },
+);
+asyncWalk.addVisitorGroupFor(Phase.PATH, {
+  visitors: [
+    async (event) => {
+      const data: string = event.vertices[0]!.data;
+      void data;
+    },
+  ],
+});
+asyncWalk.setVisitorsFor(Phase.VERTEX, async (event) => {
+  const data: string = event.vertex.data;
+  void data;
+});
+const asyncRecords: import('../src/core/graph/types').VisitorRecord<
+  import('../src').AsyncGraphWalkVisitor<string, number, Phase.EDGE, undefined>
+>[] = asyncWalk.listVisitorsFor(Phase.EDGE);
+asyncWalk.configure({ revisit: 'walks' });
+asyncWalk.setVisitorsFor(
+  Phase.VERTEX,
+  // @ts-expect-error Wrong-phase async callback cannot widen registration phase.
+  async (_event: GraphWalkEventFor<string, number, Phase.EDGE, undefined>) =>
+    undefined,
+);
+// @ts-expect-error Walking cannot accept topology commands.
+asyncWalk.addVisitorFor(Phase.VERTEX, async () => ({
+  commands: [{ commandName: Command.DELETE_VERTEX }],
+}));
+const asyncRunner = asyncWalk.makeRunner();
+const asyncCapability: import('../src').AsyncTraversalExecution<
+  Phase,
+  GraphWalkEvent<string, number, undefined>,
+  import('../src').GraphWalkInspection
+> = asyncRunner;
+const asyncRunResult: Promise<typeof asyncRunner> = asyncRunner.run();
+const asyncEdges: AsyncGenerator<
+  GraphWalkEventFor<string, number, Phase.EDGE, undefined>,
+  void,
+  unknown
+> = asyncRunner.getIterable({ emitPhases: [Phase.EDGE] });
+const asyncAll: AsyncGenerator<
+  GraphWalkEvent<string, number, undefined>,
+  void,
+  unknown
+> = asyncRunner.getIterable();
+// @ts-expect-error No-selector iteration includes persisted mixed phases.
+const asyncNarrowAll: typeof asyncEdges = asyncRunner.getIterable();
+// @ts-expect-error Legacy selector does not narrow.
+const asyncNarrowLegacy: typeof asyncEdges = asyncRunner.getIterable({
+  iterateOver: [Phase.EDGE],
+});
+asyncCapability.getIterable({
+  // @ts-expect-error Walking phases remain family-safe.
+  emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
+});
+void [
+  asyncRegistered,
+  asyncRecords,
+  asyncCapability,
+  asyncRunResult,
+  asyncEdges,
+  asyncAll,
+  asyncNarrowAll,
+  asyncNarrowLegacy,
+];

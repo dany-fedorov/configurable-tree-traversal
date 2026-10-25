@@ -1,3 +1,5 @@
+export { AsyncGraphWalk } from './AsyncGraphWalk';
+export { AsyncGraphWalkRunner } from './AsyncGraphWalkRunner';
 export { GraphWalk } from './GraphWalk';
 export { GraphWalkRunner } from './GraphWalkRunner';
 export * from './GraphWalkPhase';
