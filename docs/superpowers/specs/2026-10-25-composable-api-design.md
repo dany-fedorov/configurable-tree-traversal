@@ -38,6 +38,8 @@ Add trailing optional `ID = unknown` parameters to graph sources and DAG public 
 
 Thread ID through graph source results, hint identity, prerequisite input/result, dependencies, completedWork, DAG constructor/configure/helper/runner types, graph visitors/views/snapshots, getVertexId/getVertexRefById aliases, summary/progress, settlement and diagnostic types. `ResolvedGraph<T, ID = unknown>`, `DagSummary<ID = unknown>` and `DagVertexProgress<ID = unknown>` retain old imports/defaults. ID stays independent of rewrite data and hints. Graph-source constructors/helpers infer ID where feasible; explicit generic use must be sound. Legacy tree-source mode keeps unknown generated identities and must not claim that caller-specified IDs describe generated reference UUIDs: exclude non-unknown explicit ID selections from tree-source inputs or otherwise expose that mode accurately.
 
+For a selected non-unknown ID domain, found graph-source results must supply an explicit typed vertexId rather than silently falling back to a generated UUID. Require that in both tagged and legacy found-content types; default unknown sources retain optional IDs. Intentional omitted results may still omit an ID because they do not create a live vertex. Test missing IDs as well as wrong-domain IDs.
+
 Runtime identity rules remain unchanged; generics do not coerce/validate arbitrary IDs. Internal erased boundaries may use a narrow documented type adaptation where IDs originate only from the typed source; do not mask public fixtures with casts or weaken public type checking. Wrong-domain IDs fail at actual API call sites, while object/symbol/undefined IDs remain valid when included in ID.
 
 ## 4. Preparation and guarded readiness (findings 2, 4)
