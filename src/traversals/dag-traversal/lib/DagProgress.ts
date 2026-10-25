@@ -25,6 +25,8 @@ export type DagVertexProgress<ID = unknown> = Readonly<{
   work: DagWorkState;
   subtreeComplete: boolean;
   unmetPrerequisiteIds: readonly ID[];
+  /** Exact W waits; always present in engine-produced summaries. */
+  unmetWorkPrerequisiteIds?: readonly ID[];
   unmetCompletePrerequisiteIds?: readonly ID[];
   generation?: DagSettlementGeneration;
 }>;

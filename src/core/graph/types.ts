@@ -78,6 +78,28 @@ export type IdState<T extends TreeTypeParameters> =
   | { kind: 'omitted' }
   | { kind: 'deleted' };
 
+/** Detached identity facts for internal observational consumers. */
+export type GraphIdentityState<ID = unknown> = Readonly<{
+  vertexId: ID;
+  kind: 'live' | 'omitted' | 'deleted';
+}>;
+
+/** Scheduler facts that cannot be inferred from emitted events or global discovery. */
+export type GraphSchedulingState<ID = unknown> = Readonly<{
+  vertexId: ID;
+  expansion: 'unprepared' | 'open' | 'closed';
+  initialCommitted: boolean;
+  completionCommitted: boolean;
+  remainingChildren: number;
+}>;
+
+/** Internal DAG observation; arrays and wrappers are owned by the snapshot. */
+export type DagInspectionState<ID = unknown> = Readonly<{
+  identityStates: readonly GraphIdentityState<ID>[];
+  schedulingStates: readonly GraphSchedulingState<ID>[];
+  discoveryComplete: boolean;
+}>;
+
 export interface GraphStoreContract<
   T extends TreeTypeParameters,
   ID = unknown,
@@ -85,6 +107,7 @@ export interface GraphStoreContract<
   readonly mode: 'tree' | 'dag';
   readonly graph: ResolvedGraph<T, ID>;
   getIdState(id: ID): IdState<T> | undefined;
+  inspectIdentityStates(): readonly GraphIdentityState<ID>[];
   getTraversalSlots(ref: Ref<T>): readonly ChildSlot<T, ID>[] | null;
   getTraversalSlot(ref: Ref<T>, index: number): ChildSlot<T, ID> | undefined;
   getDiscoveryDepth(ref: Ref<T>): number;

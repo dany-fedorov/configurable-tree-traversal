@@ -13,7 +13,7 @@ import type {
   DagSettlementGeneration,
   DagVertexProgress,
 } from '../traversals/dag-traversal/lib/DagProgress';
-import type { VertexId } from '@core/graph/types';
+import type { DagInspectionState, VertexId } from '@core/graph/types';
 import type { KernelInspection } from '@core/CoreInspection';
 import { assertDagWorkCompletion } from '../traversals/dag-traversal/lib/DagTraversalInstanceConfig';
 import type { TraversalStopReason } from '@core/TraversalRunner';
@@ -673,6 +673,26 @@ export class TraversalKernel<
     });
   }
 
+  /** Internal synchronous observation; no adapters, scheduling or settlement. */
+  inspectDagState(): DagInspectionState {
+    const synthetic = this.options.container.syntheticRootRef;
+    const syntheticId =
+      synthetic === null
+        ? undefined
+        : this.options.container.resolvedGraph.getIdOf(synthetic);
+    const visible = ({ vertexId }: { vertexId: VertexId }) =>
+      synthetic === null || vertexId !== syntheticId;
+    return {
+      identityStates: this.options.container.store
+        .inspectIdentityStates()
+        .filter(visible),
+      schedulingStates: this.scheduling
+        .inspectSchedulingState()
+        .filter(visible),
+      discoveryComplete: this.rootSettled && this.isDiscoveryComplete(),
+    };
+  }
+
   summary(): DagSummary {
     const graph = this.options.container.resolvedGraph;
     const work = this.scheduling
@@ -720,6 +740,7 @@ export class TraversalKernel<
         id,
         work: state,
         subtreeComplete: item.completionCommitted,
+        unmetWorkPrerequisiteIds: Array.from(item.unmet),
         unmetPrerequisiteIds: Array.from(
           new Set([...item.unmet, ...item.unmetComplete]),
         ),

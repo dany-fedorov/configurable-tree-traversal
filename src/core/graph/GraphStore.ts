@@ -5,6 +5,7 @@ import { createVertexIdLabeler } from '@core/graph/identity';
 import type {
   ChildSlot,
   GraphEdge,
+  GraphIdentityState,
   GraphStoreContract,
   GraphVertex,
   GraphVertexStatus,
@@ -59,6 +60,11 @@ export class GraphStore<T extends TreeTypeParameters>
   getIdState(id: VertexId): IdState<T> | undefined {
     const state = this.ids.get(id);
     return state?.kind === 'live' ? { kind: 'live', ref: state.ref } : state;
+  }
+
+  /** Includes known omissions and tombstones, without exposing live references. */
+  inspectIdentityStates(): readonly GraphIdentityState[] {
+    return Array.from(this.ids, ([vertexId, { kind }]) => ({ vertexId, kind }));
   }
 
   getTraversalSlots(ref: Ref<T>): readonly ChildSlot<T>[] | null {

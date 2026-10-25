@@ -9,7 +9,12 @@ import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { hasVertexId, sameVertexId } from '@core/graph/identity';
-import type { HintVertexId, Ref, VertexId } from '@core/graph/types';
+import type {
+  GraphSchedulingState,
+  HintVertexId,
+  Ref,
+  VertexId,
+} from '@core/graph/types';
 import type {
   EligibleVisit,
   GraphStall,
@@ -71,6 +76,17 @@ export class GraphScheduling<
       unmet: new Set(work.unmet),
       unmetComplete: new Set(work.unmetComplete),
       completionAccounted: work.completionAccounted.slice(),
+    }));
+  }
+
+  /** Narrow detached facts for inspection; never advances any scheduler queue. */
+  inspectSchedulingState(): readonly GraphSchedulingState[] {
+    return Array.from(this.work.values(), (work) => ({
+      vertexId: this.container.resolvedGraph.getIdOf(work.ref),
+      expansion: work.expansion,
+      initialCommitted: work.initialCommitted,
+      completionCommitted: work.completionCommitted,
+      remainingChildren: work.remainingChildren,
     }));
   }
 
