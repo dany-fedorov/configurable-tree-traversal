@@ -67,7 +67,7 @@ const asyncSource: AsyncGraphWalkSource<Data, Relation, ID> = {
     const data: Data = vertex.data;
     void [id, data];
     yield {
-      target: { vertexId: null, resolution: { kind: 'omitted' } },
+      target: { vertexId: null, resolution: { kind: 'omitted' as const } },
       data: relation,
     };
   },

@@ -2,10 +2,11 @@
 
 [Documentation index](index.md) · [Agent workflow guide](agent-workflows.md) · [Quickstart](../README.md#quickstart-find-the-next-agent-tasks)
 
-Current behavior: the unreleased uniform and composable APIs in this checkout. Published npm 0.11.0 differs; see the [migration guide](migration-uniform-api.md). Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts.
+Current behavior: the unreleased uniform, composable, and graph-walking APIs in this checkout. Published npm 0.11.0 differs; see the [migration guide](migration-uniform-api.md). Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts.
 
 ## On this page
 
+- [General graph walking](#general-graph-walking)
 - [DAG traversal](#dag-traversal)
 - [Collection and forest sources](#collection-and-forest-sources)
 - [Reusable prepared DAGs](#reusable-prepared-dags)
@@ -29,6 +30,106 @@ Current behavior: the unreleased uniform and composable APIs in this checkout. P
 - [Rewrite objects](#rewrite-objects)
 - [API compatibility](#api-compatibility)
 - [Development](#development)
+
+## General graph walking
+
+The unreleased `GraphWalk` / `AsyncGraphWalk` family explores shared, cyclic information graphs independently of DAG work scheduling. Import from the package root, the `graphWalk` namespace, or `configurable-tree-traversal/traversals/graph-walk`; constructors, helpers, commands and types share CJS/ESM identity. `walkGraph({ source, ...options })` and `await walkGraphAsync({ source, ...options })` run once and return the runner, including a resumable runner when a visitor halts. These helpers accept one canonical options object. For incremental iteration, start with `new GraphWalk({ source }).makeRunner()`.
+
+Defaults are `strategy: 'breadthFirst'`, `revisit: 'once'`, vertex-only emission, all registered visitor phases enabled, and serial callbacks. Async walking permits value-or-promise callbacks and iterable/async-iterable sources; sync sources also feed async walkers. There is no concurrency option: supplying an own `concurrency` field rejects on either family. Sync types reject async sources, predicates and visitors; runtime also rejects thenables. No walking relationship means W/C readiness or settlement.
+
+<!-- standalone -->
+
+```ts
+import { GraphWalk, GraphWalkPhase, walkSourceFrom } from 'configurable-tree-traversal';
+
+const source = walkSourceFrom([
+  { id: 'note', links: ['symbol', 'symbol'] },
+  { id: 'symbol', links: ['note'] },
+], {
+  id: item => item.id,
+  outgoing: item => item.links.map(to => ({ to, data: { kind: 'references' } })),
+  roots: ['note'],
+});
+const runner = new GraphWalk({ source }).makeRunner();
+for (const event of runner.getIterable({ emitPhases: [GraphWalkPhase.EDGE] })) {
+  console.log(event.source.data.id, event.edge.index, event.edge.to, event.target.kind);
+}
+console.log(runner.summary().outcome); // { kind: 'exhausted' }
+```
+
+### Walking sources and identity
+
+`GraphWalkSource<Data, Edge, ID>` has `roots(): Iterable<GraphWalkTarget<Data, ID>>`, optional `resolveVertex(id)`, and `outgoing(vertex): Iterable<GraphWalkLink<Data, Edge, ID>>`. The async counterpart accepts promises and async iterables. A vertex is `{ vertexId: ID, data: Data }`; a target is `{ vertexId: ID, resolution?: GraphWalkVertexResult<Data> }`; a link is `{ target, data: Edge }`. Resolution is `{ kind: 'found', data }` or `{ kind: 'omitted' }`. Inline resolutions are already resolved tagged values; await hydration inside async callbacks/enumerators. Even object IDs use an explicit target wrapper to avoid confusing ID fields with resolution metadata.
+
+Source calls begin only during execution, not construction, configuration, runner creation or inspection. Each runner owns independent caches and source callback/receiver snapshots. `roots()` must create independent iteration; roots and each adjacency enumeration must be finite. BFS consumes roots before descent; laziness does not guarantee fairness for infinitely branching sources. Empty/multiple roots need no synthetic holder. Repeated root declarations are deduplicated in declaration order under every policy.
+
+For each admitted target, consult the per-ID cache, then inline resolution, then `resolveVertex`. The **first accepted result is authoritative, including omission**. Later inline results for that ID are neither revalidated nor substituted. A pulled but rejected link cannot seed resolution: inline result contents are inspected only on eligible admission with a cache miss. Unlike DAG omission, a walking omission asserts no milestone satisfaction. Start a fresh walker to refresh an ID after omission or content replacement. Requested ID is authoritative; results cannot remap it. `found` accepts `null`/`undefined` data; unknown IDs are host errors unless deliberately omitted. An uncached admitted target with neither inline resolution nor resolver throws `TypeError`. No `missing` result exists.
+
+`resolveVertex` runs at most once per ID, and zero times when inline hydration wins. `outgoing` runs at most once per expanded found ID; adjacency is pulled incrementally and cached for other route occurrences. Pause retains partial enumeration; route replay uses cached links without repeating source I/O. Topology wrappers and traversal records are copied; caller data and IDs retain identity and are never frozen. A destination and optional inline-result reference are captured when its link is pulled. This is an observation over time, not a transactional snapshot of a changing host source.
+
+IDs use SameValueZero, including object/symbol identity and valid `undefined`, `null`, `NaN` and zero IDs. An edge is `{ from, index, to, data }`; its runner-local identity is source ID plus zero-based outgoing enumeration index **before filtering**. Parallel endpoint pairs, even repeated input wrappers, remain distinct. Compare identity fields rather than wrapper reference. Put a durable host relationship ID in edge data if needed; enumeration indices are not stable across runs.
+
+### Walking records and ordering
+
+`GraphWalkPhase.VERTEX`, `.EDGE`, `.PATH` select records with corresponding `kind` strings:
+
+| Kind | Fields |
+| --- | --- |
+| `vertex` | `vertex`, route `depth`, incoming `via` edge or `null` for a root |
+| `edge` | `edge`, found `source`, target depth, `target: { kind: 'found', vertex } \| { kind: 'omitted' }` |
+| `path` | Ordered `vertices`, ordered `edges`, route `depth` |
+
+`GraphWalkEvent<Data, Edge, ID>` is that union. `GraphWalkEventFor<Data, Edge, Phase, ID>` and `GraphWalkPathEvent<Data, Edge, ID>` select precise records. Endpoint data stays typed; narrow `event.source.data.kind` and, after `event.target.kind === 'found'`, `event.target.vertex.data.kind` directly. No ID registry or fabricated tree `Vertex` is required. See the [typed reference example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts).
+
+A found root observes vertex then path. A followed link resolves/reuses its target, observes edge first, then vertex and path if a found occurrence is newly admitted under the policy. Omission produces edge only. Under `once`, returning/self/parallel links still observe edges without repeated vertex/path observations. Visitor chains commit before their selected record emits. Expansion follows the occurrence's observations: a pause after yielding a vertex does not eagerly fetch adjacency. BFS preserves root/level source order; DFS exhausts each root's descendants before requesting the next root and follows outgoing order. Both are iterative. Pausing between edge and vertex retains pending observations and expansion without replaying resolution, completed callbacks or delivered records.
+
+`emitPhases` selects delivery; `visitorPhases` selects callbacks independently. Both use canonical field-wise selector patches, including empty selections and include/exclude filters; legacy aliases remain exclusive with canonical fields. Hiding records/disabling callbacks changes neither discovery, budgets, nor revisit policy. An explicit call-level `emitPhases: [GraphWalkPhase.EDGE]` narrows every yield to edge records, including buffered records from an earlier lease. An omitted selector or legacy alias returns the broad union because persisted selectors can differ from defaults. Close the previous iterator before changing lease options. An admitted chain retains its callback configuration, while delivery uses the new lease's emission selection. Suppressed/delivered observations never replay; only pending observations before their delivery boundary can be newly selected. This delivery-time behavior is specific to walking; tree/DAG emission semantics are unchanged.
+
+### Revisit policies, predicates, and bounds
+
+| `revisit` | Vertex/path occurrences | Followed edges |
+| --- | --- | --- |
+| `once` (default) | One per found ID; path is its first-discovery prefix | Every followed link once, including back/self/parallel links |
+| `simplePaths` | Each prefix without a repeated ID | Excludes a link closing a repeated vertex before `followEdge` |
+| `walks` | Each prefix, including repeated IDs | Every eligible occurrence within bounds |
+
+Paths include zero-edge roots and every admitted prefix, not only leaves. Parallel links distinguish routes with identical vertex sequences. In route modes, a root reached from another root still contributes its own root path when declared; duplicate declarations of the same root do not. Source results/adjacency remain cached even when occurrences repeat. Use `once` for collecting reachable vertices and relationships; route enumeration can grow exponentially.
+
+`strategy: 'breadthFirst' | 'depthFirst'` chooses scheduling independently of revisit/emission. Depth counts route edges from zero. Under DFS/`once`, the first route fixes depth: finding a later shorter route does not re-expand a vertex. Use BFS for shortest discovery depth; DFS depth limits are not radius queries.
+
+`followEdge(edge, context)` runs before target lookup; false prevents lookup through that occurrence. Context has found `source`, candidate target `depth`, and `revisit`; route policies add the current source-prefix `path`. The edge already identifies the relationship; context has no required `via`. `expandVertex(vertex, context)` runs after observations and before adjacency enumeration; context has occurrence `depth`, incoming `via`, `revisit`, and route `path` where applicable. False preserves observations while pruning expansion. Under `once`, the first expansion decision stands; route modes evaluate policy per prefix. Predicates must return booleans (promises allowed only for async). Commands do not control pruning.
+
+Limits are nonnegative safe integers, including zero. `simplePaths`/`walks` require `maxDepth` or `maxSteps` at construction; `maxOccurrences` alone is insufficient. Configuration patches validate merged options atomically and reject invalid transitions without mutation. A supplied `configure({ limits: ... })` record **replaces** the previous limits record; include each bound you want to retain. Runners snapshot options, selector arrays, visitor records and source callbacks/receiver; limits/topology policies are fixed for that runner. Larger bounds require a fresh runner.
+
+| Limit | Accounting and boundary |
+| --- | --- |
+| `maxDepth` | Gate expansion at the occurrence boundary after `expandVertex`. Do not open outgoing at the boundary. A rejected expansion predicate contributes no depth cutoff. Otherwise conservatively report a cutoff even for an unqueried leaf. A returning edge under `once` alone does not trigger a cutoff. |
+| `maxOccurrences` | One candidate for each distinct root and eligible followed link, including omissions and returning/parallel links. Edge+vertex+path still count as one. Check allowance before another pull; zero performs no source calls. |
+| `maxSteps` | One attempted root/link `next()`, including end-of-stream, duplicates, filtered/cycle-closing candidates and cached replay. No next pull after exhaustion; zero performs no source calls. Does not bound time inside host callbacks. |
+
+Global limits drain the final admitted candidate's finite observation chain (unless paused), then finish. Depth pruning permits other branches to continue. At an exact cap, do not pull extra data merely to prove exhaustion; report exhausted only if the final allowed pull already proves all work drained. Otherwise report limited. Limits do not cancel callbacks.
+
+`summary()` returns detached `{ status, counts, outcome }`. Counts are `steps`, `occurrences`, unique cached `foundVertices`/`omittedVertices`, `observedLinks` (distinct source links pulled before filtering, without counting cached route replay again), and committed `observations: { vertex, edge, path }` independently of filters. `outcome` is `null` before terminal completion; `{ kind: 'exhausted' }`; `{ kind: 'limited', reasons }`; `{ kind: 'closed' }`; or `{ kind: 'failed', error }`. Reasons are unique and ordered `maxDepth`, `maxOccurrences`, `maxSteps`. Exhaustion means the configured source/policy drained, not completeness of a remote graph. Always report outcome when presenting bounded provenance; see the [path example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-paths-example.ts).
+
+### Walking visitors, pause, close, and errors
+
+Use phase-keyed constructor visitors or `addVisitorFor`, `addVisitorGroupFor`, `setVisitorsFor`, `listVisitorsFor`. Flat registrations sort by priority before batching; explicit ordered groups retain group order/batching. Query wrappers are detached with shared callbacks/group metadata. Context supplies exact phase `order`, zero-based `occurrenceIndex`, phase-local logical `observationIndex`, `visitorIndex`, and readonly descriptive `visitorRecord`. Callbacks receive walking event records, not tree vertices. Only existing `TraversalVisitorCommandName.HALT_TRAVERSAL` and `NOOP` commands are accepted; settlement, mutation, subtree, deletion and chain-state commands reject. `commandCommitMode` controls `afterGroup` / `afterEach` boundaries independently of serial async execution. HALT retains callback progress and resumes without replay.
+
+`run()` returns `this` synchronously or `Promise<this>` asynchronously; `getIterable()` returns a closeable generator/async generator. One execution owner is allowed. Competing/reentrant execution rejects without poisoning the owner; async calls on the owning iterator queue in order. Closing a never-started consumer iterator performs no source I/O. Active iterator `return()`, loop `break` or consumer-body error releases ownership and pauses while retaining caches/source iterators. `requestPause()` records a request only while RUNNING; the owner drains admitted callback work to a safe boundary. `isHalted()` and `getStopReason()` expose pause; walking has no awaiting-settlement state. Source/predicate/visitor failures retain exact thrown values, including `null` and `undefined`; subsequent execution rethrows that value. FINISHED runners never restart.
+
+Runner `close()` is terminal resource disposal, distinct from consumer iterator `return()`. Exhaustion, limits, explicit close, and failure dispose still-open source iterators by calling `return` in reverse acquisition order. Attempt all cleanup even when one fails; exhausted iterators need no return. An existing source/predicate/visitor failure wins over cleanup errors; otherwise the first cleanup failure wins and leaves FAILED. **Closing an already failed runner rethrows/rejects its exact retained error without repeating cleanup. Overlapping async closes share the same promise.** Repeated close is idempotent for state/resource effects. Successful close reports FINISHED/closed; closing an already successfully finished runner preserves its outcome.
+
+Terminal close requires no active execution owner; close during an active run/iterator rejects without changing its owner. First close the public iterator or request and await pause. Async iterator return immediately requests pause during an in-flight request, drains that admitted work, resolves pending next calls as done on successful return, and retains undelivered observations. A rejecting pending request remains the exact primary traversal failure. Consumer iterator throw retains its own consumer error for that throw call. Terminal close then prevents resumption and awaits resource cleanup without synthesizing further results. Neither pause nor close cancels promises or interrupts host work. Pending host work must eventually settle for pause acknowledgement/cleanup to finish. Consumer-body errors remain consumer errors and leave traversal resumable rather than becoming retained traversal failures. Use explicit terminal close when abandoning a paused runner, and handle its retained failure when applicable.
+
+### Walking adapters and inspection
+
+`walkSourceFrom(items, { id, outgoing, roots })` eagerly copies a finite catalog. `outgoing(item)` returns `{ to, data }` links; roots are explicit IDs. It rejects duplicate vertex IDs, unknown roots and unknown targets, preserves order/parallel links, and shares caller IDs/data. `await walkSourceFromAsync(...)` awaits finite inputs, roots and selectors once, then returns the same reusable **synchronous** source. These eager adapters differ from lazy custom source callbacks.
+
+`walkSourceFromDag(definition, { relations })` requires a nonempty duplicate-free selection of `children`, `workDependencies`, `completionDependencies`. Roots follow entry order. Links point parent-to-child or dependent-to-prerequisite, in canonical children/work/completion order and declaration order within each. `GraphWalkDagRelation` is `{ kind: 'child', slotIndex } | { kind: 'workDependency' } | { kind: 'completionDependency' }`; the unreleased stale name `DagWalkRelation` is not an alias. Preserve parallel child slots; anonymous omissions produce no target, known omitted IDs resolve as omissions. This adapter performs shape normalization and selected-topology membership checks, permits cycles, invokes no source I/O, and does not prepare/validate execution dependencies or assert W/C facts.
+
+Declared live/omitted IDs must always be unique and disjoint. Selected child slots and forest-entry slots must agree with their declared live/omitted kind; root and selected W/C IDs may name either. Unselected child endpoint consistency is ignored after shape normalization, and unselected dependencies do not impose membership constraints. Selected unresolved endpoints reject. Owned topology and **adapter-generated relationship labels** are detached, including across outgoing calls/runners; ordinary caller-supplied edge data remains shared by identity. Walking sources are explicit adapters, not a common interface retrofitted onto `TraversableTree` / `TraversableGraph`.
+
+`inspect(): GraphWalkInspection` is synchronous, detached, frozen and passive on both runner families. It exposes common execution fields plus `kind: 'graph-walk'`, `sourceMode: 'graph'`, `concurrency: 1`, strategy, revisit, effective `iterableConfig`, counters, frontier size, open source iterator count, pending observation phases, active visitor phase/position, and pending request IDs/operations with optional runner-local `vertexToken` symbols. Tokens are not caller IDs. No callbacks, data, promises or kernel closures leak into inspection. It neither advances sources nor acquires ownership. For common cross-family wrappers and detailed-type defaults, see [inspection and execution](#inspection-and-execution).
 
 ## DAG traversal
 
@@ -841,7 +942,7 @@ Async iteration uses the same one-owner rule. Calling `return()` on an active as
 
 ## Inspection and execution
 
-`getStopReason()` reports the stop cause; every runner also has synchronous `inspect()`. Inspection returns a detached, frozen snapshot with status, traversal kind, source mode, execution mode, effective concurrency, ready visits, frames, visitor chains, pending callback identities, event boundaries, physical in-flight callback count, and buffered event count. Inspection never calls user code, consumes an event, or advances traversal, and snapshots contain reference ids rather than callback functions, promises, or vertex data.
+`getStopReason()` reports the stop cause; every runner also has synchronous `inspect()`. For tree/DAG runners, inspection returns a detached, frozen snapshot with status, traversal kind, source mode, execution mode, effective concurrency, ready visits, frames, visitor chains, pending callback identities, event boundaries, physical in-flight callback count, and buffered event count. Inspection never calls user code, consumes an event, or advances traversal, and snapshots contain reference ids rather than callback functions, promises, or vertex data.
 
 ```ts
 const asyncRunner = traversal.makeRunner();
@@ -853,9 +954,46 @@ await next;
 await iterator.return();
 ```
 
-All six public runners use the same explicit transition-state model. Synchronous runners execute its callback requests inline; asynchronous runners delegate iteration and `run()` to one shared `AsyncCoreExecution` session with serialized state commits, finite callback limiting when configured, and one iterator lease. Calling `run()` while an iterator owns that session rejects rather than starting a second execution.
+The six tree/DAG runners use the same explicit transition-state model. Synchronous runners execute its callback requests inline; asynchronous runners delegate iteration and `run()` to one shared `AsyncCoreExecution` session with serialized state commits, finite callback limiting when configured, and one iterator lease. Calling `run()` while an iterator owns that session rejects rather than starting a second execution.
 
-For wrappers, use `TraversalExecutionState` (`getStatus`, `getStopReason`, `isHalted`, `inspect`, `requestPause`), `SyncTraversalExecution<Phase, Event>`, or `AsyncTraversalExecution<Phase, Event>`. Run returns this / Promise of this; iterators are closeable `Generator<Event, void, unknown>` / `AsyncGenerator<Event, void, unknown>`. Preserve the family's phase enum: a DFS abstraction rejects DAG phases and cannot widen to accept them. Historical `AsyncCoreExecution<Event, Phase = never>` remains available; its erased default permits no explicit phase names. Specify Phase when selecting phases. `TraversalRunner` exposes the same sync capabilities; historical `TraversalRunnerIterable` imports remain supported.
+For tree/DAG wrappers, use `TraversalExecutionState` (`getStatus`, `getStopReason`, `isHalted`, `inspect`, `requestPause`), `SyncTraversalExecution<Phase, Event>`, or `AsyncTraversalExecution<Phase, Event>`. Run returns this / Promise of this; iterators are closeable `Generator<Event, void, unknown>` / `AsyncGenerator<Event, void, unknown>`. Preserve the family's phase enum: a DFS abstraction rejects DAG phases and cannot widen to accept them. Historical `AsyncCoreExecution<Event, Phase = never>` remains available; its erased default permits no explicit phase names. Specify Phase when selecting phases. `TraversalRunner` exposes the same sync capabilities; historical `TraversalRunnerIterable` imports remain supported.
+
+Walking runners share the public execution capabilities with a default-preserving inspection parameter: `TraversalExecutionState<Inspection = CoreInspection>`, `SyncTraversalExecution<Phase, Event, Inspection = CoreInspection>`, and the async counterpart. Existing two-parameter code retains detailed `CoreInspection`. Walkers use `GraphWalkInspection`; choose `ExecutionInspection` explicitly for a wrapper accepting every family. Its common fields are status, stop reason, halt request, kind, execution mode, in-flight callback count and buffered event count. Generalizing inspection never widens supported phases or gives walking a tree/DAG frame shape.
+
+<!-- standalone -->
+
+```ts
+import {
+  GraphWalk, GraphWalkPhase, DepthFirstTraversal, DepthFirstTraversalOrder,
+  type ExecutionInspection, type TraversalExecutionState,
+  type SyncTraversalExecution, type TraversableTree, type TreeTypeParameters,
+} from 'configurable-tree-traversal';
+
+function observe(state: TraversalExecutionState<ExecutionInspection>) {
+  return state.inspect().status;
+}
+function drive<Phase extends string, Event>(
+  runner: SyncTraversalExecution<Phase, Event, ExecutionInspection>, phase: Phase,
+) {
+  return runner.run({ emitPhases: [phase] });
+}
+const tree: TraversableTree<TreeTypeParameters<string, string>> = {
+  makeRoot: () => ({ kind: 'found', vertex: {
+    vertexContent: { $data: 'root', $childHints: [] },
+  } }),
+  makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+};
+const dfs = new DepthFirstTraversal({ traversableTree: tree }).makeRunner();
+const walk = new GraphWalk({ source: {
+  roots: () => [{ vertexId: 'root', resolution: { kind: 'found' as const, data: 'root' } }],
+  outgoing: () => [],
+} }).makeRunner();
+console.log(observe(dfs), observe(walk));
+drive(dfs, DepthFirstTraversalOrder.PRE_ORDER);
+drive(walk, GraphWalkPhase.VERTEX);
+```
+
+The [typed reference example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts) also demonstrates an async phase-preserving wrapper. Walking deliberately has event records, target wrappers, delivery-time selector narrowing and terminal source-resource disposal. Existing tree/DAG sources and emission rules retain their original contracts.
 
 ## Rewrite objects
 

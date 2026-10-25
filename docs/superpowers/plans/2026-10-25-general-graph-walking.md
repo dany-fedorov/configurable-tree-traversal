@@ -10,7 +10,7 @@
 
 **Spec:** [General graph walking design](../specs/2026-10-25-general-graph-walking-design.md). Read the complete revised design, including cross-family consistency, independent review disposition, and the self-link depth-bound example, before executing this plan.
 
-**Status:** Implementation in progress. Task 1 is implemented and independently reviewed; unchecked tasks remain. The design and plan do not establish that the APIs exist. Current base is `c1e5840bdf89372955feedde9d18e2214e0ea663`; re-check source and workspace state at execution time.
+**Status (2026-10-26):** Tasks 1–9 are implemented and independently approved on `feat/general-graph-walking`. Task 10 consumer examples/current guides and final local integration/compatibility checks are verified. Whole-branch independent review remains a separate pending controller gate; the review checkbox below deliberately stays open. The original planning base was `c1e5840bdf89372955feedde9d18e2214e0ea663`; historical planning verification is distinct from implementation evidence. Published npm remains 0.11.0; no release, push or merge is implied.
 
 ## Global Constraints
 
@@ -506,20 +506,22 @@ Also execute a cyclic mixed-observation walk, hydrated async stream, bounded rep
 
 **Interfaces:** consume the final public package API, never family-private internals. The reference documents current implemented behavior only after Tasks 1–9 pass. Examples use in-memory/controlled async host data, no credentials, network service, LLM or durable runner claims.
 
-- [ ] Implement a runnable hydrated context example with shared targets, parallel/back edges, and an isolated root; print or assert the spec's five vertex callbacks and six relationship callbacks in one walk. Implement a code-reference example that reads typed source and target discriminants directly from edge events. Implement a bounded provenance-path example with simplePaths/walks and report `summary().outcome` so truncation is explicit.
-- [ ] Update README with a concise link/use case; put source selection, callback/iteration integration, cancellation limits, and host responsibilities in the agent workflow guide. Put exact source/cache/inline conflict, event order, budgets, path policies, pause/close, error precedence, and inspection contracts in the reference. Preserve existing anchors and release facts; document this as unreleased checkout functionality.
-- [ ] Include a cross-family example using shared `TraversalExecutionState<ExecutionInspection>` and phase-preserving execution wrappers. Explicitly document intentional differences: walking event records, source target wrappers, terminal resource disposal, and delivery-time selector narrowing. Do not claim a common source interface or retroactively change old tree/DAG emission semantics.
-- [ ] Run `npm run tsfile -- examples/graph-walk-context-example.ts`, `npm run tsfile -- examples/graph-walk-references-example.ts`, `npm run tsfile -- examples/graph-walk-paths-example.ts`, then `npm run verify-examples`. Add complete standalone guide snippets only when they can compile and execute independently. Verify relative links/anchors and packaged guides using the package verifier; repository-only history/examples need repository links in packaged documentation.
-- [ ] Run the full integration gate and record the complete output:
+- [x] Implement a runnable hydrated context example with shared targets, parallel/back edges, and an isolated root; print or assert the spec's five vertex callbacks and six relationship callbacks in one walk. Implement a code-reference example that reads typed source and target discriminants directly from edge events. Implement a bounded provenance-path example with simplePaths/walks and report `summary().outcome` so truncation is explicit.
+- [x] Update README with a concise link/use case; put source selection, callback/iteration integration, cancellation limits, and host responsibilities in the agent workflow guide. Put exact source/cache/inline conflict, event order, budgets, path policies, pause/close, error precedence, and inspection contracts in the reference. Preserve existing anchors and release facts; document this as unreleased checkout functionality.
+- [x] Include a cross-family example using shared `TraversalExecutionState<ExecutionInspection>` and phase-preserving execution wrappers. Explicitly document intentional differences: walking event records, source target wrappers, terminal resource disposal, and delivery-time selector narrowing. Do not claim a common source interface or retroactively change old tree/DAG emission semantics.
+- [x] Run `npm run tsfile -- examples/graph-walk-context-example.ts`, `npm run tsfile -- examples/graph-walk-references-example.ts`, `npm run tsfile -- examples/graph-walk-paths-example.ts`, then `npm run verify-examples`. Add complete standalone guide snippets only when they can compile and execute independently. Verify relative links/anchors and packaged guides using the package verifier; repository-only history/examples need repository links in packaged documentation.
+- [x] Run the full integration gate and record the complete output:
 
 ```sh
 npm run check
 ```
 
 Expected: typecheck, lint, source coverage at 100% on all four metrics, all examples and standalone snippets, clean build, packed runtime/types, benchmarks and facade-generator checks succeed. Do not substitute a subset or lower coverage. Keep source test counts as observed values rather than predeclaring a target count.
-- [ ] Confirm the built final tree under exact Node 22.12.0, current Node 24 and Bun 1.4.4 with the locked compiler and isolated TS4.7.4. Use the existing testing guide's commands and verified tool paths; inspect each runtime/compiler `--version`, and do not hardcode an old `/tmp` path as present. Build once and rerun `scripts/verify-package.cjs` under remaining runtime/compiler combinations using `CTT_TYPESCRIPT_COMPILER` when needed. Run the Bun facade/benchmark correctness scripts. Record which CI-required Node 22/24 lanes still require remote CI if not locally available.
+- [x] Confirm the built final tree under exact Node 22.12.0, current Node 24 and Bun 1.4.4 with the locked compiler and isolated TS4.7.4. Use the existing testing guide's commands and verified tool paths; inspect each runtime/compiler `--version`, and do not hardcode an old `/tmp` path as present. Build once and rerun `scripts/verify-package.cjs` under remaining runtime/compiler combinations using `CTT_TYPESCRIPT_COMPILER` when needed. Run the Bun facade/benchmark correctness scripts. Record which CI-required Node 22/24 lanes still require remote CI if not locally available.
 - [ ] Review the whole diff against the design and the conformance matrix below, with particular attention to shared files, exact error values, pending-close races, phase variance, and loader identity. Resolve material findings and rerun focused/full checks according to the changed area. No merge/push/publish is implicit in this planning task; use the execution session's current authorization.
-- [ ] Update statuses only when the corresponding implementation and checks exist. Stage only scoped source/tests/examples/docs/package changes and commit as `docs(graph-walk): document verified agent exploration APIs`.
+- [x] Update statuses only when the corresponding implementation and checks exist. Stage only scoped source/tests/examples/docs/package changes and commit as `docs(graph-walk): document verified agent exploration APIs`.
+
+Task 10 local self-review covered all changed documentation/examples and their consumed public contracts, including exact errors, iterator-return versus terminal-close ownership, selector variance and loader identity. Final whole-branch independent review is owned by the controller and remains pending; the open review checkbox is not a claim of completion.
 
 ## Concrete shared test fixtures
 
@@ -630,10 +632,64 @@ Execution order is Task 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10
 
 Completed inline on 2026-10-25: all design sections map to the acceptance matrix; the ten tasks have explicit consumed/produced interfaces and 63 unchecked execution steps; referenced existing regression suites are present; document links, anchors, fences and whitespace pass validation. The complete proposed source types and shared test fixtures were extracted to an isolated temporary file and passed strict TypeScript 4.9.5 typechecking. No source implementation, implementation test suite, runtime compatibility matrix, or coverage gate was run as part of this planning-only work. Those are execution requirements above, not claimed results.
 
+## Final local implementation verification (2026-10-26)
+
+The final `npm run check` passed on Node v24.20.0 with locked TypeScript 4.9.5: 113 suites / 2,470 tests; statements, branches, functions and lines all 100%; 20 runnable examples; 16 compiled/executed standalone snippets; guide navigation in checkout and tarball; strict packed node/node16 `.ts`/`.cts`/`.mts` consumers, shared CJS/ESM identity and 750 packed files; 25 benchmark and 7 facade-generator tests. No coverage exclusions/threshold changes or production dependencies were added.
+
+The final build then passed packed verification under all six runtime/compiler pairs: Node v24.20.0, exact minimum Node v22.12.0 and Bun 1.4.4, each with TypeScript 4.9.5 and 4.7.4. The Node24/locked pair is supplied by the full check; remaining pairs used direct `scripts/verify-package.cjs` with `CTT_TYPESCRIPT_COMPILER` for the isolated minimum compiler, sequentially without rebuilding. Bun also passed all 32 facade/benchmark correctness tests. Tool versions were rechecked through every runtime. A TS4.7 async-generator fixture inference failure was fixed with one literal `as const` annotation; the full check and complete matrix passed afterward, without production changes or weakened negative assertions.
+
+The three walking examples cover mixed hydration with five vertex/six relationship callbacks, typed async code endpoints plus family-preserving execution wrappers, and simple/repeated provenance paths with explicit outcomes. Every original public guide heading/manual anchor remains. All autonomous ledger rulings are persisted verbatim below. Existing package guide membership is unchanged.
+
+Complete logs and exact commands are recorded in the execution handoff `task-10-report.md` (local ignored coordination artifact) and `/tmp/ctt-walk-task10-*.log`; reproducible matrix commands are in [testing](../../testing.md#bun-and-compiler-checks). These are local results, not remote CI results. The full current Node 22 source/coverage lane was not run locally; Node24 full coverage and minimum-Node packed results do not substitute for required remote Node 22/24 and pinned Bun CI jobs. Whole-branch independent review remains pending. No merge, push or publication was performed.
+
 ## Autonomous implementation rulings
 
 The spec's Fable reconciliation section supersedes earlier examples in the retained review artifact. Apply the consistent public `GraphWalk*` names, `strategy`, and `traversals/graph-walk` subpath throughout code/tests/docs. Reject unsupported concurrency explicitly. Reuse shared command/filter contracts with default-preserving generics. The source's first accepted result remains authoritative, including omissions; document the intentional difference from DAG milestone execution. Bounds constrain construction types, while configure patches validate merged state at runtime. One vertex-expansion depth gate is authoritative; exact step exhaustion is not mislabeled as truncation. `walkSourceFrom(items, options)` keeps a flat ergonomic options object containing selectors and roots.
 
+### Persisted execution ledger
+
+These are the autonomous execution ledger rulings, retained verbatim. Temporary staged-development gates described below were removed by their owning later tasks; they are historical implementation decisions, not current restrictions.
+
+Ruling: [1] Use strategy for BFS/DFS; preserve visitor order as phase — removes overloaded terminology — wrong choice costs only unreleased naming rework.
+
+Ruling: [2] Use traversals/graph-walk subpath and GraphWalk*/AsyncGraphWalk* public types — follows family export/naming conventions — no published compatibility is affected.
+
+Ruling: [3] Derive halt/no-op from shared TraversalVisitorCommand — preserves forbidden argument shape — no extra commands are introduced.
+
+Ruling: [4] Constructor bounds are static, configure validates merged bounds atomically — prior state cannot be encoded by a stateless partial patch — callers get a deliberate TypeError for invalid transitions.
+
+Ruling: [5] Generic defaulted InspectionFilters and iterableConfig reuse; sourceMode graph with kind graph-walk — share meaningful observation shape without widening old CoreInspection — future discriminator choices remain additive.
+
+Ruling: [6] First accepted walking resolution wins even after omission — observation caching differs from committed DAG milestone satisfaction — host must start a fresh walker to refresh identities.
+
+Ruling: [7] Only vertex expansion enforces depth; final allowed pull that already proves exhaustion reports exhausted — avoids dead duplicate checks and false truncation — exact boundary traces are regression requirements.
+
+Ruling: [8] Reject own concurrency on sync and async walking options — fixed serial v1 must not silently ignore a familiar control — callers must remove unsupported options.
+
+Ruling: [9] Catalog factory second argument is options (selectors plus roots), retaining flat ergonomics — no new positional root overload — bare source return has no missing DAG flags.
+
+Ruling: [10] Legacy selector aliases remain for shared capability compatibility; no deprecated positional helper overload — review finding 11 overstated an existing contradiction — no corrective runtime change needed.
+
+Ruling: [11] Use existing clean managed worktree at main commit on a new branch — authorized autonomous implementation implies reversible isolation, per developer autonomy — original checkout and 13 unrelated files stay untouched.
+
+Ruling: [12] Task commits are staged development, not releases; later-task behavior is not stubbed or advertised — scoped gates judge implemented slices, final gate requires entire spec — premature branch use is unsupported.
+
+Ruling: [13] Full baseline and final checks plus task-focused tests/typecheck and appropriate old-family regression suite — avoids repeated broad checks without new concerns — full coverage remains mandatory before completion.
+
+Ruling: Follow-context fields are source + candidate depth + revisit/prefix, without a required via — the spec's explicit filtering contract wins over ambiguous common-contract prose and the edge argument identifies the relationship — costs if wrong: an additive optional context field could be added without changing traversal semantics.
+
+Ruling: A supplied configure limits record replaces the prior limits record, then merged policy is validated atomically — top-level patch semantics are explicit and preserve caller control over removing a limit — costs if wrong: callers wanting to retain another bound must include it in their patch; document and test this behavior.
+
+Ruling: During Task 2, makeRunner explicitly rejects active unsupported predicates/bounds/visitors/non-once policies before source I/O instead of silently ignoring them — the incremental branch must not execute with false semantics — costs if wrong: temporary gates add small test churn; Tasks3/4/7 must remove the respective guards and the final gate requires none remain. No public task-specific error types or task-number production names.
+
+Ruling: Capture outer link/target identity and optional inline-result reference at pull, but inspect inline kind/data only after candidate eligibility and a resolution-cache miss — rejected links must not validate/hydrate destinations and cached IDs ignore later inline results — costs if wrong: inline result contents are observed at admission rather than link enumeration; this matches first-accepted observation semantics and avoids unnecessary host getter work.
+
+Ruling: close() on an already failed runner rethrows/rejects its exact retained failure without repeating cleanup; overlapping async closes share a promise — consistent failure retention and observable cleanup errors, while idempotence applies to state/resource effects — costs if wrong: callers abandoning a failed runner must handle the already known error again; document this explicitly.
+
+Ruling: The DAG adapter relationship type is GraphWalkDagRelation, replacing the stale Task8 name DagWalkRelation — the reconciled spec requires all exported walking types to use GraphWalk*/AsyncGraphWalk* — costs if wrong: this unreleased spelling differs from the earlier plan excerpt; no shipped compatibility alias is needed.
+
+Ruling: DAG adapter always validates disjoint unique declared live/omitted IDs; selected child and forest-entry slots enforce their live/omitted kind, while root and selected W/C IDs may name either; unselected child endpoint consistency is ignored after shape normalization — preserves slot meaning and selected-topology exploration without DAG execution validation — costs if wrong: shape-valid selected slots with contradictory live/omitted tags are rejected; callers must correct tags or select a different relation.
+
 ### Task 1 completion
 
-Implemented in `1882273`, independently reviewed with no findings. Full `npm run check` passed: 97 suites, 2,176 tests, all four source coverage metrics at 100%, examples, packed consumers and benchmark/facade checks. This task establishes types and normalization; walking runners remain under implementation.
+Implemented in `1882273`, independently reviewed with no findings. Full `npm run check` passed: 97 suites, 2,176 tests, all four source coverage metrics at 100%, examples, packed consumers and benchmark/facade checks. At that historical checkpoint, Task 1 established types/normalization and walking runners were still under implementation; Tasks 2–9 subsequently delivered them.

@@ -2,7 +2,7 @@
 
 [Home and quickstart](../README.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md)
 
-These pages describe the **unreleased uniform and composable APIs in this checkout**. The published npm release remains **0.11.0**. The [migration guide](migration-uniform-api.md) covers changed defaults and deprecated forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
+These pages describe the **unreleased uniform, composable, and graph-walking APIs in this checkout**. The published npm release remains **0.11.0**. The [migration guide](migration-uniform-api.md) covers changed defaults and deprecated forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
 
 ## Read by task
 
@@ -15,6 +15,7 @@ These pages describe the **unreleased uniform and composable APIs in this checko
 | Add a work or subtree-completion dependency | [Join semantics](agent-workflows.md#work-dependencies-and-completion-joins) → [exact graph contracts](reference.md#discovery-and-completed-work) | Correct dependency declarations without structural/dependency cycles |
 | Explain a blocker or find downstream constraints | [Query contracts](reference.md#dag-dependency-queries-and-explanations) → [workflow troubleshooting](agent-workflows.md#troubleshoot-a-workflow) | A captured W/C causal graph, identity status, and discovery limits |
 | Debug missing work or a stalled graph | [Troubleshooting](agent-workflows.md#troubleshoot-a-workflow) → [DAG diagnostics](reference.md#dag-traversal) | A complete catalog or lookup adapter and the relevant diagnostics |
+| Explore cyclic context, references or provenance | [Walking workflow](agent-workflows.md#explore-context-and-references) → [walking contracts](reference.md#general-graph-walking) | A lazy source, independent observations, and explicit completeness outcome |
 | Walk an object or abstract tree | [Objects](reference.md#traverse-an-object) → [abstract trees](reference.md#abstract-trees) → [orders](reference.md#traversal-orders) | The correct adapter, traversal family, and order |
 | Use async callbacks | [Execution models](agent-workflows.md#choose-an-execution-model) → [async traversal](reference.md#async-traversal) → [pause/resume](reference.md#pause-and-resume) | A callback concurrency limit and clear iterator ownership |
 | Migrate from published 0.11.0               | [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                                                      | Prepared previews, guarded frontiers, execution/pause capabilities, truthful rewrite outputs, typed identity, diagnostics and detached queries |
@@ -34,6 +35,9 @@ Examples are executable programs; the DAG and agent coordination examples includ
 | [DAG inspection](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts) | Captured W/C navigation, seeded parent work, child completion blockers, and stable explanations |
 | [DAG fragments](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts) | Typed ports, two object-ID instances, a completion wire and independent sync/async sessions |
 | [DAG revisions](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts) | Atomic data replacement, declaration diff, isolated tickets and host-selected completed-work seeds |
+| [Graph context](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts) | Mixed hydration, shared targets, parallel/back edges, isolated roots; five vertex and six edge callbacks |
+| [Typed code references](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts) | Async hydrated endpoint narrowing, callbacks/iteration, common inspection and family-safe execution wrappers |
+| [Bounded provenance](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-paths-example.ts) | Simple paths/repeated walks, parallel route identity and explicit limited/exhausted outcomes |
 | [DAG traversal](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts) | Shared vertices and work versus structural completion |
 | [Async tree adapter](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts) | Promise-returning discovery and visitors |
 | [Object rewrite](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts) | Transforming nested values |
@@ -45,5 +49,5 @@ The npm package includes these guides and the reference. Examples, contributor i
 - [Changelog](../CHANGELOG.md): unreleased changes and historical release facts.
 - [Testing](testing.md): commands, coverage requirements, package/runtime checks.
 - [Performance reports](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/performance): measured artifacts and explicit limits; not universal speed guarantees.
-- [Agent API roadmap](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/docs/superpowers/specs/2026-10-25-agent-api-roadmap.md): ten proposals; the current reference documents the implemented collection, preparation, coordination, fragment composition, validated revisions, dependency inspection, event and visitor APIs. Items 5, 9 and 10 remain future work.
+- [Agent API roadmap](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/docs/superpowers/specs/2026-10-25-agent-api-roadmap.md): ten proposals; the current reference documents the implemented collection, preparation, coordination, fragment composition, validated revisions, dependency inspection, event and visitor APIs. General graph walking (9) is implemented in this checkout; items 5 and 10 remain future work.
 - [Research](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/research) and [design plans](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/superpowers): decision history. Some proposals are superseded or describe downstream work that CTT does not implement. Use current guides and source/tests to establish behavior.

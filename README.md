@@ -1,6 +1,6 @@
 # configurable-tree-traversal
 
-**Dependency-aware building blocks for autonomous-agent workflows, plus general tree and DAG traversal for TypeScript and JavaScript.**
+**Dependency-aware building blocks for autonomous-agent workflows, plus general graph and tree traversal for TypeScript and JavaScript.**
 
 Give CTT a graph of work and accepted completion facts. It determines what can run next, enforces work and structural-completion dependencies, and exposes progress without executing business work. Your host chooses agents, dispatches tasks, accepts results, and persists state.
 
@@ -15,6 +15,7 @@ Give CTT a graph of work and accepted completion facts. It determines what can r
 | Resume after a process restart or wait for human input | Reconstruction from accepted completion facts | [Recovery and storage](docs/agent-workflows.md#persist-facts-and-reconstruct) |
 | Review a composite task only after all its subtasks finish | `dependsOnComplete` | [Work versus completion](docs/agent-workflows.md#work-dependencies-and-completion-joins) |
 | Fetch dependencies from a task catalog or service | `resolvePrerequisite(id)` | [Discover prerequisites](docs/agent-workflows.md#discover-the-graph) |
+| Explore cyclic context, code references, or provenance | Lazy typed vertex/edge/path walking with explicit bounds | [Graph exploration](docs/agent-workflows.md#explore-context-and-references) |
 | Walk or transform a repository index, AST, or JSON object | Iterative sync/async DFS, BFS, pruning, rewriting | [Tree and object traversal](docs/reference.md#traverse-an-object) |
 
 CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool execution, claims, retries, timeouts, business outcomes, and durable storage. It can use SQLite, another database, or another storage provider without a CTT storage dependency.
@@ -25,7 +26,7 @@ CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool
 npm install configurable-tree-traversal
 ```
 
-**This checkout documents the unreleased uniform and composable APIs.** The published npm release is **0.11.0**; its API differs from the examples below. See the [migration guide](docs/migration-uniform-api.md) for changed defaults and compatibility forms. The package version stays unchanged until release. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
+**This checkout documents the unreleased uniform, composable, and graph-walking APIs.** The published npm release is **0.11.0**; its API differs from the examples below. See the [migration guide](docs/migration-uniform-api.md) for changed defaults and compatibility forms. The package version stays unchanged until release. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
 
 ## Quickstart: find the next agent tasks
 

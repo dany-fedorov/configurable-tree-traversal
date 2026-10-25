@@ -8,6 +8,7 @@ Use CTT when agents or tools perform work with dependencies: research before imp
 
 ## On this page
 
+- [Explore context and references](#explore-context-and-references)
 - [Reuse workflow fragments](#reuse-workflow-fragments)
 - [Choose an execution model](#choose-an-execution-model)
 - [Discover the graph](#discover-the-graph)
@@ -16,6 +17,18 @@ Use CTT when agents or tools perform work with dependencies: research before imp
 - [Persist facts and reconstruct](#persist-facts-and-reconstruct)
 - [Retries, human waits, and graph revisions](#retries-human-waits-and-graph-revisions)
 - [Troubleshoot a workflow](#troubleshoot-a-workflow)
+
+## Explore context and references
+
+Choose `GraphWalk` / `AsyncGraphWalk` to gather context, follow code references or collect provenance from cyclic/shared information graphs. Choose DAG traversal when relationships mean work/completion prerequisites. A walking edge has caller-defined meaning and supplies no dispatch readiness. An isolated root still produces a vertex; parallel and back edges remain observable in the same walk. See the [five-vertex/six-relationship context example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts) and [exact walking contracts](reference.md#general-graph-walking).
+
+For a finite in-memory catalog, use `walkSourceFrom(items, { id, outgoing, roots })`; its async counterpart materializes async inputs once and returns a synchronous source. For lazy retrieval, supply `source.roots()`, optional `source.resolveVertex(id)`, and `source.outgoing(vertex)` to the walking constructor. Use `{ vertexId }` targets when the host has IDs, `{ vertexId, resolution: { kind: 'found', data } }` when discovery already hydrated the endpoint, or mix both. Fully hydrated sources need no resolver. `walkSourceFromDag(definition, { relations })` explicitly projects selected declaration links without DAG execution validation. Do not pass a `TraversableGraph` / `TraversableTree` directly; their source context and omission contracts differ.
+
+Use phase-keyed vertex and edge visitors to collect typed endpoint data in one session. Use `getIterable({ emitPhases: [...] })` for pull integration; explicit selections narrow the delivered event union, while callbacks are independently controlled by `visitorPhases`. `walkGraph(options)` / `await walkGraphAsync(options)` are one-shot helpers returning the runner. Source callbacks and visitors execute serially, including async walking; no concurrency setting is accepted. The [reference example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts) shows callbacks, async iteration, endpoint discriminants, common inspection and wrappers that preserve each family's phase type.
+
+Default `revisit: 'once'` collects each vertex and every followed relationship. Select `simplePaths` for prefixes without repeated vertices, or `walks` for repeated routes; both require a depth or step bound. Always carry `runner.summary().outcome` into a host result so `limited` cannot be mistaken for completeness. Paths include every prefix; parallel relationships can produce identical vertex sequences with distinct edge indices. DFS depth bounds apply to its first route; BFS finds shortest discovery depths. See the [bounded provenance example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-paths-example.ts).
+
+The host owns authorization, retrieval policy, stable IDs, relationship meaning, retries, freshness, timeouts, persistence and any agent/model invocation. The first admitted resolution for an ID wins, including omission; a fresh runner is required to observe replacement data. Walking does not retry omissions or certify a remote transactional snapshot. A budget bounds exploration steps/occurrences/depth, not host callback duration or tokens. Consumer iterator `return()`/loop break pauses and retains resources for continuation; terminal runner `close()` disposes them after execution ownership has been released. Active terminal close rejects: first return the iterator or request and await pause. Iterator return/pause and async cleanup require pending host work to settle and do not cancel promises. A failed runner retains its exact error; closing it rethrows that same error without repeating cleanup. Retain/dispose paused runners deliberately; there is no durable walking checkpoint or built-in network/LLM integration.
 
 ## Reuse workflow fragments
 

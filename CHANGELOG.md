@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add lazy sync/async `GraphWalk` exploration and canonical `walkGraph` / `walkGraphAsync` helpers with mixed typed vertex/edge/path observations, hydrated targets, cyclic/parallel relationships, bounded simple paths/repeated walks, explicit completeness outcomes, cooperative pause and terminal iterator disposal.
+- Add finite catalog and selected DAG-declaration walking adapters, default-preserving common execution inspection, and coherent root/namespace/subpath CJS/ESM exports. Preserve tree/DAG contracts and the published 0.11.0 release boundary.
+
 - Add atomic validated `reviseDag` edits and pure shallow `diffDagDefinitions` results; preserve old sessions/tickets and require explicit host-selected completion facts for new sessions.
 - Hide omitted and deleted synthetic holder identities from DAG inspection while preserving caller symbol IDs.
 

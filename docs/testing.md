@@ -50,11 +50,19 @@ Materialized definitions and composition are covered by `dag-definition.test.ts`
 
 DAG dependency inspection is covered by `dag-inspection.test.ts`, `dag-inspection-explanations.test.ts`, `dag-inspection-terminal.test.ts`, `dag-inspection-inputs.test.ts`, and `dag-inspection.typecheck.ts`: exact W/C facts, original constraints, SameValueZero IDs, known omissions/deletions, unresolved endpoints, local discovery, callback commit boundaries, iterator ownership, detached captures, cycles and deep iterative walks. Terminal reconstruction tests cover original/copied state, committed W/C versus partial failure, tree-source identities, detached diagnostic wrappers, invalidated late async callbacks, and sealed/nonextensible caller state with exact success/failure preservation. Structural target tests cover class and non-enumerable getters, one read per field, exact failures, and detached results. Packed `dag-inspection.mjs` and `.ts` fixtures cover root/DAG/namespace loader identity, sync/async behavior and exact public ID types through the extracted package.
 
+General graph walking is covered by `graph-walk-*.test.ts`, `async-graph-walk*.test.ts`, and their type assertions: source laziness/hydration/first-accepted omissions, arbitrary identity and parallel links, exact BFS/DFS sequences, independent emission/callback selection, predicate pruning, zero/exact budgets, bounded simple paths/repeated walks, visitor commit boundaries, pause/ownership and pending-return races, reverse cleanup with exact primary failures, passive inspection, catalog/DAG relation adapters and one-shot helpers. Resource tests distinguish consumer iterator pause from terminal runner close and verify active-owner rejection, retained failed-close errors, shared async close promises and acquired iterators with throwing protocol getters. Cross-family capability assertions preserve old inspection defaults and phase variance.
+
+Packed `graph-walk.mjs` / `.ts` consumers check actual root/namespace/subpath CJS/ESM constructor and declaration identity, typed hydrated endpoints, mixed/omitted records, arbitrary IDs, async continuation, helpers and adapters. The three `graph-walk-*-example.ts` programs assert the five-vertex/six-edge context, typed code references/common inspection wrappers, and bounded provenance outcomes. Complete walking and cross-family guide snippets run against the extracted package; partial snippets are not substitutes for those consumers.
+
 ## Focused checks
 
 ```sh
 npm test -- tests/collection-sources.test.ts tests/prepared-dag.test.ts tests/dag-coordination.test.ts
 npm run tsfile -- examples/agent-api-foundations-example.ts
+npm run tsfile -- examples/graph-walk-context-example.ts
+npm run tsfile -- examples/graph-walk-references-example.ts
+npm run tsfile -- examples/graph-walk-paths-example.ts
+npm test -- tests/graph-walk-resources.test.ts tests/async-graph-walk.test.ts
 npm test -- tests/traversal-combinations.test.ts
 npm test -- tests/dag-traversal.test.ts tests/graph-readiness.test.ts
 npm test -- tests/async-depth-first.test.ts tests/async-breadth-first.test.ts tests/async-dag.test.ts
@@ -111,7 +119,23 @@ node /tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typescript/bin/tsc --v
 CTT_TYPESCRIPT_COMPILER=/tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typescript/bin/tsc node scripts/verify-package.cjs
 ```
 
-For final composable-API compatibility, run the built-package verifier across exact Node 22.12.0, current Node 24 and Bun 1.4.4, each with locked TS4.9.5 and minimum TS4.7.4. Build once on the final tree, then invoke `scripts/verify-package.cjs` directly for the remaining matrix cases; a successful `npm run check` covers its current-runtime/locked-compiler case. Record actual runtime/compiler versions, complete logs and exit codes. The uniform consumer fixtures exercise real calls and meaningful negative assertions through packed `.ts`/`.cts`/`.mts` declarations, with both CJS/ESM runtime identities; source imports alone do not prove compatibility.
+For final composable and graph-walking API compatibility, run the built-package verifier across exact Node 22.12.0, current Node 24 and Bun 1.4.4, each with locked TS4.9.5 and minimum TS4.7.4. Build once on the final tree, then invoke `scripts/verify-package.cjs` directly for the remaining matrix cases; a successful `npm run check` covers its current-runtime/locked-compiler case. Record actual runtime/compiler versions, complete logs and exit codes. The uniform consumer fixtures exercise real calls and meaningful negative assertions through packed `.ts`/`.cts`/`.mts` declarations, with both CJS/ESM runtime identities; source imports alone do not prove compatibility.
+
+Re-check every available runtime and both compiler versions before the final matrix; local `/tmp` paths are examples of evidence tooling, not guaranteed installations. After the full check builds the final tree, use verified local paths (represented here by shell variables) for the five remaining pairs, sequentially:
+
+```sh
+node "$ctt_minimum_compiler" --version
+"$ctt_node22" --version
+"$ctt_bun" --version
+CTT_TYPESCRIPT_COMPILER="$ctt_minimum_compiler" node scripts/verify-package.cjs
+"$ctt_node22" scripts/verify-package.cjs
+CTT_TYPESCRIPT_COMPILER="$ctt_minimum_compiler" "$ctt_node22" scripts/verify-package.cjs
+"$ctt_bun" scripts/verify-package.cjs
+CTT_TYPESCRIPT_COMPILER="$ctt_minimum_compiler" "$ctt_bun" scripts/verify-package.cjs
+"$ctt_bun" test scripts/build-esm.test.cjs scripts/benchmark-dag.test.cjs scripts/benchmark-dag-lifecycle.test.cjs
+```
+
+The current Node/locked compiler pair is already covered by `npm run check`; avoid rebuilding for each remaining verifier call. Each verifier uses its own temporary consumer directory and `process.execPath` for runtime/compiler subprocesses. Record the complete command, actual versions, exit code and log per pair. Exact minimum Node packed compatibility does not replace the full current Node 22/24 CI source/coverage lanes; any unavailable lane must remain explicitly pending remote CI.
 
 The `/tmp` compiler and checksum-verified Bun binary are local evidence tooling, not repository dependencies. The full Node 22/24 CI checks and the pinned Bun lane are separate required gates.
 
