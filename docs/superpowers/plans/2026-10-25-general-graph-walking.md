@@ -10,7 +10,7 @@
 
 **Spec:** [General graph walking design](../specs/2026-10-25-general-graph-walking-design.md). Read the complete revised design, including cross-family consistency, independent review disposition, and the self-link depth-bound example, before executing this plan.
 
-**Status:** Implementation plan only. No task below has been executed. The design and plan do not establish that the APIs exist. Current base is `c1e5840bdf89372955feedde9d18e2214e0ea663`; re-check source and workspace state at execution time.
+**Status:** Implementation in progress. Task 1 is implemented and independently reviewed; unchecked tasks remain. The design and plan do not establish that the APIs exist. Current base is `c1e5840bdf89372955feedde9d18e2214e0ea663`; re-check source and workspace state at execution time.
 
 ## Global Constraints
 
@@ -157,7 +157,7 @@ Kernel state carries an admitted candidate, its pending edge/vertex/path boundar
 
 **Interfaces:** consume existing `CoreInspection`, execution selectors, visitor definitions, status/stop enums, and `MaybePromise`. Produce `ExecutionInspection`, defaulted inspection generics, `GraphWalkSource`, `AsyncGraphWalkSource`, `GraphWalkTarget`, `GraphWalkVertexResult`, `GraphWalkLink`, `GraphWalkVertex`, `GraphWalkEdge`, `GraphWalkEvent`, phase narrowing, visitor/predicate/options types, and a pure `normalizeWalkOptions(input, previous?)` snapshot function. No public walking runner is claimed complete in this task.
 
-- [ ] Add a compile-time regression demonstrating generalized inspection without weakening existing detailed callers:
+- [x] Add a compile-time regression demonstrating generalized inspection without weakening existing detailed callers:
 
 ```ts
 function paused(state: TraversalExecutionState<ExecutionInspection>): boolean {
@@ -170,9 +170,9 @@ paused(syncConcrete);
 void oldShape;
 ```
 
-- [ ] Run `npm run typecheck`; confirm the missing common contract/defaulted parameter is the failure. Add `ExecutionInspection` with the seven fields specified in the design; add `Inspection extends ExecutionInspection = CoreInspection` to `TraversalExecutionState` and as the third parameter of sync/async capabilities. Preserve function-property variance and default legacy interfaces. Generalize `InspectionFilters<Phase extends string = VisitOrder>` in `CoreInspection.ts` and use it as walking `iterableConfig`; old defaults remain unchanged.
-- [ ] Define the source/event/options types from the spec and the public interfaces above. Until Task 2 adds the family barrel, import these types by their new module paths in type assertions; Task 2 switches the public assertions to the root exports. Add negative assertions for async callbacks in sync sources, absent bounds with `simplePaths`/`walks`, another family's phases, mixed `emitPhases`/`iterateOver`, and invalid commands. Test `undefined`, object and symbol ID types without widening them to `unknown`.
-- [ ] Add runtime tests for atomic normalization and copied selectors; use the exact shared normalizer with explicit walking phases:
+- [x] Run `npm run typecheck`; confirm the missing common contract/defaulted parameter is the failure. Add `ExecutionInspection` with the seven fields specified in the design; add `Inspection extends ExecutionInspection = CoreInspection` to `TraversalExecutionState` and as the third parameter of sync/async capabilities. Preserve function-property variance and default legacy interfaces. Generalize `InspectionFilters<Phase extends string = VisitOrder>` in `CoreInspection.ts` and use it as walking `iterableConfig`; old defaults remain unchanged.
+- [x] Define the source/event/options types from the spec and the public interfaces above. Until Task 2 adds the family barrel, import these types by their new module paths in type assertions; Task 2 switches the public assertions to the root exports. Add negative assertions for async callbacks in sync sources, absent bounds with `simplePaths`/`walks`, another family's phases, mixed `emitPhases`/`iterateOver`, and invalid commands. Test `undefined`, object and symbol ID types without widening them to `unknown`.
+- [x] Add runtime tests for atomic normalization and copied selectors; use the exact shared normalizer with explicit walking phases:
 
 ```ts
 expect(() => normalizeWalkOptions({ source, revisit: 'walks' })).toThrow(TypeError);
@@ -198,7 +198,7 @@ const execution = normalizeTraversalExecutionOptions(
 
 Here `input` is the validated options object (the shared normalizer reads only recognized selector fields), and `source` in the regression is a typed zero-root synchronous source defined in the test. Default policy/order are once/BFS, emissions vertex-only, visitors all. Reject malformed source methods/options and any own `concurrency` field before invoking them; don't freeze callback receivers or caller data. Read recognized option getters once; propagate getter errors unchanged. `.configure` later calls this function on a copied candidate.
 
-- [ ] Run `npm test -- tests/graph-walk-options.test.ts` and `npm run typecheck`. Verify existing execution capability negative assertions still reject widening a DFS/BFS/DAG family. Commit only the files listed here with message `feat(core): generalize execution inspection for graph walking`.
+- [x] Run `npm test -- tests/graph-walk-options.test.ts` and `npm run typecheck`. Verify existing execution capability negative assertions still reject widening a DFS/BFS/DAG family. Commit only the files listed here with message `feat(core): generalize execution inspection for graph walking`.
 
 ## Task 2: Synchronous unique-vertex discovery and mixed observations
 
@@ -633,3 +633,7 @@ Completed inline on 2026-10-25: all design sections map to the acceptance matrix
 ## Autonomous implementation rulings
 
 The spec's Fable reconciliation section supersedes earlier examples in the retained review artifact. Apply the consistent public `GraphWalk*` names, `strategy`, and `traversals/graph-walk` subpath throughout code/tests/docs. Reject unsupported concurrency explicitly. Reuse shared command/filter contracts with default-preserving generics. The source's first accepted result remains authoritative, including omissions; document the intentional difference from DAG milestone execution. Bounds constrain construction types, while configure patches validate merged state at runtime. One vertex-expansion depth gate is authoritative; exact step exhaustion is not mislabeled as truncation. `walkSourceFrom(items, options)` keeps a flat ergonomic options object containing selectors and roots.
+
+### Task 1 completion
+
+Implemented in `1882273`, independently reviewed with no findings. Full `npm run check` passed: 97 suites, 2,176 tests, all four source coverage metrics at 100%, examples, packed consumers and benchmark/facade checks. This task establishes types and normalization; walking runners remain under implementation.
