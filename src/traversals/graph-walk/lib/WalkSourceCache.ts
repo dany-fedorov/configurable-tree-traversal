@@ -1,4 +1,5 @@
 import type { GraphWalkVertexResult } from '../GraphWalkSource';
+import { rejectThenable } from './rejectThenable';
 
 function record(value: unknown): Record<PropertyKey, unknown> {
   if (value === null || typeof value !== 'object')
@@ -34,7 +35,9 @@ export function pullCursor(cursor: WalkCursor): unknown {
     const factory = input[Symbol.iterator];
     if (typeof factory !== 'function')
       throw new TypeError('Expected a synchronous iterable');
-    const iterator = record(factory.call(input));
+    const value = factory.call(input);
+    rejectThenable(value);
+    const iterator = record(value);
     if (typeof iterator['next'] !== 'function')
       throw new TypeError('Expected an iterator next method');
     cursor.iterator = iterator as unknown as Iterator<unknown>;

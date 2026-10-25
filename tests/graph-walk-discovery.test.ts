@@ -367,3 +367,61 @@ it('ignores later inline hydration without reading its getters', () => {
     links: 1,
   });
 });
+
+it.each(['roots', 'outgoing'] as const)(
+  'observes rejected promises from the %s iterator factory before retaining TypeError',
+  async (location) => {
+    const rejection = { location };
+    const rejected = Promise.reject(rejection);
+    const observed: unknown[] = [];
+    // Use a real rejected promise. Record whether the walker installs and runs
+    // its rejection handler, with a separate fallback solely to keep RED safe.
+    Object.defineProperty(rejected, 'then', {
+      value(
+        onFulfilled: (value: unknown) => unknown,
+        onRejected: (error: unknown) => unknown,
+      ) {
+        return Promise.prototype.then.call(
+          rejected,
+          onFulfilled,
+          (error: unknown) => {
+            observed.push(error);
+            return onRejected(error);
+          },
+        );
+      },
+    });
+    const malformed = { [Symbol.iterator]: () => rejected };
+    const source = {
+      roots: () =>
+        location === 'roots'
+          ? malformed
+          : [{ vertexId: 'A', resolution: { kind: 'found', data: 'A' } }],
+      outgoing: () => malformed,
+    } as unknown as GraphWalkSource<string, undefined, string>;
+    const runner = new GraphWalk({ source }).makeRunner();
+    let failure: unknown;
+    try {
+      runner.run();
+    } catch (error) {
+      failure = error;
+    } finally {
+      // Bypass the instrumented method: this fallback cannot satisfy observed.
+      Promise.prototype.then.call(rejected, undefined, () => undefined);
+    }
+    expect(failure).toBeInstanceOf(TypeError);
+    expect(runner.summary().outcome).toEqual({
+      kind: 'failed',
+      error: failure,
+    });
+    let repeated: unknown;
+    try {
+      runner.run();
+    } catch (error) {
+      repeated = error;
+    }
+    expect(repeated).toBe(failure);
+    await Promise.resolve();
+    expect(observed).toEqual([rejection]);
+  },
+);
