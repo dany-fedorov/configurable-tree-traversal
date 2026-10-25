@@ -1,6 +1,6 @@
 # DAG dependency queries implementation plan
 
-> **For agentic workers:** Use test-driven development and verification-before-completion. This draft prepares phase 2A; do not treat preparation as an instruction to implement the remaining phase-two plans automatically.
+> **Status:** Completed and independently reviewed. This plan is retained as the implementation record; current public contracts are in the API reference.
 
 **Goal:** Implement roadmap item 7 with observational milestone navigation and readiness explanations.
 
@@ -26,7 +26,7 @@
 
 **Interfaces:** engine-produced `DagVertexProgress` gains `unmetWorkPrerequisiteIds` without changing the union field. Add an internal detached identity-state projection and per-vertex expansion/commit facts consumed by the inspection factory. Neither projection exposes a mutator or calls adapters.
 
-- [ ] Add a regression with `review` declaring both W and C of a seeded `bundle`, whose child is deferred. The actual assertions must distinguish those waits:
+- [x] Add a regression with `review` declaring both W and C of a seeded `bundle`, whose child is deferred. The actual assertions must distinguish those waits:
 
 ```ts
 import { DagTraversal, graphFrom } from '../src';
@@ -52,9 +52,9 @@ expect(runner.summary().vertices.get('review')).toMatchObject({
 });
 ```
 
-- [ ] Run `npm test -- tests/dag-inspection.test.ts` and observe the missing field fail.
-- [ ] Copy the scheduler's actual `unmet` set into the new field. Define the internal snapshot fields from existing scheduler state rather than reconstructing it from emitted events. Test known omitted/deleted IDs, own undefined identity, partial discovery, and detached result ownership.
-- [ ] Run the new test and existing `tests/dag-progress-seed.test.ts`, `tests/async-dag-prerequisite-lifecycle.test.ts`, and `tests/graph-readiness.test.ts`, then `npm run typecheck`.
+- [x] Run `npm test -- tests/dag-inspection.test.ts` and observe the missing field fail.
+- [x] Copy the scheduler's actual `unmet` set into the new field. Define the internal snapshot fields from existing scheduler state rather than reconstructing it from emitted events. Test known omitted/deleted IDs, own undefined identity, partial discovery, and detached result ownership.
+- [x] Run the new test and existing `tests/dag-progress-seed.test.ts`, `tests/async-dag-prerequisite-lifecycle.test.ts`, and `tests/graph-readiness.test.ts`, then `npm run typecheck`.
 
 ## Task 2 Expose milestone navigation
 
@@ -62,7 +62,7 @@ expect(runner.summary().vertices.get('review')).toMatchObject({
 
 **Interfaces:** `inspectDag(runner)` returns `DagInspection<ID>`. Its `prerequisitesOf` and `dependentsOf` accept `DagDependencyMilestone<ID>` plus optional `{ transitive?: boolean }` and return detached `{ milestones, edges, discoveryComplete }`.
 
-- [ ] Add direct/reverse/transitive public examples before implementation:
+- [x] Add direct/reverse/transitive public examples before implementation:
 
 ```ts
 const inspection = inspectDag(runner);
@@ -75,9 +75,9 @@ expect(inspection.dependentsOf({ vertexId: 'bundle', milestone: 'completion' }).
   .toEqual([{ vertexId: 'review', milestone: 'work' }]);
 ```
 
-- [ ] Verify the missing API fails, then build forward/reverse adjacency using nested identity/milestone maps. Use iterative breadth-first traversal, copied edge wrappers, and the existing reason/direction conventions.
-- [ ] Cover W/C separation, SameValueZero identities, deterministic ordering, cycles in inspected failed runners, unknown targets, partial snapshots, and snapshot stability after settlement. Assert original adapter call counts do not change during inspection or queries.
-- [ ] Verify sync and async runners infer exact IDs, including sync sources passed to async constructors; reject IDs from another declared domain. Run focused tests and typecheck.
+- [x] Verify the missing API fails, then build forward/reverse adjacency using nested identity/milestone maps. Use iterative breadth-first traversal, copied edge wrappers, and the existing reason/direction conventions.
+- [x] Cover W/C separation, SameValueZero identities, deterministic ordering, cycles in inspected failed runners, unknown targets, partial snapshots, and snapshot stability after settlement. Assert original adapter call counts do not change during inspection or queries.
+- [x] Verify sync and async runners infer exact IDs, including sync sources passed to async constructors; reject IDs from another declared domain. Run focused tests and typecheck.
 
 ## Task 3 Explain current blockers and integrate
 
@@ -85,7 +85,7 @@ expect(inspection.dependentsOf({ vertexId: 'bundle', milestone: 'completion' }).
 
 **Interfaces:** `explain(target)` returns the spec's known/unknown/deleted union. A known result includes milestone satisfaction, progress or null for omissions, a flat blocker graph, and discovery completeness.
 
-- [ ] Test seeded W versus incomplete C, omitted/deleted targets, open discovery, unresolved endpoints, completion transitions that have not committed, and a ready but externally deferred vertex whose W is not satisfied.
+- [x] Test seeded W versus incomplete C, omitted/deleted targets, open discovery, unresolved endpoints, completion transitions that have not committed, and a ready but externally deferred vertex whose W is not satisfied.
 
 ```ts
 const result = inspectDag(runner).explain({ vertexId: 'bundle', milestone: 'work' });
@@ -94,10 +94,10 @@ const completion = inspectDag(runner).explain({ vertexId: 'bundle', milestone: '
 expect(completion).toMatchObject({ kind: 'known', satisfied: false });
 ```
 
-- [ ] Implement explanations from Task 1's exact captured facts. Never invoke callbacks or classify business outcomes. Share milestone traversal with Task 2 rather than implementing another recursive graph walker.
-- [ ] Execute the new example, verify docs links, and cover the public imports with packed runtime/type consumers.
-- [ ] Run `npm run check`, obtain focused independent review, fix material findings, and commit the complete query delivery before starting composition work.
+- [x] Implement explanations from Task 1's exact captured facts. Never invoke callbacks or classify business outcomes. Share milestone traversal with Task 2 rather than implementing another recursive graph walker.
+- [x] Execute the new example, verify docs links, and cover the public imports with packed runtime/type consumers.
+- [x] Run `npm run check`, obtain focused independent review, fix material findings, and commit the complete query delivery before starting composition work.
 
-## Prepared handoff
+## Completion record
 
-Start with Task 1. Phase 2A can ship independently; it does not require fragment composition or graph revision APIs. This plan is a draft and contains no implementation-completion claims.
+Implemented with public regressions, compile-time assertions, runnable examples, and packed consumers. Independent task and whole-branch reviews are complete; all material findings were fixed and re-reviewed. See the [phase-two design](../specs/2026-10-25-agent-api-phase-two-design.md) and [current API reference](../../reference.md).

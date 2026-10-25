@@ -1,6 +1,6 @@
 # DAG definition values and fragments implementation plan
 
-> **For agentic workers:** Use test-driven development and verification-before-completion. This draft prepares phase 2B; keep runtime changes out of the preparation-only commit.
+> **Status:** Completed and independently reviewed. This plan is retained as the implementation record; current public contracts are in the API reference.
 
 **Goal:** Implement roadmap item 4 with faithful definition values, typed fragment ports, and validated composition.
 
@@ -26,7 +26,7 @@
 
 **Interfaces:** `DagDefinitionSlot`, `DagDefinitionVertex`, and `DagDefinition` are specified in section 2B. `defineDag(input)` copies owned fields and rejects malformed declarations. Add `PreparedDag.definition`; existing `.vertices` and runner/session factories retain their behavior.
 
-- [ ] Start with the omission-order fixture in `tests/prepared-dag.test.ts`. Assert that the definition preserves the omitted slot before its dependent sibling and that a definition round-trip reproduces both work and completion event order.
+- [x] Start with the omission-order fixture in `tests/prepared-dag.test.ts`. Assert that the definition preserves the omitted slot before its dependent sibling and that a definition round-trip reproduces both work and completion event order.
 
 ```ts
 expect(prepared.definition.vertices[0]!.slots).toEqual([
@@ -36,9 +36,9 @@ expect(prepared.definition.vertices[0]!.slots).toEqual([
 ]);
 ```
 
-- [ ] Observe failure, then extract the facts currently closed over by `makePreparedDag`: entry mode/slots, live records, omitted identities, and effective dependencies. Reuse one replay source implementation for old and new preparation paths.
-- [ ] Cover real roots, empty/omitted roots, synthetic catalogs, anonymous omissions, non-enumerable own IDs, undefined/object IDs, shared children, detached prerequisites, no source replay, and shallow data ownership.
-- [ ] Run new tests plus `tests/prepared-dag.test.ts` and `tests/prepared-source-contracts.test.ts`; run typecheck and confirm all existing phase-one tests remain applicable.
+- [x] Observe failure, then extract the facts currently closed over by `makePreparedDag`: entry mode/slots, live records, omitted identities, and effective dependencies. Reuse one replay source implementation for old and new preparation paths.
+- [x] Cover real roots, empty/omitted roots, synthetic catalogs, anonymous omissions, non-enumerable own IDs, undefined/object IDs, shared children, detached prerequisites, no source replay, and shallow data ownership.
+- [x] Run new tests plus `tests/prepared-dag.test.ts` and `tests/prepared-source-contracts.test.ts`; run typecheck and confirm all existing phase-one tests remain applicable.
 
 ## Task 2 Validate materialized definitions
 
@@ -46,7 +46,7 @@ expect(prepared.definition.vertices[0]!.slots).toEqual([
 
 **Interfaces:** `prepareDagDefinition(definition): DagDefinitionResult<Data, ID>`. Issue variants name missing structural endpoints, invalid entry/omission references, unreachable records, structural SCCs, and existing milestone diagnostics. Malformed API inputs still throw.
 
-- [ ] Test a disconnected record absent from the declared entry/dependency closure and a structural cycle, before implementation:
+- [x] Test a disconnected record absent from the declared entry/dependency closure and a structural cycle, before implementation:
 
 ```ts
 const unreachableDefinition = defineDag({
@@ -69,9 +69,9 @@ expect(prepareDagDefinition(unreachableDefinition)).toMatchObject({
 expect(prepareDagDefinition(structuralCycle)).toMatchObject({ kind: 'invalid' });
 ```
 
-- [ ] Implement iterative membership checks and structural SCC checks before invoking existing preparation for milestone validation. Distinguish an omitted identity from a missing one. Do not add a second W/C scheduler or catch arbitrary exceptions by their messages.
-- [ ] Verify that detached prerequisites reachable through W or C are accepted, that each invalid result has no executable DAG, and that accepted definitions preserve runner event behavior.
-- [ ] Run focused tests and typecheck. Publish issue names and semantics in the reference only when this code is implemented.
+- [x] Implement iterative membership checks and structural SCC checks before invoking existing preparation for milestone validation. Distinguish an omitted identity from a missing one. Do not add a second W/C scheduler or catch arbitrary exceptions by their messages.
+- [x] Verify that detached prerequisites reachable through W or C are accepted, that each invalid result has no executable DAG, and that accepted definitions preserve runner event behavior.
+- [x] Run focused tests and typecheck. Publish issue names and semantics in the reference only when this code is implemented.
 
 ## Task 3 Instantiate and compose fragments
 
@@ -79,7 +79,7 @@ expect(prepareDagDefinition(structuralCycle)).toMatchObject({ kind: 'invalid' })
 
 **Interfaces:** `defineDagFragment(definition, ports)`, `instantiateDagFragment(fragment, { mapId })`, and `composeDag(instances, { dependencies?, children? })`. Composition returns `DagDefinitionResult`. Wire endpoints are IDs; dependencies name W/C explicitly. Instances expose precise mapped port keys.
 
-- [ ] Write a public test instantiating the same fragment twice with different object-ID maps and composing a completion prerequisite:
+- [x] Write a public test instantiating the same fragment twice with different object-ID maps and composing a completion prerequisite:
 
 ```ts
 const first = instantiateDagFragment(fragment, { mapId: id => firstIds.get(id)! });
@@ -91,10 +91,10 @@ const result = composeDag([first, second], {
 expect(result.kind).toBe('valid');
 ```
 
-- [ ] Verify failure before implementation. Cache one mapping result per local identity; remap all references and omissions. Reject missing ports, mapped collisions, cross-instance collisions, invalid wires, structural cycles, and combined W/C cycles.
-- [ ] Test explicit structural connections independently of dependencies, deterministic entry/slot order, mapping-error identity, heterogeneous data/ID unions, and exact port-key inference. Source materialization and execution remain separate.
-- [ ] Add an executable example and packed import/type assertions. Run `npm run check`, review the complete change, fix findings, and commit before beginning revisions.
+- [x] Verify failure before implementation. Cache one mapping result per local identity; remap all references and omissions. Reject missing ports, mapped collisions, cross-instance collisions, invalid wires, structural cycles, and combined W/C cycles.
+- [x] Test explicit structural connections independently of dependencies, deterministic entry/slot order, mapping-error identity, heterogeneous data/ID unions, and exact port-key inference. Source materialization and execution remain separate.
+- [x] Add an executable example and packed import/type assertions. Run `npm run check`, review the complete change, fix findings, and commit before beginning revisions.
 
-## Prepared handoff
+## Completion record
 
-Do not rebuild definitions from `.vertices` alone. Task 1's source fidelity is the prerequisite for both fragments and the revision plan. The inspection plan may be delivered independently, but all three changes share the existing milestone vocabulary.
+Implemented with public regressions, compile-time assertions, runnable examples, and packed consumers. Independent task and whole-branch reviews are complete; all material findings were fixed and re-reviewed. See the [phase-two design](../specs/2026-10-25-agent-api-phase-two-design.md) and [current API reference](../../reference.md).

@@ -1,6 +1,6 @@
 # Validated DAG revisions implementation plan
 
-> **For agentic workers:** Use test-driven development and verification-before-completion. Phase 2C is implemented in the checkout, awaiting final review; it uses the definition-value delivery in the fragment plan.
+> **Status:** Completed and independently reviewed. This plan is retained as the implementation record; current public contracts are in the API reference.
 
 **Goal:** Implement roadmap item 6 with atomic definition edits, meaningful structural diffs, and isolated new sessions.
 
@@ -26,7 +26,7 @@
 
 **Interfaces:** operations are `addVertex { vertex }`, `replaceVertex { vertex }`, `removeVertex { vertexId }`, `replaceEntry { entry }`, and `replaceOmissions { omittedIds }`. Records use `DagDefinitionVertex`; entries/omissions use `DagDefinition`. `reviseDag` accepts a prepared DAG and readonly ordered operations. Its result is invalid issues or valid `{ dag, changes }`.
 
-- [ ] Write a regression that removes a prerequisite without replacing its dependent declaration. It must return invalid while the original definition and session remain usable:
+- [x] Write a regression that removes a prerequisite without replacing its dependent declaration. It must return invalid while the original definition and session remain usable:
 
 ```ts
 const before = original.createSession();
@@ -37,9 +37,9 @@ expect(before.advance()).toMatchObject({
 });
 ```
 
-- [ ] Observe the missing API fail. Implement an isolated candidate map/order list, applying operations sequentially and validating only the final shape. Replacement keeps position; addition appends. Unknown replace/remove and duplicate add are programmer errors. Never mutate shared opaque data.
-- [ ] Test a batch that temporarily leaves a dangling reference then repairs it, root replacement/removal, omission/live collisions, cycles, unreachable additions, empty revisions, and preservation of the original after every rejection.
-- [ ] Run focused tests and typecheck; compare new sources against phase-one source/replay ownership tests.
+- [x] Observe the missing API fail. Implement an isolated candidate map/order list, applying operations sequentially and validating only the final shape. Replacement keeps position; addition appends. Unknown replace/remove and duplicate add are programmer errors. Never mutate shared opaque data.
+- [x] Test a batch that temporarily leaves a dangling reference then repairs it, root replacement/removal, omission/live collisions, cycles, unreachable additions, empty revisions, and preservation of the original after every rejection.
+- [x] Run focused tests and typecheck; compare new sources against phase-one source/replay ownership tests.
 
 ## Task 2 Diff definitions explicitly
 
@@ -47,7 +47,7 @@ expect(before.advance()).toMatchObject({
 
 **Interfaces:** `diffDagDefinitions(before, after)` returns `addedIds`, `removedIds`, `changedVertices` with per-ID aspects (`data`, `slots`, `workDependencies`, `completionDependencies`), and booleans `vertexOrderChanged`, `entryChanged`, `omissionsChanged`. `reviseDag` includes this result on success. Both arguments are immutable `DagDefinition` values.
 
-- [ ] Add tests for changes in ordering, W versus C declaration changes, object identity, NaN/undefined IDs, and shallow data replacement:
+- [x] Add tests for changes in ordering, W versus C declaration changes, object identity, NaN/undefined IDs, and shallow data replacement:
 
 ```ts
 expect(diffDagDefinitions(before, after)).toMatchObject({
@@ -56,9 +56,9 @@ expect(diffDagDefinitions(before, after)).toMatchObject({
 });
 ```
 
-- [ ] Implement identity-based comparison without serialization, user comparators, or deep traversal of caller data. Define deterministic result order from old vertex order followed by new additions; preserve a fixed aspect order.
-- [ ] Assert that same-reference deep mutation cannot be reported as an inferred business change. Document that limitation at the diff API, along with the host's responsibility for artifact validity.
-- [ ] Run focused tests and typecheck.
+- [x] Implement identity-based comparison without serialization, user comparators, or deep traversal of caller data. Define deterministic result order from old vertex order followed by new additions; preserve a fixed aspect order.
+- [x] Assert that same-reference deep mutation cannot be reported as an inferred business change. Document that limitation at the diff API, along with the host's responsibility for artifact validity.
+- [x] Run focused tests and typecheck.
 
 ## Task 3 Verify session isolation and integrate
 
@@ -66,7 +66,7 @@ expect(diffDagDefinitions(before, after)).toMatchObject({
 
 **Interfaces:** consume the existing `PreparedDag.createSession`, `createAsyncSession`, and ticket APIs unchanged. No migration of generations, in-flight callbacks, accepted facts, or host revision identifiers is introduced.
 
-- [ ] Create an old deferred session, accept a valid revision, and start a fresh session. Verify the old ticket is rejected by the new session and remains usable in its original session. Verify the host must explicitly provide completed-work seeds to the revised session.
+- [x] Create an old deferred session, accept a valid revision, and start a fresh session. Verify the old ticket is rejected by the new session and remains usable in its original session. Verify the host must explicitly provide completed-work seeds to the revised session.
 
 ```ts
 expect(() => newSession.complete(oldTicket)).toThrow();
@@ -74,9 +74,11 @@ expect(oldSession.complete(oldTicket)).toEqual({ kind: 'accepted' });
 expect(newSession.summary().completedWorkIds).toEqual([]);
 ```
 
-- [ ] Cover the same contract with async sessions and an old completion callback still admitted. Revision must neither cancel nor transfer that callback. Test a host-selected seed set whose meaning is independently accepted for the new definition.
-- [ ] Execute the new example and packed consumers, verify current-guide links/anchors, run `npm run check`, obtain independent review, and resolve material findings before integration.
+- [x] Cover the same contract with async sessions and an old completion callback still admitted. Revision must neither cancel nor transfer that callback. Test a host-selected seed set whose meaning is independently accepted for the new definition.
+- [x] Execute the new example and packed consumers, verify current-guide links/anchors, run `npm run check`, obtain independent review, and resolve material findings before integration.
 
-## Prepared handoff
+## Completion record
 
-Implement after definition values and validation exist. Follow the exact types exported by that delivery; reconcile any intentional signature changes against the phase-two spec before coding. Item 5's alternative dependency semantics remain outside this revision API.
+Implemented with public regressions, compile-time assertions, runnable examples, and packed consumers. Independent task and whole-branch reviews are complete; all material findings were fixed and re-reviewed. See the [phase-two design](../specs/2026-10-25-agent-api-phase-two-design.md) and [current API reference](../../reference.md).
+
+Execution used Task 2 → Task 1 → Task 3 so atomic revisions could return the completed diff contract immediately.
