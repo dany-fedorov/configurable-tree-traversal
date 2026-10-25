@@ -37,9 +37,9 @@ it('observes vertices and every parallel/returning relationship in one pass', ()
     counts: {
       steps: 14,
       occurrences: 8,
-      found: 5,
-      omitted: 0,
-      links: 6,
+      foundVertices: 5,
+      omittedVertices: 0,
+      observedLinks: 6,
       observations: { vertex: 5, edge: 6, path: 5 },
     },
   });

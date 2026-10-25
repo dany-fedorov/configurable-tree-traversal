@@ -23,9 +23,6 @@ export class GraphWalk<Data, Edge, ID> {
     const options = this.options;
     if (
       options.revisit !== 'once' ||
-      Object.keys(options.limits).length > 0 ||
-      options.followEdge !== undefined ||
-      options.expandVertex !== undefined ||
       Object.values(options.visitors).some((records) => records.length > 0)
     ) {
       throw new TypeError('This walking configuration is not supported');

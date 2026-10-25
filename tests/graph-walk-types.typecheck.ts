@@ -250,3 +250,43 @@ void [
   legacyEdges,
   wideExecution,
 ];
+
+// Only explicit canonical selectors narrow; persisted selectors are runtime state.
+const persisted = new GraphWalk({
+  source,
+  emitPhases: [Phase.EDGE],
+}).makeRunner();
+const persistedAll: typeof allEvents = persisted.getIterable();
+const emptyPatchAll: typeof allEvents = persisted.getIterable({});
+// @ts-expect-error Empty patches retain the full union.
+const unsafeEmptyPatch: typeof edgeEvents = persisted.getIterable({});
+const noEvents: Generator<never, void, unknown> = runner.getIterable({
+  emitPhases: [],
+});
+const mixedEvents: Generator<
+  GraphWalkEventFor<string, number, Phase.VERTEX | Phase.EDGE, undefined>,
+  void,
+  unknown
+> = runner.getIterable({ emitPhases: [Phase.VERTEX, Phase.EDGE] });
+// @ts-expect-error Explicit mixed selectors exclude paths.
+const unsafePaths: Generator<
+  GraphWalkEventFor<string, number, Phase.PATH, undefined>,
+  void,
+  unknown
+> = mixedEvents;
+const promisedCounts: {
+  foundVertices: number;
+  omittedVertices: number;
+  observedLinks: number;
+} = runner.summary().counts;
+// @ts-expect-error Interim short counter names are not public.
+runner.summary().counts.found;
+void [
+  persistedAll,
+  emptyPatchAll,
+  unsafeEmptyPatch,
+  noEvents,
+  mixedEvents,
+  unsafePaths,
+  promisedCounts,
+];

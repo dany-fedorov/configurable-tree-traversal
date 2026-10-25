@@ -4,9 +4,9 @@ import type { GraphWalkPhase } from '../GraphWalkPhase';
 export type GraphWalkCounts = Readonly<{
   steps: number;
   occurrences: number;
-  found: number;
-  omitted: number;
-  links: number;
+  foundVertices: number;
+  omittedVertices: number;
+  observedLinks: number;
   observations: Readonly<Record<GraphWalkPhase, number>>;
 }>;
 export type GraphWalkOutcome =

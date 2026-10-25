@@ -56,12 +56,13 @@ export class WalkKernel<Data, Edge, ID> {
   private readonly frontier: WalkFrontier<Data, Edge, ID>;
   private readonly observations: Observation<Data, Edge, ID>[] = [];
   private expansion: WalkRoute<Data, Edge, ID> | null = null;
+  private depthLimited = false;
   private counts = {
     steps: 0,
     occurrences: 0,
-    found: 0,
-    omitted: 0,
-    links: 0,
+    foundVertices: 0,
+    omittedVertices: 0,
+    observedLinks: 0,
     observations: { [Phase.VERTEX]: 0, [Phase.EDGE]: 0, [Phase.PATH]: 0 },
   };
   private execution;
@@ -189,7 +190,8 @@ export class WalkKernel<Data, Edge, ID> {
     const { target, parent, via } = candidate;
     if (fresh) {
       this.cache.resolutions.set(target.vertexId, result);
-      this.counts[result.kind]++;
+      if (result.kind === 'found') this.counts.foundVertices++;
+      else this.counts.omittedVertices++;
     }
     const vertex: GraphWalkVertex<Data, ID> | null =
       result.kind === 'found'
@@ -222,6 +224,82 @@ export class WalkKernel<Data, Edge, ID> {
     }
   }
 
+  private booleanResult(value: unknown): boolean {
+    if (typeof value !== 'boolean')
+      throw new TypeError('Walking predicates must return booleans');
+    return value;
+  }
+
+  private follow(candidate: Candidate<Data, Edge, ID>): void {
+    const predicate = this.options.followEdge;
+    if (predicate === undefined) this.admit(candidate);
+    else {
+      this.call(
+        'followEdge',
+        () =>
+          predicate(
+            { ...candidate.via! },
+            {
+              revisit: 'once',
+              source: { ...candidate.parent!.vertex },
+              depth: candidate.parent!.depth + 1,
+            },
+          ),
+        (value) => {
+          if (this.booleanResult(value)) this.admit(candidate);
+        },
+      );
+    }
+  }
+
+  private expand(route: WalkRoute<Data, Edge, ID>): void {
+    const accept = (expand: boolean) => {
+      if (!expand) return;
+      const maxDepth = this.options.limits.maxDepth;
+      if (maxDepth !== undefined && route.depth >= maxDepth)
+        this.depthLimited = true;
+      else this.frontier.push(route);
+    };
+    const predicate = this.options.expandVertex;
+    if (predicate === undefined) accept(true);
+    else {
+      this.call(
+        'expandVertex',
+        () =>
+          predicate(
+            { ...route.vertex },
+            {
+              revisit: 'once',
+              depth: route.depth,
+              via: route.via === null ? null : { ...route.via },
+            },
+          ),
+        (value) => accept(this.booleanResult(value)),
+      );
+    }
+  }
+
+  /** Pure completion checks run before this gate; no exhaustion probing. */
+  private limitBeforePull(): boolean {
+    const { maxOccurrences, maxSteps } = this.options.limits;
+    const occurrences =
+      maxOccurrences !== undefined && this.counts.occurrences >= maxOccurrences;
+    const steps = maxSteps !== undefined && this.counts.steps >= maxSteps;
+    if (!occurrences && !steps) return false;
+    this.finish(occurrences, steps);
+    return true;
+  }
+
+  private finish(occurrences = false, steps = false): void {
+    const reasons: ('maxDepth' | 'maxOccurrences' | 'maxSteps')[] = [];
+    if (this.depthLimited) reasons.push('maxDepth');
+    if (occurrences) reasons.push('maxOccurrences');
+    if (steps) reasons.push('maxSteps');
+    this.status = Status.FINISHED;
+    this.outcome =
+      reasons.length > 0 ? { kind: 'limited', reasons } : { kind: 'exhausted' };
+  }
+
   poll(): WalkAction<Data, Edge, ID> {
     for (;;) {
       if (this.outcome?.kind === 'failed')
@@ -240,11 +318,14 @@ export class WalkKernel<Data, Edge, ID> {
       }
       if (this.observations.length > 0) return this.observations[0]!;
       if (this.expansion !== null) {
-        this.frontier.push(this.expansion);
+        const route = this.expansion;
         this.expansion = null;
+        this.expand(route);
+        continue;
       }
       const source = this.options.source;
       if (this.roots === null) {
+        if (this.limitBeforePull()) continue;
         this.call(
           'roots',
           () => source.roots.call(source.receiver),
@@ -256,6 +337,7 @@ export class WalkKernel<Data, Edge, ID> {
         !this.roots.done &&
         (this.options.strategy === 'breadthFirst' || this.frontier.size === 0)
       ) {
+        if (this.limitBeforePull()) continue;
         const roots = this.roots;
         this.counts.steps++;
         this.call(
@@ -278,6 +360,7 @@ export class WalkKernel<Data, Edge, ID> {
         const { route } = frame;
         const entries = this.cache.entries(route.vertex.vertexId);
         if (entries.cursor === null) {
+          if (this.limitBeforePull()) continue;
           this.call(
             'outgoing',
             () => source.outgoing.call(source.receiver, { ...route.vertex }),
@@ -288,6 +371,7 @@ export class WalkKernel<Data, Edge, ID> {
         } else if (entries.cursor.done) {
           this.frontier.remove();
         } else {
+          if (this.limitBeforePull()) continue;
           const cursor = entries.cursor;
           this.counts.steps++;
           this.call(
@@ -300,8 +384,8 @@ export class WalkKernel<Data, Edge, ID> {
                 const link = this.cache.copyLink(step.value);
                 const index = frame.index++;
                 entries.links.push(link);
-                this.counts.links++;
-                this.admit({
+                this.counts.observedLinks++;
+                this.follow({
                   target: link.target,
                   parent: route,
                   via: {
@@ -316,8 +400,7 @@ export class WalkKernel<Data, Edge, ID> {
           );
         }
       } else {
-        this.status = Status.FINISHED;
-        this.outcome = { kind: 'exhausted' };
+        this.finish();
       }
     }
   }
@@ -325,7 +408,12 @@ export class WalkKernel<Data, Edge, ID> {
     return {
       status: this.status,
       counts: { ...this.counts, observations: { ...this.counts.observations } },
-      outcome: this.outcome === null ? null : { ...this.outcome },
+      outcome:
+        this.outcome === null
+          ? null
+          : this.outcome.kind === 'limited'
+          ? { ...this.outcome, reasons: [...this.outcome.reasons] }
+          : { ...this.outcome },
     };
   }
   inspect(): GraphWalkInspection {

@@ -36,10 +36,10 @@ it('deduplicates arbitrary IDs by SameValueZero without coercion', () => {
   expect(resolutions).toEqual(ids);
   expect(openings).toEqual(ids);
   expect(runner.summary().counts).toMatchObject({
-    found: 6,
-    omitted: 0,
+    foundVertices: 6,
+    omittedVertices: 0,
     occurrences: 12,
-    links: 6,
+    observedLinks: 6,
     steps: 26,
   });
 });
@@ -102,7 +102,7 @@ it('caches first accepted inline hydration and omission, copying wrappers but sh
     ['A', 'B', 2, 'omitted'],
     ['A', 'changed', 3, 'found'],
   ]);
-  expect(runner.summary().counts).toMatchObject({ found: 2, omitted: 2 });
+  expect(runner.summary().counts).toMatchObject({ foundVertices: 2, omittedVertices: 2 });
   expect(Object.isFrozen(data)).toBe(false);
 });
 
@@ -121,8 +121,8 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
       .makeRunner()
       .run();
     expect(runner.summary().counts).toMatchObject({
-      found: 20000,
-      links: 19999,
+      foundVertices: 20000,
+      observedLinks: 19999,
       occurrences: 20000,
       steps: 40001,
     });
@@ -150,8 +150,8 @@ it('keeps independent runner caches and captured callback receivers', () => {
   source.label = 'new';
   const second = factory.makeRunner();
   expect([...first.getIterable()]).toEqual([...second.getIterable()]);
-  expect(first.summary().counts.found).toBe(1);
-  expect(second.summary().counts.found).toBe(1);
+  expect(first.summary().counts.foundVertices).toBe(1);
+  expect(second.summary().counts.foundVertices).toBe(1);
 });
 
 it('exhausts empty roots and skips omitted roots without opening adjacency', () => {
@@ -171,8 +171,8 @@ it('exhausts empty roots and skips omitted roots without opening adjacency', () 
   expect([...runner.getIterable()]).toEqual([]);
   expect(runner.summary().counts).toMatchObject({
     occurrences: 1,
-    omitted: 1,
-    found: 0,
+    omittedVertices: 1,
+    foundVertices: 0,
     steps: 3,
   });
 });
@@ -244,9 +244,6 @@ it.each([
 it('rejects unsupported active options before source I/O', () => {
   const source = idGraph(['A'], [['A', []]]);
   for (const options of [
-    { limits: { maxDepth: 1 } },
-    { followEdge: () => true },
-    { expandVertex: () => true },
     { visitors: { [Phase.VERTEX]: () => undefined } },
     { revisit: 'walks' as const, limits: { maxSteps: 1 } },
   ])
@@ -264,8 +261,8 @@ it('counts a candidate before rejecting malformed inline hydration', () => {
   expect(() => runner.run()).toThrow(TypeError);
   expect(runner.summary().counts).toMatchObject({
     occurrences: 1,
-    found: 0,
-    omitted: 0,
+    foundVertices: 0,
+    omittedVertices: 0,
   });
 });
 
@@ -362,9 +359,9 @@ it('ignores later inline hydration without reading its getters', () => {
     { target: { kind: 'found', vertex: { vertexId: 'A', data: 'first' } } },
   ]);
   expect(runner.summary().counts).toMatchObject({
-    found: 1,
+    foundVertices: 1,
     occurrences: 2,
-    links: 1,
+    observedLinks: 1,
   });
 });
 
