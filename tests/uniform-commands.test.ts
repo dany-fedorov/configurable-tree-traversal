@@ -25,11 +25,11 @@ const source = {
     vertexContent: { $data: id, $childHints: [] as string[] },
   }),
 };
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test.each(['command', 'symbol'])(
     `${Constructor.name} %s deferral discards group effects and resumes external work`,
     async (form) => {
-      const traversal = new Constructor<G>({ traversableGraph: source });
+      const traversal = new Constructor({ traversableGraph: source });
       traversal.addVisitorFor(
         DagOrder.ON_READY,
         () => ({
@@ -71,7 +71,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   );
 
   test(`${Constructor.name} rejects a mixed deferral before mutation`, async () => {
-    const traversal = new Constructor<G>({ traversableGraph: source });
+    const traversal = new Constructor({ traversableGraph: source });
     traversal.addVisitorFor(
       DagOrder.ON_READY,
       () =>
@@ -95,15 +95,15 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   });
 }
 for (const [Constructor, order, sourceKey] of [
-  [DepthFirstTraversal, DfsOrder.PRE_ORDER, 'traversableTree'],
-  [AsyncDepthFirstTraversal, DfsOrder.PRE_ORDER, 'traversableTree'],
-  [BreadthFirstTraversal, BfsOrder.LEVEL_ORDER, 'traversableTree'],
-  [AsyncBreadthFirstTraversal, BfsOrder.LEVEL_ORDER, 'traversableTree'],
-  [DagTraversal, DagOrder.ON_READY, 'traversableGraph'],
-  [AsyncDagTraversal, DagOrder.ON_READY, 'traversableGraph'],
+  [DepthFirstTraversal<G>, DfsOrder.PRE_ORDER, 'traversableTree'],
+  [AsyncDepthFirstTraversal<G>, DfsOrder.PRE_ORDER, 'traversableTree'],
+  [BreadthFirstTraversal<G>, BfsOrder.LEVEL_ORDER, 'traversableTree'],
+  [AsyncBreadthFirstTraversal<G>, BfsOrder.LEVEL_ORDER, 'traversableTree'],
+  [DagTraversal<G>, DagOrder.ON_READY, 'traversableGraph'],
+  [AsyncDagTraversal<G>, DagOrder.ON_READY, 'traversableGraph'],
 ] as const) {
   const make = () =>
-    new Constructor<G>({
+    new Constructor({
       [sourceKey]:
         sourceKey === 'traversableTree'
           ? {
@@ -191,7 +191,7 @@ for (const [Constructor, order, sourceKey] of [
   });
   test(`${Constructor.name} supports canonical batching and child rewrites`, async () => {
     // The heterogeneous constructor table deliberately erases only its dispatch signature.
-    const traversal = new Constructor<G>({
+    const traversal = new Constructor({
       [sourceKey]:
         sourceKey === 'traversableTree'
           ? {
@@ -256,9 +256,9 @@ for (const [Constructor, order, sourceKey] of [
   });
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} preserves committed effects before deferral and validates generations`, async () => {
-    const traversal = new Constructor<G>({ traversableGraph: source });
+    const traversal = new Constructor({ traversableGraph: source });
     traversal.addVisitorFor(DagOrder.ON_READY, () => ({
       commands: [
         {
@@ -295,12 +295,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       > => ({
         commands: [{ commandName, commandArguments: { newHints: [] } }],
       });
-      const completion = new Constructor<G>({ traversableGraph: source });
+      const completion = new Constructor({ traversableGraph: source });
       completion.addVisitorFor(DagOrder.ON_COMPLETE, rewrite as never);
       await expect(async () => {
         await completion.makeRunner().run();
       }).rejects.toThrow(/ON_READY/);
-      const eager = new Constructor<G>({
+      const eager = new Constructor({
         traversableGraph: source,
         discovery: 'eager',
       });
@@ -312,7 +312,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   );
 
   test(`${Constructor.name} rejects command deferral during completion`, async () => {
-    const traversal = new Constructor<G>({ traversableGraph: source });
+    const traversal = new Constructor({ traversableGraph: source });
     traversal.addVisitorFor(
       DagOrder.ON_COMPLETE,
       () => ({ commands: [{ commandName: Command.DEFER_READY }] } as never),

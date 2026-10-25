@@ -117,11 +117,11 @@ describe('canonical vertex content', () => {
   });
 
   test.each([
-    ['DFS', DepthFirstTraversal],
-    ['BFS', BreadthFirstTraversal],
-    ['DAG tree source', DagTraversal],
+    ['DFS', DepthFirstTraversal<T>],
+    ['BFS', BreadthFirstTraversal<T>],
+    ['DAG tree source', DagTraversal<T>],
   ] as const)('follows canonical hints through %s', (_name, Traversal) => {
-    const runner = new Traversal<T>({ traversableTree: source }).makeRunner();
+    const runner = new Traversal({ traversableTree: source }).makeRunner();
     const data = [...runner.getIterable()].map(({ vertex }) =>
       vertex.getData(),
     );
@@ -140,13 +140,13 @@ describe('canonical vertex content', () => {
   });
 
   test.each([
-    ['async DFS', AsyncDepthFirstTraversal],
-    ['async BFS', AsyncBreadthFirstTraversal],
-    ['async DAG tree source', AsyncDagTraversal],
+    ['async DFS', AsyncDepthFirstTraversal<T>],
+    ['async BFS', AsyncBreadthFirstTraversal<T>],
+    ['async DAG tree source', AsyncDagTraversal<T>],
   ] as const)(
     'follows canonical hints through %s',
     async (_name, Traversal) => {
-      const runner = new Traversal<T>({ traversableTree: source }).makeRunner();
+      const runner = new Traversal({ traversableTree: source }).makeRunner();
       const data: Array<string | undefined> = [];
       for await (const { vertex } of runner.getIterable())
         data.push(vertex.getData());
@@ -155,12 +155,12 @@ describe('canonical vertex content', () => {
     },
   );
 
-  test.each([DagTraversal, AsyncDagTraversal])(
+  test.each([DagTraversal<T>, AsyncDagTraversal<T>])(
     'preserves arbitrary graph IDs through canonical content',
     async (Traversal) => {
       const rootId = {};
       const childId = Symbol('child');
-      const runner = new Traversal<T>({
+      const runner = new Traversal({
         traversableGraph: {
           makeRoot: () => ({ vertexId: rootId, ...source.makeRoot() }),
           makeVertex: (hint) => ({

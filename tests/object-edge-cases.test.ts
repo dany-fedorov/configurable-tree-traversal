@@ -8,7 +8,7 @@ import {
   rewriteObject as rewriteObjectApi,
 } from '../src';
 
-const { rewriteObject } = rewriteObjectApi;
+const { rewriteObject, rewriteObjectAs } = rewriteObjectApi;
 
 describe('object traversal and rewriting edge cases', () => {
   test('custom assemblers receive renamed children before assembling their parent', () => {
@@ -65,7 +65,9 @@ describe('object traversal and rewriting edge cases', () => {
     const assemblyInputs: Array<Array<{ key: PropertyKey; value: unknown }>> =
       [];
 
-    const { outputObject } = rewriteObject(input, {
+    const { outputObject } = rewriteObjectAs<
+      number[] & { name: string; [tag]: string }
+    >(input, {
       assembleArray: (children) => {
         assemblyInputs.push([...children]);
         const result = children
@@ -97,7 +99,7 @@ describe('object traversal and rewriting edge cases', () => {
       ],
     ]);
     expect(Array.from(outputObject!)).toEqual([1, 3]);
-    expect((outputObject as unknown as { name: string }).name).toBe('numbers');
+    expect(outputObject!.name).toBe('numbers');
     expect(outputObject![tag]).toBe('metadata');
   });
 
@@ -107,7 +109,7 @@ describe('object traversal and rewriting edge cases', () => {
     }
     const input = { boxed: new Box({ first: 1, second: 2 }) };
 
-    const { outputObject } = rewriteObject(input, {
+    const { outputObject } = rewriteObjectAs<typeof input>(input, {
       getChildrenOfProperty: (property) =>
         property.value instanceof Box
           ? Object.entries(property.value.entries).map(([key, value]) => ({

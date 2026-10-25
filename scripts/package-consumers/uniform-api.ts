@@ -84,7 +84,7 @@ depth.configure({
 depth.setVisitorsFor(F.POST_ORDER, [
   { visitor: common, priority: 1, addedIndex: 0 },
 ]);
-const callback = depth.listVisitorsFor(F.POST_ORDER)[0].visitor;
+const callback = depth.listVisitorsFor(F.POST_ORDER)[0]!.visitor;
 depth.addVisitorFor(
   F.PRE_ORDER,
   (_v, options) => {

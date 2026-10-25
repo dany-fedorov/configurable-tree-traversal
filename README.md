@@ -25,7 +25,7 @@ CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool
 npm install configurable-tree-traversal
 ```
 
-**This checkout documents the unreleased uniform API.** The published npm release is **0.11.0**; its API differs from the examples below. See the [migration guide](docs/migration-uniform-api.md) for changed defaults and compatibility forms. The package version stays unchanged until release. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
+**This checkout documents the unreleased uniform and composable APIs.** The published npm release is **0.11.0**; its API differs from the examples below. See the [migration guide](docs/migration-uniform-api.md) for changed defaults and compatibility forms. The package version stays unchanged until release. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
 
 ## Quickstart: find the next agent tasks
 
@@ -44,49 +44,55 @@ import {
   type TreeTypeParameters,
 } from 'configurable-tree-traversal';
 
-type Workflow = TreeTypeParameters<string, string>;
-const dependencies: Record<string, string[]> = {
+type TaskId = 'research' | 'implement' | 'testPlan' | 'review';
+type Workflow = TreeTypeParameters<string, TaskId>;
+const catalog: TaskId[] = ['research', 'implement', 'testPlan', 'review'];
+const dependencies: Record<TaskId, TaskId[]> = {
   research: [],
   implement: ['research'],
   testPlan: ['research'],
   review: ['implement', 'testPlan'],
 };
 // In-memory stand-in for completion facts already accepted by your host.
-const accepted = new Set(['research']);
-function reconstruct() {
-  const traversal = new DagTraversal<Workflow>({
-    discovery: 'eager',
-    workCompletion: 'externalSettlement',
-    syntheticRoot: true,
-    completedWork: accepted,
-    traversableGraph: {
-      makeRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: '', $childHints: Object.keys(dependencies) },
-        },
-      }),
-      makeVertex: (id) => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexId: id,
-          dependsOn: dependencies[id]!,
-          vertexContent: { $data: id, $childHints: [] },
-        },
-      }),
-    },
-  });
-  return traversal.makeRunner().run();
-}
+const accepted = new Set<TaskId>(['research']);
+const runner = new DagTraversal<Workflow, Workflow, TaskId>({
+  workCompletion: 'externalSettlement',
+  syntheticRoot: true,
+  completedWork: accepted,
+  traversableGraph: {
+    makeRoot: () => ({
+      kind: 'found',
+      vertex: {
+        vertexId: 'research', // The synthetic holder is hidden from public views.
+        vertexContent: { $data: '', $childHints: catalog },
+      },
+    }),
+    makeVertex: (id) => ({
+      kind: 'found',
+      vertex: {
+        vertexId: id,
+        dependsOn: dependencies[id],
+        vertexContent: { $data: id, $childHints: [] },
+      },
+    }),
+  },
+}).makeRunner();
 
-const runner = reconstruct();
-const snapshot = runner.summary();
-console.log(snapshot.readyIds); // ['implement', 'testPlan']
+runner.prepare(); // HALTED / prepared: preview the validated graph, no visitors.
+console.log(runner.getResolvedGraph().getVertexRefs().length); // 4
+runner.run(); // HALTED / awaitingSettlement
+const frontier = runner.summary().deferredFrontier;
+console.log(frontier.map(({ vertexId }) => vertexId)); // ['implement', 'testPlan']
+// Retain each { vertexId, generation } while the host claims and dispatches it.
+const work = frontier.find(({ vertexId }) => vertexId === 'implement')!;
+accepted.add(work.vertexId); // Simulate host validation and durable acceptance.
+runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation);
+runner.run();
 ```
 
-`workCompletion: 'externalSettlement'` leaves eligible work incomplete after callbacks commit, even with no callbacks. `run()` discovers and validates the graph, then stops with `getStopReason() === 'awaitingSettlement'`. Read the deferred frontier and capture its generations before dispatch; emitted `ON_READY` events arrive on settlement. `summary()` alone does not discover the graph. `readyIds` is dependency readiness, not a claim or evidence that an external agent is idle.
+`prepare()` discovers and validates without running visitors or completing new work; `run()` adopts that graph without replaying discovery. External settlement leaves eligible work deferred, including with zero callbacks. `deferredFrontier` atomically pairs each live deferred ID with its required generation. It is a snapshot, not a claim. `readyIds` remains dependency eligibility. Emitted `workCompleted`/`subgraphCompleted` events describe committed milestones; dispatch from the frontier after `run()`.
 
-The host can now claim a candidate, dispatch an agent, validate and persist its result, and either settle the retained runner or reconstruct on the next tick. See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and the [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts), which also checks settlement, duplicate reports, and restart reconstruction. The example uses an in-memory set; production durability belongs to the host.
+The host can now claim a candidate, dispatch an agent, validate and persist its result, and either settle the retained runner or reconstruct on the next tick. See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and the [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts), which checks preparation, final completion, duplicate reports, and restart reconstruction. The example uses an in-memory set; production durability belongs to the host.
 
 ## Choose your next page
 

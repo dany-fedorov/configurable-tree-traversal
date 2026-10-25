@@ -48,6 +48,7 @@ export type KernelOptions<
   hasPrerequisiteResolver?: boolean;
   concurrency: number;
   discovery?: 'lazy' | 'eager';
+  canPrepare?: boolean;
   workCompletion?: 'visitorReturn' | 'externalSettlement';
   rootDependencies?: 'honor' | 'ignore';
   implicitParentDependency?: boolean;
@@ -118,7 +119,10 @@ export interface AsyncSessionControl<E> {
   acknowledgeEvent(boundaryId: number): void;
   requestHalt(): void;
   isHaltRequested(): boolean;
-  resume(config?: TraversalIterableConfigInput<VisitOrder>): void;
+  resume(
+    config?: TraversalIterableConfigInput<VisitOrder>,
+    preparation?: boolean,
+  ): void;
   getStatus(): TraversalRunnerStatus;
   getStopReason(): TraversalStopReason | null;
   getFailure(): { error: unknown } | null;

@@ -2,6 +2,7 @@ import type { NoInferPhase } from '@core/TraversalVisitor';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
+  copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
 import type {
@@ -98,7 +99,7 @@ export class AsyncDepthFirstTraversal<
   listVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
     order: ORDER,
   ): AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
-    return this.visitors[order];
+    return copyVisitorRecords(this.visitors[order]);
   }
 
   setVisitorsFor<ORDER extends DepthFirstTraversalOrder>(

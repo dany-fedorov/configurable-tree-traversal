@@ -1,9 +1,12 @@
-import type { VertexId } from '@core/graph/types';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 
 /** @deprecated Return the DEFER_READY visitor command instead. */
 export const DEFER_READY: unique symbol = Symbol('DEFER_READY');
 export type DagSettlementGeneration = symbol;
+export type DagDeferredWork<ID = unknown> = Readonly<{
+  vertexId: ID;
+  generation: DagSettlementGeneration;
+}>;
 export type DagSettlementOutcome =
   | { kind: 'workCompleted'; ok?: never; error?: never }
   | { kind: 'traversalFailed'; error: unknown; ok?: never }
@@ -17,15 +20,15 @@ export type DagWorkState =
   | 'running'
   | 'deferred'
   | 'completed';
-export type DagVertexProgress = Readonly<{
-  id: VertexId;
+export type DagVertexProgress<ID = unknown> = Readonly<{
+  id: ID;
   work: DagWorkState;
   subtreeComplete: boolean;
-  unmetPrerequisiteIds: readonly VertexId[];
-  unmetCompletePrerequisiteIds?: readonly VertexId[];
+  unmetPrerequisiteIds: readonly ID[];
+  unmetCompletePrerequisiteIds?: readonly ID[];
   generation?: DagSettlementGeneration;
 }>;
-export type DagSummary = Readonly<{
+export type DagSummary<ID = unknown> = Readonly<{
   discovery: Readonly<{ mode: 'lazy' | 'eager'; complete: boolean }>;
   counts: Readonly<{
     discovered: number;
@@ -36,12 +39,13 @@ export type DagSummary = Readonly<{
     workCompleted: number;
     subtreeCompleted: number;
   }>;
-  vertices: ReadonlyMap<VertexId, DagVertexProgress>;
-  readyIds: readonly VertexId[];
-  deferredIds: readonly VertexId[];
-  inFlightIds: readonly VertexId[];
-  completedWorkIds: readonly VertexId[];
-  completedSubtreeIds: readonly VertexId[];
-  unusedCompletedWorkIds: readonly VertexId[];
-  diagnostics: DagTraversalStallDiagnostics | null;
+  vertices: ReadonlyMap<ID, DagVertexProgress<ID>>;
+  readyIds: readonly ID[];
+  deferredIds: readonly ID[];
+  deferredFrontier: readonly DagDeferredWork<ID>[];
+  inFlightIds: readonly ID[];
+  completedWorkIds: readonly ID[];
+  completedSubtreeIds: readonly ID[];
+  unusedCompletedWorkIds: readonly ID[];
+  diagnostics: DagTraversalStallDiagnostics<ID> | null;
 }>;

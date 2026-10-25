@@ -46,17 +46,26 @@ const retained = reconstruct();
 assert.equal(retained.getStatus(), TraversalRunnerStatus.HALTED);
 assert.equal(retained.getStopReason(), 'awaitingSettlement');
 assert.deepEqual(retained.summary().readyIds, ['backend', 'frontend']);
-const backendGeneration = retained.summary().vertices.get('backend')!
-  .generation!;
+const backend = retained
+  .summary()
+  .deferredFrontier.find(({ vertexId }) => vertexId === 'backend')!;
 
 // The host claims/runs the activity, validates its attempt identity and durably
 // accepts success before reporting it. Readiness alone is not host admission.
 acceptedCompletedWork.add('backend');
-retained.settle('backend', { kind: 'workCompleted' }, backendGeneration);
+retained.settle(
+  backend.vertexId,
+  { kind: 'workCompleted' },
+  backend.generation,
+);
 retained.run();
 assert.deepEqual(retained.summary().readyIds, ['frontend']);
 assert.equal(
-  retained.settle('backend', { kind: 'workCompleted' }, backendGeneration),
+  retained.settle(
+    backend.vertexId,
+    { kind: 'workCompleted' },
+    backend.generation,
+  ),
   false,
 );
 

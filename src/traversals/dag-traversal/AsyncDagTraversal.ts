@@ -2,6 +2,7 @@ import type { NoInferPhase } from '@core/TraversalVisitor';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
+  copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
 import type {
@@ -27,29 +28,31 @@ import type { AsyncDagVisitor } from './lib/DagTraversalVisitor';
 export class AsyncDagTraversal<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > {
-  icfg: AsyncDagTraversalInstanceConfig<T, R>;
-  visitors: AsyncDagTraversalVisitors<T, R>;
+  icfg: AsyncDagTraversalInstanceConfig<T, R, ID>;
+  visitors: AsyncDagTraversalVisitors<T, R, ID>;
   private readonly sourceMode: 'tree' | 'graph';
 
-  constructor(input: AsyncDagTraversalInstanceConfigInput<T, R>) {
+  constructor(input: AsyncDagTraversalInstanceConfigInput<T, R, ID>) {
     this.sourceMode = assertExactlyOneSource(input);
     this.icfg = mergeAsyncDagTraversalInstanceConfigs(
       {
         ...(ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncDagTraversalInstanceConfig<
           T,
-          R
+          R,
+          ID
         >),
         ...(this.sourceMode === 'graph'
           ? { traversableGraph: input.traversableGraph }
           : { traversableTree: input.traversableTree }),
-      } as AsyncDagTraversalInstanceConfig<T, R>,
+      } as AsyncDagTraversalInstanceConfig<T, R, ID>,
       input,
     );
     this.visitors = initVisitors(this.icfg.visitors);
   }
 
-  configure(input: AsyncDagTraversalConfigureInput<T, R>): this {
+  configure(input: AsyncDagTraversalConfigureInput<T, R, ID>): this {
     if (
       (this.sourceMode === 'graph' && 'traversableTree' in input) ||
       (this.sourceMode === 'tree' && 'traversableGraph' in input)
@@ -66,16 +69,16 @@ export class AsyncDagTraversal<
 
   addVisitorFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-    visitor: AsyncDagVisitor<T, R, NoInferPhase<ORDER>>,
+    visitor: AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
     (
       this.visitors as Record<
         ORDER,
-        VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[]
+        VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[]
       >
-    )[order] = appendVisitorDefinition<AsyncDagVisitor<T, R, ORDER>>(
-      this.visitors[order] as VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[],
+    )[order] = appendVisitorDefinition<AsyncDagVisitor<T, R, ORDER, ID>>(
+      this.visitors[order] as VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[],
       { visitor, ...options },
     );
     return this;
@@ -83,15 +86,17 @@ export class AsyncDagTraversal<
 
   addVisitorGroupFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-    group: VisitorGroupDefinition<AsyncDagVisitor<T, R, NoInferPhase<ORDER>>>,
+    group: VisitorGroupDefinition<
+      AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>
+    >,
   ): this {
     (
       this.visitors as Record<
         ORDER,
-        VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[]
+        VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[]
       >
-    )[order] = appendVisitorGroup<AsyncDagVisitor<T, R, ORDER>>(
-      this.visitors[order] as VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[],
+    )[order] = appendVisitorGroup<AsyncDagVisitor<T, R, ORDER, ID>>(
+      this.visitors[order] as VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[],
       group,
     );
     return this;
@@ -99,24 +104,25 @@ export class AsyncDagTraversal<
 
   listVisitorsFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-  ): AsyncDagTraversalVisitors<T, R>[ORDER] {
-    return this.visitors[order];
+  ): AsyncDagTraversalVisitors<T, R, ID>[ORDER] {
+    return copyVisitorRecords(this.visitors[order]);
   }
 
   setVisitorsFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-    input: VisitorPhaseInput<AsyncDagVisitor<T, R, NoInferPhase<ORDER>>>,
+    input: VisitorPhaseInput<AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>>,
   ): this {
     (
       this.visitors as Record<
         ORDER,
-        VisitorRecord<AsyncDagVisitor<T, R, ORDER>>[]
+        VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[]
       >
-    )[order] = normalizeVisitorDefinitions<AsyncDagVisitor<T, R, ORDER>>(input);
+    )[order] =
+      normalizeVisitorDefinitions<AsyncDagVisitor<T, R, ORDER, ID>>(input);
     return this;
   }
 
-  makeRunner(): AsyncDagTraversalRunner<T, R> {
+  makeRunner(): AsyncDagTraversalRunner<T, R, ID> {
     return new AsyncDagTraversalRunner({
       ...this.icfg,
       visitors: this.visitors,
@@ -127,13 +133,16 @@ export class AsyncDagTraversal<
 function initVisitors<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
->(visitors: AsyncDagTraversalVisitors<T, R>): AsyncDagTraversalVisitors<T, R> {
+  ID = unknown,
+>(
+  visitors: AsyncDagTraversalVisitors<T, R, ID>,
+): AsyncDagTraversalVisitors<T, R, ID> {
   return Object.fromEntries(
     Object.entries(visitors).map(([order, records]) => [
       order,
       sortVisitorRecords(records),
     ]),
-  ) as AsyncDagTraversalVisitors<T, R>;
+  ) as AsyncDagTraversalVisitors<T, R, ID>;
 }
 
 function assertExactlyOneSource(input: object): 'tree' | 'graph' {

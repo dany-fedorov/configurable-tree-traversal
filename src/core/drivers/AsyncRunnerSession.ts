@@ -25,6 +25,7 @@ type CloseWaiter = {
 type IteratorState<E> = {
   phase: 'unopened' | 'active' | 'closing' | 'closed';
   config: TraversalIterableConfigInput<VisitOrder> | undefined;
+  preparation?: () => void;
   nextWaiters: NextWaiter<E>[];
   closeWaiters: CloseWaiter[];
 };
@@ -36,7 +37,9 @@ const done = Object.freeze({ done: true, value: undefined }) as IteratorResult<
   void
 >;
 
-export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
+export class AsyncRunnerSession<E>
+  implements AsyncCoreExecution<E, VisitOrder>
+{
   private readonly bufferedEvents: BufferedEvent<E>[] = [];
   private activeIterator: IteratorState<E> | null = null;
   private deliveredBoundaryId: number | null = null;
@@ -62,6 +65,17 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
   }
 
+  public requestPause(): boolean {
+    if (
+      this.getStatus() !== TraversalRunnerStatus.RUNNING ||
+      this.control.isHaltRequested()
+    )
+      return false;
+    this.control.requestHalt();
+    this.requestPump();
+    return true;
+  }
+
   public inspect(): CoreInspection {
     return Object.freeze({
       ...this.control.inspect(),
@@ -74,9 +88,24 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
   public getIterable(
     config?: TraversalIterableConfigInput<VisitOrder>,
   ): AsyncGenerator<E, void, unknown> {
+    return this.makeIterator(config);
+  }
+
+  public async prepare(validate: () => void): Promise<void> {
+    const iterator = this.makeIterator(undefined, validate);
+    while (!(await iterator.next()).done) {
+      // Preparation shares the iterator lease and driver pump.
+    }
+  }
+
+  private makeIterator(
+    config?: TraversalIterableConfigInput<VisitOrder>,
+    preparation?: () => void,
+  ): AsyncGenerator<E, void, unknown> {
     const state: IteratorState<E> = {
       phase: 'unopened',
       config,
+      ...(preparation === undefined ? {} : { preparation }),
       nextWaiters: [],
       closeWaiters: [],
     };
@@ -118,6 +147,12 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
           this.release(state);
           return Promise.reject(failure.error);
         }
+        try {
+          state.preparation?.();
+        } catch (error) {
+          this.release(state);
+          return Promise.reject(error);
+        }
         if (this.control.getStatus() === TraversalRunnerStatus.FINISHED) {
           this.release(state);
           return Promise.resolve(done);
@@ -138,7 +173,7 @@ export class AsyncRunnerSession<E> implements AsyncCoreExecution<E> {
             return Promise.reject(error);
           }
         }
-        this.control.resume(state.config);
+        this.control.resume(state.config, state.preparation !== undefined);
       } catch (error) {
         this.observeFailure(error);
         this.release(state);

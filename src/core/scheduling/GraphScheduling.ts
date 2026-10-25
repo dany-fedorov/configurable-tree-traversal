@@ -1,7 +1,7 @@
 import { assertNoTreeMetadata } from '@core/drivers/normalizeSourceResult';
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
-import { dependencyMilestoneCycles } from './dependencyMilestones';
+import { dependencyMilestones } from './dependencyMilestones';
 import { CTTRef } from '@core/CTTRef';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult } from '@core/TraversableTree';
@@ -45,11 +45,15 @@ export class GraphScheduling<
   constructor(
     private readonly container: ResolvedGraphsContainer<T, R>,
     completedWork?: ReadonlySet<VertexId>,
-    private readonly eager = false,
+    private eager = false,
     private readonly rootDependencies: 'honor' | 'ignore' = 'honor',
     private readonly implicitParentDependency = false,
   ) {
     this.unusedCompletedWork = new Set(completedWork);
+  }
+
+  enableEagerDiscovery(): void {
+    this.eager = true;
   }
 
   getUnusedCompletedWorkIds(): VertexId[] {
@@ -770,7 +774,7 @@ export class GraphScheduling<
           unknown.add(dependency);
       }
     }
-    const cycles = dependencyMilestoneCycles(
+    const { edges, cycles } = dependencyMilestones(
       Array.from(this.container.resolvedGraph.getVertexRefs(), (ref) => ({
         id: this.container.resolvedGraph.getIdOf(ref),
         work: this.container.store.getDeclaredDependencies(ref),
@@ -780,11 +784,30 @@ export class GraphScheduling<
           .map((child) => this.container.resolvedGraph.getIdOf(child)),
       })),
     );
+    const synthetic = this.container.syntheticRootRef;
+    const syntheticId =
+      synthetic === null
+        ? undefined
+        : this.container.resolvedGraph.getIdOf(synthetic);
+    // Analyze the full internal topology, then hide only synthetic bookkeeping.
+    const dependencyEdges = edges
+      .filter(
+        ({ from, to }) =>
+          synthetic === null ||
+          (!sameVertexId(from.vertexId, syntheticId) &&
+            !sameVertexId(to.vertexId, syntheticId)),
+      )
+      .map(({ from, to, reason }) => ({
+        from: { ...from },
+        to: { ...to },
+        reason,
+      }));
     const cycleMembers = new Set(cycles.flat());
     return {
       dependencies,
       unknownPrerequisiteIds: Array.from(unknown),
       dependencyCycles: cycles,
+      dependencyEdges,
       dependencyBlockedIds: dependencies
         .filter(({ id }) => !cycleMembers.has(id))
         .map(({ id }) => id),

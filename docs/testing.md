@@ -99,6 +99,8 @@ node /tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typescript/bin/tsc --v
 CTT_TYPESCRIPT_COMPILER=/tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typescript/bin/tsc node scripts/verify-package.cjs
 ```
 
+For final composable-API compatibility, run the built-package verifier across exact Node 22.12.0, current Node 24 and Bun 1.4.4, each with locked TS4.9.5 and minimum TS4.7.4. Build once on the final tree, then invoke `scripts/verify-package.cjs` directly for the remaining matrix cases; a successful `npm run check` covers its current-runtime/locked-compiler case. Record actual runtime/compiler versions, complete logs and exit codes. The uniform consumer fixtures exercise real calls and meaningful negative assertions through packed `.ts`/`.cts`/`.mts` declarations, with both CJS/ESM runtime identities; source imports alone do not prove compatibility.
+
 The `/tmp` compiler and checksum-verified Bun binary are local evidence tooling, not repository dependencies. The full Node 22/24 CI checks and the pinned Bun lane are separate required gates.
 
 ## UUID dependency compatibility

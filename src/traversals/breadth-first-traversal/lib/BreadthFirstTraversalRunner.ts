@@ -167,6 +167,16 @@ export class BreadthFirstTraversalRunner<
     return this.kernel.getStopReason();
   }
 
+  requestPause(): boolean {
+    if (
+      this.getStatus() !== TraversalRunnerStatus.RUNNING ||
+      this.kernel.isHaltRequested()
+    )
+      return false;
+    this.kernel.requestHalt();
+    return true;
+  }
+
   isHalted(): boolean {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
   }
@@ -220,7 +230,7 @@ export class BreadthFirstTraversalRunner<
 
   *getIterable(
     config?: BreadthFirstTraversalRunnerIterableConfigInput,
-  ): Generator<Event<TTP, RW_TTP>> {
+  ): Generator<Event<TTP, RW_TTP>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
     if (this.activeIterator) {
       throw new Error('A traversal runner can only have one active iterator');

@@ -2,7 +2,7 @@
 
 [Home and quickstart](../README.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md)
 
-These pages describe the **unreleased uniform API in this checkout**. The published npm release remains **0.11.0**. The [migration guide](migration-uniform-api.md) covers changed defaults and deprecated forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
+These pages describe the **unreleased uniform and composable APIs in this checkout**. The published npm release remains **0.11.0**. The [migration guide](migration-uniform-api.md) covers changed defaults and deprecated forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
 
 ## Read by task
 
@@ -13,7 +13,7 @@ These pages describe the **unreleased uniform API in this checkout**. The publis
 | Debug missing work or a stalled graph | [Troubleshooting](agent-workflows.md#troubleshoot-a-workflow) → [DAG diagnostics](reference.md#dag-traversal) | A complete catalog or lookup adapter and the relevant diagnostics |
 | Walk an object or abstract tree | [Objects](reference.md#traverse-an-object) → [abstract trees](reference.md#abstract-trees) → [orders](reference.md#traversal-orders) | The correct adapter, traversal family, and order |
 | Use async callbacks | [Execution models](agent-workflows.md#choose-an-execution-model) → [async traversal](reference.md#async-traversal) → [pause/resume](reference.md#pause-and-resume) | A callback concurrency limit and clear iterator ownership |
-| Migrate from published 0.11.0               | [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                                                      | Independent selectors, external completion, ordered visitor groups, capability-specific adapters, typed patches, safe queries, and identity |
+| Migrate from published 0.11.0               | [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                                                      | Prepared previews, guarded frontiers, execution/pause capabilities, truthful rewrite outputs, typed identity, diagnostics and detached queries |
 | Modify CTT | [AGENTS.md](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/AGENTS.md) → [testing](testing.md) | The relevant implementation and regression tests |
 
 ## Runnable examples
@@ -22,7 +22,7 @@ Examples are executable programs; the DAG and agent coordination examples includ
 
 | Example | Demonstrates |
 | --- | --- |
-| [Agent orchestration](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts) | External settlement without dummy callbacks, accepted completion, duplicate settlement, and restart reconstruction |
+| [Agent orchestration](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)         | Typed prepare → run → guarded frontier → settle → run, final completion, duplicate settlement, and restart reconstruction |
 | [Reconciliation](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-reconciliation-example.ts) | Retained-runner and rebuild-per-tick equivalence |
 | [Completion joins](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts) | Waiting for a composite and its retained children |
 | [Prerequisite lookup](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-prerequisite-resolution-example.ts) | Async catalog lookup, transitive prerequisites, detached components |

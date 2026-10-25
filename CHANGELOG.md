@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add DAG `prepare()` for eager validated previews, atomic typed `deferredFrontier` records, and committed `workCompleted`/`subgraphCompleted` event kinds, preserving order/filter/timing.
+- Add family-safe sync/async execution capabilities and public cooperative `requestPause()` on all six runners.
+- Thread caller-selected ID types through graph/DAG APIs; require typed live IDs and reject inherited graph IDs. Raw container IDs include synthetic symbols; public views hide bookkeeping.
+- Add original labelled W/C diagnostic edges, including missing endpoints, and detach visitor registration query arrays/records while preserving callback/group identity.
+- Default rewrite output to unknown, add explicit `rewriteObjectAs<Out>` assertions and FINISHED-only cached `getOutput()`, and reject helper-owned source options even when present undefined. See the migration guide below.
+
 - Adopt descriptive `$data`/`$childHints` vertex fields and tagged `found`/`omitted`/lookup-only `missing` source results. Preserve deprecated input/access aliases; Vertex own fields, spread and JSON now use canonical names.
 - Honor ordinary root work prerequisites by default (`rootDependencies: 'honor'`) and make graph parent work inheritance opt-in (`implicitParentDependency: false`). Tree order is preserved. These are intentional behavior changes; see the [migration guide](docs/migration-uniform-api.md).
 - Add exclusive `DEFER_READY` commands and phase-neutral `REWRITE_CHILD_HINTS`; retain deprecated sentinel/command inputs. Name batching `commandCommitMode`, correct flat priority order before batching, add explicit ordered groups, and infer command phases across registration/configuration/helpers. Callback context exposes readonly metadata; retrieve executable records through traversal APIs.

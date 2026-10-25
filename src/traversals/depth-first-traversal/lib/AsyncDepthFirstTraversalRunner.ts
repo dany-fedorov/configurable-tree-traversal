@@ -45,7 +45,10 @@ export class AsyncDepthFirstTraversalRunner<
     TTP,
     RW_TTP
   >;
-  private readonly execution: AsyncCoreExecution<Event<TTP, RW_TTP>>;
+  private readonly execution: AsyncCoreExecution<
+    Event<TTP, RW_TTP>,
+    DepthFirstTraversalOrder
+  >;
 
   constructor(icfgInput: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
     this.icfg = mergeAsyncDepthFirstTraversalInstanceConfigs(icfgInput, {});
@@ -149,6 +152,10 @@ export class AsyncDepthFirstTraversalRunner<
 
   getStopReason(): TraversalStopReason | null {
     return this.execution.getStopReason();
+  }
+
+  requestPause(): boolean {
+    return this.execution.requestPause();
   }
 
   isHalted(): boolean {

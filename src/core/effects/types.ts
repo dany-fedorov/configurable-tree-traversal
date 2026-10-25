@@ -128,7 +128,10 @@ export interface KernelPort<
   discardRequest(requestId: number): void;
   acknowledgeEvent(boundaryId: number): void;
   requestHalt(): void;
-  resume(config?: TraversalIterableConfigInput<VisitOrder>): void;
+  resume(
+    config?: TraversalIterableConfigInput<VisitOrder>,
+    preparation?: boolean,
+  ): void;
   isRequestEligible(requestId: number, mode: PumpMode): boolean;
   isRequestValid(requestId: number): boolean;
   isHaltRequested(): boolean;

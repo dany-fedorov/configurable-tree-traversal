@@ -2,7 +2,7 @@
 
 [Documentation index](index.md) · [Agent workflow guide](agent-workflows.md) · [Quickstart](../README.md#quickstart-find-the-next-agent-tasks)
 
-Current behavior: the unreleased uniform API in this checkout. Published npm 0.11.0 differs; see the [migration guide](migration-uniform-api.md). Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts.
+Current behavior: the unreleased uniform and composable APIs in this checkout. Published npm 0.11.0 differs; see the [migration guide](migration-uniform-api.md). Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts.
 
 ## On this page
 
@@ -74,6 +74,10 @@ function makeJob(id: string) {
 
 A DAG constructor accepts exactly one source mode. Use `traversableGraph` for graph callback options, explicit ids and dependencies; use `traversableTree` to adapt an existing tree source while visitors receive the graph facade. The source mode is fixed at construction, although `configure()` can replace the adapter within that mode. Tree-source results reject graph identity, `dependsOn`, and `dependsOnComplete`, including fields explicitly set to undefined.
 
+Graph sources and DAG APIs accept a trailing identity type, for example `TraversableGraph<Workflow, Workflow, TaskId>` and `DagTraversal<Workflow, Workflow, TaskId>`. It flows through dependencies, prerequisite lookup, completed-work seeds, settlement, visitors, graph views/snapshots, summaries and diagnostics. Data, rewrite data, and child hints keep their existing generic positions. Constructors and helpers infer identity from typed graph sources; use an explicit union for heterogeneous identities when inference cannot combine them. `ResolvedGraph<T, ID>`, `DagSummary<ID>`, `DagVertexProgress<ID>` and `DagTraversalStallDiagnostics<ID>` default to `unknown` for compatibility. Visitor types append ID after their phase parameter, for example `DagVisitor<T, R, 'ON_READY', ID>`.
+
+Selecting an ID domain other than `unknown` requires an explicit `vertexId` on every live graph-source result, both tagged and legacy, including prerequisite results. Omitted results can still omit it. Default `unknown` sources retain generated-ID fallback and prerequisite-ID inheritance. Tree-source DAG mode generates reference identities and therefore accepts only the default `unknown` ID domain. TypeScript cannot express property ownership, so graph result normalization rejects an inherited `vertexId` with `TypeError` before generated-ID or prerequisite-ID fallback. Class adapters must materialize an own field, for example `{ vertexId: instance.vertexId, vertexContent: instance.vertexContent }`; an own getter is also supported. Legitimately absent IDs retain default-`unknown` fallback, and explicit own `vertexId: undefined` retains the real undefined identity. ID values are never coerced or schema-validated. The advanced raw `runner.resolvedGraphsContainer.resolvedGraph` and `.store` use `ID | symbol` because they may include private synthetic-root bookkeeping; public graph views and snapshots exclude that root and retain `ID`.
+
 Graph ids use `Map`/`Set` SameValueZero equality, so `NaN`, `null`, explicit `undefined`, symbols, and object references are valid. `getVertexIdFromHint()` returns a wrapper, not a bare id: return `{ vertexId: undefined }` for the real id `undefined`, or return `undefined` when the hint has no identity. A known hint id can reuse a vertex without resolving it; if both the hint hook and resolver supply ids, they must match.
 
 Stalled DAG runners throw `DagTraversalStallError` (available from the root, `core`, and DAG traversal exports). Its `diagnostics` contains detached arrays while retaining original ID identity:
@@ -130,13 +134,15 @@ the declared dependencies before invoking any visitor. Discovery adapters should
 describe or fetch graph facts; put the work being scheduled in visitors or in
 the host executor. Resolving a vertex does not itself complete its work. Internal
 dependency bookkeeping and supplied completion seeds may be processed during
-discovery; the guarantee is a boundary before visitors, not separate public
-`discover()` and `execute()` calls. Default lazy mode interleaves discovery and
-execution instead.
+discovery. Default lazy mode interleaves discovery and execution instead. For a separate preview boundary, use `prepare()` as described below.
+
+Both DAG runners expose `prepare(): this` / `Promise<this>`. On fresh tree-source or graph-source runners without injected traversal state/containers, preparation fully discovers the closure exposed by roots, hints and prerequisite lookup and validates combined W/C constraints. It invokes no visitors, emits no execution events, commits no new real-vertex W/C and creates no deferred generations; `completedWork` seeds still supply accepted W. Empty/omitted-root previews succeed at `HALTED` / `prepared`, not FINISHED. Inspect `getResolvedGraph()` and `summary()` before calling `run()` or iterating.
+
+Preparation adopts effective eager discovery even for lazy inputs, exposes that mode in summaries, and establishes eager topology freezing (hint rewrites/subtree disabling reject). Repeated preparation before execution is idempotent. Run adopts the discovered graph without repeating adapters. Preparation after execution starts, during another ownership operation, or with injected state/container objects (even empty ones) rejects recoverably. Failed preparation rethrows the exact stored error. Async preparation shares the existing owner/session: pause waits for already-admitted discovery callbacks without canceling them, then reports `paused`; another prepare continues or run adopts discovery and executes.
 
 For a host-controlled execution phase, combine eager discovery with a complete
 synthetic-root catalog and `workCompletion: 'externalSettlement'`.
-After `run()` reaches quiescence, read `summary().readyIds`; the host can execute
+After `run()` reaches quiescence, read `summary().deferredFrontier`; the host can execute
 selected work and report accepted completion through guarded `settle()`, or
 rebuild from `completedWork` on its next tick. Under the default `visitorReturn` policy, normal chain return completes W; under `externalSettlement`, even an empty or filtered chain defers. The
 [deferred progress example below](#deferred-dag-progress-and-reconciliation)
@@ -190,8 +196,8 @@ See the runnable [build-join example](https://github.com/dany-fedorov/configurab
 Graph sources may define `resolvePrerequisite(id)` to find an unknown ID declared
 in either prerequisite list. It returns a tagged `found`, `omitted`, or `missing` result (or a promise-like result
 for `AsyncDagTraversal`), with exactly the ID as its argument and no fabricated
-parent context. A result without its own `vertexId` inherits the requested ID;
-an explicit ID must match using SameValueZero identity. `{ kind: 'missing' }` means not found and eventually produces the typed
+parent context. A default-unknown result with no `vertexId` field inherits the requested ID; typed live results must supply an own ID, and inherited fields reject.
+An explicit ID must match using SameValueZero identity. `{ kind: 'missing' }` means not found and eventually produces the typed
 missing-prerequisite stall. `{ kind: 'omitted', satisfiesDependencies: true }`
 deliberately omits the requested ID and satisfies both W and C. A `found`
 result wraps the non-null content and optional declarations under `vertex`.
@@ -258,7 +264,7 @@ validation; data rewrites and vertex deletion retain their existing behavior.
 Set `workCompletion: 'externalSettlement'` to inspect
 candidates without completing their work. Enabled callbacks and their commands finish before normal deferral, including when there are no callbacks. Both DAG runners expose `summary()` and
 `settle(id, outcome, expectedGeneration)`. Import `DagSummary`,
-`DagVertexProgress`, `DagWorkState`, `DagSettlementGeneration`, and
+`DagVertexProgress`, `DagDeferredWork`, `DagWorkState`, `DagSettlementGeneration`, and
 `DagSettlementOutcome` from the package root or DAG subpath.
 
 <!-- standalone -->
@@ -303,16 +309,20 @@ const traversal = new DagTraversal<Graph>({
 const runner = traversal.makeRunner().run(); // HALTED, waiting for the host
 const snapshot = runner.summary();
 console.log(snapshot.readyIds); // ['b', 'c']
-const generation = snapshot.vertices.get('b')!.generation!;
+const work = snapshot.deferredFrontier.find(
+  ({ vertexId }) => vertexId === 'b',
+)!;
 
 // A real host validates and durably accepts its result before settlement.
 acceptedCompletedWork.add('b');
-runner.settle('b', { kind: 'workCompleted' }, generation);
+runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation);
 runner.run();
 console.log(runner.summary().readyIds); // ['c']; d still waits for c
 ```
 
-Dispatch external work from the deferred frontier and capture its generation. Deferred `ON_READY` events emit only on settlement, not when dispatch becomes possible. A real `ON_READY` callback can instead dispatch before its chain defers. Synthetic roots and `completedWork` seeds do not need new settlement. `ON_COMPLETE` remains automatic after W, discovery, children, and completion prerequisites are satisfied.
+Dispatch external work from `summary().deferredFrontier`, whose `DagDeferredWork<ID>` records atomically contain readonly `{ vertexId, generation }`. Each snapshot lists exactly live deferred vertices without an accepted outcome, in discovery order, excluding queued-only, settled and deleted work. Arrays/records are detached and opaque ID objects retain identity; the snapshot does not claim host work. `readyIds` remains dependency eligibility.
+
+DAG iterator events expose `kind: 'workCompleted' | 'subgraphCompleted'`. The first retains `order: ON_READY` and denotes committed W; the second retains `order: ON_COMPLETE` and denotes committed C. Existing order, phase filtering and timing are unchanged. ON_READY visitor callbacks remain pre-work. Seeded W emits no synthetic work event. Deferred `ON_READY` events emit only on settlement, not when dispatch becomes possible. A real `ON_READY` callback can instead dispatch before its chain defers. Synthetic roots and `completedWork` seeds do not need new settlement. `ON_COMPLETE` remains automatic after W, discovery, children, and completion prerequisites are satisfied.
 
 The explicit `DEFER_READY` command ends the initial visitor chain early, discards its uncommitted buffered
 commands, and skips remaining visitors. It emits no event or dependency success
@@ -343,6 +353,8 @@ Accepted failure (`{ kind: 'traversalFailed', error }`) fails the runner; execut
 exact error, including `null` or `undefined`. Failure replay equality uses
 `Object.is`. Halting is resumable and retains generation validity. Settlement
 wakes an active async consumer; after an idle settlement, call `run()` again.
+
+`DagTraversalStallDiagnostics<ID>.dependencyEdges` explains original declared constraints: direction is **from waits for to**. `DagDependencyMilestone<ID>` is `{ vertexId, milestone: 'work' | 'completion' }`; `DagDependencyEdge<ID>` adds `from`, `to` and `reason`. Edges are W(v)→W(p) (`workDependency`), W(v)→C(p) (`completionDependency`), C(v)→W(v) (`ownWork`), and C(parent)→C(child) (`structuralChild`). Seeds do not remove original constraints, and missing prerequisite endpoints are included. Ordering follows stable discovery, then each vertex's work dependencies, completion dependencies, own work and structural children. Cycle analysis uses the same constraints; `dependencyCycles` gives strongly connected component membership, not an ordered cycle witness. Summary/error wrappers and endpoint records are detached, preserving opaque ID identity without freezing IDs. Historical manually constructed `DagTraversalStallError` input may omit edges and receives `[]`; engine diagnostics populate them.
 
 ### Host policy and traversal feedback
 
@@ -580,7 +592,7 @@ Visitors have a numeric `priority` (default `100`; higher runs earlier); ties re
 
 For an ordering boundary, use `{ groups: [{ visitors: [...], commandCommitMode: 'afterGroup' }, { visitors: [...] }] }`. Groups run in array order; priorities sort only within each group. Policy belongs to the group: member `commandCommitMode`/`resolutionStyle` fields reject. Empty groups validate then are inert, creating no boundary. Group default is `afterEachVisitor`. Async `concurrency` is independent of command batching. Deprecated `resolutionStyle: CONCURRENT`/`SEQUENTIAL` maps to `afterGroup`/`afterEachVisitor`; contradictory explicit aliases throw.
 
-Constructor/configure maps, helper maps, and `setVisitorsFor(order, input)` share `VisitorPhaseInput<F>`: a callback, `{ visitor, priority?, commandCommitMode? }`, a readonly flat array of definitions, or explicit groups. `addVisitorFor` remains callback/options shorthand; `addVisitorGroupFor(order, group)` appends a group. An individual append after explicit groups joins a final implicit flat group. `listVisitorsFor` returns normalized typed records accepted by `setVisitorsFor`, preserving groups. To regroup records, project `{ visitor, priority }` and set the new group policy. Canonical definitions never need `addedIndex`; supplied compatibility indexes are ignored. See the [complete shared-definition example](migration-uniform-api.md#shared-visitor-definitions-and-ordered-groups). Concrete sync/async receivers retain phase inference; narrow mixed receiver unions before inline registration.
+Constructor/configure maps, helper maps, and `setVisitorsFor(order, input)` share `VisitorPhaseInput<F>`: a callback, `{ visitor, priority?, commandCommitMode? }`, a readonly flat array of definitions, or explicit groups. `addVisitorFor` remains callback/options shorthand; `addVisitorGroupFor(order, group)` appends a group. An individual append after explicit groups joins a final implicit flat group. `listVisitorsFor` returns normalized typed records accepted by `setVisitorsFor`, preserving groups. All six builders return mutable detached arrays containing copied records: editing a query never changes registrations, future runners, or prior snapshots. Callback closures remain shared references; frozen group metadata/identity is retained for list/set round trips. Apply changes through `setVisitorsFor`, `addVisitorFor`/`addVisitorGroupFor`, or `configure`. This shallow query guarantee does not redesign advanced raw fields. To regroup records, project `{ visitor, priority }` and set the new group policy. Canonical definitions never need `addedIndex`; supplied compatibility indexes are ignored. See the [complete shared-definition example](migration-uniform-api.md#shared-visitor-definitions-and-ordered-groups). Concrete sync/async receivers retain phase inference; narrow mixed receiver unions before inline registration.
 
 The actual phase is inferred in registration, configuration records, and helper maps, including `options.order`. Reusable callbacks typed with general `TraversalVisitor`/`DagVisitor` aliases can return common commands across entry points. `options.visitorRecord` exposes readonly, phase-neutral `VisitorRegistrationMetadata` (`addedIndex`, `priority`, `commandCommitMode`, and deprecated `resolutionStyle`). It has no callable `visitor` in the supported TypeScript context; retain your callback reference or retrieve full typed records with `listVisitorsFor()`. Full records remain in configuration/list/set APIs; see the [migration guide](migration-uniform-api.md#phase-aware-visitors).
 
@@ -613,13 +625,15 @@ const runner = traversal.makeRunner().run(); // HALTED
 runner.run(); // finishes the remaining visitors and traversal
 ```
 
+All six runners expose `requestPause(): boolean`. It returns true only for a new request while RUNNING; INITIAL, already-requested, HALTED, FINISHED and FAILED return false without driving execution or rethrowing a retained error. The method records a request; the active owner acknowledges it at a safe boundary after admitted chains drain. Callbacks are not canceled and future source admissions stop. A suspended iterator may require another `next()` or `return()` to reach that boundary. Resume with run/iteration without replaying committed work. During async preparation, admitted source callbacks can delay acknowledgement too.
+
 Breaking a `for...of` iteration also pauses the runner. Resume the same runner with `run()` or a new `getIterable()` call. Completed visitors and yielded events are not repeated. A halt can occur even when its order is excluded from iteration. The halted event is yielded after its visitor chain completes on resumption.
 
 `getIterable()` and `run()` accept independent selectors: `emitPhases: readonly Order[]` selects events; `visitorPhases: 'all' | { include: readonly Order[] } | { exclude: readonly Order[] }` selects callbacks. Empty include disables callbacks, empty exclude runs all, and empty emission suppresses events without disabling callbacks. Each supplied field patches the previous effective value; omitted fields, `{}`, and no argument retain it. Caller arrays are copied on activation. An admitted chain keeps its configuration through its boundary.
 
 Deprecated `iterateOver` selects emission. A non-null legacy `enableVisitorFunctionsFor` wins over `disableVisitorFunctionsFor`, even when empty; clearing enable with null activates a retained disable list. Legacy fields also patch independently. A canonical visitor selector replaces that concern and clears dormant legacy lists. Canonical and legacy names for the same concern cannot coexist in one request, even with undefined alias values; unrelated concerns may mix. Malformed selectors/phases reject before configuration changes. Inspection exposes both views: project the desired canonical fields instead of passing the entire mixed inspection filter object back. Only one iterator may own a runner; close it before resuming elsewhere.
 
-`getStopReason(): TraversalStopReason | null` and inspection `stopReason` distinguish `paused`, `awaitingSettlement`, `finished`, and `failed`. INITIAL/RUNNING return null. HALT/iterator close reports paused only after admitted chains drain; deferred quiescence reports awaitingSettlement. Successful settlement while halted preserves the preceding stop reason until resume clears it. Failed settlement reports failed with the exact error. The same contract applies to async execution/session surfaces.
+`getStopReason(): TraversalStopReason | null` and inspection `stopReason` distinguish `prepared`, `paused`, `awaitingSettlement`, `finished`, and `failed`. Successful DAG preview reports prepared. INITIAL/RUNNING return null. HALT/iterator close reports paused only after admitted chains drain; deferred quiescence reports awaitingSettlement. Successful settlement while halted preserves the preceding stop reason until resume clears it. Failed settlement reports failed with the exact error. The same contract applies to async execution/session surfaces.
 
 Statuses are `INITIAL`, `RUNNING`, `HALTED`, `FINISHED`, and `FAILED`. Running a finished runner has no effect; use `makeRunner()` for a fresh traversal. Errors from adapters, visitors, sorting, or traversal execution propagate and leave the runner `FAILED`. Later attempts to run or iterate it rethrow the original thrown value. Its partially resolved tree remains available for inspection; retry with a fresh runner after correcting the cause.
 
@@ -643,6 +657,8 @@ await iterator.return();
 
 All six public runners use the same explicit transition-state model. Synchronous runners execute its callback requests inline; asynchronous runners delegate iteration and `run()` to one shared `AsyncCoreExecution` session with serialized state commits, finite callback limiting when configured, and one iterator lease. Calling `run()` while an iterator owns that session rejects rather than starting a second execution.
 
+For wrappers, use `TraversalExecutionState` (`getStatus`, `getStopReason`, `isHalted`, `inspect`, `requestPause`), `SyncTraversalExecution<Phase, Event>`, or `AsyncTraversalExecution<Phase, Event>`. Run returns this / Promise of this; iterators are closeable `Generator<Event, void, unknown>` / `AsyncGenerator<Event, void, unknown>`. Preserve the family's phase enum: a DFS abstraction rejects DAG phases and cannot widen to accept them. Historical `AsyncCoreExecution<Event, Phase = never>` remains available; its erased default permits no explicit phase names. Specify Phase when selecting phases. `TraversalRunner` exposes the same sync capabilities; historical `TraversalRunnerIterable` imports remain supported.
+
 ## Rewrite objects
 
 The `rewriteObject` namespace is retained for compatibility:
@@ -653,21 +669,25 @@ The `rewriteObject` namespace is retained for compatibility:
 import { rewriteObject } from 'configurable-tree-traversal';
 
 const input = { keep: 1, remove: 2, nested: [3] };
-const { outputObject } = rewriteObject.rewriteObject(input, {
+const result = rewriteObject.rewriteObject(input, {
   rewrite: ({ key, value }) => {
     if (key === 'remove') return { delete: true };
     if (typeof value === 'number') return { rewrite: { value: value * 10 } };
     return undefined;
   },
 });
-// { keep: 10, nested: [30] }; input is unchanged
+console.log(result.getOutput()); // { keep: 10, nested: [30] }; input is unchanged
 ```
 
 Rewrites run in post-order. Return `{ rewrite: { key, value } }` to rename or replace a property, `{ delete: true }` to remove it, or `undefined` to retain it. Composite parents are reconstructed from their processed children. Arrays are compacted after skipped/deleted elements. Null and undefined values are retained; deleting the root returns `null`.
 
 Set `assembleCompositesBeforeRewrite: true` to receive `assembledComposite` alongside the original property. Options include `isArray`, `isObject`, `isComposite`, and `getKeyPath({ noRoot: true })`. Custom `isArray`/`isObject` and `assembleArray`/`assembleObject` functions support specialized reconstruction. Default reconstruction is for plain objects and arrays; it does not preserve prototypes, descriptors, collection types, or identity shared between branches.
 
-`outputObject` captures the root value when the helper returns (after the optional `getOutputObjectFromRootValue` conversion). If custom visitors halt traversal, check `traversalRunner.getStatus()` before treating that value as complete. Resume with `traversalRunner.run()` and read the final value from `traversalRunner.getResolvedTreeView().getRoot()?.unref().getData().value`, using `null` when the root was deleted. Resuming does not update the earlier `outputObject` or rerun the output conversion hook.
+`rewriteObject` retains its six generic positions, but default `Out` is now `unknown`: reconstruction and arbitrary rewrites cannot promise input shape/prototype preservation. A `getOutputObjectFromRootValue` converter can infer its return type. Use named root `rewriteObjectAs<Out>(input, options?)`, namespace `rewriteObject.rewriteObjectAs`, or the rewrite subpath helper for an explicit caller assertion; it performs no schema validation, and property values in its options remain unknown.
+
+`outputObject` is the historical initial converted snapshot, possibly captured while halted. It never updates on resume. Call `result.traversalRunner.run()` to resume, then `result.getOutput()` to read the final converted root. The getter throws before FINISHED, applies the original conversion after completion and caches its first successful result, reusing the initial snapshot if the first run already finished. Exact conversion failures propagate and are not cached as successes, so a later call can retry. Deleted/null roots remain supported; the getter neither resumes nor promises deep immutability.
+
+The helper owns its source. `traversableTree` is forbidden in inline and pretyped options; JavaScript presence, including present `undefined`, rejects before source, rewrite or conversion callbacks. Remove that field, or use a traversal directly for a custom source.
 
 Generic `MakeMutationCommandFunction<Output, RewriteInput = Output['VertexData']>` requires complete replacement data by default. Object helpers explicitly accept `TO_MutationPropertyPatch<Output>` (`Partial<Output['VertexData']>`), so key-only and value-only patches remain typed. Omit `rewrite` for no patch; a present `rewrite: undefined`, null, or primitive throws TypeError before mutation. `{ rewrite: { value: undefined } }` sets an undefined value when the output type permits it. User assembler errors propagate exactly.
 

@@ -1,6 +1,8 @@
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { CTTRef } from '@core/CTTRef';
+import type { CoreInspection } from '@core/CoreInspection';
+import type { SyncTraversalExecution } from '@core/TraversalExecution';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 
 export type TraversalRunnerIteratorResultContent<
@@ -16,6 +18,7 @@ export type TraversalRunnerIteratorResultContent<
 };
 
 export type TraversalStopReason =
+  | 'prepared'
   | 'paused'
   | 'awaitingSettlement'
   | 'finished'
@@ -44,14 +47,29 @@ export abstract class TraversalRunner<
   ORDER extends string,
   TTP extends TreeTypeParameters,
   RW_TTP extends TreeTypeParameters,
-> {
+> implements
+    SyncTraversalExecution<
+      ORDER,
+      TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>
+    >
+{
   abstract getStatus(): TraversalRunnerStatus;
 
   abstract getStopReason(): TraversalStopReason | null;
 
-  abstract run(config?: TraversalIterableConfigInput<ORDER>): this;
+  abstract isHalted(): boolean;
 
-  abstract getIterable(
+  abstract inspect(): CoreInspection;
+
+  abstract requestPause(): boolean;
+
+  abstract run: (config?: TraversalIterableConfigInput<ORDER>) => this;
+
+  abstract getIterable: (
     config?: TraversalIterableConfigInput<ORDER>,
-  ): TraversalRunnerIterable<ORDER, TTP, RW_TTP>;
+  ) => Generator<
+    TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>,
+    void,
+    unknown
+  >;
 }

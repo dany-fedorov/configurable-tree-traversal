@@ -2,7 +2,6 @@ import type { VisitorInputs } from '@core/TraversalVisitor';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import { assertDagWorkCompletion } from './DagTraversalInstanceConfig';
 import type { DagDiscoveryOptions } from './DagTraversalInstanceConfig';
-import type { VertexId } from '@core/graph/types';
 import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
 import type { MaybePromise, VisitorRecord } from '@core/graph/types';
 import type { AsyncTraversableGraph } from '@core/TraversableGraph';
@@ -15,21 +14,23 @@ import type { AsyncDagVisitor } from './DagTraversalVisitor';
 export type AsyncDagSource<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > =
   | {
-      traversableGraph: AsyncTraversableGraph<T, R>;
+      traversableGraph: AsyncTraversableGraph<T, R, ID>;
       traversableTree?: never;
     }
   | {
-      traversableTree: AsyncTraversableTree<T, R>;
+      traversableTree: unknown extends ID ? AsyncTraversableTree<T, R> : never;
       traversableGraph?: never;
     };
 
 export type AsyncDagTraversalVisitors<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > = {
-  [K in DagTraversalOrder]: VisitorRecord<AsyncDagVisitor<T, R, K>>[];
+  [K in DagTraversalOrder]: VisitorRecord<AsyncDagVisitor<T, R, K, ID>>[];
 };
 
 export type AsyncDagSortChildrenHintsFn<T extends TreeTypeParameters> = (
@@ -39,56 +40,63 @@ export type AsyncDagSortChildrenHintsFn<T extends TreeTypeParameters> = (
 type AsyncDagTraversalOptions<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
+  ID = unknown,
 > = DagDiscoveryOptions & {
-  completedWork?: ReadonlySet<VertexId>;
+  completedWork?: ReadonlySet<ID>;
   sortChildrenHints: AsyncDagSortChildrenHintsFn<T> | null;
-  visitors: AsyncDagTraversalVisitors<T, R>;
+  visitors: AsyncDagTraversalVisitors<T, R, ID>;
   saveNotMutatedResolvedGraph: boolean;
   concurrency: number;
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer:
-      | DagTraversalRunnerInternalObjects<T, R>['resolvedGraphsContainer']
+      | DagTraversalRunnerInternalObjects<T, R, ID>['resolvedGraphsContainer']
       | null;
-    state: DagTraversalRunnerInternalObjects<T, R>['state'] | null;
+    state: DagTraversalRunnerInternalObjects<T, R, ID>['state'] | null;
   };
 };
 
 export type AsyncDagTraversalInstanceConfig<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
-> = AsyncDagSource<T, R> & AsyncDagTraversalOptions<T, R>;
+  ID = unknown,
+> = AsyncDagSource<T, R, ID> & AsyncDagTraversalOptions<T, R, ID>;
 
 type AsyncDagTraversalOptionsInput<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
+  ID = unknown,
 > = Partial<
   Omit<
-    AsyncDagTraversalOptions<T, R>,
+    AsyncDagTraversalOptions<T, R, ID>,
     'visitors' | 'traversalRunnerInternalObjects'
   >
 > & {
-  visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R>>;
+  visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R, ID>>;
   traversalRunnerInternalObjects?: Partial<
-    AsyncDagTraversalOptions<T, R>['traversalRunnerInternalObjects']
+    AsyncDagTraversalOptions<T, R, ID>['traversalRunnerInternalObjects']
   >;
 };
 
 export type AsyncDagTraversalInstanceConfigInput<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
-> = AsyncDagSource<T, R> & AsyncDagTraversalOptionsInput<T, R>;
+  ID = unknown,
+> = AsyncDagSource<T, R, ID> & AsyncDagTraversalOptionsInput<T, R, ID>;
 
 export type AsyncDagTraversalConfigureInput<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
-> = AsyncDagTraversalOptionsInput<T, R> &
+  ID = unknown,
+> = AsyncDagTraversalOptionsInput<T, R, ID> &
   (
     | {
-        traversableGraph?: AsyncTraversableGraph<T, R>;
+        traversableGraph?: AsyncTraversableGraph<T, R, ID>;
         traversableTree?: never;
       }
     | {
-        traversableTree?: AsyncTraversableTree<T, R>;
+        traversableTree?: unknown extends ID
+          ? AsyncTraversableTree<T, R>
+          : never;
         traversableGraph?: never;
       }
   );
@@ -113,10 +121,11 @@ export const ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG = deepFreeze({
 export function mergeAsyncDagTraversalInstanceConfigs<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
+  ID = unknown,
 >(
-  base: AsyncDagTraversalInstanceConfig<T, R>,
-  input: AsyncDagTraversalConfigureInput<T, R>,
-): AsyncDagTraversalInstanceConfig<T, R> {
+  base: AsyncDagTraversalInstanceConfig<T, R, ID>,
+  input: AsyncDagTraversalConfigureInput<T, R, ID>,
+): AsyncDagTraversalInstanceConfig<T, R, ID> {
   const capturedInput = { ...input };
   assertDagWorkCompletion(capturedInput.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
@@ -135,7 +144,7 @@ export function mergeAsyncDagTraversalInstanceConfigs<
       ...base.traversalRunnerInternalObjects,
       ...(input.traversalRunnerInternalObjects ?? {}),
     },
-  } as AsyncDagTraversalInstanceConfig<T, R>;
+  } as AsyncDagTraversalInstanceConfig<T, R, ID>;
   if (
     merged.concurrency !== Infinity &&
     (!Number.isInteger(merged.concurrency) || merged.concurrency <= 0)

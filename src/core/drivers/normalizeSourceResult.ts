@@ -19,6 +19,16 @@ export function assertNoTreeMetadata(
   }
 }
 
+/** Structural source types cannot distinguish own fields from prototype fields. */
+function assertOwnGraphIdentity(result: object): void {
+  if (
+    'vertexId' in result &&
+    !Object.prototype.hasOwnProperty.call(result, 'vertexId')
+  ) {
+    throw new TypeError('Graph source vertexId must be an own property');
+  }
+}
+
 /** Normalize adapter vocabulary before any scheduling or identity decisions. */
 export function normalizeSourceResult<T extends TreeTypeParameters>(
   result: PrerequisiteResolutionResult<T>,
@@ -31,21 +41,25 @@ export function normalizeSourceResult<T extends TreeTypeParameters>(
   }
   if (treeSourceName !== undefined)
     assertNoTreeMetadata(result, treeSourceName);
+  else assertOwnGraphIdentity(result);
   if (!('kind' in result)) return result;
   switch (result.kind) {
-    case 'found':
+    case 'found': {
+      const vertex = result.vertex;
       if (
-        result.vertex === null ||
-        typeof result.vertex !== 'object' ||
-        result.vertex.vertexContent == null
+        vertex === null ||
+        typeof vertex !== 'object' ||
+        vertex.vertexContent == null
       ) {
         throw new TypeError(
           'Found source result requires non-null vertexContent',
         );
       }
       if (treeSourceName !== undefined)
-        assertNoTreeMetadata(result.vertex, treeSourceName);
-      return result.vertex;
+        assertNoTreeMetadata(vertex, treeSourceName);
+      else assertOwnGraphIdentity(vertex);
+      return vertex;
+    }
     case 'omitted':
       if (result.satisfiesDependencies !== true) {
         throw new TypeError(

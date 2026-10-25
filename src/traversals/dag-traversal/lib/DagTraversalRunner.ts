@@ -6,7 +6,6 @@ import type {
   DagSettlementOutcome,
   DagSettlementGeneration,
 } from './DagProgress';
-import type { VertexId } from '@core/graph/types';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { CTTRef } from '@core/CTTRef';
 import {
@@ -16,6 +15,7 @@ import {
 } from '@core/drivers/callbackBindings';
 import { runSync, type SyncDriverState } from '@core/drivers/runSync';
 import type { CallbackBindings, CallSpec } from '@core/effects/types';
+import type { ResolvedGraphsContainerOptions } from '@core/graph/ResolvedGraphsContainer';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
 import { TraversalKernel } from '@core/TraversalKernel';
@@ -48,11 +48,12 @@ type Event<
 export class DagTraversalRunner<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > {
-  readonly icfg: DagTraversalInstanceConfig<T, R>;
+  readonly icfg: DagTraversalInstanceConfig<T, R, ID>;
   readonly state: DagTraversalRunnerState<T, R>;
-  readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R>;
-  readonly notMutatedResolvedGraph: ResolvedGraphSnapshot<T> | null;
+  readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
+  readonly notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
   private iterableConfig: DagTraversalRunnerIterableConfig =
     makeEffectiveDagTraversalRunnerIterableConfig();
   private activeIterator = false;
@@ -63,7 +64,7 @@ export class DagTraversalRunner<
   private readonly kernel: TraversalKernel<T, R>;
   private readonly bindings: CallbackBindings<T, R>;
 
-  constructor(input: DagTraversalInstanceConfig<T, R>) {
+  constructor(input: DagTraversalInstanceConfig<T, R, ID>) {
     if (
       input.rootDependencies !== undefined &&
       input.rootDependencies !== 'honor' &&
@@ -117,7 +118,7 @@ export class DagTraversalRunner<
       }
       this.resolvedGraphsContainer = injectedContainer;
     } else if (sourceMode === 'graph') {
-      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R>({
+      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R, ID>({
         sourceMode: 'graph',
         syntheticRoot: input.syntheticRoot === true,
         saveOriginal: input.saveNotMutatedResolvedGraph,
@@ -128,11 +129,12 @@ export class DagTraversalRunner<
         traversableTree: treeSource!,
         saveNotMutatedResolvedTree: input.saveNotMutatedResolvedGraph,
       } as unknown as DepthFirstTraversalInstanceConfig<T, R>);
-      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R>({
+      // Tree-source inputs are accepted only when ID is unknown.
+      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R, ID>({
         sourceMode: 'tree',
         saveOriginal: input.saveNotMutatedResolvedGraph,
         treeContainer,
-      });
+      } as ResolvedGraphsContainerOptions<T, R, ID>);
     }
     this.notMutatedResolvedGraph =
       this.resolvedGraphsContainer.notMutatedResolvedGraph;
@@ -166,6 +168,9 @@ export class DagTraversalRunner<
     });
     this.kernel = new TraversalKernel({
       kind: 'dag',
+      canPrepare:
+        input.traversalRunnerInternalObjects.state === null &&
+        input.traversalRunnerInternalObjects.resolvedGraphsContainer === null,
       discovery: input.discovery ?? 'lazy',
       workCompletion:
         this.icfg.workCompletion === undefined
@@ -210,12 +215,37 @@ export class DagTraversalRunner<
     });
   }
 
-  summary(): DagSummary {
-    return this.kernel.summary();
+  prepare(): this {
+    if (this.failure !== null) throw this.failure.error;
+    if (this.activeIterator) {
+      throw new Error('A traversal runner can only have one active iterator');
+    }
+    this.kernel.validatePreparation();
+    this.policy.claim();
+    this.kernel.resume(undefined, true);
+    this.curGenerator ??= this.getInternalGenerator();
+    this.activeIterator = true;
+    try {
+      this.curGenerator.next();
+    } catch (error) {
+      this.failure = { error };
+      this.state.failure = this.failure;
+      this.state.status = TraversalRunnerStatus.FAILED;
+      throw error;
+    } finally {
+      this.activeIterator = false;
+      this.policy.releaseIfTerminal();
+    }
+    return this;
+  }
+
+  summary(): DagSummary<ID> {
+    // The kernel only receives identities from this runner's typed source/config.
+    return this.kernel.summary() as DagSummary<ID>;
   }
 
   settle(
-    id: VertexId,
+    id: ID,
     outcome: DagSettlementOutcome,
     expectedGeneration: DagSettlementGeneration,
   ): boolean {
@@ -231,6 +261,16 @@ export class DagTraversalRunner<
     return this.kernel.getStopReason();
   }
 
+  requestPause(): boolean {
+    if (
+      this.getStatus() !== TraversalRunnerStatus.RUNNING ||
+      this.kernel.isHaltRequested()
+    )
+      return false;
+    this.kernel.requestHalt();
+    return true;
+  }
+
   isHalted(): boolean {
     return this.getStatus() === TraversalRunnerStatus.HALTED;
   }
@@ -242,7 +282,7 @@ export class DagTraversalRunner<
     );
   }
 
-  getResolvedGraph(): ResolvedGraph<T | R> {
+  getResolvedGraph(): ResolvedGraph<T | R, ID> {
     return this.resolvedGraphsContainer.publicResolvedGraph;
   }
 
@@ -264,7 +304,7 @@ export class DagTraversalRunner<
 
   *getIterable(
     config?: DagTraversalRunnerIterableConfigInput,
-  ): Generator<Event<T, R>> {
+  ): Generator<Event<T, R>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
     if (this.activeIterator) {
       throw new Error('A traversal runner can only have one active iterator');
@@ -330,6 +370,10 @@ export class DagTraversalRunner<
           vertex: event.vertex,
           vertexRef: event.vertexRef,
           order: event.order as DagTraversalOrder,
+          kind:
+            event.order === DagTraversalOrder.ON_READY
+              ? 'workCompleted'
+              : 'subgraphCompleted',
           isGraphRoot: event.isRoot,
           isTraversalRoot: event.isTraversalRoot,
         };

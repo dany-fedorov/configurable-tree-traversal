@@ -41,15 +41,15 @@ function expectReason(
 }
 
 for (const Constructor of [
-  DepthFirstTraversal,
-  BreadthFirstTraversal,
-  DagTraversal,
-  AsyncDepthFirstTraversal,
-  AsyncBreadthFirstTraversal,
-  AsyncDagTraversal,
+  DepthFirstTraversal<G>,
+  BreadthFirstTraversal<G>,
+  DagTraversal<G>,
+  AsyncDepthFirstTraversal<G>,
+  AsyncBreadthFirstTraversal<G>,
+  AsyncDagTraversal<G>,
 ]) {
   test(`${Constructor.name} reports initial, running, iterator pause, resume, and finish boundaries`, async () => {
-    const runner = new Constructor<G>({ traversableTree: tree }).makeRunner();
+    const runner = new Constructor({ traversableTree: tree }).makeRunner();
     expectReason(runner, null);
     for await (const event of runner.getIterable()) {
       expect(event.vertex.getData()).toBe('A');
@@ -68,7 +68,7 @@ for (const Constructor of [
   test.each([undefined, null, { cause: 'source' }])(
     `${Constructor.name} preserves exact source failure %p`,
     async (error) => {
-      const runner = new Constructor<G>({
+      const runner = new Constructor({
         traversableTree: {
           ...tree,
           makeRoot: () => {
@@ -88,9 +88,9 @@ for (const Constructor of [
   );
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} keeps the preceding settlement stop until resume`, async () => {
-    const traversal = new Constructor<G>({ traversableGraph: graph });
+    const traversal = new Constructor({ traversableGraph: graph });
     traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
     const runner = traversal.makeRunner();
     await runner.run();
@@ -106,7 +106,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   });
   test(`${Constructor.name} distinguishes requested pause from deferred quiescence`, async () => {
     let halted = false;
-    const traversal = new Constructor<G>({ traversableGraph: graph });
+    const traversal = new Constructor({ traversableGraph: graph });
     traversal.addVisitorFor(Order.ON_READY, () => {
       if (!halted) {
         halted = true;
@@ -140,13 +140,16 @@ test('async pause has no stop reason while admitted callbacks drain', async () =
   expectReason(runner, 'paused');
 });
 
-for (const Constructor of [DepthFirstTraversal, AsyncDepthFirstTraversal]) {
+for (const Constructor of [
+  DepthFirstTraversal<G>,
+  AsyncDepthFirstTraversal<G>,
+]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
     const state = new DepthFirstTraversal<G>({
       traversableTree: tree,
     }).makeRunner().state;
     state.status = Status.HALTED;
-    const runner = new Constructor<G>({
+    const runner = new Constructor({
       traversableTree: tree,
       traversalRunnerInternalObjects: { state },
     }).makeRunner();
@@ -155,13 +158,16 @@ for (const Constructor of [DepthFirstTraversal, AsyncDepthFirstTraversal]) {
     expectReason(runner, 'finished');
   });
 }
-for (const Constructor of [BreadthFirstTraversal, AsyncBreadthFirstTraversal]) {
+for (const Constructor of [
+  BreadthFirstTraversal<G>,
+  AsyncBreadthFirstTraversal<G>,
+]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
     const state = new BreadthFirstTraversal<G>({
       traversableTree: tree,
     }).makeRunner().state;
     state.status = Status.HALTED;
-    const runner = new Constructor<G>({
+    const runner = new Constructor({
       traversableTree: tree,
       traversalRunnerInternalObjects: { state },
     }).makeRunner();
@@ -170,12 +176,12 @@ for (const Constructor of [BreadthFirstTraversal, AsyncBreadthFirstTraversal]) {
     expectReason(runner, 'finished');
   });
 }
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
     const state = new DagTraversal<G>({ traversableGraph: graph }).makeRunner()
       .state;
     state.status = Status.HALTED;
-    const runner = new Constructor<G>({
+    const runner = new Constructor({
       traversableGraph: graph,
       traversalRunnerInternalObjects: { state },
     }).makeRunner();

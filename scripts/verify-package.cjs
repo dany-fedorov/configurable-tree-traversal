@@ -317,10 +317,14 @@ try {
     import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
 
     const stall: import('configurable-tree-traversal').DagTraversalStallDiagnostics = {
-      dependencies: [], unknownPrerequisiteIds: [], dependencyCycles: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
+      dependencies: [], unknownPrerequisiteIds: [], dependencyCycles: [], dependencyEdges: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
     };
     const typedStall: import('configurable-tree-traversal/traversals/dag-traversal').DagTraversalStallError = new core.DagTraversalStallError(stall);
-    void typedStall;
+    const milestone: import('configurable-tree-traversal').DagDependencyMilestone<'root'> = { vertexId: 'root', milestone: 'work' };
+    const dependencyEdge: import('configurable-tree-traversal/core').DagDependencyEdge<'root'> = { from: milestone, to: milestone, reason: 'workDependency' };
+    const subpathEdge: import('configurable-tree-traversal/traversals/dag-traversal').DagDependencyEdge<'root'> = dependencyEdge;
+    const edgeId: 'root' = subpathEdge.to.vertexId;
+    void [typedStall, edgeId];
     type Node = { $d: string; $c: (Node | null)[] };
     type Tree = TreeTypeParameters<string, Node | null>;
     const abstractRoot: Node = { $d: 'root', $c: [{ $d: 'leaf', $c: [] }] };
@@ -355,7 +359,7 @@ try {
     const runner = new DepthFirstTraversal({ traversableTree: tree }).makeRunner().run(config);
     const status: TraversalRunnerStatus = runner.getStatus();
     const failedStatus: TraversalRunnerStatus = TraversalRunnerStatus.FAILED;
-    const value: number | null = rewriteObject.rewriteObject(1).outputObject;
+    const value: number | null = rewriteObject.rewriteObjectAs<number>(1).outputObject;
     const bfs = new BreadthFirstTraversal({ traversableTree: tree }).makeRunner();
     for (const { vertex } of bfs.getIterable()) { const key: string | number | symbol = vertex.getData().key; void key; }
     const graph: TraversableGraph<Tree> = {
@@ -461,22 +465,29 @@ try {
   // Keep uniform-API contracts in reviewable fixtures, separate from historical
   // deep-import and loader-identity consumers above. Fixtures run only against
   // the extracted package, never this checkout's source aliases.
-  for (const file of ['uniform-api.mjs', 'uniform-api.ts']) {
+  const typeFixtures = [
+    'uniform-api',
+    'rewrite-output',
+    'execution-capabilities',
+    'graph-id-types',
+    'dag-preparation',
+    'dag-milestone-diagnostics',
+  ];
+  for (const name of typeFixtures) {
+    for (const extension of ['ts', 'cts', 'mts']) {
+      fs.copyFileSync(
+        path.join(root, 'scripts/package-consumers', name + '.ts'),
+        path.join(consumer, name + '.' + extension),
+      );
+    }
+  }
+  for (const file of ['uniform-api.mjs', 'composable-api.mjs']) {
     fs.copyFileSync(
       path.join(root, 'scripts/package-consumers', file),
       path.join(consumer, file),
     );
+    execFileSync(process.execPath, [file], { cwd: consumer, stdio: 'inherit' });
   }
-  for (const extension of ['cts', 'mts']) {
-    fs.copyFileSync(
-      path.join(consumer, 'uniform-api.ts'),
-      path.join(consumer, 'uniform-api.' + extension),
-    );
-  }
-  execFileSync(process.execPath, ['uniform-api.mjs'], {
-    cwd: consumer,
-    stdio: 'inherit',
-  });
   const compiler =
     process.env.CTT_TYPESCRIPT_COMPILER ||
     path.join(root, 'node_modules/typescript/bin/tsc');
@@ -486,6 +497,8 @@ try {
       [
         compiler,
         '--strict',
+        '--exactOptionalPropertyTypes',
+        '--noUncheckedIndexedAccess',
         '--noEmit',
         '--target',
         'ES2020',
@@ -498,15 +511,18 @@ try {
               'consumer.ts',
               'consumer.cts',
               'consumer.mts',
-              'uniform-api.ts',
-              'uniform-api.cts',
-              'uniform-api.mts',
+              ...typeFixtures.flatMap((name) =>
+                ['ts', 'cts', 'mts'].map((extension) => name + '.' + extension),
+              ),
             ]
-          : ['consumer.ts', 'uniform-api.ts']),
+          : ['consumer.ts', ...typeFixtures.map((name) => name + '.ts')]),
       ],
       { cwd: consumer, stdio: 'inherit' },
     );
   }
+  console.log(
+    'Verified composable CJS/ESM runtime contracts and strict node/node16 .ts/.cts/.mts fixtures.',
+  );
   // Validate navigation in both the checkout and actual packed guides.
   const guides = [
     'README.md',

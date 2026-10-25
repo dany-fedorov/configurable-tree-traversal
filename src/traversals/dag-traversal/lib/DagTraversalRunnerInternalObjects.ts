@@ -5,7 +5,8 @@ import type { DagTraversalRunnerState } from './DagTraversalRunnerState';
 export type DagTraversalRunnerInternalObjects<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > = {
-  resolvedGraphsContainer: ResolvedGraphsContainer<T, R>;
+  resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
   state: DagTraversalRunnerState<T, R>;
 };
