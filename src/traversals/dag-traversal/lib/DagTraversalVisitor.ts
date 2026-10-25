@@ -11,9 +11,10 @@ export type DagVisitorOptions<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ID = unknown,
 > = {
-  resolvedGraph: ResolvedGraph<T | R>;
-  notMutatedResolvedGraph: ResolvedGraphSnapshot<T> | null;
+  resolvedGraph: ResolvedGraph<T | R, ID>;
+  notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
   vertexRef: CTTRef<Vertex<T | R>>;
   order: ORDER;
   isGraphRoot: boolean;
@@ -29,24 +30,7 @@ export type DagVisitor<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
-> =
-  | VisitResult<R, ORDER>
-  | ([ORDER] extends ['ON_READY']
-      ? typeof DEFER_READY
-      : never) extends infer RESULT
-  ? (vertex: Vertex<T | R>, options: DagVisitorOptions<T, R, ORDER>) => RESULT
-  : never;
-
-export type AsyncDagVisitorOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
-> = DagVisitorOptions<T, R, ORDER>;
-
-export type AsyncDagVisitor<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ID = unknown,
 > =
   | VisitResult<R, ORDER>
   | ([ORDER] extends ['ON_READY']
@@ -54,7 +38,30 @@ export type AsyncDagVisitor<
       : never) extends infer RESULT
   ? (
       vertex: Vertex<T | R>,
-      options: AsyncDagVisitorOptions<T, R, ORDER>,
+      options: DagVisitorOptions<T, R, ORDER, ID>,
+    ) => RESULT
+  : never;
+
+export type AsyncDagVisitorOptions<
+  T extends TreeTypeParameters,
+  R extends TreeTypeParameters = T,
+  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ID = unknown,
+> = DagVisitorOptions<T, R, ORDER, ID>;
+
+export type AsyncDagVisitor<
+  T extends TreeTypeParameters,
+  R extends TreeTypeParameters = T,
+  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ID = unknown,
+> =
+  | VisitResult<R, ORDER>
+  | ([ORDER] extends ['ON_READY']
+      ? typeof DEFER_READY
+      : never) extends infer RESULT
+  ? (
+      vertex: Vertex<T | R>,
+      options: AsyncDagVisitorOptions<T, R, ORDER, ID>,
     ) => MaybePromise<RESULT>
   : never;
 

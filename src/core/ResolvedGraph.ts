@@ -2,23 +2,19 @@ import type { CTTRef } from '@core/CTTRef';
 import type { GetPathToOptions } from '@core/ResolvedTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type {
-  GraphVertex,
-  GraphVertexStatus,
-  VertexId,
-} from '@core/graph/types';
+import type { GraphVertex, GraphVertexStatus } from '@core/graph/types';
 
-export interface ResolvedGraph<T extends TreeTypeParameters> {
-  get(ref: CTTRef<Vertex<T>>): GraphVertex<T> | null;
+export interface ResolvedGraph<T extends TreeTypeParameters, ID = unknown> {
+  get(ref: CTTRef<Vertex<T>>): GraphVertex<T, ID> | null;
   has(ref: CTTRef<Vertex<T>>): boolean;
   getRoot(): CTTRef<Vertex<T>> | null;
   getVertexRefs(): CTTRef<Vertex<T>>[];
-  getVertexRefById(id: VertexId): CTTRef<Vertex<T>> | null;
-  getVertexId(ref: CTTRef<Vertex<T>>): VertexId;
+  getVertexRefById(id: ID): CTTRef<Vertex<T>> | null;
+  getVertexId(ref: CTTRef<Vertex<T>>): ID;
   /** @deprecated Use getVertexRefById. */
-  getVertexById(id: VertexId): CTTRef<Vertex<T>> | null;
+  getVertexById(id: ID): CTTRef<Vertex<T>> | null;
   /** @deprecated Use getVertexId. */
-  getIdOf(ref: CTTRef<Vertex<T>>): VertexId;
+  getIdOf(ref: CTTRef<Vertex<T>>): ID;
   getStatusOf(ref: CTTRef<Vertex<T>>): GraphVertexStatus | null;
   getParentsOf(ref: CTTRef<Vertex<T>>): CTTRef<Vertex<T>>[] | null;
   getChildrenOf(ref: CTTRef<Vertex<T>>): CTTRef<Vertex<T>>[] | null;
@@ -28,8 +24,11 @@ export interface ResolvedGraph<T extends TreeTypeParameters> {
   ): CTTRef<Vertex<T>>[][];
 }
 
-export type ResolvedGraphSnapshot<T extends TreeTypeParameters> = Pick<
-  ResolvedGraph<T>,
+export type ResolvedGraphSnapshot<
+  T extends TreeTypeParameters,
+  ID = unknown,
+> = Pick<
+  ResolvedGraph<T, ID>,
   | 'has'
   | 'getRoot'
   | 'getVertexRefs'

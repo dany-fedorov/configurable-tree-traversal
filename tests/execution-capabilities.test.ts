@@ -289,10 +289,10 @@ test('async pause drains admitted chains and retains undelivered events for the 
 });
 
 const queuedSourceFamilies = [
-  { name: 'DFS', Traversal: AsyncDepthFirstTraversal },
-  { name: 'BFS', Traversal: AsyncBreadthFirstTraversal },
-  { name: 'DAG tree', Traversal: AsyncDagTraversal },
-  { name: 'DAG graph', Traversal: AsyncDagTraversal },
+  { name: 'DFS', Traversal: AsyncDepthFirstTraversal<Tree> },
+  { name: 'BFS', Traversal: AsyncBreadthFirstTraversal<Tree> },
+  { name: 'DAG tree', Traversal: AsyncDagTraversal<Tree> },
+  { name: 'DAG graph', Traversal: AsyncDagTraversal<Tree> },
 ];
 
 test.each(queuedSourceFamilies)(
@@ -322,7 +322,7 @@ test.each(queuedSourceFamilies)(
             concurrency: 2,
             traversableGraph: tree,
           }).makeRunner()
-        : new Traversal<Tree>({
+        : new Traversal({
             concurrency: 2,
             traversableTree: tree,
           }).makeRunner();

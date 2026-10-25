@@ -13,12 +13,12 @@ type T = TreeTypeParameters<string, string>;
 const content = { $data: 'root', $childHints: [] };
 const root = { $data: 'root', $childHints: ['child'] };
 for (const Constructor of [
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
-  DagTraversal,
-  AsyncDagTraversal,
+  DepthFirstTraversal<T>,
+  AsyncDepthFirstTraversal<T>,
+  BreadthFirstTraversal<T>,
+  AsyncBreadthFirstTraversal<T>,
+  DagTraversal<T>,
+  AsyncDagTraversal<T>,
 ]) {
   describe(Constructor.name, () => {
     test.each(['vertexId', 'dependsOn', 'dependsOnComplete'])(
@@ -43,7 +43,7 @@ for (const Constructor of [
                 makeRoot: () => (atRoot ? result : { vertexContent: root }),
                 makeVertex: () => result,
               } as TraversableTree<T>;
-              const runner = new Constructor<T>({
+              const runner = new Constructor({
                 traversableTree: source,
               }).makeRunner();
               await expect(async () => {

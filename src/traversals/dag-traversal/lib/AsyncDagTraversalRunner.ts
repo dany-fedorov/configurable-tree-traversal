@@ -5,7 +5,6 @@ import type {
   DagSettlementOutcome,
   DagSettlementGeneration,
 } from './DagProgress';
-import type { VertexId } from '@core/graph/types';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { CTTRef } from '@core/CTTRef';
@@ -17,6 +16,7 @@ import {
 import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import { createAsyncDriver } from '@core/drivers/runAsync';
 import type { CallSpec, KernelEvent } from '@core/effects/types';
+import type { ResolvedGraphsContainerOptions } from '@core/graph/ResolvedGraphsContainer';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
@@ -51,11 +51,12 @@ type Event<
 export class AsyncDagTraversalRunner<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > {
-  readonly icfg: AsyncDagTraversalInstanceConfig<T, R>;
+  readonly icfg: AsyncDagTraversalInstanceConfig<T, R, ID>;
   readonly state: DagTraversalRunnerState<T, R>;
-  readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R>;
-  readonly notMutatedResolvedGraph: ResolvedGraphSnapshot<T> | null;
+  readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
+  readonly notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
   private iterableConfig: DagTraversalRunnerIterableConfig =
     makeEffectiveDagTraversalRunnerIterableConfig();
   private readonly kernel: TraversalKernel<T, R>;
@@ -65,7 +66,7 @@ export class AsyncDagTraversalRunner<
     DagTraversalOrder
   >;
 
-  constructor(input: AsyncDagTraversalInstanceConfig<T, R>) {
+  constructor(input: AsyncDagTraversalInstanceConfig<T, R, ID>) {
     if (
       input.rootDependencies !== undefined &&
       input.rootDependencies !== 'honor' &&
@@ -126,7 +127,7 @@ export class AsyncDagTraversalRunner<
       }
       this.resolvedGraphsContainer = injectedContainer;
     } else if (sourceMode === 'graph') {
-      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R>({
+      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R, ID>({
         sourceMode: 'graph',
         syntheticRoot: input.syntheticRoot === true,
         saveOriginal: input.saveNotMutatedResolvedGraph,
@@ -137,11 +138,12 @@ export class AsyncDagTraversalRunner<
         traversableTree: treeSource!,
         saveNotMutatedResolvedTree: input.saveNotMutatedResolvedGraph,
       } as unknown as DepthFirstTraversalInstanceConfig<T, R>);
-      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R>({
+      // Tree-source inputs are accepted only when ID is unknown.
+      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R, ID>({
         sourceMode: 'tree',
         saveOriginal: input.saveNotMutatedResolvedGraph,
         treeContainer,
-      });
+      } as ResolvedGraphsContainerOptions<T, R, ID>);
     }
     this.notMutatedResolvedGraph =
       this.resolvedGraphsContainer.notMutatedResolvedGraph;
@@ -223,12 +225,13 @@ export class AsyncDagTraversalRunner<
     this.execution = new AsyncRunnerSession(projectedControl);
   }
 
-  summary(): DagSummary {
-    return this.kernel.summary();
+  summary(): DagSummary<ID> {
+    // The kernel only receives identities from this runner's typed source/config.
+    return this.kernel.summary() as DagSummary<ID>;
   }
 
   settle(
-    id: VertexId,
+    id: ID,
     outcome: DagSettlementOutcome,
     expectedGeneration: DagSettlementGeneration,
   ): boolean {
@@ -264,7 +267,7 @@ export class AsyncDagTraversalRunner<
     );
   }
 
-  getResolvedGraph(): ResolvedGraph<T | R> {
+  getResolvedGraph(): ResolvedGraph<T | R, ID> {
     return this.resolvedGraphsContainer.publicResolvedGraph;
   }
 

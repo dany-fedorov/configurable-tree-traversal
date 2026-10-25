@@ -27,30 +27,32 @@ import { DagTraversalRunner } from './lib/DagTraversalRunner';
 export class DagTraversal<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > {
-  icfg: DagTraversalInstanceConfig<T, R>;
-  visitors: DagTraversalVisitors<T, R>;
+  icfg: DagTraversalInstanceConfig<T, R, ID>;
+  visitors: DagTraversalVisitors<T, R, ID>;
   private readonly sourceMode: 'tree' | 'graph';
 
-  constructor(input: DagTraversalInstanceConfigInput<T, R>) {
+  constructor(input: DagTraversalInstanceConfigInput<T, R, ID>) {
     assertNoConcurrency(input);
     this.sourceMode = assertExactlyOneSource(input);
     this.icfg = mergeDagTraversalInstanceConfigs(
       {
         ...(DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as DagTraversalInstanceConfig<
           T,
-          R
+          R,
+          ID
         >),
         ...(this.sourceMode === 'graph'
           ? { traversableGraph: input.traversableGraph }
           : { traversableTree: input.traversableTree }),
-      } as DagTraversalInstanceConfig<T, R>,
+      } as DagTraversalInstanceConfig<T, R, ID>,
       input,
     );
     this.visitors = initDagVisitors(this.icfg);
   }
 
-  configure(input: DagTraversalConfigureInput<T, R>): this {
+  configure(input: DagTraversalConfigureInput<T, R, ID>): this {
     assertNoConcurrency(input);
     if (
       (this.sourceMode === 'graph' && 'traversableTree' in input) ||
@@ -68,13 +70,16 @@ export class DagTraversal<
 
   addVisitorFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-    visitor: DagVisitor<T, R, NoInferPhase<ORDER>>,
+    visitor: DagVisitor<T, R, NoInferPhase<ORDER>, ID>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
-    (this.visitors as Record<ORDER, VisitorRecord<DagVisitor<T, R, ORDER>>[]>)[
-      order
-    ] = appendVisitorDefinition<DagVisitor<T, R, ORDER>>(
-      this.visitors[order] as VisitorRecord<DagVisitor<T, R, ORDER>>[],
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<DagVisitor<T, R, ORDER, ID>>[]
+      >
+    )[order] = appendVisitorDefinition<DagVisitor<T, R, ORDER, ID>>(
+      this.visitors[order] as VisitorRecord<DagVisitor<T, R, ORDER, ID>>[],
       { visitor, ...options },
     );
     return this;
@@ -82,12 +87,15 @@ export class DagTraversal<
 
   addVisitorGroupFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-    group: VisitorGroupDefinition<DagVisitor<T, R, NoInferPhase<ORDER>>>,
+    group: VisitorGroupDefinition<DagVisitor<T, R, NoInferPhase<ORDER>, ID>>,
   ): this {
-    (this.visitors as Record<ORDER, VisitorRecord<DagVisitor<T, R, ORDER>>[]>)[
-      order
-    ] = appendVisitorGroup<DagVisitor<T, R, ORDER>>(
-      this.visitors[order] as VisitorRecord<DagVisitor<T, R, ORDER>>[],
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<DagVisitor<T, R, ORDER, ID>>[]
+      >
+    )[order] = appendVisitorGroup<DagVisitor<T, R, ORDER, ID>>(
+      this.visitors[order] as VisitorRecord<DagVisitor<T, R, ORDER, ID>>[],
       group,
     );
     return this;
@@ -95,21 +103,24 @@ export class DagTraversal<
 
   listVisitorsFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-  ): DagTraversalVisitors<T, R>[ORDER] {
+  ): DagTraversalVisitors<T, R, ID>[ORDER] {
     return this.visitors[order];
   }
 
   setVisitorsFor<ORDER extends DagTraversalOrder>(
     order: ORDER,
-    input: VisitorPhaseInput<DagVisitor<T, R, NoInferPhase<ORDER>>>,
+    input: VisitorPhaseInput<DagVisitor<T, R, NoInferPhase<ORDER>, ID>>,
   ): this {
-    (this.visitors as Record<ORDER, VisitorRecord<DagVisitor<T, R, ORDER>>[]>)[
-      order
-    ] = normalizeVisitorDefinitions<DagVisitor<T, R, ORDER>>(input);
+    (
+      this.visitors as Record<
+        ORDER,
+        VisitorRecord<DagVisitor<T, R, ORDER, ID>>[]
+      >
+    )[order] = normalizeVisitorDefinitions<DagVisitor<T, R, ORDER, ID>>(input);
     return this;
   }
 
-  makeRunner(): DagTraversalRunner<T, R> {
+  makeRunner(): DagTraversalRunner<T, R, ID> {
     return new DagTraversalRunner({ ...this.icfg, visitors: this.visitors });
   }
 }

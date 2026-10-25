@@ -1,12 +1,11 @@
-import type { VertexId } from '@core/graph/types';
 import { createVertexIdLabeler } from '@core/graph/identity';
 
-export type DagTraversalStallDiagnostics = {
-  dependencies: Array<{ id: VertexId; unmet: VertexId[] }>;
-  unknownPrerequisiteIds: VertexId[];
-  dependencyCycles: VertexId[][];
-  dependencyBlockedIds: VertexId[];
-  structurallyIncompleteIds: VertexId[];
+export type DagTraversalStallDiagnostics<ID = unknown> = {
+  dependencies: Array<{ id: ID; unmet: ID[] }>;
+  unknownPrerequisiteIds: ID[];
+  dependencyCycles: ID[][];
+  dependencyBlockedIds: ID[];
+  structurallyIncompleteIds: ID[];
 };
 
 export class DagTraversalStallError extends Error {

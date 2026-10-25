@@ -9,9 +9,10 @@ import { DagTraversalOrder } from '../lib/DagTraversalOrder';
 export function initDagVisitors<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
+  ID = unknown,
 >(
-  config: Pick<DagTraversalInstanceConfig<T, R>, 'visitors'>,
-): DagTraversalVisitors<T, R> {
+  config: Pick<DagTraversalInstanceConfig<T, R, ID>, 'visitors'>,
+): DagTraversalVisitors<T, R, ID> {
   return {
     [DagTraversalOrder.ON_READY]: sortVisitorRecords(
       config.visitors[DagTraversalOrder.ON_READY],

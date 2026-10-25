@@ -76,15 +76,15 @@ test('mutating query contexts cannot reparent a child or overwrite discovery met
 });
 
 for (const Constructor of [
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
-  DagTraversal,
-  AsyncDagTraversal,
+  DepthFirstTraversal<T>,
+  AsyncDepthFirstTraversal<T>,
+  BreadthFirstTraversal<T>,
+  AsyncBreadthFirstTraversal<T>,
+  DagTraversal<T>,
+  AsyncDagTraversal<T>,
 ]) {
   test(`${Constructor.name} exposes a stable live safe query view`, async () => {
-    const runner = new Constructor<T>({ traversableTree: source }).makeRunner();
+    const runner = new Constructor({ traversableTree: source }).makeRunner();
     const view = runner.getResolvedTreeView()!;
     expect(view.getRoot()).toBeNull();
     expect(runner.getResolvedTreeView()).toBe(view);
@@ -130,9 +130,9 @@ for (const Constructor of [
   });
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
   test(`${Constructor.name} has no tree view for graph sources`, async () => {
-    const runner = new Constructor<T>({
+    const runner = new Constructor({
       traversableGraph: {
         makeRoot: () => ({
           vertexId: 'root',

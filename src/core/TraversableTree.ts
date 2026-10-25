@@ -2,7 +2,6 @@ import type { VertexContentInput } from '@core/Vertex';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { ResolvedTree } from '@core/ResolvedTree';
-import type { VertexId } from '@core/graph/types';
 
 export type MakeVertexOptions<
   TTP extends TreeTypeParameters,
@@ -13,41 +12,54 @@ export type MakeVertexOptions<
   notMutatedResolvedTree: ResolvedTree<TTP> | null;
 };
 
-export type MakeVertexResult<TTP extends TreeTypeParameters> = {
-  vertexContent: VertexContentInput<TTP> | null;
-  vertexId?: VertexId;
-  dependsOn?: readonly VertexId[];
-  dependsOnComplete?: readonly VertexId[];
+/** Explicit ID domains cannot use the generated-reference identity fallback. */
+type RequiredGraphVertexIdentity<ID> =
+  | { vertexId: ID }
+  | (unknown extends ID ? unknown : never);
+
+type GraphDependencies<ID> = {
+  dependsOn?: readonly ID[];
+  dependsOnComplete?: readonly ID[];
 };
 
+export type MakeVertexResult<
+  TTP extends TreeTypeParameters,
+  ID = unknown,
+> = GraphDependencies<ID> & {
+  vertexContent: VertexContentInput<TTP> | null;
+  vertexId?: ID;
+} & (RequiredGraphVertexIdentity<ID> | { vertexContent: null });
+
 /** A source deliberately supplied a vertex with non-null content. */
-export type FoundVertexResult<T extends TreeTypeParameters> = {
+export type FoundVertexResult<T extends TreeTypeParameters, ID = unknown> = {
   kind: 'found';
-  vertex: Omit<MakeVertexResult<T>, 'vertexContent'> & {
-    vertexContent: VertexContentInput<T>;
-  };
+  vertex: GraphDependencies<ID> &
+    RequiredGraphVertexIdentity<ID> & {
+      vertexContent: VertexContentInput<T>;
+      vertexId?: ID;
+    };
 };
 
 /** Deliberate omission satisfies both work and completion prerequisites. */
-export type OmittedVertexResult = {
+export type OmittedVertexResult<ID = unknown> = {
   kind: 'omitted';
-  vertexId?: VertexId;
+  vertexId?: ID;
   satisfiesDependencies: true;
 };
 
 /** Prerequisite lookup did not find the requested identity. */
 export type MissingVertexResult = { kind: 'missing' };
 
-export type SourceVertexResult<T extends TreeTypeParameters> =
-  | FoundVertexResult<T>
-  | OmittedVertexResult
+export type SourceVertexResult<T extends TreeTypeParameters, ID = unknown> =
+  | FoundVertexResult<T, ID>
+  | OmittedVertexResult<ID>
   /** @deprecated Return a tagged found or omitted result. */
-  | MakeVertexResult<T>;
+  | MakeVertexResult<T, ID>;
 
-export type PrerequisiteResolutionResult<T extends TreeTypeParameters> =
-  | SourceVertexResult<T>
-  | MissingVertexResult
-  | undefined;
+export type PrerequisiteResolutionResult<
+  T extends TreeTypeParameters,
+  ID = unknown,
+> = SourceVertexResult<T, ID> | MissingVertexResult | undefined;
 
 /** Graph identity and prerequisites are unsupported by tree sources. */
 type TreeMetadataRestrictions = {

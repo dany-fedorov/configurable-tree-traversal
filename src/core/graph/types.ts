@@ -20,7 +20,7 @@ export type VisitResult<
   ORDER extends string = never,
 > = TraversalVisitorResult<R, ORDER> | undefined | void;
 
-export type HintVertexId = { vertexId: VertexId };
+export type HintVertexId<ID = unknown> = { vertexId: ID };
 
 export type GraphVertexStatus =
   | 'DISCOVERED'
@@ -49,13 +49,13 @@ export type ChildSlot<T extends TreeTypeParameters> =
       hint: T['VertexHint'];
     }>;
 
-export type GraphVertex<T extends TreeTypeParameters> = Readonly<{
+export type GraphVertex<T extends TreeTypeParameters, ID = unknown> = Readonly<{
   vertexRef: Ref<T>;
   vertex: Vertex<T>;
-  vertexId: VertexId;
+  vertexId: ID;
   discoveryDepth: number;
-  dependsOn: readonly VertexId[];
-  dependsOnComplete?: readonly VertexId[];
+  dependsOn: readonly ID[];
+  dependsOnComplete?: readonly ID[];
   status: GraphVertexStatus;
   incoming: readonly GraphEdge<T>[];
   slots: readonly ChildSlot<T>[];
@@ -72,22 +72,25 @@ export type IdState<T extends TreeTypeParameters> =
   | { kind: 'omitted' }
   | { kind: 'deleted' };
 
-export interface GraphStoreContract<T extends TreeTypeParameters> {
+export interface GraphStoreContract<
+  T extends TreeTypeParameters,
+  ID = unknown,
+> {
   readonly mode: 'tree' | 'dag';
-  readonly graph: ResolvedGraph<T>;
-  getIdState(id: VertexId): IdState<T> | undefined;
+  readonly graph: ResolvedGraph<T, ID>;
+  getIdState(id: ID): IdState<T> | undefined;
   getTraversalSlots(ref: Ref<T>): readonly ChildSlot<T>[] | null;
   getTraversalSlot(ref: Ref<T>, index: number): ChildSlot<T> | undefined;
   getDiscoveryDepth(ref: Ref<T>): number;
-  getDeclaredDependencies(ref: Ref<T>): VertexId[];
-  getDeclaredCompleteDependencies(ref: Ref<T>): VertexId[];
+  getDeclaredDependencies(ref: Ref<T>): ID[];
+  getDeclaredCompleteDependencies(ref: Ref<T>): ID[];
   hasCompleteDependencies(ref: Ref<T>): boolean;
   getTopologyVersion(): number;
   insertVertex(input: {
     ref: Ref<T>;
-    id: VertexId;
-    dependsOn: readonly VertexId[];
-    dependsOnComplete?: readonly VertexId[];
+    id: ID;
+    dependsOn: readonly ID[];
+    dependsOnComplete?: readonly ID[];
     depth: number;
   }): void;
   setRoot(ref: Ref<T> | null): void;
@@ -105,8 +108,8 @@ export interface GraphStoreContract<T extends TreeTypeParameters> {
     index: number,
     reason: 'omitted' | 'deleted' | 'disabled',
   ): void;
-  markOmitted(id: VertexId): void;
-  markDeleted(id: VertexId): void;
+  markOmitted(id: ID): void;
+  markDeleted(id: ID): void;
   removeVertices(refs: ReadonlySet<Ref<T>>): void;
   getTreeRecord(ref: Ref<T>): VertexResolved<T> | null;
   setTreeRecord(ref: Ref<T>, record: VertexResolved<T>): void;

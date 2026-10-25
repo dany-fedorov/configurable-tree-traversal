@@ -13,16 +13,18 @@ import type { DagVisitor } from './lib/DagTraversalVisitor';
 export type DagTraversalVisitorsSimple<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
+  ID = unknown,
 > = {
-  onReadyVisitor?: DagVisitor<T, R, DagTraversalOrder.ON_READY>;
-  onCompleteVisitor?: DagVisitor<T, R, DagTraversalOrder.ON_COMPLETE>;
+  onReadyVisitor?: DagVisitor<T, R, DagTraversalOrder.ON_READY, ID>;
+  onCompleteVisitor?: DagVisitor<T, R, DagTraversalOrder.ON_COMPLETE, ID>;
 };
 
 export type DagTraversalHelperConfig<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
+  ID = unknown,
 > = Omit<
-  DagTraversalConfigureInput<T, R>,
+  DagTraversalConfigureInput<T, R, ID>,
   'traversableGraph' | 'traversableTree'
 >;
 
@@ -30,43 +32,50 @@ export type DagTraversalHelperConfig<
 export type DagTraversalHelperOptions<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
-> = Omit<DagTraversalHelperConfig<T, R>, 'visitors'> &
-  DagSource<T, R> & {
+  ID = unknown,
+> = Omit<DagTraversalHelperConfig<T, R, ID>, 'visitors'> &
+  DagSource<T, R, ID> & {
     visitors?: {
-      [K in DagTraversalOrder]?: VisitorPhaseInput<DagVisitor<T, R, K>>;
+      [K in DagTraversalOrder]?: VisitorPhaseInput<DagVisitor<T, R, K, ID>>;
     };
   };
 
 export function traverseDag<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
->(options: DagTraversalHelperOptions<T, R>): DagTraversalRunner<T, R>;
+  ID = unknown,
+>(options: DagTraversalHelperOptions<T, R, ID>): DagTraversalRunner<T, R, ID>;
 /** @deprecated Pass a single options object with a phase-keyed visitors map. */
 export function traverseDag<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 >(
-  source: DagSource<T, R>,
-  visitors: DagTraversalVisitorsSimple<T, R> | null,
-  config?: DagTraversalHelperConfig<T, R>,
-): DagTraversalRunner<T, R>;
+  source: DagSource<T, R, ID>,
+  visitors: DagTraversalVisitorsSimple<T, R, ID> | null,
+  config?: DagTraversalHelperConfig<T, R, ID>,
+): DagTraversalRunner<T, R, ID>;
 export function traverseDag<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 >(
-  sourceOrOptions: DagSource<T, R> | DagTraversalHelperOptions<T, R>,
-  visitors?: DagTraversalVisitorsSimple<T, R> | null,
-  config?: DagTraversalHelperConfig<T, R>,
-): DagTraversalRunner<T, R> {
-  let traversalConfig: DagTraversalInstanceConfigInput<T, R>;
+  sourceOrOptions: DagSource<T, R, ID> | DagTraversalHelperOptions<T, R, ID>,
+  visitors?: DagTraversalVisitorsSimple<T, R, ID> | null,
+  config?: DagTraversalHelperConfig<T, R, ID>,
+): DagTraversalRunner<T, R, ID> {
+  let traversalConfig: DagTraversalInstanceConfigInput<T, R, ID>;
   const onReadyVisitor = visitors?.onReadyVisitor;
   const onCompleteVisitor = visitors?.onCompleteVisitor;
   if (arguments.length === 1) {
-    traversalConfig = sourceOrOptions as DagTraversalHelperOptions<T, R>;
+    traversalConfig = sourceOrOptions as DagTraversalHelperOptions<T, R, ID>;
   } else {
-    traversalConfig = { ...config, ...(sourceOrOptions as DagSource<T, R>) };
+    traversalConfig = {
+      ...config,
+      ...(sourceOrOptions as DagSource<T, R, ID>),
+    };
   }
-  const traversal = new DagTraversal<T, R>(traversalConfig);
+  const traversal = new DagTraversal<T, R, ID>(traversalConfig);
   if (onReadyVisitor) {
     traversal.addVisitorFor(DagTraversalOrder.ON_READY, onReadyVisitor);
   }

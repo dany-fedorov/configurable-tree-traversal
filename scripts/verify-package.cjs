@@ -355,7 +355,7 @@ try {
     const runner = new DepthFirstTraversal({ traversableTree: tree }).makeRunner().run(config);
     const status: TraversalRunnerStatus = runner.getStatus();
     const failedStatus: TraversalRunnerStatus = TraversalRunnerStatus.FAILED;
-    const value: number | null = rewriteObject.rewriteObject(1).outputObject;
+    const value: number | null = rewriteObject.rewriteObjectAs<number>(1).outputObject;
     const bfs = new BreadthFirstTraversal({ traversableTree: tree }).makeRunner();
     for (const { vertex } of bfs.getIterable()) { const key: string | number | symbol = vertex.getData().key; void key; }
     const graph: TraversableGraph<Tree> = {

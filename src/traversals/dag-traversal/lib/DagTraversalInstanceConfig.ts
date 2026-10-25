@@ -1,6 +1,5 @@
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import type { VertexId } from '@core/graph/types';
 import type { TraversableGraph } from '@core/TraversableGraph';
 import type { TraversableTree } from '@core/TraversableTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
@@ -21,15 +20,20 @@ export type DagDiscoveryOptions = {
 export type DagSource<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > =
-  | { traversableGraph: TraversableGraph<T, R>; traversableTree?: never }
-  | { traversableTree: TraversableTree<T, R>; traversableGraph?: never };
+  | { traversableGraph: TraversableGraph<T, R, ID>; traversableTree?: never }
+  | {
+      traversableTree: unknown extends ID ? TraversableTree<T, R> : never;
+      traversableGraph?: never;
+    };
 
 export type DagTraversalVisitors<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > = {
-  [K in DagTraversalOrder]: VisitorRecord<DagVisitor<T, R, K>>[];
+  [K in DagTraversalOrder]: VisitorRecord<DagVisitor<T, R, K, ID>>[];
 };
 
 export type DagSortChildrenHintsFn<T extends TreeTypeParameters> = (
@@ -39,48 +43,59 @@ export type DagSortChildrenHintsFn<T extends TreeTypeParameters> = (
 type DagTraversalOptions<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
+  ID = unknown,
 > = DagDiscoveryOptions & {
-  completedWork?: ReadonlySet<VertexId>;
+  completedWork?: ReadonlySet<ID>;
   sortChildrenHints: DagSortChildrenHintsFn<T> | null;
-  visitors: DagTraversalVisitors<T, R>;
+  visitors: DagTraversalVisitors<T, R, ID>;
   saveNotMutatedResolvedGraph: boolean;
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer:
-      | DagTraversalRunnerInternalObjects<T, R>['resolvedGraphsContainer']
+      | DagTraversalRunnerInternalObjects<T, R, ID>['resolvedGraphsContainer']
       | null;
-    state: DagTraversalRunnerInternalObjects<T, R>['state'] | null;
+    state: DagTraversalRunnerInternalObjects<T, R, ID>['state'] | null;
   };
 };
 
 export type DagTraversalInstanceConfig<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
-> = DagSource<T, R> & DagTraversalOptions<T, R>;
+  ID = unknown,
+> = DagSource<T, R, ID> & DagTraversalOptions<T, R, ID>;
 
 type DagTraversalOptionsInput<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
+  ID = unknown,
 > = Partial<
-  Omit<DagTraversalOptions<T, R>, 'visitors' | 'traversalRunnerInternalObjects'>
+  Omit<
+    DagTraversalOptions<T, R, ID>,
+    'visitors' | 'traversalRunnerInternalObjects'
+  >
 > & {
-  visitors?: VisitorInputs<DagTraversalVisitors<T, R>>;
+  visitors?: VisitorInputs<DagTraversalVisitors<T, R, ID>>;
   traversalRunnerInternalObjects?: Partial<
-    DagTraversalOptions<T, R>['traversalRunnerInternalObjects']
+    DagTraversalOptions<T, R, ID>['traversalRunnerInternalObjects']
   >;
 };
 
 export type DagTraversalInstanceConfigInput<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
-> = DagSource<T, R> & DagTraversalOptionsInput<T, R>;
+  ID = unknown,
+> = DagSource<T, R, ID> & DagTraversalOptionsInput<T, R, ID>;
 
 export type DagTraversalConfigureInput<
   T extends TreeTypeParameters = TreeTypeParameters,
   R extends TreeTypeParameters = T,
-> = DagTraversalOptionsInput<T, R> &
+  ID = unknown,
+> = DagTraversalOptionsInput<T, R, ID> &
   (
-    | { traversableGraph?: TraversableGraph<T, R>; traversableTree?: never }
-    | { traversableTree?: TraversableTree<T, R>; traversableGraph?: never }
+    | { traversableGraph?: TraversableGraph<T, R, ID>; traversableTree?: never }
+    | {
+        traversableTree?: unknown extends ID ? TraversableTree<T, R> : never;
+        traversableGraph?: never;
+      }
   );
 
 export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
@@ -102,10 +117,11 @@ export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
 export function mergeDagTraversalInstanceConfigs<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters,
+  ID = unknown,
 >(
-  base: DagTraversalInstanceConfig<T, R>,
-  input: DagTraversalConfigureInput<T, R>,
-): DagTraversalInstanceConfig<T, R> {
+  base: DagTraversalInstanceConfig<T, R, ID>,
+  input: DagTraversalConfigureInput<T, R, ID>,
+): DagTraversalInstanceConfig<T, R, ID> {
   const capturedInput = { ...input };
   assertDagWorkCompletion(capturedInput.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
@@ -124,7 +140,7 @@ export function mergeDagTraversalInstanceConfigs<
       ...base.traversalRunnerInternalObjects,
       ...(input.traversalRunnerInternalObjects ?? {}),
     },
-  } as DagTraversalInstanceConfig<T, R>;
+  } as DagTraversalInstanceConfig<T, R, ID>;
 }
 
 /** Validate configuration before changing traversal ownership or executing callbacks. */

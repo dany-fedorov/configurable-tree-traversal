@@ -3,12 +3,12 @@ import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { Ref } from '@core/graph/types';
 
 /** A forest view: the scheduler's root remains private structural bookkeeping. */
-export function makeDagGraphView<T extends TreeTypeParameters>(
-  graph: ResolvedGraph<T>,
+export function makeDagGraphView<T extends TreeTypeParameters, ID = unknown>(
+  graph: ResolvedGraph<T, ID>,
   hiddenRoot: () => Ref<T> | null,
-): ResolvedGraph<T> {
+): ResolvedGraph<T, ID> {
   const visible = (ref: Ref<T>) => ref !== hiddenRoot();
-  const getVertexRefById = (id: unknown) => {
+  const getVertexRefById = (id: ID) => {
     const ref = graph.getVertexRefById(id);
     return ref !== null && visible(ref) ? ref : null;
   };

@@ -5,43 +5,46 @@ import type {
   PrerequisiteResolutionResult,
 } from '@core/TraversableTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { HintVertexId, MaybePromise, VertexId } from '@core/graph/types';
+import type { HintVertexId, MaybePromise } from '@core/graph/types';
 
 export type MakeGraphVertexOptions<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > = {
   resolutionContext: VertexResolutionContext<T | R>;
-  resolvedGraph: ResolvedGraph<T | R>;
-  notMutatedResolvedGraph: ResolvedGraphSnapshot<T> | null;
+  resolvedGraph: ResolvedGraph<T | R, ID>;
+  notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
 };
 
 export interface TraversableGraph<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > {
-  resolvePrerequisite?(id: VertexId): PrerequisiteResolutionResult<T>;
-  makeRoot(): SourceVertexResult<T>;
+  resolvePrerequisite?(id: ID): PrerequisiteResolutionResult<T, ID>;
+  makeRoot(): SourceVertexResult<T, ID>;
   makeVertex(
     hint: T['VertexHint'],
-    options: MakeGraphVertexOptions<T, R>,
-  ): SourceVertexResult<T>;
-  getVertexIdFromHint?(hint: T['VertexHint']): HintVertexId | undefined;
+    options: MakeGraphVertexOptions<T, R, ID>,
+  ): SourceVertexResult<T, ID>;
+  getVertexIdFromHint?(hint: T['VertexHint']): HintVertexId<ID> | undefined;
 }
 
 export interface AsyncTraversableGraph<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > {
   resolvePrerequisite?(
-    id: VertexId,
-  ): MaybePromise<PrerequisiteResolutionResult<T>>;
-  makeRoot(): MaybePromise<SourceVertexResult<T>>;
+    id: ID,
+  ): MaybePromise<PrerequisiteResolutionResult<T, ID>>;
+  makeRoot(): MaybePromise<SourceVertexResult<T, ID>>;
   makeVertex(
     hint: T['VertexHint'],
-    options: MakeGraphVertexOptions<T, R>,
-  ): MaybePromise<SourceVertexResult<T>>;
+    options: MakeGraphVertexOptions<T, R, ID>,
+  ): MaybePromise<SourceVertexResult<T, ID>>;
   getVertexIdFromHint?(
     hint: T['VertexHint'],
-  ): MaybePromise<HintVertexId | undefined>;
+  ): MaybePromise<HintVertexId<ID> | undefined>;
 }

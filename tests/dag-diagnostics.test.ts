@@ -2,7 +2,7 @@ import {
   DagTraversal,
   AsyncDagTraversal,
 } from '../src/traversals/dag-traversal';
-import { DagTraversalStallError } from '../src/core';
+import { DagTraversalStallError, type TreeTypeParameters } from '../src/core';
 import { graphAdapter } from './helpers/graph-fixtures';
 
 const fixture = {
@@ -118,7 +118,11 @@ test('detaches reports and retains hostile and SameValueZero IDs without coercio
 
 test('diagnoses a deep dependency chain without using the call stack', () => {
   const count = 12000;
-  const runner = new DagTraversal({
+  const runner = new DagTraversal<
+    TreeTypeParameters<string, number>,
+    TreeTypeParameters<string, number>,
+    string | number
+  >({
     traversableGraph: {
       makeRoot: () => ({
         vertexId: 'root',

@@ -45,9 +45,11 @@ type TreeSource<T extends TreeTypeParameters, R extends TreeTypeParameters> =
   | TraversableTree<T, R>
   | AsyncTraversableTree<T, R>;
 
-type GraphSource<T extends TreeTypeParameters, R extends TreeTypeParameters> =
-  | TraversableGraph<T, R>
-  | AsyncTraversableGraph<T, R>;
+type GraphSource<
+  T extends TreeTypeParameters,
+  R extends TreeTypeParameters,
+  ID,
+> = TraversableGraph<T, R, ID> | AsyncTraversableGraph<T, R, ID>;
 
 function normalizeVertexResult<T extends TreeTypeParameters>(
   result: SourceVertexResult<T>,
@@ -106,9 +108,10 @@ export function bindTreeSource<
 export function bindGraphSource<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 >(
-  adapter: GraphSource<T, R>,
-  container: ResolvedGraphsContainer<T, R>,
+  adapter: GraphSource<T, R, ID>,
+  container: ResolvedGraphsContainer<T, R, ID>,
 ): BoundSource<T, R> {
   if (container.sourceMode !== 'graph') {
     throw new TypeError('Graph source binding requires a graph-mode container');
@@ -131,8 +134,10 @@ export function bindGraphSource<
   }
   if (adapter.resolvePrerequisite !== undefined) {
     bound.resolvePrerequisite = (id) =>
-      mapSourceResult(adapter.resolvePrerequisite!(id), (value) =>
-        normalizeSourceResult(value, true),
+      mapSourceResult(
+        // Kernel prerequisite IDs originate from this source's typed dependencies.
+        adapter.resolvePrerequisite!(id as ID),
+        (value) => normalizeSourceResult(value, true),
       );
   }
   return bound;

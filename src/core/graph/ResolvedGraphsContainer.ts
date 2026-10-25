@@ -10,7 +10,7 @@ import {
   StructuralGraphSnapshot,
   type StagedSnapshotVertex,
 } from '@core/graph/snapshot';
-import type { GraphStoreContract, Ref, VertexId } from '@core/graph/types';
+import type { GraphStoreContract, Ref } from '@core/graph/types';
 import type { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 
 type GraphContainerOptions = {
@@ -31,19 +31,25 @@ type TreeContainerOptions<
 export type ResolvedGraphsContainerOptions<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
-> = GraphContainerOptions | TreeContainerOptions<T, R>;
+  ID = unknown,
+> =
+  | GraphContainerOptions
+  | (unknown extends ID ? TreeContainerOptions<T, R> : never);
 
 export class ResolvedGraphsContainer<
   T extends TreeTypeParameters,
   R extends TreeTypeParameters = T,
+  ID = unknown,
 > {
   readonly sourceMode: 'tree' | 'graph';
   readonly syntheticRoot: boolean;
   syntheticRootRef: Ref<T | R> | null = null;
-  readonly publicResolvedGraph: ResolvedGraph<T | R>;
-  readonly store: GraphStoreContract<T | R>;
-  readonly resolvedGraph: ResolvedGraph<T | R>;
-  readonly notMutatedResolvedGraph: ResolvedGraphSnapshot<T> | null;
+  readonly publicResolvedGraph: ResolvedGraph<T | R, ID>;
+  /** Raw bookkeeping includes a private symbol when syntheticRoot is enabled. */
+  readonly store: GraphStoreContract<T | R, ID | symbol>;
+  /** Unlike publicResolvedGraph, this view includes the synthetic root. */
+  readonly resolvedGraph: ResolvedGraph<T | R, ID | symbol>;
+  readonly notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
   readonly notMutatedResolvedGraphRefsMap: Map<Ref<T | R>, Ref<T>> | null;
   readonly treeContainer: DepthFirstTraversalResolvedTreesContainer<
     T,
@@ -52,31 +58,37 @@ export class ResolvedGraphsContainer<
   private readonly detachedAnchors = new Set<Ref<T | R>>();
   private readonly snapshot: StructuralGraphSnapshot<T, R> | null;
 
-  constructor(options: ResolvedGraphsContainerOptions<T, R>) {
+  constructor(options: ResolvedGraphsContainerOptions<T, R, ID>) {
     this.sourceMode = options.sourceMode;
     this.syntheticRoot =
       options.sourceMode === 'graph' && options.syntheticRoot === true;
     this.treeContainer =
       options.sourceMode === 'tree' ? options.treeContainer : null;
     this.store =
-      this.treeContainer?.resolvedTree.getGraphStore() ??
-      new GraphStore<T | R>('dag');
+      // The erased store contains source IDs plus a private synthetic-root symbol.
+      (this.treeContainer?.resolvedTree.getGraphStore() ??
+        new GraphStore<T | R>('dag')) as GraphStoreContract<T | R, ID | symbol>;
     this.resolvedGraph = this.store.graph;
-    this.publicResolvedGraph = this.syntheticRoot
-      ? makeDagGraphView(this.resolvedGraph, () => this.syntheticRootRef)
-      : this.resolvedGraph;
+    // The public forest view excludes the synthetic identity; other IDs come from the source.
+    this.publicResolvedGraph = (
+      this.syntheticRoot
+        ? makeDagGraphView(this.resolvedGraph, () => this.syntheticRootRef)
+        : this.resolvedGraph
+    ) as ResolvedGraph<T | R, ID>;
     this.snapshot = options.saveOriginal
       ? new StructuralGraphSnapshot<T, R>()
       : null;
-    this.notMutatedResolvedGraph = this.snapshot?.graph ?? null;
+    // Snapshots preserve the exact identities accepted by this typed container.
+    this.notMutatedResolvedGraph = (this.snapshot?.graph ??
+      null) as ResolvedGraphSnapshot<T, ID> | null;
     this.notMutatedResolvedGraphRefsMap = this.snapshot?.refsMap ?? null;
   }
 
   acceptRoot(
     ref: Ref<T | R>,
-    id: VertexId,
-    dependsOn: readonly VertexId[] = [],
-    dependsOnComplete: readonly VertexId[] = [],
+    id: ID,
+    dependsOn: readonly ID[] = [],
+    dependsOnComplete: readonly ID[] = [],
   ): void {
     if (this.syntheticRoot) {
       this.syntheticRootRef = ref;
@@ -104,10 +116,10 @@ export class ResolvedGraphsContainer<
 
   acceptVertex(
     ref: Ref<T | R>,
-    id: VertexId,
-    dependsOn: readonly VertexId[],
+    id: ID,
+    dependsOn: readonly ID[],
     context: VertexResolutionContext<T | R>,
-    dependsOnComplete: readonly VertexId[] = [],
+    dependsOnComplete: readonly ID[] = [],
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
@@ -128,9 +140,9 @@ export class ResolvedGraphsContainer<
 
   acceptDetachedVertex(
     ref: Ref<T | R>,
-    id: VertexId,
-    dependsOn: readonly VertexId[],
-    dependsOnComplete: readonly VertexId[],
+    id: ID,
+    dependsOn: readonly ID[],
+    dependsOnComplete: readonly ID[],
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     this.store.insertVertex({
