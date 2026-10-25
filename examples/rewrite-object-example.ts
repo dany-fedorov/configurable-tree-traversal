@@ -22,7 +22,7 @@ console.log('Input');
 console.log(jsonStringifySafe(obj, 2));
 console.log();
 
-const { outputObject } = rewriteObject(obj, {
+const result = rewriteObject(obj, {
   resolveVertexHook: (vertexHint) => {
     if (vertexHint.value === null) {
       return { kind: 'omitted', satisfiesDependencies: true };
@@ -31,8 +31,8 @@ const { outputObject } = rewriteObject(obj, {
   },
   rewrite: function rewrite({ key, value }, options) {
     const depth =
-      options.resolvedTree.get(options.vertexRef)?.getResolutionContext()
-        ?.depth ?? 0;
+      options.resolvedTree.getResolutionContextOf(options.vertexRef)?.depth ??
+      0;
     console.log(
       'depth:',
       depth,
@@ -67,7 +67,7 @@ const { outputObject } = rewriteObject(obj, {
 
 console.log();
 console.log('Output');
-console.log(jsonStringifySafe(outputObject, 2));
+console.log(jsonStringifySafe(result.getOutput(), 2));
 
 /*
 Input

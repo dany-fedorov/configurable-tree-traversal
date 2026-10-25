@@ -465,22 +465,29 @@ try {
   // Keep uniform-API contracts in reviewable fixtures, separate from historical
   // deep-import and loader-identity consumers above. Fixtures run only against
   // the extracted package, never this checkout's source aliases.
-  for (const file of ['uniform-api.mjs', 'uniform-api.ts']) {
+  const typeFixtures = [
+    'uniform-api',
+    'rewrite-output',
+    'execution-capabilities',
+    'graph-id-types',
+    'dag-preparation',
+    'dag-milestone-diagnostics',
+  ];
+  for (const name of typeFixtures) {
+    for (const extension of ['ts', 'cts', 'mts']) {
+      fs.copyFileSync(
+        path.join(root, 'scripts/package-consumers', name + '.ts'),
+        path.join(consumer, name + '.' + extension),
+      );
+    }
+  }
+  for (const file of ['uniform-api.mjs', 'composable-api.mjs']) {
     fs.copyFileSync(
       path.join(root, 'scripts/package-consumers', file),
       path.join(consumer, file),
     );
+    execFileSync(process.execPath, [file], { cwd: consumer, stdio: 'inherit' });
   }
-  for (const extension of ['cts', 'mts']) {
-    fs.copyFileSync(
-      path.join(consumer, 'uniform-api.ts'),
-      path.join(consumer, 'uniform-api.' + extension),
-    );
-  }
-  execFileSync(process.execPath, ['uniform-api.mjs'], {
-    cwd: consumer,
-    stdio: 'inherit',
-  });
   const compiler =
     process.env.CTT_TYPESCRIPT_COMPILER ||
     path.join(root, 'node_modules/typescript/bin/tsc');
@@ -490,6 +497,8 @@ try {
       [
         compiler,
         '--strict',
+        '--exactOptionalPropertyTypes',
+        '--noUncheckedIndexedAccess',
         '--noEmit',
         '--target',
         'ES2020',
@@ -502,15 +511,18 @@ try {
               'consumer.ts',
               'consumer.cts',
               'consumer.mts',
-              'uniform-api.ts',
-              'uniform-api.cts',
-              'uniform-api.mts',
+              ...typeFixtures.flatMap((name) =>
+                ['ts', 'cts', 'mts'].map((extension) => name + '.' + extension),
+              ),
             ]
-          : ['consumer.ts', 'uniform-api.ts']),
+          : ['consumer.ts', ...typeFixtures.map((name) => name + '.ts')]),
       ],
       { cwd: consumer, stdio: 'inherit' },
     );
   }
+  console.log(
+    'Verified composable CJS/ESM runtime contracts and strict node/node16 .ts/.cts/.mts fixtures.',
+  );
   // Validate navigation in both the checkout and actual packed guides.
   const guides = [
     'README.md',

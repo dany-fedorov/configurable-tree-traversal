@@ -207,7 +207,7 @@ Deprecated `iterateOver` aliases emission. A non-null legacy enable list wins ov
 
 ## Stop reasons
 
-Statuses remain compatible. `getStopReason()` and inspection `stopReason` return null for INITIAL/RUNNING, `paused` for HALT/iterator close after admitted chains drain, `awaitingSettlement` for deferred quiescence, and `finished`/`failed` for terminal states. Successful settlement while halted preserves the preceding reason; resume clears it until the next stop. Exact failure values remain intact. Async execution/session surfaces expose the same contract.
+Statuses remain compatible. `getStopReason()` and inspection `stopReason` return null for INITIAL/RUNNING, `prepared` for a successful DAG preview, `paused` for HALT/iterator close after admitted chains drain, `awaitingSettlement` for deferred quiescence, and `finished`/`failed` for terminal states. Successful settlement while halted preserves the preceding reason; resume clears it until the next stop. Exact failure values remain intact. Async execution/session surfaces expose the same contract.
 
 ## Typed mutation inputs and object hooks
 
@@ -226,3 +226,35 @@ Use `CTTRef.getRefId()` for the generated reference UUID, `ResolvedGraph.getVert
 Graph sources, DAG traversals, runners, configs and helpers now accept a trailing `ID = unknown` type parameter: `DagTraversal<Workflow, Workflow, TaskId>`. Graph views, snapshots, summary/progress and diagnostics preserve that type, as do lookup, dependency, completed-work and settlement inputs. DAG visitors append ID after their existing phase generic. Existing data and rewrite generic positions are unchanged.
 
 When selecting a non-`unknown` ID domain, supply `vertexId` in every live tagged or legacy graph result, including prerequisite results; deliberate omissions may omit it. Tree-source DAG mode keeps `unknown` generated identities. Typed graph sources infer IDs through constructors/helpers; explicitly declare a union for mixed domains when needed. Leaving ID as `unknown` preserves the optional-ID fallback. Graph results with inherited `vertexId` fields now throw `TypeError` before fallback because TypeScript cannot enforce own-property ownership. Class adapters should return an explicit own field, for example `{ vertexId: instance.vertexId, vertexContent: instance.vertexContent }`, rather than relying on a prototype getter. Own getters and explicit own `vertexId: undefined` remain supported; absent IDs in default-`unknown` sources retain fallback. SameValueZero equality, ID values and tree-source behavior are unchanged.
+
+Public graph views/snapshots/summaries hide the synthetic holder and expose ID. Advanced raw container `store`/`resolvedGraph` expose `ID | symbol` for internal bookkeeping; narrow that extra possibility. ID is independent of T/R data and hints. Selecting non-unknown ID excludes tree-source constructor/helper/configure inputs, because tree-generated IDs do not belong to a caller domain.
+
+## Prepare, dispatch, and committed events
+
+Call sync `runner.prepare()` or await async `runner.prepare()` to preview the fully discovered and validated closure exposed by roots, hints and prerequisite lookup with no visitors, execution events, new real W/C or deferred generations. Seeds remain accepted W. Fresh tree/graph runners without injected state/containers are required; even empty injected objects reject recoverably. Preparation forces effective eager discovery/topology freezing, stops `HALTED` / `prepared` even for empty/omitted roots, and is idempotent until execution starts. Run adopts discovery without replay. Concurrent/post-execution preparation rejects. Failed preparation retains the exact error. Paused async preparation waits for admitted discovery callbacks; another prepare continues, or run adopts it.
+
+After `run()`, replace `deferredIds` plus optional generation lookups with `summary().deferredFrontier`: detached readonly `{ vertexId, generation }` records guarantee atomic live generations. Claim/dispatch in the host, retain the record with the attempt, validate and durably accept the result, then `settle(record.vertexId, outcome, record.generation)` and run again. The frontier is observational; `readyIds` continues to mean dependency eligibility.
+
+DAG events add committed `kind: 'workCompleted'` / `'subgraphCompleted'` while retaining `order: ON_READY` / `ON_COMPLETE`, filters, order and timing. ON_READY visitors remain pre-work; deferred ON_READY events follow settlement. Seeds emit no synthetic work event. Dispatch from the frontier rather than completion events.
+
+## Family-safe execution and cooperative pause
+
+Use `SyncTraversalExecution<Phase, Event>` and `AsyncTraversalExecution<Phase, Event>` for reusable wrappers, preserving family enums and precise closeable generators. `TraversalExecutionState` supplies inspection/status/stop/pause without execution ownership. Historical `AsyncCoreExecution<Event, Phase = never>` now permits no explicit phase names when Phase is erased; add the intended family Phase instead of widening to string. `TraversalRunner` includes inspection and closeable iteration; historical iterable imports remain.
+
+All six runners have `requestPause(): boolean`: true records a new request only while RUNNING. Other states and repeated requests return false, without acquiring an iterator, driving discovery, or throwing stored failures. A request is acknowledged at HALTED/paused after admitted chains drain; callbacks are not canceled. A suspended iterator may need next/return to drive the boundary. Resume preserves committed events/work and does not replay discovery.
+
+## Truthful rewrite output and final results
+
+`rewriteObject` retains six generic positions but defaults Out to unknown, including when no rewrite is supplied. Remove assumptions that reconstructed output preserves the input shape or prototype. Converter return types still infer. Use `rewriteObjectAs<Out>(input, options?)` as an explicit assertion through the named root, rewrite namespace or subpath export; it validates no schema and does not narrow option property values from unknown.
+
+`outputObject` remains the initial converted compatibility snapshot. After a halt, resume `result.traversalRunner.run()` and call `result.getOutput()`: it requires FINISHED, converts the final root with the original hook, and caches the first successful result. Initially finished results reuse the snapshot. Exact conversion throws are not cached as successful results and may be retried. Null/deleted roots remain supported. `getOutput` does not resume or make output deeply immutable.
+
+Remove `traversableTree` from helper options: the helper owns its source. Inline/pretyped options reject statically, and JavaScript presence (including undefined) rejects before all callbacks. Use a traversal directly for a custom source.
+
+## Labelled dependency diagnostics
+
+`dependencyEdges` contains original milestone constraints, independent of completed seeds and including missing endpoints. `from` waits for `to`; reasons are workDependency (W→W), completionDependency (W→C), ownWork (C→own W), and structuralChild (parent C→child C). Stable discovery order is followed by work dependencies, completion dependencies, own work and structural children. `dependencyCycles` is SCC membership, not an ordered witness. Detached edge/endpoint wrappers preserve opaque ID identity and do not freeze caller objects. Historical manual error constructor input may omit edges and gets []; engine output always includes them.
+
+## Visitor query ownership
+
+All six `listVisitorsFor` methods now return mutable detached arrays and copied records. Editing a query does not configure the builder, a future runner, or earlier snapshots. Submit updates through set/add/configure. Callback closures are shared; frozen group metadata/identity remains shared for list/set round trips. Advanced raw fields have no new ownership guarantee.

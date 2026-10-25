@@ -32,9 +32,9 @@ A host-controlled tick follows this sequence:
 ```text
 load graph revision + accepted facts
               ↓
-construct runner → discover/validate → defer eligible work
+construct runner → prepare preview → run → defer eligible work
               ↓
-read summary → filter claims/waits → rank candidates → claim and dispatch agents
+read deferredFrontier records → filter claims/waits → rank candidates → claim and dispatch agents
               ↓
 validate result + attempt/revision → durably accept completion
               ↓
@@ -62,7 +62,11 @@ Discovery and execution dependencies are distinct. Graph sources default to `imp
 
 A prerequisite ID alone does not make a vertex discoverable. Include it through hints/catalog entries or supply `resolvePrerequisite`. That hook may find further prerequisites transitively; concurrent demand is coalesced. Return `{ kind: 'found', vertex: { vertexId, vertexContent: { $data, $childHints }, dependsOn } }` for content, `{ kind: 'missing' }` for not found, or `{ kind: 'omitted', satisfiesDependencies: true }` for intentional omission. Omission deliberately omits the vertex and satisfies its dependencies, so it is not a representation of a failed agent or a temporary service outage. Let adapter errors propagate as appropriate. See [lookup and identity rules](reference.md#discovery-and-completed-work).
 
-For a global ready frontier, use eager discovery with a complete catalog. Lazy mode interleaves discovery and execution; its snapshots may be partial. `summary()` is observational and will never fetch missing vertices. The public API has no separate `discover()`/`execute()` pair.
+For a preview before dispatch, call `runner.prepare()` (await it on `AsyncDagTraversal`). It eagerly discovers the closure exposed by roots, hints and prerequisite lookup and validates the combined W/C graph, without visitors, execution events, new real-vertex completion, or deferred generations. Accepted `completedWork` seeds remain W facts. Inspect the graph at `HALTED` / `prepared`, then call `run()` to admit work without replaying discovery. Repeated preparation before execution is idempotent. This requires a fresh tree-source or graph-source runner without injected state/containers, even empty injected objects; invalid preparation requests reject recoverably. Once preparation begins, summaries report effective eager mode and eager topology freezing applies. After execution starts, preparation rejects.
+
+Preparation can perform adapter I/O: keep business execution in the host or visitors. During async preparation, `requestPause()` stops future admissions but waits for admitted discovery callbacks to settle; callbacks are not canceled. The operation acknowledges `paused`; another `prepare()` continues it, or `run()` adopts discovery and executes. Failed preparation preserves the exact error. Empty and omitted-root previews still stop `prepared`.
+
+Lazy execution remains available without preparation and may expose partial snapshots. `summary()` is observational and never fetches vertices. Use `DagTraversal<Workflow, Workflow, TaskId>` and `TraversableGraph<Workflow, Workflow, TaskId>` to carry host IDs through sources, summaries and settlement independently of data/hints. Every typed live result supplies an own `vertexId`; materialize class getters as own fields. See [identity migration](migration-uniform-api.md#caller-specified-graph-identity-types).
 
 ## Work dependencies and completion joins
 
@@ -78,20 +82,22 @@ Avoid making a child wait on its own ancestor's C when that ancestor must wait f
 
 ## Accept results and resume
 
-Start from the [quickstart](../README.md#quickstart-find-the-next-agent-tasks). To advance its retained runner after the host has accepted `implement`:
+Start from the [quickstart](../README.md#quickstart-find-the-next-agent-tasks). To advance its retained runner after the host has accepted `testPlan`:
 
 ```ts
-const generation = runner.summary().vertices.get('implement')!.generation!;
+const work = runner
+  .summary()
+  .deferredFrontier.find(({ vertexId }) => vertexId === 'testPlan')!; // Capture before dispatch, retain with the host attempt.
 // First validate the host's revision/attempt and durably accept the result.
-accepted.add('implement'); // In-memory simulation only.
-runner.settle('implement', { kind: 'workCompleted' }, generation);
+accepted.add('testPlan'); // In-memory simulation only.
+runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation);
 runner.run();
-console.log(runner.summary().readyIds); // ['testPlan']
+console.log(runner.summary().readyIds); // ['review']
 ```
 
-For an async runner, await `runner.run()`. `settle()` itself is synchronous. A settlement wakes an active async consumer; after idle settlement, resume explicitly. Only one iterator may own a runner at a time.
+For an async runner, await `runner.run()`. `settle()` itself is synchronous. A settlement wakes an active async consumer; after idle settlement, resume explicitly. Only one iterator may own a runner at a time. All runners expose `requestPause(): boolean`: true records a new request only while RUNNING, rather than acknowledging a halt. The active owner drains admitted chains to `HALTED` / `paused` without cancellation; a suspended iterator may need `next()` or `return()` to drive that boundary. Resume the same runner without replaying committed work.
 
-Dispatch from `summary().deferredIds` (or its ready frontier filtered by host policy), capturing each vertex's generation. Emitted `ON_READY` events occur when deferred work is settled; they are not the pre-work dispatch signal. Alternatively, an actual enabled `ON_READY` callback can dispatch before the external policy defers its chain. All callback commands commit before normal external deferral. `ON_COMPLETE` remains automatic once W, discovery, children, and C prerequisites permit it.
+Dispatch from `summary().deferredFrontier`: each readonly record atomically contains `{ vertexId, generation }`. It includes exactly live deferred work without an accepted outcome, in discovery order; queued-only, completed and deleted vertices are absent. Arrays and records are detached, retaining opaque ID identity. Filter this snapshot through host claims and capacity. DAG event `kind: 'workCompleted'` retains `order: ON_READY` and emits after committed W, including settlement; `kind: 'subgraphCompleted'` retains `order: ON_COMPLETE` after committed C. Event order, timing and phase filtering are preserved. Seeded work emits no synthetic work event. `ON_READY` visitors remain pre-work. Completion events are not dispatch signals. Alternatively, an actual enabled `ON_READY` callback can dispatch before the external policy defers its chain. All callback commands commit before normal external deferral. `ON_COMPLETE` remains automatic once W, discovery, children, and C prerequisites permit it.
 
 Capture the generation belonging to the deferred work you dispatched. It is a local guard, not a durable attempt ID, distributed lease, or authentication token. The host must separately reject stale revisions, stale attempts, duplicate result delivery, and lost claims before accepting a result. An identical accepted settlement returns `false`; invalid, conflicting, or cross-runner settlement throws.
 

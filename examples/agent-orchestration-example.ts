@@ -1,64 +1,94 @@
 import assert from 'node:assert/strict';
 import { DagTraversal, type TreeTypeParameters } from '../src';
 
-type Workflow = TreeTypeParameters<string, string>;
-const dependencies: Record<string, string[]> = {
+type TaskId = 'research' | 'implement' | 'testPlan' | 'review';
+type Workflow = TreeTypeParameters<string, TaskId>;
+const catalog: TaskId[] = ['research', 'implement', 'testPlan', 'review'];
+const dependencies: Record<TaskId, TaskId[]> = {
   research: [],
   implement: ['research'],
   testPlan: ['research'],
   review: ['implement', 'testPlan'],
 };
 // In-memory stand-in for completion facts already accepted by your host.
-const accepted = new Set(['research']);
+const accepted = new Set<TaskId>(['research']);
+let sourceCalls = 0;
 function reconstruct() {
-  const traversal = new DagTraversal<Workflow>({
-    discovery: 'eager',
+  return new DagTraversal<Workflow, Workflow, TaskId>({
     workCompletion: 'externalSettlement',
     syntheticRoot: true,
     completedWork: accepted,
     traversableGraph: {
-      makeRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: '', $childHints: Object.keys(dependencies) },
-        },
-      }),
-      makeVertex: (id) => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexId: id,
-          dependsOn: dependencies[id]!,
-          vertexContent: { $data: id, $childHints: [] },
-        },
-      }),
+      makeRoot: () => {
+        sourceCalls += 1;
+        return {
+          kind: 'found',
+          vertex: {
+            vertexId: 'research',
+            vertexContent: { $data: '', $childHints: catalog },
+          },
+        };
+      },
+      makeVertex: (id) => {
+        sourceCalls += 1;
+        return {
+          kind: 'found',
+          vertex: {
+            vertexId: id,
+            dependsOn: dependencies[id],
+            vertexContent: { $data: id, $childHints: [] },
+          },
+        };
+      },
     },
-  });
-  return traversal.makeRunner().run();
+  }).makeRunner();
 }
 
 const runner = reconstruct();
+assert.equal(runner.prepare(), runner);
+assert.equal(runner.getStopReason(), 'prepared');
+assert.equal(runner.summary().discovery.mode, 'eager');
+assert.equal(runner.getResolvedGraph().getVertexRefs().length, 4);
+assert.deepEqual(runner.summary().deferredFrontier, []);
+assert.deepEqual(runner.summary().completedWorkIds, ['research']);
+const preparedCalls = sourceCalls;
+runner.prepare();
+runner.run();
+assert.equal(sourceCalls, preparedCalls); // No discovery replay on run.
 assert.equal(runner.getStopReason(), 'awaitingSettlement');
-const snapshot = runner.summary();
-console.log(snapshot.readyIds); // ['implement', 'testPlan']
-assert.deepEqual(snapshot.readyIds, ['implement', 'testPlan']);
-const generation = snapshot.vertices.get('implement')!.generation!;
-
-// A real host claims work, dispatches an agent, validates its attempt/revision,
-// and durably accepts its result BEFORE settling it. This example simulates that.
-accepted.add('implement');
+assert.deepEqual(
+  runner.summary().deferredFrontier.map(({ vertexId }) => vertexId),
+  ['implement', 'testPlan'],
+);
+const work = runner.summary().deferredFrontier[0]!;
+// The host claims/dispatches work, checks its attempt/revision, then accepts it.
+accepted.add(work.vertexId);
 assert.equal(
-  runner.settle('implement', { kind: 'workCompleted' }, generation),
+  runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation),
   true,
 );
 runner.run();
 assert.deepEqual(runner.summary().readyIds, ['testPlan']);
 assert.equal(
-  runner.settle('implement', { kind: 'workCompleted' }, generation),
+  runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation),
   false,
 );
-
-// A restart rebuilds from accepted facts, never saved runner/generation objects.
-assert.deepEqual(reconstruct().summary().readyIds, ['testPlan']);
-accepted.add('testPlan');
-assert.deepEqual(reconstruct().summary().readyIds, ['review']);
-console.log('Agent frontier: implement + testPlan → testPlan → review');
+// A restart rebuilds accepted facts, never saved runner/generation objects.
+assert.deepEqual(reconstruct().run().summary().readyIds, ['testPlan']);
+const events = [];
+while (runner.getStatus() !== 'FINISHED') {
+  for (const next of runner.summary().deferredFrontier) {
+    accepted.add(next.vertexId);
+    runner.settle(next.vertexId, { kind: 'workCompleted' }, next.generation);
+  }
+  events.push(...runner.getIterable());
+}
+assert.equal(runner.getStopReason(), 'finished');
+assert.deepEqual(runner.summary().deferredFrontier, []);
+assert.equal(runner.summary().completedWorkIds.length, 4);
+assert(events.some(({ kind }) => kind === 'workCompleted'));
+assert(events.some(({ kind }) => kind === 'subgraphCompleted'));
+assert.deepEqual(reconstruct().run().summary().readyIds, []);
+console.log(
+  'Prepared preview → guarded frontier → accepted results → finished',
+);
