@@ -53,6 +53,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       dependencyCycles: [],
       dependencyBlockedIds: ['bad'],
       structurallyIncompleteIds: [],
+      dependencyEdges: expect.any(Array),
     });
     summary.diagnostics!.dependencies[0]!.unmet.length = 0;
     summary.diagnostics!.dependencyBlockedIds.length = 0;
@@ -114,6 +115,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       dependencyCycles: [[cycle]],
       dependencyBlockedIds: [bad],
       structurallyIncompleteIds: [],
+      dependencyEdges: expect.any(Array),
     });
     expect(partial.diagnostics!.dependencies[0]!.id).toBe(bad);
     expect(partial.diagnostics!.dependencies[0]!.unmet[0]).toBe(missing);

@@ -317,10 +317,14 @@ try {
     import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
 
     const stall: import('configurable-tree-traversal').DagTraversalStallDiagnostics = {
-      dependencies: [], unknownPrerequisiteIds: [], dependencyCycles: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
+      dependencies: [], unknownPrerequisiteIds: [], dependencyCycles: [], dependencyEdges: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
     };
     const typedStall: import('configurable-tree-traversal/traversals/dag-traversal').DagTraversalStallError = new core.DagTraversalStallError(stall);
-    void typedStall;
+    const milestone: import('configurable-tree-traversal').DagDependencyMilestone<'root'> = { vertexId: 'root', milestone: 'work' };
+    const dependencyEdge: import('configurable-tree-traversal/core').DagDependencyEdge<'root'> = { from: milestone, to: milestone, reason: 'workDependency' };
+    const subpathEdge: import('configurable-tree-traversal/traversals/dag-traversal').DagDependencyEdge<'root'> = dependencyEdge;
+    const edgeId: 'root' = subpathEdge.to.vertexId;
+    void [typedStall, edgeId];
     type Node = { $d: string; $c: (Node | null)[] };
     type Tree = TreeTypeParameters<string, Node | null>;
     const abstractRoot: Node = { $d: 'root', $c: [{ $d: 'leaf', $c: [] }] };

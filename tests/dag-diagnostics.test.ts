@@ -29,6 +29,7 @@ function check(error: unknown) {
     dependencyCycles: [['A', 'B'], ['D']],
     dependencyBlockedIds: ['C'],
     structurallyIncompleteIds: ['root'],
+    dependencyEdges: expect.any(Array),
   });
 }
 
@@ -70,6 +71,7 @@ test('reports a missing prerequisite separately from its blocked vertex', () => 
       dependencyCycles: [],
       dependencyBlockedIds: ['task'],
       structurallyIncompleteIds: ['root'],
+      dependencyEdges: expect.any(Array),
     });
   }
 });
