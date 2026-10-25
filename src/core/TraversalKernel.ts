@@ -675,13 +675,9 @@ export class TraversalKernel<
 
   /** Internal synchronous observation; no adapters, scheduling or settlement. */
   inspectDagState(): DagInspectionState {
-    const synthetic = this.options.container.syntheticRootRef;
-    const syntheticId =
-      synthetic === null
-        ? undefined
-        : this.options.container.resolvedGraph.getIdOf(synthetic);
+    const syntheticId = this.options.container.syntheticRootId;
     const visible = ({ vertexId }: { vertexId: VertexId }) =>
-      synthetic === null || vertexId !== syntheticId;
+      syntheticId === null || vertexId !== syntheticId;
     return {
       identityStates: this.options.container.store
         .inspectIdentityStates()

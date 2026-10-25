@@ -288,7 +288,7 @@ export class GraphScheduling<
     this.rejectTreeMetadata(result);
     const resultHasId = hasVertexId(result);
     const suppliedId = this.container.syntheticRoot
-      ? Symbol()
+      ? this.container.syntheticRootId!
       : resultHasId
       ? result.vertexId
       : undefined;
@@ -808,16 +808,12 @@ export class GraphScheduling<
           .map((child) => this.container.resolvedGraph.getIdOf(child)),
       })),
     );
-    const synthetic = this.container.syntheticRootRef;
-    const syntheticId =
-      synthetic === null
-        ? undefined
-        : this.container.resolvedGraph.getIdOf(synthetic);
+    const syntheticId = this.container.syntheticRootId;
     // Analyze the full internal topology, then hide only synthetic bookkeeping.
     const dependencyEdges = edges
       .filter(
         ({ from, to }) =>
-          synthetic === null ||
+          syntheticId === null ||
           (!sameVertexId(from.vertexId, syntheticId) &&
             !sameVertexId(to.vertexId, syntheticId)),
       )

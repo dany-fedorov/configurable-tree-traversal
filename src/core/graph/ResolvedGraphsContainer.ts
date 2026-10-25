@@ -43,6 +43,8 @@ export class ResolvedGraphsContainer<
 > {
   readonly sourceMode: 'tree' | 'graph';
   readonly syntheticRoot: boolean;
+  /** Stable private identity even when the holder is omitted or deleted. */
+  readonly syntheticRootId: symbol | null;
   syntheticRootRef: Ref<T | R> | null = null;
   readonly publicResolvedGraph: ResolvedGraph<T | R, ID>;
   /** Raw bookkeeping includes a private symbol when syntheticRoot is enabled. */
@@ -62,6 +64,7 @@ export class ResolvedGraphsContainer<
     this.sourceMode = options.sourceMode;
     this.syntheticRoot =
       options.sourceMode === 'graph' && options.syntheticRoot === true;
+    this.syntheticRootId = this.syntheticRoot ? Symbol() : null;
     this.treeContainer =
       options.sourceMode === 'tree' ? options.treeContainer : null;
     this.store =

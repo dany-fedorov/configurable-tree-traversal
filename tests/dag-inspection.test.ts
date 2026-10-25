@@ -882,3 +882,58 @@ test('transitive navigation uses an iterative walk on deep prerequisite chains',
     ).milestones,
   ).toHaveLength(23999);
 });
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test(`${Constructor.name} hides an omitted synthetic root from the typed inspection bridge`, async () => {
+    const runner = new Constructor({
+      syntheticRoot: true,
+      traversableGraph: {
+        makeRoot: () => ({
+          kind: 'omitted',
+          vertexId: 'catalog',
+          satisfiesDependencies: true,
+        }),
+        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      },
+    }).makeRunner();
+    await runner.run();
+    expect(runner.inspectDagState()).toEqual({
+      identityStates: [],
+      schedulingStates: [],
+      discoveryComplete: true,
+    });
+    expect(
+      inspectDag(runner).explain({ vertexId: 'catalog', milestone: 'work' })
+        .kind,
+    ).toBe('unknown');
+  });
+}
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test(`${Constructor.name} inspects a deleted synthetic holder without dereferencing its removed vertex`, () => {
+    const runner = new Constructor<G>({
+      syntheticRoot: true,
+      traversableGraph: {
+        makeRoot: () => ({
+          vertexContent: { $data: 'forest', $childHints: [] },
+        }),
+        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      },
+    }).makeRunner();
+    // Exercise raw bookkeeping deletion independently of runner callback scheduling.
+    const container = runner.resolvedGraphsContainer;
+    const scheduling = new GraphScheduling(container);
+    const ref = scheduling.acceptRoot({
+      vertexContent: { $data: 'forest', $childHints: [] },
+    })!;
+    const callerId = Symbol('caller omission');
+    container.store.markOmitted(callerId);
+    scheduling.deleteVertex(ref);
+    expect(runner.inspectDagState().identityStates).toEqual([
+      { vertexId: callerId, kind: 'omitted' },
+    ]);
+    expect(
+      inspectDag(runner).explain({ vertexId: callerId, milestone: 'work' }),
+    ).toMatchObject({ kind: 'known', satisfied: true });
+  });
+}
