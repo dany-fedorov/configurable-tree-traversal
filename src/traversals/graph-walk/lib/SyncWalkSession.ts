@@ -9,6 +9,12 @@ import { rejectThenable } from './rejectThenable';
 export class SyncWalkSession<Data, Edge, ID> {
   private owner: symbol | null = null;
   constructor(private readonly kernel: WalkKernel<Data, Edge, ID>) {}
+  close(): void {
+    if (this.owner !== null)
+      throw new Error('Graph walk already has an execution owner');
+    this.kernel.beginClose();
+    this.getIterable().next();
+  }
   getIterable(
     config?: TraversalIterableConfigInput<GraphWalkPhase>,
   ): Generator<GraphWalkEvent<Data, Edge, ID>, void, unknown> {

@@ -1,3 +1,4 @@
+import type { WalkResources } from './WalkResources';
 import type { GraphWalkVertexResult } from '../GraphWalkSource';
 import { rejectThenable } from './rejectThenable';
 
@@ -32,6 +33,8 @@ export function makeCursor(input: unknown): WalkCursor {
 export function pullCursor(
   cursor: WalkCursor,
   execution: 'sync' | 'async',
+  resources: WalkResources,
+  vertexToken?: symbol,
 ): unknown {
   if (cursor.iterator === null) {
     const input = record(cursor.input);
@@ -44,9 +47,10 @@ export function pullCursor(
     const value = factory.call(input);
     rejectThenable(value);
     const iterator = record(value);
+    cursor.iterator = iterator as unknown as Iterator<unknown>;
+    resources.open(cursor.iterator, vertexToken);
     if (typeof iterator['next'] !== 'function')
       throw new TypeError('Expected an iterator next method');
-    cursor.iterator = iterator as unknown as Iterator<unknown>;
   }
   return cursor.iterator.next();
 }

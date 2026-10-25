@@ -21,6 +21,10 @@ export class WalkFrontier<Data, Edge, ID> {
   get size(): number {
     return this.frames.length - this.head;
   }
+  clear(): void {
+    this.frames = [];
+    this.head = 0;
+  }
   push(route: WalkRoute<Data, Edge, ID>): void {
     this.frames.push({ route, index: 0 });
   }

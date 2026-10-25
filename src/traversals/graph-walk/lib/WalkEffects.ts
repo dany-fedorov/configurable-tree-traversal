@@ -16,6 +16,7 @@ export type WalkAction<Data, Edge, ID> =
       kind: 'CALL';
       requestId: number;
       operation: WalkOperation;
+      vertexToken?: symbol | undefined;
       invoke: () => unknown;
     }
   | {

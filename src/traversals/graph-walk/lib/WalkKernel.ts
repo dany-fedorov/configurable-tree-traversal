@@ -1,3 +1,4 @@
+import { WalkResources } from './WalkResources';
 import { WalkVisitorChain } from './WalkVisitorChain';
 import type { WalkVisitor } from './normalizeWalkOptions';
 import type { VisitorRecord } from '@core/graph/types';
@@ -31,7 +32,7 @@ const phases = [Phase.VERTEX, Phase.EDGE, Phase.PATH];
 type Observation<Data, Edge, ID> = Extract<
   WalkAction<Data, Edge, ID>,
   { kind: 'OBSERVATION' }
-> & { occurrenceIndex: number };
+> & { occurrenceIndex: number; vertexToken: symbol };
 type Request<Data, Edge, ID> = Extract<
   WalkAction<Data, Edge, ID>,
   { kind: 'CALL' }
@@ -47,6 +48,9 @@ type Candidate<Data, Edge, ID> = {
 
 /** Promise-free transition owner. Only CALL closures perform source I/O. */
 export class WalkKernel<Data, Edge, ID> {
+  private readonly resources = new WalkResources();
+  private readonly vertexTokens = new Map<ID, symbol>();
+  private tornDown = false;
   private status = Status.INITIAL;
   private haltRequested = false;
   private outcome: GraphWalkOutcome | null = null;
@@ -122,11 +126,13 @@ export class WalkKernel<Data, Edge, ID> {
     operation: WalkOperation,
     invoke: () => unknown,
     accept: (value: unknown) => void,
+    vertexToken?: symbol,
   ): void {
     this.request = {
       kind: 'CALL',
       requestId: this.requestId++,
       operation,
+      vertexToken,
       invoke,
       accept,
       issued: false,
@@ -141,8 +147,10 @@ export class WalkKernel<Data, Edge, ID> {
       if (!outcome.ok) throw outcome.error;
       request.accept(outcome.value);
     } catch (error) {
-      this.status = Status.FAILED;
-      this.outcome = { kind: 'failed', error };
+      if (this.outcome?.kind !== 'failed') {
+        this.status = Status.FAILED;
+        this.outcome = { kind: 'failed', error };
+      }
     }
   }
   acknowledgeObservation(boundaryId: number): void {
@@ -153,13 +161,23 @@ export class WalkKernel<Data, Edge, ID> {
     this.observations.shift();
     this.chain = null;
   }
+  private token(vertexId: ID): symbol {
+    let token = this.vertexTokens.get(vertexId);
+    if (token === undefined) {
+      token = Symbol('walking vertex');
+      this.vertexTokens.set(vertexId, token);
+    }
+    return token;
+  }
   private observe(
     phase: Phase,
     event: () => GraphWalkEvent<Data, Edge, ID>,
+    vertexId: ID,
   ): void {
     this.observations.push({
       kind: 'OBSERVATION',
       phase,
+      vertexToken: this.token(vertexId),
       occurrenceIndex: this.counts.occurrences - 1,
       boundaryId: this.boundaryId++,
       event,
@@ -189,6 +207,7 @@ export class WalkKernel<Data, Edge, ID> {
           return source.resolveVertex.call(source.receiver, target.vertexId);
         },
         (value) => this.commit(candidate, copyResolution<Data>(value), true),
+        this.token(target.vertexId),
       );
     }
   }
@@ -210,26 +229,34 @@ export class WalkKernel<Data, Edge, ID> {
     const depth = parent === null ? 0 : parent.depth + 1;
     if (via !== null) {
       const source = parent!.vertex;
-      this.observe(Phase.EDGE, () => ({
-        kind: 'edge',
-        edge: { ...via },
-        source: { ...source },
-        depth,
-        target:
-          vertex === null
-            ? { kind: 'omitted' }
-            : { kind: 'found', vertex: { ...vertex } },
-      }));
+      this.observe(
+        Phase.EDGE,
+        () => ({
+          kind: 'edge',
+          edge: { ...via },
+          source: { ...source },
+          depth,
+          target:
+            vertex === null
+              ? { kind: 'omitted' }
+              : { kind: 'found', vertex: { ...vertex } },
+        }),
+        target.vertexId,
+      );
     }
     if (fresh && vertex !== null) {
       const route = { vertex, depth, via, parent };
-      this.observe(Phase.VERTEX, () => ({
-        kind: 'vertex',
-        vertex: { ...vertex },
-        depth,
-        via: via === null ? null : { ...via },
-      }));
-      this.observe(Phase.PATH, () => projectPath(route));
+      this.observe(
+        Phase.VERTEX,
+        () => ({
+          kind: 'vertex',
+          vertex: { ...vertex },
+          depth,
+          via: via === null ? null : { ...via },
+        }),
+        target.vertexId,
+      );
+      this.observe(Phase.PATH, () => projectPath(route), target.vertexId);
       this.expansion = route;
     }
   }
@@ -258,6 +285,7 @@ export class WalkKernel<Data, Edge, ID> {
         (value) => {
           if (this.booleanResult(value)) this.admit(candidate);
         },
+        this.token(candidate.target.vertexId),
       );
     }
   }
@@ -285,6 +313,7 @@ export class WalkKernel<Data, Edge, ID> {
             },
           ),
         (value) => accept(this.booleanResult(value)),
+        this.token(route.vertex.vertexId),
       );
     }
   }
@@ -312,10 +341,43 @@ export class WalkKernel<Data, Edge, ID> {
 
   poll(retainObservation = false): WalkAction<Data, Edge, ID> {
     for (;;) {
-      if (this.outcome?.kind === 'failed')
-        return { kind: 'FAILED', error: this.outcome.error };
-      if (this.status === Status.FINISHED) return { kind: 'FINISHED' };
       if (this.request !== null && this.request.issued) return { kind: 'WAIT' };
+      if (this.outcome !== null) {
+        if (!this.tornDown) {
+          this.tornDown = true;
+          this.request = null;
+          this.haltRequested = false;
+          this.observations.length = 0;
+          this.chain = null;
+          this.expansion = null;
+          this.frontier.clear();
+          this.rootIds.clear();
+          this.vertexTokens.clear();
+          this.cache.resolutions.clear();
+          this.cache.adjacency.clear();
+          this.roots = null;
+        }
+        const resource = this.resources.takeLast();
+        if (resource !== undefined) {
+          this.call(
+            'iteratorReturn',
+            () => {
+              const close: (() => unknown) | undefined =
+                resource.iterator.return;
+              return close == null ? undefined : close.call(resource.iterator);
+            },
+            () => undefined,
+            resource.vertexToken,
+          );
+          const request = this.request!;
+          request.issued = true;
+          const { kind, requestId, operation, invoke, vertexToken } = request;
+          return { kind, requestId, operation, invoke, vertexToken };
+        }
+        return this.outcome.kind === 'failed'
+          ? { kind: 'FAILED', error: this.outcome.error }
+          : { kind: 'FINISHED' };
+      }
       if (this.status === Status.HALTED) return { kind: 'HALTED' };
       if (this.status === Status.INITIAL) return { kind: 'WAIT' };
       // An admitted callback chain drains on cooperative pause. HALT keeps the
@@ -334,6 +396,7 @@ export class WalkKernel<Data, Edge, ID> {
           'visitor',
           () => chain.invoke(),
           (value) => chain.submit(value),
+          this.observations[0]!.vertexToken,
         );
       } else if (this.haltRequested) {
         this.status = Status.HALTED;
@@ -341,8 +404,9 @@ export class WalkKernel<Data, Edge, ID> {
       }
       if (this.request !== null) {
         this.request.issued = true;
-        const { kind, requestId, operation, invoke } = this.request;
-        return { kind, requestId, operation, invoke };
+        const { kind, requestId, operation, invoke, vertexToken } =
+          this.request;
+        return { kind, requestId, operation, invoke, vertexToken };
       }
       if (this.observations.length > 0) {
         const observation = this.observations[0]!;
@@ -394,11 +458,13 @@ export class WalkKernel<Data, Edge, ID> {
         this.counts.steps++;
         this.call(
           'rootNext',
-          () => pullCursor(roots, this.executionKind),
+          () => pullCursor(roots, this.executionKind, this.resources),
           (value) => {
             const step = readStep(value);
-            if (step.done) roots.done = true;
-            else {
+            if (step.done) {
+              roots.done = true;
+              this.resources.exhausted(roots.iterator!);
+            } else {
               const target = this.cache.copyTarget(step.value);
               if (!this.rootIds.has(target.vertexId)) {
                 this.rootIds.add(target.vertexId);
@@ -419,6 +485,7 @@ export class WalkKernel<Data, Edge, ID> {
             (value) => {
               entries.cursor = makeCursor(value);
             },
+            this.token(route.vertex.vertexId),
           );
         } else if (entries.cursor.done) {
           this.frontier.remove();
@@ -428,11 +495,19 @@ export class WalkKernel<Data, Edge, ID> {
           this.counts.steps++;
           this.call(
             'edgeNext',
-            () => pullCursor(cursor, this.executionKind),
+            () =>
+              pullCursor(
+                cursor,
+                this.executionKind,
+                this.resources,
+                this.token(route.vertex.vertexId),
+              ),
             (value) => {
               const step = readStep(value);
-              if (step.done) cursor.done = true;
-              else {
+              if (step.done) {
+                cursor.done = true;
+                this.resources.exhausted(cursor.iterator!);
+              } else {
                 const link = this.cache.copyLink(step.value);
                 const index = frame.index++;
                 entries.links.push(link);
@@ -449,6 +524,7 @@ export class WalkKernel<Data, Edge, ID> {
                 });
               }
             },
+            this.token(route.vertex.vertexId),
           );
         }
       } else {
@@ -457,16 +533,22 @@ export class WalkKernel<Data, Edge, ID> {
     }
   }
   summary(): GraphWalkSummary {
-    return {
+    return Object.freeze({
       status: this.status,
-      counts: { ...this.counts, observations: { ...this.counts.observations } },
+      counts: Object.freeze({
+        ...this.counts,
+        observations: Object.freeze({ ...this.counts.observations }),
+      }),
       outcome:
         this.outcome === null
           ? null
           : this.outcome.kind === 'limited'
-          ? { ...this.outcome, reasons: [...this.outcome.reasons] }
-          : { ...this.outcome },
-    };
+          ? Object.freeze({
+              ...this.outcome,
+              reasons: Object.freeze([...this.outcome.reasons]),
+            })
+          : Object.freeze({ ...this.outcome }),
+    });
   }
   inspect(): GraphWalkInspection {
     const execution = normalizeTraversalExecutionOptions(
@@ -488,14 +570,6 @@ export class WalkKernel<Data, Edge, ID> {
     }
     const counts = this.summary().counts;
     Object.freeze(counts.observations);
-    let openSourceIteratorCount =
-      this.roots !== null && this.roots.iterator !== null && !this.roots.done
-        ? 1
-        : 0;
-    for (const { cursor } of this.cache.adjacency.values()) {
-      if (cursor !== null && cursor.iterator !== null && !cursor.done)
-        openSourceIteratorCount++;
-    }
     return Object.freeze({
       kind: 'graph-walk',
       sourceMode: 'graph',
@@ -509,7 +583,10 @@ export class WalkKernel<Data, Edge, ID> {
       iterableConfig: Object.freeze(execution),
       counts: Object.freeze(counts),
       frontierSize: this.frontier.size,
-      openSourceIteratorCount,
+      // A taken resource remains open until its return request settles.
+      openSourceIteratorCount:
+        this.resources.size +
+        (this.request?.operation === 'iteratorReturn' ? 1 : 0),
       pendingObservationKinds: Object.freeze(
         this.observations.map((item) => item.phase),
       ),
@@ -527,6 +604,7 @@ export class WalkKernel<Data, Edge, ID> {
               Object.freeze({
                 requestId: this.request.requestId,
                 operation: this.request.operation,
+                vertexToken: this.request.vertexToken,
               }),
             ],
       ),

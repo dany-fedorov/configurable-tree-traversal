@@ -23,8 +23,21 @@ export class AsyncWalkSession<Data, Edge, ID> {
   private owner: Lease<GraphWalkEvent<Data, Edge, ID>> | null = null;
   private readonly wakeup = new Wakeup();
   private pauseRequested = false;
+  private terminalClose: Promise<void> | null = null;
   constructor(private readonly kernel: WalkKernel<Data, Edge, ID>) {}
 
+  closeTerminal(): Promise<void> {
+    if (this.terminalClose !== null) return this.terminalClose;
+    if (this.owner !== null)
+      return Promise.reject(
+        new Error('Graph walk already has an execution owner'),
+      );
+    this.kernel.beginClose();
+    this.terminalClose = this.getIterable()
+      .next()
+      .then(() => undefined);
+    return this.terminalClose;
+  }
   requestPause(): boolean {
     const requested = this.kernel.requestPause();
     if (requested) {

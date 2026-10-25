@@ -26,5 +26,7 @@ export interface GraphWalkInspection extends ExecutionInspection {
   readonly pendingRequests: readonly Readonly<{
     requestId: number;
     operation: WalkOperation;
+    /** Stable runner-local identity; never a caller vertex ID. */
+    vertexToken?: symbol | undefined;
   }>[];
 }

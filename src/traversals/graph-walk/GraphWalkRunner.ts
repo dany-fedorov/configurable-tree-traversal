@@ -46,6 +46,9 @@ export class GraphWalkRunner<Data, Edge, ID>
     }
     return this;
   };
+  close() {
+    return this.session.close();
+  }
   getStatus() {
     return this.kernel.getStatus();
   }

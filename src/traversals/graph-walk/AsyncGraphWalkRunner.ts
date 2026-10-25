@@ -48,6 +48,9 @@ export class AsyncGraphWalkRunner<Data, Edge, ID>
     }
     return this;
   };
+  close() {
+    return this.session.closeTerminal();
+  }
   getStatus() {
     return this.kernel.getStatus();
   }
