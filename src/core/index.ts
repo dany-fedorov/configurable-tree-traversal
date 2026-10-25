@@ -13,6 +13,7 @@ export * from './TraversalRunner';
 export * from './TraversalRunnerIterableConfig';
 export * from './AsyncCoreExecution';
 export * from './TraversalExecution';
+export * from './ExecutionInspection';
 export * from './AsyncTraversableTree';
 export * from './AsyncTraversalVisitor';
 export * from './CoreInspection';

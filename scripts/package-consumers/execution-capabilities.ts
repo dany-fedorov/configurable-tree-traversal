@@ -9,6 +9,10 @@ import {
   BreadthFirstTraversalOrder as BFS,
   DagTraversalOrder as DAG,
   DepthFirstTraversalOrder as DFS,
+  TraversalRunnerStatus,
+  type CoreInspection,
+  type ExecutionInspection,
+  type TraversalExecutionState,
   type AsyncCoreExecution,
   type AsyncTraversalExecution,
   type SyncTraversalExecution,
@@ -121,3 +125,30 @@ sync.getIterable().return(42);
 // @ts-expect-error Closing an async generator accepts only its void completion value.
 precise.getIterable().return(42);
 void invalidClosedValue;
+
+function paused(state: TraversalExecutionState<ExecutionInspection>): boolean {
+  const inspection = state.inspect();
+  return state.isHalted() && inspection.status === TraversalRunnerStatus.HALTED;
+}
+const oldShape: CoreInspection = syncConcrete.inspect();
+paused(syncConcrete);
+void oldShape;
+
+const observedSync: SyncTraversalExecution<DFS, unknown, ExecutionInspection> =
+  syncConcrete;
+const observedAsync: AsyncTraversalExecution<
+  DFS,
+  unknown,
+  ExecutionInspection
+> = concrete;
+paused(observedSync);
+paused(observedAsync);
+// @ts-expect-error Common inspection does not promise tree/DAG frames.
+observedSync.inspect().frames;
+// @ts-expect-error Generalizing inspection cannot widen supported phases.
+const unsafeObserved: SyncTraversalExecution<
+  DFS | DAG,
+  unknown,
+  ExecutionInspection
+> = syncConcrete;
+void unsafeObserved;
