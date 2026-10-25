@@ -1,0 +1,256 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import * as root from 'configurable-tree-traversal';
+import * as walking from 'configurable-tree-traversal/traversals/graph-walk';
+const require = createRequire(import.meta.url);
+const cjs = require('configurable-tree-traversal');
+const cjsWalking = require('configurable-tree-traversal/traversals/graph-walk');
+const entries = [root, cjs, walking, cjsWalking, root.graphWalk, cjs.graphWalk];
+const Phase = root.GraphWalkPhase;
+const Command = root.TraversalVisitorCommandName;
+assert.equal(Command, cjs.TraversalVisitorCommandName);
+assert.equal(typeof root.DEFER_READY, 'symbol');
+assert.equal(root.DEFER_READY, cjs.DEFER_READY);
+assert.equal(root.graphWalk, cjs.graphWalk);
+for (const entry of entries) {
+  for (const name of [
+    'GraphWalk',
+    'AsyncGraphWalk',
+    'GraphWalkRunner',
+    'AsyncGraphWalkRunner',
+    'GraphWalkPhase',
+    'walkGraph',
+    'walkGraphAsync',
+    'walkSourceFrom',
+    'walkSourceFromAsync',
+    'walkSourceFromDag',
+  ])
+    assert.equal(entry[name], root[name]);
+}
+
+const objectId = {};
+const symbolId = Symbol('symbol');
+const ids = [objectId, symbolId, undefined, null, NaN, -0];
+const relation = { kind: 'reference' };
+const items = ids.map((id, index) => ({ id, index }));
+const catalog = walking.walkSourceFrom(items, {
+  id: (item) => item.id,
+  outgoing: (item) =>
+    Array.from({ length: item.index === 0 ? 2 : 1 }, () => ({
+      to: ids[(item.index + 1) % ids.length],
+      data: relation,
+    })),
+  roots: [objectId],
+});
+const mixed = [
+  ...new root.GraphWalk({ source: catalog }).makeRunner().getIterable({
+    emitPhases: [Phase.VERTEX, Phase.EDGE],
+  }),
+];
+assert.deepEqual(
+  mixed
+    .filter((event) => event.kind === 'vertex')
+    .map((event) => event.vertex.vertexId),
+  ids,
+);
+assert.equal(mixed.filter((event) => event.kind === 'edge').length, 7);
+assert(
+  mixed
+    .filter((event) => event.kind === 'edge')
+    .every((event) => event.edge.data === relation),
+);
+assert.deepEqual(
+  mixed.slice(0, 5).map((event) => event.kind),
+  ['vertex', 'edge', 'vertex', 'edge', 'edge'],
+);
+const sync = cjsWalking.walkGraph({ source: catalog });
+for (const entry of entries) assert(sync instanceof entry.GraphWalkRunner);
+assert.equal(sync.summary().outcome.kind, 'exhausted');
+assert.equal(sync.summary().counts.foundVertices, 6);
+assert.equal(
+  (await root.walkGraphAsync({ source: catalog })).summary().counts
+    .foundVertices,
+  6,
+);
+
+const stream = new walking.AsyncGraphWalk({
+  source: {
+    async *roots() {
+      yield { vertexId: objectId, resolution: { kind: 'found', data: 'A' } };
+    },
+    async *outgoing(vertex) {
+      if (vertex.vertexId === objectId) {
+        yield {
+          target: {
+            vertexId: symbolId,
+            resolution: { kind: 'found', data: 'B' },
+          },
+          data: relation,
+        };
+        yield {
+          target: { vertexId: undefined, resolution: { kind: 'omitted' } },
+          data: relation,
+        };
+      } else {
+        yield { target: { vertexId: objectId }, data: relation };
+      }
+    },
+  },
+}).makeRunner();
+const streamed = [];
+for await (const event of stream.getIterable({
+  emitPhases: [Phase.VERTEX, Phase.EDGE],
+}))
+  streamed.push(event);
+for (const entry of entries)
+  assert(stream instanceof entry.AsyncGraphWalkRunner);
+assert.deepEqual(
+  streamed
+    .filter((event) => event.kind === 'vertex')
+    .map((event) => event.vertex.data),
+  ['A', 'B'],
+);
+assert.deepEqual(
+  streamed
+    .filter((event) => event.kind === 'edge')
+    .map((event) => event.target.kind),
+  ['found', 'omitted', 'found'],
+);
+assert.equal(stream.summary().counts.omittedVertices, 1);
+
+const routes = [];
+const self = walking.walkSourceFrom([{ id: symbolId }], {
+  id: (item) => item.id,
+  outgoing: (item) => [{ to: item.id, data: relation }],
+  roots: [symbolId],
+});
+const bounded = walking.walkGraph({
+  source: self,
+  revisit: 'walks',
+  limits: { maxDepth: 2 },
+  visitors: {
+    [Phase.PATH]: (event) => {
+      routes.push(event.vertices.map((vertex) => vertex.vertexId));
+    },
+  },
+});
+assert.deepEqual(routes, [
+  [symbolId],
+  [symbolId, symbolId],
+  [symbolId, symbolId, symbolId],
+]);
+assert.deepEqual(bounded.summary().outcome, {
+  kind: 'limited',
+  reasons: ['maxDepth'],
+});
+
+// Iterator return pauses; explicit close alone releases retained source cursors.
+for (const asynchronous of [false, true]) {
+  const cleanup = [];
+  const source = {
+    *roots() {
+      try {
+        yield {
+          vertexId: objectId,
+          resolution: { kind: 'found', data: 'root' },
+        };
+        yield {
+          vertexId: symbolId,
+          resolution: { kind: 'found', data: 'later' },
+        };
+      } finally {
+        cleanup.push('roots');
+      }
+    },
+    outgoing: () => [],
+  };
+  const runner = asynchronous
+    ? new cjs.AsyncGraphWalk({ source }).makeRunner()
+    : new walking.GraphWalk({ source }).makeRunner();
+  const iterator = runner.getIterable();
+  assert.equal((await iterator.next()).value.kind, 'vertex');
+  await iterator.return(undefined);
+  assert.equal(runner.getStopReason(), 'paused');
+  assert.deepEqual(cleanup, []);
+  await runner.close();
+  await runner.close();
+  assert.deepEqual(cleanup, ['roots']);
+  assert.equal(runner.summary().outcome.kind, 'closed');
+}
+
+const callbacks = [];
+const paused = await root.walkGraphAsync({
+  source: self,
+  visitors: {
+    [Phase.VERTEX]: [
+      async () => {
+        callbacks.push('halt');
+        return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+      },
+      async () => {
+        callbacks.push('tail');
+      },
+    ],
+  },
+});
+assert.equal(paused.getStopReason(), 'paused');
+assert.deepEqual(callbacks, ['halt']);
+await paused.run();
+assert.deepEqual(callbacks, ['halt', 'tail']);
+
+const materialized = await walking.walkSourceFromAsync(
+  (async function* () {
+    yield items[0];
+  })(),
+  {
+    id: async (item) => item.id,
+    outgoing: async (item) => [{ to: item.id, data: relation }],
+    roots: [objectId],
+  },
+);
+const asyncHelper = await walking.walkGraphAsync({ source: materialized });
+assert(asyncHelper instanceof cjs.AsyncGraphWalkRunner);
+assert.equal(
+  walking.walkGraph({ source: materialized }).summary().counts.foundVertices,
+  1,
+);
+
+const projected = walking.walkSourceFromDag(
+  root.defineDag({
+    vertices: [
+      {
+        vertexId: objectId,
+        data: 'task',
+        slots: [
+          { kind: 'vertex', vertexId: objectId },
+          { kind: 'omitted', identity: { vertexId: symbolId } },
+        ],
+        dependsOn: [objectId],
+        dependsOnComplete: [symbolId],
+      },
+    ],
+    omittedIds: [symbolId],
+    entry: { kind: 'root', vertexId: objectId },
+  }),
+  { relations: ['completionDependencies', 'children', 'workDependencies'] },
+);
+const relations = [];
+const dagWalk = await walking.walkGraphAsync({
+  source: projected,
+  visitors: {
+    [Phase.EDGE]: (event) => {
+      relations.push([event.edge.data, event.target.kind]);
+    },
+  },
+});
+assert.deepEqual(relations, [
+  [{ kind: 'child', slotIndex: 0 }, 'found'],
+  [{ kind: 'child', slotIndex: 1 }, 'omitted'],
+  [{ kind: 'workDependency' }, 'found'],
+  [{ kind: 'completionDependency' }, 'omitted'],
+]);
+assert.equal(dagWalk.summary().outcome.kind, 'exhausted');
+const syncDagWalk = cjsWalking.walkGraph({ source: projected });
+assert.equal(syncDagWalk.summary().counts.foundVertices, 1);
+assert.equal(syncDagWalk.summary().counts.omittedVertices, 1);
+console.log('Packed graph walking consumers passed');

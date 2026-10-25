@@ -3,14 +3,20 @@ import {
   AsyncBreadthFirstTraversal,
   AsyncDagTraversal,
   AsyncDepthFirstTraversal,
+  AsyncGraphWalk,
   BreadthFirstTraversal,
   DagTraversal,
   DepthFirstTraversal,
+  GraphWalk,
+  GraphWalkPhase as WALK,
   BreadthFirstTraversalOrder as BFS,
   DagTraversalOrder as DAG,
   DepthFirstTraversalOrder as DFS,
   TraversalRunnerStatus,
   type CoreInspection,
+  type GraphWalkEvent,
+  type GraphWalkInspection,
+  type GraphWalkSource,
   type ExecutionInspection,
   type TraversalExecutionState,
   type AsyncCoreExecution,
@@ -152,3 +158,114 @@ const unsafeObserved: SyncTraversalExecution<
   ExecutionInspection
 > = syncConcrete;
 void unsafeObserved;
+
+// Old defaults retain CoreInspection; walking opts into its own inspection.
+const oldAsyncShape: CoreInspection = concrete.inspect();
+const oldState: TraversalExecutionState = syncConcrete;
+const oldAsyncState: TraversalExecutionState = concrete;
+const walkSource: GraphWalkSource<string, number, undefined> = {
+  roots: () => [
+    { vertexId: undefined, resolution: { kind: 'found', data: 'root' } },
+  ],
+  outgoing: () => [],
+};
+const walkingSync = new GraphWalk({ source: walkSource }).makeRunner();
+const walkingAsync = new AsyncGraphWalk({ source: walkSource }).makeRunner();
+type WalkEvent = GraphWalkEvent<string, number, undefined>;
+const detailedWalk: SyncTraversalExecution<
+  WALK,
+  WalkEvent,
+  GraphWalkInspection
+> = walkingSync;
+const detailedAsyncWalk: AsyncTraversalExecution<
+  WALK,
+  WalkEvent,
+  GraphWalkInspection
+> = walkingAsync;
+const commonWalk: SyncTraversalExecution<WALK, WalkEvent, ExecutionInspection> =
+  detailedWalk;
+const commonAsyncWalk: AsyncTraversalExecution<
+  WALK,
+  WalkEvent,
+  ExecutionInspection
+> = detailedAsyncWalk;
+const detailedState: TraversalExecutionState<GraphWalkInspection> = walkingSync;
+const detailedAsyncState: TraversalExecutionState<GraphWalkInspection> =
+  walkingAsync;
+const walkKind: 'graph-walk' = detailedWalk.inspect().kind;
+const graphMode: 'graph' = detailedAsyncWalk.inspect().sourceMode;
+const commonKind: string = commonWalk.inspect().kind;
+const syncWalkRun: typeof commonWalk = commonWalk.run({
+  emitPhases: [WALK.EDGE],
+});
+const asyncWalkRun: Promise<typeof commonAsyncWalk> = commonAsyncWalk.run({
+  emitPhases: [WALK.VERTEX],
+});
+const syncWalkReturn: IteratorResult<WalkEvent, void> = detailedWalk
+  .getIterable()
+  .return(undefined);
+const asyncWalkReturn: Promise<IteratorResult<WalkEvent, void>> =
+  detailedAsyncWalk.getIterable().return(undefined);
+for (const execution of [
+  syncConcrete,
+  concrete,
+  breadth,
+  asyncBreadth,
+  dag,
+  asyncDag,
+  walkingSync,
+  walkingAsync,
+])
+  paused(execution);
+// @ts-expect-error Default state inspection still requires tree/DAG frames.
+const invalidDefaultState: TraversalExecutionState = walkingSync;
+// @ts-expect-error Default async state still requires CoreInspection.
+const invalidAsyncDefaultState: TraversalExecutionState = walkingAsync;
+// @ts-expect-error Two-argument execution defaults have not widened to common inspection.
+const invalidDefaultSync: SyncTraversalExecution<WALK, WalkEvent> = walkingSync;
+// @ts-expect-error The async two-argument default likewise retains CoreInspection.
+const invalidDefaultAsync: AsyncTraversalExecution<WALK, WalkEvent> =
+  walkingAsync;
+// @ts-expect-error The historical interface still promises CoreInspection.
+const invalidHistoricalWalk: AsyncCoreExecution<WalkEvent, WALK> = walkingAsync;
+// @ts-expect-error Walking inspection has no DAG frames.
+detailedWalk.inspect().frames;
+// @ts-expect-error Generalized inspection does not promise walking counters.
+commonAsyncWalk.inspect().counts;
+// @ts-expect-error Generalizing inspection cannot widen the phase domain.
+const unsafeWalk: SyncTraversalExecution<
+  WALK | DAG,
+  WalkEvent,
+  ExecutionInspection
+> = commonWalk;
+// @ts-expect-error Async phase domains also remain contravariant.
+const unsafeAsyncWalk: AsyncTraversalExecution<
+  WALK | DFS,
+  WalkEvent,
+  ExecutionInspection
+> = walkingAsync;
+// @ts-expect-error Family-safe capabilities reject DAG phases.
+commonWalk.run({ emitPhases: [DAG.ON_READY] });
+// @ts-expect-error Async generalized capabilities reject DFS phases.
+commonAsyncWalk.getIterable({ visitorPhases: [DFS.PRE_ORDER] });
+void [
+  oldAsyncShape,
+  oldState,
+  oldAsyncState,
+  detailedState,
+  detailedAsyncState,
+  walkKind,
+  graphMode,
+  commonKind,
+  syncWalkRun,
+  asyncWalkRun,
+  syncWalkReturn,
+  asyncWalkReturn,
+  invalidDefaultState,
+  invalidAsyncDefaultState,
+  invalidDefaultSync,
+  invalidDefaultAsync,
+  invalidHistoricalWalk,
+  unsafeWalk,
+  unsafeAsyncWalk,
+];

@@ -16,3 +16,5 @@ export type { GraphWalkInspection } from './lib/GraphWalkInspection';
 export { walkSourceFrom, walkSourceFromAsync } from './walkSourceFrom';
 export { walkSourceFromDag } from './walkSourceFromDag';
 export type { GraphWalkDagRelation } from './walkSourceFromDag';
+export { walkGraph } from './walkGraph';
+export { walkGraphAsync } from './walkGraphAsync';

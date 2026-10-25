@@ -476,6 +476,7 @@ try {
     'dag-inspection',
     'dag-fragments',
     'dag-revisions',
+    'graph-walk',
   ];
   for (const name of typeFixtures) {
     for (const extension of ['ts', 'cts', 'mts']) {
@@ -492,6 +493,7 @@ try {
     'dag-inspection.mjs',
     'dag-fragments.mjs',
     'dag-revisions.mjs',
+    'graph-walk.mjs',
   ]) {
     fs.copyFileSync(
       path.join(root, 'scripts/package-consumers', file),
@@ -658,6 +660,8 @@ try {
     'dist/traversals/breadth-first-traversal/index.d.ts',
     'dist/traversals/dag-traversal/index.js',
     'dist/traversals/dag-traversal/index.d.ts',
+    'dist/traversals/graph-walk/index.js',
+    'dist/traversals/graph-walk/index.d.ts',
     'dist/traversals/dag-traversal/lib/DagTraversalRunner.js',
     'dist/traversals/dag-traversal/lib/DagTraversalRunner.d.ts',
     'dist/traversable-tree-implementations/traversable-object-tree/index.js',
