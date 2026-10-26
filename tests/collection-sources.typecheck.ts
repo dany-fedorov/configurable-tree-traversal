@@ -13,7 +13,7 @@ type Item = { id: number; children: Item[]; dependencies: number[] };
 const items: Item[] = [];
 const source = graphFrom(items, {
   id: (item) => item.id,
-  dependencies: (item) => item.dependencies,
+  dependsOn: (item) => item.dependencies,
   children: (item) => item.children.map((child) => child.id),
 });
 const typedSource: CollectionSource<Item, number> = source;
@@ -65,7 +65,7 @@ void exactAsyncEvents;
 graphFrom(items, {
   id: (item) => item.id,
   // @ts-expect-error Synchronous selectors cannot return promises.
-  dependencies: async (item) => item.dependencies,
+  dependsOn: async (item) => item.dependencies,
 });
 // @ts-expect-error Graph children are IDs, not records.
 graphFrom(items, { id: (item) => item.id, children: (item) => item.children });
@@ -75,10 +75,60 @@ forestFrom(items, {
   children: (item) => item.dependencies,
 });
 // @ts-expect-error IDs and prerequisites must agree.
-graphFrom(items, { id: (item) => item.id, dependencies: () => ['bad'] });
+graphFrom(items, { id: (item) => item.id, dependsOn: () => ['bad'] });
 graphFromAsync(items, {
   // @ts-expect-error Async IDs and prerequisites must agree.
   id: async (item) => item.id,
-  dependencies: async () => ['bad'],
+  dependsOn: async () => ['bad'],
 });
 void [typedSource, forest, asyncSource, asyncForest];
+
+const canonicalSelectors = {
+  id: (item: Item) => item.id,
+  dependsOn: (item: Item) => item.dependencies,
+  dependsOnComplete: (item: Item) => item.dependencies,
+};
+graphFrom(items, canonicalSelectors);
+forestFrom(items, canonicalSelectors);
+graphFromAsync(items, canonicalSelectors);
+forestFromAsync(items, canonicalSelectors);
+graphFrom(items, {
+  id: (item) => item.id,
+  // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
+  dependencies: undefined,
+});
+graphFrom(items, {
+  id: (item) => item.id,
+  // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
+  completionDependencies: undefined,
+});
+forestFrom(items, {
+  id: (item) => item.id,
+  // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
+  dependencies: undefined,
+});
+forestFrom(items, {
+  id: (item) => item.id,
+  // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
+  completionDependencies: undefined,
+});
+graphFromAsync(items, {
+  id: (item) => item.id,
+  // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
+  dependencies: undefined,
+});
+graphFromAsync(items, {
+  id: (item) => item.id,
+  // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
+  completionDependencies: undefined,
+});
+forestFromAsync(items, {
+  id: (item) => item.id,
+  // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
+  dependencies: undefined,
+});
+forestFromAsync(items, {
+  id: (item) => item.id,
+  // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
+  completionDependencies: undefined,
+});

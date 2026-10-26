@@ -208,12 +208,12 @@ All four source helpers return ordinary `{ traversableGraph, syntheticRoot: true
 
 | Helper | Input and selectors | Membership and identity |
 | --- | --- | --- |
-| `graphFrom(items, selectors)` | Iterable items; required `id(item)`; optional `children(item)`, `dependencies(item)`, `completionDependencies(item)` return iterable IDs | Every item is catalogued, including disconnected entries. Any duplicate ID rejects, even the same record twice. Structural child IDs must exist in the catalog. |
+| `graphFrom(items, selectors)` | Iterable items; required `id(item)`; optional `children(item)`, `dependsOn(item)`, `dependsOnComplete(item)` return iterable IDs | Every item is catalogued, including disconnected entries. Any duplicate ID rejects, even the same record twice. Structural child IDs must exist in the catalog. |
 | `forestFrom(roots, selectors)` | Iterable root items; same selectors, but `children(item)` returns iterable items | Expands iteratively. The same record can appear under multiple parents; different records with the same ID reject. |
 | `graphFromAsync(items, selectors)` | Iterable/async-iterable items; value-or-promise selectors, with iterable/async-iterable edge results | Awaits materialization, then returns a synchronous source with the same graph rules. |
 | `forestFromAsync(roots, selectors)` | Iterable/async-iterable roots; value-or-promise selectors; children yield records | Awaits materialization with the same forest sharing rules. |
 
-Absent edge selectors mean empty lists. Structural child edges and work/completion dependency edges remain distinct. Missing prerequisite IDs are left to the existing validator; structural cycles throw `DagDiscoveryCycleError` during DAG discovery. The synthetic holder is hidden from public vertices, events, callbacks, and parent queries.
+Absent edge selectors mean empty lists. All four adapters reject the retired selector keys `dependencies` and `completionDependencies` with `TypeError`, even when inherited or present with `undefined`, before reading the input or invoking selectors. Use `dependsOn` and `dependsOnComplete` so a stale selector cannot silently drop dependency edges. Caller task-data properties may still use any names, including `dependencies`. Structural child edges and work/completion dependency edges remain distinct. Missing prerequisite IDs are left to the existing validator; structural cycles throw `DagDiscoveryCycleError` during DAG discovery. The synthetic holder is hidden from public vertices, events, callbacks, and parent queries.
 
 Materialization copies collection membership and edge arrays once. Later edits to caller arrays do not change topology; item data and opaque IDs remain shared shallow values and are never frozen. SameValueZero IDs, including `undefined`, `null`, `NaN`, symbols, and objects, retain their identity. Selector errors and async rejections propagate unchanged. See the [quickstart](../README.md#quickstart-find-the-next-agent-tasks) for a complete flat catalog.
 
@@ -221,7 +221,7 @@ Dependency vocabulary describes the same two milestone relations across layers:
 
 | Layer | Wait for work (W) | Wait for completion (C) |
 | --- | --- | --- |
-| Collection selectors | `dependencies` | `completionDependencies` |
+| Collection selectors | `dependsOn` | `dependsOnComplete` |
 | Sources and definitions | `dependsOn` | `dependsOnComplete` |
 | Milestone queries | `milestone: 'work'` | `milestone: 'completion'` |
 | Walking relation selections and definition diffs | `workDependencies` | `completionDependencies` |

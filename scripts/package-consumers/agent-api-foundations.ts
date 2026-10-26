@@ -49,7 +49,7 @@ type T = TreeTypeParameters<Item, ID>;
 declare const items: readonly Item[];
 const source = graphFrom(items, {
   id: (item) => item.id,
-  dependencies: (item) => item.requires,
+  dependsOn: (item) => item.requires,
 });
 const sourceIdentity: CollectionSource<Item, ID> = source;
 const subpathIdentity: SubpathSource<Item, ID> = sourceIdentity;
@@ -62,7 +62,7 @@ const forest: CollectionSource<Item, ID> = forestFrom(items, {
 });
 const asyncSource: Promise<CollectionSource<Item, ID>> = graphFromAsync(items, {
   id: async (item) => item.id,
-  dependencies: async (item) => item.requires,
+  dependsOn: async (item) => item.requires,
 });
 const asyncForest: Promise<CollectionSource<Item, ID>> = forestFromAsync(
   items,

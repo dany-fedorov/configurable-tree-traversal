@@ -17,7 +17,7 @@ const records: { id: ID; work: ID[] }[] = [
 ];
 const source = graphFrom(records, {
   id: (v) => v.id,
-  dependencies: (v) => v.work,
+  dependsOn: (v) => v.work,
 });
 const inspections: DagInspection<ID>[] = [
   inspectDag(new DagTraversal(source).makeRunner()),

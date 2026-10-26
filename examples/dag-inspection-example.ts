@@ -12,7 +12,7 @@ const runner = new DagTraversal({
     {
       id: (item) => item.id,
       children: (item) => item.children,
-      completionDependencies: (item) => item.complete,
+      dependsOnComplete: (item) => item.complete,
     },
   ),
   completedWork: new Set(['bundle']),

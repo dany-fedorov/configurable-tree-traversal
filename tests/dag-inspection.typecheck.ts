@@ -21,7 +21,7 @@ const records: Array<{ id: ID; work: ID[] }> = [
 ];
 const source = graphFrom(records, {
   id: (item) => item.id,
-  dependencies: (item) => item.work,
+  dependsOn: (item) => item.work,
 });
 const sync = new DagTraversal(source).makeRunner();
 const asyncRunner = new AsyncDagTraversal(source).makeRunner();

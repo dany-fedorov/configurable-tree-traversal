@@ -64,7 +64,7 @@ for (const api of [cjs, esm]) {
       selections++;
       return item.id;
     },
-    dependencies: (item) => item.requires,
+    dependsOn: (item) => item.requires,
   });
   let lookups = 0;
   const countedSource = {
@@ -272,7 +272,7 @@ for (const api of [esm, cjs]) {
     const invalid = await prepare(
       api.graphFrom([{ id: 'b', deps: ['missing'] }], {
         id: (item) => item.id,
-        dependencies: (item) => item.deps,
+        dependsOn: (item) => item.deps,
       }),
     );
     assert.equal(invalid.kind, 'invalid');

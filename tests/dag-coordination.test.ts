@@ -291,7 +291,7 @@ for (const async of [false, true]) {
           { id: 'a', dependencies: [] as string[] },
           { id: 'b', dependencies: ['a'] },
         ],
-        { id: (item) => item.id, dependencies: (item) => item.dependencies },
+        { id: (item) => item.id, dependsOn: (item) => item.dependencies },
       ),
     );
     if (result.kind !== 'valid') throw Error('Expected prepared DAG');

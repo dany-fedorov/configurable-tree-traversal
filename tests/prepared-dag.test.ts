@@ -250,7 +250,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
 
   test(`${prepare.name} returns missing prerequisites as milestone issues`, async () => {
     const missing = await prepare<TreeTypeParameters<string, string>, string>(
-      graphFrom(['a'], { id: (id) => id, dependencies: () => ['absent'] }),
+      graphFrom(['a'], { id: (id) => id, dependsOn: () => ['absent'] }),
     );
     expect(missing).toMatchObject({
       kind: 'invalid',
@@ -268,7 +268,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     const cycle = await prepare<TreeTypeParameters<string, string>, string>(
       graphFrom(['a', 'b'], {
         id: (id) => id,
-        dependencies: (id) => [id === 'a' ? 'b' : 'a'],
+        dependsOn: (id) => [id === 'a' ? 'b' : 'a'],
       }),
     );
     expect(cycle).toMatchObject({
@@ -418,7 +418,7 @@ test('prepared forest completion joins retain structural sharing and order', () 
     forestFrom(roots, {
       id: (item) => item.id,
       children: (item) => item.children,
-      completionDependencies: (item) => item.after ?? [],
+      dependsOnComplete: (item) => item.after ?? [],
     }),
   );
   if (result.kind !== 'valid') throw new Error('Expected valid');

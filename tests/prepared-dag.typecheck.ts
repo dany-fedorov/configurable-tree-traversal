@@ -13,7 +13,7 @@ const source = graphFrom<Task, ID>(
   [{ id: 'research', title: 'Read', requires: [] }],
   {
     id: (item) => item.id,
-    dependencies: (item) => item.requires,
+    dependsOn: (item) => item.requires,
   },
 );
 const prepared = prepareDag(source);

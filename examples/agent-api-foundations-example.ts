@@ -26,7 +26,7 @@ function work(
 async function main(): Promise<void> {
   const source = graphFrom(tasks, {
     id: (task) => task.id,
-    dependencies: (task) => task.requires,
+    dependsOn: (task) => task.requires,
   });
   let sourceCalls = 0;
   const prepared = prepareDag({

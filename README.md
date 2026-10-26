@@ -50,7 +50,7 @@ const tasks = [
 ];
 const prepared = prepareDag(graphFrom(tasks, {
   id: task => task.id,
-  dependencies: task => task.requires,
+  dependsOn: task => task.requires,
 }));
 if (prepared.kind === 'invalid') throw new Error('Invalid dependency constraints');
 

@@ -23,8 +23,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ...graphFrom(records, {
         id: (item) => item.id,
         children: (item) => item.children,
-        dependencies: (item) => item.work,
-        completionDependencies: (item) => item.complete,
+        dependsOn: (item) => item.work,
+        dependsOnComplete: (item) => item.complete,
       }),
       completedWork: new Set(['bundle']),
       workCompletion: 'externalSettlement',
@@ -46,8 +46,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor({
       ...graphFrom(records, {
         id: (item) => item.id,
-        dependencies: (item) => item.work,
-        completionDependencies: (item) => item.complete,
+        dependsOn: (item) => item.work,
+        dependsOnComplete: (item) => item.complete,
       }),
       workCompletion: 'externalSettlement',
     }).makeRunner();
@@ -337,8 +337,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ...graphFrom(records, {
         id: (item) => item.id,
         children: (item) => item.children,
-        dependencies: (item) => item.work,
-        completionDependencies: (item) => item.complete,
+        dependsOn: (item) => item.work,
+        dependsOnComplete: (item) => item.complete,
       }),
       workCompletion: 'externalSettlement',
     }).makeRunner();
@@ -449,7 +449,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor({
       ...graphFrom(records, {
         id: (item) => item.id,
-        dependencies: (item) => item.work,
+        dependsOn: (item) => item.work,
       }),
       workCompletion: 'externalSettlement',
     }).makeRunner();
@@ -516,7 +516,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           { id: 'a', work: ['b'] },
           { id: 'b', work: ['a'] },
         ],
-        { id: (item) => item.id, dependencies: (item) => item.work },
+        { id: (item) => item.id, dependsOn: (item) => item.work },
       ),
     ).makeRunner();
     await expect((async () => runner.prepare())()).rejects.toBeInstanceOf(
@@ -858,7 +858,7 @@ test('transitive navigation uses an iterative walk on deep prerequisite chains',
   const runner = new DagTraversal({
     ...graphFrom(records, {
       id: (item) => item.id,
-      dependencies: (item) => item.work,
+      dependsOn: (item) => item.work,
     }),
     completedWork: new Set(records.map(({ id }) => id)),
   }).makeRunner();

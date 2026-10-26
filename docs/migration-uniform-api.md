@@ -12,11 +12,13 @@ These additions compose with existing DAG constructors and runners; custom adapt
 
 | Existing integration | Optional simpler surface |
 | --- | --- |
-| Hand-built synthetic catalog holder with `makeRoot` / `makeVertex` | `graphFrom(items, { id, dependencies, children?, completionDependencies? })`; use `forestFrom` when children are records |
+| Hand-built synthetic catalog holder with `makeRoot` / `makeVertex` | `graphFrom(items, { id, dependsOn?, children?, dependsOnComplete? })`; use `forestFrom` when children are records |
 | Re-discovering the same source for each runner | `prepareDag(source)` / `await prepareDagAsync(source)` once, then independent `dag.createRunner()` or `await dag.createAsyncRunner()` |
 | External runner plus captured `{ vertexId, generation }` | `coordinateDag(runner)` / `coordinateDagAsync(runner)`, or prepared `createSession()` / `await createAsyncSession()` |
 | `run()` → summary frontier → `settle()` → `run()` | `advance()` → frontier ticket → `complete(ticket)` → `advance()` |
 | Callback-local data filtering | `filterDagVisitor(guard, (data, context) => ...)` or `filterAsyncDagVisitor`; the callback receives narrowed data |
+
+The unreleased collection selector names `dependencies` and `completionDependencies` are replaced by `dependsOn` and `dependsOnComplete`. All four adapters throw `TypeError` for the retired keys before input/selector callbacks, including inherited keys and keys present with `undefined`, to prevent silently dropping dependency edges. Task-data properties, diagnostic fields, walking relation selections and definition-diff aspects retain their names.
 
 Collection adapters copy membership and edge lists while retaining shallow item/ID identity. Async source helpers materialize iterable/async-iterable inputs and selectors into ordinary synchronous sources. `graphFrom` children are catalog IDs; `forestFrom` children are records, with shared references allowed. Missing child IDs and conflicting record identities reject.
 

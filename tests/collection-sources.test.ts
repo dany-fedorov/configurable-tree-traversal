@@ -1,3 +1,4 @@
+import type { CollectionSource } from '../src/sources';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagTraversalOrder } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
@@ -16,7 +17,7 @@ test('a flat diamond discovers all records and releases dependencies after settl
       { id: 'c', requires: ['a'] },
       { id: 'd', requires: ['b', 'c'] },
     ],
-    { id: (task) => task.id, dependencies: (task) => task.requires },
+    { id: (task) => task.id, dependsOn: (task) => task.requires },
   );
   const runner = new DagTraversal({
     ...source,
@@ -97,8 +98,8 @@ test('materialization copies membership, children, and both milestone edges', as
         return item.id;
       },
       children: (item: typeof items[number]) => item.children,
-      dependencies: (item: typeof items[number]) => item.dependencies,
-      completionDependencies: (item: typeof items[number]) => item.completion,
+      dependsOn: (item: typeof items[number]) => item.dependencies,
+      dependsOnComplete: (item: typeof items[number]) => item.completion,
     };
     const source = asyncSource
       ? await graphFromAsync(items, selectors)
@@ -187,7 +188,7 @@ test('missing structural children reject during catalog materialization', async 
 test('unknown prerequisites remain engine validation errors while known lookup is tagged found', () => {
   const source = graphFrom(['a'], {
     id: (item) => item,
-    dependencies: () => ['missing'],
+    dependsOn: () => ['missing'],
   });
   expect(source.traversableGraph.resolvePrerequisite!('a')).toMatchObject({
     kind: 'found',
@@ -223,8 +224,8 @@ test('async catalogs and promised iterable selectors preserve completion and str
   const source = await graphFromAsync(catalog(), {
     id: async (item) => item.id,
     children: (item) => children(item.id),
-    dependencies: async () => [],
-    completionDependencies: async () => [],
+    dependsOn: async () => [],
+    dependsOnComplete: async () => [],
   });
   const runner = new AsyncDagTraversal(source).makeRunner();
   await runner.run();
@@ -246,8 +247,8 @@ test('forest async selectors and input materialize once, preserving milestone de
   const selectors = {
     id: (item: typeof root) => item.id,
     children,
-    dependencies: async (item: typeof root) => (item === leaf ? ['root'] : []),
-    completionDependencies: async () => [],
+    dependsOn: async (item: typeof root) => (item === leaf ? ['root'] : []),
+    dependsOnComplete: async () => [],
   };
   const source = await forestFromAsync(roots(), selectors);
   const runner = new DagTraversal({
@@ -270,8 +271,8 @@ test('forest copies child records and completion constraints before caller mutat
     const selectors = {
       id: (item: Item) => item.id,
       children: (item: Item) => item.children,
-      dependencies: () => [],
-      completionDependencies: (item: Item) => item.after,
+      dependsOn: () => [],
+      dependsOnComplete: (item: Item) => item.after,
     };
     const source = asyncSource
       ? await forestFromAsync(roots, selectors)
@@ -326,8 +327,8 @@ test('forest materialization is iterative for deep input and leaves cycle valida
   const selectors = {
     id: (item: Item) => item.id,
     children: (item: Item) => item.children,
-    dependencies: () => [],
-    completionDependencies: () => [],
+    dependsOn: () => [],
+    dependsOnComplete: () => [],
   };
   expect(() => forestFrom([root], selectors)).not.toThrow();
   const cycle: Item = { id: 0, children: [] };
@@ -409,3 +410,191 @@ test('forest expansion shares records across parents', async () => {
     expect(graph.getParentsOf(graph.getVertexRefById('a')!)).toEqual([]);
   }
 });
+
+type MilestoneItem = {
+  id: string;
+  children: MilestoneItem[];
+  dependencies: string[];
+  completionDependencies: string[];
+};
+type MilestoneSelectors = {
+  id(item: MilestoneItem): string;
+  dependsOn(item: MilestoneItem): string[];
+  dependsOnComplete(item: MilestoneItem): string[];
+};
+
+test.each([
+  [
+    'graphFrom',
+    (
+      items: MilestoneItem[],
+      selectors: MilestoneSelectors,
+    ): CollectionSource<MilestoneItem, string> =>
+      graphFrom(items, {
+        ...selectors,
+        children: (item) => item.children.map((child) => child.id),
+      }),
+  ],
+  [
+    'graphFromAsync',
+    (
+      items: MilestoneItem[],
+      selectors: MilestoneSelectors,
+    ): Promise<CollectionSource<MilestoneItem, string>> =>
+      graphFromAsync(items, {
+        ...selectors,
+        children: async (item) => item.children.map((child) => child.id),
+      }),
+  ],
+  [
+    'forestFrom',
+    (
+      items: MilestoneItem[],
+      selectors: MilestoneSelectors,
+    ): CollectionSource<MilestoneItem, string> =>
+      forestFrom(items, { ...selectors, children: (item) => item.children }),
+  ],
+  [
+    'forestFromAsync',
+    (
+      items: MilestoneItem[],
+      selectors: MilestoneSelectors,
+    ): Promise<CollectionSource<MilestoneItem, string>> =>
+      forestFromAsync(items, {
+        ...selectors,
+        children: async (item) => item.children,
+      }),
+  ],
+] as const)(
+  '%s canonical selectors distinguish work from subgraph completion',
+  async (_name, make) => {
+    const child: MilestoneItem = {
+      id: 'child',
+      children: [],
+      dependencies: [],
+      completionDependencies: [],
+    };
+    const group: MilestoneItem = {
+      id: 'group',
+      children: [child],
+      dependencies: [],
+      completionDependencies: [],
+    };
+    const items: MilestoneItem[] = [
+      {
+        id: 'afterComplete',
+        children: [],
+        dependencies: [],
+        completionDependencies: ['group'],
+      },
+      {
+        id: 'afterWork',
+        children: [],
+        dependencies: ['group'],
+        completionDependencies: [],
+      },
+      group,
+    ];
+    const source = await make([...items, child], {
+      id: (item) => item.id,
+      dependsOn: (item) => item.dependencies,
+      dependsOnComplete: (item) => item.completionDependencies,
+    });
+    const runner = new DagTraversal({
+      ...source,
+      workCompletion: 'externalSettlement',
+    }).makeRunner();
+    runner.run();
+    expect(
+      runner
+        .summary()
+        .deferredFrontier.map((work) => work.vertexId)
+        .sort(),
+    ).toEqual(['child', 'group']);
+    runner.settle(
+      'group',
+      { ok: true },
+      runner.summary().vertices.get('group')!.generation!,
+    );
+    runner.run();
+    expect(
+      runner
+        .summary()
+        .deferredFrontier.map((work) => work.vertexId)
+        .sort(),
+    ).toEqual(['afterWork', 'child']);
+    runner.settle(
+      'child',
+      { ok: true },
+      runner.summary().vertices.get('child')!.generation!,
+    );
+    runner.run();
+    expect(
+      runner
+        .summary()
+        .deferredFrontier.map((work) => work.vertexId)
+        .sort(),
+    ).toEqual(['afterComplete', 'afterWork']);
+  },
+);
+
+for (const [name, make] of [
+  ['graphFrom', graphFrom],
+  ['forestFrom', forestFrom],
+  ['graphFromAsync', graphFromAsync],
+  ['forestFromAsync', forestFromAsync],
+] as const) {
+  for (const key of ['dependencies', 'completionDependencies']) {
+    for (const inherited of [false, true]) {
+      for (const presentUndefined of [false, true]) {
+        test.each([false, true])(
+          `${name} rejects ${inherited ? 'inherited' : 'own'} ${key}=${
+            presentUndefined ? 'undefined' : 'callback'
+          } before callbacks (empty=%s)`,
+          async (empty) => {
+            const calls: string[] = [];
+            const retired = {
+              [key]: presentUndefined
+                ? undefined
+                : () => {
+                    calls.push('retired');
+                    return [];
+                  },
+            };
+            const selectors = Object.assign(
+              inherited ? Object.create(retired) : retired,
+              {
+                id: () => {
+                  calls.push('id');
+                  return 'a';
+                },
+                children: () => {
+                  calls.push('children');
+                  return [];
+                },
+                dependsOn: () => {
+                  calls.push('dependsOn');
+                  return [];
+                },
+                dependsOnComplete: () => {
+                  calls.push('dependsOnComplete');
+                  return [];
+                },
+              },
+            );
+            const items = {
+              *[Symbol.iterator]() {
+                calls.push('catalog');
+                if (!empty) yield 'a';
+              },
+            };
+            await expect(
+              Promise.resolve().then(() => make(items, selectors)),
+            ).rejects.toThrow(TypeError);
+            expect(calls).toEqual([]);
+          },
+        );
+      }
+    }
+  }
+}
