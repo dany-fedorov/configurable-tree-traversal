@@ -289,7 +289,7 @@ Call sync `runner.prepare()` or await async `runner.prepare()` to preview the fu
 
 After `run()`, replace `deferredWorkIds` plus optional generation lookups with `summary().awaitingSettlement`: detached readonly `{ vertexId, generation }` records guarantee atomic live generations. Claim/dispatch in the host, retain the record with the attempt, validate and durably accept the result, then `settle(record.vertexId, outcome, record.generation)` and run again. The frontier is observational; `readyOrDeferredIds` includes ready and deferred work, excluding visiting and completed work. `deferredWorkIds` retains accepted outcomes only while W remains uncommitted; `awaitingSettlement` excludes every accepted outcome. Counts overlap. `activeVisitorVertexIds` tracks visitor chains, including completion chains, and the work state is `visiting`.
 
-DAG events add committed `kind: 'workCompleted'` / `'subgraphCompleted'` with no callback phase metadata. Select emitted kinds with `emitEvents` and readiness callbacks with `visitorPhases`; event ordering and commit timing are unchanged. ON_WORK_READY visitors remain pre-work; deferred ON_WORK_READY events follow settlement. Seeds emit no synthetic work event. Dispatch from the frontier rather than completion events.
+DAG events add committed `kind: 'workCompleted'` / `'subgraphCompleted'` with no callback phase metadata. Select emitted kinds with `emitEvents` and readiness callbacks with `visitorPhases`; event ordering and commit timing are unchanged. ON_WORK_READY visitors remain pre-work; deferred `workCompleted` events follow successful settlement. Seeds emit no synthetic work event. Dispatch from the frontier rather than completion events.
 
 ## Family-safe execution and cooperative pause
 

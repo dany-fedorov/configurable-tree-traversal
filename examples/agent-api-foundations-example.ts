@@ -72,7 +72,7 @@ async function main(): Promise<void> {
   assert.throws(() => session.completeWork(research), TypeError);
 
   // Dispatch only these frontier tickets through host claims/capacity.
-  // ON_WORK_READY workCompleted events observe accepted work after settlement.
+  // workCompleted observations follow successful settlement.
   // Validate results before reporting them to the session.
   for (const ticket of candidates) {
     accepted.add(ticket.vertexId); // Persist acceptance before completing locally.
