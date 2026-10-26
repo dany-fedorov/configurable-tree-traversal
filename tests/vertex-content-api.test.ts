@@ -162,7 +162,10 @@ describe('canonical vertex content', () => {
       const childId = Symbol('child');
       const runner = new Traversal({
         traversableGraph: {
-          makeRoot: () => ({ vertexId: rootId, ...source.makeRoot() }),
+          makeRoot: () => ({
+            vertexId: rootId,
+            vertexContent: { $data: 'root', $childHints: ['child'] },
+          }),
           makeVertex: (hint) => ({
             vertexId: childId,
             vertexContent: { $data: hint, $childHints: [] },

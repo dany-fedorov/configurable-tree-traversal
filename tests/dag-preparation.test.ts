@@ -83,8 +83,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             calls.push('root');
             return empty
               ? {
-                  kind: 'omitted' as const,
-                  satisfiesDependencies: true as const,
+                  vertexContent: null,
                 }
               : { vertexContent: { $data: 'root', $childHints: ['child'] } };
           },

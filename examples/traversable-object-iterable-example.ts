@@ -43,7 +43,7 @@ const obj = {
 const traversableTree = new TraversableObjectTree(obj, {
   resolveVertexHook: (vertexHint) => {
     if (vertexHint.value === null) {
-      return { kind: 'omitted', satisfiesDependencies: true };
+      return { kind: 'omitted' };
     }
     return { kind: 'useDefault' };
   },

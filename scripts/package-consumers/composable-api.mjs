@@ -44,7 +44,7 @@ for (const api of [cjs, esm]) {
   });
   const tree = {
     makeRoot: () => ({ vertexContent: { $data: 'root', $childHints: [] } }),
-    makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+    makeVertex: () => ({ kind: 'omitted' }),
   };
   // Both helpers reject presence before any source/rewrite/conversion callback.
   for (const helper of [api.rewriteObject.rewriteObject, api.rewriteObjectAs]) {

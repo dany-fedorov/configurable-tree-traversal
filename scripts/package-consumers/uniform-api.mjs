@@ -40,10 +40,7 @@ for (const [api, other] of [
   });
   const tree = {
     makeRoot: () => treeFound('root', ['leaf', 'skip']),
-    makeVertex: (id) =>
-      id === 'skip'
-        ? { kind: 'omitted', satisfiesDependencies: true }
-        : treeFound(id),
+    makeVertex: (id) => (id === 'skip' ? { kind: 'omitted' } : treeFound(id)),
   };
   const graphTree = {
     makeRoot: () => found('root', ['leaf']),
@@ -393,9 +390,7 @@ for (const [api, other] of [
   for (const hook of [
     {
       resolveVertexHook: (hint) =>
-        hint.key === 'skip'
-          ? { kind: 'omitted', satisfiesDependencies: true }
-          : { kind: 'useDefault' },
+        hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
     },
     {
       makeVertexHook: (hint) => (hint.key === 'skip' ? { returnMe: null } : {}),
@@ -421,7 +416,12 @@ for (const [api, other] of [
       ),
     TypeError,
   );
-  for (const field of ['vertexId', 'dependsOn', 'dependsOnComplete']) {
+  for (const field of [
+    'vertexId',
+    'dependsOn',
+    'dependsOnComplete',
+    'satisfiesDependencies',
+  ]) {
     assert.throws(
       () =>
         api.traverseDepthFirst({

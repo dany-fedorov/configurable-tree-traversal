@@ -159,6 +159,8 @@ The boolean settlement forms remain deprecated inputs; the old progress string i
 
 ## Source resolution
 
+The table below applies to graph sources and prerequisite lookup. Tree sources use `{ kind: 'omitted' }` without a milestone acknowledgement, including when a DAG runner consumes a tree adapter. Tree callbacks and object hooks reject `satisfiesDependencies`, even an own field set to undefined; graph/prerequisite omissions require literal `true`, never false or undefined. Published untagged `{ vertexContent: null }` inputs remain compatible.
+
 | Deprecated source result                                       | Canonical source result                                                                   |
 | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `{ vertexContent, vertexId?, dependsOn?, dependsOnComplete? }` | `{ kind: 'found', vertex: { vertexContent, vertexId?, dependsOn?, dependsOnComplete? } }` |
@@ -188,7 +190,7 @@ function resolvePrerequisite(id: unknown): PrerequisiteResolutionResult<Tasks> {
 }
 ```
 
-Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Graph roots/hints accept `SourceVertexResult`; prerequisite lookup accepts `PrerequisiteResolutionResult`, including `MissingVertexResult`. Tree adapters instead use `MakeTreeVertexResult<T>`, `TreeFoundVertexResult<T>`, `TreeOmittedVertexResult`, and `TreeSourceVertexResult<T>`. Remove tree annotations using graph-capable result types (or infer them). Tree callbacks reject `vertexId`, `dependsOn`, and `dependsOnComplete`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Async adapters accept value-or-promise equivalents.
+Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Graph roots/hints accept `SourceVertexResult`; prerequisite lookup accepts `PrerequisiteResolutionResult`, including `MissingVertexResult`. Tree adapters instead use `MakeTreeVertexResult<T>`, `TreeFoundVertexResult<T>`, `TreeOmittedVertexResult`, and `TreeSourceVertexResult<T>`. Remove tree annotations using graph-capable result types (or infer them). Tree callbacks reject `vertexId`, `dependsOn`, `dependsOnComplete`, and `satisfiesDependencies`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Async adapters accept value-or-promise equivalents.
 
 ## Child hint command
 
@@ -253,7 +255,7 @@ Statuses remain compatible. `getStopReason()` and inspection `stopReason` return
 
 Generic `MakeMutationCommandFunction<Output, RewriteInput = Output['VertexData']>` requires full replacement by default; name an explicit rewrite-input parameter for custom adapters. Object helpers use `TO_MutationPropertyPatch<Output>` (`Partial<Output['VertexData']>`), supporting typed key-only/value-only patches. Incorrect key/value types and incomplete generic replacements now fail compilation. Omit `rewrite` for no patch; present null/undefined/primitive rewrites throw TypeError. `{ rewrite: { value: undefined } }` sets undefined when allowed by the output type. Assembler errors retain exact identity.
 
-Use `resolveVertexHook` in object adapters and `rewriteObject`: return `{ kind: 'useDefault' }`, tagged tree `found` replacement content, or `{ kind: 'omitted', satisfiesDependencies: true }`. Null/undefined canonical results and graph metadata reject. The hook applies to child/hint resolution. Deprecated `makeVertexHook`/`returnMe` normalize to the same behavior; two active hooks reject. Undefined hooks and the old null-disabled hook do not conflict. Cycle checks and shallow identities remain unchanged.
+Use `resolveVertexHook` in object adapters and `rewriteObject`: return `{ kind: 'useDefault' }`, tagged tree `found` replacement content, or `{ kind: 'omitted' }`. Null/undefined canonical results and graph metadata reject. The hook applies to child/hint resolution. Deprecated `makeVertexHook`/`returnMe` normalize to the same behavior; two active hooks reject. Undefined hooks and the old null-disabled hook do not conflict. Cycle checks and shallow identities remain unchanged.
 
 ## Safe queries and identity names
 

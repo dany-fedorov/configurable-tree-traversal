@@ -34,7 +34,7 @@ const tree: TraversableTree<Tree> = {
     kind: 'found',
     vertex: { vertexContent: { $data: 'root', $childHints: [] } },
   }),
-  makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+  makeVertex: () => ({ kind: 'omitted' }),
 };
 const dfs = new AsyncDepthFirstTraversal({ traversableTree: tree });
 const concrete = dfs.makeRunner();

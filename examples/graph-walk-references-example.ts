@@ -67,7 +67,7 @@ const tree: TraversableTree<TreeTypeParameters<string, string>> = {
       vertexContent: { $data: 'main.ts', $childHints: [] },
     },
   }),
-  makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+  makeVertex: () => ({ kind: 'omitted' }),
 };
 const treeRunner = new DepthFirstTraversal({
   traversableTree: tree,

@@ -45,7 +45,7 @@ const found: FoundVertexResult<T> = {
   kind: 'found',
   vertex: { vertexId: undefined, vertexContent: canonical },
 };
-const omitted: TreeOmittedVertexResult = {
+const omitted: import('configurable-tree-traversal').OmittedVertexResult = {
   kind: 'omitted',
   satisfiesDependencies: true,
 };
@@ -56,7 +56,7 @@ const lookup: PrerequisiteResolutionResult<T> = missing;
 const invalidSource: SourceVertexResult<T> = missing;
 const tree: TraversableTree<T> = {
   makeRoot: () => ({ kind: 'found', vertex: { vertexContent: canonical } }),
-  makeVertex: () => omitted,
+  makeVertex: () => ({ kind: 'omitted' }),
 };
 const graph: TraversableGraph<T> = {
   makeRoot: () => source,
@@ -220,7 +220,19 @@ const treeFound: TreeFoundVertexResult<T> = {
   kind: 'found',
   vertex: { vertexContent: canonical },
 };
-const treeOmitted: TreeOmittedVertexResult = omitted;
+const treeOmitted: TreeOmittedVertexResult = { kind: 'omitted' };
+// @ts-expect-error Tree omissions cannot acknowledge graph milestones.
+const graphOmissionAsTree: TreeOmittedVertexResult = omitted;
+// @ts-expect-error Graph omissions require explicit acknowledgement.
+const treeOmissionAsGraph: SourceVertexResult<T> = treeOmitted;
+const undefinedAcknowledgement = {
+  kind: 'omitted' as const,
+  satisfiesDependencies: undefined,
+};
+// @ts-expect-error Even present undefined is graph metadata.
+const undefinedOmissionAsTree: TreeOmittedVertexResult =
+  undefinedAcknowledgement;
+void [graphOmissionAsTree, treeOmissionAsGraph, undefinedOmissionAsTree];
 const treeResult: TreeSourceVertexResult<T> = treeFound;
 const oldTreeResult: MakeTreeVertexResult<T> = { vertexContent: canonical };
 // @ts-expect-error tree sources do not accept graph identity

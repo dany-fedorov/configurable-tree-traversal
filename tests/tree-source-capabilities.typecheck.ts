@@ -19,10 +19,7 @@ const found: TreeFoundVertexResult<T> = {
   kind: 'found',
   vertex: { vertexContent: content },
 };
-const omitted: TreeOmittedVertexResult = {
-  kind: 'omitted',
-  satisfiesDependencies: true,
-};
+const omitted: TreeOmittedVertexResult = { kind: 'omitted' };
 const legacy: MakeTreeVertexResult<T> = { vertexContent: null };
 const source: TreeSourceVertexResult<T> = found;
 const tree: TraversableTree<T> = {
@@ -82,7 +79,6 @@ const asyncBadvertexIdfound: AsyncTraversableTree<T> = {
 void [badvertexIdfound, asyncBadvertexIdfound];
 const vertexIdomitted = () => ({
   kind: 'omitted' as const,
-  satisfiesDependencies: true as const,
   vertexId: undefined,
 });
 const badvertexIdomitted: TraversableTree<T> = {
@@ -125,7 +121,6 @@ const asyncBaddependsOnfound: AsyncTraversableTree<T> = {
 void [baddependsOnfound, asyncBaddependsOnfound];
 const dependsOnomitted = () => ({
   kind: 'omitted' as const,
-  satisfiesDependencies: true as const,
   dependsOn: [],
 });
 const baddependsOnomitted: TraversableTree<T> = {
@@ -171,7 +166,6 @@ const asyncBaddependsOnCompletefound: AsyncTraversableTree<T> = {
 void [baddependsOnCompletefound, asyncBaddependsOnCompletefound];
 const dependsOnCompleteomitted = () => ({
   kind: 'omitted' as const,
-  satisfiesDependencies: true as const,
   dependsOnComplete: [],
 });
 const baddependsOnCompleteomitted: TraversableTree<T> = {
@@ -223,3 +217,58 @@ rewriteObject(
   },
 );
 void adapter;
+
+// Tree omission carries no milestone acknowledgement, even on pretyped callbacks.
+for (const satisfiesDependencies of [true, undefined] as const) {
+  const invalidOmission = () => ({
+    kind: 'omitted' as const,
+    satisfiesDependencies,
+  });
+  const invalidTree: TraversableTree<T> = {
+    // @ts-expect-error Trees forbid graph acknowledgement, including present undefined.
+    makeRoot: invalidOmission,
+    makeVertex: () => omitted,
+  };
+  const invalidAsyncTree: AsyncTraversableTree<T> = {
+    // @ts-expect-error Async tree sources enforce the same restriction.
+    makeRoot: async () => invalidOmission(),
+    makeVertex: async () => omitted,
+  };
+  // @ts-expect-error Object hooks are tree sources too.
+  const invalidHook: ObjectVertexHookResult<T> = invalidOmission();
+  void [invalidTree, invalidAsyncTree, invalidHook];
+}
+const plainHook: ObjectVertexHookResult<T> = omitted;
+const plainAsyncTree: AsyncTraversableTree<T> = {
+  makeRoot: async () => omitted,
+  makeVertex: async () => omitted,
+};
+// @ts-expect-error Graph omission requires explicit acknowledgement.
+const invalidGraphOmission: SourceVertexResult<T> = omitted;
+void [plainHook, plainAsyncTree, invalidGraphOmission];
+
+const acknowledgedTreeOmission = () => ({
+  kind: 'omitted' as const,
+  satisfiesDependencies: true as const,
+});
+const undefinedTreeOmission = () => ({
+  kind: 'omitted' as const,
+  satisfiesDependencies: undefined,
+});
+const acknowledgedTree: TraversableTree<T> = {
+  // @ts-expect-error Literal true is forbidden metadata for a tree callback.
+  makeRoot: acknowledgedTreeOmission,
+  makeVertex: () => omitted,
+};
+const undefinedTree: TraversableTree<T> = {
+  // @ts-expect-error Present undefined is forbidden metadata for a tree callback.
+  makeRoot: undefinedTreeOmission,
+  makeVertex: () => omitted,
+};
+const invalidDefaultHook = {
+  kind: 'useDefault' as const,
+  satisfiesDependencies: undefined,
+};
+// @ts-expect-error Default object-hook results also forbid acknowledgement metadata.
+const defaultHook: ObjectVertexHookResult<T> = invalidDefaultHook;
+void [acknowledgedTree, undefinedTree, defaultHook];

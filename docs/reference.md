@@ -735,7 +735,7 @@ Ancestor cycles throw a descriptive error before descent; shared objects in sepa
 
 ## Abstract trees
 
-A tree adapter supplies `makeRoot()` and `makeVertex(hint, options)`. Return `{ kind: 'found', vertex: { vertexContent: { $data: data, $childHints: childHints } } }` for a vertex, or `{ kind: 'omitted', satisfiesDependencies: true }` for an empty tree or skipped child. Annotate tree adapters with `TreeSourceVertexResult<T>` (`TreeFoundVertexResult<T>` / `TreeOmittedVertexResult`), or deprecated untagged `MakeTreeVertexResult<T>` (including null content). Tree results forbid `vertexId`, `dependsOn`, and `dependsOnComplete`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Graph adapters retain `SourceVertexResult<T>`, `FoundVertexResult<T>`, `OmittedVertexResult`, and legacy `MakeVertexResult<T>`; only graph prerequisite lookup accepts `PrerequisiteResolutionResult<T>` / `MissingVertexResult`. Bare `null` is invalid everywhere; bare `undefined` is invalid for root/hint resolution. Graph own `vertexId` presence preserves an explicitly supplied undefined ID.
+A tree adapter supplies `makeRoot()` and `makeVertex(hint, options)`. Return `{ kind: 'found', vertex: { vertexContent: { $data: data, $childHints: childHints } } }` for a vertex, or `{ kind: 'omitted' }` for an empty tree or skipped child. Annotate tree adapters with `TreeSourceVertexResult<T>` (`TreeFoundVertexResult<T>` / `TreeOmittedVertexResult`), or deprecated untagged `MakeTreeVertexResult<T>` (including null content). Tree results forbid `vertexId`, `dependsOn`, `dependsOnComplete`, and `satisfiesDependencies`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. This distinction follows the source: DAG runners consuming a tree adapter also use plain tree omission. Graph omission requires `{ kind: 'omitted', satisfiesDependencies: true }`, acknowledging that omission satisfies both W and C; false or undefined acknowledgements reject. Graph adapters retain `SourceVertexResult<T>`, `FoundVertexResult<T>`, `OmittedVertexResult`, and legacy `MakeVertexResult<T>`; only graph prerequisite lookup accepts `PrerequisiteResolutionResult<T>` / `MissingVertexResult`. Bare `null` is invalid everywhere; bare `undefined` is invalid for root/hint resolution. Graph own `vertexId` presence preserves an explicitly supplied undefined ID.
 
 <!-- standalone -->
 
@@ -1000,7 +1000,7 @@ const tree: TraversableTree<TreeTypeParameters<string, string>> = {
   makeRoot: () => ({ kind: 'found', vertex: {
     vertexContent: { $data: 'root', $childHints: [] },
   } }),
-  makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+  makeVertex: () => ({ kind: 'omitted' }),
 };
 const dfs = new DepthFirstTraversal({ traversableTree: tree }).makeRunner();
 const walk = new GraphWalk({ source: {
@@ -1046,7 +1046,7 @@ The helper owns its source. `traversableTree` is forbidden in inline and pretype
 
 Generic `MakeMutationCommandFunction<Output, RewriteInput = Output['VertexData']>` requires complete replacement data by default. Object helpers explicitly accept `TO_MutationPropertyPatch<Output>` (`Partial<Output['VertexData']>`), so key-only and value-only patches remain typed. Omit `rewrite` for no patch; a present `rewrite: undefined`, null, or primitive throws TypeError before mutation. `{ rewrite: { value: undefined } }` sets an undefined value when the output type permits it. User assembler errors propagate exactly.
 
-`resolveVertexHook(hint, context)` returns `ObjectVertexHookResult<T>`: `{ kind: 'useDefault' }`, tagged tree `found` with replacement content, or `{ kind: 'omitted', satisfiesDependencies: true }`. It applies to child/hint resolution, not the synthetic root. Null/undefined returns and graph metadata reject. Deprecated `makeVertexHook`/`returnMe` remain compatible; two active hooks reject. An undefined canonical/legacy hook or the legacy null-disabled hook does not conflict. Cycle checks and shallow identities remain.
+`resolveVertexHook(hint, context)` returns `ObjectVertexHookResult<T>`: `{ kind: 'useDefault' }`, tagged tree `found` with replacement content, or `{ kind: 'omitted' }`. It applies to child/hint resolution, not the synthetic root. Null/undefined returns and graph metadata reject. Deprecated `makeVertexHook`/`returnMe` remain compatible; two active hooks reject. An undefined canonical/legacy hook or the legacy null-disabled hook does not conflict. Cycle checks and shallow identities remain.
 
 With `saveNotMutatedResolvedTree: true`, visitors can inspect a separate original resolved tree. Its vertex references, child lists, and resolution contexts are independent of command-driven changes. Vertex data is shallowly shared, so direct mutation of user data is not an immutable snapshot. The saved tree contains only vertices actually resolved during traversal. Runner configuration and visitor records are also copied when a runner is made; later builder configuration does not alter that runner.
 
