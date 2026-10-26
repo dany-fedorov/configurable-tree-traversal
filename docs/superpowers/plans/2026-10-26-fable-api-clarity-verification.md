@@ -1,8 +1,8 @@
 # Fable API clarity local verification
 
-Scope: unreleased checkout on `feat/general-graph-walking`, through Task 4. Package version remains **0.11.0**. These are local gates; Task 4 independent review, whole-branch review, required remote CI on the final head, push/PR and merge are **pending controller integration**. No npm publication occurred.
+Scope: unreleased checkout on `feat/general-graph-walking`, through Task 4. Package version remains **0.11.0**. These are local gates from reviewed implementation head `5843577e584e94fb4ae3ee6f2bfdd7d971cdce17`. Task 4 review is **Approved** and whole-branch review found no Critical or Important issues. Two minor reference wording findings were corrected afterward; required remote CI on the corrected head and merge remain pending through [PR 19](https://github.com/dany-fedorov/configurable-tree-traversal/pull/19). No npm publication occurred.
 
-## Exact final tree checks
+## Reviewed implementation checks
 
 | Gate | Command / selection | Result and log |
 | --- | --- | --- |
@@ -14,11 +14,16 @@ Scope: unreleased checkout on `feat/general-graph-walking`, through Task 4. Pack
 | Packed Bun 1.4.4 / TS 4.7.4 | `CTT_TYPESCRIPT_COMPILER=/tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typescript/bin/tsc /tmp/ctt-next-evidence/bun-1.4.4/bun-linux-x64/bun scripts/verify-package.cjs` | Exit 0; `/tmp/ctt-task4-bun-ts47-exact-final.log` |
 | Bun script correctness | `/tmp/ctt-next-evidence/bun-1.4.4/bun-linux-x64/bun test scripts/build-esm.test.cjs scripts/benchmark-dag.test.cjs scripts/benchmark-dag-lifecycle.test.cjs` | Exit 0; 32/32 tests across 3 files; `/tmp/ctt-task4-bun-scripts-exact-final.log` |
 
-The full check built once for the final state. The remaining five package lanes invoked `scripts/verify-package.cjs` directly against that build. Each packed lane verified shared CJS/native ESM runtime identity, strict node/node16 TypeScript `.ts`/`.cts`/`.mts` consumers, guide navigation and all 16 snippets. The first Task 4 full-check attempt failed at a standalone README snippet because `node:assert/strict` types were unavailable in the packed guide fixture (`/tmp/ctt-task4-check.log`); local checks replaced that import, and the exact-final full check and matrix passed. The original Fable review reports remain unchanged; [all 20 dispositions](../reviews/2026-10-26-fable-api-clarity-disposition.md) are recorded separately.
+The full check built once for the reviewed implementation head. The remaining five package lanes invoked `scripts/verify-package.cjs` directly against that build. Each packed lane verified shared CJS/native ESM runtime identity, strict node/node16 TypeScript `.ts`/`.cts`/`.mts` consumers, guide navigation and all 16 snippets. The first Task 4 full-check attempt failed at a standalone README snippet because `node:assert/strict` types were unavailable in the packed guide fixture (`/tmp/ctt-task4-check.log`); local checks replaced that import, and the exact-final full check and matrix passed. The original Fable review reports remain unchanged; [all 20 dispositions](../reviews/2026-10-26-fable-api-clarity-disposition.md) are recorded separately.
 
 ## Review and integration status
 
 - Task 1 (`5fc5f99721acb4c286afe6ae4bb18aebd2036424`): independent task review found spec compliance, quality **Approved**, no findings.
 - Task 2 (`b1d81735f7235880fdcc17534ecc49c73ab0ec9b`): independent task review found spec compliance, quality **Approved**, no findings.
 - Task 3 (`8a7466acef3a05eba10e86d5dc57edf8d139c8f8`): independent task review found spec compliance, quality **Approved**, no findings.
-- Task 4 independent review and whole-branch review: pending controller. Remote CI, merge and verified remote-main integration: pending controller. The original main checkout contains unrelated local drafts and must be preserved.
+- Task 4 independent review: spec compliant, quality **Approved**, no findings. Whole-branch review at `/tmp/ctt-fable-clarity-final-review.md`: no Critical or Important findings, two minor reference wording corrections addressed in the follow-up. Its readiness verdict is subject to remote CI.
+- The source, types, runtime and built package are unchanged by the wording follow-up; the six-lane matrix above remains implementation evidence. The corrected packed guides are checked separately below. [PR 19](https://github.com/dany-fedorov/configurable-tree-traversal/pull/19) is the controller handoff for required remote CI on the submitted head, merge and verified remote-main integration. The original main checkout contains unrelated local drafts and must be preserved.
+
+## Wording follow-up
+
+At `docs/reference.md:116`, the walking commit mode now names `afterEachVisitor`. At the catalog adapter paragraph, the text now states that only `to` and `data` are copied; extra inline hydration fields are ignored and target data comes from the catalog. This follow-up changes documentation only. `node scripts/verify-package.cjs` exited 0 against the unchanged build, checking checkout/tarball guide navigation, 16 standalone snippets and 754 packed files (`/tmp/ctt-task4-review-wording-package.log`). `git diff --check` exited 0, and the diff touched no source, type, runtime, test, example or package files. The earlier full check and six-lane matrix remain evidence for the unchanged implementation; remote CI will run the full check on the submitted head.
