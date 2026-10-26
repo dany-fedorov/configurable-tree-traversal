@@ -101,8 +101,16 @@ function captureSource<Data, Edge, ID>(
   } as NormalizedWalkSource<Data, Edge, ID>;
 }
 
+function assertKnownKeys(value: object, keys: readonly string[]): void {
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string' || !keys.includes(key))
+      throw new TypeError(`Unknown walking option: ${String(key)}`);
+  }
+}
+
 function copyLimits(input: unknown): GraphWalkLimits {
   const value = object(input, 'Walking limits must be an object');
+  assertKnownKeys(value, ['maxDepth', 'maxOccurrences', 'maxSteps']);
   const result: GraphWalkLimits = {};
   for (const key of ['maxDepth', 'maxOccurrences', 'maxSteps'] as const) {
     const bound = value[key];
@@ -130,7 +138,7 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     throw new TypeError('Walking does not support a concurrency option');
   }
   const snapshot: Record<string, unknown> = {};
-  for (const key of [
+  const keys = [
     'source',
     'strategy',
     'revisit',
@@ -143,7 +151,9 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     'visitorPhases',
     'enableVisitorFunctionsFor',
     'disableVisitorFunctionsFor',
-  ]) {
+  ];
+  assertKnownKeys(value, keys);
+  for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(value, key))
       snapshot[key] = value[key];
   }

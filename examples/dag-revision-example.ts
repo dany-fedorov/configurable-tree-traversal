@@ -68,8 +68,15 @@ async function main() {
   assert.equal(old.advance().kind, 'finished');
   // The host independently accepts build's unchanged artifact for the new revision.
   // It deliberately does not carry the old review artifact forward.
+  const acceptedForRevision = ['build'];
+  const knownIds = new Set([
+    ...revised.dag.vertices.map((vertex) => vertex.vertexId),
+    ...revised.dag.definition.omittedIds,
+  ]);
   const next = await revised.dag.createAsyncSession({
-    completedWork: new Set(['build']),
+    completedWork: new Set(
+      acceptedForRevision.filter((id) => knownIds.has(id)),
+    ),
   });
   const nextReview = await next.advance();
   if (nextReview.kind !== 'awaitingSettlement')

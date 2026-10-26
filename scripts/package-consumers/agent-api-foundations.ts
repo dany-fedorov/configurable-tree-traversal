@@ -182,3 +182,18 @@ graphFrom(items, { id: (item) => item.id, children: () => items });
 // @ts-expect-error Preparation cannot accept completed execution facts.
 prepareDag({ ...source, completedWork: new Set<ID>() });
 void [cjsIdentity, factoryIdentity, explicitIdentity, forest, checkAsync];
+
+function inspectSession(session: DagCoordinator<ID> | AsyncDagCoordinator<ID>) {
+  const state: import('configurable-tree-traversal').TraversalExecutionState =
+    session;
+  const inspection: import('configurable-tree-traversal').DagInspection<ID> =
+    session.inspectDag();
+  const fatal: (ticket: DagWorkTicket<ID>, error: unknown) => unknown =
+    session.failTraversal;
+  const ErrorConstructor: typeof cjs.DagDiscoveryCycleError =
+    dagCjs.DagDiscoveryCycleError;
+  const error = new ErrorConstructor<ID>([]);
+  const witness: readonly ID[] = error.vertexIds;
+  void [state, inspection, fatal, witness];
+}
+void inspectSession;

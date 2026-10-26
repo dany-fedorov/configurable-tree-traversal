@@ -251,3 +251,45 @@ for (const api of [cjs, esm]) {
     );
   }
 }
+
+assert.equal(esm.DagDiscoveryCycleError, cjs.DagDiscoveryCycleError);
+assert.equal(dag.DagDiscoveryCycleError, esm.DagDiscoveryCycleError);
+assert.equal(cjsDag.DagDiscoveryCycleError, esm.DagDiscoveryCycleError);
+for (const api of [esm, cjs]) {
+  assert.throws(
+    () =>
+      api.prepareDag(
+        api.graphFrom([{ id: 'a', children: ['a'] }], {
+          id: (item) => item.id,
+          children: (item) => item.children,
+        }),
+      ),
+    (error) =>
+      error instanceof esm.DagDiscoveryCycleError &&
+      error.vertexIds.join(',') === 'a,a',
+  );
+  const prepared = api.prepareDag(
+    api.graphFrom([{ id: 'a' }], { id: (item) => item.id }),
+  );
+  for (const session of [
+    prepared.dag.createSession(),
+    await prepared.dag.createAsyncSession(),
+  ]) {
+    assert.equal(session.getStopReason(), 'prepared');
+    assert.equal(session.isHalted(), true);
+    assert.equal(session.inspect().status, session.getStatus());
+    assert.equal(
+      session.inspectDag().explain({ vertexId: 'a', milestone: 'work' })
+        .satisfied,
+      false,
+    );
+    const boundary = await session.advance();
+    assert.equal(session.fail, session.failTraversal);
+    const error = { fatal: true };
+    session.failTraversal(boundary.frontier[0], error);
+    await assert.rejects(
+      async () => session.advance(),
+      (value) => value === error,
+    );
+  }
+}

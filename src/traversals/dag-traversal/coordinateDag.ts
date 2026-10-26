@@ -1,3 +1,6 @@
+import type { TraversalExecutionState } from '@core/TraversalExecution';
+import { inspectDag } from './inspectDag';
+import type { DagInspection } from './lib/DagInspection';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
 import type { DagTraversalRunner } from './lib/DagTraversalRunner';
@@ -27,9 +30,17 @@ export type DagCoordinationResult =
   | Readonly<{ kind: 'accepted' }>
   | Readonly<{ kind: 'alreadyAccepted' }>;
 
-interface DagCoordinationControl<ID> {
+interface DagCoordinationControl<ID> extends TraversalExecutionState {
   complete(ticket: DagWorkTicket<ID>): DagCoordinationResult;
+  /** Fatal for the whole traversal; keep retryable work deferred instead. */
+  failTraversal(
+    ticket: DagWorkTicket<ID>,
+    error: unknown,
+  ): DagCoordinationResult;
+  /** @deprecated Use failTraversal; this aborts the whole traversal, not one task. */
   fail(ticket: DagWorkTicket<ID>, error: unknown): DagCoordinationResult;
+  /** Capture dependency explanations without advancing the coordinated runner. */
+  inspectDag(): DagInspection<ID>;
   summary(): DagSummary<ID>;
   requestPause(): boolean;
 }
@@ -46,12 +57,21 @@ export interface AsyncDagCoordinator<ID = unknown>
 
 type SettlementRunner<ID> = Pick<
   DagTraversalRunner<TreeTypeParameters, TreeTypeParameters, ID>,
-  'settle' | 'summary' | 'requestPause' | 'getStopReason'
+  | 'settle'
+  | 'summary'
+  | 'requestPause'
+  | 'getStopReason'
+  | 'getStatus'
+  | 'isHalted'
+  | 'inspect'
 > & {
   readonly icfg: { workCompletion?: 'visitorReturn' | 'externalSettlement' };
 };
 
-function makeCoordination<ID>(runner: SettlementRunner<ID>) {
+function makeCoordination<ID>(
+  runner: SettlementRunner<ID>,
+  inspectDependencies: () => DagInspection<ID>,
+) {
   if (runner.icfg.workCompletion !== 'externalSettlement') {
     throw new TypeError(
       'DAG coordination requires externalSettlement work completion',
@@ -72,11 +92,18 @@ function makeCoordination<ID>(runner: SettlementRunner<ID>) {
         : 'alreadyAccepted',
     };
   };
+  const failTraversal = (ticket: DagWorkTicket<ID>, error: unknown) =>
+    settle(ticket, { kind: 'traversalFailed', error });
   return {
     complete: (ticket: DagWorkTicket<ID>) =>
       settle(ticket, { kind: 'workCompleted' }),
-    fail: (ticket: DagWorkTicket<ID>, error: unknown) =>
-      settle(ticket, { kind: 'traversalFailed', error }),
+    failTraversal,
+    fail: failTraversal,
+    getStatus: () => runner.getStatus(),
+    getStopReason: () => runner.getStopReason(),
+    isHalted: () => runner.isHalted(),
+    inspect: () => runner.inspect(),
+    inspectDag: inspectDependencies,
     summary: () => runner.summary(),
     requestPause: () => runner.requestPause(),
     boundary: (): DagCoordinationBoundary<ID> => {
@@ -104,7 +131,9 @@ export function coordinateDag<
   R extends TreeTypeParameters,
   ID,
 >(runner: DagTraversalRunner<T, R, ID>): DagCoordinator<ID> {
-  const { boundary, ...control } = makeCoordination(runner);
+  const { boundary, ...control } = makeCoordination(runner, () =>
+    inspectDag(runner),
+  );
   return {
     ...control,
     advance: () => {
@@ -120,7 +149,9 @@ export function coordinateDagAsync<
   R extends TreeTypeParameters,
   ID,
 >(runner: AsyncDagTraversalRunner<T, R, ID>): AsyncDagCoordinator<ID> {
-  const { boundary, ...control } = makeCoordination(runner);
+  const { boundary, ...control } = makeCoordination(runner, () =>
+    inspectDag(runner),
+  );
   return {
     ...control,
     advance: async () => {

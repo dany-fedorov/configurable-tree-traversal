@@ -533,6 +533,29 @@ try {
       { cwd: consumer, stdio: 'inherit' },
     );
   }
+  const optionalCommands = 'walking-optional-commands.ts';
+  fs.copyFileSync(
+    path.join(root, 'scripts/package-consumers', optionalCommands),
+    path.join(consumer, optionalCommands),
+  );
+  for (const resolution of ['node', 'node16']) {
+    execFileSync(
+      process.execPath,
+      [
+        compiler,
+        '--strict',
+        '--noEmit',
+        '--target',
+        'ES2020',
+        '--module',
+        resolution === 'node16' ? 'Node16' : 'commonjs',
+        '--moduleResolution',
+        resolution,
+        optionalCommands,
+      ],
+      { cwd: consumer, stdio: 'inherit' },
+    );
+  }
   console.log(
     'Verified composable CJS/ESM runtime contracts and strict node/node16 .ts/.cts/.mts fixtures.',
   );

@@ -1,3 +1,5 @@
+import { DagDiscoveryCycleError as SubpathCycleError } from '../src/traversals/dag-traversal';
+import { DagDiscoveryCycleError } from '../src';
 import {
   prepareDag,
   prepareDagAsync,
@@ -641,4 +643,39 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       ).toEqual(['root', 'b', 'c']);
     }
   });
+}
+
+for (const async of [false, true]) {
+  test.each([false, true])(
+    `${
+      async ? 'async' : 'sync'
+    } discovery cycles expose an identity-preserving closed witness (self=%p)`,
+    async (self) => {
+      const a = { name: 'same' };
+      const b = self ? a : { name: 'same' };
+      const graph = graphFrom(
+        [{ id: a, children: [b] }, ...(self ? [] : [{ id: b, children: [a] }])],
+        {
+          id: (item) => item.id,
+          children: (item) => item.children,
+        },
+      );
+      let failure: unknown;
+      try {
+        if (async) await prepareDagAsync(graph);
+        else prepareDag(graph);
+      } catch (error) {
+        failure = error;
+      }
+      expect(SubpathCycleError).toBe(DagDiscoveryCycleError);
+      expect(failure).toBeInstanceOf(DagDiscoveryCycleError);
+      if (!(failure instanceof DagDiscoveryCycleError))
+        throw Error('Expected typed discovery cycle');
+      expect(failure.name).toBe('DagDiscoveryCycleError');
+      expect(failure.message).toMatch(/^Discovery cycle detected:/);
+      expect(failure.vertexIds).toEqual(self ? [a, a] : [b, a, b]);
+      expect(failure.vertexIds[0]).toBe(b);
+      expect(Object.isFrozen(failure.vertexIds)).toBe(true);
+    },
+  );
 }

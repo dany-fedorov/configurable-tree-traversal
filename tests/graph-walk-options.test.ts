@@ -1,3 +1,4 @@
+import { GraphWalk, AsyncGraphWalk } from '../src';
 import { GraphWalkPhase as Phase } from '../src/traversals/graph-walk/GraphWalkPhase';
 import type { GraphWalkSource } from '../src/traversals/graph-walk/GraphWalkSource';
 import { normalizeWalkOptions } from '../src/traversals/graph-walk/lib/normalizeWalkOptions';
@@ -296,3 +297,31 @@ describe('walking configuration snapshots', () => {
     expect(config.visitors.vertex[0]!.visitor).toBe(first);
   });
 });
+
+for (const Factory of [GraphWalk, AsyncGraphWalk]) {
+  test(`${Factory.name} rejects unknown options and limit keys before discovery and preserves configuration`, async () => {
+    const roots = jest.fn(() => []);
+    const lazy = { roots, outgoing: () => [] };
+    const traversal = new Factory({ source: lazy, limits: { maxSteps: 0 } });
+    for (const key of ['stratgey', Symbol('option')]) {
+      const bad = Object.defineProperty({}, key, { value: 'depthFirst' });
+      expect(
+        () => new Factory({ source: lazy, ...bad, [key]: 'depthFirst' }),
+      ).toThrow(TypeError);
+      expect(() => traversal.configure(bad)).toThrow(TypeError);
+    }
+    expect(
+      () =>
+        new Factory({
+          source: lazy,
+          limits: { maxSteps: 2, maxDepht: 1 } as never,
+        }),
+    ).toThrow(TypeError);
+    expect(() =>
+      traversal.configure({ limits: { maxSteps: 2, maxDepht: 1 } as never }),
+    ).toThrow(TypeError);
+    expect(roots).not.toHaveBeenCalled();
+    await traversal.makeRunner().run();
+    expect(roots).not.toHaveBeenCalled();
+  });
+}

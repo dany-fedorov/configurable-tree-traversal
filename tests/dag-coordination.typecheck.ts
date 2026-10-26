@@ -1,3 +1,8 @@
+import type {
+  TraversalExecutionState,
+  ExecutionInspection,
+  DagInspection,
+} from '../src';
 import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
 import type { DagSummary } from '../src/traversals/dag-traversal/lib/DagProgress';
 import type { DagTraversalRunner } from '../src/traversals/dag-traversal/lib/DagTraversalRunner';
@@ -29,7 +34,7 @@ if (boundary.kind === 'awaitingSettlement') {
   const ticket: DagWorkTicket<TaskId> = boundary.frontier[0]!;
   const id: TaskId = ticket.vertexId;
   const accepted: DagCoordinationResult = coordinator.complete(ticket);
-  const failed: DagCoordinationResult = asyncCoordinator.fail(
+  const failed: DagCoordinationResult = asyncCoordinator.failTraversal(
     ticket,
     undefined,
   );
@@ -50,3 +55,12 @@ coordinateDag(asyncRunner);
 // @ts-expect-error An async facade cannot wrap a sync runner.
 coordinateDagAsync(runner);
 void [pending, summary, requested, forged];
+
+const syncState: TraversalExecutionState = coordinator;
+const asyncState: TraversalExecutionState<ExecutionInspection> =
+  asyncCoordinator;
+const dependencies: DagInspection<TaskId> = coordinator.inspectDag();
+const asyncDependencies: DagInspection<TaskId> = asyncCoordinator.inspectDag();
+// @ts-expect-error Dependency queries preserve the coordinator ID domain.
+dependencies.explain({ vertexId: 'wrong', milestone: 'work' });
+void [syncState, asyncState, dependencies, asyncDependencies];

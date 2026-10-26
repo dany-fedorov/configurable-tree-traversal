@@ -11,6 +11,7 @@ import {
 } from '../src/traversals/dag-traversal/coordinateDag';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import { graphFrom, prepareDag } from '../src';
 import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
@@ -71,13 +72,13 @@ for (const async of [false, true]) {
       expect(() => second.complete(forged as DagWorkTicket<string>)).toThrow(
         TypeError,
       );
-      expect(() => second.fail(forged as DagWorkTicket<string>, null)).toThrow(
-        TypeError,
-      );
+      expect(() =>
+        second.failTraversal(forged as DagWorkTicket<string>, null),
+      ).toThrow(TypeError);
     }
     expect(second.summary().deferredIds).toEqual(['a']);
     expect(first.complete(ticket)).toEqual({ kind: 'accepted' });
-    expect(() => first.fail(ticket, null)).toThrow(/Conflicting/);
+    expect(() => first.failTraversal(ticket, null)).toThrow(/Conflicting/);
   });
 
   test.each([undefined, null, NaN, { reason: 'failed' }])(
@@ -85,12 +86,16 @@ for (const async of [false, true]) {
     async (error) => {
       const coordinator = create();
       const ticket = frontier(await coordinator.advance())[0]!;
-      expect(coordinator.fail(ticket, error)).toEqual({ kind: 'accepted' });
-      expect(coordinator.fail(ticket, error)).toEqual({
+      expect(coordinator.failTraversal(ticket, error)).toEqual({
+        kind: 'accepted',
+      });
+      expect(coordinator.failTraversal(ticket, error)).toEqual({
         kind: 'alreadyAccepted',
       });
       expect(() => coordinator.complete(ticket)).toThrow(/Conflicting/);
-      expect(() => coordinator.fail(ticket, {})).toThrow(/Conflicting/);
+      expect(() => coordinator.failTraversal(ticket, {})).toThrow(
+        /Conflicting/,
+      );
       await expect(async () => coordinator.advance()).rejects.toBe(error);
       await expect(async () => coordinator.advance()).rejects.toBe(error);
     },
@@ -274,4 +279,69 @@ for (const async of [false, true]) {
       await expect(async () => coordinator.advance()).rejects.toBe(error);
     }
   });
+}
+
+for (const async of [false, true]) {
+  test(`${
+    async ? 'async' : 'sync'
+  } prepared sessions explain blockers without advancing or exposing tickets`, async () => {
+    const result = prepareDag(
+      graphFrom(
+        [
+          { id: 'a', dependencies: [] as string[] },
+          { id: 'b', dependencies: ['a'] },
+        ],
+        { id: (item) => item.id, dependencies: (item) => item.dependencies },
+      ),
+    );
+    if (result.kind !== 'valid') throw Error('Expected prepared DAG');
+    const session = async
+      ? await result.dag.createAsyncSession()
+      : result.dag.createSession();
+    const before = session.summary();
+    expect(session.getStatus()).toBe(TraversalRunnerStatus.HALTED);
+    expect(session.getStopReason()).toBe('prepared');
+    expect(session.isHalted()).toBe(true);
+    expect(session.inspect().status).toBe(TraversalRunnerStatus.HALTED);
+    const captured = session.inspectDag();
+    expect(
+      captured.prerequisitesOf({ vertexId: 'b', milestone: 'work' }).milestones,
+    ).toContainEqual({ vertexId: 'a', milestone: 'work' });
+    expect(session.summary()).toEqual(before);
+    const ticket = frontier(await session.advance())[0]!;
+    expect(session.getStopReason()).toBe('awaitingSettlement');
+    expect(session.isHalted()).toBe(true);
+    expect(
+      session.inspectDag().explain({ vertexId: 'b', milestone: 'work' }),
+    ).toMatchObject({ kind: 'known', satisfied: false });
+    session.complete(ticket);
+    expect(
+      session.inspectDag().explain({ vertexId: 'a', milestone: 'work' }),
+    ).toMatchObject({ kind: 'known', satisfied: true });
+    expect(
+      captured.explain({ vertexId: 'a', milestone: 'work' }),
+    ).toMatchObject({ kind: 'known', satisfied: false });
+  });
+
+  test.each([null, undefined, { fatal: true }])(
+    `${
+      async ? 'async' : 'sync'
+    } failTraversal names fatal settlement and retains legacy alias: %p`,
+    async (error) => {
+      const session = async
+        ? coordinateDagAsync(
+            new AsyncDagTraversal<G, G, string>(options).makeRunner(),
+          )
+        : coordinateDag(new DagTraversal<G, G, string>(options).makeRunner());
+      const ticket = frontier(await session.advance())[0]!;
+      expect(session.fail).toBe(session.failTraversal);
+      expect(session.failTraversal(ticket, error)).toEqual({
+        kind: 'accepted',
+      });
+      expect(session.fail(ticket, error)).toEqual({ kind: 'alreadyAccepted' });
+      await expect(async () => session.advance()).rejects.toBe(error);
+      expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+      expect(session.inspect().status).toBe(TraversalRunnerStatus.FAILED);
+    },
+  );
 }

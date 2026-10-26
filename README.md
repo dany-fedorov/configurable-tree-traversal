@@ -52,7 +52,7 @@ const prepared = prepareDag(graphFrom(tasks, {
   id: task => task.id,
   dependencies: task => task.requires,
 }));
-if (prepared.kind === 'invalid') throw new Error('Invalid workflow');
+if (prepared.kind === 'invalid') throw new Error('Invalid dependency constraints');
 
 // In-memory stand-in for completion facts already accepted by the host.
 const accepted = new Set(['research']);
@@ -69,7 +69,7 @@ if (boundary.kind === 'awaitingSettlement') {
 }
 ```
 
-`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
+`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
 
 See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) for independent sessions, duplicate reports, and recovery. Custom graph adapters and existing `runner.prepare()` / guarded `settle()` APIs remain available.
 

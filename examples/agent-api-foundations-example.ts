@@ -52,6 +52,12 @@ async function main(): Promise<void> {
   const accepted = new Set<TaskId>(['research']);
   const session = dag.createSession({ completedWork: accepted });
   const fresh = dag.createSession();
+  assert.equal(session.getStopReason(), 'prepared');
+  assert.equal(
+    session.inspectDag().explain({ vertexId: 'review', milestone: 'work' })
+      .kind,
+    'known',
+  );
   const candidates = work(session.advance());
   assert.deepEqual(
     candidates.map((ticket) => ticket.vertexId),

@@ -1,5 +1,6 @@
 import {
   GraphWalk,
+  AsyncGraphWalk,
   GraphWalkPhase as Phase,
   TraversalVisitorCommandName as C,
   TraversalRunnerStatus as Status,
@@ -287,7 +288,7 @@ it.each([
   { commands: [false] },
   { commands: new Array<unknown>(1) },
   { commands: [{}] },
-  { commands: [{ commandName: C.NOOP, commandArguments: undefined }] },
+  { commands: [{ commandName: C.NOOP, commandArguments: {} }] },
   { commands: [{ commandName: C.HALT_TRAVERSAL, commandArguments: {} }] },
   { commands: [{ commandName: C.DEFER_READY }] },
 ])('rejects malformed visitor results and unsupported commands %#', (value) => {
@@ -349,3 +350,29 @@ it('captures buffered command names before a later group callback mutates caller
   runner.run();
   expect(seen).toEqual(['same group', 'next group']);
 });
+
+for (const Factory of [GraphWalk, AsyncGraphWalk]) {
+  test(`${Factory.name} accepts explicit undefined arguments for shared parameterless commands`, async () => {
+    const seen: string[] = [];
+    const traversal = new Factory({ source: idGraph(['a'], [['a', []]]) });
+    traversal.addVisitorFor(
+      Phase.VERTEX,
+      () =>
+        ({
+          commands: [
+            { commandName: C.NOOP, commandArguments: undefined },
+            { commandName: C.HALT_TRAVERSAL, commandArguments: undefined },
+          ],
+        } as never),
+    );
+    traversal.addVisitorFor(Phase.VERTEX, () => {
+      seen.push('resumed');
+    });
+    const runner = traversal.makeRunner();
+    await runner.run();
+    expect(runner.isHalted()).toBe(true);
+    await runner.run();
+    expect(seen).toEqual(['resumed']);
+    expect(runner.getStatus()).toBe(Status.FINISHED);
+  });
+}

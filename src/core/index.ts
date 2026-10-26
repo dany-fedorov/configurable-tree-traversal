@@ -29,3 +29,5 @@ export type {
   VertexId,
 } from './graph/types';
 export * from './errors/DagTraversalStallError';
+
+export * from './errors/DagDiscoveryCycleError';

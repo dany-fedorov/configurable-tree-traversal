@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Expose shared lifecycle inspection and `inspectDag()` on sync/async coordination sessions; add explicit fatal `failTraversal` and retain `fail` as a deprecated alias.
+- Export `DagDiscoveryCycleError` with an immutable closed ID witness from root, core and DAG traversal entry points.
+- Reject unknown walking option/limit keys before discovery while preserving configuration on invalid patches; accept explicit `undefined` arguments for shared parameterless NOOP/HALT commands.
+
 - Add lazy sync/async `GraphWalk` exploration and canonical `walkGraph` / `walkGraphAsync` helpers with mixed typed vertex/edge/path observations, hydrated targets, cyclic/parallel relationships, bounded simple paths/repeated walks, explicit completeness outcomes, cooperative pause and terminal iterator disposal.
 - Add finite catalog and selected DAG-declaration walking adapters, default-preserving common execution inspection, and coherent root/namespace/subpath CJS/ESM exports. Preserve tree/DAG contracts and the published 0.11.0 release boundary.
 

@@ -62,7 +62,8 @@ export class WalkVisitorChain<
           if (
             command === null ||
             typeof command !== 'object' ||
-            'commandArguments' in command
+            (command as { commandArguments?: unknown }).commandArguments !==
+              undefined
           )
             throw new TypeError('Walking commands do not accept arguments');
           const name = (command as { commandName?: unknown }).commandName;
