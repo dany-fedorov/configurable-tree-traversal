@@ -1,9 +1,5 @@
+import { DagTraversal, TraversalRunnerStatus, type VertexTypes } from '../src';
 import assert from 'node:assert/strict';
-import {
-  DagTraversal,
-  TraversalRunnerStatus,
-  type VertexTypes,
-} from '../src';
 
 type Workflow = VertexTypes<string, string>;
 const dependencies: Record<string, string[]> = {
@@ -45,7 +41,10 @@ function reconstruct() {
 const retained = reconstruct();
 assert.equal(retained.getStatus(), TraversalRunnerStatus.HALTED);
 assert.equal(retained.getStopReason(), 'awaitingSettlement');
-assert.deepEqual(retained.summary().readyOrDeferredIds, ['backend', 'frontend']);
+assert.deepEqual(retained.summary().readyOrDeferredIds, [
+  'backend',
+  'frontend',
+]);
 const backend = retained
   .summary()
   .awaitingSettlement.find(({ vertexId }) => vertexId === 'backend')!;
@@ -72,7 +71,10 @@ assert.equal(
 // Restart/revision changes rebuild from durable facts. Never persist generation
 // symbols or send a generation from the discarded runner to its replacement.
 const rebuilt = reconstruct();
-assert.deepEqual(rebuilt.summary().readyOrDeferredIds, retained.summary().readyOrDeferredIds);
+assert.deepEqual(
+  rebuilt.summary().readyOrDeferredIds,
+  retained.summary().readyOrDeferredIds,
+);
 acceptedCompletedWork.add('frontend');
 const nextTick = reconstruct();
 assert.deepEqual(nextTick.summary().readyOrDeferredIds, ['verify']);

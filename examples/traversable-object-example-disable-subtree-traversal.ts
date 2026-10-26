@@ -1,8 +1,9 @@
-import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
-import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
-import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
+import {
+  ObjectTreeSource,
+  DepthFirstTreeTraversal,
+  DepthFirstPhase,
+  TraversalVisitorCommandName,
+} from '../src';
 
 const RED_FG = '\u001b[31m';
 // const RED_BG = '\u001b[41m';
@@ -48,7 +49,7 @@ traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (v) => {
     'key:',
     v.getData().key,
     '; value:',
-    jsonStringifySafe(v.getData().value),
+    JSON.stringify(v.getData().value),
   );
   if (v.getData().key === 'B') {
     return {
@@ -70,7 +71,7 @@ traversal.addVisitorFor(DepthFirstPhase.POST_ORDER, (v) => {
     'key:',
     v.getData().key,
     '; value:',
-    jsonStringifySafe(v.getData().value),
+    JSON.stringify(v.getData().value),
   );
   if (v.getData().key === 'B') {
     return {
@@ -92,7 +93,7 @@ traversal.addVisitorFor(DepthFirstPhase.IN_ORDER, (v) => {
     'key:',
     v.getData().key,
     '; value:',
-    jsonStringifySafe(v.getData().value),
+    JSON.stringify(v.getData().value),
   );
 });
 const traversalRunner = traversal.createRunner();

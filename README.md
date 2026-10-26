@@ -4,14 +4,14 @@
 
 Give CTT a graph of work and accepted completion facts. It determines what can run next, enforces work and structural-completion dependencies, and exposes progress without executing business work. Your host chooses agents, dispatches tasks, accepts results, and persists state.
 
-[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Migration guide](docs/migration-uniform-api.md) · [npm](https://www.npmjs.com/package/configurable-tree-traversal)
+[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [API naming migration](docs/migration-api-clarity.md) · [Uniform API migration](docs/migration-uniform-api.md) · [npm](https://www.npmjs.com/package/configurable-tree-traversal)
 
 ## Start with autonomous agents
 
 | You want to… | Use CTT for… | Start here |
 | --- | --- | --- |
 | Coordinate research, implementation, testing, and review agents | Parallel branches and dependency joins | [Quickstart](#quickstart-find-the-next-agent-tasks) |
-| Let a coordinator choose which agents run next | Deferred work and a readable ready frontier | [Host-controlled execution](docs/agent-workflows.md#choose-an-execution-model) |
+| Let a coordinator choose which agents run next | Deferred work and generation-bearing dispatch records | [Host-controlled execution](docs/agent-workflows.md#choose-an-execution-model) |
 | Resume after a process restart or wait for human input | Reconstruction from accepted completion facts | [Recovery and storage](docs/agent-workflows.md#persist-facts-and-reconstruct) |
 | Review a composite task only after all its subtasks finish | `dependsOnSubgraphCompletion` | [Work versus completion](docs/agent-workflows.md#work-dependencies-and-completion-joins) |
 | Fetch dependencies from a task catalog or service | `resolvePrerequisite(id)` | [Discover prerequisites](docs/agent-workflows.md#discover-the-graph) |
@@ -102,7 +102,7 @@ const {
 } = require('configurable-tree-traversal');
 ```
 
-Native ESM `.mjs` entries and `.d.mts` declarations share one CommonJS implementation and canonical types. Named/default imports, classes, namespaces, commands, and the deprecated `DEFER_READY` sentinel preserve identity across loaders. ESM entries use Node-compatible `createRequire`; standalone browser ESM and tree shaking are not promised. Public subpaths and historical deep imports remain supported; see [compatibility details](docs/reference.md#api-compatibility).
+Native ESM `.mjs` entries and `.d.mts` declarations share one CommonJS implementation and canonical types. Named/default imports, classes, namespaces, commands, and the deprecated `DEFER_READY` sentinel preserve identity across loaders. ESM entries use Node-compatible `createRequire`; standalone browser ESM and tree shaking are not promised. Nine explicit runtime entry points are supported; historical deep imports are blocked; see [compatibility details](docs/reference.md#api-compatibility).
 
 ## Reference shortcuts
 

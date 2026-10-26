@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
 import {
   GraphWalk,
   GraphWalkPhase,
   type GraphWalkSource,
   type GraphWalkTarget,
 } from '../src';
+import assert from 'node:assert/strict';
 
 type Context =
   | { kind: 'document'; title: string }

@@ -1,8 +1,8 @@
-import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
 import {
+  ObjectTreeSource,
   BreadthFirstTreeTraversal,
   BreadthFirstPhase,
-} from '../src/traversals/breadth-first-traversal';
+} from '../src';
 
 const input = {
   first: { firstChild: 1 },

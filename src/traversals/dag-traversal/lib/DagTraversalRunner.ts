@@ -9,7 +9,6 @@ import { runSync, type SyncDriverState } from '@core/drivers/runSync';
 import type { CallbackBindings, CallSpec } from '@core/effects/types';
 import type { ResolvedGraphsContainerOptions } from '@core/graph/ResolvedGraphsContainer';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
-import type { DagInspectionState } from '@core/graph/types';
 import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
 import type { OriginalGraphView, ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
@@ -67,7 +66,6 @@ export interface DagTraversalRunner<
   > {
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
   prepare(): this;
-  inspectDagState(): DagInspectionState<ID>;
   inspectMilestones(): DagMilestoneSnapshot<ID>;
   summary(): DagSummary<ID>;
   settle(
@@ -258,6 +256,10 @@ export class InternalDagTraversalRunner<
         : {}),
     });
     dagRunnerCapabilities.set(this, {
+      inspectState: () =>
+        this.terminalObservation === undefined
+          ? this.kernel.inspectDagState()
+          : this.terminalObservation.inspectDagState(),
       workCompletion: this.icfg.workCompletion,
       container: this
         .resolvedGraphsContainer as unknown as ResolvedGraphsContainer<VertexTypes>,
@@ -287,15 +289,6 @@ export class InternalDagTraversalRunner<
       this.policy.releaseIfTerminal();
     }
     return this;
-  }
-
-  /** @internal Synchronous observation without advancing the runner. */
-  inspectDagState(): DagInspectionState<ID> {
-    return (
-      this.terminalObservation === undefined
-        ? this.kernel.inspectDagState()
-        : this.terminalObservation.inspectDagState()
-    ) as DagInspectionState<ID>;
   }
 
   /** Capture synchronously without advancing discovery or acquiring iterator ownership. */

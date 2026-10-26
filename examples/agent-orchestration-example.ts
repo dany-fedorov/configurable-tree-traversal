@@ -1,5 +1,5 @@
-import assert from 'node:assert/strict';
 import { DagTraversal, type VertexTypes } from '../src';
+import assert from 'node:assert/strict';
 
 type TaskId = 'research' | 'implement' | 'testPlan' | 'review';
 type Workflow = VertexTypes<string, TaskId>;
@@ -74,7 +74,9 @@ assert.equal(
   false,
 );
 // A restart rebuilds accepted facts, never saved runner/generation objects.
-assert.deepEqual(reconstruct().run().summary().readyOrDeferredIds, ['testPlan']);
+assert.deepEqual(reconstruct().run().summary().readyOrDeferredIds, [
+  'testPlan',
+]);
 const events = [];
 while (runner.getStatus() !== 'FINISHED') {
   for (const next of runner.summary().awaitingSettlement) {

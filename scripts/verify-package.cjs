@@ -602,6 +602,7 @@ try {
     'docs/agent-workflows.md',
     'docs/reference.md',
     'docs/migration-uniform-api.md',
+    'docs/migration-api-clarity.md',
     'docs/testing.md',
   ];
   const anchors = (markdown) => {
@@ -706,6 +707,7 @@ try {
     'docs/agent-workflows.md',
     'docs/reference.md',
     'docs/migration-uniform-api.md',
+    'docs/migration-api-clarity.md',
     'dist/index.js',
     'dist/index.d.ts',
     'dist/core/index.js',

@@ -68,13 +68,11 @@ type DagTraversalOptionsInput<
   T extends VertexTypes,
   R extends VertexTypes,
   ID = unknown,
-> = Partial<
-  Omit<
-    DagTraversalOptions<T, R, ID>,
-    'visitors' | 'traversalRunnerInternalObjects'
-  >
-> & {
+> = DagSchedulingOptions & {
+  completedWork?: ReadonlySet<ID>;
+  sortChildrenHints?: ChildHintSorter<T> | null;
   visitors?: VisitorInputs<DagTraversalVisitors<T, R, ID>>;
+  retainOriginalGraphStructure?: boolean;
 };
 
 export type DagOptions<

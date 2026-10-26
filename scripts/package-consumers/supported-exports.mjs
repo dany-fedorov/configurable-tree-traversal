@@ -70,3 +70,10 @@ for (const module of [
 
 assert.equal('getGraphStore' in new root.ResolvedTreeStore(), false);
 console.log('Verified packed CJS/ESM denial for 26 internal paths and curated public runtime namespaces.');
+
+for (const Constructor of [root.DagTraversal, root.AsyncDagTraversal]) {
+  const runner = new Constructor(root.materializeDagSourceFromRecords([{ id: 'a' }], { id: item => item.id })).createRunner();
+  assert.equal('inspectDagState' in runner, false);
+  await runner.run();
+  assert.equal(root.inspectDagMilestones(runner).explain({ vertexId: 'a', milestone: 'subgraphCompletion' }).satisfied, true);
+}

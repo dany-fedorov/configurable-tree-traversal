@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
 import {
   defineDag,
   defineDagFragment,
   instantiateDagFragment,
   composeDag,
 } from '../src';
+import assert from 'node:assert/strict';
 
 async function main() {
   type LocalID = 'build' | 'review';
@@ -48,7 +48,10 @@ async function main() {
     dependencies: [
       {
         dependent: second.ports.start,
-        prerequisite: { vertexId: first.ports.finish, milestone: 'subgraphCompletion' },
+        prerequisite: {
+          vertexId: first.ports.finish,
+          milestone: 'subgraphCompletion',
+        },
       },
     ],
   });

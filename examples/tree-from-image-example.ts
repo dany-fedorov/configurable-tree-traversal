@@ -1,5 +1,4 @@
-import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstTreeTraversal, DepthFirstPhase } from '../src';
 
 /**
  * Utils

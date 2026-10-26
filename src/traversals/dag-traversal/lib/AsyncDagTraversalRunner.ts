@@ -10,7 +10,6 @@ import { createAsyncDriver } from '@core/drivers/runAsync';
 import type { CallSpec, KernelEvent } from '@core/effects/types';
 import type { ResolvedGraphsContainerOptions } from '@core/graph/ResolvedGraphsContainer';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
-import type { DagInspectionState } from '@core/graph/types';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import type { OriginalGraphView, ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
@@ -69,7 +68,6 @@ export interface AsyncDagTraversalRunner<
   > {
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
   prepare(): Promise<this>;
-  inspectDagState(): DagInspectionState<ID>;
   inspectMilestones(): DagMilestoneSnapshot<ID>;
   summary(): DagSummary<ID>;
   settle(
@@ -265,6 +263,10 @@ export class InternalAsyncDagTraversalRunner<
     const projectedControl = this.projectEvents(driver, policy);
     this.execution = new AsyncRunnerSession(projectedControl);
     dagRunnerCapabilities.set(this, {
+      inspectState: () =>
+        this.terminalObservation === undefined
+          ? this.kernel.inspectDagState()
+          : this.terminalObservation.inspectDagState(),
       workCompletion: this.icfg.workCompletion,
       container: this
         .resolvedGraphsContainer as unknown as ResolvedGraphsContainer<VertexTypes>,
@@ -274,15 +276,6 @@ export class InternalAsyncDagTraversalRunner<
   async prepare(): Promise<this> {
     await this.execution.prepare(() => this.kernel.validatePreparation());
     return this;
-  }
-
-  /** @internal Synchronous observation without advancing the runner. */
-  inspectDagState(): DagInspectionState<ID> {
-    return (
-      this.terminalObservation === undefined
-        ? this.kernel.inspectDagState()
-        : this.terminalObservation.inspectDagState()
-    ) as DagInspectionState<ID>;
   }
 
   /** Capture synchronously without advancing discovery or acquiring iterator ownership. */

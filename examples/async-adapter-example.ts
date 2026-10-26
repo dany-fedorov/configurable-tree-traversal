@@ -1,9 +1,9 @@
-import assert from 'node:assert/strict';
-import type { VertexTypes } from '../src/core';
 import {
+  type VertexTypes,
   AsyncDepthFirstTreeTraversal,
   DepthFirstPhase,
-} from '../src/traversals/depth-first-traversal';
+} from '../src';
+import assert from 'node:assert/strict';
 
 type ExampleTree = VertexTypes<string, string>;
 

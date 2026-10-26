@@ -1,9 +1,10 @@
-import { rewriteObject } from '../src/tools/rewrite-object/rewriteObject';
-import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
-import type { TraversableObjectProp } from '../src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectProp';
-import type { MutationRequest } from '../src/core/MakeMutationCommandFunctionFactory';
-import type { TraversableObjectPropKey } from '../src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversableObject } from '../src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObject';
+import {
+  rewriteObject,
+  type TraversableObjectProp,
+  type MutationRequest,
+  type TraversableObjectPropKey,
+  type TraversableObject,
+} from '../src';
 
 const obj = {
   F: {
@@ -19,7 +20,7 @@ const obj = {
 };
 
 console.log('Input');
-console.log(jsonStringifySafe(obj, 2));
+console.log(JSON.stringify(obj, null, 2));
 console.log();
 
 const result = rewriteObject(obj, {
@@ -39,7 +40,7 @@ const result = rewriteObject(obj, {
       '; path:',
       options.getKeyPath({ noRoot: true }).join('.').padEnd(7),
       '; value:',
-      jsonStringifySafe(value),
+      JSON.stringify(value),
     );
     const rewriteCmd: MutationRequest<
       Partial<
@@ -67,7 +68,7 @@ const result = rewriteObject(obj, {
 
 console.log();
 console.log('Output');
-console.log(jsonStringifySafe(result.getOutput(), 2));
+console.log(JSON.stringify(result.getOutput(), null, 2));
 
 /*
 Input

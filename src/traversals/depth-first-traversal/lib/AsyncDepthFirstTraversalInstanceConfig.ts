@@ -40,23 +40,20 @@ export type AsyncDepthFirstTreeResolvedOptions<
 export type AsyncDepthFirstTreeOptionsPatch<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> = Partial<
-  Omit<
-    AsyncDepthFirstTreeResolvedOptions<TTP, RW_TTP>,
-    'visitors' | 'traversalRunnerInternalObjects' | 'inOrder'
-  >
-> & {
+> = {
+  traversableTree?: AsyncTreeSource<TTP, RW_TTP>;
+  sortChildrenHints?: AsyncChildHintSorter<TTP> | null;
   visitors?: VisitorInputs<AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>>;
-} & { inOrder?: Partial<InOrderOptions> };
+  retainOriginalTreeStructure?: boolean;
+  inOrder?: Partial<InOrderOptions>;
+  concurrency?: number;
+};
 
 export type AsyncDepthFirstTreeOptions<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = AsyncDepthFirstTreeOptionsPatch<TTP, RW_TTP> & {
-  traversableTree: AsyncDepthFirstTreeResolvedOptions<
-    TTP,
-    RW_TTP
-  >['traversableTree'];
+  traversableTree: AsyncTreeSource<TTP, RW_TTP>;
 };
 
 export const ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<

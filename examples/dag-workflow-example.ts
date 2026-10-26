@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
-import type { VertexTypes } from '../src/core';
 import {
+  type VertexTypes,
   DagTraversal,
   DagVisitorPhase,
   hasSingleStructuralSink,
-} from '../src/traversals/dag-traversal';
+} from '../src';
+import assert from 'node:assert/strict';
 
 type Workflow = VertexTypes<string, string>;
 type Task = {

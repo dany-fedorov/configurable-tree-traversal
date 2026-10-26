@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
 import {
   materializeDagSourceFromRecords,
   prepareDag,
   type DagWorkBoundary,
   type DagWorkTicket,
 } from '../src';
+import assert from 'node:assert/strict';
 
 type TaskId = 'research' | 'implement' | 'testPlan' | 'review';
 type Task = { id: TaskId; requires: TaskId[] };
@@ -57,8 +57,9 @@ async function main(): Promise<void> {
   const fresh = dag.createWorkSession();
   assert.equal(session.getStopReason(), 'prepared');
   assert.equal(
-    session.inspectMilestones().explain({ vertexId: 'review', milestone: 'work' })
-      .kind,
+    session
+      .inspectMilestones()
+      .explain({ vertexId: 'review', milestone: 'work' }).kind,
     'known',
   );
   const candidates = work(session.advance());

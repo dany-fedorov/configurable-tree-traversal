@@ -1,3 +1,4 @@
+import { inspectInternalDagState } from './internal-runner-fixtures';
 import {
   AsyncDagTraversal,
   DagTraversal,
@@ -928,7 +929,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     }).createRunner();
     await runner.run();
-    expect(runner.inspectDagState()).toEqual({
+    expect(inspectInternalDagState(runner)).toEqual({
       identityStates: [],
       schedulingStates: [],
       discoveryComplete: true,
@@ -962,7 +963,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const callerId = Symbol('caller omission');
     container.store.markOmitted(callerId);
     scheduling.deleteVertex(ref);
-    expect(runner.inspectDagState().identityStates).toEqual([
+    expect(inspectInternalDagState(runner).identityStates).toEqual([
       { vertexId: callerId, kind: 'omitted' },
     ]);
     expect(

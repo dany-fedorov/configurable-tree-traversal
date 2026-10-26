@@ -1,3 +1,4 @@
+import { inspectInternalDagState } from './internal-runner-fixtures';
 import { makeDagInspection } from '../src/traversals/dag-traversal/lib/DagInspection';
 import {
   AsyncDagTraversal,
@@ -356,7 +357,7 @@ test('captured deleted endpoints remain explicit unsatisfied constraints', () =>
   runner.prepare();
   const inspection = makeDagInspection({
     state: {
-      ...runner.inspectDagState(),
+      ...inspectInternalDagState(runner),
       identityStates: [
         { vertexId: 'a', kind: 'live' },
         { vertexId: 'b', kind: 'deleted' },

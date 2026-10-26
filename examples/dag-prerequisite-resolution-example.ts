@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
 import {
   AsyncDagTraversal,
   DagVisitorPhase as Order,
-} from '../src/traversals/dag-traversal';
-import type { DagVertexFound } from '../src/core/TraversableTree';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+  type DagVertexFound,
+  type VertexTypes,
+} from '../src';
+import assert from 'node:assert/strict';
 
 type ModuleGraph = VertexTypes<string, string>;
 const modules = new Map([

@@ -1,3 +1,4 @@
+import { dagRunnerCapabilities } from '../src/traversals/dag-traversal/lib/dagRunnerCapabilities';
 import type { AsyncBreadthFirstTreeOptions } from '../src/traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig';
 import type { BreadthFirstTreeOptions } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig';
 import type { AsyncDepthFirstTreeOptions } from '../src/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
@@ -506,4 +507,8 @@ export function createInternalDagTraversalFor<
   return Constructor === DagTraversal
     ? createInternalDagTraversal(input as DagOptions<T, R, ID>)
     : createInternalAsyncDagTraversal(input);
+}
+
+export function inspectInternalDagState(runner: object) {
+  return dagRunnerCapabilities.get(runner)!.inspectState();
 }

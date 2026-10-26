@@ -1,5 +1,9 @@
+import {
+  DagTraversal,
+  materializeDagSourceFromRecords,
+  inspectDagMilestones,
+} from '../src';
 import assert from 'node:assert/strict';
-import { DagTraversal, materializeDagSourceFromRecords, inspectDagMilestones } from '../src';
 
 // Parent work is reusable, while its unfinished child still blocks a C join.
 const runner = new DagTraversal({
@@ -23,7 +27,10 @@ runner.run();
 const captured = runner.inspectMilestones();
 // The free function remains equivalent; async runners expose the same sync method.
 assert.deepEqual(
-  inspectDagMilestones(runner).explain({ vertexId: 'review', milestone: 'work' }),
+  inspectDagMilestones(runner).explain({
+    vertexId: 'review',
+    milestone: 'work',
+  }),
   captured.explain({ vertexId: 'review', milestone: 'work' }),
 );
 assert.equal(
@@ -54,8 +61,10 @@ assert.deepEqual(
 );
 // Static navigation keeps the original constraints after those milestones commit.
 assert.equal(
-  inspectDagMilestones(runner).prerequisitesOf({ vertexId: 'review', milestone: 'work' })
-    .edges.length,
+  inspectDagMilestones(runner).prerequisitesOf({
+    vertexId: 'review',
+    milestone: 'work',
+  }).edges.length,
   1,
 );
 const review = runner.summary().awaitingSettlement[0]!;

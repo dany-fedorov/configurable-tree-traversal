@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
 import {
   defineDag,
   prepareDagDefinition,
   reviseDag,
   diffDagDefinitions,
 } from '../src';
+import assert from 'node:assert/strict';
 
 async function main() {
   const initial = prepareDagDefinition(

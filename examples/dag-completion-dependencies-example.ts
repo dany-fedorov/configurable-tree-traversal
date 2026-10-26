@@ -1,9 +1,9 @@
-import assert from 'node:assert/strict';
 import {
   DagTraversal,
   DagVisitorPhase as Order,
-} from '../src/traversals/dag-traversal';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+  type VertexTypes,
+} from '../src';
+import assert from 'node:assert/strict';
 
 type Build = VertexTypes<string, string>;
 const events: string[] = [];
@@ -20,9 +20,13 @@ const traversal = new DagTraversal<Build>({
       kind: 'found' as const,
       vertex: {
         vertexId: id,
-        dependsOnWork: [id === 'package' || id === 'compile' ? 'build' : 'compile'],
+        dependsOnWork: [
+          id === 'package' || id === 'compile' ? 'build' : 'compile',
+        ],
         // Packaging needs the compiled bundle, including both retained children.
-        ...(id === 'package' ? { dependsOnSubgraphCompletion: ['compile'] } : {}),
+        ...(id === 'package'
+          ? { dependsOnSubgraphCompletion: ['compile'] }
+          : {}),
         vertexContent: {
           $data: id,
           $childHints:

@@ -2,7 +2,7 @@
 
 [Home and quickstart](../README.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md)
 
-The [migration guide](migration-uniform-api.md) covers changed defaults and deprecated forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
+The [API naming migration](migration-api-clarity.md) covers renamed contracts and removed import routes; the [uniform API migration](migration-uniform-api.md) covers changed defaults and deprecated forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
 
 ## Read by task
 
@@ -13,13 +13,13 @@ The [migration guide](migration-uniform-api.md) covers changed defaults and depr
 | Reuse a graph across independent runs | [Collection sources](reference.md#collection-and-forest-sources) → [prepared definitions](reference.md#reusable-prepared-dags) → [ticket coordination](reference.md#ticket-coordination) | A validated topology, session boundaries, and accepted-fact recovery |
 | Compose reusable workflow shapes | [Fragment contract](reference.md#dag-fragments-and-composition) → [workflow integration](agent-workflows.md#reuse-workflow-fragments) | Typed local ports, explicit ID maps, and validated W/C connections |
 | Revise a prepared work graph | [Revision contract](reference.md#validated-dag-revisions) → [host revision policy](agent-workflows.md#retries-human-waits-and-graph-revisions) | Atomic declaration edits, shallow diffs, isolated sessions and explicit accepted facts |
-| Add a work or subtree-completion dependency | [Join semantics](agent-workflows.md#work-dependencies-and-completion-joins) → [exact graph contracts](reference.md#discovery-and-completed-work) | Correct dependency declarations without structural/dependency cycles |
+| Add a work or subgraph-completion dependency | [Join semantics](agent-workflows.md#work-dependencies-and-completion-joins) → [exact graph contracts](reference.md#discovery-and-completed-work) | Correct dependency declarations without structural/dependency cycles |
 | Explain a blocker or find downstream constraints | [Query contracts](reference.md#dag-dependency-queries-and-explanations) → [workflow troubleshooting](agent-workflows.md#troubleshoot-a-workflow) | A captured W/C causal graph, identity status, and discovery limits |
 | Debug missing work or a stalled graph | [Troubleshooting](agent-workflows.md#troubleshoot-a-workflow) → [DAG diagnostics](reference.md#dag-traversal) | A complete catalog or lookup adapter and the relevant diagnostics |
 | Explore cyclic context, references or provenance | [Walking workflow](agent-workflows.md#explore-context-and-references) → [walking contracts](reference.md#general-graph-walking) | A lazy source, independent observations, and explicit completeness outcome |
 | Walk an object or abstract tree | [Objects](reference.md#traverse-an-object) → [abstract trees](reference.md#abstract-trees) → [orders](reference.md#traversal-orders) | The correct adapter, traversal family, and order |
 | Use async callbacks | [Execution models](agent-workflows.md#choose-an-execution-model) → [async traversal](reference.md#async-traversal) → [pause/resume](reference.md#pause-and-resume) | A callback concurrency limit and clear iterator ownership |
-| Migrate from 0.11.0               | [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                                                      | Prepared previews, guarded frontiers, execution/pause capabilities, truthful rewrite outputs, typed identity, diagnostics and detached queries |
+| Migrate from 0.11.0               | [API naming migration](migration-api-clarity.md) → [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                                                      | Prepared previews, guarded frontiers, execution/pause capabilities, truthful rewrite outputs, typed identity, diagnostics and detached queries |
 | Modify CTT | [AGENTS.md](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/AGENTS.md) → [testing](testing.md) | The relevant implementation and regression tests |
 
 ## Runnable examples

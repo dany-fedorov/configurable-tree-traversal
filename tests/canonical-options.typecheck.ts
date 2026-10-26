@@ -62,3 +62,14 @@ new (null as unknown as typeof import('../src')).DepthFirstTreeRunner({});
 new (null as unknown as typeof import('../src')).GraphWalkRunner({});
 // @ts-expect-error runners are public capabilities, not normalized constructors
 new (null as unknown as typeof import('../src')).DagTraversalRunner({});
+
+const inspectionDag = new DagTraversal({
+  traversableTree: source,
+}).createRunner();
+const inspectionAsyncDag = new AsyncDagTraversal({
+  traversableTree: source,
+}).createRunner();
+// @ts-expect-error assembly-only state is not a public runner capability
+inspectionDag.inspectDagState();
+// @ts-expect-error assembly-only state is not a public async runner capability
+inspectionAsyncDag.inspectDagState();

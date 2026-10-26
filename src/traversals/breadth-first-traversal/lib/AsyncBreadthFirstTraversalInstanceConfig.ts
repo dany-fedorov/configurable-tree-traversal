@@ -37,23 +37,19 @@ export type AsyncBreadthFirstTreeResolvedOptions<
 export type AsyncBreadthFirstTreeOptionsPatch<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> = Partial<
-  Omit<
-    AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
-    'visitors' | 'traversalRunnerInternalObjects' | 'inOrder'
-  >
-> & {
+> = {
+  traversableTree?: AsyncTreeSource<TTP, RW_TTP>;
+  sortChildrenHints?: AsyncChildHintSorter<TTP> | null;
   visitors?: VisitorInputs<AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>>;
+  retainOriginalTreeStructure?: boolean;
+  concurrency?: number;
 };
 
 export type AsyncBreadthFirstTreeOptions<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP> & {
-  traversableTree: AsyncBreadthFirstTreeResolvedOptions<
-    TTP,
-    RW_TTP
-  >['traversableTree'];
+  traversableTree: AsyncTreeSource<TTP, RW_TTP>;
 };
 
 export const ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<

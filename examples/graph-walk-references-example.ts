@@ -1,4 +1,3 @@
-import assert from 'node:assert/strict';
 import {
   AsyncGraphWalk,
   DepthFirstTreeTraversal,
@@ -12,6 +11,7 @@ import {
   type TreeSource,
   type VertexTypes,
 } from '../src';
+import assert from 'node:assert/strict';
 
 type Code = { kind: 'file'; path: string } | { kind: 'symbol'; name: string };
 type Reference = { kind: 'defines' | 'references' };

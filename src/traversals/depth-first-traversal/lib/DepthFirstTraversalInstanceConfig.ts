@@ -51,23 +51,19 @@ export const DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
 export type DepthFirstTreeOptionsPatch<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> = Partial<
-  Omit<
-    DepthFirstTreeResolvedOptions<TTP, RW_TTP>,
-    'visitors' | 'traversalRunnerInternalObjects' | 'inOrder'
-  >
-> & {
+> = {
+  traversableTree?: TreeSource<TTP, RW_TTP>;
+  sortChildrenHints?: ChildHintSorter<TTP> | null;
   visitors?: VisitorInputs<DepthFirstTraversalVisitors<TTP, RW_TTP>>;
-} & { inOrder?: Partial<InOrderOptions> };
+  retainOriginalTreeStructure?: boolean;
+  inOrder?: Partial<InOrderOptions>;
+};
 
 export type DepthFirstTreeOptions<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = DepthFirstTreeOptionsPatch<TTP, RW_TTP> & {
-  traversableTree: DepthFirstTreeResolvedOptions<
-    TTP,
-    RW_TTP
-  >['traversableTree'];
+  traversableTree: TreeSource<TTP, RW_TTP>;
 };
 
 export function mergeInstanceConfigs<

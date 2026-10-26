@@ -1,3 +1,4 @@
+import { inspectInternalDagState } from './internal-runner-fixtures';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import {
   AsyncDagTraversal,
@@ -112,7 +113,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             });
         }
         expect(restored.summary()).toEqual(runner.summary());
-        expect(restored.inspectDagState()).toEqual(runner.inspectDagState());
+        expect(inspectInternalDagState(restored)).toEqual(
+          inspectInternalDagState(runner),
+        );
         expect(restored.getStatus()).toBe(expectedStatus);
         expect(restored.requestPause()).toBe(false);
         if (scenario === 'finished') await restored.run();
@@ -122,11 +125,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         const summary = restored.summary();
         (summary.completedWorkIds as unknown[]).push('corruption');
         (summary.vertices as Map<unknown, unknown>).clear();
-        const facts = restored.inspectDagState();
+        const facts = inspectInternalDagState(restored);
         (facts.identityStates as unknown[]).pop();
         (facts.schedulingStates as unknown[]).pop();
         expect(restored.summary()).toEqual(runner.summary());
-        expect(restored.inspectDagState()).toEqual(runner.inspectDagState());
+        expect(inspectInternalDagState(restored)).toEqual(
+          inspectInternalDagState(runner),
+        );
         expect(captured.explain({ vertexId: 'a', milestone: 'work' })).toEqual(
           original.explain({ vertexId: 'a', milestone: 'work' }),
         );
@@ -248,13 +253,15 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     diagnostics.dependencyEdges[0]!.prerequisite.vertexId = { name: 'changed' };
     diagnostics.dependencyBlockedIds.pop();
     diagnostics.structurallyIncompleteIds.push({ name: 'changed' });
-    const facts = restored.inspectDagState();
+    const facts = inspectInternalDagState(restored);
     (facts.identityStates[0] as { kind: string }).kind = 'deleted';
     (
       facts.schedulingStates[0] as { initialCommitted: boolean }
     ).initialCommitted = true;
     expect(restored.summary()).toEqual(expected);
-    expect(restored.inspectDagState()).toEqual(runner.inspectDagState());
+    expect(inspectInternalDagState(restored)).toEqual(
+      inspectInternalDagState(runner),
+    );
     expect(
       inspectDagMilestones(restored).explain({
         vertexId: first,
@@ -375,7 +382,9 @@ test('terminal async observations stay stable after an invalidated callback sett
   release();
   await new Promise<void>((resolve) => setImmediate(resolve));
   expect(restored.summary()).toEqual(runner.summary());
-  expect(restored.inspectDagState()).toEqual(runner.inspectDagState());
+  expect(inspectInternalDagState(restored)).toEqual(
+    inspectInternalDagState(runner),
+  );
   expect(
     inspectDagMilestones(runner).explain({ vertexId: 'b', milestone: 'work' }),
   ).toEqual(captured.explain({ vertexId: 'b', milestone: 'work' }));
@@ -581,7 +590,10 @@ test('retaining a terminal observation again preserves an immutable metadata des
     runnerInternals(runner).state,
   );
   expect(() =>
-    captureDagTerminalObservation(runnerInternals(runner).state, runner),
+    captureDagTerminalObservation(runnerInternals(runner).state, {
+      inspectDagState: () => inspectInternalDagState(runner),
+      summary: () => runner.summary(),
+    }),
   ).not.toThrow();
   expect(
     Object.getOwnPropertyDescriptors(runnerInternals(runner).state),

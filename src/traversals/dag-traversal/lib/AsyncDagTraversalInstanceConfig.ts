@@ -63,13 +63,12 @@ type AsyncDagTraversalOptionsInput<
   T extends VertexTypes,
   R extends VertexTypes,
   ID = unknown,
-> = Partial<
-  Omit<
-    AsyncDagTraversalOptions<T, R, ID>,
-    'visitors' | 'traversalRunnerInternalObjects'
-  >
-> & {
+> = DagSchedulingOptions & {
+  completedWork?: ReadonlySet<ID>;
+  sortChildrenHints?: AsyncChildHintSorter<T> | null;
   visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R, ID>>;
+  retainOriginalGraphStructure?: boolean;
+  concurrency?: number;
 };
 
 export type AsyncDagOptions<

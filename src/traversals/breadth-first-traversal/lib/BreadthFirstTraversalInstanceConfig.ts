@@ -32,23 +32,18 @@ export type BreadthFirstTreeResolvedOptions<
 export type BreadthFirstTreeOptionsPatch<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> = Partial<
-  Omit<
-    BreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
-    'visitors' | 'traversalRunnerInternalObjects' | 'inOrder'
-  >
-> & {
+> = {
+  traversableTree?: TreeSource<TTP, RW_TTP>;
+  sortChildrenHints?: ChildHintSorter<TTP> | null;
   visitors?: VisitorInputs<BreadthFirstTraversalVisitors<TTP, RW_TTP>>;
+  retainOriginalTreeStructure?: boolean;
 };
 
 export type BreadthFirstTreeOptions<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = BreadthFirstTreeOptionsPatch<TTP, RW_TTP> & {
-  traversableTree: BreadthFirstTreeResolvedOptions<
-    TTP,
-    RW_TTP
-  >['traversableTree'];
+  traversableTree: TreeSource<TTP, RW_TTP>;
 };
 
 export const BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
