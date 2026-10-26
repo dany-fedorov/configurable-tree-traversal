@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import type { VertexTypes } from '../src/core';
 import {
   AsyncDepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
 } from '../src/traversals/depth-first-traversal';
 
 type ExampleTree = VertexTypes<string, string>;
@@ -46,8 +46,8 @@ const traversal = new AsyncDepthFirstTreeTraversal<ExampleTree>({
 
 async function main() {
   const runner = traversal.createRunner();
-  const iterator = runner.getIterable({
-    emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
+  const iterator = runner.iterateEvents({
+    emitEvents: [DepthFirstPhase.PRE_ORDER],
   });
   const rootEvent = await iterator.next();
   if (rootEvent.done) throw new Error('Expected the root event');

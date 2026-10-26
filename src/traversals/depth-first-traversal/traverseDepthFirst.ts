@@ -2,7 +2,7 @@ import type { VisitorPhaseInput } from '@core/TraversalVisitor';
 import { DepthFirstTreeTraversal } from '@depth-first-traversal/DepthFirstTraversal';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TreeSource } from '@core/TraversableTree';
-import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { TraversalVisitor } from '@core/TraversalVisitor';
 import type { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
 import type { DepthFirstTraversalInstanceConfigInput } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
@@ -12,17 +12,17 @@ export type DepthFirstTraversalVisitorsSimple<
   RW_TTP extends VertexTypes,
 > = {
   preOrderVisitor?: TraversalVisitor<
-    DepthFirstTraversalOrder.PRE_ORDER,
+    DepthFirstPhase.PRE_ORDER,
     TTP,
     RW_TTP
   >;
   postOrderVisitor?: TraversalVisitor<
-    DepthFirstTraversalOrder.POST_ORDER,
+    DepthFirstPhase.POST_ORDER,
     TTP,
     RW_TTP
   >;
   inOrderVisitor?: TraversalVisitor<
-    DepthFirstTraversalOrder.IN_ORDER,
+    DepthFirstPhase.IN_ORDER,
     TTP,
     RW_TTP
   >;
@@ -37,7 +37,7 @@ export type DepthFirstTraversalHelperOptions<
   'visitors' | 'traversableTree'
 > & { traversableTree: TreeSource<TTP, RW_TTP> } & {
   visitors?: {
-    [K in DepthFirstTraversalOrder]?: VisitorPhaseInput<
+    [K in DepthFirstPhase]?: VisitorPhaseInput<
       TraversalVisitor<K, TTP, RW_TTP>
     >;
   };
@@ -86,16 +86,16 @@ export function traverseTreeDepthFirst<
   const traversal = new DepthFirstTreeTraversal<TTP, RW_TTP>(traversalConfig);
   if (preOrderVisitor) {
     traversal.addVisitorFor(
-      DepthFirstTraversalOrder.PRE_ORDER,
+      DepthFirstPhase.PRE_ORDER,
       preOrderVisitor,
     );
   }
   if (inOrderVisitor) {
-    traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, inOrderVisitor);
+    traversal.addVisitorFor(DepthFirstPhase.IN_ORDER, inOrderVisitor);
   }
   if (postOrderVisitor) {
     traversal.addVisitorFor(
-      DepthFirstTraversalOrder.POST_ORDER,
+      DepthFirstPhase.POST_ORDER,
       postOrderVisitor,
     );
   }

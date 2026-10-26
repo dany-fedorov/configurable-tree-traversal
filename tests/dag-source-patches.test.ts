@@ -1,7 +1,7 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
 } from '../src';
 import type { DagDiscoverySource, VertexTypes } from '../src';
 import { mergeDagTraversalInstanceConfigs } from '../src/traversals/dag-traversal/lib/DagTraversalInstanceConfig';
@@ -37,7 +37,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       const seen: string[] = [];
       const traversal = new Factory<Data>({ [sourceKey]: original } as never);
       traversal.addVisitorFor(
-        Order.ON_READY,
+        Order.ON_WORK_READY,
         (vertex) => void seen.push(vertex.getData()),
       );
       async function run(expected: string) {
@@ -82,7 +82,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         traversal.configure({
           [sourceKey]: replacement,
           [oppositeKey]: replacement,
-          visitors: { [Order.ON_READY]: [] },
+          visitors: { [Order.ON_WORK_READY]: [] },
         } as never),
       ).toThrow(/source mode/i);
       expect(calls).toEqual([]);
@@ -111,7 +111,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         reads = 0;
         const constructed = new Factory<Data>(patch as never);
         expect(reads).toBe(1);
-        constructed.addVisitorFor(Order.ON_READY, (vertex) =>
+        constructed.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
           expect(vertex.getData()).toBe('replacement'),
         );
         await constructed.createRunner().run();

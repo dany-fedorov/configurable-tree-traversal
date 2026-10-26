@@ -6,7 +6,7 @@ import type {
   AsyncDagTraversalInstanceConfigInput,
   AsyncDagTraversalConfigureInput,
 } from './lib/AsyncDagTraversalInstanceConfig';
-import { DagTraversalOrder } from './lib/DagTraversalOrder';
+import { DagVisitorPhase } from './lib/DagTraversalOrder';
 import type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
 import type { AsyncDagVisitor } from './lib/DagTraversalVisitor';
 
@@ -15,8 +15,8 @@ export type AsyncDagTraversalVisitorsSimple<
   R extends VertexTypes,
   ID = unknown,
 > = {
-  onReadyVisitor?: AsyncDagVisitor<T, R, DagTraversalOrder.ON_READY, ID>;
-  onCompleteVisitor?: AsyncDagVisitor<T, R, DagTraversalOrder.ON_COMPLETE, ID>;
+  onReadyVisitor?: AsyncDagVisitor<T, R, DagVisitorPhase.ON_WORK_READY, ID>;
+  onCompleteVisitor?: AsyncDagVisitor<T, R, DagVisitorPhase.ON_SUBGRAPH_READY, ID>;
 };
 
 export type AsyncDagTraversalHelperConfig<
@@ -36,7 +36,7 @@ export type AsyncDagTraversalHelperOptions<
 > = Omit<AsyncDagTraversalHelperConfig<T, R, ID>, 'visitors'> &
   AsyncDagSource<T, R, ID> & {
     visitors?: {
-      [K in DagTraversalOrder]?: VisitorPhaseInput<
+      [K in DagVisitorPhase]?: VisitorPhaseInput<
         AsyncDagVisitor<T, R, K, ID>
       >;
     };
@@ -87,10 +87,10 @@ export function traverseDagAsync<
   }
   const traversal = new AsyncDagTraversal<T, R, ID>(traversalConfig);
   if (onReadyVisitor) {
-    traversal.addVisitorFor(DagTraversalOrder.ON_READY, onReadyVisitor);
+    traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, onReadyVisitor);
   }
   if (onCompleteVisitor) {
-    traversal.addVisitorFor(DagTraversalOrder.ON_COMPLETE, onCompleteVisitor);
+    traversal.addVisitorFor(DagVisitorPhase.ON_SUBGRAPH_READY, onCompleteVisitor);
   }
   return traversal.createRunner().run();
 }

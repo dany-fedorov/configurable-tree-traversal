@@ -1,3 +1,4 @@
+import type { AsyncTraversalVisitor } from '../src/core/AsyncTraversalVisitor';
 import { CTTRef } from '../src/core/CTTRef';
 import type {
   AsyncDagDiscoverySource,
@@ -5,16 +6,15 @@ import type {
 } from '../src/core/TraversableGraph';
 import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
 import type {
-  AsyncTraversalVisitor,
-  AsyncTraversalVisitorInputOptions,
-} from '../src/core/AsyncTraversalVisitor';
+  TreeVisitorContext,
+} from '../src/core/TraversalVisitor';
 import type { ResolvedGraph } from '../src/core/ResolvedGraph';
 import type { TreeSource } from '../src/core/TraversableTree';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
 import type { HintVertexId } from '../src/core/graph/types';
-import type { DagTraversalOrder } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import type { DagVisitorPhase } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import type {
   AsyncDagVisitor,
   DagVisitor,
@@ -74,13 +74,13 @@ const promisedTreeVisitor: AsyncTraversalVisitor<
   Output
 > = async () => undefined;
 
-const dagVisitor: DagVisitor<Input, Output, DagTraversalOrder.ON_READY> = (
+const dagVisitor: DagVisitor<Input, Output, DagVisitorPhase.ON_WORK_READY> = (
   vertex,
   options,
 ) => {
   const data: { input: string } | { output: number } = vertex.getData();
-  const order: DagTraversalOrder = options.order;
-  void [data, order, options.resolvedGraph, options.visitorRecord.priority];
+  const order: DagVisitorPhase = options.phase;
+  void [data, order, options.resolvedGraph, options.registration.priority];
   return {
     commands: [
       {
@@ -111,13 +111,13 @@ const invalidRewriteVisitor: DagVisitor<Input, Output> = () => ({
   ],
 });
 
-declare const asyncOptions: AsyncTraversalVisitorInputOptions<
+declare const asyncOptions: TreeVisitorContext<
   'ORDER',
   Input,
   Output
 >;
 const asyncVisitorMetadata: import('../src').VisitorRegistrationMetadata =
-  asyncOptions.visitorRecord;
+  asyncOptions.registration;
 
 const asyncGraphTraversal = new AsyncDagTraversal<Input, Output>({
   traversableGraph: asyncGraph,
@@ -125,11 +125,11 @@ const asyncGraphTraversal = new AsyncDagTraversal<Input, Output>({
   sortChildrenHints: async (hints) => hints.reverse(),
 });
 asyncGraphTraversal.addVisitorFor(
-  'ON_READY' as DagTraversalOrder,
+  'ON_WORK_READY' as DagVisitorPhase,
   async (vertex, options) => {
     const data: { input: string } | { output: number } = vertex.getData();
     const metadata: import('../src').VisitorRegistrationMetadata =
-      options.visitorRecord;
+      options.registration;
     void [
       data,
       metadata,
@@ -153,13 +153,13 @@ const asyncDagRunner: AsyncDagTraversalRunner<Input, Output> =
   asyncGraphTraversal.createRunner();
 const asyncDagEvents: AsyncGenerator<
   {
-    order: DagTraversalOrder;
+    kind: 'workCompleted' | 'subgraphCompleted';
     isGraphRoot: boolean;
     isTraversalRoot: boolean;
   },
   void,
   unknown
-> = asyncDagRunner.getIterable();
+> = asyncDagRunner.iterateEvents();
 const asyncDagRun: Promise<AsyncDagTraversalRunner<Input, Output>> =
   asyncDagRunner.run();
 void asyncDagRunner.inspect();

@@ -226,9 +226,9 @@ test('uses one FIFO for eligible visits and consumes each readiness once', () =>
 
   expect(scheduling.takeEligible()).toEqual({
     ref: rootRef,
-    order: 'ON_READY',
+    order: 'ON_WORK_READY',
   });
-  expect(scheduling.takeEligible()).toEqual({ ref: aRef, order: 'ON_READY' });
+  expect(scheduling.takeEligible()).toEqual({ ref: aRef, order: 'ON_WORK_READY' });
   expect(scheduling.takeEligible()).toBeNull();
   scheduling.markPreVisited(aRef);
   scheduling.markPreVisited(aRef);
@@ -251,7 +251,7 @@ test('consumes a wide eligible FIFO with a cursor and preserves head blocking', 
     expect(scheduling.takeCompleting()).toBeNull();
     expect(scheduling.takeReady()).toBe(rootRef);
     expect(scheduling.inspectEligible().slice(0, 3)).toEqual(
-      refs.slice(0, 3).map((ref) => ({ ref, order: 'ON_READY' })),
+      refs.slice(0, 3).map((ref) => ({ ref, order: 'ON_WORK_READY' })),
     );
     for (const ref of refs) expect(scheduling.takeReady()).toBe(ref);
     expect(scheduling.takeEligible()).toBeNull();

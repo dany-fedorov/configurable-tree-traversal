@@ -164,7 +164,7 @@ export class GraphScheduling<
       if (queued.has(visit.ref)) {
         this.throwInvalidSeed('ready visit is duplicated');
       }
-      if (visit.order !== 'ON_READY' && visit.order !== 'ON_COMPLETE') {
+      if (visit.order !== 'ON_WORK_READY' && visit.order !== 'ON_SUBGRAPH_READY') {
         this.throwInvalidSeed('ready visit has an invalid order');
       }
       queued.set(visit.ref, visit);
@@ -226,7 +226,7 @@ export class GraphScheduling<
           this.throwInvalidSeed('DISCOVERED vertex is inconsistent');
         }
       } else if (status === 'READY') {
-        if (slots !== null || hasUnmet || queuedVisit?.order !== 'ON_READY') {
+        if (slots !== null || hasUnmet || queuedVisit?.order !== 'ON_WORK_READY') {
           this.throwInvalidSeed('READY vertex is inconsistent');
         }
       } else if (status === 'PRE_VISITED') {
@@ -242,7 +242,7 @@ export class GraphScheduling<
           slots === null ||
           hasUnmet ||
           remainingChildren !== 0 ||
-          queuedVisit?.order !== 'ON_COMPLETE'
+          queuedVisit?.order !== 'ON_SUBGRAPH_READY'
         ) {
           this.throwInvalidSeed('COMPLETING vertex is inconsistent');
         }
@@ -641,7 +641,7 @@ export class GraphScheduling<
   }
 
   takeReady(): Ref<T | R> | null {
-    if (this.peekEligible()?.order !== 'ON_READY') return null;
+    if (this.peekEligible()?.order !== 'ON_WORK_READY') return null;
     return this.dequeueEligible()!.ref;
   }
 
@@ -654,7 +654,7 @@ export class GraphScheduling<
   }
 
   takeCompleting(): Ref<T | R> | null {
-    if (this.peekEligible()?.order !== 'ON_COMPLETE') return null;
+    if (this.peekEligible()?.order !== 'ON_SUBGRAPH_READY') return null;
     return this.dequeueEligible()!.ref;
   }
 
@@ -1031,7 +1031,7 @@ export class GraphScheduling<
       return;
     vertexWork.initialAdmitted = true;
     this.container.store.setStatus(vertexWork.ref, 'READY');
-    this.eligible.push({ ref: vertexWork.ref, order: 'ON_READY' });
+    this.eligible.push({ ref: vertexWork.ref, order: 'ON_WORK_READY' });
   }
 
   private peekEligible(): EligibleVisit<T | R> | null {
@@ -1088,7 +1088,7 @@ export class GraphScheduling<
     }
     vertexWork.completionAdmitted = true;
     this.container.store.setStatus(vertexWork.ref, 'COMPLETING');
-    this.eligible.push({ ref: vertexWork.ref, order: 'ON_COMPLETE' });
+    this.eligible.push({ ref: vertexWork.ref, order: 'ON_SUBGRAPH_READY' });
   }
 
   private addRemoval(

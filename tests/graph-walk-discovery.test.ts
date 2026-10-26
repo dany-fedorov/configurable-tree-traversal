@@ -26,7 +26,7 @@ it('deduplicates arbitrary IDs by SameValueZero without coercion', () => {
   };
   const runner = new GraphWalk({ source }).createRunner();
   const events = [
-    ...runner.getIterable({ emitPhases: [Phase.VERTEX, Phase.EDGE] }),
+    ...runner.iterateEvents({ emitEvents: [Phase.VERTEX, Phase.EDGE] }),
   ];
   expect(
     events.flatMap((event) =>
@@ -70,8 +70,8 @@ it('caches first accepted inline hydration and omission, copying wrappers but sh
           ],
   };
   const runner = new GraphWalk({ source }).createRunner();
-  const iterator = runner.getIterable({
-    emitPhases: [Phase.VERTEX, Phase.EDGE],
+  const iterator = runner.iterateEvents({
+    emitEvents: [Phase.VERTEX, Phase.EDGE],
   });
   const first = iterator.next().value!;
   expect(first).toMatchObject({
@@ -120,7 +120,7 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
           ? []
           : [{ target: { vertexId: vertex.vertexId + 1 }, data: undefined }],
     };
-    const runner = new GraphWalk({ source, strategy, emitPhases: [] })
+    const runner = new GraphWalk({ source, strategy, emitEvents: [] })
       .createRunner()
       .run();
     expect(runner.summary().counts).toMatchObject({
@@ -152,7 +152,7 @@ it('keeps independent runner caches and captured callback receivers', () => {
   };
   source.label = 'new';
   const second = factory.createRunner();
-  expect([...first.getIterable()]).toEqual([...second.getIterable()]);
+  expect([...first.iterateEvents()]).toEqual([...second.iterateEvents()]);
   expect(first.summary().counts.foundVertices).toBe(1);
   expect(second.summary().counts.foundVertices).toBe(1);
 });
@@ -171,7 +171,7 @@ it('exhausts empty roots and skips omitted roots without opening adjacency', () 
       },
     },
   }).createRunner();
-  expect([...runner.getIterable()]).toEqual([]);
+  expect([...runner.iterateEvents()]).toEqual([]);
   expect(runner.summary().counts).toMatchObject({
     occurrences: 1,
     omittedVertices: 1,
@@ -347,7 +347,7 @@ it('ignores later inline hydration without reading its getters', () => {
     outgoing: () => [{ target: poisoned, data: undefined }],
   };
   const runner = new GraphWalk({ source }).createRunner();
-  expect([...runner.getIterable({ emitPhases: [Phase.EDGE] })]).toMatchObject([
+  expect([...runner.iterateEvents({ emitEvents: [Phase.EDGE] })]).toMatchObject([
     { target: { kind: 'found', vertex: { vertexId: 'A', data: 'first' } } },
   ]);
   expect(runner.summary().counts).toMatchObject({

@@ -7,7 +7,7 @@ import {
 import type { MaterializedDagSource } from '../src/sources';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 
 type Item = { id: number; children: Item[]; dependencies: number[] };
 const items: Item[] = [];
@@ -33,7 +33,7 @@ for (const traversal of [
   new DagTraversal(source),
   new AsyncDagTraversal(source),
 ]) {
-  traversal.addVisitorFor(DagTraversalOrder.ON_READY, (vertex, options) => {
+  traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex, options) => {
     const item: Item = vertex.getData();
     const id: number = options.resolvedGraph.getVertexId(options.vertexRef);
     void [item, id];
@@ -44,7 +44,7 @@ for (const traversal of [
 const asyncTraversal = new AsyncDagTraversal({
   ...source,
   visitors: {
-    [DagTraversalOrder.ON_READY]: async (vertex, options) => {
+    [DagVisitorPhase.ON_WORK_READY]: async (vertex, options) => {
       const item: Item = vertex.getData();
       const id: number = options.resolvedGraph.getVertexId(options.vertexRef);
       await Promise.resolve();
@@ -56,7 +56,7 @@ const asyncRunner = asyncTraversal.createRunner();
 // @ts-expect-error Undefined must not be added to the inferred numeric ID domain.
 asyncRunner.getResolvedGraph().getVertexRefById(undefined);
 async function exactAsyncEvents() {
-  for await (const event of asyncRunner.getIterable()) {
+  for await (const event of asyncRunner.iterateEvents()) {
     const id: number = event.vertexId;
     void id;
   }

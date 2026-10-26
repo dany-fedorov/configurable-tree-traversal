@@ -81,7 +81,7 @@ while (runner.getStatus() !== 'FINISHED') {
     accepted.add(next.vertexId);
     runner.settle(next.vertexId, { kind: 'workCompleted' }, next.generation);
   }
-  events.push(...runner.getIterable());
+  events.push(...runner.iterateEvents());
 }
 assert.equal(runner.getStopReason(), 'finished');
 assert.deepEqual(runner.summary().deferredFrontier, []);

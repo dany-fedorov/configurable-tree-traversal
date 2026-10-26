@@ -101,7 +101,7 @@ it('prevents a synchronous session from acquiring externally outstanding work', 
   kernel.resume();
   kernel.poll();
   const session = new SyncWalkSession(kernel);
-  expect(() => session.getIterable().next()).toThrow('unsettled request');
+  expect(() => session.iterateEvents().next()).toThrow('unsettled request');
 });
 
 it('reports in-flight requests passively from inside source calls', () => {
@@ -123,7 +123,7 @@ it('reports in-flight requests passively from inside source calls', () => {
   const runner: GraphWalkRunner<string, unknown, string> = new GraphWalk({
     source,
   }).createRunner();
-  const iterator = runner.getIterable({
+  const iterator = runner.iterateEvents({
     visitorPhases: { exclude: [Phase.PATH] },
   });
   iterator.next();

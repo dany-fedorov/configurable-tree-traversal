@@ -5,7 +5,7 @@ import type { Vertex } from './Vertex';
 import type { VertexTypes } from './TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
-  TraversalVisitorInputOptions,
+  TreeVisitorContext,
   TraversalVisitorRecord,
 } from './TraversalVisitor';
 import { VisitorChain } from './visitors/VisitorChain';
@@ -17,12 +17,12 @@ type SynchronousVisitorChainAction<
 > = Exclude<VisitorChainPoll<TTP, RW_TTP>, { kind: 'WAIT' | 'PAUSED' }>;
 
 export type VisitorExecutionState<TTP extends VertexTypes> = {
-  vertexVisitIndex: number;
-  curVertexVisitorVisitIndex: number;
-  previousVisitedVertexRef: CTTRef<Vertex<TTP>> | null;
+  phaseVisitIndex: number;
+  visitorIndex: number;
+  previousPhaseVertexRef: CTTRef<Vertex<TTP>> | null;
 };
 
-export type VisitorCommandResult = { vertexVisitorsChainState?: unknown };
+export type VisitorCommandResult = { visitorChainState?: unknown };
 
 /** A yielded value is a halt boundary, retaining the rest of the visitor chain. */
 export function* executeVisitors<
@@ -36,7 +36,7 @@ export function* executeVisitors<
   getOptions: (
     record: TraversalVisitorRecord<ORDER, TTP, RW_TTP>,
     chainState: unknown,
-  ) => TraversalVisitorInputOptions<ORDER, TTP, RW_TTP>;
+  ) => TreeVisitorContext<ORDER, TTP, RW_TTP>;
   executeCommands: (
     commands: TraversalVisitorCommand<RW_TTP>[],
   ) => VisitorCommandResult;
@@ -67,28 +67,28 @@ export function* executeVisitors<
     ),
     metadata: {
       ...state,
-      vertexVisitorsChainState: null,
+      visitorChainState: null,
     },
     family: 'tree',
   });
-  state.curVertexVisitorVisitIndex = 0;
+  state.visitorIndex = 0;
 
   while (true) {
     const action = chain.poll() as SynchronousVisitorChainAction<TTP, RW_TTP>;
     switch (action.kind) {
       case 'VISIT': {
         const record = records[action.recordIndex]!;
-        state.curVertexVisitorVisitIndex =
-          action.metadata.curVertexVisitorVisitIndex;
+        state.visitorIndex =
+          action.metadata.visitorIndex;
         const result = record.visitor(
           action.ref.unref(),
-          input.getOptions(record, action.metadata.vertexVisitorsChainState),
+          input.getOptions(record, action.metadata.visitorChainState),
         );
         chain.submit({
           ok: true,
           value: result as import('./graph/types').VisitResult<RW_TTP>,
         });
-        state.curVertexVisitorVisitIndex++;
+        state.visitorIndex++;
         break;
       }
       case 'COMMANDS': {
@@ -99,10 +99,10 @@ export function* executeVisitors<
           deleted: input.isDeleted(),
           ...(Object.prototype.hasOwnProperty.call(
             result,
-            'vertexVisitorsChainState',
+            'visitorChainState',
           )
             ? {
-                vertexVisitorsChainState: result.vertexVisitorsChainState,
+                visitorChainState: result.visitorChainState,
               }
             : {}),
         });
@@ -113,8 +113,8 @@ export function* executeVisitors<
         break;
       }
       case 'DONE':
-        state.previousVisitedVertexRef = vertexRef;
-        state.vertexVisitIndex++;
+        state.previousPhaseVertexRef = vertexRef;
+        state.phaseVisitIndex++;
         return;
     }
   }

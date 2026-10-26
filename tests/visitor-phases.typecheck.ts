@@ -1,13 +1,13 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as D,
+  DagVisitorPhase as D,
   DepthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
-  DepthFirstTraversalOrder as F,
+  DepthFirstPhase as F,
   BreadthFirstTreeTraversal,
   AsyncBreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder as B,
+  BreadthFirstPhase as B,
   TraversalVisitorCommandName as C,
   DEFER_READY,
   traverseTreeDepthFirst,
@@ -29,35 +29,35 @@ for (const traversal of [
   new DagTraversal<T>(graph),
   new AsyncDagTraversal<T>(graph),
 ]) {
-  traversal.addVisitorFor(D.ON_READY, (_vertex, options) => {
-    const order: D.ON_READY = options.order;
-    void order;
+  traversal.addVisitorFor(D.ON_WORK_READY, (_vertex, options) => {
+    const phase: D.ON_WORK_READY = options.phase;
+    void phase;
     return { commands: [{ commandName: C.DEFER_READY }] };
   });
   // @ts-expect-error Completion cannot defer, including by legacy sentinel.
-  traversal.addVisitorFor(D.ON_COMPLETE, () => DEFER_READY);
-  traversal.addVisitorFor(D.ON_COMPLETE, () => ({
+  traversal.addVisitorFor(D.ON_SUBGRAPH_READY, () => DEFER_READY);
+  traversal.addVisitorFor(D.ON_SUBGRAPH_READY, () => ({
     // @ts-expect-error Completion cannot defer by command.
     commands: [{ commandName: C.DEFER_READY }],
   }));
   traversal.addVisitorFor(dagOrder, () => ({
-    // @ts-expect-error A union order can be completion.
+    // @ts-expect-error A union phase can be completion.
     commands: [{ commandName: C.DEFER_READY }],
   }));
-  traversal.addVisitorFor(D.ON_READY, () => ({
+  traversal.addVisitorFor(D.ON_WORK_READY, () => ({
     // @ts-expect-error Deferral cannot be combined with another command.
     commands: [{ commandName: C.DEFER_READY }, { commandName: C.NOOP }],
   }));
 
   traversal.configure({
     visitors: {
-      [D.ON_COMPLETE]: [
+      [D.ON_SUBGRAPH_READY]: [
         // @ts-expect-error Config map controls phase.
         { addedIndex: 0, priority: 100, visitor: () => DEFER_READY },
       ],
     },
   });
-  traversal.setVisitorsFor(D.ON_COMPLETE, [
+  traversal.setVisitorsFor(D.ON_SUBGRAPH_READY, [
     {
       addedIndex: 0,
       priority: 100,
@@ -76,12 +76,12 @@ for (const traversal of [
 }
 new DagTraversal<T>(graph).configure({
   visitors: {
-    [D.ON_READY]: [
+    [D.ON_WORK_READY]: [
       {
         addedIndex: 0,
         priority: 100,
         visitor: (_v, o) => {
-          const phase: D.ON_READY = o.order;
+          const phase: D.ON_WORK_READY = o.phase;
           void phase;
           return DEFER_READY;
         },
@@ -91,12 +91,12 @@ new DagTraversal<T>(graph).configure({
 });
 new AsyncDagTraversal<T>(graph).configure({
   visitors: {
-    [D.ON_READY]: [
+    [D.ON_WORK_READY]: [
       {
         addedIndex: 0,
         priority: 100,
         visitor: (_v, o) => {
-          const phase: D.ON_READY = o.order;
+          const phase: D.ON_WORK_READY = o.phase;
           void phase;
           return DEFER_READY;
         },
@@ -109,7 +109,7 @@ for (const traversal of [
   new AsyncDepthFirstTreeTraversal<T>(tree),
 ]) {
   traversal.addVisitorFor(F.PRE_ORDER, (_v, o) => {
-    const phase: F.PRE_ORDER = o.order;
+    const phase: F.PRE_ORDER = o.phase;
     void phase;
     return {
       commands: [
@@ -133,9 +133,9 @@ for (const traversal of [
   traversal.addVisitorFor(dfsOrder, () => ({
     commands: [
       {
-        // @ts-expect-error Union order can be POST_ORDER.
+        // @ts-expect-error Union phase can be POST_ORDER.
         commandName: C.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
-        // @ts-expect-error Union order can be POST_ORDER.
+        // @ts-expect-error Union phase can be POST_ORDER.
         commandArguments: { newHints: [] },
       },
     ],
@@ -182,7 +182,7 @@ for (const traversal of [
   new AsyncBreadthFirstTreeTraversal<T>(tree),
 ]) {
   traversal.addVisitorFor(B.LEVEL_ORDER, (_v, o) => {
-    const phase: B.LEVEL_ORDER = o.order;
+    const phase: B.LEVEL_ORDER = o.phase;
     void phase;
     return {
       commands: [
@@ -256,7 +256,7 @@ const commonVisitor: DagVisitor<T> = () => ({
   commands: [{ commandName: C.NOOP }],
 });
 void commonVisitor;
-// @ts-expect-error A broad visitor must be explicitly annotated ON_READY to defer.
+// @ts-expect-error A broad visitor must be explicitly annotated ON_WORK_READY to defer.
 const broadVisitor: DagVisitor<T> = () => DEFER_READY;
 void broadVisitor;
 const broadResult: TraversalVisitorResult<T> = {
@@ -268,20 +268,20 @@ const broadResult: TraversalVisitorResult<T> = {
 void broadResult;
 
 // Pre-typed callbacks must not hide an invalid phase behind a broader registration.
-declare const ready: DagVisitor<T, T, D.ON_READY>;
+declare const ready: DagVisitor<T, T, D.ON_WORK_READY>;
 declare const pre: import('../src').TraversalVisitor<F.PRE_ORDER, T, T>;
 for (const traversal of [
   new DagTraversal<T>(graph),
   new AsyncDagTraversal<T>(graph),
 ]) {
-  // @ts-expect-error The callback requires ON_READY but the registration can complete.
+  // @ts-expect-error The callback requires ON_WORK_READY but the registration can complete.
   traversal.addVisitorFor(dagOrder, ready);
   // @ts-expect-error A narrow callback cannot be registered for another phase.
-  traversal.addVisitorFor(D.ON_COMPLETE, ready);
+  traversal.addVisitorFor(D.ON_SUBGRAPH_READY, ready);
   traversal.configure({
     visitors: {
       // @ts-expect-error A pre-typed narrow callback cannot evade map phase restrictions.
-      [D.ON_COMPLETE]: [{ addedIndex: 0, priority: 1, visitor: ready }],
+      [D.ON_SUBGRAPH_READY]: [{ addedIndex: 0, priority: 1, visitor: ready }],
     },
   });
   traversal.setVisitorsFor(dagOrder, [
@@ -293,7 +293,7 @@ for (const traversal of [
   new DepthFirstTreeTraversal<T>(tree),
   new AsyncDepthFirstTreeTraversal<T>(tree),
 ]) {
-  // @ts-expect-error The callback can rewrite hints while the registration can run post-order.
+  // @ts-expect-error The callback can rewrite hints while the registration can run post-phase.
   traversal.addVisitorFor(dfsOrder, pre);
   traversal.configure({
     visitors: {
@@ -323,15 +323,15 @@ for (const traversal of [
   traverseDagAsync<T>(graph, { onCompleteVisitor: ready });
 }
 
-new DagTraversal<T>(graph).addVisitorFor(D.ON_READY, commonVisitor);
+new DagTraversal<T>(graph).addVisitorFor(D.ON_WORK_READY, commonVisitor);
 const asyncCommon: import('../src').AsyncDagVisitor<T> = async () => ({
   commands: [{ commandName: C.NOOP }],
 });
-new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_READY, asyncCommon);
+new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_WORK_READY, asyncCommon);
 
 {
   importedBreadth(tree.traversableTree, (_v, options) => {
-    const phase: B.LEVEL_ORDER = options.order;
+    const phase: B.LEVEL_ORDER = options.phase;
     void phase;
     return {
       commands: [
@@ -349,7 +349,7 @@ new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_READY, asyncCommon);
 }
 {
   importedBreadthAsync(tree.traversableTree, (_v, options) => {
-    const phase: B.LEVEL_ORDER = options.order;
+    const phase: B.LEVEL_ORDER = options.phase;
     void phase;
     return {
       commands: [
@@ -376,7 +376,7 @@ new DepthFirstTreeTraversal<T>(tree).configure({
         addedIndex: 0,
         priority: 1,
         visitor: (_v, o) => {
-          const phase: F.PRE_ORDER = o.order;
+          const phase: F.PRE_ORDER = o.phase;
           void phase;
           return {
             commands: [
@@ -398,7 +398,7 @@ new AsyncDepthFirstTreeTraversal<T>(tree).configure({
         addedIndex: 0,
         priority: 1,
         visitor: (_v, o) => {
-          const phase: F.PRE_ORDER = o.order;
+          const phase: F.PRE_ORDER = o.phase;
           void phase;
           return {
             commands: [
@@ -418,7 +418,7 @@ new DepthFirstTreeTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
     addedIndex: 0,
     priority: 1,
     visitor: (_v, o) => {
-      const phase: F.PRE_ORDER = o.order;
+      const phase: F.PRE_ORDER = o.phase;
       void phase;
     },
   },
@@ -428,7 +428,7 @@ new AsyncDepthFirstTreeTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
     addedIndex: 0,
     priority: 1,
     visitor: (_v, o) => {
-      const phase: F.PRE_ORDER = o.order;
+      const phase: F.PRE_ORDER = o.phase;
       void phase;
     },
   },
@@ -440,7 +440,7 @@ new BreadthFirstTreeTraversal<T>(tree).configure({
         addedIndex: 0,
         priority: 1,
         visitor: (_v, o) => {
-          const phase: B.LEVEL_ORDER = o.order;
+          const phase: B.LEVEL_ORDER = o.phase;
           void phase;
         },
       },
@@ -454,7 +454,7 @@ new AsyncBreadthFirstTreeTraversal<T>(tree).configure({
         addedIndex: 0,
         priority: 1,
         visitor: (_v, o) => {
-          const phase: B.LEVEL_ORDER = o.order;
+          const phase: B.LEVEL_ORDER = o.phase;
           void phase;
         },
       },
@@ -466,7 +466,7 @@ new BreadthFirstTreeTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
     addedIndex: 0,
     priority: 1,
     visitor: (_v, o) => {
-      const phase: B.LEVEL_ORDER = o.order;
+      const phase: B.LEVEL_ORDER = o.phase;
       void phase;
     },
   },
@@ -476,28 +476,28 @@ new AsyncBreadthFirstTreeTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
     addedIndex: 0,
     priority: 1,
     visitor: (_v, o) => {
-      const phase: B.LEVEL_ORDER = o.order;
+      const phase: B.LEVEL_ORDER = o.phase;
       void phase;
     },
   },
 ]);
-new DagTraversal<T>(graph).setVisitorsFor(D.ON_READY, [
+new DagTraversal<T>(graph).setVisitorsFor(D.ON_WORK_READY, [
   {
     addedIndex: 0,
     priority: 1,
     visitor: (_v, o) => {
-      const phase: D.ON_READY = o.order;
+      const phase: D.ON_WORK_READY = o.phase;
       void phase;
       return { commands: [{ commandName: C.DEFER_READY }] };
     },
   },
 ]);
-new AsyncDagTraversal<T>(graph).setVisitorsFor(D.ON_READY, [
+new AsyncDagTraversal<T>(graph).setVisitorsFor(D.ON_WORK_READY, [
   {
     addedIndex: 0,
     priority: 1,
     visitor: (_v, o) => {
-      const phase: D.ON_READY = o.order;
+      const phase: D.ON_WORK_READY = o.phase;
       void phase;
       return { commands: [{ commandName: C.DEFER_READY }] };
     },
@@ -506,7 +506,7 @@ new AsyncDagTraversal<T>(graph).setVisitorsFor(D.ON_READY, [
 
 // Match async callback types to async entry points so phase errors cannot be
 // masked by the independent sync/async recursive visitor-record distinction.
-declare const asyncReady: import('../src').AsyncDagVisitor<T, T, D.ON_READY>;
+declare const asyncReady: import('../src').AsyncDagVisitor<T, T, D.ON_WORK_READY>;
 declare const asyncPre: import('../src').AsyncTraversalVisitor<
   F.PRE_ORDER,
   T,
@@ -514,16 +514,16 @@ declare const asyncPre: import('../src').AsyncTraversalVisitor<
 >;
 const asyncDag = new AsyncDagTraversal<T>(graph);
 const asyncDfs = new AsyncDepthFirstTreeTraversal<T>(tree);
-asyncDag.addVisitorFor(D.ON_READY, asyncReady);
+asyncDag.addVisitorFor(D.ON_WORK_READY, asyncReady);
 asyncDfs.addVisitorFor(F.PRE_ORDER, asyncPre);
-// @ts-expect-error An async ON_READY callback cannot run at a union phase.
+// @ts-expect-error An async ON_WORK_READY callback cannot run at a union phase.
 asyncDag.addVisitorFor(dagOrder, asyncReady);
 // @ts-expect-error An async PRE_ORDER callback cannot run at a union phase.
 asyncDfs.addVisitorFor(dfsOrder, asyncPre);
 asyncDag.configure({
   visitors: {
     // @ts-expect-error Async configuration maps preserve phases of pre-typed callbacks.
-    [D.ON_COMPLETE]: [{ addedIndex: 0, priority: 1, visitor: asyncReady }],
+    [D.ON_SUBGRAPH_READY]: [{ addedIndex: 0, priority: 1, visitor: asyncReady }],
   },
 });
 asyncDfs.configure({

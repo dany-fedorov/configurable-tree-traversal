@@ -213,7 +213,7 @@ for (const api of [cjs, esm]) {
       };
     };
     traversal.addVisitorFor(
-      api.DagTraversalOrder.ON_READY,
+      api.DagVisitorPhase.ON_WORK_READY,
       asyncMode
         ? api.filterAsyncDagVisitor(
             (data) => data.kind === 'task',
@@ -223,15 +223,11 @@ for (const api of [cjs, esm]) {
     );
     const runner = traversal.createRunner();
     const events = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       events.push(event);
       assert(event.vertexId === taskId || event.vertexId === groupId);
-      assert.equal(
-        event.order,
-        event.kind === 'workCompleted'
-          ? api.DagTraversalOrder.ON_READY
-          : api.DagTraversalOrder.ON_COMPLETE,
-      );
+      assert(!('order' in event));
+      assert(!('phase' in event));
     }
     assert.deepEqual(calls, [records[0]]);
     assert.equal(events.filter((event) => event.vertexId === taskId).length, 2);

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {
   AsyncGraphWalk,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   GraphWalkPhase,
   type AsyncGraphWalkSource,
   type ExecutionInspection,
@@ -53,13 +53,13 @@ function runSync<Phase extends string, Event>(
   execution: SyncTraversalExecution<Phase, Event, ExecutionInspection>,
   phase: Phase,
 ) {
-  return execution.run({ emitPhases: [phase] });
+  return execution.run({ emitEvents: [phase] });
 }
 function runAsync<Phase extends string, Event>(
   execution: AsyncTraversalExecution<Phase, Event, ExecutionInspection>,
   phase: Phase,
 ) {
-  return execution.run({ emitPhases: [phase] });
+  return execution.run({ emitEvents: [phase] });
 }
 const tree: TreeSource<VertexTypes<string, string>> = {
   resolveRoot: () => ({
@@ -74,7 +74,7 @@ const treeRunner = new DepthFirstTreeTraversal({
   traversableTree: tree,
 }).createRunner();
 assert.equal(snapshot(treeRunner).execution, 'sync');
-runSync(treeRunner, DepthFirstTraversalOrder.PRE_ORDER);
+runSync(treeRunner, DepthFirstPhase.PRE_ORDER);
 
 async function main() {
   const references: string[] = [];
@@ -99,8 +99,8 @@ async function main() {
   console.log('Typed references:', references);
   // A fresh runner can use explicitly narrowed iteration instead of callbacks.
   const iteratorRunner = new AsyncGraphWalk({ source }).createRunner();
-  for await (const event of iteratorRunner.getIterable({
-    emitPhases: [GraphWalkPhase.EDGE],
+  for await (const event of iteratorRunner.iterateEvents({
+    emitEvents: [GraphWalkPhase.EDGE],
   })) {
     assert.equal(event.edge.data.kind, 'defines');
     assert.equal(event.source.data.kind, 'file');

@@ -1,5 +1,5 @@
 import {
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   TraversalVisitorCommandName as Command,
 } from '../src';
 import { DagTraversalStallError as CTTStallError } from '../src';
@@ -638,10 +638,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       workCompletion: 'externalSettlement',
     });
     let paused = false;
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       if (paused) return undefined;
       paused = true;
-      return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+      return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
     });
     const runner = traversal.createRunner();
     const initial = inspectDagMilestones(runner);
@@ -707,7 +707,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversal = new Constructor(
       materializeDagSourceFromRecords([{ id: 'deleted' }], { id: (item) => item.id }),
     );
-    traversal.addVisitorFor(Order.ON_READY, () => ({
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
       commands: [{ commandName: Command.DELETE_VERTEX }],
     }));
     const runner = traversal.createRunner();
@@ -753,7 +753,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     }).createRunner();
-    const iterator = runner.getIterable({ iterateOver: [Order.ON_READY] });
+    const iterator = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
     const first = await iterator.next();
     expect(first.done).toBe(false);
     if (first.done) throw new Error('Expected root event');
@@ -959,7 +959,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       visitors++;
     });
     const runner = traversal.createRunner();
@@ -971,7 +971,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       discoveryComplete: false,
     });
     expect({ sources, visitors }).toEqual({ sources: 0, visitors: 0 });
-    const iterator = runner.getIterable();
+    const iterator = runner.iterateEvents();
     expect((await iterator.next()).done).toBe(false);
     const active = runner.inspectMilestones();
     const calls = { sources, visitors };

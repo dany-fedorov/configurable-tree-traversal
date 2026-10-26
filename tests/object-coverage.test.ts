@@ -1,7 +1,7 @@
 import {
   CTTRef,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   ResolvedTree,
   TraversalVisitorCommandName,
   TraversalVisitorFunctionResolutionStyle,
@@ -10,7 +10,7 @@ import {
   ObjectTreeSource,
   rewriteObject as rewriteObjectApi,
   type TraversableObjectTTP,
-  type TraversalVisitorInputOptions,
+  type TreeVisitorContext,
 } from '../src';
 
 const { rewriteObject } = rewriteObjectApi;
@@ -62,7 +62,7 @@ describe('rewrite object option integration', () => {
       {
         inOrderTraversalConfig: { visitParentAfterChildren: 2 },
         visitors: {
-          [DepthFirstTraversalOrder.IN_ORDER]: [
+          [DepthFirstPhase.IN_ORDER]: [
             {
               addedIndex: 0,
               priority: 100,
@@ -85,16 +85,16 @@ describe('rewrite object option integration', () => {
       traversableTree: new ObjectTreeSource({ value: 1 }),
     }).createRunner().state;
     injectedState.visitorsState[
-      DepthFirstTraversalOrder.POST_ORDER
-    ].vertexVisitIndex = 40;
+      DepthFirstPhase.POST_ORDER
+    ].phaseVisitIndex = 40;
     const seenIndices: number[] = [];
 
     rewriteObject(
       { value: 1 },
       {
         traversalRunnerInternalObjects: { state: injectedState },
-        rewrite: (_property, { vertexVisitIndex }) => {
-          seenIndices.push(vertexVisitIndex);
+        rewrite: (_property, { phaseVisitIndex }) => {
+          seenIndices.push(phaseVisitIndex);
           return undefined;
         },
       },
@@ -102,8 +102,8 @@ describe('rewrite object option integration', () => {
 
     expect(seenIndices).toEqual([40, 41]);
     expect(
-      injectedState.visitorsState[DepthFirstTraversalOrder.POST_ORDER]
-        .vertexVisitIndex,
+      injectedState.visitorsState[DepthFirstPhase.POST_ORDER]
+        .phaseVisitIndex,
     ).toBe(42);
   });
 });
@@ -119,7 +119,7 @@ describe('object identity bookkeeping', () => {
       traversableTree: new ObjectTreeSource({ branch }),
     });
     traversal.addVisitorFor(
-      DepthFirstTraversalOrder.PRE_ORDER,
+      DepthFirstPhase.PRE_ORDER,
       (vertex, { isTreeRoot }) => {
         if (!isTreeRoot && vertex.getData().key === 'branch') {
           return {
@@ -167,7 +167,7 @@ describe('object identity bookkeeping', () => {
         },
       ),
     });
-    traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+    traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
       if (vertex.getData().key === 'branch') {
         return {
           commands: [
@@ -191,7 +191,7 @@ describe('object identity bookkeeping', () => {
       traversableTree: new ObjectTreeSource({ child: 1 }),
     });
     traversal.addVisitorFor(
-      DepthFirstTraversalOrder.PRE_ORDER,
+      DepthFirstPhase.PRE_ORDER,
       (vertex, { isTreeRoot }) => {
         if (isTreeRoot) {
           return {
@@ -237,7 +237,7 @@ describe('object identity bookkeeping', () => {
       ),
     });
     traversal.addVisitorFor(
-      DepthFirstTraversalOrder.PRE_ORDER,
+      DepthFirstPhase.PRE_ORDER,
       (vertex, { isTreeRoot }) => {
         if (!isTreeRoot) visited.push(vertex.getData().key);
       },
@@ -388,28 +388,28 @@ describe('public mutation command factory', () => {
     });
     const vertexRef = new CTTRef(vertex);
     const resolvedTree = new ResolvedTree<ObjectTree>();
-    const visitorRecord = {
+    const registration = {
       addedIndex: 0,
       priority: 100,
       resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
       visitor: () => undefined,
     };
-    const options: TraversalVisitorInputOptions<
-      DepthFirstTraversalOrder,
+    const options: TreeVisitorContext<
+      DepthFirstPhase,
       ObjectTree,
       ObjectTree
     > = {
       resolvedTree,
       notMutatedResolvedTree: null,
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
       isTreeRoot: true,
       isTraversalRoot: true,
       vertexRef,
-      vertexVisitorsChainState: null,
-      visitorRecord,
-      order: DepthFirstTraversalOrder.POST_ORDER,
+      visitorChainState: null,
+      registration,
+      phase: DepthFirstPhase.POST_ORDER,
     };
     return { vertex, options };
   };

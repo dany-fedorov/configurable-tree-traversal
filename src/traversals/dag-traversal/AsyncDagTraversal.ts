@@ -28,7 +28,7 @@ import {
   type AsyncDagTraversalVisitors,
 } from './lib/AsyncDagTraversalInstanceConfig';
 import { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
-import type { DagTraversalOrder } from './lib/DagTraversalOrder';
+import type { DagVisitorPhase } from './lib/DagTraversalOrder';
 import type { AsyncDagVisitor } from './lib/DagTraversalVisitor';
 
 export class AsyncDagTraversal<
@@ -99,7 +99,7 @@ export class AsyncDagTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends DagTraversalOrder>(
+  addVisitorFor<ORDER extends DagVisitorPhase>(
     order: ORDER,
     visitor: AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
@@ -116,7 +116,7 @@ export class AsyncDagTraversal<
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends DagTraversalOrder>(
+  addVisitorGroupFor<ORDER extends DagVisitorPhase>(
     order: ORDER,
     group: VisitorGroupDefinition<
       AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>
@@ -134,13 +134,13 @@ export class AsyncDagTraversal<
     return this;
   }
 
-  listVisitorsFor<ORDER extends DagTraversalOrder>(
+  listVisitorsFor<ORDER extends DagVisitorPhase>(
     order: ORDER,
   ): AsyncDagTraversalVisitors<T, R, ID>[ORDER] {
     return copyVisitorRecords(this.visitors[order]);
   }
 
-  setVisitorsFor<ORDER extends DagTraversalOrder>(
+  setVisitorsFor<ORDER extends DagVisitorPhase>(
     order: ORDER,
     input: VisitorPhaseInput<AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>>,
   ): this {

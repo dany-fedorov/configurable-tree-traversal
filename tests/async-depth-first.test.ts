@@ -1,7 +1,7 @@
 import {
   AsyncDepthFirstTreeTraversal,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder as Order,
+  DepthFirstPhase as Order,
 } from '../src/traversals/depth-first-traversal';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import {
@@ -36,7 +36,7 @@ async function values(
   order: Order,
 ): Promise<string[]> {
   const seen: string[] = [];
-  for await (const event of runner.getIterable({ iterateOver: [order] })) {
+  for await (const event of runner.iterateEvents({ iterateOver: [order] })) {
     seen.push(event.vertex.getData());
   }
   return seen;
@@ -51,7 +51,7 @@ test('exposes asynchronous depth-first post-order traversal', async () => {
     concurrency: 2,
   });
   const seen: string[] = [];
-  for await (const event of traversal.createRunner().getIterable({
+  for await (const event of traversal.createRunner().iterateEvents({
     iterateOver: [Order.POST_ORDER],
   })) {
     seen.push(event.vertex.getData());
@@ -119,7 +119,7 @@ test('resumes repeated mid-chain halts without repeating visitors', async () => 
   const visits: string[] = [];
   t.addVisitorFor(Order.PRE_ORDER, (vertex) => {
     visits.push(`halt:${vertex.getData()}`);
-    return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+    return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
   });
   t.addVisitorFor(Order.PRE_ORDER, async (vertex) => {
     visits.push(`after:${vertex.getData()}`);
@@ -144,7 +144,7 @@ test('resumes repeated mid-chain halts without repeating visitors', async () => 
 
 test('uses new iterator filters when resuming after consumer closure', async () => {
   const runner = traversal(node('root', node('leaf'))).createRunner();
-  for await (const event of runner.getIterable({ iterateOver: [Order.PRE_ORDER] })) {
+  for await (const event of runner.iterateEvents({ iterateOver: [Order.PRE_ORDER] })) {
     expect(event.vertex.getData()).toBe('root');
     break;
   }
@@ -199,7 +199,7 @@ test('accepts the existing synchronous object-tree adapter', async () => {
     traversableTree: new ObjectTreeSource({ a: 1, b: { c: 2 } }),
   }).createRunner();
   const keys: Array<string | number | symbol> = [];
-  for await (const event of runner.getIterable({ iterateOver: [Order.PRE_ORDER] })) {
+  for await (const event of runner.iterateEvents({ iterateOver: [Order.PRE_ORDER] })) {
     keys.push(event.vertex.getData().key);
   }
   expect(keys).toEqual([
@@ -287,7 +287,7 @@ test.each([null, undefined])(
     await expect(runner.run()).rejects.toBe(failure);
     expect(runner.getStatus()).toBe(Status.FAILED);
     await expect(runner.run()).rejects.toBe(failure);
-    await expect(runner.getIterable().next()).rejects.toBe(failure);
+    await expect(runner.iterateEvents().next()).rejects.toBe(failure);
   },
 );
 
@@ -296,7 +296,7 @@ test('preserves an original consumer exception and allows resumption', async () 
   const runner = traversal(node('root', node('leaf'))).createRunner();
   let caught: unknown;
   try {
-    for await (const _event of runner.getIterable()) throw consumerError;
+    for await (const _event of runner.iterateEvents()) throw consumerError;
   } catch (error) {
     caught = error;
   }
@@ -308,10 +308,10 @@ test('preserves an original consumer exception and allows resumption', async () 
 
 test('directly exposes session one-active-iterator and synchronous close control', async () => {
   const runner = traversal().createRunner();
-  const first = runner.getIterable();
+  const first = runner.iterateEvents();
   const firstEvent = await first.next();
   expect(firstEvent.done).toBe(false);
-  const second = runner.getIterable();
+  const second = runner.iterateEvents();
   await expect(second.next()).rejects.toThrow('Another active iterator');
   await expect(first.return(undefined)).resolves.toEqual({
     done: true,
@@ -370,7 +370,7 @@ test('matches synchronous DFS for timing-independent generated trees', async () 
     });
     for (const order of Object.values(Order)) {
       const expected = Array.from(
-        sync.createRunner().getIterable({ iterateOver: [order] }),
+        sync.createRunner().iterateEvents({ iterateOver: [order] }),
         (event) => event.vertex.getData(),
       );
       await expect(values(asyncTraversal.createRunner(), order)).resolves.toEqual(

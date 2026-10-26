@@ -103,7 +103,7 @@ test('captures prefetched sibling rejection and surfaces it in slot order', asyn
         },
       },
     });
-    const iterator = session.getIterable();
+    const iterator = session.iterateEvents();
     const trace: string[] = [];
     trace.push((await iterator.next()).value!.vertex.getData());
     const childEvent = iterator.next();
@@ -189,7 +189,7 @@ test('the limiter includes promised sorting and prefetched child resolution', as
       },
     },
   });
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   await iterator.next();
   const next = iterator.next();
   await eventLoopTurn();
@@ -226,7 +226,7 @@ test.each(['SORT_HINTS', 'HINT_ID'] as const)(
         },
       },
     });
-    const iterator = session.getIterable();
+    const iterator = session.iterateEvents();
     await iterator.next();
     await expect(iterator.next()).rejects.toBe(error);
   },
@@ -249,7 +249,7 @@ test('stores a child rejection while halted and surfaces it after resume', async
       },
     },
   });
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   await iterator.next();
   const pending = iterator.next();
   await eventLoopTurn();
@@ -260,7 +260,7 @@ test('stores a child rejection while halted and surfaces it after resume', async
   child.reject(error);
   await eventLoopTurn();
   expect(kernel.getStatus()).toBe(TraversalRunnerStatus.HALTED);
-  await expect(session.getIterable().next()).rejects.toBe(error);
+  await expect(session.iterateEvents().next()).rejects.toBe(error);
 });
 
 test('runs promised hint identity hooks through the shared limit before resolvers', async () => {
@@ -297,7 +297,7 @@ test('runs promised hint identity hooks through the shared limit before resolver
       },
     },
   });
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   await iterator.next();
   const childEvent = iterator.next();
   await eventLoopTurn();
@@ -343,7 +343,7 @@ test('known async hint identities are consumed without invoking a resolver', asy
       },
     },
   });
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   await iterator.next();
   await expect(iterator.next()).rejects.toThrow(/cycle/i);
   expect(resolverCalls).toBe(0);
@@ -439,7 +439,7 @@ test('uses rewritten hints when admitting child prefetch', async () => {
       },
     },
   });
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   await iterator.next();
   await iterator.next();
   expect(resolvedHints).toEqual(['new']);
@@ -472,7 +472,7 @@ test('at limit one a settled first child admits its queued sibling before acknow
       },
     },
   });
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   await iterator.next();
   const child = iterator.next();
   await eventLoopTurn();
@@ -546,7 +546,7 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
     2,
   );
   const session = new AsyncRunnerSession(driver);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   await iterator.next();
   const child = iterator.next();
   await eventLoopTurn();
@@ -742,7 +742,7 @@ test('breadth-first surfaces a prefetched resolver rejection', async () => {
       },
       1,
     ),
-  ).getIterable();
+  ).iterateEvents();
   await iterator.next();
   await expect(iterator.next()).rejects.toBe(error);
 });

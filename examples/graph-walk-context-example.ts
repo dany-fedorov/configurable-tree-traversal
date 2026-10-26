@@ -64,8 +64,8 @@ const runner = new GraphWalk({ source })
   })
   .createRunner();
 const observations = [
-  ...runner.getIterable({
-    emitPhases: [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE],
+  ...runner.iterateEvents({
+    emitEvents: [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE],
   }),
 ];
 assert.deepEqual(vertices, ['A', 'E', 'B', 'C', 'D']);

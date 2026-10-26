@@ -56,7 +56,7 @@ test('closes while root resolution is pending and consumes it after resume', asy
   };
   const driver = createAsyncDriver(kernel, bindings, 1);
   const session = new AsyncRunnerSession(driver);
-  const first = session.getIterable();
+  const first = session.iterateEvents();
   const pending = first.next();
   await eventLoopTurn();
   expect(driver.inspect().inFlightCallbackCount).toBe(1);
@@ -73,7 +73,7 @@ test('closes while root resolution is pending and consumes it after resume', asy
   expect(driver.inspect().inFlightCallbackCount).toBe(0);
   expect(kernel.inspect().pendingRequests).toHaveLength(1);
 
-  const resumed = session.getIterable();
+  const resumed = session.iterateEvents();
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
     value: { vertex: { $d: 'root' }, order: 'PRE_ORDER' },

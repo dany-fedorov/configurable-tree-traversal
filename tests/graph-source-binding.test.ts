@@ -7,7 +7,7 @@ import {
 } from '../src/core/drivers/callbackBindings';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
-import type { MakeVertexOptions } from '../src/core/TraversableTree';
+import type { TreeChildResolutionContext } from '../src/core/TraversableTree';
 import { Vertex } from '../src/core/Vertex';
 import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
@@ -50,7 +50,7 @@ test('tree binding reuses the legacy facade and passes real tree options', () =>
     resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
     resolveChild: (
       hint: string,
-      options: MakeVertexOptions<InputTTP, RewriteTTP>,
+      options: TreeChildResolutionContext<InputTTP, RewriteTTP>,
     ) => {
       expect(options.resolvedTree).toBe(container.treeContainer!.resolvedTree);
       expect(

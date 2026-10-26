@@ -88,7 +88,7 @@ function createInspection(
       },
     },
   });
-  traversal.addVisitorFor(library.DagTraversalOrder.ON_READY, () => {
+  traversal.addVisitorFor(library.DagVisitorPhase.ON_WORK_READY, () => {
     if (counters.ready++ === 0) onFirstReady();
     return library.DEFER_READY;
   });
@@ -282,7 +282,7 @@ function main(args) {
       runnerConstructionMs:
         'adapter index, traversal construction, visitor registration and createRunner',
       eagerToFirstReadyMs:
-        'run entry to first ON_READY callback; includes traversal setup, full eager discovery and validation; overlaps runToQuiescenceMs',
+        'run entry to first ON_WORK_READY callback; includes traversal setup, full eager discovery and validation; overlaps runToQuiescenceMs',
       runToQuiescenceMs:
         'run entry to return; includes discovery, validation and deferral admission; stops at HALTED frontier, no business work or settlement',
       kahnIndexAndFrontierMs:

@@ -1,4 +1,7 @@
-import type { VisitorPhaseSelection } from './TraversalRunnerIterableConfig';
+import type {
+  VisitorPhaseSelection,
+  EmissionKind,
+} from './TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalRunnerStatus,
@@ -10,8 +13,11 @@ import type {
   VisitOrder,
 } from '@core/effects/types';
 
-export type InspectionFilters<Phase extends string = VisitOrder> = Readonly<{
-  emitPhases: readonly Phase[];
+export type InspectionFilters<
+  Phase extends string = VisitOrder,
+  EmittedKind extends string = EmissionKind<Phase>,
+> = Readonly<{
+  emitEvents: readonly EmittedKind[];
   visitorPhases: VisitorPhaseSelection<Phase>;
   iterateOver: readonly Phase[];
   enableVisitorFunctionsFor: readonly Phase[] | null;
@@ -21,7 +27,7 @@ export type InspectionFilters<Phase extends string = VisitOrder> = Readonly<{
 export type KernelInspection = Readonly<{
   status: TraversalRunnerStatus;
   stopReason: TraversalStopReason | null;
-  haltRequested: boolean;
+  pauseRequested: boolean;
   kind: 'depth-first' | 'breadth-first' | 'dag';
   execution: 'sync' | 'async';
   sourceMode: 'tree' | 'graph';

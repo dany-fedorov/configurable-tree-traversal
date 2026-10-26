@@ -1,7 +1,7 @@
 import {
   CTTRef,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   Vertex,
@@ -35,10 +35,10 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
     },
   });
 
-  for (const order of Object.values(DepthFirstTraversalOrder)) {
+  for (const order of Object.values(DepthFirstPhase)) {
     traversal.addVisitorFor(order, (vertex, options) => {
       trace.push(
-        `visitor:${order}:${vertex.getData()}:visit=${options.vertexVisitIndex}:current=${options.curVertexVisitorVisitIndex}`,
+        `visitor:${order}:${vertex.getData()}:visit=${options.phaseVisitIndex}:current=${options.visitorIndex}`,
       );
       return undefined;
     });
@@ -56,8 +56,8 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
   });
   expect(runner.getResolvedTree().getRoot()).toBeNull();
 
-  for (const event of runner.getIterable()) {
-    trace.push(`event:${event.order}:${event.vertex.getData()}`);
+  for (const event of runner.iterateEvents()) {
+    trace.push(`event:${event.phase}:${event.vertex.getData()}`);
   }
 
   expect(trace).toEqual([
@@ -118,29 +118,29 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
       resolveChild: () => ({ vertexContent: null }),
     },
   });
-  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => ({
-    commands: [{ commandName: TraversalVisitorCommandName.HALT_TRAVERSAL }],
+  traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => ({
+    commands: [{ commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL }],
   }));
-  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+  traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
     visits.push(vertex.getData());
   });
 
   const runner = traversal.createRunner();
-  expect(Array.from(runner.getIterable())).toEqual([]);
+  expect(Array.from(runner.iterateEvents())).toEqual([]);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.HALTED);
   const halted = runner.inspect();
   expect(halted.chains).toHaveLength(1);
   expect(halted.chains[0]).toMatchObject({
-    order: DepthFirstTraversalOrder.PRE_ORDER,
+    order: DepthFirstPhase.PRE_ORDER,
     phase: 'paused',
     position: 1,
   });
   expect(
-    runner.state.visitorsState[DepthFirstTraversalOrder.PRE_ORDER],
+    runner.state.visitorsState[DepthFirstPhase.PRE_ORDER],
   ).toMatchObject({
-    vertexVisitIndex: 0,
-    curVertexVisitorVisitIndex: 1,
-    previousVisitedVertexRef: null,
+    phaseVisitIndex: 0,
+    visitorIndex: 1,
+    previousPhaseVertexRef: null,
   });
   expect(visits).toEqual([]);
 
@@ -184,8 +184,8 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
   }).createRunner();
 
   const events = Array.from(
-    second.getIterable({
-      iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
+    second.iterateEvents({
+      iterateOver: [DepthFirstPhase.PRE_ORDER],
     }),
   );
   expect(events.map((event) => event.vertex.getData())).toEqual([
@@ -214,7 +214,7 @@ test('deleting the current vertex still advances visitor metadata for its siblin
     },
   });
   traversal.addVisitorFor(
-    DepthFirstTraversalOrder.PRE_ORDER,
+    DepthFirstPhase.PRE_ORDER,
     (vertex, options) => {
       if (vertex.getData() === 'deleted') {
         return {
@@ -223,8 +223,8 @@ test('deleting the current vertex still advances visitor metadata for its siblin
       }
       if (vertex.getData() === 'sibling') {
         siblingMetadata.push(
-          options.vertexVisitIndex,
-          options.previousVisitedVertexRef?.unref().getData(),
+          options.phaseVisitIndex,
+          options.previousPhaseVertexRef?.unref().getData(),
         );
       }
       return undefined;
@@ -243,7 +243,7 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
       resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
     },
   });
-  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) =>
+  traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) =>
     vertex.getData() === 'root'
       ? {
           commands: [
@@ -256,14 +256,14 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
         }
       : undefined,
   );
-  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+  traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
     if (vertex.getData() === 'root') hints.push('late');
   });
 
   expect(
     Array.from(
-      traversal.createRunner().getIterable({
-        iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
+      traversal.createRunner().iterateEvents({
+        iterateOver: [DepthFirstPhase.PRE_ORDER],
       }),
     ).map((event) => event.vertex.getData()),
   ).toEqual(['root', 'first']);
@@ -280,13 +280,13 @@ test('disabled visitor execution leaves injected per-order state unchanged', () 
   const previous = new CTTRef(
     new Vertex<TestGraph>({ $d: 'previous', $c: [] }),
   );
-  seed.visitorsState[DepthFirstTraversalOrder.PRE_ORDER] = {
-    vertexVisitIndex: 41,
-    curVertexVisitorVisitIndex: 42,
-    previousVisitedVertexRef: previous,
+  seed.visitorsState[DepthFirstPhase.PRE_ORDER] = {
+    phaseVisitIndex: 41,
+    visitorIndex: 42,
+    previousPhaseVertexRef: previous,
   };
   let visitorCalls = 0;
-  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => {
+  traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => {
     visitorCalls += 1;
   });
   const runner = new DepthFirstTreeTraversal<TestGraph>({
@@ -297,17 +297,17 @@ test('disabled visitor execution leaves injected per-order state unchanged', () 
 
   expect(
     Array.from(
-      runner.getIterable({
-        iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
-        disableVisitorFunctionsFor: [DepthFirstTraversalOrder.PRE_ORDER],
+      runner.iterateEvents({
+        iterateOver: [DepthFirstPhase.PRE_ORDER],
+        disableVisitorFunctionsFor: [DepthFirstPhase.PRE_ORDER],
       }),
     ).map((event) => event.vertex.getData()),
   ).toEqual(['root']);
   expect(visitorCalls).toBe(0);
-  expect(seed.visitorsState[DepthFirstTraversalOrder.PRE_ORDER]).toEqual({
-    vertexVisitIndex: 41,
-    curVertexVisitorVisitIndex: 42,
-    previousVisitedVertexRef: previous,
+  expect(seed.visitorsState[DepthFirstPhase.PRE_ORDER]).toEqual({
+    phaseVisitIndex: 41,
+    visitorIndex: 42,
+    previousPhaseVertexRef: previous,
   });
   const root = runner.getResolvedGraph().getRoot();
   if (root === null) throw new Error('Expected a resolved root');
@@ -335,7 +335,7 @@ test.each(['sorter', 'resolver', 'visitor'] as const)(
           : null,
     });
     if (failureAt === 'visitor') {
-      traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => {
+      traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => {
         throw failure;
       });
     }

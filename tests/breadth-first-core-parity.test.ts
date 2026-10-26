@@ -1,6 +1,6 @@
 import {
   BreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder,
+  BreadthFirstPhase,
   TraversalRunnerStatus,
 } from '../src';
 import { BreadthFirstTraversalRunnerState } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerState';
@@ -20,7 +20,7 @@ test('BFS shared core resolves one queued child per event advancement', () => {
       },
     },
   });
-  traversal.addVisitorFor(BreadthFirstTraversalOrder.LEVEL_ORDER, (vertex) => {
+  traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, (vertex) => {
     if (vertex.getData() !== 'root') calls.push(`visit:${vertex.getData()}`);
   });
 
@@ -35,7 +35,7 @@ test('BFS shared core resolves one queued child per event advancement', () => {
   });
   expect(calls).toEqual([]);
 
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
   expect(iterator.next().value?.vertex.getData()).toBe('root');
   expect(iterator.next().value?.vertex.getData()).toBe('A');
   expect(calls).toEqual(['root', 'resolve:A', 'visit:A']);
@@ -112,7 +112,7 @@ test('BFS can traverse a completed injected resolved-tree container again', () =
     },
   }).createRunner();
 
-  const events = Array.from(second.getIterable());
+  const events = Array.from(second.iterateEvents());
   expect(events.map((event) => event.vertex.getData())).toEqual([
     'root',
     'child',
@@ -176,14 +176,14 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
       state,
     },
   });
-  traversal.addVisitorFor(BreadthFirstTraversalOrder.LEVEL_ORDER, (vertex) => {
+  traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, (vertex) => {
     calls.push(`visit:${vertex.getData()}`);
   });
 
   const runner = traversal.createRunner();
   expect(runner.state.queue).toBe(queue);
   expect(
-    Array.from(runner.getIterable()).map((event) => event.vertex.getData()),
+    Array.from(runner.iterateEvents()).map((event) => event.vertex.getData()),
   ).toEqual(['root', 'child']);
   expect(calls).toEqual(['visit:root', 'resolve:child', 'visit:child']);
   expect(runner.state.queue).toBe(queue);
@@ -198,7 +198,7 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
       resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
     },
   }).createRunner();
-  const firstIterator = first.getIterable();
+  const firstIterator = first.iterateEvents();
   expect(firstIterator.next().value?.vertex.getData()).toBe('root');
   expect(firstIterator.next().value?.vertex.getData()).toBe('A');
   firstIterator.return(undefined);
@@ -232,12 +232,12 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
     },
   });
   traversal.addVisitorFor(
-    BreadthFirstTraversalOrder.LEVEL_ORDER,
+    BreadthFirstPhase.LEVEL_ORDER,
     (vertex, options) => {
       visits.push([
         vertex.getData(),
-        options.vertexVisitIndex,
-        options.previousVisitedVertexRef?.unref().getData(),
+        options.phaseVisitIndex,
+        options.previousPhaseVertexRef?.unref().getData(),
       ]);
     },
   );
@@ -245,7 +245,7 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
   const runner = traversal.createRunner();
   expect(runner.state.queue).toBe(queue);
   expect(
-    Array.from(runner.getIterable()).map((event) => event.vertex.getData()),
+    Array.from(runner.iterateEvents()).map((event) => event.vertex.getData()),
   ).toEqual(['root', 'B']);
   expect(calls).toEqual(['B']);
   expect(queueAtResolution).toEqual(['A', 'B']);
@@ -306,7 +306,7 @@ test('BFS closes an injected frontier whose contexts were all consumed', () => {
       state,
     },
   }).createRunner();
-  expect([...runner.getIterable()].map((event) => event.vertex.getData())).toEqual([
+  expect([...runner.iterateEvents()].map((event) => event.vertex.getData())).toEqual([
     'root',
   ]);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);

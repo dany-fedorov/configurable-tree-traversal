@@ -1,6 +1,6 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 
@@ -32,7 +32,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         discovery,
         saveNotMutatedResolvedGraph: true,
       });
-      traversal.addVisitorFor(Order.ON_READY, (v) => {
+      traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
         events.push(v.getData());
       });
       const runner = traversal.createRunner();
@@ -186,7 +186,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_COMPLETE, (v) => {
+    traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (v) => {
       events.push(v.getData());
     });
     const runner = traversal.createRunner();

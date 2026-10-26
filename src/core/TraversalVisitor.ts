@@ -9,7 +9,7 @@ export enum TraversalVisitorCommandName {
   NOOP = 'NOOP',
   DEFER_READY = 'DEFER_READY',
   REWRITE_CHILD_HINTS = 'REWRITE_CHILD_HINTS',
-  HALT_TRAVERSAL = 'HALT_TRAVERSAL',
+  PAUSE_TRAVERSAL = 'PAUSE_TRAVERSAL',
   DELETE_VERTEX = 'DELETE_VERTEX',
   SET_VERTEX_VISITORS_CHAIN_STATE = 'SET_VERTEX_VISITORS_CHAIN_STATE',
   REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
@@ -26,7 +26,7 @@ export type TraversalVisitorCommandArguments<
   [TraversalVisitorCommandName.REWRITE_CHILD_HINTS]: {
     newHints: RW_TTP['VertexHint'][];
   };
-  [TraversalVisitorCommandName.HALT_TRAVERSAL]: never;
+  [TraversalVisitorCommandName.PAUSE_TRAVERSAL]: never;
   [TraversalVisitorCommandName.DELETE_VERTEX]: never;
   [TraversalVisitorCommandName.SET_VERTEX_VISITORS_CHAIN_STATE]: {
     vertexVisitorsChainState: unknown;
@@ -70,12 +70,12 @@ export type TraversalVisitorResult<
       commands?: TraversalVisitorCommand<
         RW_TTP,
         | CommonCommand
-        | ([ORDER] extends ['PRE_ORDER' | 'LEVEL_ORDER' | 'ON_READY']
+        | ([ORDER] extends ['PRE_ORDER' | 'LEVEL_ORDER' | 'ON_WORK_READY']
             ? HintCommand
             : never)
       >[];
     }
-  | ([ORDER] extends ['ON_READY']
+  | ([ORDER] extends ['ON_WORK_READY']
       ? {
           commands: [
             TraversalVisitorCommand<
@@ -86,22 +86,22 @@ export type TraversalVisitorResult<
         }
       : never);
 
-export type TraversalVisitorInputOptions<
+export type TreeVisitorContext<
   ORDER extends string,
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
   resolvedTree: ResolvedTree<TTP | RW_TTP>;
   notMutatedResolvedTree: ResolvedTree<TTP> | null;
-  vertexVisitIndex: number;
-  curVertexVisitorVisitIndex: number;
-  previousVisitedVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
+  phaseVisitIndex: number;
+  visitorIndex: number;
+  previousPhaseVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
   isTreeRoot: boolean;
   isTraversalRoot: boolean;
   vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
-  vertexVisitorsChainState: unknown;
-  visitorRecord: VisitorRegistrationMetadata;
-  order: ORDER;
+  visitorChainState: unknown;
+  registration: VisitorRegistrationMetadata;
+  phase: ORDER;
 };
 
 /** @deprecated Use commandCommitMode for command batching. */
@@ -186,7 +186,7 @@ export type TraversalVisitor<
 > = TraversalVisitorResult<RW_TTP, ORDER> extends infer RESULT
   ? (
       vertex: Vertex<TTP | RW_TTP>,
-      options: TraversalVisitorInputOptions<ORDER, TTP, RW_TTP>,
+      options: TreeVisitorContext<ORDER, TTP, RW_TTP>,
     ) => RESULT | undefined | void
   : never;
 

@@ -1,6 +1,6 @@
 import {
   BreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder as Order,
+  BreadthFirstPhase as Order,
   traverseTreeBreadthFirst,
 } from '../src/traversals/breadth-first-traversal';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
@@ -47,7 +47,7 @@ const yieldedValues = (
   >['traversal'] extends BreadthFirstTreeTraversal<TTP>
     ? ReturnType<BreadthFirstTreeTraversal<TTP>['createRunner']>
     : never,
-) => [...runner.getIterable()].map((event) => event.vertex.getData());
+) => [...runner.iterateEvents()].map((event) => event.vertex.getData());
 
 describe('breadth-first traversal', () => {
   test('visits vertices in hand-checked level order', () => {
@@ -66,7 +66,7 @@ describe('breadth-first traversal', () => {
     const { traversal, calls } = setup();
     const runner = traversal.createRunner();
     expect(calls).toEqual([]);
-    const iterator = runner.getIterable();
+    const iterator = runner.iterateEvents();
     expect(calls).toEqual([]);
     expect(iterator.next().value?.vertex.getData()).toBe('A');
     expect(calls).toEqual(['root']);
@@ -79,7 +79,7 @@ describe('breadth-first traversal', () => {
   test('finishes an empty tree without resolving children', () => {
     const { traversal, calls } = setup(null);
     const runner = traversal.createRunner();
-    expect([...runner.getIterable()]).toEqual([]);
+    expect([...runner.iterateEvents()]).toEqual([]);
     expect(calls).toEqual(['root']);
     expect(runner.getStatus()).toBe(Status.FINISHED);
     expect(runner.getResolvedTree().getRoot()).toBeNull();
@@ -186,7 +186,7 @@ describe('breadth-first traversal', () => {
       commands: [{ commandName: Command.DELETE_VERTEX }],
     }));
     const runner = traversal.createRunner();
-    expect([...runner.getIterable()]).toEqual([]);
+    expect([...runner.iterateEvents()]).toEqual([]);
     expect(calls).toEqual(['root']);
     expect(runner.getResolvedTree().getRoot()).toBeNull();
   });
@@ -197,7 +197,7 @@ describe('breadth-first traversal', () => {
     traversal.addVisitorFor(Order.LEVEL_ORDER, (vertex) => {
       visits.push(`first:${vertex.getData()}`);
       return vertex.getData() === 'root'
-        ? { commands: [{ commandName: Command.HALT_TRAVERSAL }] }
+        ? { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] }
         : undefined;
     });
     traversal.addVisitorFor(Order.LEVEL_ORDER, (vertex) => {
@@ -223,7 +223,7 @@ describe('breadth-first traversal', () => {
     for (let index = 0; index < 3; index++) {
       traversal.addVisitorFor(Order.LEVEL_ORDER, () => {
         visits.push(index);
-        return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
       });
     }
     const runner = traversal.createRunner();
@@ -244,14 +244,14 @@ describe('breadth-first traversal', () => {
       visits.push(vertex.getData());
     });
     const runner = traversal.createRunner();
-    for (const _event of runner.getIterable({
+    for (const _event of runner.iterateEvents({
       disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
     }))
       break;
     expect(runner.getStatus()).toBe(Status.HALTED);
     expect(visits).toEqual([]);
     expect([
-      ...runner.getIterable({
+      ...runner.iterateEvents({
         iterateOver: [],
         enableVisitorFunctionsFor: [Order.LEVEL_ORDER],
       }),
@@ -296,7 +296,7 @@ describe('breadth-first traversal', () => {
       };
     });
     traversal.addVisitorFor(Order.LEVEL_ORDER, (_vertex, options) => {
-      seen.push(options.vertexVisitorsChainState);
+      seen.push(options.visitorChainState);
     });
     traversal.createRunner().run();
     expect(seen).toEqual(['root', 'root', 'changed', 42]);
@@ -340,9 +340,9 @@ describe('breadth-first traversal', () => {
     const activeRunner = setup(
       node('root', node('child')),
     ).traversal.createRunner();
-    const first = activeRunner.getIterable();
+    const first = activeRunner.iterateEvents();
     expect(first.next().value?.vertex.getData()).toBe('root');
-    const second = activeRunner.getIterable();
+    const second = activeRunner.iterateEvents();
     expect(() => second.next()).toThrow(/one active iterator/i);
     first.return?.(undefined);
 

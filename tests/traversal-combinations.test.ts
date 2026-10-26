@@ -1,10 +1,10 @@
 import {
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder as DepthOrder,
+  DepthFirstPhase as DepthOrder,
 } from '../src/traversals/depth-first-traversal';
 import {
   BreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder as BreadthOrder,
+  BreadthFirstPhase as BreadthOrder,
 } from '../src/traversals/breadth-first-traversal';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
@@ -76,7 +76,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
         [DepthOrder.POST_ORDER, expected.post],
       ] as const) {
         expect(
-          [...dfs.createRunner().getIterable({ iterateOver: [order] })].map(
+          [...dfs.createRunner().iterateEvents({ iterateOver: [order] })].map(
             (event) => event.vertex.getData(),
           ),
         ).toEqual(result);
@@ -85,7 +85,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
         traversableTree: adapter(root),
       });
       expect(
-        [...bfs.createRunner().getIterable()].map((event) =>
+        [...bfs.createRunner().iterateEvents()].map((event) =>
           event.vertex.getData(),
         ),
       ).toEqual(expected.breadth);
@@ -107,7 +107,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
         [
           ...dfs
             .createRunner()
-            .getIterable({ iterateOver: [DepthOrder.POST_ORDER] }),
+            .iterateEvents({ iterateOver: [DepthOrder.POST_ORDER] }),
         ].map((event) => event.vertex.getData()),
       ).toEqual(expected.post);
       const bfs = new BreadthFirstTreeTraversal<Tree>({
@@ -119,7 +119,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
           : undefined,
       );
       expect(
-        [...bfs.createRunner().getIterable()].map((event) =>
+        [...bfs.createRunner().iterateEvents()].map((event) =>
           event.vertex.getData(),
         ),
       ).toEqual(expected.breadth);
@@ -134,15 +134,15 @@ test.each(Object.values(DepthOrder))(
     const expected = [
       ...new DepthFirstTreeTraversal<Tree>({ traversableTree: adapter(root) })
         .createRunner()
-        .getIterable(),
-    ].map((event) => [event.order, event.vertex.getData()]);
+        .iterateEvents(),
+    ].map((event) => [event.phase, event.vertex.getData()]);
     const traversal = new DepthFirstTreeTraversal<Tree>({
       traversableTree: adapter(root),
     });
     const calls: number[] = [];
     traversal.addVisitorFor(haltOrder, (vertex) => {
       calls.push(vertex.getData());
-      return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+      return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
     });
     const runner = traversal.createRunner();
     const actual: unknown[] = [];
@@ -150,8 +150,8 @@ test.each(Object.values(DepthOrder))(
     while (runner.getStatus() !== Status.FINISHED) {
       if (++resumes > 30)
         throw new Error('TreeTraversal did not finish after bounded resumptions');
-      for (const event of runner.getIterable())
-        actual.push([event.order, event.vertex.getData()]);
+      for (const event of runner.iterateEvents())
+        actual.push([event.phase, event.vertex.getData()]);
     }
     expect(actual).toEqual(expected);
     expect(calls).toEqual(
@@ -202,7 +202,7 @@ test('disabling a subtree in-order stops unresolved children but retains complet
   );
   const runner = traversal.createRunner();
   expect(
-    [...runner.getIterable({ iterateOver: [DepthOrder.POST_ORDER] })].map(
+    [...runner.iterateEvents({ iterateOver: [DepthOrder.POST_ORDER] })].map(
       (event) => event.vertex.getData(),
     ),
   ).toEqual([1, 0]);
@@ -244,7 +244,7 @@ describe.each(['depth', 'breadth'] as const)(
         expect(runner.getStatus()).toBe('FAILED');
         const callsAfterFailure = calls;
         expect(() => runner.run()).toThrow(failure);
-        expect(() => runner.getIterable().next()).toThrow(failure);
+        expect(() => runner.iterateEvents().next()).toThrow(failure);
         expect(calls).toBe(callsAfterFailure);
       },
     );
@@ -252,7 +252,7 @@ describe.each(['depth', 'breadth'] as const)(
     test('consumer loop errors close the iterator without poisoning the runner', () => {
       const runner = make(adapter(node(0, node(1))));
       expect(() => {
-        for (const _event of runner.getIterable())
+        for (const _event of runner.iterateEvents())
           throw new Error('consumer failed');
       }).toThrow('consumer failed');
       expect(runner.getStatus()).toBe(Status.HALTED);
@@ -311,7 +311,7 @@ describe.each(['depth', 'breadth'] as const)(
     test('an exception in a resumed visitor chain supersedes HALTED', () => {
       const t = traversal();
       const halt = () => ({
-        commands: [{ commandName: Command.HALT_TRAVERSAL as const }],
+        commands: [{ commandName: Command.PAUSE_TRAVERSAL as const }],
       });
       if (t instanceof DepthFirstTreeTraversal)
         t.addVisitorFor(DepthOrder.PRE_ORDER, halt);
@@ -328,9 +328,9 @@ describe.each(['depth', 'breadth'] as const)(
 
     test('simultaneous iterator rejection does not damage the original iterator', () => {
       const runner = traversal().createRunner();
-      const iterator = runner.getIterable();
+      const iterator = runner.iterateEvents();
       expect(iterator.next().value?.vertex.getData()).toBe(0);
-      expect(() => runner.getIterable().next()).toThrow(/one active iterator/);
+      expect(() => runner.iterateEvents().next()).toThrow(/one active iterator/);
       const remaining = [...iterator].map((event) => event.vertex.getData());
       expect(remaining).toContain(1);
       expect(runner.getStatus()).toBe(Status.FINISHED);
@@ -338,7 +338,7 @@ describe.each(['depth', 'breadth'] as const)(
 
     test('a consumer-injected iterator exception closes only that iterator', () => {
       const runner = traversal().createRunner();
-      const iterator = runner.getIterable();
+      const iterator = runner.iterateEvents();
       iterator.next();
       const failure = new Error('consumer aborted iterator');
       expect(() => iterator.throw(failure)).toThrow(failure);

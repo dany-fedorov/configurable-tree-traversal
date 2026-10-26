@@ -1,4 +1,4 @@
-import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import type {
   TraversalRunnerIterableConfig,
   TraversalIterableConfigInput,
@@ -10,9 +10,9 @@ import {
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type BreadthFirstTraversalRunnerIterableConfig =
-  TraversalRunnerIterableConfig<BreadthFirstTraversalOrder>;
+  TraversalRunnerIterableConfig<BreadthFirstPhase>;
 export type BreadthFirstTraversalRunnerIterableConfigInput =
-  TraversalIterableConfigInput<BreadthFirstTraversalOrder>;
+  TraversalIterableConfigInput<BreadthFirstPhase>;
 
 export const BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT: BreadthFirstTraversalRunnerIterableConfig =
   deepFreeze(makeEffectiveBreadthFirstTraversalRunnerIterableConfig());
@@ -21,14 +21,14 @@ export function makeEffectiveBreadthFirstTraversalRunnerIterableConfig(
   config?: BreadthFirstTraversalRunnerIterableConfigInput,
   previous?: BreadthFirstTraversalRunnerIterableConfig,
 ): BreadthFirstTraversalRunnerIterableConfig {
-  const phases = Object.values(BreadthFirstTraversalOrder);
+  const phases = Object.values(BreadthFirstPhase);
   return toLegacyTraversalExecutionConfig(
-    normalizeTraversalExecutionOptions(
+    normalizeTraversalExecutionOptions<BreadthFirstPhase>(
       phases,
       config,
       previous === undefined
         ? undefined
-        : normalizeTraversalExecutionOptions(phases, previous),
+        : normalizeTraversalExecutionOptions<BreadthFirstPhase>(phases, previous),
     ),
   );
 }

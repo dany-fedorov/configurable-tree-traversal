@@ -103,10 +103,10 @@ test('completion entries append behind existing initial visits in one FIFO', () 
   scheduling.closeExpansion(aRef);
 
   expect(scheduling.takeCompleting()).toBeNull();
-  expect(scheduling.takeEligible()).toEqual({ ref: bRef, order: 'ON_READY' });
+  expect(scheduling.takeEligible()).toEqual({ ref: bRef, order: 'ON_WORK_READY' });
   expect(scheduling.takeEligible()).toEqual({
     ref: aRef,
-    order: 'ON_COMPLETE',
+    order: 'ON_SUBGRAPH_READY',
   });
 });
 

@@ -33,7 +33,7 @@ export class WalkVisitorChain<
   }
   invoke(): unknown {
     const record = this.records[this.position]!;
-    const visitorRecord: VisitorRegistrationMetadata = {
+    const registration: VisitorRegistrationMetadata = {
       addedIndex: record.addedIndex,
       priority: record.priority,
       commandCommitMode: record.commandCommitMode,
@@ -41,11 +41,11 @@ export class WalkVisitorChain<
       visitorGroup: record.visitorGroup,
     };
     return record.visitor(this.event(), {
-      order: this.phase,
+      phase: this.phase,
       occurrenceIndex: this.occurrenceIndex,
       observationIndex: this.observationIndex,
       visitorIndex: this.position,
-      visitorRecord,
+      registration,
     });
   }
   submit(value: unknown): void {
@@ -67,9 +67,9 @@ export class WalkVisitorChain<
           )
             throw new TypeError('Walking commands do not accept arguments');
           const name = (command as { commandName?: unknown }).commandName;
-          if (name !== Command.NOOP && name !== Command.HALT_TRAVERSAL)
+          if (name !== Command.NOOP && name !== Command.PAUSE_TRAVERSAL)
             throw new TypeError(
-              'Walking only supports NOOP and HALT_TRAVERSAL',
+              'Walking only supports NOOP and PAUSE_TRAVERSAL',
             );
           return name;
         });
@@ -78,7 +78,7 @@ export class WalkVisitorChain<
     }
     if (this.batchEnds[this.position++]) {
       // All commands are validated and captured before this batch can apply.
-      this.paused = this.bufferedCommands.includes(Command.HALT_TRAVERSAL);
+      this.paused = this.bufferedCommands.includes(Command.PAUSE_TRAVERSAL);
       this.bufferedCommands.length = 0;
     }
   }

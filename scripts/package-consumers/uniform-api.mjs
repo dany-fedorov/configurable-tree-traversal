@@ -12,7 +12,7 @@ for (const [api, other] of [
   [cjs, esm],
   [esm, cjs],
 ]) {
-  const { TraversalVisitorCommandName: Command, DagTraversalOrder: Order } =
+  const { TraversalVisitorCommandName: Command, DagVisitorPhase: Order } =
     api;
   const legacyVertex = new api.core.Vertex({ $d: 'legacy', $c: [] });
   assert(legacyVertex instanceof other.core.Vertex);
@@ -47,9 +47,9 @@ for (const [api, other] of [
     resolveChild: (id) => found(id),
   };
   const families = [
-    ['traverseTreeDepthFirst', api.DepthFirstTraversalOrder.POST_ORDER],
-    ['traverseTreeBreadthFirst', api.BreadthFirstTraversalOrder.LEVEL_ORDER],
-    ['traverseDag', Order.ON_READY],
+    ['traverseTreeDepthFirst', api.DepthFirstPhase.POST_ORDER],
+    ['traverseTreeBreadthFirst', api.BreadthFirstPhase.LEVEL_ORDER],
+    ['traverseDag', Order.ON_WORK_READY],
   ];
   for (const [helper, phase] of families) {
     for (const suffix of ['', 'Async']) {
@@ -158,7 +158,7 @@ for (const [api, other] of [
         implicitParentDependency: inherit,
         traversableGraph: graphTree,
       });
-      traversal.addVisitorFor(Order.ON_READY, () => ({
+      traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
         commands: [
           { commandName: other.TraversalVisitorCommandName.DEFER_READY },
         ],
@@ -227,8 +227,8 @@ for (const [api, other] of [
       },
     }).createRunner();
     const deferredEvents = [];
-    for await (const event of external.getIterable({
-      emitPhases: [Order.ON_READY],
+    for await (const event of external.iterateEvents({
+      emitEvents: ['workCompleted'],
       visitorPhases: { include: [] },
     }))
       deferredEvents.push(event);
@@ -247,9 +247,9 @@ for (const [api, other] of [
     const token = external.summary().vertices.get(undefined).generation;
     external.settle(undefined, { kind: 'workCompleted' }, token);
     assert.equal(external.getStopReason(), 'awaitingSettlement');
-    // Emission-only update retains callback selection; ON_READY now emits.
-    for await (const event of external.getIterable({
-      emitPhases: [Order.ON_READY],
+    // Emission-only update retains callback selection; ON_WORK_READY now emits.
+    for await (const event of external.iterateEvents({
+      emitEvents: ['workCompleted'],
     }))
       deferredEvents.push(event);
     assert.equal(deferredEvents.length, 1);
@@ -259,7 +259,7 @@ for (const [api, other] of [
     const selected = new TreeTraversal({
       traversableTree: tree,
       visitors: {
-        [Order.ON_READY]: {
+        [Order.ON_WORK_READY]: {
           visitor: () => {
             selectedCalls.push('ready');
           },
@@ -267,20 +267,20 @@ for (const [api, other] of [
         },
       },
     }).createRunner();
-    await selected.run({ emitPhases: [], visitorPhases: { exclude: [] } });
+    await selected.run({ emitEvents: [], visitorPhases: { exclude: [] } });
     assert.deepEqual(selectedCalls, ['ready', 'ready']);
     const legacySelected = new TreeTraversal({
       traversableTree: tree,
       visitors: {
-        [Order.ON_READY]: () => {
+        [Order.ON_WORK_READY]: () => {
           selectedCalls.push('legacy');
         },
       },
     }).createRunner();
     await legacySelected.run({
       iterateOver: [],
-      enableVisitorFunctionsFor: [Order.ON_READY],
-      disableVisitorFunctionsFor: [Order.ON_READY],
+      enableVisitorFunctionsFor: [Order.ON_WORK_READY],
+      disableVisitorFunctionsFor: [Order.ON_WORK_READY],
     });
     assert.deepEqual(selectedCalls, ['ready', 'ready', 'legacy', 'legacy']);
 
@@ -292,14 +292,14 @@ for (const [api, other] of [
       },
     });
     batched.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       (vertex) => {
         events.push(vertex.getData());
       },
       { priority: 1000 },
     );
     batched.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       () => {
         events.push('group');
         return {
@@ -314,7 +314,7 @@ for (const [api, other] of [
       { commandCommitMode: 'afterGroup', priority: 1 },
     );
     batched.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       (vertex) => {
         events.push(vertex.getData());
       },
@@ -327,8 +327,8 @@ for (const [api, other] of [
     assert.deepEqual(events, ['root', 'group', 'root']);
 
     // Consumers that intend group-first execution express explicit ordered groups.
-    const [high, ...low] = batched.listVisitorsFor(Order.ON_READY);
-    batched.setVisitorsFor(Order.ON_READY, {
+    const [high, ...low] = batched.listVisitorsFor(Order.ON_WORK_READY);
+    batched.setVisitorsFor(Order.ON_WORK_READY, {
       groups: [
         {
           commandCommitMode: 'afterGroup',
@@ -338,8 +338,8 @@ for (const [api, other] of [
       ],
     });
     batched.setVisitorsFor(
-      Order.ON_READY,
-      batched.listVisitorsFor(Order.ON_READY),
+      Order.ON_WORK_READY,
+      batched.listVisitorsFor(Order.ON_WORK_READY),
     );
     events.length = 0;
     await batched.createRunner().run();
@@ -351,7 +351,7 @@ for (const [api, other] of [
         resolveChild: (id) => found(id),
       },
     });
-    fatal.addVisitorFor(Order.ON_READY, () => other.DEFER_READY);
+    fatal.addVisitorFor(Order.ON_WORK_READY, () => other.DEFER_READY);
     const fatalRunner = fatal.createRunner();
     await fatalRunner.run();
     const generation = fatalRunner.summary().vertices.get('fatal').generation;
@@ -448,7 +448,7 @@ for (const [api, other] of [
     api.traverseTreeDepthFirst({
       traversableTree: tree,
       visitors: {
-        [api.DepthFirstTraversalOrder.PRE_ORDER]: (vertex) => {
+        [api.DepthFirstPhase.PRE_ORDER]: (vertex) => {
           visits.push(vertex.getData());
           return {
             commands: [{ commandName, commandArguments: { newHints: [] } }],

@@ -1,7 +1,7 @@
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
   type DagSettlementOutcome,
@@ -46,7 +46,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, deferReady);
+    traversal.addVisitorFor(Order.ON_WORK_READY, deferReady);
     const runner = traversal.createRunner();
     await runner.run();
     const generation = runner.summary().vertices.get('parent')!.generation!;
@@ -78,7 +78,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     `${Constructor.name} canonical fatal feedback preserves %p and cross-form replay`,
     async (error) => {
       const traversal = new Constructor<G>({ traversableGraph: rootOnly });
-      traversal.addVisitorFor(Order.ON_READY, deferReady);
+      traversal.addVisitorFor(Order.ON_WORK_READY, deferReady);
       const runner = traversal.createRunner();
       await runner.run();
       const generation = runner.summary().vertices.get('root')!.generation!;
@@ -119,7 +119,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     `${Constructor.name} canonical replay matches legacy feedback %p`,
     async (ok) => {
       const traversal = new Constructor<G>({ traversableGraph: rootOnly });
-      traversal.addVisitorFor(Order.ON_READY, deferReady);
+      traversal.addVisitorFor(Order.ON_WORK_READY, deferReady);
       const runner = traversal.createRunner();
       await runner.run();
       const generation = runner.summary().vertices.get('root')!.generation!;
@@ -160,7 +160,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     `${Constructor.name} rejects malformed feedback %p without consuming its generation`,
     async (outcome) => {
       const traversal = new Constructor<G>({ traversableGraph: rootOnly });
-      traversal.addVisitorFor(Order.ON_READY, deferReady);
+      traversal.addVisitorFor(Order.ON_WORK_READY, deferReady);
       const runner = traversal.createRunner();
       await runner.run();
       const generation = runner.summary().vertices.get('root')!.generation!;
@@ -190,7 +190,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveRoot: () => ({ ...rootOnly.resolveRoot(), vertexId: id }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, deferReady);
+    traversal.addVisitorFor(Order.ON_WORK_READY, deferReady);
     const runner = traversal.createRunner();
     await runner.run();
     const generation = runner.summary().vertices.get(id)!.generation!;
@@ -228,7 +228,7 @@ test('canonical async settlement wakes W consumers while physical callbacks reta
       }),
     },
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
     seen.push(vertex.getData());
     return vertex.getData() === 'b' ? release.promise : deferReady();
   });

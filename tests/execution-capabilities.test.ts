@@ -3,11 +3,11 @@ import {
   AsyncDagTraversal,
   AsyncDepthFirstTreeTraversal,
   BreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder as BFS,
+  BreadthFirstPhase as BFS,
   DagTraversal,
-  DagTraversalOrder as DAG,
+  DagVisitorPhase as DAG,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder as DFS,
+  DepthFirstPhase as DFS,
   TraversalRunnerStatus as Status,
   type TraversalExecutionState,
   type VertexTypes,
@@ -56,14 +56,14 @@ const syncFamilies = [
     name: 'DAG tree',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
       new DagTraversal<Tree>({ traversableTree: tree })
-        .addVisitorFor(DAG.ON_READY, visit)
+        .addVisitorFor(DAG.ON_WORK_READY, visit)
         .createRunner(),
   },
   {
     name: 'DAG graph',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
       new DagTraversal<Tree>({ traversableGraph: tree })
-        .addVisitorFor(DAG.ON_READY, visit)
+        .addVisitorFor(DAG.ON_WORK_READY, visit)
         .createRunner(),
   },
 ];
@@ -86,14 +86,14 @@ const asyncFamilies = [
     name: 'DAG tree',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
       new AsyncDagTraversal<Tree>({ traversableTree: tree })
-        .addVisitorFor(DAG.ON_READY, visit)
+        .addVisitorFor(DAG.ON_WORK_READY, visit)
         .createRunner(),
   },
   {
     name: 'DAG graph',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
       new AsyncDagTraversal<Tree>({ traversableGraph: tree })
-        .addVisitorFor(DAG.ON_READY, visit)
+        .addVisitorFor(DAG.ON_WORK_READY, visit)
         .createRunner(),
   },
 ];
@@ -115,7 +115,7 @@ describe.each(syncFamilies)('$name sync execution', ({ make }) => {
     expect(runner.run()).toBe(runner);
     expect(state.isHalted()).toBe(true);
     expect(state.getStopReason()).toBe('paused');
-    expect(state.inspect().haltRequested).toBe(true);
+    expect(state.inspect().pauseRequested).toBe(true);
     expect(state.requestPause()).toBe(false);
     expect(sources).toEqual(['root']);
     runner.run();
@@ -130,7 +130,7 @@ describe.each(syncFamilies)('$name sync execution', ({ make }) => {
     const runner = make(source([]), () => {
       throw error;
     });
-    const owner = runner.getIterable();
+    const owner = runner.iterateEvents();
     expect(() => owner.next()).toThrow();
     expect(runner.getStatus()).toBe(Status.FAILED);
     expect(runner.requestPause()).toBe(false);
@@ -144,10 +144,10 @@ describe.each(syncFamilies)('$name sync execution', ({ make }) => {
 
   test('a suspended iterator retains ownership until the pause boundary is driven', () => {
     const runner = make(source([]), () => undefined);
-    const owner = runner.getIterable();
+    const owner = runner.iterateEvents();
     expect(owner.next().done).toBe(false);
     expect(runner.requestPause()).toBe(true);
-    expect(() => runner.getIterable().next()).toThrow(/active iterator/);
+    expect(() => runner.iterateEvents().next()).toThrow(/active iterator/);
     expect(owner.next().done).toBe(true);
     expect(runner.isHalted()).toBe(true);
     runner.run();
@@ -197,10 +197,10 @@ describe.each(asyncFamilies)('$name async execution', ({ make }) => {
       if (++visits === 1) expect(runner.requestPause()).toBe(true);
     });
     const events: string[] = [];
-    for await (const event of runner.getIterable())
+    for await (const event of runner.iterateEvents())
       events.push(event.vertex.getData());
     expect(runner.isHalted()).toBe(true);
-    for await (const event of runner.getIterable())
+    for await (const event of runner.iterateEvents())
       events.push(event.vertex.getData());
     // Each family may emit additional completion phases; work events are never lost.
     expect(events).toContain('root');
@@ -242,7 +242,7 @@ test('async pause drains admitted chains and retains undelivered events for the 
       B: { children: [], dependencies: ['root'] },
     }),
   });
-  traversal.addVisitorFor(DAG.ON_READY, async (vertex) => {
+  traversal.addVisitorFor(DAG.ON_WORK_READY, async (vertex) => {
     const id = vertex.getData();
     visits.push(`${id}:first`);
     if (id === 'A') {
@@ -254,16 +254,16 @@ test('async pause drains admitted chains and retains undelivered events for the 
       await finishB.promise;
     }
   });
-  traversal.addVisitorFor(DAG.ON_READY, (vertex) => {
+  traversal.addVisitorFor(DAG.ON_WORK_READY, (vertex) => {
     visits.push(`${vertex.getData()}:second`);
   });
   const runner = traversal.createRunner();
-  const owner = runner.getIterable({ emitPhases: [DAG.ON_READY] });
+  const owner = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   expect((await owner.next()).value?.vertex.getData()).toBe('root');
   const pending = owner.next();
   await Promise.all([startedA.promise, startedB.promise]);
   expect(runner.requestPause()).toBe(true);
-  await expect(runner.getIterable().next()).rejects.toThrow(/active iterator/);
+  await expect(runner.iterateEvents().next()).rejects.toThrow(/active iterator/);
   finishA.resolve();
   expect((await pending).value?.vertex.getData()).toBe('A');
   expect(runner.getStatus()).toBe(Status.RUNNING);
@@ -281,7 +281,7 @@ test('async pause drains admitted chains and retains undelivered events for the 
   ]);
   expect((await owner.next()).done).toBe(true);
   // Changing filters must not discard an event already committed while draining.
-  const resumed = runner.getIterable({ emitPhases: [] });
+  const resumed = runner.iterateEvents({ emitEvents: [] });
   expect((await resumed.next()).value?.vertex.getData()).toBe('B');
   expect((await resumed.next()).done).toBe(true);
   expect(visits).toHaveLength(6);

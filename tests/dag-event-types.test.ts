@@ -1,7 +1,7 @@
 import {
   DagTraversal,
+  DagVisitorPhase,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
 } from '../src/traversals/dag-traversal';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
@@ -22,26 +22,28 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               vertexContent: { $data: 'task', $childHints: [] },
             },
           }),
-          resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+          resolveChild: () => ({
+            kind: 'omitted',
+            satisfiesDependencies: true,
+          }),
         },
       }).createRunner();
       const before = [];
-      for await (const event of runner.getIterable()) before.push(event);
+      for await (const event of runner.iterateEvents()) before.push(event);
       expect(before).toEqual([]);
       const record = runner.summary().deferredFrontier[0]!;
       runner.settle(id, { ok: true }, record.generation);
       const events = [];
-      for await (const event of runner.getIterable()) {
+      for await (const event of runner.iterateEvents()) {
         expect(event).toHaveProperty('vertexId');
         expect(event.vertexId).toBe(id);
         expect(event.vertexRef.unref()).toBe(event.vertex);
         expect(runner.getResolvedGraph().getVertexId(event.vertexRef)).toBe(id);
-        events.push([event.kind, event.order]);
+        expect(event).not.toHaveProperty('order');
+        expect(event).not.toHaveProperty('phase');
+        events.push(event.kind);
       }
-      expect(events).toEqual([
-        ['workCompleted', Order.ON_READY],
-        ['subgraphCompleted', Order.ON_COMPLETE],
-      ]);
+      expect(events).toEqual(['workCompleted', 'subgraphCompleted']);
     },
   );
 
@@ -61,12 +63,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     }).createRunner();
     const events = [];
-    for await (const event of runner.getIterable({
-      emitPhases: [Order.ON_COMPLETE],
+    for await (const event of runner.iterateEvents({
+      emitEvents: ['subgraphCompleted'],
     })) {
-      events.push([event.vertexId, event.kind, event.order]);
+      events.push([event.vertexId, event.kind]);
     }
-    expect(events).toEqual([['task', 'subgraphCompleted', Order.ON_COMPLETE]]);
+    expect(events).toEqual([['task', 'subgraphCompleted']]);
   });
 }
 
@@ -83,7 +85,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     }).createRunner();
     const ids = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       expect(event.vertexId).toBe(
         runner.getResolvedGraph().getVertexId(event.vertexRef),
       );
@@ -91,5 +93,48 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }
     expect(ids).toHaveLength(2);
     expect(ids[0]).toBe(ids[1]);
+  });
+}
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test(`${Constructor.name} separates readiness callbacks from committed work observations`, async () => {
+    type G = VertexTypes<string, never>;
+    const calls: string[] = [];
+    const runner = new Constructor<G, G, string>({
+      traversableGraph: {
+        resolveRoot: () => ({
+          kind: 'found',
+          vertex: {
+            vertexId: 'task',
+            vertexContent: { $data: 'task', $childHints: [] },
+          },
+        }),
+        resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      },
+      visitors: {
+        [DagVisitorPhase.ON_WORK_READY]: (_vertex, context) => {
+          expect(context.phase).toBe(DagVisitorPhase.ON_WORK_READY);
+          expect(context.visitorIndex).toBe(0);
+          expect(context.phaseVisitIndex).toBe(0);
+          expect(context.previousPhaseVertexRef).toBeNull();
+          expect(context.registration).toHaveProperty('priority');
+          expect(context).not.toHaveProperty('order');
+          expect(runner.summary().completedWorkIds).toEqual([]);
+          calls.push('ready');
+        },
+      },
+    }).createRunner();
+    for await (const event of runner.iterateEvents({
+      emitEvents: ['workCompleted'],
+    })) {
+      expect(calls).toEqual(['ready']);
+      expect(event.kind).toBe('workCompleted');
+      expect(runner.summary().completedWorkIds).toEqual(['task']);
+      calls.push(event.kind);
+    }
+    expect(calls).toEqual(['ready', 'workCompleted']);
+    expect(runner.inspect().iterableConfig.emitEvents).toEqual([
+      'workCompleted',
+    ]);
   });
 }

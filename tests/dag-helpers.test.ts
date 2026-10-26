@@ -1,5 +1,5 @@
 import {
-  DagTraversalOrder,
+  DagVisitorPhase,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   dagTraversal,
@@ -48,7 +48,7 @@ test('DAG helpers register visitors and keep their explicit source authoritative
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(visits).toEqual(['ready:root', 'complete:root']);
   expect(dagTraversal.traverseDag).toBe(traverseDag);
-  expect(dagTraversal.DagTraversalOrder).toBe(DagTraversalOrder);
+  expect(dagTraversal.DagVisitorPhase).toBe(DagVisitorPhase);
 });
 
 test('async DAG helper accepts a null visitor set and returns a finished runner', async () => {
@@ -82,7 +82,7 @@ test('async DAG helper returns a halted runner when its visitor requests halt', 
     { traversableGraph: graph('root', { root: ['leaf'], leaf: [] }) },
     {
       onReadyVisitor: async () => ({
-        commands: [{ commandName: TraversalVisitorCommandName.HALT_TRAVERSAL }],
+        commands: [{ commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL }],
       }),
     },
   );

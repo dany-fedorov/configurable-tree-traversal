@@ -34,7 +34,7 @@ import { initDagVisitors } from '../init-helpers/initVisitors';
 import type { DagMilestoneSnapshot } from './DagInspection';
 import type { DagTraversalInstanceConfig } from './DagTraversalInstanceConfig';
 import { DagPolicy } from './DagPolicy';
-import { DagTraversalOrder } from './DagTraversalOrder';
+import { DagVisitorPhase } from './DagTraversalOrder';
 import type { DagEvent } from './DagTraversalVisitor';
 import {
   makeEffectiveDagTraversalRunnerIterableConfig,
@@ -178,8 +178,8 @@ export class DagTraversalRunner<
               )['VertexHint'][],
           }),
       visit: {
-        [DagTraversalOrder.ON_READY]: (call) => this.visit(call),
-        [DagTraversalOrder.ON_COMPLETE]: (call) => this.visit(call),
+        [DagVisitorPhase.ON_WORK_READY]: (call) => this.visit(call),
+        [DagVisitorPhase.ON_SUBGRAPH_READY]: (call) => this.visit(call),
       },
     });
     this.kernel = new TraversalKernel({
@@ -204,8 +204,8 @@ export class DagTraversalRunner<
       container: this.resolvedGraphsContainer,
       stateBridge: this.state,
       visitorMetadata: {
-        [DagTraversalOrder.ON_READY]: this.metadataFor(Order.ON_READY),
-        [DagTraversalOrder.ON_COMPLETE]: this.metadataFor(Order.ON_COMPLETE),
+        [DagVisitorPhase.ON_WORK_READY]: this.metadataFor(Order.ON_WORK_READY),
+        [DagVisitorPhase.ON_SUBGRAPH_READY]: this.metadataFor(Order.ON_SUBGRAPH_READY),
       },
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,
@@ -337,7 +337,7 @@ export class DagTraversalRunner<
     });
   }
 
-  *getIterable(
+  *iterateEvents(
     config?: DagTraversalRunnerIterableConfigInput,
   ): Generator<Event<T, R, ID>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
@@ -349,7 +349,7 @@ export class DagTraversalRunner<
       config === undefined
         ? undefined
         : detachTraversalExecutionOptions(
-            Object.values(DagTraversalOrder),
+            Object.values(DagVisitorPhase),
             config,
           );
     this.policy.claim();
@@ -387,7 +387,7 @@ export class DagTraversalRunner<
   }
 
   run(config?: DagTraversalRunnerIterableConfigInput): this {
-    for (const _event of this.getIterable(config)) {
+    for (const _event of this.iterateEvents(config)) {
       /* Drain traversal events. */
     }
     return this;
@@ -406,14 +406,12 @@ export class DagTraversalRunner<
           vertex: event.vertex,
           vertexRef: event.vertexRef,
           vertexId: this.getResolvedGraph().getVertexId(event.vertexRef),
-          ...(event.order === DagTraversalOrder.ON_READY
+          ...(event.order === DagVisitorPhase.ON_WORK_READY
             ? ({
                 kind: 'workCompleted',
-                order: DagTraversalOrder.ON_READY,
               } as const)
             : ({
                 kind: 'subgraphCompleted',
-                order: DagTraversalOrder.ON_COMPLETE,
               } as const)),
           isGraphRoot: event.isRoot,
           isTraversalRoot: event.isTraversalRoot,
@@ -423,22 +421,22 @@ export class DagTraversalRunner<
   }
 
   private visit(call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>) {
-    const order = call.order as DagTraversalOrder;
-    const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
-    return visitorRecord.visitor(call.ref.unref(), {
+    const order = call.order as DagVisitorPhase;
+    const registration = this.icfg.visitors[order][call.recordIndex]!;
+    return registration.visitor(call.ref.unref(), {
       ...call.metadata,
       resolvedGraph: this.getResolvedGraph(),
       notMutatedResolvedGraph: this.notMutatedResolvedGraph,
       vertexRef: call.ref,
-      order,
+      phase: order,
       isGraphRoot: this.isGraphRootVertex(call.ref),
       isTraversalRoot: this.isTraversalRootVertex(call.ref),
-      visitorRecord,
+      registration,
       // The record and options share the same phase selected above.
     } as never);
   }
 
-  private metadataFor(order: DagTraversalOrder) {
+  private metadataFor(order: DagVisitorPhase) {
     return this.icfg.visitors[order].map(
       ({
         addedIndex,
@@ -457,4 +455,4 @@ export class DagTraversalRunner<
   }
 }
 
-const Order = DagTraversalOrder;
+const Order = DagVisitorPhase;

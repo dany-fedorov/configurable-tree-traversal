@@ -1,29 +1,29 @@
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { DagTraversalOrder } from './lib/DagTraversalOrder';
+import type { DagVisitorPhase } from './lib/DagTraversalOrder';
 import type {
   AsyncDagVisitor,
   DagVisitor,
-  DagVisitorOptions,
+  DagVisitorContext,
 } from './lib/DagTraversalVisitor';
 
 type FilteredVisitor<
   DATA,
   T extends VertexTypes,
   R extends VertexTypes,
-  ORDER extends DagTraversalOrder,
+  ORDER extends DagVisitorPhase,
   ID,
 > = ReturnType<DagVisitor<T, R, ORDER, ID>> extends infer RESULT
-  ? (data: DATA, options: DagVisitorOptions<T, R, ORDER, ID>) => RESULT
+  ? (data: DATA, options: DagVisitorContext<T, R, ORDER, ID>) => RESULT
   : never;
 
 type AsyncFilteredVisitor<
   DATA,
   T extends VertexTypes,
   R extends VertexTypes,
-  ORDER extends DagTraversalOrder,
+  ORDER extends DagVisitorPhase,
   ID,
 > = ReturnType<AsyncDagVisitor<T, R, ORDER, ID>> extends infer RESULT
-  ? (data: DATA, options: DagVisitorOptions<T, R, ORDER, ID>) => RESULT
+  ? (data: DATA, options: DagVisitorContext<T, R, ORDER, ID>) => RESULT
   : never;
 
 /** Filter current vertex data; a guard narrows data, never the live graph context. */
@@ -32,7 +32,7 @@ export function filterDagVisitor<
   NARROWED extends DATA,
   T extends VertexTypes<DATA> = VertexTypes<DATA>,
   R extends VertexTypes<DATA> = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
 >(
   predicate: (data: DATA) => data is NARROWED,
@@ -42,7 +42,7 @@ export function filterDagVisitor<
   DATA,
   T extends VertexTypes<DATA> = VertexTypes<DATA>,
   R extends VertexTypes<DATA> = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
 >(
   predicate: (data: DATA) => boolean,
@@ -53,7 +53,7 @@ export function filterDagVisitor<
   NARROWED extends DATA,
   T extends VertexTypes<DATA>,
   R extends VertexTypes<DATA>,
-  ORDER extends DagTraversalOrder,
+  ORDER extends DagVisitorPhase,
   ID,
 >(
   predicate: (data: DATA) => boolean,
@@ -72,7 +72,7 @@ export function filterAsyncDagVisitor<
   NARROWED extends DATA,
   T extends VertexTypes<DATA> = VertexTypes<DATA>,
   R extends VertexTypes<DATA> = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
 >(
   predicate: (data: DATA) => data is NARROWED,
@@ -82,7 +82,7 @@ export function filterAsyncDagVisitor<
   DATA,
   T extends VertexTypes<DATA> = VertexTypes<DATA>,
   R extends VertexTypes<DATA> = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
 >(
   predicate: (data: DATA) => boolean,
@@ -93,7 +93,7 @@ export function filterAsyncDagVisitor<
   NARROWED extends DATA,
   T extends VertexTypes<DATA>,
   R extends VertexTypes<DATA>,
-  ORDER extends DagTraversalOrder,
+  ORDER extends DagVisitorPhase,
   ID,
 >(
   predicate: (data: DATA) => boolean,

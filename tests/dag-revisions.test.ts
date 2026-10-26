@@ -1,6 +1,6 @@
 import {
   createAsyncDagWorkSession,
-  DagTraversalOrder,
+  DagVisitorPhase,
   defineDag,
   diffDagDefinitions,
   prepareDagDefinition,
@@ -1017,7 +1017,7 @@ describe('revision session isolation', () => {
     const oldRunner = await original.createAsyncRunner({
       workCompletion: 'externalSettlement',
       visitors: {
-        [DagTraversalOrder.ON_COMPLETE]: async (vertex) => {
+        [DagVisitorPhase.ON_SUBGRAPH_READY]: async (vertex) => {
           entered.resolve();
           await release.promise;
           completed.push(vertex.getData());

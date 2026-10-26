@@ -2,7 +2,7 @@ import type { OwnerToken } from '@core/effects/types';
 import type { Ref } from '@core/graph/types';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { DepthFirstTraversalInOrderTraversalConfig } from './DepthFirstTraversalInOrderTraversalConfig';
-import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
+import { DepthFirstPhase } from './DepthFirstTraversalOrder';
 import { shouldVisitParentOnInOrder } from '../in-order-helpers/shouldVisitParentOnInOrder';
 
 export type DepthFirstFrameStage =
@@ -33,7 +33,7 @@ export type DepthFirstWork<T extends VertexTypes> =
   | {
       kind: 'VISIT';
       frame: DepthFirstFrame<T>;
-      order: DepthFirstTraversalOrder;
+      order: DepthFirstPhase;
     }
   | {
       kind: 'PREPARE_HINTS';
@@ -92,7 +92,7 @@ export class DepthFirstPolicy<T extends VertexTypes> {
           return {
             kind: 'VISIT',
             frame,
-            order: DepthFirstTraversalOrder.PRE_ORDER,
+            order: DepthFirstPhase.PRE_ORDER,
           };
         case 'sort': {
           const hints = isDisabled(frame.vertexRef)
@@ -122,7 +122,7 @@ export class DepthFirstPolicy<T extends VertexTypes> {
               return {
                 kind: 'VISIT',
                 frame,
-                order: DepthFirstTraversalOrder.IN_ORDER,
+                order: DepthFirstPhase.IN_ORDER,
               };
             }
             continue;
@@ -144,14 +144,14 @@ export class DepthFirstPolicy<T extends VertexTypes> {
           return {
             kind: 'VISIT',
             frame,
-            order: DepthFirstTraversalOrder.IN_ORDER,
+            order: DepthFirstPhase.IN_ORDER,
           };
         case 'post':
           frame.stage = 'post-visit';
           return {
             kind: 'VISIT',
             frame,
-            order: DepthFirstTraversalOrder.POST_ORDER,
+            order: DepthFirstPhase.POST_ORDER,
           };
         case 'done':
           this.frames.pop();
@@ -166,9 +166,9 @@ export class DepthFirstPolicy<T extends VertexTypes> {
     }
   }
 
-  completeVisit(frame: DepthFirstFrame<T>, order: DepthFirstTraversalOrder): void {
-    if (order === DepthFirstTraversalOrder.PRE_ORDER) frame.stage = 'sort';
-    else if (order === DepthFirstTraversalOrder.IN_ORDER)
+  completeVisit(frame: DepthFirstFrame<T>, order: DepthFirstPhase): void {
+    if (order === DepthFirstPhase.PRE_ORDER) frame.stage = 'sort';
+    else if (order === DepthFirstPhase.IN_ORDER)
       frame.stage = frame.resumeAfterInOrder;
     else frame.stage = 'done';
   }

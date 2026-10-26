@@ -1,7 +1,7 @@
 import {
-  BreadthFirstTraversalOrder as B,
-  DepthFirstTraversalOrder as F,
-  DagTraversalOrder as D,
+  BreadthFirstPhase as B,
+  DepthFirstPhase as F,
+  DagVisitorPhase as D,
   TraversalRunnerStatus,
   TraversalVisitorCommandName as C,
   traverseTreeDepthFirst,
@@ -135,10 +135,10 @@ test('DAG options support both source choices, phases, and discovery configurati
     sortChildrenHints: (hints) => hints.reverse(),
     implicitParentDependency: true,
     visitors: {
-      [D.ON_READY]: (vertex) => {
+      [D.ON_WORK_READY]: (vertex) => {
         visits.push(`ready:${vertex.getData()}`);
       },
-      [D.ON_COMPLETE]: (vertex) => {
+      [D.ON_SUBGRAPH_READY]: (vertex) => {
         visits.push(`complete:${vertex.getData()}`);
       },
     },
@@ -158,10 +158,10 @@ test('DAG options support both source choices, phases, and discovery configurati
     concurrency: 1,
     sortChildrenHints: async (hints) => hints.reverse(),
     visitors: {
-      [D.ON_READY]: async (vertex) => {
+      [D.ON_WORK_READY]: async (vertex) => {
         visits.push(`ready:${vertex.getData()}`);
       },
-      [D.ON_COMPLETE]: async (vertex) => {
+      [D.ON_SUBGRAPH_READY]: async (vertex) => {
         visits.push(`complete:${vertex.getData()}`);
       },
     },
@@ -242,7 +242,7 @@ test('canonical helper callbacks preserve exact failures', async () => {
     capture(() =>
       traverseDag({
         traversableGraph: source(),
-        visitors: { [D.ON_READY]: fail },
+        visitors: { [D.ON_WORK_READY]: fail },
       }),
     ),
   ).toBe(failure);
@@ -261,14 +261,14 @@ test('canonical helper callbacks preserve exact failures', async () => {
   await expect(
     traverseDagAsync({
       traversableGraph: source(),
-      visitors: { [D.ON_READY]: fail },
+      visitors: { [D.ON_WORK_READY]: fail },
     }),
   ).rejects.toBe(failure);
 });
 
 test('canonical commands reach the traversal runner', async () => {
   const halt = () => ({
-    commands: [{ commandName: C.HALT_TRAVERSAL as const }],
+    commands: [{ commandName: C.PAUSE_TRAVERSAL as const }],
   });
   expect(
     traverseTreeDepthFirst({
@@ -285,7 +285,7 @@ test('canonical commands reach the traversal runner', async () => {
   expect(
     traverseDag({
       traversableGraph: source(),
-      visitors: { [D.ON_COMPLETE]: halt },
+      visitors: { [D.ON_SUBGRAPH_READY]: halt },
     }).getStatus(),
   ).toBe(TraversalRunnerStatus.HALTED);
   expect(
@@ -308,7 +308,7 @@ test('canonical commands reach the traversal runner', async () => {
     (
       await traverseDagAsync({
         traversableGraph: source(),
-        visitors: { [D.ON_COMPLETE]: halt },
+        visitors: { [D.ON_SUBGRAPH_READY]: halt },
       })
     ).getStatus(),
   ).toBe(TraversalRunnerStatus.HALTED);

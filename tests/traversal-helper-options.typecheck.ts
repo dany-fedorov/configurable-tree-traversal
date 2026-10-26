@@ -1,7 +1,7 @@
 import {
-  BreadthFirstTraversalOrder as B,
-  DepthFirstTraversalOrder as F,
-  DagTraversalOrder as D,
+  BreadthFirstPhase as B,
+  DepthFirstPhase as F,
+  DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
   traverseTreeDepthFirst,
   traverseTreeDepthFirstAsync,
@@ -45,7 +45,7 @@ const dfs: DepthFirstTreeRunner<T, T> = traverseTreeDepthFirst({
   traversableTree: tree,
   visitors: {
     [F.PRE_ORDER]: (_vertex, options) => {
-      const phase: F.PRE_ORDER = options.order;
+      const phase: F.PRE_ORDER = options.phase;
       void phase;
       return {
         commands: [
@@ -57,7 +57,7 @@ const dfs: DepthFirstTreeRunner<T, T> = traverseTreeDepthFirst({
       };
     },
     [F.IN_ORDER]: (_vertex, options) => {
-      const phase: F.IN_ORDER = options.order;
+      const phase: F.IN_ORDER = options.phase;
       void phase;
     },
     [F.POST_ORDER]: common,
@@ -76,7 +76,7 @@ const bfs: BreadthFirstTreeRunner<T, T> = traverseTreeBreadthFirst({
   traversableTree: tree,
   visitors: {
     [B.LEVEL_ORDER]: (_vertex, options) => {
-      const phase: B.LEVEL_ORDER = options.order;
+      const phase: B.LEVEL_ORDER = options.phase;
       void phase;
     },
   },
@@ -89,17 +89,17 @@ const abfs: Promise<AsyncBreadthFirstTreeRunner<T, T>> =
 const dag: DagTraversalRunner<T, T> = traverseDag({
   traversableGraph: graph,
   visitors: {
-    [D.ON_READY]: (_vertex, options) => {
-      const phase: D.ON_READY = options.order;
+    [D.ON_WORK_READY]: (_vertex, options) => {
+      const phase: D.ON_WORK_READY = options.phase;
       void phase;
       return { commands: [{ commandName: C.DEFER_READY }] };
     },
-    [D.ON_COMPLETE]: dagCommon,
+    [D.ON_SUBGRAPH_READY]: dagCommon,
   },
 });
 const adag: Promise<AsyncDagTraversalRunner<T, T>> = traverseDagAsync({
   traversableTree: tree,
-  visitors: { [D.ON_READY]: asyncDagCommon, [D.ON_COMPLETE]: asyncDagCommon },
+  visitors: { [D.ON_WORK_READY]: asyncDagCommon, [D.ON_SUBGRAPH_READY]: asyncDagCommon },
 });
 traverseTreeDepthFirst({
   traversableTree: tree,
@@ -115,14 +115,14 @@ traverseTreeBreadthFirst({
 });
 traverseDag({
   traversableTree: tree,
-  visitors: { [D.ON_READY]: dagCommon, [D.ON_COMPLETE]: dagCommon },
+  visitors: { [D.ON_WORK_READY]: dagCommon, [D.ON_SUBGRAPH_READY]: dagCommon },
 });
 // Async callback contexts infer the actual phase too.
 traverseTreeDepthFirstAsync({
   traversableTree: tree,
   visitors: {
     [F.POST_ORDER]: async (_v, options) => {
-      const phase: F.POST_ORDER = options.order;
+      const phase: F.POST_ORDER = options.phase;
       void phase;
     },
   },
@@ -131,7 +131,7 @@ traverseTreeBreadthFirstAsync({
   traversableTree: tree,
   visitors: {
     [B.LEVEL_ORDER]: async (_v, options) => {
-      const phase: B.LEVEL_ORDER = options.order;
+      const phase: B.LEVEL_ORDER = options.phase;
       void phase;
     },
   },
@@ -139,14 +139,14 @@ traverseTreeBreadthFirstAsync({
 traverseDagAsync({
   traversableGraph: graph,
   visitors: {
-    [D.ON_COMPLETE]: async (_v, options) => {
-      const phase: D.ON_COMPLETE = options.order;
+    [D.ON_SUBGRAPH_READY]: async (_v, options) => {
+      const phase: D.ON_SUBGRAPH_READY = options.phase;
       void phase;
     },
   },
 });
 declare const preOnly: TraversalVisitor<F.PRE_ORDER, T, T>;
-declare const readyOnly: DagVisitor<T, T, D.ON_READY>;
+declare const readyOnly: DagVisitor<T, T, D.ON_WORK_READY>;
 // @ts-expect-error Canonical DAG sources are exclusive.
 traverseDag<T>({ traversableGraph: graph, traversableTree: tree });
 // @ts-expect-error Async canonical DAG sources are exclusive.
@@ -172,13 +172,13 @@ traverseTreeDepthFirstAsync<T>({
 });
 traverseDag<T>({
   traversableGraph: graph,
-  // @ts-expect-error Completion callbacks cannot require ON_READY.
-  visitors: { [D.ON_COMPLETE]: readyOnly },
+  // @ts-expect-error Completion callbacks cannot require ON_WORK_READY.
+  visitors: { [D.ON_SUBGRAPH_READY]: readyOnly },
 });
 traverseDagAsync<T>({
   traversableGraph: graph,
-  // @ts-expect-error Async completion callbacks cannot require ON_READY.
-  visitors: { [D.ON_COMPLETE]: readyOnly },
+  // @ts-expect-error Async completion callbacks cannot require ON_WORK_READY.
+  visitors: { [D.ON_SUBGRAPH_READY]: readyOnly },
 });
 traverseTreeDepthFirst<T>({
   traversableTree: tree,
@@ -211,15 +211,15 @@ traverseTreeDepthFirstAsync<T>({
 traverseDag<T>({
   traversableGraph: graph,
   visitors: {
-    // @ts-expect-error ON_COMPLETE cannot defer.
-    [D.ON_COMPLETE]: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
+    // @ts-expect-error ON_SUBGRAPH_READY cannot defer.
+    [D.ON_SUBGRAPH_READY]: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
   },
 });
 traverseDagAsync<T>({
   traversableGraph: graph,
   visitors: {
-    // @ts-expect-error Async ON_COMPLETE cannot defer.
-    [D.ON_COMPLETE]: async () => ({
+    // @ts-expect-error Async ON_SUBGRAPH_READY cannot defer.
+    [D.ON_SUBGRAPH_READY]: async () => ({
       commands: [{ commandName: C.DEFER_READY }],
     }),
   },
@@ -243,7 +243,7 @@ traverseTreeBreadthFirstAsync<T>({
 traverseDag<T>({
   traversableGraph: graph,
   visitors: {
-    [D.ON_READY]: [{ visitor: dagCommon, priority: 1, addedIndex: 0 }],
+    [D.ON_WORK_READY]: [{ visitor: dagCommon, priority: 1, addedIndex: 0 }],
   },
 });
 void [dfs, adfs, bfs, abfs, dag, adag];

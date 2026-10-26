@@ -217,7 +217,7 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
     },
   });
   const runner = factory.createRunner();
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
   const next = iterator.next();
   await started;
   const returned = iterator.return();
@@ -237,7 +237,7 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
     entered = resolve;
   });
   const other = factory.createRunner();
-  const otherIterator = other.getIterable();
+  const otherIterator = other.iterateEvents();
   const otherNext = otherIterator.next();
   await started;
   const otherReturn = otherIterator.return();

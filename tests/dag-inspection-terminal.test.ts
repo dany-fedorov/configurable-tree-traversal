@@ -1,7 +1,7 @@
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   DagTraversalRunnerState,
   inspectDagMilestones,
   materializeDagSourceFromRecords,
@@ -49,11 +49,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       };
       const traversal = new Constructor<G>({ traversableGraph });
-      traversal.addVisitorFor(Order.ON_READY, () => {
+      traversal.addVisitorFor(Order.ON_WORK_READY, () => {
         visits++;
         if (scenario === 'ready failure') throw failure;
       });
-      traversal.addVisitorFor(Order.ON_COMPLETE, () => {
+      traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, () => {
         visits++;
         if (scenario === 'completion failure') throw failure;
       });
@@ -256,7 +256,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ...(Constructor === AsyncDagTraversal ? { concurrency: 1 } : {}),
     });
     const failure = { problem: 'later visitor' };
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       if (vertex.getData().id === 'deferred') return DEFER_READY;
       if (vertex.getData().id === 'failed') throw failure;
       return undefined;
@@ -312,7 +312,7 @@ test('terminal async observations stay stable after an invalidated callback sett
     discovery: 'eager',
   });
   let callbacks = 0;
-  traversal.addVisitorFor(Order.ON_READY, async (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
     callbacks++;
     if (vertex.getData().id === 'a') await failing;
     else {
@@ -457,7 +457,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           traversalRunnerInternalObjects: { state },
         });
         const failure = undefined;
-        traversal.addVisitorFor(Order.ON_READY, () => {
+        traversal.addVisitorFor(Order.ON_WORK_READY, () => {
           calls++;
           if (outcome === 'failure') throw failure;
         });

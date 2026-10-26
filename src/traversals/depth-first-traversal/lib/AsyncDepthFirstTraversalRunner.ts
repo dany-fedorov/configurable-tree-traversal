@@ -22,7 +22,7 @@ import {
   mergeAsyncDepthFirstTraversalInstanceConfigs,
   type AsyncDepthFirstTraversalInstanceConfig,
 } from './AsyncDepthFirstTraversalInstanceConfig';
-import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
+import { DepthFirstPhase } from './DepthFirstTraversalOrder';
 import { DepthFirstTraversalResolvedTreesContainer } from './DepthFirstTraversalResolvedTreesContainer';
 import {
   makeEffectiveDepthFirstTraversalRunnerIterableConfig,
@@ -33,7 +33,7 @@ import { DepthFirstTraversalRunnerState } from './DepthFirstTraversalRunnerState
 type Event<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
-> = TreeTraversalEvent<DepthFirstTraversalOrder, TTP, RW_TTP>;
+> = TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>;
 
 export class AsyncDepthFirstTreeRunner<
   TTP extends VertexTypes,
@@ -47,7 +47,7 @@ export class AsyncDepthFirstTreeRunner<
   >;
   private readonly execution: AsyncCoreExecution<
     Event<TTP, RW_TTP>,
-    DepthFirstTraversalOrder
+    DepthFirstPhase
   >;
 
   constructor(icfgInput: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
@@ -82,7 +82,7 @@ export class AsyncDepthFirstTreeRunner<
               ) as ReturnType<NonNullable<typeof this.icfg.sortChildrenHints>>,
           }),
       visit: Object.fromEntries(
-        Object.values(DepthFirstTraversalOrder).map((order) => [
+        Object.values(DepthFirstPhase).map((order) => [
           order,
           (
             call: Extract<
@@ -90,8 +90,8 @@ export class AsyncDepthFirstTreeRunner<
               { kind: 'VISIT' }
             >,
           ) => {
-            const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
-            return visitorRecord.visitor(call.ref.unref(), {
+            const registration = this.icfg.visitors[order][call.recordIndex]!;
+            return registration.visitor(call.ref.unref(), {
               ...call.metadata,
               resolvedTree: this.getResolvedTree(),
               notMutatedResolvedTree:
@@ -99,9 +99,9 @@ export class AsyncDepthFirstTreeRunner<
               isTreeRoot: this.isTreeRootVertex(call.ref),
               isTraversalRoot: this.isTraversalRootVertex(call.ref),
               vertexRef: call.ref,
-              visitorRecord,
-              vertexVisitorsChainState: call.metadata.vertexVisitorsChainState,
-              order,
+              registration,
+              visitorChainState: call.metadata.visitorChainState,
+              phase: order,
               // The record and options share the same phase selected above.
             } as never);
           },
@@ -193,10 +193,10 @@ export class AsyncDepthFirstTreeRunner<
     );
   }
 
-  getIterable(
+  iterateEvents(
     config?: DepthFirstTraversalRunnerIterableConfigInput,
   ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown> {
-    return this.execution.getIterable(config);
+    return this.execution.iterateEvents(config);
   }
 
   async run(
@@ -219,7 +219,7 @@ export class AsyncDepthFirstTreeRunner<
           event: {
             vertex: progress.event.vertex,
             vertexRef: progress.event.vertexRef,
-            order: progress.event.order as DepthFirstTraversalOrder,
+            phase: progress.event.order as DepthFirstPhase,
             isTreeRoot: progress.event.isRoot,
             isTraversalRoot: progress.event.isTraversalRoot,
           },

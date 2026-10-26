@@ -1,6 +1,6 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 
@@ -22,7 +22,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ...{ completedWork: new Set(['root']) },
     });
     const seen: string[] = [];
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getData());
     });
     await traversal.createRunner().run();
@@ -38,7 +38,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       completedWork,
     });
     const seen: string[] = [];
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getData());
     });
     const runner = traversal.createRunner();
@@ -107,7 +107,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       completedWork: new Set(ids),
     });
     const seen: string[] = [];
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getData());
     });
     await traversal.createRunner().run();
@@ -132,7 +132,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       completedWork: new Set(['A', 'B']),
     });
     const seen: string[] = [];
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getData());
     });
     await traversal.createRunner().run();
@@ -147,13 +147,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       completedWork: new Set(['root']),
     });
     const events: string[] = [];
-    for await (const event of traversal.createRunner().getIterable()) {
-      events.push(`${event.order}:${event.vertexRef.unref().getData()}`);
+    for await (const event of traversal.createRunner().iterateEvents()) {
+      events.push(`${event.kind}:${event.vertexRef.unref().getData()}`);
     }
     expect(events).toEqual([
-      'ON_READY:child',
-      'ON_COMPLETE:child',
-      'ON_COMPLETE:root',
+      'workCompleted:child',
+      'subgraphCompleted:child',
+      'subgraphCompleted:root',
     ]);
   });
 

@@ -32,8 +32,8 @@ const exactThrow = async (operation, expected) => {
 };
 for (const api of [cjs, esm]) {
   const C = api.TraversalVisitorCommandName;
-  const D = api.DagTraversalOrder;
-  const F = api.DepthFirstTraversalOrder;
+  const D = api.DagVisitorPhase;
+  const F = api.DepthFirstPhase;
   const found = (id, hints = [], declarations = {}) => ({
     kind: 'found',
     vertex: {
@@ -84,7 +84,7 @@ for (const api of [cjs, esm]) {
           visitor: (_v, o) => {
             if (o.isTreeRoot && !paused) {
               paused = true;
-              return { commands: [{ commandName: C.HALT_TRAVERSAL }] };
+              return { commands: [{ commandName: C.PAUSE_TRAVERSAL }] };
             }
           },
         },
@@ -116,16 +116,16 @@ for (const api of [cjs, esm]) {
     [api.AsyncDepthFirstTreeTraversal, F.PRE_ORDER, false],
     [
       api.BreadthFirstTreeTraversal,
-      api.BreadthFirstTraversalOrder.LEVEL_ORDER,
+      api.BreadthFirstPhase.LEVEL_ORDER,
       false,
     ],
     [
       api.AsyncBreadthFirstTreeTraversal,
-      api.BreadthFirstTraversalOrder.LEVEL_ORDER,
+      api.BreadthFirstPhase.LEVEL_ORDER,
       false,
     ],
-    [api.DagTraversal, D.ON_READY, true],
-    [api.AsyncDagTraversal, D.ON_READY, true],
+    [api.DagTraversal, D.ON_WORK_READY, true],
+    [api.AsyncDagTraversal, D.ON_WORK_READY, true],
   ]) {
     const calls = [];
     const builder = new TreeTraversal(
@@ -194,7 +194,7 @@ for (const api of [cjs, esm]) {
           : { traversableTree: { ...tree, resolveRoot } }),
         workCompletion: 'externalSettlement',
         visitors: {
-          [D.ON_READY]: () => {
+          [D.ON_WORK_READY]: () => {
             visits++;
           },
         },
@@ -208,7 +208,7 @@ for (const api of [cjs, esm]) {
       await runner.prepare();
       assert.equal(sources, 1);
       const events = [];
-      for await (const event of runner.getIterable()) events.push(event);
+      for await (const event of runner.iterateEvents()) events.push(event);
       assert.deepEqual(events, []);
       assert.equal(visits, 1);
       assert.equal(sources, 1);
@@ -241,12 +241,12 @@ for (const api of [cjs, esm]) {
         true,
       );
       assert.deepEqual(runner.summary().deferredFrontier, []);
-      for await (const event of runner.getIterable()) events.push(event);
+      for await (const event of runner.iterateEvents()) events.push(event);
       assert.deepEqual(
-        events.map(({ kind, order }) => [kind, order]),
+        events.map(({ kind }) => kind),
         [
-          ['workCompleted', D.ON_READY],
-          ['subgraphCompleted', D.ON_COMPLETE],
+          'workCompleted',
+          'subgraphCompleted',
         ],
       );
       assert.equal(runner.getStopReason(), 'finished');
@@ -284,7 +284,7 @@ for (const api of [cjs, esm]) {
       const frozen = new TreeTraversal({
         ...input,
         visitors: {
-          [D.ON_READY]: () => ({
+          [D.ON_WORK_READY]: () => ({
             commands: [
               {
                 commandName: C.REWRITE_CHILD_HINTS,
@@ -316,7 +316,7 @@ for (const api of [cjs, esm]) {
     }).createRunner();
     await seeded.prepare();
     const seededEvents = [];
-    for await (const event of seeded.getIterable())
+    for await (const event of seeded.iterateEvents())
       seededEvents.push(event.kind);
     assert.deepEqual(seededEvents, ['subgraphCompleted']);
 

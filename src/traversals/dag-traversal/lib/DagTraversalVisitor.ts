@@ -5,69 +5,62 @@ import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { MaybePromise, VisitResult } from '@core/graph/types';
 import type { VisitorRegistrationMetadata } from '@core/TraversalVisitor';
-import type { DagTraversalOrder } from './DagTraversalOrder';
+import type { DagVisitorPhase } from './DagTraversalOrder';
 
-export type DagVisitorOptions<
+export type DagVisitorContext<
   T extends VertexTypes,
   R extends VertexTypes = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
 > = {
   resolvedGraph: ResolvedGraph<T | R, ID>;
   notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
   vertexRef: CTTRef<Vertex<T | R>>;
-  order: ORDER;
+  phase: ORDER;
   isGraphRoot: boolean;
   isTraversalRoot: boolean;
-  vertexVisitIndex: number;
-  curVertexVisitorVisitIndex: number;
-  previousVisitedVertexRef: CTTRef<Vertex<T | R>> | null;
-  vertexVisitorsChainState: unknown;
-  visitorRecord: VisitorRegistrationMetadata;
+  phaseVisitIndex: number;
+  visitorIndex: number;
+  previousPhaseVertexRef: CTTRef<Vertex<T | R>> | null;
+  visitorChainState: unknown;
+  registration: VisitorRegistrationMetadata;
 };
 
 export type DagVisitor<
   T extends VertexTypes,
   R extends VertexTypes = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
 > =
   | VisitResult<R, ORDER>
-  | ([ORDER] extends ['ON_READY']
+  | ([ORDER] extends ['ON_WORK_READY']
       ? typeof DEFER_READY
       : never) extends infer RESULT
   ? (
       vertex: Vertex<T | R>,
-      options: DagVisitorOptions<T, R, ORDER, ID>,
+      options: DagVisitorContext<T, R, ORDER, ID>,
     ) => RESULT
   : never;
-
-export type AsyncDagVisitorOptions<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
-  ID = unknown,
-> = DagVisitorOptions<T, R, ORDER, ID>;
 
 export type AsyncDagVisitor<
   T extends VertexTypes,
   R extends VertexTypes = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
 > =
   | VisitResult<R, ORDER>
-  | ([ORDER] extends ['ON_READY']
+  | ([ORDER] extends ['ON_WORK_READY']
       ? typeof DEFER_READY
       : never) extends infer RESULT
   ? (
       vertex: Vertex<T | R>,
-      options: AsyncDagVisitorOptions<T, R, ORDER, ID>,
+      options: DagVisitorContext<T, R, ORDER, ID>,
     ) => MaybePromise<RESULT>
   : never;
 
 /**
- * Committed milestone observation: `ON_READY`/`workCompleted` emits after W,
- * including deferred settlement, while an `ON_READY` visitor runs before work.
+ * Committed milestone observation: `workCompleted` emits after W, including
+ * deferred settlement, while an `ON_WORK_READY` visitor runs before work.
  * Dispatch external work from coordinator frontier tickets or a pre-work visitor.
  */
 export type DagEvent<T extends VertexTypes, ID = unknown> = {
@@ -76,7 +69,4 @@ export type DagEvent<T extends VertexTypes, ID = unknown> = {
   vertexRef: CTTRef<Vertex<T>>;
   isGraphRoot: boolean;
   isTraversalRoot: boolean;
-} & (
-  | { kind: 'workCompleted'; order: DagTraversalOrder.ON_READY }
-  | { kind: 'subgraphCompleted'; order: DagTraversalOrder.ON_COMPLETE }
-);
+} & ({ kind: 'workCompleted' } | { kind: 'subgraphCompleted' });

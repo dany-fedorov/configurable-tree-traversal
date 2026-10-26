@@ -23,7 +23,7 @@ import {
   mergeAsyncBreadthFirstTraversalInstanceConfigs,
   type AsyncBreadthFirstTraversalInstanceConfig,
 } from './AsyncBreadthFirstTraversalInstanceConfig';
-import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import {
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
   type BreadthFirstTraversalRunnerIterableConfig,
@@ -35,7 +35,7 @@ type Event<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = TreeTraversalEvent<
-  BreadthFirstTraversalOrder,
+  BreadthFirstPhase,
   TTP,
   RW_TTP
 >;
@@ -54,7 +54,7 @@ export class AsyncBreadthFirstTreeRunner<
     makeEffectiveBreadthFirstTraversalRunnerIterableConfig();
   private readonly execution: AsyncCoreExecution<
     Event<TTP, RW_TTP>,
-    BreadthFirstTraversalOrder
+    BreadthFirstPhase
   >;
 
   constructor(
@@ -101,12 +101,12 @@ export class AsyncBreadthFirstTreeRunner<
               ) as ReturnType<NonNullable<typeof this.icfg.sortChildrenHints>>,
           }),
       visit: {
-        [BreadthFirstTraversalOrder.LEVEL_ORDER]: (
+        [BreadthFirstPhase.LEVEL_ORDER]: (
           call: Extract<CallSpec<TTP, RW_TTP>, { kind: 'VISIT' }>,
         ) => {
-          const order = BreadthFirstTraversalOrder.LEVEL_ORDER;
-          const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
-          return visitorRecord.visitor(call.ref.unref(), {
+          const order = BreadthFirstPhase.LEVEL_ORDER;
+          const registration = this.icfg.visitors[order][call.recordIndex]!;
+          return registration.visitor(call.ref.unref(), {
             ...call.metadata,
             resolvedTree: this.getResolvedTree(),
             notMutatedResolvedTree:
@@ -114,9 +114,9 @@ export class AsyncBreadthFirstTreeRunner<
             isTreeRoot: this.isTreeRootVertex(call.ref),
             isTraversalRoot: this.isTraversalRootVertex(call.ref),
             vertexRef: call.ref,
-            visitorRecord,
-            vertexVisitorsChainState: call.metadata.vertexVisitorsChainState,
-            order,
+            registration,
+            visitorChainState: call.metadata.visitorChainState,
+            phase: order,
           });
         },
       },
@@ -128,8 +128,8 @@ export class AsyncBreadthFirstTreeRunner<
       container: graphContainer,
       stateBridge: this.state,
       visitorMetadata: {
-        [BreadthFirstTraversalOrder.LEVEL_ORDER]: this.icfg.visitors[
-          BreadthFirstTraversalOrder.LEVEL_ORDER
+        [BreadthFirstPhase.LEVEL_ORDER]: this.icfg.visitors[
+          BreadthFirstPhase.LEVEL_ORDER
         ].map(
           ({
             addedIndex,
@@ -196,10 +196,10 @@ export class AsyncBreadthFirstTreeRunner<
     return ref === this.getResolvedTree().getRoot();
   }
 
-  getIterable(
+  iterateEvents(
     config?: BreadthFirstTraversalRunnerIterableConfigInput,
   ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown> {
-    return this.execution.getIterable(config);
+    return this.execution.iterateEvents(config);
   }
 
   async run(
@@ -222,7 +222,7 @@ export class AsyncBreadthFirstTreeRunner<
           event: {
             vertex: progress.event.vertex,
             vertexRef: progress.event.vertexRef,
-            order: progress.event.order as BreadthFirstTraversalOrder,
+            phase: progress.event.order as BreadthFirstPhase,
             isTreeRoot: progress.event.isRoot,
             isTraversalRoot: progress.event.isTraversalRoot,
           },

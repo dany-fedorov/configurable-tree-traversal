@@ -15,7 +15,7 @@ import {
 } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
 import { ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 
 const rejectAfter = (milliseconds: number) =>
@@ -34,7 +34,7 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
     traversableGraph: graphAdapter(diamond),
     concurrency: 3,
   });
-  traversal.addVisitorFor(Order.ON_READY, async (vertex, options) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex, options) => {
     const data = vertex.getData();
     visited.push(data);
     expect(options.isGraphRoot).toBe(data === 'root');
@@ -42,13 +42,13 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
     if (data === 'A') await aVisit.promise;
     if (data === 'B') await bVisit.promise;
   });
-  const iterator = traversal.createRunner().getIterable({
-    iterateOver: [Order.ON_READY],
+  const iterator = traversal.createRunner().iterateEvents({
+    iterateOver: [Order.ON_WORK_READY],
   });
 
   await expect(iterator.next()).resolves.toMatchObject({
     done: false,
-    value: { order: Order.ON_READY, isGraphRoot: true },
+    value: { kind: 'workCompleted', isGraphRoot: true },
   });
   const aEvent = iterator.next();
   await eventLoopTurn();
@@ -142,7 +142,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
     saveNotMutatedResolvedGraph: true,
     concurrency: 2,
   });
-  traversal.addVisitorFor(Order.ON_READY, async (vertex) =>
+  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) =>
     vertex.getData() === 'a'
       ? {
           commands: [
@@ -156,8 +156,8 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
   );
   const runner = traversal.createRunner();
   const values: string[] = [];
-  for await (const event of runner.getIterable({
-    iterateOver: [Order.ON_READY],
+  for await (const event of runner.iterateEvents({
+    iterateOver: [Order.ON_WORK_READY],
   })) {
     values.push(event.vertex.getData());
     expect(event.isGraphRoot).toBe(
@@ -188,7 +188,7 @@ test('supports an asynchronous tree source through the graph visitor facade', as
     },
   });
   const optionsSeen: string[] = [];
-  traversal.addVisitorFor(Order.ON_READY, async (vertex, options) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex, options) => {
     optionsSeen.push(vertex.getData());
     expect(options.resolvedGraph).toBeDefined();
     expect(options).not.toHaveProperty('resolvedTree');
@@ -274,7 +274,7 @@ test('isolates visitor configuration when making a runner', async () => {
       root: { children: [], dependencies: [] },
     }),
   });
-  traversal.setVisitorsFor(Order.ON_READY, [
+  traversal.setVisitorsFor(Order.ON_WORK_READY, [
     {
       addedIndex: 10,
       priority: 2,
@@ -283,15 +283,15 @@ test('isolates visitor configuration when making a runner', async () => {
     },
   ]);
   traversal.addVisitorFor(
-    Order.ON_READY,
+    Order.ON_WORK_READY,
     async () => void seen.push('second'),
     {
       priority: 1,
     },
   );
-  expect(traversal.listVisitorsFor(Order.ON_READY)).toHaveLength(2);
+  expect(traversal.listVisitorsFor(Order.ON_WORK_READY)).toHaveLength(2);
   const runner = traversal.createRunner();
-  traversal.setVisitorsFor(Order.ON_READY, []);
+  traversal.setVisitorsFor(Order.ON_WORK_READY, []);
 
   await runner.run({ iterateOver: [] });
   expect(seen).toEqual(['first', 'second']);
@@ -375,7 +375,7 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
   const state = new DagTraversalRunnerState<TestGraph>({
     status: Status.HALTED,
     traversalRootVertexRef: root,
-    readyVisits: [{ vertexRef: root, order: Order.ON_READY }],
+    readyVisits: [{ vertexRef: root, order: Order.ON_WORK_READY }],
   });
   let sourceCalls = 0;
   const runner = new AsyncDagTraversal<TestGraph>({
@@ -395,7 +395,7 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
   expect(runner.isHalted()).toBe(true);
   expect(sourceCalls).toBe(0);
   expect(runner.inspect().readyVisits).toEqual([
-    { vertexRefId: root.getId(), order: Order.ON_READY },
+    { vertexRefId: root.getId(), order: Order.ON_WORK_READY },
   ]);
 });
 
@@ -420,7 +420,7 @@ test.each([new Error('injected failure'), undefined])(
 
     for (const attempt of [
       () => runner.run(),
-      () => runner.getIterable().next(),
+      () => runner.iterateEvents().next(),
     ]) {
       let caught = false;
       try {

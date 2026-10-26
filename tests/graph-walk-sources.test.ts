@@ -38,7 +38,7 @@ it('captures catalog topology eagerly while retaining shallow caller data', () =
   const factory = new GraphWalk({ source });
   for (let run = 0; run < 2; run++) {
     const events = [
-      ...factory.createRunner().getIterable({ emitPhases: [Phase.EDGE] }),
+      ...factory.createRunner().iterateEvents({ emitEvents: [Phase.EDGE] }),
     ];
     expect(
       events.map((event) => [event.edge.from, event.edge.to, event.edge.index]),
@@ -160,7 +160,7 @@ it('allows empty catalog and root sets without inventing vertices', () => {
     outgoing: () => [],
     roots: [],
   });
-  expect([...new GraphWalk({ source }).createRunner().getIterable()]).toEqual([]);
+  expect([...new GraphWalk({ source }).createRunner().iterateEvents()]).toEqual([]);
   expect(() => source.resolveVertex!(undefined as never)).toThrow(TypeError);
 });
 
@@ -196,14 +196,14 @@ it('eagerly awaits async catalogs, selectors and roots into a synchronous reusab
   link.to = 'unknown';
   const factory = new GraphWalk({ source });
   expect(
-    [...factory.createRunner().getIterable({ emitPhases: [Phase.EDGE] })].map(
+    [...factory.createRunner().iterateEvents({ emitEvents: [Phase.EDGE] })].map(
       (event) => event.edge.to,
     ),
   ).toEqual(['b']);
   const events = [];
   for await (const event of new AsyncGraphWalk({ source })
     .createRunner()
-    .getIterable({ emitPhases: [Phase.EDGE] }))
+    .iterateEvents({ emitEvents: [Phase.EDGE] }))
     events.push(event);
   expect(events[0]!.edge.data).toBe(relation);
   expect(calls).toHaveLength(5);
@@ -302,7 +302,7 @@ it('walks cyclic definitions without DAG preparation or callback execution', () 
   const source = materializeWalkSourceFromDagDefinition(definition, { relations: ['children'] });
   const runner = new GraphWalk({ source }).createRunner();
   expect(
-    [...runner.getIterable({ emitPhases: [Phase.EDGE] })].map((event) => [
+    [...runner.iterateEvents({ emitEvents: [Phase.EDGE] })].map((event) => [
       event.edge.from,
       event.edge.to,
       event.edge.data,
@@ -340,7 +340,7 @@ it('projects selected DAG relations in canonical order with parallel slots and d
   const edges = [
     ...new GraphWalk({ source })
       .createRunner()
-      .getIterable({ emitPhases: [Phase.EDGE] }),
+      .iterateEvents({ emitEvents: [Phase.EDGE] }),
   ];
   expect(
     edges.map((event) => [
@@ -384,7 +384,7 @@ it.each(['workDependencies', 'completionDependencies'] as const)(
     const events = [
       ...new GraphWalk({ source })
         .createRunner()
-        .getIterable({ emitPhases: [Phase.EDGE] }),
+        .iterateEvents({ emitEvents: [Phase.EDGE] }),
     ];
     expect(
       events.map((event) => [
@@ -449,7 +449,7 @@ it('copies mutable definitions and separates generated relationship wrappers acr
   const factory = new GraphWalk({ source });
   for (let run = 0; run < 2; run++) {
     const events = [
-      ...factory.createRunner().getIterable({ emitPhases: [Phase.EDGE] }),
+      ...factory.createRunner().iterateEvents({ emitEvents: [Phase.EDGE] }),
     ];
     expect(events.map((event) => [event.edge.to, event.edge.data])).toEqual([
       [other, { kind: 'child', slotIndex: 0 }],
@@ -490,7 +490,7 @@ it('preserves forest root slots, arbitrary identities and known omitted roots', 
   ]);
   const runner = new GraphWalk({ source }).createRunner();
   expect(
-    [...runner.getIterable({ emitPhases: [Phase.VERTEX] })].map(
+    [...runner.iterateEvents({ emitEvents: [Phase.VERTEX] })].map(
       (event) => event.vertex.vertexId,
     ),
   ).toEqual(ids);
@@ -510,7 +510,7 @@ it('permits omitted root entries and empty entries without fabricating roots', (
   );
   expect([...omitted.roots()]).toEqual([{ vertexId: undefined }]);
   expect([
-    ...new GraphWalk({ source: omitted }).createRunner().getIterable(),
+    ...new GraphWalk({ source: omitted }).createRunner().iterateEvents(),
   ]).toEqual([]);
   const empty = materializeWalkSourceFromDagDefinition(
     defineDag({
@@ -522,7 +522,7 @@ it('permits omitted root entries and empty entries without fabricating roots', (
   );
   expect([...empty.roots()]).toEqual([]);
   expect([
-    ...new GraphWalk({ source: empty }).createRunner().getIterable(),
+    ...new GraphWalk({ source: empty }).createRunner().iterateEvents(),
   ]).toEqual([]);
 });
 
@@ -588,7 +588,7 @@ it.each([
         }),
       })
         .createRunner()
-        .getIterable({ emitPhases: [Phase.VERTEX] }),
+        .iterateEvents({ emitEvents: [Phase.VERTEX] }),
     ]).toHaveLength(1);
   },
 );
@@ -658,13 +658,13 @@ it('keeps DAG task callbacks opaque through sync and async walking', async () =>
   const syncEvents = [
     ...new GraphWalk({ source })
       .createRunner()
-      .getIterable({ emitPhases: [Phase.VERTEX] }),
+      .iterateEvents({ emitEvents: [Phase.VERTEX] }),
   ];
   expect(syncEvents[0]!.vertex.data).toBe(task);
   const asyncEvents = [];
   for await (const event of new AsyncGraphWalk({ source })
     .createRunner()
-    .getIterable({ emitPhases: [Phase.VERTEX] }))
+    .iterateEvents({ emitEvents: [Phase.VERTEX] }))
     asyncEvents.push(event);
   expect(asyncEvents[0]!.vertex.data).toBe(task);
   expect(calls).toBe(0);
@@ -688,7 +688,7 @@ it('copies async links as they are yielded, before the iterator reuses its wrapp
   const events = [
     ...new GraphWalk({ source })
       .createRunner()
-      .getIterable({ emitPhases: [Phase.EDGE] }),
+      .iterateEvents({ emitEvents: [Phase.EDGE] }),
   ];
   expect(events.map((event) => event.edge.to)).toEqual(['b', 'c']);
   expect(events[0]!.edge.data).toBe(first);

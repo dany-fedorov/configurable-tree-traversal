@@ -1,4 +1,4 @@
-import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
+import { DepthFirstPhase } from './DepthFirstTraversalOrder';
 import type {
   TraversalRunnerIterableConfig,
   TraversalIterableConfigInput,
@@ -10,9 +10,9 @@ import {
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type DepthFirstTraversalRunnerIterableConfig =
-  TraversalRunnerIterableConfig<DepthFirstTraversalOrder>;
+  TraversalRunnerIterableConfig<DepthFirstPhase>;
 export type DepthFirstTraversalRunnerIterableConfigInput =
-  TraversalIterableConfigInput<DepthFirstTraversalOrder>;
+  TraversalIterableConfigInput<DepthFirstPhase>;
 
 export const DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT: DepthFirstTraversalRunnerIterableConfig =
   deepFreeze(makeEffectiveDepthFirstTraversalRunnerIterableConfig());
@@ -21,7 +21,7 @@ export function makeEffectiveDepthFirstTraversalRunnerIterableConfig(
   config?: DepthFirstTraversalRunnerIterableConfigInput,
   previous?: DepthFirstTraversalRunnerIterableConfig,
 ): DepthFirstTraversalRunnerIterableConfig {
-  const phases = Object.values(DepthFirstTraversalOrder);
+  const phases = Object.values(DepthFirstPhase);
   return toLegacyTraversalExecutionConfig(
     normalizeTraversalExecutionOptions(
       phases,

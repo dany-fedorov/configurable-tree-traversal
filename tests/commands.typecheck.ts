@@ -6,7 +6,7 @@ import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
 type Tree = VertexTypes<number, string>;
 const halt: TraversalVisitorCommand<Tree> = {
-  commandName: Command.HALT_TRAVERSAL,
+  commandName: Command.PAUSE_TRAVERSAL,
 };
 const rewrite: TraversalVisitorCommand<Tree> = {
   commandName: Command.REWRITE_VERTEX_DATA,
@@ -27,7 +27,7 @@ const wrongPayload: TraversalVisitorCommand<Tree> = {
 };
 // @ts-expect-error Halt commands have no payload.
 const extraPayload: TraversalVisitorCommand<Tree> = {
-  commandName: Command.HALT_TRAVERSAL,
+  commandName: Command.PAUSE_TRAVERSAL,
   commandArguments: { newData: 42 },
 };
 function readData(command: TraversalVisitorCommand<Tree>): number | undefined {

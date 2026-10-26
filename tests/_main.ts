@@ -204,20 +204,20 @@
 //             ? 'OBJECT'
 //             : vertex.getData().value,
 //           // '\n<---------\n',
-//           // options.previousVisitedVertexRef === null
+//           // options.previousPhaseVertexRef === null
 //           //   ? 'NONE'
-//           //   : options.previousVisitedVertexRef.getId(),
-//           // options.previousVisitedVertexRef === null
+//           //   : options.previousPhaseVertexRef.getId(),
+//           // options.previousPhaseVertexRef === null
 //           //   ? 'NONE'
 //           //   : options.resolvedTree
-//           //       .getPathTo(options.previousVisitedVertexRef, {
+//           //       .getPathTo(options.previousPhaseVertexRef, {
 //           //         noRoot: true,
 //           //       })
 //           //       .map((ps) => ps.unref().getData().key),
-//           // typeof options.previousVisitedVertexRef?.unref().getData().value ===
+//           // typeof options.previousPhaseVertexRef?.unref().getData().value ===
 //           //   'object'
 //           //   ? 'OBJECT'
-//           //   : options.previousVisitedVertexRef?.unref().getData().value,
+//           //   : options.previousPhaseVertexRef?.unref().getData().value,
 //         );
 //       },
 //     },
@@ -258,7 +258,7 @@
 //         return {
 //           commands: [
 //             {
-//               commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+//               commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
 //             },
 //           ],
 //         };
@@ -277,7 +277,7 @@
 //         return {
 //           commands: [
 //             {
-//               commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+//               commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
 //             },
 //           ],
 //         };
@@ -296,7 +296,7 @@
 //         return {
 //           commands: [
 //             {
-//               commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+//               commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
 //             },
 //           ],
 //         };

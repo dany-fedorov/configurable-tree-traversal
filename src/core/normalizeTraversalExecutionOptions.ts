@@ -1,6 +1,7 @@
 import type { VisitOrder } from './effects/types';
 import type {
   EffectiveTraversalExecutionOptions,
+  EmissionKind,
   TraversalIterableConfigInput,
   TraversalRunnerIterableConfig,
   VisitorPhaseSelection,
@@ -9,7 +10,7 @@ import type {
 const phasesByKind = {
   'depth-first': ['PRE_ORDER', 'IN_ORDER', 'POST_ORDER'],
   'breadth-first': ['LEVEL_ORDER'],
-  dag: ['ON_READY', 'ON_COMPLETE'],
+  dag: ['ON_WORK_READY', 'ON_SUBGRAPH_READY'],
 } as const;
 
 export function getTraversalExecutionPhases(
@@ -30,13 +31,17 @@ function readExecutionOptions<ORDER extends string>(
   }
   if (input === undefined) return {};
   const result: Record<string, unknown> = {};
-  for (const key of [
-    'emitPhases',
+  const keys = [
+    'emitEvents',
     'iterateOver',
     'visitorPhases',
     'enableVisitorFunctionsFor',
     'disableVisitorFunctionsFor',
-  ]) {
+  ];
+  if (Object.getOwnPropertyNames(input).some((key) => !keys.includes(key))) {
+    throw new TypeError('Unknown execution option');
+  }
+  for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(input, key)) {
       result[key] = (input as Record<string, unknown>)[key];
     }
@@ -53,8 +58,8 @@ export function normalizeTraversalExecutionOptions<ORDER extends string>(
   const config = readExecutionOptions(input);
   const has = (key: string) =>
     Object.prototype.hasOwnProperty.call(config, key);
-  if (has('emitPhases') && has('iterateOver')) {
-    throw new TypeError('emitPhases and iterateOver cannot be combined');
+  if (has('emitEvents') && has('iterateOver')) {
+    throw new TypeError('emitEvents and iterateOver cannot be combined');
   }
   if (
     has('visitorPhases') &&
@@ -78,14 +83,29 @@ export function normalizeTraversalExecutionOptions<ORDER extends string>(
     }
     return copy as ORDER[];
   }
-  let emitPhases =
-    previous === undefined ? phases.slice() : previous.emitPhases.slice();
+  const kinds = phases.map(emissionKind);
+  let emitEvents =
+    previous === undefined ? kinds.slice() : previous.emitEvents.slice();
   let enable = previous?.enableVisitorFunctionsFor?.slice() ?? null;
   let disable = previous?.disableVisitorFunctionsFor?.slice() ?? null;
-  if (config.emitPhases !== undefined)
-    emitPhases = copyPhases(config.emitPhases);
+  if (config.emitEvents !== undefined)
+    emitEvents = copyPhasesForEvents(config.emitEvents);
+  function copyPhasesForEvents(value: unknown): EmissionKind<ORDER>[] {
+    if (!Array.isArray(value)) {
+      throw new TypeError(
+        'Execution event lists must contain valid family event kinds',
+      );
+    }
+    const copy: unknown[] = Array.from(value as unknown[]);
+    if (copy.some((kind) => !kinds.includes(kind as EmissionKind<ORDER>))) {
+      throw new TypeError(
+        'Execution event lists must contain valid family event kinds',
+      );
+    }
+    return copy as EmissionKind<ORDER>[];
+  }
   if (config.iterateOver !== undefined)
-    emitPhases = copyPhases(config.iterateOver);
+    emitEvents = copyPhases(config.iterateOver).map(emissionKind);
   if (config.visitorPhases !== undefined) {
     const selection = config.visitorPhases;
     enable = null;
@@ -139,9 +159,11 @@ export function normalizeTraversalExecutionOptions<ORDER extends string>(
       ? { exclude: disable.slice() }
       : 'all';
   return {
-    emitPhases,
+    emitEvents,
     visitorPhases,
-    iterateOver: emitPhases.slice(),
+    iterateOver: emitEvents.map(
+      (kind) => phases.find((phase) => emissionKind(phase) === kind)!,
+    ),
     enableVisitorFunctionsFor: enable,
     disableVisitorFunctionsFor: disable,
   };
@@ -157,12 +179,12 @@ export function detachTraversalExecutionOptions<ORDER extends string>(
   const config = readExecutionOptions(input);
   const effective = normalizeTraversalExecutionOptions(phases, config);
   const patch: {
-    emitPhases?: readonly ORDER[];
+    emitEvents?: readonly EmissionKind<ORDER>[];
     enableVisitorFunctionsFor?: readonly ORDER[] | null;
     disableVisitorFunctionsFor?: readonly ORDER[] | null;
   } = {};
-  if (config.emitPhases !== undefined || config.iterateOver !== undefined) {
-    patch.emitPhases = effective.emitPhases;
+  if (config.emitEvents !== undefined || config.iterateOver !== undefined) {
+    patch.emitEvents = effective.emitEvents;
   }
   if (config.visitorPhases !== undefined) {
     patch.enableVisitorFunctionsFor = effective.enableVisitorFunctionsFor;
@@ -187,4 +209,17 @@ export function toLegacyTraversalExecutionConfig<ORDER extends string>(
     enableVisitorFunctionsFor: config.enableVisitorFunctionsFor,
     disableVisitorFunctionsFor: config.disableVisitorFunctionsFor,
   };
+}
+
+/** Translate a callback boundary to its committed public event discriminant. */
+export function emissionKind<Phase extends string>(
+  phase: Phase,
+): EmissionKind<Phase> {
+  return (
+    phase === 'ON_WORK_READY'
+      ? 'workCompleted'
+      : phase === 'ON_SUBGRAPH_READY'
+      ? 'subgraphCompleted'
+      : phase
+  ) as EmissionKind<Phase>;
 }

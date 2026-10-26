@@ -1,6 +1,6 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { DEFER_READY } from '../src/traversals/dag-traversal/lib/DagProgress';
@@ -31,10 +31,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         discovery,
         traversableGraph: bundleGraph(),
       });
-      traversal.addVisitorFor(Order.ON_READY, (v) => {
+      traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
         events.push(`W:${v.getData()}`);
       });
-      traversal.addVisitorFor(Order.ON_COMPLETE, (v) => {
+      traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (v) => {
         events.push(`C:${v.getData()}`);
       });
       const runner = traversal.createRunner();
@@ -92,7 +92,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           }),
         },
       });
-      traversal.addVisitorFor(Order.ON_READY, (v) => {
+      traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
         events.push(v.getData());
       });
       await expect(async () => {
@@ -163,10 +163,10 @@ test('async completion admission and callback settlement do not release C until 
     concurrency: 3,
     traversableGraph: bundleGraph(),
   });
-  traversal.addVisitorFor(Order.ON_READY, (v) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
     events.push(v.getData());
   });
-  traversal.addVisitorFor(Order.ON_COMPLETE, async (v) => {
+  traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, async (v) => {
     if (v.getData() === 'bundle') {
       entered.resolve();
       await gate.promise;
@@ -201,10 +201,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       completedWork: new Set(['bundle']),
       traversableGraph: bundleGraph(),
     });
-    traversal.addVisitorFor(Order.ON_READY, (v) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
       events.push(`W:${v.getData()}`);
     });
-    traversal.addVisitorFor(Order.ON_COMPLETE, (v) => {
+    traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (v) => {
       events.push(`C:${v.getData()}`);
     });
     await traversal.createRunner().run();
@@ -232,10 +232,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (v) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
       events.push(`W:${v.getData()}`);
     });
-    traversal.addVisitorFor(Order.ON_COMPLETE, (v) => {
+    traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (v) => {
       events.push(`C:${v.getData()}`);
     });
     await traversal.createRunner().run();
@@ -287,7 +287,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (v) =>
+    traversal.addVisitorFor(Order.ON_WORK_READY, (v) =>
       v.getData() === 'join' ? undefined : DEFER_READY,
     );
     const runner = traversal.createRunner();
@@ -344,10 +344,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (v) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
       events.push(`W:${v.getData()}`);
     });
-    traversal.addVisitorFor(Order.ON_COMPLETE, (v) => {
+    traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (v) => {
       events.push(`C:${v.getData()}`);
     });
     await traversal.createRunner().run();
@@ -361,13 +361,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} disabling bundle discovery closes C while retaining its dependent`, async () => {
     const events: string[] = [];
     const traversal = new Constructor<G>({ traversableGraph: bundleGraph() });
-    traversal.addVisitorFor(Order.ON_READY, (v) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
       events.push(`W:${v.getData()}`);
       return v.getData() === 'bundle'
         ? { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] }
         : undefined;
     });
-    traversal.addVisitorFor(Order.ON_COMPLETE, (v) => {
+    traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (v) => {
       events.push(`C:${v.getData()}`);
     });
     const runner = traversal.createRunner();
@@ -383,10 +383,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     for (const error of [undefined, null, { failure: 'completion' }]) {
       const seen: string[] = [];
       const traversal = new Constructor<G>({ traversableGraph: bundleGraph() });
-      traversal.addVisitorFor(Order.ON_READY, (v) => {
+      traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
         seen.push(v.getData());
       });
-      traversal.addVisitorFor(Order.ON_COMPLETE, (v) => {
+      traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (v) => {
         if (v.getData() === 'bundle') throw error;
       });
       await expect(async () => {
@@ -405,17 +405,17 @@ test('halt during held async C preserves pending completion and releases only af
     concurrency: 3,
     traversableGraph: bundleGraph(),
   });
-  traversal.addVisitorFor(Order.ON_READY, (v) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
     seen.push(v.getData());
   });
-  traversal.addVisitorFor(Order.ON_COMPLETE, async (v) => {
+  traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, async (v) => {
     if (v.getData() === 'bundle') {
       entered.resolve();
       await gate.promise;
     }
   });
   const runner = traversal.createRunner();
-  const iterator = runner.getIterable({ iterateOver: [] });
+  const iterator = runner.iterateEvents({ iterateOver: [] });
   const running = iterator.next();
   await entered.promise;
   expect(runner.summary().vertices.get('join')!.work).toBe('pending');

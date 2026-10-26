@@ -1,6 +1,6 @@
 import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
 import { getChildrenOfPropertyDefault } from '../src/traversable-tree-implementations/traversable-object-tree/lib/getChildrenOfPropertyDefault';
@@ -43,7 +43,7 @@ const traversal = new DepthFirstTreeTraversal({
   traversableTree,
 });
 
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
+traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (v) => {
   console.log(
     '-',
     RED_FG,
@@ -75,7 +75,7 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
   }
   return {};
 });
-traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) => {
+traversal.addVisitorFor(DepthFirstPhase.POST_ORDER, (v) => {
   console.log(
     '-',
     BLUE_FG,
@@ -90,14 +90,14 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) => {
     return {
       commands: [
         {
-          commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+          commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
         },
       ],
     };
   }
   return {};
 });
-traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
+traversal.addVisitorFor(DepthFirstPhase.IN_ORDER, (v) => {
   console.log(
     '-',
     GREEN_FG,

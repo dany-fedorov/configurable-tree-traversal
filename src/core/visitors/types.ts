@@ -13,10 +13,10 @@ export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 export type RegistrationMetadata = VisitorRegistrationMetadata;
 
 export type VisitorChainMetadata<T extends VertexTypes> = {
-  vertexVisitIndex: number;
-  curVertexVisitorVisitIndex: number;
-  previousVisitedVertexRef: CTTRef<Vertex<T>> | null;
-  vertexVisitorsChainState: unknown;
+  phaseVisitIndex: number;
+  visitorIndex: number;
+  previousPhaseVertexRef: CTTRef<Vertex<T>> | null;
+  visitorChainState: unknown;
 };
 
 export type VisitorChainPoll<
@@ -36,7 +36,7 @@ export type VisitorBatchCommit = {
   deferred?: boolean;
   halt: boolean;
   deleted: boolean;
-  vertexVisitorsChainState?: unknown;
+  visitorChainState?: unknown;
 };
 
 export type VisitorChainInput<

@@ -3,7 +3,7 @@ import {
   AsyncDagTraversal,
   DagTraversalRunner,
   AsyncDagTraversalRunner,
-  DagTraversalOrder,
+  DagVisitorPhase,
 } from '../src/traversals/dag-traversal';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
@@ -79,7 +79,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           traversableGraph: graph,
           workCompletion: 'externalSettlement',
         });
-        traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => undefined);
+        traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => undefined);
         const before = traversal.icfg;
         const visitors = traversal.visitors;
         const input = {

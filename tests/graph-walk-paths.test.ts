@@ -23,8 +23,8 @@ it.each(policies)(
       limits: { maxDepth: 3 },
     }).createRunner();
     const events = [
-      ...runner.getIterable({
-        emitPhases: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
+      ...runner.iterateEvents({
+        emitEvents: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
       }),
     ];
     const paths = events
@@ -79,7 +79,7 @@ it.each(policies)(
       revisit,
       limits: { maxSteps: 7 },
     }).createRunner();
-    const paths = [...runner.getIterable({ emitPhases: [Phase.PATH] })];
+    const paths = [...runner.iterateEvents({ emitEvents: [Phase.PATH] })];
     expect(
       paths.map((path) => path.vertices.map((v) => v.vertexId).join('')),
     ).toEqual(['A', 'AB', 'AB']);
@@ -134,7 +134,7 @@ it.each(policies)(
       limits: { maxDepth: 2 },
     }).createRunner();
     expect(
-      [...runner.getIterable({ emitPhases: [Phase.PATH] })].map((path) =>
+      [...runner.iterateEvents({ emitEvents: [Phase.PATH] })].map((path) =>
         path.vertices.map((v) => v.vertexId).join(''),
       ),
     ).toEqual(['A', 'AB', 'B']);
@@ -190,7 +190,7 @@ it.each(policies)(
       },
     }).createRunner();
     const events = [
-      ...runner.getIterable({ emitPhases: [Phase.EDGE, Phase.PATH] }),
+      ...runner.iterateEvents({ emitEvents: [Phase.EDGE, Phase.PATH] }),
     ];
     expect(expanded).toEqual(['A', 'AB', 'AC', 'ACD']);
     expect(followed).toEqual(['AB', 'AC', 'ABD', 'ABX', 'ACD', 'ACX']);
@@ -238,7 +238,7 @@ it.each(policies)(
         context.path.vertices.map((v) => v.vertexId).join('') !== 'ABD',
     }).createRunner();
     expect(
-      [...runner.getIterable({ emitPhases: [Phase.PATH] })].map((path) =>
+      [...runner.iterateEvents({ emitEvents: [Phase.PATH] })].map((path) =>
         path.vertices.map((v) => v.vertexId).join(''),
       ),
     ).toEqual(['A', 'AB', 'AC', 'ABD', 'ACD', 'ACDE']);
@@ -260,7 +260,7 @@ it.each([0, 1])(
           return true;
         },
       }).createRunner();
-      const paths = [...runner.getIterable({ emitPhases: [Phase.PATH] })];
+      const paths = [...runner.iterateEvents({ emitEvents: [Phase.PATH] })];
       const repeats = revisit === 'walks' && maxDepth === 1;
       expect(
         paths.map((path) => path.vertices.map((v) => v.vertexId).join('')),
@@ -304,7 +304,7 @@ it('tests simple path ancestry with SameValueZero and preserves object and symbo
       return true;
     },
   }).createRunner();
-  const paths = [...runner.getIterable({ emitPhases: [Phase.PATH] })];
+  const paths = [...runner.iterateEvents({ emitEvents: [Phase.PATH] })];
   expect(paths).toHaveLength(5);
   expect(paths[4]!.vertices.map((v) => v.vertexId)).toEqual([
     NaN,
@@ -327,7 +327,7 @@ it.each(policies)(
       [Phase.PATH],
       [Phase.VERTEX, Phase.EDGE],
       [Phase.EDGE, Phase.PATH],
-    ].map((emitPhases) => {
+    ].map((emitEvents) => {
       const calls: string[] = [];
       const source = diamond();
       const runner = new GraphWalk({
@@ -346,7 +346,7 @@ it.each(policies)(
         limits: { maxDepth: 3 },
         visitorPhases: { include: [] },
       }).createRunner();
-      [...runner.getIterable({ emitPhases })];
+      [...runner.iterateEvents({ emitEvents })];
       return { counts: runner.summary().counts, calls };
     });
     for (const result of results) expect(result).toEqual(results[0]);
@@ -439,7 +439,7 @@ it.each(policies)(
       strategy: 'depthFirst',
       revisit,
       limits: { maxSteps: 12000 },
-      emitPhases: [],
+      emitEvents: [],
     })
       .createRunner()
       .run();
@@ -466,7 +466,7 @@ it.each(policies)(
       TypeError,
     );
     const runner = factory.createRunner();
-    expect([...runner.getIterable({ emitPhases: [Phase.PATH] })]).toHaveLength(
+    expect([...runner.iterateEvents({ emitEvents: [Phase.PATH] })]).toHaveLength(
       revisit === 'walks' ? 2 : 1,
     );
   },
@@ -479,10 +479,10 @@ it('materializes a deep pending path iteratively after an emission selector chan
     revisit: 'walks',
     limits: { maxSteps: 12000 },
   }).createRunner();
-  const vertices = runner.getIterable({ emitPhases: [Phase.VERTEX] });
+  const vertices = runner.iterateEvents({ emitEvents: [Phase.VERTEX] });
   for (let i = 0; i < 12000; i++) expect(vertices.next().done).toBe(false);
   vertices.return();
-  const paths = [...runner.getIterable({ emitPhases: [Phase.PATH] })];
+  const paths = [...runner.iterateEvents({ emitEvents: [Phase.PATH] })];
   expect(paths).toHaveLength(1);
   expect(paths[0]!.depth).toBe(11999);
   expect(paths[0]!.vertices).toHaveLength(12000);
@@ -504,7 +504,7 @@ it('materializes a deep pending path iteratively after an emission selector chan
 it('keeps once paths first-discovery only without a route bound', () => {
   const runner = new GraphWalk({ source: diamond() }).createRunner();
   expect(
-    [...runner.getIterable({ emitPhases: [Phase.PATH] })].map((path) =>
+    [...runner.iterateEvents({ emitEvents: [Phase.PATH] })].map((path) =>
       path.vertices.map((v) => v.vertexId).join(''),
     ),
   ).toEqual(['A', 'AB', 'AC', 'ABD']);
@@ -548,7 +548,7 @@ it.each(policies)(
       },
     }).createRunner();
     expect(
-      [...runner.getIterable({ emitPhases: [Phase.PATH] })].map((path) =>
+      [...runner.iterateEvents({ emitEvents: [Phase.PATH] })].map((path) =>
         path.vertices.map((v) => v.vertexId).join(''),
       ),
     ).toEqual(['A', 'AB', 'AC', 'ABD', 'ACD', 'ACDE']);

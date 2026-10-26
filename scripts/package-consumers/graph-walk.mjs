@@ -43,8 +43,8 @@ const catalog = walking.materializeWalkSourceFromRecords(items, {
   roots: [objectId],
 });
 const mixed = [
-  ...new root.GraphWalk({ source: catalog }).createRunner().getIterable({
-    emitPhases: [Phase.VERTEX, Phase.EDGE],
+  ...new root.GraphWalk({ source: catalog }).createRunner().iterateEvents({
+    emitEvents: [Phase.VERTEX, Phase.EDGE],
   }),
 ];
 assert.deepEqual(
@@ -115,8 +115,8 @@ const stream = new walking.AsyncGraphWalk({
   },
 }).createRunner();
 const streamed = [];
-for await (const event of stream.getIterable({
-  emitPhases: [Phase.VERTEX, Phase.EDGE],
+for await (const event of stream.iterateEvents({
+  emitEvents: [Phase.VERTEX, Phase.EDGE],
 }))
   streamed.push(event);
 for (const entry of entries)
@@ -184,7 +184,7 @@ for (const asynchronous of [false, true]) {
   const runner = asynchronous
     ? new cjs.AsyncGraphWalk({ source }).createRunner()
     : new walking.GraphWalk({ source }).createRunner();
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
   assert.equal((await iterator.next()).value.kind, 'vertex');
   await iterator.return(undefined);
   assert.equal(runner.getStopReason(), 'paused');
@@ -202,7 +202,7 @@ const paused = await root.walkGraphAsync({
     [Phase.VERTEX]: [
       async () => {
         callbacks.push('halt');
-        return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
       },
       async () => {
         callbacks.push('tail');

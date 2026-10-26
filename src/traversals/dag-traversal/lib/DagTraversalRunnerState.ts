@@ -6,25 +6,25 @@ import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import { copyDagTerminalObservation } from './DagTerminalObservation';
-import { DagTraversalOrder } from './DagTraversalOrder';
+import { DagVisitorPhase } from './DagTraversalOrder';
 
 export type DagTraversalVisitorsState<T extends VertexTypes> = {
-  [K in DagTraversalOrder]: VisitorExecutionState<T>;
+  [K in DagVisitorPhase]: VisitorExecutionState<T>;
 };
 
 function initVisitorsState<
   T extends VertexTypes,
 >(): DagTraversalVisitorsState<T> {
   return {
-    [DagTraversalOrder.ON_READY]: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+    [DagVisitorPhase.ON_WORK_READY]: {
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
-    [DagTraversalOrder.ON_COMPLETE]: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+    [DagVisitorPhase.ON_SUBGRAPH_READY]: {
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
   };
 }
@@ -37,7 +37,7 @@ export class DagTraversalRunnerState<
   traversalRootVertexRef: CTTRef<Vertex<T | R>> | null;
   subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<T | R>>>;
   visitorsState: Partial<Record<VisitOrder, VisitorExecutionState<T | R>>>;
-  readyVisits: Array<{ vertexRef: Ref<T | R>; order: DagTraversalOrder }>;
+  readyVisits: Array<{ vertexRef: Ref<T | R>; order: DagVisitorPhase }>;
   expansionQueue: Ref<T | R>[];
   failure: { error: unknown } | null;
 

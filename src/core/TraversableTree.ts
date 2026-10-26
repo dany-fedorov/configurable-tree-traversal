@@ -3,7 +3,7 @@ import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { ResolvedTree } from '@core/ResolvedTree';
 
-export type MakeVertexOptions<
+export type TreeChildResolutionContext<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
@@ -96,7 +96,7 @@ export type TreeSource<
 
   resolveChild(
     vertexHint: TTP['VertexHint'],
-    options: MakeVertexOptions<TTP, RW_TTP>,
+    options: TreeChildResolutionContext<TTP, RW_TTP>,
   ): TreeVertexResolution<TTP>;
 };
 
@@ -109,6 +109,6 @@ export abstract class AbstractTreeSource<
 
   abstract resolveChild(
     vertexHint: TTP['VertexHint'],
-    options: MakeVertexOptions<TTP, RW_TTP>,
+    options: TreeChildResolutionContext<TTP, RW_TTP>,
   ): TreeVertexResolution<TTP>;
 }

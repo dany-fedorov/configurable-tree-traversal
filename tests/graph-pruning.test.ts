@@ -264,7 +264,7 @@ test('a quiescent scheduler restored from the container keeps detached anchor ow
   scheduling.closeExpansion(parent);
   scheduling.closeExpansion(rootRef);
   const restored = new GraphScheduling(container);
-  restored.restoreDagSeed([{ ref: anchor, order: 'ON_READY' }]);
+  restored.restoreDagSeed([{ ref: anchor, order: 'ON_WORK_READY' }]);
   expect(restored.deleteVertex(parent)).toEqual(new Set([parent]));
   expect(container.resolvedGraph.has(anchor)).toBe(true);
   expect(container.resolvedGraph.getParentsOf(anchor)).toEqual([]);

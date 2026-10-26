@@ -7,7 +7,7 @@ import type {
 export interface ExecutionInspection {
   readonly status: TraversalRunnerStatus;
   readonly stopReason: TraversalStopReason | null;
-  readonly haltRequested: boolean;
+  readonly pauseRequested: boolean;
   readonly kind: string;
   readonly execution: 'sync' | 'async';
   readonly inFlightCallbackCount: number;

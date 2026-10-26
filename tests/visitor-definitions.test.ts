@@ -5,9 +5,9 @@ import {
   AsyncBreadthFirstTreeTraversal,
   DagTraversal,
   AsyncDagTraversal,
-  DepthFirstTraversalOrder as F,
-  BreadthFirstTraversalOrder as B,
-  DagTraversalOrder as D,
+  DepthFirstPhase as F,
+  BreadthFirstPhase as B,
+  DagVisitorPhase as D,
   traverseTreeDepthFirst,
   traverseTreeDepthFirstAsync,
   traverseTreeBreadthFirst,
@@ -49,8 +49,8 @@ const families = [
     { traversableTree },
     traverseTreeBreadthFirstAsync,
   ],
-  [DagTraversal, D.ON_READY, { traversableGraph }, traverseDag],
-  [AsyncDagTraversal, D.ON_READY, { traversableGraph }, traverseDagAsync],
+  [DagTraversal, D.ON_WORK_READY, { traversableGraph }, traverseDag],
+  [AsyncDagTraversal, D.ON_WORK_READY, { traversableGraph }, traverseDagAsync],
 ] as const;
 
 // Each public family must normalize the same caller-owned input shapes.

@@ -39,7 +39,7 @@ it.each(policies)(
         context.revisit === revisit && context.path.depth >= 0,
     }).createRunner();
     const paths: string[] = [];
-    for await (const path of runner.getIterable({ emitPhases: [Phase.PATH] }))
+    for await (const path of runner.iterateEvents({ emitEvents: [Phase.PATH] }))
       paths.push(path.vertices.map((v) => v.vertexId).join(''));
     expect(paths).toEqual(
       revisit === 'simplePaths'
@@ -102,7 +102,7 @@ it.each(policies)(
       revisit,
       limits: { maxDepth: 5 },
     }).createRunner();
-    const first = runner.getIterable({ emitPhases: [Phase.PATH] });
+    const first = runner.iterateEvents({ emitEvents: [Phase.PATH] });
     const before: string[] = [];
     for (let i = 0; i < 3; i++) {
       const result = await first.next();
@@ -122,7 +122,7 @@ it.each(policies)(
     ]);
     expect(runner.inspect().openSourceIteratorCount).toBe(3);
     const rest: string[] = [];
-    for await (const path of runner.getIterable({ emitPhases: [Phase.PATH] }))
+    for await (const path of runner.iterateEvents({ emitEvents: [Phase.PATH] }))
       rest.push(path.vertices.map((v) => v.vertexId).join(''));
     expect(rest).toEqual(
       revisit === 'simplePaths'
@@ -185,7 +185,7 @@ it.each(policies)(
       revisit,
       limits: { maxDepth: 4 },
     }).createRunner();
-    const first = runner.getIterable({ emitPhases: [Phase.PATH] });
+    const first = runner.iterateEvents({ emitEvents: [Phase.PATH] });
     const paths: GraphWalkPathEvent<string, undefined, string>[] = [];
     for (let i = 0; i < 6; i++) {
       const next = await first.next();
@@ -199,7 +199,7 @@ it.each(policies)(
     expect(trace.filter((entry) => entry.startsWith('D>'))).toEqual(['D>E']);
     expect(runner.inspect().openSourceIteratorCount).toBe(1);
     const rest: string[] = [];
-    for await (const path of runner.getIterable({ emitPhases: [Phase.PATH] }))
+    for await (const path of runner.iterateEvents({ emitEvents: [Phase.PATH] }))
       rest.push(path.vertices.map((v) => v.vertexId).join(''));
     expect(rest).toEqual(['ABDF', 'ACDE', 'ACDF']);
     expect(trace.filter((entry) => entry.startsWith('D>'))).toEqual([
@@ -249,7 +249,7 @@ it('closes each physical async iterator once after cached replay hits its step l
     revisit: 'walks',
     limits: { maxSteps: 3 },
   }).createRunner();
-  const iterator = runner.getIterable({ emitPhases: [Phase.PATH] });
+  const iterator = runner.iterateEvents({ emitEvents: [Phase.PATH] });
   const paths: string[] = [];
   for (let i = 0; i < 3; i++) {
     const next = await iterator.next();
@@ -295,7 +295,7 @@ it.each(policies)(
   'keeps async %s admission and I/O independent of selectors at an occurrence limit',
   async (revisit) => {
     const results = [];
-    for (const emitPhases of [
+    for (const emitEvents of [
       [],
       [Phase.PATH],
       [Phase.VERTEX, Phase.EDGE],
@@ -324,8 +324,8 @@ it.each(policies)(
         revisit,
         limits: { maxDepth: 4, maxOccurrences: 3 },
       }).createRunner();
-      for await (const event of runner.getIterable({ emitPhases }))
-        expect(emitPhases).toContain(event.kind);
+      for await (const event of runner.iterateEvents({ emitEvents }))
+        expect(emitEvents).toContain(event.kind);
       results.push({ summary: runner.summary(), calls });
     }
     for (const result of results) expect(result).toEqual(results[0]);

@@ -8,7 +8,7 @@ import type { TestGraph } from './helpers/graph-fixtures';
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   DEFER_READY,
   type DagSummary,
 } from '../src/traversals/dag-traversal';
@@ -258,7 +258,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
       vertex.getData() === 'gate'
         ? DEFER_READY
         : { commands: [{ commandName: Command.DELETE_VERTEX }] },

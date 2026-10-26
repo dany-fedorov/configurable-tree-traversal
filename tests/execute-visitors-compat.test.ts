@@ -33,9 +33,9 @@ test('yields for an external halt after the first callback batch', () => {
       },
     ],
     state: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
     getOptions: () => null as never,
     executeCommands: (commands) => {
@@ -66,7 +66,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
       priority: 100,
       resolutionStyle: Style.SEQUENTIAL,
       visitor: (_vertex, options) => {
-        calls.push(['sequential', options.vertexVisitorsChainState]);
+        calls.push(['sequential', options.visitorChainState]);
       },
     },
     {
@@ -74,10 +74,10 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
       priority: 100,
       resolutionStyle: Style.CONCURRENT,
       visitor: (_vertex, options) => {
-        calls.push(['concurrent', options.vertexVisitorsChainState]);
+        calls.push(['concurrent', options.visitorChainState]);
         return {
           commands: [
-            { commandName: Command.HALT_TRAVERSAL },
+            { commandName: Command.PAUSE_TRAVERSAL },
             {
               commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
               commandArguments: { vertexVisitorsChainState: undefined },
@@ -88,32 +88,32 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     },
   ];
   const state = {
-    vertexVisitIndex: 7,
-    curVertexVisitorVisitIndex: 42,
-    previousVisitedVertexRef: null,
+    phaseVisitIndex: 7,
+    visitorIndex: 42,
+    previousPhaseVertexRef: null,
   };
   const execution = executeVisitors({
     vertexRef,
     records: records.slice().reverse(),
     state,
-    getOptions: (visitorRecord, vertexVisitorsChainState) => ({
+    getOptions: (registration, visitorChainState) => ({
       resolvedTree: null as never,
       notMutatedResolvedTree: null,
-      vertexVisitIndex: state.vertexVisitIndex,
-      curVertexVisitorVisitIndex: state.curVertexVisitorVisitIndex,
-      previousVisitedVertexRef: state.previousVisitedVertexRef,
+      phaseVisitIndex: state.phaseVisitIndex,
+      visitorIndex: state.visitorIndex,
+      previousPhaseVertexRef: state.previousPhaseVertexRef,
       isTreeRoot: true,
       isTraversalRoot: true,
       vertexRef,
-      vertexVisitorsChainState,
-      visitorRecord,
-      order: 'ORDER',
+      visitorChainState,
+      registration,
+      phase: 'ORDER',
     }),
     executeCommands: (commands) => {
       commandBatches.push(commands);
       if (
         commands.some(
-          (command) => command.commandName === Command.HALT_TRAVERSAL,
+          (command) => command.commandName === Command.PAUSE_TRAVERSAL,
         )
       ) {
         halted = true;
@@ -122,7 +122,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
         (command) =>
           command.commandName === Command.SET_VERTEX_VISITORS_CHAIN_STATE,
       )
-        ? { vertexVisitorsChainState: undefined }
+        ? { visitorChainState: undefined }
         : {};
     },
     isHalted: () => halted,
@@ -133,7 +133,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
   expect(calls).toEqual([['concurrent', null]]);
   expect(commandBatches).toEqual([
     [
-      { commandName: Command.HALT_TRAVERSAL },
+      { commandName: Command.PAUSE_TRAVERSAL },
       {
         commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
         commandArguments: { vertexVisitorsChainState: undefined },
@@ -147,9 +147,9 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     ['sequential', undefined],
   ]);
   expect(state).toEqual({
-    vertexVisitIndex: 8,
-    curVertexVisitorVisitIndex: 2,
-    previousVisitedVertexRef: vertexRef,
+    phaseVisitIndex: 8,
+    visitorIndex: 2,
+    previousPhaseVertexRef: vertexRef,
   });
 });
 
@@ -178,9 +178,9 @@ test('validates all styles before invoking a compatibility callback', () => {
     vertexRef,
     records,
     state: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
     getOptions: () => null as never,
     executeCommands: () => ({}),

@@ -5,7 +5,7 @@ import {
 import { normalizeVertexContent } from '@core/Vertex';
 import {
   AbstractTreeSource,
-  MakeVertexOptions,
+  TreeChildResolutionContext,
   MakeTreeVertexResult,
   TreeVertexResolution,
 } from '@core/TraversableTree';
@@ -120,7 +120,7 @@ export class ObjectTreeSource<
   /** Retains direct vertexContent access, including null omission, for compatibility. */
   resolveChild(
     vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
-    options: MakeVertexOptions<
+    options: TreeChildResolutionContext<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >,
@@ -169,7 +169,7 @@ export class ObjectTreeSource<
 
   private assertNoObjectIdentityCycle(
     prop: TraversableObjectTTP<InK, InV>['VertexData'],
-    options: MakeVertexOptions<
+    options: TreeChildResolutionContext<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >,
@@ -229,12 +229,12 @@ export class ObjectTreeSource<
   }
 
   private getOriginalIdentityOf(
-    vertexRef: MakeVertexOptions<
+    vertexRef: TreeChildResolutionContext<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >['resolutionContext']['parentVertexRef'],
     state: ObjectCycleState,
-    options: MakeVertexOptions<
+    options: TreeChildResolutionContext<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >,
@@ -264,11 +264,11 @@ export class ObjectTreeSource<
   }
 
   private formatPathTo(
-    vertexRef: MakeVertexOptions<
+    vertexRef: TreeChildResolutionContext<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >['resolutionContext']['parentVertexRef'],
-    options: MakeVertexOptions<
+    options: TreeChildResolutionContext<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >,

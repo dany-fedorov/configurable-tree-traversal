@@ -5,7 +5,7 @@ import { StructuralGraphSnapshot } from '../src/core/graph/snapshot';
 import { BreadthFirstPolicy } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstPolicy';
 import { DepthFirstPolicy } from '../src/traversals/depth-first-traversal/lib/DepthFirstPolicy';
 import { shouldYieldForOrder } from '../src/traversals/depth-first-traversal/iterable-helpers/shouldYieldForOrder';
-import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { createVertexIdLabeler } from '../src/core/graph/identity';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import type { VertexResolutionContext } from '../src/core/ResolvedTree';
@@ -124,11 +124,11 @@ test('small vertex and identity helpers report their remaining cases', () => {
   expect(
     shouldYieldForOrder(
       {
-        iterateOver: [DepthFirstTraversalOrder.POST_ORDER],
+        iterateOver: [DepthFirstPhase.POST_ORDER],
         enableVisitorFunctionsFor: null,
         disableVisitorFunctionsFor: null,
       },
-      DepthFirstTraversalOrder.PRE_ORDER,
+      DepthFirstPhase.PRE_ORDER,
     ),
   ).toBe(false);
 });

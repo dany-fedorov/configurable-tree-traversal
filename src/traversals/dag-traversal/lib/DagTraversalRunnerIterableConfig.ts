@@ -1,4 +1,4 @@
-import { DagTraversalOrder } from './DagTraversalOrder';
+import { DagVisitorPhase } from './DagTraversalOrder';
 import type {
   TraversalRunnerIterableConfig,
   TraversalIterableConfigInput,
@@ -10,9 +10,9 @@ import {
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type DagTraversalRunnerIterableConfig =
-  TraversalRunnerIterableConfig<DagTraversalOrder>;
+  TraversalRunnerIterableConfig<DagVisitorPhase>;
 export type DagTraversalRunnerIterableConfigInput =
-  TraversalIterableConfigInput<DagTraversalOrder>;
+  TraversalIterableConfigInput<DagVisitorPhase>;
 
 export const DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT: DagTraversalRunnerIterableConfig =
   deepFreeze(makeEffectiveDagTraversalRunnerIterableConfig());
@@ -21,7 +21,7 @@ export function makeEffectiveDagTraversalRunnerIterableConfig(
   config?: DagTraversalRunnerIterableConfigInput,
   previous?: DagTraversalRunnerIterableConfig,
 ): DagTraversalRunnerIterableConfig {
-  const phases = Object.values(DagTraversalOrder);
+  const phases = Object.values(DagVisitorPhase);
   return toLegacyTraversalExecutionConfig(
     normalizeTraversalExecutionOptions(
       phases,

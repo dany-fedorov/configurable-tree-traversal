@@ -5,7 +5,7 @@ import type { TraversableObjectTTP } from '@traversable-object-tree/lib/Traversa
 import type {
   TreeVertexFound,
   TreeVertexOmitted,
-  MakeVertexOptions,
+  TreeChildResolutionContext,
 } from '@core/TraversableTree';
 import type { VertexContentInput } from '@core/Vertex';
 
@@ -28,7 +28,7 @@ export type TraversableObjectTreeInstanceConfig_makeVertexHook<
   OutV,
 > = (
   vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
-  _options: MakeVertexOptions<
+  _options: TreeChildResolutionContext<
     TraversableObjectTTP<InK, InV>,
     TraversableObjectTTP<OutK, OutV>
   >,
@@ -51,7 +51,7 @@ export type TraversableObjectTreeInstanceConfigInput<
   ) => TraversableObjectProp<InK, InV>;
   resolveVertexHook?: (
     vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
-    options: MakeVertexOptions<
+    options: TreeChildResolutionContext<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >,

@@ -1,14 +1,14 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as DagOrder,
+  DagVisitorPhase as DagOrder,
   DEFER_READY,
   DepthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
-  DepthFirstTraversalOrder as DfsOrder,
+  DepthFirstPhase as DfsOrder,
   BreadthFirstTreeTraversal,
   AsyncBreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder as BfsOrder,
+  BreadthFirstPhase as BfsOrder,
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src';
@@ -31,7 +31,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     async (form) => {
       const traversal = new Constructor({ traversableGraph: source });
       traversal.addVisitorFor(
-        DagOrder.ON_READY,
+        DagOrder.ON_WORK_READY,
         () => ({
           commands: [
             {
@@ -43,14 +43,14 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
         { commandCommitMode: 'afterGroup', priority: 200 },
       );
       traversal.addVisitorFor(
-        DagOrder.ON_READY,
+        DagOrder.ON_WORK_READY,
         () =>
           form === 'symbol'
             ? DEFER_READY
             : { commands: [{ commandName: Command.DEFER_READY }] },
         { commandCommitMode: 'afterGroup' },
       );
-      traversal.addVisitorFor(DagOrder.ON_READY, () => {
+      traversal.addVisitorFor(DagOrder.ON_WORK_READY, () => {
         throw new Error('must skip');
       });
       const runner = traversal.createRunner();
@@ -73,7 +73,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} rejects a mixed deferral before mutation`, async () => {
     const traversal = new Constructor({ traversableGraph: source });
     traversal.addVisitorFor(
-      DagOrder.ON_READY,
+      DagOrder.ON_WORK_READY,
       () =>
         ({
           commands: [
@@ -99,8 +99,8 @@ for (const [Constructor, order, sourceKey] of [
   [AsyncDepthFirstTreeTraversal<G>, DfsOrder.PRE_ORDER, 'traversableTree'],
   [BreadthFirstTreeTraversal<G>, BfsOrder.LEVEL_ORDER, 'traversableTree'],
   [AsyncBreadthFirstTreeTraversal<G>, BfsOrder.LEVEL_ORDER, 'traversableTree'],
-  [DagTraversal<G>, DagOrder.ON_READY, 'traversableGraph'],
-  [AsyncDagTraversal<G>, DagOrder.ON_READY, 'traversableGraph'],
+  [DagTraversal<G>, DagOrder.ON_WORK_READY, 'traversableGraph'],
+  [AsyncDagTraversal<G>, DagOrder.ON_WORK_READY, 'traversableGraph'],
 ] as const) {
   const make = () =>
     new Constructor({
@@ -259,7 +259,7 @@ for (const [Constructor, order, sourceKey] of [
 for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} preserves committed effects before deferral and validates generations`, async () => {
     const traversal = new Constructor({ traversableGraph: source });
-    traversal.addVisitorFor(DagOrder.ON_READY, () => ({
+    traversal.addVisitorFor(DagOrder.ON_WORK_READY, () => ({
       commands: [
         {
           commandName: Command.REWRITE_VERTEX_DATA,
@@ -267,7 +267,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
         },
       ],
     }));
-    traversal.addVisitorFor(DagOrder.ON_READY, () => ({
+    traversal.addVisitorFor(DagOrder.ON_WORK_READY, () => ({
       commands: [{ commandName: Command.DEFER_READY }],
     }));
     const runner = traversal.createRunner();
@@ -291,20 +291,20 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     async (commandName) => {
       const rewrite = (): import('../src').TraversalVisitorResult<
         G,
-        'ON_READY'
+        'ON_WORK_READY'
       > => ({
         commands: [{ commandName, commandArguments: { newHints: [] } }],
       });
       const completion = new Constructor({ traversableGraph: source });
-      completion.addVisitorFor(DagOrder.ON_COMPLETE, rewrite as never);
+      completion.addVisitorFor(DagOrder.ON_SUBGRAPH_READY, rewrite as never);
       await expect(async () => {
         await completion.createRunner().run();
-      }).rejects.toThrow(/ON_READY/);
+      }).rejects.toThrow(/ON_WORK_READY/);
       const eager = new Constructor({
         traversableGraph: source,
         discovery: 'eager',
       });
-      eager.addVisitorFor(DagOrder.ON_READY, rewrite);
+      eager.addVisitorFor(DagOrder.ON_WORK_READY, rewrite);
       await expect(async () => {
         await eager.createRunner().run();
       }).rejects.toThrow(/eager discovery/);
@@ -314,12 +314,12 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} rejects command deferral during completion`, async () => {
     const traversal = new Constructor({ traversableGraph: source });
     traversal.addVisitorFor(
-      DagOrder.ON_COMPLETE,
+      DagOrder.ON_SUBGRAPH_READY,
       () => ({ commands: [{ commandName: Command.DEFER_READY }] } as never),
     );
     await expect(async () => {
       await traversal.createRunner().run();
-    }).rejects.toThrow(/ON_READY/);
+    }).rejects.toThrow(/ON_WORK_READY/);
   });
 }
 
@@ -339,7 +339,7 @@ test('async command deferral releases callback capacity while work prerequisites
     },
   });
   const seen: string[] = [];
-  traversal.addVisitorFor(DagOrder.ON_READY, async (vertex) => {
+  traversal.addVisitorFor(DagOrder.ON_WORK_READY, async (vertex) => {
     seen.push(vertex.$data);
     return { commands: [{ commandName: Command.DEFER_READY }] };
   });
@@ -360,11 +360,11 @@ test('async command deferral releases callback capacity while work prerequisites
 test('rejects an unknown canonical commit mode without registering the callback', () => {
   const traversal = new DagTraversal<G>({ traversableGraph: source });
   expect(() =>
-    traversal.addVisitorFor(DagOrder.ON_READY, () => undefined, {
+    traversal.addVisitorFor(DagOrder.ON_WORK_READY, () => undefined, {
       commandCommitMode: 'parallel' as never,
     }),
   ).toThrow(/Unknown visitor command commit mode/);
-  expect(traversal.listVisitorsFor(DagOrder.ON_READY)).toEqual([]);
+  expect(traversal.listVisitorsFor(DagOrder.ON_WORK_READY)).toEqual([]);
 });
 
 test.each(['afterGroup', 'afterEachVisitor'] as const)(
@@ -375,7 +375,7 @@ test.each(['afterGroup', 'afterEachVisitor'] as const)(
     );
     const pending = deferred<void>();
     const traversal = new AsyncDagTraversal<G>({ traversableGraph: source });
-    traversal.addVisitorFor(DagOrder.ON_READY, () => pending.promise, {
+    traversal.addVisitorFor(DagOrder.ON_WORK_READY, () => pending.promise, {
       commandCommitMode,
     });
     const runner = traversal.createRunner();

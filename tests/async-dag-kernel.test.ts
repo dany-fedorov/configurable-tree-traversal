@@ -41,7 +41,7 @@ function makeKernel(
       visitorsState: {},
     },
     visitorMetadata: {
-      ON_READY: [
+      ON_WORK_READY: [
         ...Array.from(
           { length: options.readyVisitorCount ?? 1 },
           (_, addedIndex) => ({
@@ -53,7 +53,7 @@ function makeKernel(
       ],
       ...(options.includeCompletion
         ? {
-            ON_COMPLETE: [
+            ON_SUBGRAPH_READY: [
               {
                 addedIndex: 0,
                 priority: 100,
@@ -65,8 +65,8 @@ function makeKernel(
     },
     iterableConfig: {
       iterateOver: options.includeCompletion
-        ? ['ON_READY', 'ON_COMPLETE']
-        : ['ON_READY'],
+        ? ['ON_WORK_READY', 'ON_SUBGRAPH_READY']
+        : ['ON_WORK_READY'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
@@ -125,7 +125,7 @@ test('delivers an unrelated DAG chain while another frame resolver is pending', 
     },
   };
   const driver = createAsyncDriver(kernel, bindings, 2);
-  const iterator = new AsyncRunnerSession(driver).getIterable();
+  const iterator = new AsyncRunnerSession(driver).iterateEvents();
 
   await expect(iterator.next()).resolves.toMatchObject({
     done: false,
@@ -208,7 +208,7 @@ test('limits admitted DAG chains separately from physical callbacks', async () =
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable();
+  const iterator = new AsyncRunnerSession(driver).iterateEvents();
 
   await iterator.next();
   const pending = iterator.next();
@@ -544,14 +544,14 @@ test('reserves initial metadata at admission while completion visits interleave'
           seen.push({
             vertex: call.ref.unref().getData(),
             order: call.order,
-            index: call.metadata.vertexVisitIndex,
+            index: call.metadata.phaseVisitIndex,
             previous:
-              call.metadata.previousVisitedVertexRef?.unref().getData() ?? null,
+              call.metadata.previousPhaseVertexRef?.unref().getData() ?? null,
           });
           return {
             kind: call.kind,
             value:
-              call.order === 'ON_READY' && call.ref.unref().getData() === 'A'
+              call.order === 'ON_WORK_READY' && call.ref.unref().getData() === 'A'
                 ? aVisit.promise
                 : undefined,
           };
@@ -561,27 +561,27 @@ test('reserves initial metadata at admission while completion visits interleave'
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable();
+  const iterator = new AsyncRunnerSession(driver).iterateEvents();
 
   await expect(iterator.next()).resolves.toMatchObject({
-    value: { vertex: { $d: 'root' }, order: 'ON_READY' },
+    value: { vertex: { $d: 'root' }, order: 'ON_WORK_READY' },
   });
   await expect(iterator.next()).resolves.toMatchObject({
-    value: { vertex: { $d: 'B' }, order: 'ON_READY' },
+    value: { vertex: { $d: 'B' }, order: 'ON_WORK_READY' },
   });
   await expect(iterator.next()).resolves.toMatchObject({
-    value: { vertex: { $d: 'B' }, order: 'ON_COMPLETE' },
+    value: { vertex: { $d: 'B' }, order: 'ON_SUBGRAPH_READY' },
   });
 
-  expect(seen.filter(({ order }) => order === 'ON_READY')).toEqual([
-    { vertex: 'root', order: 'ON_READY', index: 0, previous: null },
-    { vertex: 'A', order: 'ON_READY', index: 1, previous: 'root' },
-    { vertex: 'B', order: 'ON_READY', index: 2, previous: 'root' },
+  expect(seen.filter(({ order }) => order === 'ON_WORK_READY')).toEqual([
+    { vertex: 'root', order: 'ON_WORK_READY', index: 0, previous: null },
+    { vertex: 'A', order: 'ON_WORK_READY', index: 1, previous: 'root' },
+    { vertex: 'B', order: 'ON_WORK_READY', index: 2, previous: 'root' },
   ]);
 
   aVisit.resolve();
   await expect(iterator.next()).resolves.toMatchObject({
-    value: { vertex: { $d: 'A' }, order: 'ON_READY' },
+    value: { vertex: { $d: 'A' }, order: 'ON_WORK_READY' },
   });
   await iterator.return(undefined);
 });
@@ -643,7 +643,7 @@ test('admits an independent join once after all dependencies commit', async () =
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable();
+  const iterator = new AsyncRunnerSession(driver).iterateEvents();
 
   await iterator.next();
   const aEvent = iterator.next();
@@ -701,13 +701,13 @@ test('finishes after deletion without awaiting an invalidated running callback',
         }
         if (call.kind === 'VISIT') {
           const data = call.ref.unref().getData();
-          if (data === 'B' && call.order === 'ON_READY') {
+          if (data === 'B' && call.order === 'ON_WORK_READY') {
             return { kind: call.kind, value: bVisit.promise };
           }
           return {
             kind: call.kind,
             value:
-              data === 'A' && call.order === 'ON_COMPLETE'
+              data === 'A' && call.order === 'ON_SUBGRAPH_READY'
                 ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
                 : undefined,
           };
@@ -717,7 +717,7 @@ test('finishes after deletion without awaiting an invalidated running callback',
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable({
+  const iterator = new AsyncRunnerSession(driver).iterateEvents({
     iterateOver: [],
   });
 
@@ -790,7 +790,7 @@ test('retains the first live failure and discards a later chain mutation', async
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable({
+  const iterator = new AsyncRunnerSession(driver).iterateEvents({
     iterateOver: [],
   });
   const result = iterator.next();
@@ -921,7 +921,7 @@ test('retains a halted chain while another started DAG chain completes', async (
             kind: call.kind,
             value:
               data === 'A' && call.recordIndex === 0
-                ? { commands: [{ commandName: Command.HALT_TRAVERSAL }] }
+                ? { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] }
                 : undefined,
           };
         }
@@ -931,7 +931,7 @@ test('retains a halted chain while another started DAG chain completes', async (
     2,
   );
   const session = new AsyncRunnerSession(driver);
-  const first = session.getIterable();
+  const first = session.iterateEvents();
 
   await first.next();
   await expect(first.next()).resolves.toMatchObject({
@@ -942,7 +942,7 @@ test('retains a halted chain while another started DAG chain completes', async (
   expect(calls.filter((call) => call.startsWith('A:'))).toEqual(['A:0']);
   expect(calls.filter((call) => call.startsWith('B:'))).toEqual(['B:0', 'B:1']);
 
-  const resumed = session.getIterable();
+  const resumed = session.iterateEvents();
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
     value: { vertex: { $d: 'A' } },
@@ -986,7 +986,7 @@ test('progresses resolver and visitor jobs without nesting a single permit', asy
     1,
   );
 
-  const iterator = new AsyncRunnerSession(driver).getIterable({
+  const iterator = new AsyncRunnerSession(driver).iterateEvents({
     iterateOver: [],
   });
   await expect(iterator.next()).resolves.toEqual({

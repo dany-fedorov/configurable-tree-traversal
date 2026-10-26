@@ -1,5 +1,5 @@
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
-import { DepthFirstTraversalOrder as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import {
   TraversalVisitorCommandName as Command,
@@ -28,7 +28,7 @@ const values = (
   runner: ReturnType<ReturnType<typeof traversal>['createRunner']>,
   order: Order,
 ) =>
-  [...runner.getIterable({ iterateOver: [order] })].map((event) =>
+  [...runner.iterateEvents({ iterateOver: [order] })].map((event) =>
     event.vertex.getData(),
   );
 
@@ -43,7 +43,7 @@ describe('depth-first traversal', () => {
 
   test('finishes an empty tree', () => {
     const runner = traversal(null).createRunner();
-    expect([...runner.getIterable()]).toEqual([]);
+    expect([...runner.iterateEvents()]).toEqual([]);
     expect(runner.getStatus()).toBe(Status.FINISHED);
     expect(runner.getResolvedTree().getRoot()).toBeNull();
   });
@@ -81,7 +81,7 @@ describe('depth-first traversal', () => {
     const visits: Order[] = [];
     for (const order of Object.values(Order))
       t.addVisitorFor(order, (_v, o) => {
-        visits.push(o.order);
+        visits.push(o.phase);
       });
     t.createRunner().run({ disableVisitorFunctionsFor: [Order.PRE_ORDER] });
     expect(visits).toEqual([Order.IN_ORDER, Order.POST_ORDER]);
@@ -93,7 +93,7 @@ describe('depth-first traversal', () => {
     t.addVisitorFor(Order.PRE_ORDER, (v) => {
       visits.push(`first:${v.getData()}`);
       if (v.getData() === 'root')
-        return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
       return undefined;
     });
     t.addVisitorFor(Order.PRE_ORDER, (v) => {
@@ -117,7 +117,7 @@ describe('depth-first traversal', () => {
 
   test('changes iterator filters when resuming after a break', () => {
     const runner = traversal(node('root', node('leaf'))).createRunner();
-    for (const event of runner.getIterable({
+    for (const event of runner.iterateEvents({
       iterateOver: [Order.PRE_ORDER],
     })) {
       expect(event.vertex.getData()).toBe('root');
@@ -177,9 +177,9 @@ describe('depth-first traversal', () => {
     for (let i = 0; i < 2; i++)
       t.addVisitorFor(Order.PRE_ORDER, (_v, o) => {
         seen.push([
-          o.vertexVisitIndex,
-          o.curVertexVisitorVisitIndex,
-          o.previousVisitedVertexRef?.unref().getData() ?? null,
+          o.phaseVisitIndex,
+          o.visitorIndex,
+          o.previousPhaseVertexRef?.unref().getData() ?? null,
         ]);
       });
     t.createRunner().run();
@@ -228,7 +228,7 @@ describe('depth-first traversal', () => {
       };
     });
     t.addVisitorFor(Order.PRE_ORDER, (_v, o) => {
-      seen.push(o.vertexVisitorsChainState);
+      seen.push(o.visitorChainState);
     });
     t.createRunner().run();
     expect(seen).toEqual(['root', 'root', 'changed', 42]);
@@ -294,7 +294,7 @@ test('passes chain state from concurrent commands to the first sequential visito
     { resolutionStyle: Style.CONCURRENT },
   );
   t.addVisitorFor(Order.PRE_ORDER, (_vertex, options) => {
-    seen = options.vertexVisitorsChainState;
+    seen = options.visitorChainState;
   });
   t.createRunner().run();
   expect(seen).toBe(42);
@@ -327,7 +327,7 @@ test('a resolved tree can be traversed again as an adapter', () => {
     .getResolvedTree();
   const again = new DepthFirstTreeTraversal({ traversableTree: resolvedTree });
   const data = [
-    ...again.createRunner().getIterable({ iterateOver: [Order.POST_ORDER] }),
+    ...again.createRunner().iterateEvents({ iterateOver: [Order.POST_ORDER] }),
   ].map((event) => event.vertex.getData().unref().getData());
   expect(data).toEqual(['a', 'b', 'root']);
 });

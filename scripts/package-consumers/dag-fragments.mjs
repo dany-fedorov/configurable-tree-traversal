@@ -70,7 +70,7 @@ for (const runner of [
   await result.dag.createAsyncRunner(),
 ]) {
   const seen = [];
-  for await (const event of runner.getIterable())
+  for await (const event of runner.iterateEvents())
     seen.push([event.vertexId, event.kind]);
   assert.equal(seen[0][0], first.ports.start);
   assert.equal(seen[3][0], first.ports.finish);

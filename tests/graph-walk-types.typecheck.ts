@@ -2,7 +2,7 @@ import {
   GraphWalk,
   AsyncGraphWalk,
   TraversalVisitorCommandName as Command,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
 } from '../src';
 import type { InspectionFilters } from '../src/core/CoreInspection';
 import { GraphWalkPhase as Phase } from '../src';
@@ -98,7 +98,7 @@ const unionEvent = (event: GraphWalkEvent<string, number, undefined>) => {
 };
 const command: GraphWalkVisitorResult = {
   commands: [
-    { commandName: Command.HALT_TRAVERSAL },
+    { commandName: Command.PAUSE_TRAVERSAL },
     { commandName: Command.NOOP },
   ],
 };
@@ -143,12 +143,12 @@ const promiseVisitor: GraphWalkOptions<string, number, undefined> = {
 const wrongPhase: GraphWalkOptions<string, number, undefined> = {
   source,
   // @ts-expect-error Walking rejects another family's phases.
-  emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
+  emitEvents: [DepthFirstPhase.PRE_ORDER],
 };
 // @ts-expect-error Canonical and legacy emission selectors are exclusive.
 const mixedSelectors: GraphWalkOptions<string, number, undefined> = {
   source,
-  emitPhases: [Phase.EDGE],
+  emitEvents: [Phase.EDGE],
   iterateOver: [Phase.PATH],
 };
 const defer: GraphWalkVisitorResult = {
@@ -157,7 +157,7 @@ const defer: GraphWalkVisitorResult = {
 };
 const argumentsCommand: GraphWalkVisitorResult = {
   // @ts-expect-error The shared halt command forbids arguments.
-  commands: [{ commandName: Command.HALT_TRAVERSAL, commandArguments: {} }],
+  commands: [{ commandName: Command.PAUSE_TRAVERSAL, commandArguments: {} }],
 };
 const rewrite: GraphWalkVisitorResult = {
   commands: [
@@ -175,10 +175,10 @@ const concurrency: GraphWalkOptions<string, number, undefined> = {
   concurrency: 1,
 };
 declare const filters: InspectionFilters<Phase>;
-const selected: readonly Phase[] = filters.emitPhases;
+const selected: readonly `${Phase}`[] = filters.emitEvents;
 declare const legacy: InspectionFilters;
 // @ts-expect-error Default inspection phases remain tree/DAG phases.
-const widened: readonly Phase[] = legacy.emitPhases;
+const widened: readonly Phase[] = legacy.emitEvents;
 void [
   asyncOptions,
   syncOptions,
@@ -222,20 +222,20 @@ const edgeEvents: Generator<
   GraphWalkEventFor<string, number, Phase.EDGE, undefined>,
   void,
   unknown
-> = runner.getIterable({ emitPhases: [Phase.EDGE] });
+> = runner.iterateEvents({ emitEvents: [Phase.EDGE] });
 const allEvents: Generator<
   GraphWalkEvent<string, number, undefined>,
   void,
   unknown
-> = runner.getIterable();
+> = runner.iterateEvents();
 // @ts-expect-error Unselected calls cannot promise only edge events.
-const unsafeEdges: typeof edgeEvents = runner.getIterable();
+const unsafeEdges: typeof edgeEvents = runner.iterateEvents();
 // @ts-expect-error Legacy selectors intentionally retain the full event union.
-const legacyEdges: typeof edgeEvents = runner.getIterable({
+const legacyEdges: typeof edgeEvents = runner.iterateEvents({
   iterateOver: [Phase.EDGE],
 });
 // @ts-expect-error A walking runner cannot accept another family's phase.
-runner.getIterable({ emitPhases: [DepthFirstTraversalOrder.PRE_ORDER] });
+runner.iterateEvents({ emitEvents: [DepthFirstPhase.PRE_ORDER] });
 // @ts-expect-error Function-property variance forbids phase widening.
 const wideExecution: import('../src').SyncTraversalExecution<
   string,
@@ -255,20 +255,20 @@ void [
 // Only explicit canonical selectors narrow; persisted selectors are runtime state.
 const persisted = new GraphWalk({
   source,
-  emitPhases: [Phase.EDGE],
+  emitEvents: [Phase.EDGE],
 }).createRunner();
-const persistedAll: typeof allEvents = persisted.getIterable();
-const emptyPatchAll: typeof allEvents = persisted.getIterable({});
+const persistedAll: typeof allEvents = persisted.iterateEvents();
+const emptyPatchAll: typeof allEvents = persisted.iterateEvents({});
 // @ts-expect-error Empty patches retain the full union.
-const unsafeEmptyPatch: typeof edgeEvents = persisted.getIterable({});
-const noEvents: Generator<never, void, unknown> = runner.getIterable({
-  emitPhases: [],
+const unsafeEmptyPatch: typeof edgeEvents = persisted.iterateEvents({});
+const noEvents: Generator<never, void, unknown> = runner.iterateEvents({
+  emitEvents: [],
 });
 const mixedEvents: Generator<
   GraphWalkEventFor<string, number, Phase.VERTEX | Phase.EDGE, undefined>,
   void,
   unknown
-> = runner.getIterable({ emitPhases: [Phase.VERTEX, Phase.EDGE] });
+> = runner.iterateEvents({ emitEvents: [Phase.VERTEX, Phase.EDGE] });
 // @ts-expect-error Explicit mixed selectors exclude paths.
 const unsafePaths: Generator<
   GraphWalkEventFor<string, number, Phase.PATH, undefined>,
@@ -296,14 +296,14 @@ const registered = new GraphWalk({ source });
 const sameFactory: typeof registered = registered.addVisitorFor(
   Phase.EDGE,
   (event, context) => {
-    const phase: Phase.EDGE = context.order;
+    const phase: Phase.EDGE = context.phase;
     const kind: 'edge' = event.kind;
     const edgeData: number = event.edge.data;
     const id: undefined = event.source.vertexId;
     // @ts-expect-error Exact phase registration cannot see a vertex event.
     event.vertex;
     // @ts-expect-error Context metadata exposes no executable callback.
-    context.visitorRecord.visitor;
+    context.registration.visitor;
     void [phase, kind, edgeData, id];
     return { commands: [{ commandName: Command.NOOP }] };
   },
@@ -319,7 +319,7 @@ registered.addVisitorGroupFor(Phase.PATH, {
   ],
 });
 registered.setVisitorsFor(Phase.VERTEX, (event, context) => {
-  const phase: Phase.VERTEX = context.order;
+  const phase: Phase.VERTEX = context.phase;
   const data: string = event.vertex.data;
   void [phase, data];
 });
@@ -354,7 +354,7 @@ const asyncRegistered: typeof asyncWalk = asyncWalk.addVisitorFor(
     const kind: 'edge' = event.kind;
     const data: number = event.edge.data;
     const id: undefined = event.edge.to;
-    const phase: Phase.EDGE = context.order;
+    const phase: Phase.EDGE = context.phase;
     // @ts-expect-error Exact async phase inference does not widen.
     event.vertex;
     void [kind, data, id, phase];
@@ -398,21 +398,21 @@ const asyncEdges: AsyncGenerator<
   GraphWalkEventFor<string, number, Phase.EDGE, undefined>,
   void,
   unknown
-> = asyncRunner.getIterable({ emitPhases: [Phase.EDGE] });
+> = asyncRunner.iterateEvents({ emitEvents: [Phase.EDGE] });
 const asyncAll: AsyncGenerator<
   GraphWalkEvent<string, number, undefined>,
   void,
   unknown
-> = asyncRunner.getIterable();
+> = asyncRunner.iterateEvents();
 // @ts-expect-error No-selector iteration includes persisted mixed phases.
-const asyncNarrowAll: typeof asyncEdges = asyncRunner.getIterable();
+const asyncNarrowAll: typeof asyncEdges = asyncRunner.iterateEvents();
 // @ts-expect-error Legacy selector does not narrow.
-const asyncNarrowLegacy: typeof asyncEdges = asyncRunner.getIterable({
+const asyncNarrowLegacy: typeof asyncEdges = asyncRunner.iterateEvents({
   iterateOver: [Phase.EDGE],
 });
-asyncCapability.getIterable({
+asyncCapability.iterateEvents({
   // @ts-expect-error Walking phases remain family-safe.
-  emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
+  emitEvents: [DepthFirstPhase.PRE_ORDER],
 });
 void [
   asyncRegistered,

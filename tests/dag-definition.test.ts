@@ -54,7 +54,7 @@ test('definitions retain an omitted discovery slot before its dependent sibling'
     { kind: 'vertex', vertexId: 'c' },
   ]);
   expect(
-    [...result.dag.createRunner().getIterable()].map((event) => [
+    [...result.dag.createRunner().iterateEvents()].map((event) => [
       event.vertexId,
       event.kind,
     ]),
@@ -253,13 +253,13 @@ for (const anonymous of [false, true]) {
       ['root', 'subgraphCompleted'],
     ];
     expect(
-      [...original.getIterable()].map((event) => [event.vertexId, event.kind]),
+      [...original.iterateEvents()].map((event) => [event.vertexId, event.kind]),
     ).toEqual(expected);
     expect(
-      [...replay.getIterable()].map((event) => [event.vertexId, event.kind]),
+      [...replay.iterateEvents()].map((event) => [event.vertexId, event.kind]),
     ).toEqual(expected);
     const events: unknown[] = [];
-    for await (const event of replayAsync.getIterable())
+    for await (const event of replayAsync.iterateEvents())
       events.push([event.vertexId, event.kind]);
     expect(events).toEqual(expected);
     expect(replay.summary().counts.discovered).toBe(3);
@@ -293,7 +293,7 @@ test('definitions retain empty and omitted roots separately from forest catalogs
     const replay = new DagTraversal(definitionSource(result.dag.definition))
       .createRunner()
       .prepare();
-    expect([...replay.getIterable()]).toEqual([]);
+    expect([...replay.iterateEvents()]).toEqual([]);
     expect(replay.getStopReason()).toBe('finished');
   }
   const forest = prepareDag(materializeDagSourceFromRecords(['a', 'b'], { id: (id) => id }));
@@ -394,7 +394,7 @@ test('definition replay retains structural sharing and detached prerequisites wi
   expect(graph.getParentsOf(graph.getVertexRefById(remoteId)!)).toEqual([]);
   expect(graph.getVertexRefById(sharedId)!.unref().getData()).toBe(sharedId);
   expect(
-    [...replay.getIterable()]
+    [...replay.iterateEvents()]
       .filter((event) => event.kind === 'workCompleted')
       .map((event) => event.vertexId),
   ).toEqual([rootId, remoteId, sharedId]);
@@ -445,7 +445,7 @@ test('an omitted synthetic catalog root does not expose its private holder ident
   expect(() =>
     result.dag.createRunner({ completedWork: new Set(['catalog']) }),
   ).toThrow(TypeError);
-  expect([...result.dag.createRunner().getIterable()]).toEqual([]);
+  expect([...result.dag.createRunner().iterateEvents()]).toEqual([]);
 });
 
 test('a live synthetic holder preserves omitted catalog entries for seed reuse', () => {

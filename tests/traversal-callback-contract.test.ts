@@ -2,7 +2,7 @@ import {
   BreadthFirstTreeTraversal,
   CTTRef,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   ResolvedTree,
   TraversalVisitorCommandName,
   Vertex,
@@ -21,7 +21,7 @@ test('BFS resolves one queued child at the next visit boundary', () => {
       },
     },
   });
-  const iterator = traversal.createRunner().getIterable();
+  const iterator = traversal.createRunner().iterateEvents();
   expect(iterator.next().value?.vertex.getData()).toBe('root');
   expect(calls).toEqual([]);
   expect(iterator.next().value?.vertex.getData()).toBe('A');
@@ -51,11 +51,11 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
     },
   });
 
-  for (const order of Object.values(DepthFirstTraversalOrder)) {
+  for (const order of Object.values(DepthFirstPhase)) {
     traversal.addVisitorFor(order, (vertex) => {
       trace.push(`visitor:${order}:${vertex.getData()}`);
       if (
-        order === DepthFirstTraversalOrder.IN_ORDER &&
+        order === DepthFirstPhase.IN_ORDER &&
         vertex.getData() === 'root'
       ) {
         return {
@@ -72,8 +72,8 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
   }
 
   const runner = traversal.createRunner();
-  for (const event of runner.getIterable()) {
-    trace.push(`iterator:${event.order}:${event.vertex.getData()}`);
+  for (const event of runner.iterateEvents()) {
+    trace.push(`iterator:${event.phase}:${event.vertex.getData()}`);
   }
 
   const resolvedTree = runner.getResolvedTree();

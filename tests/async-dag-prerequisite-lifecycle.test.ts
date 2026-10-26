@@ -1,5 +1,5 @@
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import type { TestGraph as G } from './helpers/graph-fixtures';
@@ -28,7 +28,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
     },
   });
   const runner = traversal.createRunner();
-  const iterator = runner.getIterable({ iterateOver: [] });
+  const iterator = runner.iterateEvents({ iterateOver: [] });
   const running = iterator.next();
   await entered.promise;
   const before = runner.summary();
@@ -91,7 +91,7 @@ for (const removeAll of [false, true]) {
         },
       },
     });
-    traversal.addVisitorFor(Order.ON_COMPLETE, async (v) => {
+    traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, async (v) => {
       if (v.getData() === 'a') {
         await a.promise;
         return removed;
@@ -139,7 +139,7 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
       },
     },
   });
-  traversal.addVisitorFor(Order.ON_COMPLETE, async () => {
+  traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, async () => {
     await remove.promise;
     return removed;
   });
@@ -187,7 +187,7 @@ for (const hinted of [false, true]) {
               }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (v) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
       events.push(v.getData());
     });
     const runner = traversal.createRunner();
@@ -256,7 +256,7 @@ for (const error of [undefined, null, { rejected: true }]) {
         resolvePrerequisite: () => gate.promise,
       },
     }).createRunner();
-    const iterator = runner.getIterable({ iterateOver: [] });
+    const iterator = runner.iterateEvents({ iterateOver: [] });
     const next = iterator.next();
     await eventLoopTurn();
     await iterator.return(undefined);
@@ -328,10 +328,10 @@ for (const lookupSource of [false, true]) {
             : {}),
         },
       });
-      traversal.addVisitorFor(Order.ON_READY, (v) =>
+      traversal.addVisitorFor(Order.ON_WORK_READY, (v) =>
         v.getData() === 'dead' ? removed : undefined,
       );
-      traversal.addVisitorFor(Order.ON_COMPLETE, async (v) => {
+      traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, async (v) => {
         if (v.getData() === 'consumer') {
           consumerEntered.resolve();
           await consumer.promise;

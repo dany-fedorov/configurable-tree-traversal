@@ -4,7 +4,7 @@ import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { AsyncBreadthFirstTreeTraversal } from './AsyncBreadthFirstTraversal';
 import type { AsyncBreadthFirstTraversalInstanceConfigInput } from './lib/AsyncBreadthFirstTraversalInstanceConfig';
-import { BreadthFirstTraversalOrder } from './lib/BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from './lib/BreadthFirstTraversalOrder';
 import type { AsyncBreadthFirstTreeRunner } from './lib/AsyncBreadthFirstTraversalRunner';
 
 /** Options for a single-call BreadthFirst traversal with phase-keyed callbacks. */
@@ -16,7 +16,7 @@ export type AsyncBreadthFirstTraversalHelperOptions<
   'visitors' | 'traversableTree'
 > & { traversableTree: AsyncTreeSource<TTP, RW_TTP> } & {
   visitors?: {
-    [K in BreadthFirstTraversalOrder]?: VisitorPhaseInput<
+    [K in BreadthFirstPhase]?: VisitorPhaseInput<
       AsyncTraversalVisitor<K, TTP, RW_TTP>
     >;
   };
@@ -35,7 +35,7 @@ export function traverseTreeBreadthFirstAsync<
 >(
   traversableTree: AsyncTreeSource<TTP, RW_TTP>,
   visitor: AsyncTraversalVisitor<
-    BreadthFirstTraversalOrder,
+    BreadthFirstPhase,
     TTP,
     RW_TTP
   > | null,
@@ -49,7 +49,7 @@ export function traverseTreeBreadthFirstAsync<
     | AsyncTreeSource<TTP, RW_TTP>
     | AsyncBreadthFirstTraversalHelperOptions<TTP, RW_TTP>,
   visitor?: AsyncTraversalVisitor<
-    BreadthFirstTraversalOrder,
+    BreadthFirstPhase,
     TTP,
     RW_TTP
   > | null,
@@ -74,7 +74,7 @@ export function traverseTreeBreadthFirstAsync<
   );
   if (levelOrderVisitor) {
     traversal.addVisitorFor(
-      BreadthFirstTraversalOrder.LEVEL_ORDER,
+      BreadthFirstPhase.LEVEL_ORDER,
       levelOrderVisitor,
     );
   }

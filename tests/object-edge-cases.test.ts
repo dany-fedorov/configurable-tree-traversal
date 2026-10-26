@@ -1,6 +1,6 @@
 import {
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   TraversalVisitorFunctionResolutionStyle,
@@ -226,7 +226,7 @@ describe('object traversal and rewriting edge cases', () => {
 
     const result = rewriteObject(input, {
       visitors: {
-        [DepthFirstTraversalOrder.POST_ORDER]: [
+        [DepthFirstPhase.POST_ORDER]: [
           {
             addedIndex: 0,
             priority: 200,
@@ -237,7 +237,7 @@ describe('object traversal and rewriting edge cases', () => {
               return {
                 commands: [
                   {
-                    commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+                    commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
                   },
                 ],
               };
@@ -421,12 +421,12 @@ describe('object traversal and rewriting edge cases', () => {
       const keys: PropertyKey[] = [];
       const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
       traversal.addVisitorFor(
-        DepthFirstTraversalOrder.PRE_ORDER,
+        DepthFirstPhase.PRE_ORDER,
         (vertex, { isTreeRoot }) => {
           if (!isTreeRoot) keys.push(vertex.getData().key);
         },
       );
-      return { keys, iterator: traversal.createRunner().getIterable() };
+      return { keys, iterator: traversal.createRunner().iterateEvents() };
     };
     const first = makeTraversal();
     const second = makeTraversal();

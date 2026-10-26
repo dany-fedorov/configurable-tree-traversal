@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   DagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
@@ -32,10 +32,10 @@ const traversal = new DagTraversal<Build>({
     }),
   },
 });
-traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
   events.push(`work:${vertex.getData()}`);
 });
-traversal.addVisitorFor(Order.ON_COMPLETE, (vertex) => {
+traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (vertex) => {
   events.push(`complete:${vertex.getData()}`);
 });
 const runner = traversal.createRunner().run();

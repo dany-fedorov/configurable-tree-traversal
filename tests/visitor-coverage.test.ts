@@ -1,8 +1,8 @@
 import {
   BreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder,
+  BreadthFirstPhase,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
@@ -13,7 +13,7 @@ import {
 type Node = { $d: string; $c: Node[] };
 type Tree = VertexTypes<string, Node>;
 type Visitor = TraversalVisitor<
-  DepthFirstTraversalOrder | BreadthFirstTraversalOrder,
+  DepthFirstPhase | BreadthFirstPhase,
   Tree,
   Tree
 >;
@@ -33,12 +33,12 @@ describe.each(['depth-first', 'breadth-first'] as const)(
           : new BreadthFirstTreeTraversal<Tree>({ traversableTree: adapter });
       const add = (visitor: Visitor, resolutionStyle: Style) => {
         if (traversal instanceof DepthFirstTreeTraversal) {
-          traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, visitor, {
+          traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, visitor, {
             resolutionStyle,
           });
         } else {
           traversal.addVisitorFor(
-            BreadthFirstTraversalOrder.LEVEL_ORDER,
+            BreadthFirstPhase.LEVEL_ORDER,
             visitor,
             {
               resolutionStyle,
@@ -65,7 +65,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       const calls: unknown[] = [];
       add((vertex) => {
         calls.push(['halt', vertex.getData()]);
-        return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
       }, Style.CONCURRENT);
       add((vertex) => {
         calls.push(['rewrite', vertex.getData()]);
@@ -86,7 +86,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
         calls.push([
           'sequential',
           vertex.getData(),
-          options.vertexVisitorsChainState,
+          options.visitorChainState,
         ]);
       }, Style.SEQUENTIAL);
       const runner = traversal.createRunner().run();
@@ -125,7 +125,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       }, Style.SEQUENTIAL);
       const runner = traversal.createRunner();
 
-      expect([...runner.getIterable()]).toEqual([]);
+      expect([...runner.iterateEvents()]).toEqual([]);
       expect(calls).toEqual(['delete', 'root']);
       expect(runner.getResolvedTree().getRoot()).toBeNull();
       expect(runner.getStatus()).toBe(Status.FINISHED);

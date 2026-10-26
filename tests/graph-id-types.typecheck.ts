@@ -1,7 +1,7 @@
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder,
+  DagVisitorPhase,
   traverseDag,
   traverseDagAsync,
 } from '../src';
@@ -91,7 +91,7 @@ new DagTraversal<W, W, string>({
   // @ts-expect-error Constructor completed work must use the selected ID domain.
   completedWork: new Set([{}]),
 });
-traversal.addVisitorFor(DagTraversalOrder.ON_READY, (_vertex, options) => {
+traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (_vertex, options) => {
   const view: ResolvedGraph<W, string> = options.resolvedGraph;
   // @ts-expect-error Visitor graph ID lookup is checked.
   view.getVertexRefById(42);
@@ -230,7 +230,7 @@ const rewriteSource: DagDiscoverySource<W, R, string> = {
 };
 new DagTraversal<W, R, string>({
   traversableGraph: rewriteSource,
-}).addVisitorFor(DagTraversalOrder.ON_READY, (vertex, options) => {
+}).addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex, options) => {
   const data: string | number = vertex.$data;
   const view: ResolvedGraph<W | R, string> = options.resolvedGraph;
   void [data, view];
@@ -318,7 +318,7 @@ const rewriting = new DagTraversal({ traversableGraph: rewriteSource });
 const rewritingIds: readonly string[] = rewriting
   .createRunner()
   .summary().readyIds;
-rewriting.addVisitorFor(DagTraversalOrder.ON_COMPLETE, (_vertex, options) => {
+rewriting.addVisitorFor(DagVisitorPhase.ON_SUBGRAPH_READY, (_vertex, options) => {
   const view: ResolvedGraph<W | R, string> = options.resolvedGraph;
   // @ts-expect-error Rewriting does not broaden the ID domain.
   view.getVertexById({});

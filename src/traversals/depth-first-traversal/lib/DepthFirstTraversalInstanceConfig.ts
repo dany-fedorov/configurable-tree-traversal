@@ -6,7 +6,7 @@ import type { TreeSource } from '@core/TraversableTree';
 import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
 import type { DepthFirstTraversalInOrderTraversalConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import type { DepthFirstTraversalRunnerInternalObjects } from '@depth-first-traversal/lib/DepthFirstTraversalRunnerInternalObjects';
-import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { OrNullAllFields } from '@depth-first-traversal/type-helpers/OrNullAllFields';
 import type { DepthFirstTraversalInstanceConfigDeepPartial } from '@depth-first-traversal/type-helpers/DepthFirstTraversalInstanceConfigDeepPartial';
 import { deepFreeze } from '@utils/deepFreeze';
@@ -41,9 +41,9 @@ export const DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
     considerVisitAfterNullContentVertices: true,
   },
   visitors: {
-    [DepthFirstTraversalOrder.PRE_ORDER]: [],
-    [DepthFirstTraversalOrder.IN_ORDER]: [],
-    [DepthFirstTraversalOrder.POST_ORDER]: [],
+    [DepthFirstPhase.PRE_ORDER]: [],
+    [DepthFirstPhase.IN_ORDER]: [],
+    [DepthFirstPhase.POST_ORDER]: [],
   },
   saveNotMutatedResolvedTree: false,
   traversalRunnerInternalObjects: {
@@ -91,14 +91,14 @@ export function mergeInstanceConfigs<
     ...base,
     ...input,
     visitors: {
-      [DepthFirstTraversalOrder.PRE_ORDER]: normalizeVisitorDefinitions(
-        visitors[DepthFirstTraversalOrder.PRE_ORDER],
+      [DepthFirstPhase.PRE_ORDER]: normalizeVisitorDefinitions(
+        visitors[DepthFirstPhase.PRE_ORDER],
       ),
-      [DepthFirstTraversalOrder.IN_ORDER]: normalizeVisitorDefinitions(
-        visitors[DepthFirstTraversalOrder.IN_ORDER],
+      [DepthFirstPhase.IN_ORDER]: normalizeVisitorDefinitions(
+        visitors[DepthFirstPhase.IN_ORDER],
       ),
-      [DepthFirstTraversalOrder.POST_ORDER]: normalizeVisitorDefinitions(
-        visitors[DepthFirstTraversalOrder.POST_ORDER],
+      [DepthFirstPhase.POST_ORDER]: normalizeVisitorDefinitions(
+        visitors[DepthFirstPhase.POST_ORDER],
       ),
     },
     inOrderTraversalConfig: {

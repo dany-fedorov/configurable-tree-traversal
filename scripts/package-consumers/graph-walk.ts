@@ -2,7 +2,7 @@ import {
   GraphWalk,
   AsyncGraphWalk,
   GraphWalkPhase as Phase,
-  DagTraversalOrder as DagPhase,
+  DagVisitorPhase as DagPhase,
   TraversalVisitorCommandName as Command,
   graphWalk,
   walkGraph,
@@ -78,7 +78,7 @@ const result = walkGraph({
     [Phase.VERTEX]: (event, context) => {
       const id: ID = event.vertex.vertexId;
       const data: Data = event.vertex.data;
-      const phase: Phase.VERTEX = context.order;
+      const phase: Phase.VERTEX = context.phase;
       // @ts-expect-error Vertex callbacks cannot see relationship records.
       event.edge;
       void [id, data, phase];
@@ -123,7 +123,7 @@ const asynchronous = walkGraphAsync({
       const data: Relation = event.edge.data;
       const id: ID = event.edge.to;
       void [data, id];
-      return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+      return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
     },
   },
 });
@@ -137,16 +137,16 @@ asynchronous.then((runner) => {
     GraphWalkEventFor<Data, Relation, Phase.EDGE | Phase.VERTEX, ID>,
     void,
     unknown
-  > = runner.getIterable({ emitPhases: [Phase.EDGE, Phase.VERTEX] });
+  > = runner.iterateEvents({ emitEvents: [Phase.EDGE, Phase.VERTEX] });
   // @ts-expect-error No explicit selector retains the full event union.
-  const narrow: typeof mixed = runner.getIterable();
+  const narrow: typeof mixed = runner.iterateEvents();
   void [ns, mixed, narrow];
 });
 const mixed: Generator<
   GraphWalkEventFor<Data, Relation, Phase.VERTEX | Phase.EDGE, ID>,
   void,
   unknown
-> = result.getIterable({ emitPhases: [Phase.VERTEX, Phase.EDGE] });
+> = result.iterateEvents({ emitEvents: [Phase.VERTEX, Phase.EDGE] });
 for (const event of mixed) {
   if (event.kind === 'edge') {
     const edge: Relation = event.edge.data;
@@ -162,13 +162,13 @@ const all: Generator<
   GraphWalkEvent<Data, Relation, ID>,
   void,
   unknown
-> = result.getIterable();
+> = result.iterateEvents();
 // @ts-expect-error Legacy selectors deliberately retain the full event union.
-const narrowLegacy: typeof mixed = result.getIterable({
+const narrowLegacy: typeof mixed = result.iterateEvents({
   iterateOver: [Phase.EDGE],
 });
 // @ts-expect-error No selector cannot promise only the selected phases.
-const narrowAll: typeof mixed = result.getIterable();
+const narrowAll: typeof mixed = result.iterateEvents();
 
 walkGraph({
   source,
@@ -257,11 +257,11 @@ walkGraph({ source, followEdge: async () => true });
 // @ts-expect-error Sync visitors cannot return promises.
 walkGraph({ source, visitors: { [Phase.EDGE]: async () => undefined } });
 // @ts-expect-error DAG phases are not graph walking observation phases.
-walkGraph({ source, emitPhases: [DagPhase.ON_READY] });
+walkGraph({ source, emitEvents: [DagPhase.ON_WORK_READY] });
 // @ts-expect-error Async execution cannot accept DAG phases either.
-walkGraphAsync({ source, visitorPhases: [DagPhase.ON_COMPLETE] });
+walkGraphAsync({ source, visitorPhases: [DagPhase.ON_SUBGRAPH_READY] });
 // @ts-expect-error Runners remain family-safe.
-result.run({ emitPhases: [DagPhase.ON_READY] });
+result.run({ emitEvents: [DagPhase.ON_WORK_READY] });
 walkGraph({
   source,
   visitors: {

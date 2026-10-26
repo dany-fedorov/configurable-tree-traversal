@@ -38,7 +38,12 @@ const done = Object.freeze({ done: true, value: undefined }) as IteratorResult<
 >;
 
 export class AsyncRunnerSession<E>
-  implements AsyncCoreExecution<E, VisitOrder>
+  implements
+    AsyncCoreExecution<
+      E,
+      VisitOrder,
+      import('../TraversalRunnerIterableConfig').EmissionKind<VisitOrder>
+    >
 {
   private readonly bufferedEvents: BufferedEvent<E>[] = [];
   private activeIterator: IteratorState<E> | null = null;
@@ -85,7 +90,7 @@ export class AsyncRunnerSession<E>
     });
   }
 
-  public getIterable(
+  public iterateEvents(
     config?: TraversalIterableConfigInput<VisitOrder>,
   ): AsyncGenerator<E, void, unknown> {
     return this.makeIterator(config);
@@ -123,7 +128,7 @@ export class AsyncRunnerSession<E>
   public async run(
     config?: TraversalIterableConfigInput<VisitOrder>,
   ): Promise<this> {
-    const iterator = this.getIterable(config);
+    const iterator = this.iterateEvents(config);
     while (!(await iterator.next()).done) {
       // Draining through next() preserves the same lease and boundaries as consumers.
     }
@@ -164,7 +169,7 @@ export class AsyncRunnerSession<E>
           try {
             // Validate caller input before claiming the underlying runtime. Keep
             // internal control failures on the normal terminal failure path.
-            state.config = detachTraversalExecutionOptions(
+            state.config = detachTraversalExecutionOptions<VisitOrder>(
               phases,
               state.config,
             );

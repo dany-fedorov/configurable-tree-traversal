@@ -4,7 +4,7 @@ import type { CTTRef } from '@core/CTTRef';
 import type { Vertex } from '@core/Vertex';
 import type { DepthFirstTraversalVisitorsState } from '@depth-first-traversal/lib/DepthFirstTraversalVisitorsState';
 import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 
@@ -13,14 +13,14 @@ export function initDepthFirstVisitorsState<
   RW_TTP extends VertexTypes,
 >(): DepthFirstTraversalVisitorsState<TTP, RW_TTP> {
   const empty = {
-    vertexVisitIndex: 0,
-    curVertexVisitorVisitIndex: 0,
-    previousVisitedVertexRef: null,
+    phaseVisitIndex: 0,
+    visitorIndex: 0,
+    previousPhaseVertexRef: null,
   };
   return {
-    [DepthFirstTraversalOrder.PRE_ORDER]: { ...empty },
-    [DepthFirstTraversalOrder.IN_ORDER]: { ...empty },
-    [DepthFirstTraversalOrder.POST_ORDER]: { ...empty },
+    [DepthFirstPhase.PRE_ORDER]: { ...empty },
+    [DepthFirstPhase.IN_ORDER]: { ...empty },
+    [DepthFirstPhase.POST_ORDER]: { ...empty },
   };
 }
 

@@ -26,13 +26,13 @@ import type {
   TraversalVisitorFunctionOptions,
 } from '@core/TraversalVisitor';
 import { initVisitors } from '@depth-first-traversal/init-helpers/initVisitors';
-import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
 
 export class DepthFirstTreeTraversal<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> extends TreeTraversal<DepthFirstTraversalOrder, TTP, RW_TTP> {
+> extends TreeTraversal<DepthFirstPhase, TTP, RW_TTP> {
   icfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
 
   visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
@@ -60,7 +60,7 @@ export class DepthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends DepthFirstTraversalOrder>(
+  addVisitorFor<ORDER extends DepthFirstPhase>(
     order: ORDER,
     visitor: TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
@@ -79,7 +79,7 @@ export class DepthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends DepthFirstTraversalOrder>(
+  addVisitorGroupFor<ORDER extends DepthFirstPhase>(
     order: ORDER,
     group: VisitorGroupDefinition<
       TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
@@ -99,13 +99,13 @@ export class DepthFirstTreeTraversal<
     return this;
   }
 
-  listVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
+  listVisitorsFor<ORDER extends DepthFirstPhase>(
     order: ORDER,
   ): DepthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
     return copyVisitorRecords(this.visitors[order]);
   }
 
-  setVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
+  setVisitorsFor<ORDER extends DepthFirstPhase>(
     order: ORDER,
     input: VisitorPhaseInput<
       TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>

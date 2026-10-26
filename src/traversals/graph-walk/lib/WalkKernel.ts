@@ -53,7 +53,7 @@ export class WalkKernel<Data, Edge, ID> {
   private readonly vertexTokens = new Map<ID, symbol>();
   private tornDown = false;
   private status = Status.INITIAL;
-  private haltRequested = false;
+  private pauseRequested = false;
   private outcome: GraphWalkOutcome | null = null;
   private request: Request<Data, Edge, ID> | null = null;
   private requestId = 0;
@@ -96,8 +96,8 @@ export class WalkKernel<Data, Edge, ID> {
     return this.status === Status.HALTED;
   }
   requestPause(): boolean {
-    if (this.status !== Status.RUNNING || this.haltRequested) return false;
-    this.haltRequested = true;
+    if (this.status !== Status.RUNNING || this.pauseRequested) return false;
+    this.pauseRequested = true;
     return true;
   }
   resume(config?: TraversalIterableConfigInput<Phase>): void {
@@ -109,7 +109,7 @@ export class WalkKernel<Data, Edge, ID> {
     this.execution = execution;
     if (this.status !== Status.FINISHED && this.status !== Status.FAILED) {
       this.status = Status.RUNNING;
-      this.haltRequested = false;
+      this.pauseRequested = false;
       this.chain?.resume();
     }
   }
@@ -120,7 +120,7 @@ export class WalkKernel<Data, Edge, ID> {
     this.outcome = { kind: 'closed' };
   }
   shouldEmit(phase: Phase): boolean {
-    return this.execution.emitPhases.includes(phase);
+    return this.execution.emitEvents.includes(phase);
   }
 
   private call(
@@ -361,7 +361,7 @@ export class WalkKernel<Data, Edge, ID> {
         if (!this.tornDown) {
           this.tornDown = true;
           this.request = null;
-          this.haltRequested = false;
+          this.pauseRequested = false;
           this.observations.length = 0;
           this.chain = null;
           this.expansion = null;
@@ -401,7 +401,7 @@ export class WalkKernel<Data, Edge, ID> {
         const chain = this.chain;
         if (
           chain.paused ||
-          (chain.done && retainObservation && this.haltRequested)
+          (chain.done && retainObservation && this.pauseRequested)
         ) {
           this.status = Status.HALTED;
           return { kind: 'HALTED' };
@@ -413,7 +413,7 @@ export class WalkKernel<Data, Edge, ID> {
           (value) => chain.submit(value),
           this.observations[0]!.vertexToken,
         );
-      } else if (this.haltRequested) {
+      } else if (this.pauseRequested) {
         this.status = Status.HALTED;
         return { kind: 'HALTED' };
       }
@@ -581,7 +581,7 @@ export class WalkKernel<Data, Edge, ID> {
       undefined,
       this.execution,
     );
-    Object.freeze(execution.emitPhases);
+    Object.freeze(execution.emitEvents);
     Object.freeze(execution.iterateOver);
     if (execution.enableVisitorFunctionsFor !== null)
       Object.freeze(execution.enableVisitorFunctionsFor);
@@ -601,7 +601,7 @@ export class WalkKernel<Data, Edge, ID> {
       concurrency: 1,
       status: this.status,
       stopReason: this.getStopReason(),
-      haltRequested: this.haltRequested,
+      pauseRequested: this.pauseRequested,
       execution: this.executionKind,
       strategy: this.options.strategy,
       revisit: this.options.revisit,

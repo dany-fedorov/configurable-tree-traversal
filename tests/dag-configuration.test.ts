@@ -12,7 +12,7 @@ import type { TreeSource } from '../src/core/TraversableTree';
 import { Vertex } from '../src/core/Vertex';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/dag-traversal/lib/DagTraversalInstanceConfig';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import { DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerIterableConfig';
 
@@ -99,20 +99,20 @@ test('rejects concurrency at sync construction and configuration', () => {
 test('sorts duplicate priorities stably and isolates builders and runners', () => {
   const calls: string[] = [];
   const traversal = new DagTraversal<TestGraph>({ traversableGraph: source() });
-  traversal.addVisitorFor(Order.ON_READY, () => void calls.push('low'), {
+  traversal.addVisitorFor(Order.ON_WORK_READY, () => void calls.push('low'), {
     priority: 1,
   });
-  traversal.addVisitorFor(Order.ON_READY, () => void calls.push('first'), {
+  traversal.addVisitorFor(Order.ON_WORK_READY, () => void calls.push('first'), {
     priority: 2,
   });
-  traversal.addVisitorFor(Order.ON_READY, () => void calls.push('second'), {
+  traversal.addVisitorFor(Order.ON_WORK_READY, () => void calls.push('second'), {
     priority: 2,
   });
-  const listed = traversal.listVisitorsFor(Order.ON_READY);
+  const listed = traversal.listVisitorsFor(Order.ON_WORK_READY);
   expect(listed.map(({ priority }) => priority)).toEqual([2, 2, 1]);
 
   const runner = traversal.createRunner();
-  traversal.setVisitorsFor(Order.ON_READY, []);
+  traversal.setVisitorsFor(Order.ON_WORK_READY, []);
   listed.length = 0;
   runner.run();
   expect(calls).toEqual(['first', 'second', 'low']);
@@ -121,7 +121,7 @@ test('sorts duplicate priorities stably and isolates builders and runners', () =
 test('configure copies visitor arrays and preserves existing registrations', () => {
   const calls: string[] = [];
   const traversal = new DagTraversal<TestGraph>({ traversableGraph: source() });
-  traversal.addVisitorFor(Order.ON_READY, () => void calls.push('existing'));
+  traversal.addVisitorFor(Order.ON_WORK_READY, () => void calls.push('existing'));
   const visitors = [
     {
       addedIndex: 0,
@@ -130,7 +130,7 @@ test('configure copies visitor arrays and preserves existing registrations', () 
       visitor: () => void calls.push('complete'),
     },
   ];
-  traversal.configure({ visitors: { [Order.ON_COMPLETE]: visitors } });
+  traversal.configure({ visitors: { [Order.ON_SUBGRAPH_READY]: visitors } });
   visitors.length = 0;
   traversal.createRunner().run();
   expect(calls).toEqual(['existing', 'complete']);
@@ -139,17 +139,17 @@ test('configure copies visitor arrays and preserves existing registrations', () 
 test('filters visitor execution independently from event iteration', () => {
   const calls: string[] = [];
   const traversal = new DagTraversal<TestGraph>({ traversableGraph: source() });
-  traversal.addVisitorFor(Order.ON_READY, () => void calls.push('ready'));
-  traversal.addVisitorFor(Order.ON_COMPLETE, () => void calls.push('complete'));
+  traversal.addVisitorFor(Order.ON_WORK_READY, () => void calls.push('ready'));
+  traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, () => void calls.push('complete'));
   const events = [
-    ...traversal.createRunner().getIterable({
-      iterateOver: [Order.ON_COMPLETE],
-      enableVisitorFunctionsFor: [Order.ON_READY],
+    ...traversal.createRunner().iterateEvents({
+      iterateOver: [Order.ON_SUBGRAPH_READY],
+      enableVisitorFunctionsFor: [Order.ON_WORK_READY],
     }),
   ];
 
   expect(calls).toEqual(['ready']);
-  expect(events.map(({ order }) => order)).toEqual([Order.ON_COMPLETE]);
+  expect(events.map(({ kind }) => kind)).toEqual(['subgraphCompleted']);
 });
 
 test('exports recursively frozen defaults without sharing effective arrays', () => {
@@ -165,7 +165,7 @@ test('exports recursively frozen defaults without sharing effective arrays', () 
   ).toBe(true);
 
   const first = new DagTraversal<TestGraph>({ traversableGraph: source() });
-  first.icfg.visitors[Order.ON_READY].push({
+  first.icfg.visitors[Order.ON_WORK_READY].push({
     addedIndex: 0,
     priority: 1,
     resolutionStyle: Style.SEQUENTIAL,
@@ -173,7 +173,7 @@ test('exports recursively frozen defaults without sharing effective arrays', () 
   });
   expect(
     new DagTraversal<TestGraph>({ traversableGraph: source() }).listVisitorsFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
     ),
   ).toEqual([]);
 });
@@ -269,18 +269,18 @@ function haltedSeed() {
   const state = new DagTraversalRunnerState<TestGraph>({
     status: Status.HALTED,
     traversalRootVertexRef: root,
-    readyVisits: [{ vertexRef: b, order: Order.ON_READY }],
+    readyVisits: [{ vertexRef: b, order: Order.ON_WORK_READY }],
     expansionQueue: [a],
     visitorsState: {
-      [Order.ON_READY]: {
-        vertexVisitIndex: 2,
-        curVertexVisitorVisitIndex: 1,
-        previousVisitedVertexRef: a,
+      [Order.ON_WORK_READY]: {
+        phaseVisitIndex: 2,
+        visitorIndex: 1,
+        previousPhaseVertexRef: a,
       },
-      [Order.ON_COMPLETE]: {
-        vertexVisitIndex: 0,
-        curVertexVisitorVisitIndex: 0,
-        previousVisitedVertexRef: null,
+      [Order.ON_SUBGRAPH_READY]: {
+        phaseVisitIndex: 0,
+        visitorIndex: 0,
+        previousPhaseVertexRef: null,
       },
     },
   });
@@ -328,19 +328,19 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
   }).createRunner();
 
   expect(runner.inspect().readyVisits).toEqual([
-    { vertexRefId: state.readyVisits[0]!.vertexRef.getId(), order: Order.ON_READY },
+    { vertexRefId: state.readyVisits[0]!.vertexRef.getId(), order: Order.ON_WORK_READY },
   ]);
 
-  const events = [...runner.getIterable()].map(
-    ({ order, vertex }) => `${order}:${vertex.getData()}`,
+  const events = [...runner.iterateEvents()].map(
+    ({ kind, vertex }) => `${kind}:${vertex.getData()}`,
   );
   expect(events).toEqual([
-    'ON_READY:B',
-    'ON_READY:C',
-    'ON_COMPLETE:B',
-    'ON_COMPLETE:C',
-    'ON_COMPLETE:A',
-    'ON_COMPLETE:root',
+    'workCompleted:B',
+    'workCompleted:C',
+    'subgraphCompleted:B',
+    'subgraphCompleted:C',
+    'subgraphCompleted:A',
+    'subgraphCompleted:root',
   ]);
   expect(resolutions).toEqual(['C']);
   const graph = runner.getResolvedGraph();
@@ -398,7 +398,7 @@ test.each([
   ['ready work with an unmet dependency', (seed: ReturnType<typeof haltedSeed>) => {
     const vertexRef = acceptDetached(seed, 'D', ['missing']);
     seed.container.store.setStatus(vertexRef, 'READY');
-    seed.state.readyVisits.push({ vertexRef, order: Order.ON_READY });
+    seed.state.readyVisits.push({ vertexRef, order: Order.ON_WORK_READY });
   }],
   ['ready visit omitted', (seed: ReturnType<typeof haltedSeed>) => {
     seed.state.readyVisits = [];
@@ -414,17 +414,17 @@ test.each([
   }],
   ['completing work without prepared slots', (seed: ReturnType<typeof haltedSeed>) => {
     seed.container.store.setStatus(seed.b, 'COMPLETING');
-    seed.state.readyVisits[0]!.order = Order.ON_COMPLETE;
+    seed.state.readyVisits[0]!.order = Order.ON_SUBGRAPH_READY;
   }],
   ['completing work with remaining children', (seed: ReturnType<typeof haltedSeed>) => {
     seed.container.store.setStatus(seed.root, 'COMPLETING');
-    seed.state.readyVisits = [{ vertexRef: seed.root, order: Order.ON_COMPLETE }];
+    seed.state.readyVisits = [{ vertexRef: seed.root, order: Order.ON_SUBGRAPH_READY }];
   }],
   ['completing work with an unmet dependency', (seed: ReturnType<typeof haltedSeed>) => {
     const vertexRef = acceptDetached(seed, 'D', ['missing']);
     seed.container.store.prepareSlots(vertexRef, []);
     seed.container.store.setStatus(vertexRef, 'COMPLETING');
-    seed.state.readyVisits.push({ vertexRef, order: Order.ON_COMPLETE });
+    seed.state.readyVisits.push({ vertexRef, order: Order.ON_SUBGRAPH_READY });
   }],
   ['completed work without prepared slots', (seed: ReturnType<typeof haltedSeed>) => {
     seed.container.store.setStatus(seed.b, 'COMPLETE');
@@ -493,7 +493,7 @@ test('rejects injected work for an empty graph', () => {
     readyVisits: [
       {
         vertexRef: new CTTRef(new Vertex<TestGraph>({ $d: 'x', $c: [] })),
-        order: Order.ON_READY,
+        order: Order.ON_WORK_READY,
       },
     ],
   });
@@ -507,7 +507,7 @@ test('rejects injected work for an empty graph', () => {
 });
 
 test.each([
-  ['COMPLETING', Order.ON_COMPLETE],
+  ['COMPLETING', Order.ON_SUBGRAPH_READY],
   ['COMPLETE', null],
 ] as const)('restores terminal-ready lifecycle status %s', (status, order) => {
   const seed = haltedSeed();
@@ -530,11 +530,11 @@ test.each([
       resolvedGraphsContainer: seed.container,
     },
   }).createRunner();
-  const events = [...runner.getIterable()].map(
-    (event) => `${event.order}:${event.vertex.getData()}`,
+  const events = [...runner.iterateEvents()].map(
+    (event) => `${event.kind}:${event.vertex.getData()}`,
   );
   expect(events.filter((event) => event.endsWith(':B'))).toEqual(
-    status === 'COMPLETING' ? ['ON_COMPLETE:B'] : [],
+    status === 'COMPLETING' ? ['subgraphCompleted:B'] : [],
   );
   expect(runner.getResolvedGraph().getStatusOf(seed.root)).toBe('COMPLETE');
 });
@@ -578,12 +578,12 @@ test.each(['omitted', 'completing', 'complete'] as const)(
       );
       seed.state.readyVisits =
         dependencyStatus === 'completing'
-          ? [{ vertexRef: seed.b, order: Order.ON_COMPLETE }]
+          ? [{ vertexRef: seed.b, order: Order.ON_SUBGRAPH_READY }]
           : [];
     }
     const dependent = acceptDetached(seed, 'dependent', [dependencyId]);
     seed.container.store.setStatus(dependent, 'READY');
-    seed.state.readyVisits.push({ vertexRef: dependent, order: Order.ON_READY });
+    seed.state.readyVisits.push({ vertexRef: dependent, order: Order.ON_WORK_READY });
     expect(
       () =>
         new DagTraversal<TestGraph>({
@@ -646,7 +646,7 @@ test('retains terminal injected state and validates snapshot compatibility', () 
     traversableGraph: source(),
     traversalRunnerInternalObjects: { state: finished },
   }).createRunner();
-  expect([...finishedRunner.getIterable()]).toEqual([]);
+  expect([...finishedRunner.iterateEvents()]).toEqual([]);
 
   const error = new Error('stored');
   const failed = new DagTraversalRunnerState<TestGraph>({
@@ -688,7 +688,7 @@ test('prevents another runner from claiming live DAG objects', () => {
     },
   };
   const runner = new DagTraversal<TestGraph>(input).createRunner();
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
   iterator.next();
 
   expect(() =>
@@ -718,11 +718,11 @@ test('rejects a deferred competing claim for shared DAG objects', () => {
     }).createRunner();
   const first = make();
   const second = make();
-  const iterator = first.getIterable();
+  const iterator = first.iterateEvents();
   iterator.next();
 
   const before = second.inspect().iterableConfig;
-  expect(() => second.getIterable({ emitPhases: [] }).next()).toThrow(
+  expect(() => second.iterateEvents({ emitEvents: [] }).next()).toThrow(
     /another active runner/i,
   );
   expect(second.inspect().iterableConfig).toEqual(before);

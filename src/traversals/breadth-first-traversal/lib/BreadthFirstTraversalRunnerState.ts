@@ -3,7 +3,7 @@ import type { VertexResolutionContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import type { BreadthFirstTraversalVisitorsState } from './BreadthFirstTraversalVisitorsState';
 
 export function initBreadthFirstVisitorsState<
@@ -11,10 +11,10 @@ export function initBreadthFirstVisitorsState<
   RW_TTP extends VertexTypes,
 >(): BreadthFirstTraversalVisitorsState<TTP, RW_TTP> {
   return {
-    [BreadthFirstTraversalOrder.LEVEL_ORDER]: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+    [BreadthFirstPhase.LEVEL_ORDER]: {
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
   };
 }

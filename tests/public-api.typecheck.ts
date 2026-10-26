@@ -3,9 +3,9 @@ import {
   AsyncDagTraversal,
   AsyncDepthFirstTreeTraversal,
   DagTraversal,
-  DagTraversalOrder,
+  DagVisitorPhase,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   ObjectTreeSource,
   Vertex,
   TraversalRunnerStatus,
@@ -59,7 +59,7 @@ const graph: DagDiscoverySource<Tree> = {
 };
 
 const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => ({
+traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => ({
   commands: [
     {
       commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
@@ -69,14 +69,14 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => ({
 }));
 
 const concreteRunner = traversal.createRunner();
-for (const event of concreteRunner.getIterable()) {
+for (const event of concreteRunner.iterateEvents()) {
   const data: string = event.vertex.getData();
   void data;
 }
 
-const interfaceRunner: TreeTraversalRunner<DepthFirstTraversalOrder, Tree, Tree> =
+const interfaceRunner: TreeTraversalRunner<DepthFirstPhase, Tree, Tree> =
   traversal.createRunner();
-interfaceRunner.getIterable();
+interfaceRunner.iterateEvents();
 interfaceRunner.run({ iterateOver: [] });
 const failedStatus: TraversalRunnerStatus = TraversalRunnerStatus.FAILED;
 
@@ -96,7 +96,7 @@ const objectTree = new ObjectTreeSource({ answer: 42 });
 const objectRunner = new DepthFirstTreeTraversal({
   traversableTree: objectTree,
 }).createRunner();
-for (const event of objectRunner.getIterable()) {
+for (const event of objectRunner.iterateEvents()) {
   const key: string | number | symbol = event.vertex.getData().key;
   void key;
 }
@@ -123,7 +123,7 @@ const children = rootRef === null ? null : resolvedGraph.getChildrenOf(rootRef);
 const inspection: CoreInspection = dagResult.inspect();
 const kernelInspection: KernelInspection = inspection;
 const oneSink: boolean = hasSingleSinkFromDagSubpath(resolvedGraph);
-const order: DagTraversalOrder = DagTraversalOrder.ON_READY;
+const order: DagVisitorPhase = DagVisitorPhase.ON_WORK_READY;
 const publicTypes: [
   VertexId,
   HintVertexId,

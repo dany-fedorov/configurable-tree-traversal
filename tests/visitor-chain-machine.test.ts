@@ -11,10 +11,10 @@ type Tree = VertexTypes<string, string>;
 
 const ref = () => new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
 const metadata = () => ({
-  vertexVisitIndex: 4,
-  curVertexVisitorVisitIndex: 99,
-  previousVisitedVertexRef: null,
-  vertexVisitorsChainState: 'ignored at admission',
+  phaseVisitIndex: 4,
+  visitorIndex: 99,
+  previousPhaseVertexRef: null,
+  visitorChainState: 'ignored at admission',
 });
 const record = (resolutionStyle: Style) => ({
   addedIndex: 0,
@@ -32,7 +32,7 @@ test('starts directly with the first callback and committed state is initially n
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 0,
-    metadata: { vertexVisitorsChainState: null },
+    metadata: { visitorChainState: null },
   });
 });
 
@@ -47,16 +47,16 @@ test('waits for a sequential command batch and resumes after its halt', () => {
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 0,
-    metadata: { vertexVisitIndex: 4, curVertexVisitorVisitIndex: 0 },
+    metadata: { phaseVisitIndex: 4, visitorIndex: 0 },
   });
   expect(chain.poll()).toEqual({ kind: 'WAIT' });
   chain.submit({
     ok: true,
-    value: { commands: [{ commandName: Command.HALT_TRAVERSAL }] },
+    value: { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] },
   });
   expect(chain.poll()).toEqual({
     kind: 'COMMANDS',
-    commands: [{ commandName: Command.HALT_TRAVERSAL }],
+    commands: [{ commandName: Command.PAUSE_TRAVERSAL }],
   });
   expect(chain.poll()).toEqual({ kind: 'WAIT' });
   chain.commitBatch({ halt: true, deleted: false });
@@ -65,7 +65,7 @@ test('waits for a sequential command batch and resumes after its halt', () => {
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 1,
-    metadata: { curVertexVisitorVisitIndex: 1 },
+    metadata: { visitorIndex: 1 },
   });
 });
 
@@ -84,7 +84,7 @@ test('batches concurrent records in input order and passes null chain state', ()
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 0,
-    metadata: { vertexVisitorsChainState: null },
+    metadata: { visitorChainState: null },
   });
   chain.submit({
     ok: true,
@@ -94,8 +94,8 @@ test('batches concurrent records in input order and passes null chain state', ()
     kind: 'VISIT',
     recordIndex: 1,
     metadata: {
-      curVertexVisitorVisitIndex: 1,
-      vertexVisitorsChainState: null,
+      visitorIndex: 1,
+      visitorChainState: null,
     },
   });
   chain.submit({
@@ -112,14 +112,14 @@ test('batches concurrent records in input order and passes null chain state', ()
   chain.commitBatch({
     halt: false,
     deleted: false,
-    vertexVisitorsChainState: undefined,
+    visitorChainState: undefined,
   });
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 2,
     metadata: {
-      curVertexVisitorVisitIndex: 2,
-      vertexVisitorsChainState: undefined,
+      visitorIndex: 2,
+      visitorChainState: undefined,
     },
   });
 });
@@ -230,10 +230,10 @@ test('tree visitor chains reject canonical deferral before exposing a command ba
       { addedIndex: 0, priority: 1, commandCommitMode: 'afterEachVisitor' },
     ],
     metadata: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
-      vertexVisitorsChainState: null,
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
+      visitorChainState: null,
     },
   });
   expect(chain.poll().kind).toBe('VISIT');
@@ -242,5 +242,5 @@ test('tree visitor chains reject canonical deferral before exposing a command ba
       ok: true,
       value: { commands: [{ commandName: Command.DEFER_READY }] },
     }),
-  ).toThrow(/ON_READY/);
+  ).toThrow(/ON_WORK_READY/);
 });

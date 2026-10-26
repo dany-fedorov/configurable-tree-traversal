@@ -23,14 +23,14 @@ import {
   type BreadthFirstTraversalInstanceConfig,
   type BreadthFirstTraversalInstanceConfigInput,
 } from './lib/BreadthFirstTraversalInstanceConfig';
-import type { BreadthFirstTraversalOrder } from './lib/BreadthFirstTraversalOrder';
+import type { BreadthFirstPhase } from './lib/BreadthFirstTraversalOrder';
 import { BreadthFirstTreeRunner } from './lib/BreadthFirstTraversalRunner';
 import type { BreadthFirstTraversalVisitors } from './lib/BreadthFirstTraversalVisitors';
 
 export class BreadthFirstTreeTraversal<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> extends TreeTraversal<BreadthFirstTraversalOrder, TTP, RW_TTP> {
+> extends TreeTraversal<BreadthFirstPhase, TTP, RW_TTP> {
   icfg: BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
   visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
 
@@ -59,7 +59,7 @@ export class BreadthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends BreadthFirstTraversalOrder>(
+  addVisitorFor<ORDER extends BreadthFirstPhase>(
     order: ORDER,
     visitor: TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
@@ -78,7 +78,7 @@ export class BreadthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends BreadthFirstTraversalOrder>(
+  addVisitorGroupFor<ORDER extends BreadthFirstPhase>(
     order: ORDER,
     group: VisitorGroupDefinition<
       TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
@@ -98,13 +98,13 @@ export class BreadthFirstTreeTraversal<
     return this;
   }
 
-  listVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
+  listVisitorsFor<ORDER extends BreadthFirstPhase>(
     order: ORDER,
   ): BreadthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
     return copyVisitorRecords(this.visitors[order]);
   }
 
-  setVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
+  setVisitorsFor<ORDER extends BreadthFirstPhase>(
     order: ORDER,
     input: VisitorPhaseInput<
       TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>

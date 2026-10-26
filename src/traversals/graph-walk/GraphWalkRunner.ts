@@ -12,7 +12,8 @@ export class GraphWalkRunner<Data, Edge, ID>
     SyncTraversalExecution<
       GraphWalkPhase,
       GraphWalkEvent<Data, Edge, ID>,
-      GraphWalkInspection
+      GraphWalkInspection,
+      `${GraphWalkPhase}`
     >
 {
   private readonly kernel: WalkKernel<Data, Edge, ID>;
@@ -21,10 +22,10 @@ export class GraphWalkRunner<Data, Edge, ID>
     this.kernel = new WalkKernel(options);
     this.session = new SyncWalkSession(this.kernel);
   }
-  getIterable: {
-    <Phase extends GraphWalkPhase>(
-      config: TraversalIterableConfigInput<GraphWalkPhase> & {
-        emitPhases: readonly Phase[];
+  iterateEvents: {
+    <Phase extends `${GraphWalkPhase}`>(
+      config: TraversalIterableConfigInput<GraphWalkPhase, Phase> & {
+        emitEvents: readonly Phase[];
       },
     ): Generator<GraphWalkEventFor<Data, Edge, Phase, ID>, void, unknown>;
     (config?: TraversalIterableConfigInput<GraphWalkPhase>): Generator<
@@ -32,16 +33,16 @@ export class GraphWalkRunner<Data, Edge, ID>
       void,
       unknown
     >;
-  } = <Phase extends GraphWalkPhase>(
+  } = <Phase extends `${GraphWalkPhase}`>(
     config?: TraversalIterableConfigInput<GraphWalkPhase>,
   ) =>
-    this.session.getIterable(config) as Generator<
+    this.session.iterateEvents(config) as Generator<
       GraphWalkEventFor<Data, Edge, Phase, ID>,
       void,
       unknown
     >;
   run = (config?: TraversalIterableConfigInput<GraphWalkPhase>): this => {
-    for (const _event of this.getIterable(config)) {
+    for (const _event of this.iterateEvents(config)) {
       /* Drive observations to exhaustion. */
     }
     return this;

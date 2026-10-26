@@ -127,7 +127,7 @@ it('public iterator return retains sources, terminal close releases them once an
   const runner = new GraphWalk({
     source: failingResourceSource(returns, 'unused', 'unused'),
   }).createRunner();
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
   iterator.next();
   expect(() => runner.close()).toThrow('owner');
   iterator.return();
@@ -137,7 +137,7 @@ it('public iterator return retains sources, terminal close releases them once an
   runner.close();
   expect(returns).toEqual(['roots']);
   expect(runner.summary().outcome).toEqual({ kind: 'closed' });
-  expect([...runner.getIterable()]).toEqual([]);
+  expect([...runner.iterateEvents()]).toEqual([]);
   expect(runner.inspect().openSourceIteratorCount).toBe(0);
 });
 
@@ -423,7 +423,7 @@ it('overlapping async terminal closes join, await cleanup, and exclude execution
       outgoing: () => [],
     },
   }).createRunner();
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
   await iterator.next();
   await expect(runner.close()).rejects.toThrow('owner');
   expect(runner.getStatus()).toBe(Status.RUNNING);
@@ -469,7 +469,7 @@ it.each([null, undefined])(
         outgoing: () => [],
       },
     }).createRunner();
-    const iterator = runner.getIterable();
+    const iterator = runner.iterateEvents();
     await iterator.next();
     await iterator.return();
     const closing = runner.close();

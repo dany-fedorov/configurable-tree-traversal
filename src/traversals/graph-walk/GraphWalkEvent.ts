@@ -34,7 +34,7 @@ export type GraphWalkEvent<Data, Edge, ID> =
 export type GraphWalkEventFor<
   Data,
   Edge,
-  Phase extends GraphWalkPhase,
+  Phase extends `${GraphWalkPhase}`,
   ID,
 > = Extract<GraphWalkEvent<Data, Edge, ID>, { kind: `${Phase}` }>;
 

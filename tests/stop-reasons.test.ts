@@ -1,7 +1,7 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
@@ -51,13 +51,13 @@ for (const Constructor of [
   test(`${Constructor.name} reports initial, running, iterator pause, resume, and finish boundaries`, async () => {
     const runner = new Constructor({ traversableTree: tree }).createRunner();
     expectReason(runner, null);
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       expect(event.vertex.getData()).toBe('A');
       expectReason(runner, null);
       break;
     }
     expectReason(runner, 'paused');
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       expect(event.vertex).toBeDefined();
       expectReason(runner, null);
     }
@@ -91,14 +91,14 @@ for (const Constructor of [
 for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} keeps the preceding settlement stop until resume`, async () => {
     const traversal = new Constructor({ traversableGraph: graph });
-    traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => DEFER_READY);
     const runner = traversal.createRunner();
     await runner.run();
     expectReason(runner, 'awaitingSettlement');
     const generation = runner.summary().vertices.get('A')!.generation!;
     runner.settle('A', { kind: 'workCompleted' }, generation);
     expectReason(runner, 'awaitingSettlement');
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       expect(event.vertex.getData()).toBe('A');
       expectReason(runner, null);
     }
@@ -107,10 +107,10 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} distinguishes requested pause from deferred quiescence`, async () => {
     let halted = false;
     const traversal = new Constructor({ traversableGraph: graph });
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       if (!halted) {
         halted = true;
-        return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
       }
       return undefined;
     });
@@ -125,9 +125,9 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
 test('async pause has no stop reason while admitted callbacks drain', async () => {
   const release = deferred<void>();
   const traversal = new AsyncDagTraversal<G>({ traversableGraph: graph });
-  traversal.addVisitorFor(Order.ON_READY, () => release.promise);
+  traversal.addVisitorFor(Order.ON_WORK_READY, () => release.promise);
   const runner = traversal.createRunner();
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
   const next = iterator.next();
   await eventLoopTurn();
   const close = iterator.return();

@@ -11,7 +11,7 @@ import {
   filterAsyncDagVisitor,
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder,
+  DagVisitorPhase,
   DEFER_READY,
 } from 'configurable-tree-traversal';
 import type {
@@ -23,7 +23,7 @@ import type {
   DagWorkTicket,
   DagWorkSession,
   AsyncDagWorkSession,
-  DagVisitorOptions,
+  DagVisitorContext,
 } from 'configurable-tree-traversal';
 import * as sourceSubpath from 'configurable-tree-traversal/sources/index';
 import { materializeDagSourceFromRecords as explicitGraphFrom } from 'configurable-tree-traversal/sources/graphFrom.js';
@@ -124,24 +124,25 @@ function inspect(event: DagEvent<T, ID>) {
   const required: cjs.DagEvent<T, ID> = subpath;
   const id: ID = required.vertexId;
   if (event.kind === 'workCompleted') {
-    const phase: DagTraversalOrder.ON_READY = event.order;
-    // @ts-expect-error Committed work events cannot have completion order.
-    const wrong: DagTraversalOrder.ON_COMPLETE = event.order;
-    void [phase, wrong];
-  } else {
-    const phase: DagTraversalOrder.ON_COMPLETE = event.order;
-    void phase;
+    const kind: 'workCompleted' = event.kind;
+    // @ts-expect-error Committed work cannot be subgraph completion.
+    const wrong: 'subgraphCompleted' = event.kind;
+    void [kind, wrong];
   }
+  // @ts-expect-error Committed events have no callback phase metadata.
+  event.phase;
+  // @ts-expect-error Removed order metadata is not a public event contract.
+  event.order;
   void id;
 }
 
 const isTask = (data: Item): data is Task => data.kind === 'task';
 const traversal = new DagTraversal(source);
 traversal.addVisitorFor(
-  DagTraversalOrder.ON_READY,
+  DagVisitorPhase.ON_WORK_READY,
   filterDagVisitor(isTask, (data, options) => {
     const narrowed: Task = data;
-    const context: DagVisitorOptions<T, T, DagTraversalOrder.ON_READY, ID> =
+    const context: DagVisitorContext<T, T, DagVisitorPhase.ON_WORK_READY, ID> =
       options;
     // @ts-expect-error A type guard narrows data, not the heterogeneous graph.
     const invalid: Task = options.vertexRef.unref().getData();
@@ -150,11 +151,11 @@ traversal.addVisitorFor(
   }),
 );
 traversal.addVisitorFor(
-  DagTraversalOrder.ON_COMPLETE,
+  DagVisitorPhase.ON_SUBGRAPH_READY,
   // @ts-expect-error Completion phase cannot defer work through a filter.
   filterDagVisitor(isTask, () => DEFER_READY),
 );
-for (const event of traversal.createRunner().getIterable()) inspect(event);
+for (const event of traversal.createRunner().iterateEvents()) inspect(event);
 
 async function checkAsync() {
   const result: PrepareDagResult<Item, ID> = await prepareDagAsync(
@@ -173,15 +174,15 @@ async function checkAsync() {
   await coordinator.advance();
   const asyncTraversal = new AsyncDagTraversal(await asyncForest);
   asyncTraversal.addVisitorFor(
-    DagTraversalOrder.ON_READY,
+    DagVisitorPhase.ON_WORK_READY,
     filterAsyncDagVisitor(isTask, async (data, options) => {
       const task: Task = data;
-      const context: DagVisitorOptions<T, T, DagTraversalOrder.ON_READY, ID> =
+      const context: DagVisitorContext<T, T, DagVisitorPhase.ON_WORK_READY, ID> =
         options;
       void [task, context];
     }),
   );
-  for await (const event of asyncTraversal.createRunner().getIterable())
+  for await (const event of asyncTraversal.createRunner().iterateEvents())
     inspect(event);
 }
 

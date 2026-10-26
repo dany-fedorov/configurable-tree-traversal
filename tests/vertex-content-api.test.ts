@@ -122,7 +122,7 @@ describe('canonical vertex content', () => {
     ['DAG tree source', DagTraversal<T>],
   ] as const)('follows canonical hints through %s', (_name, TreeTraversal) => {
     const runner = new TreeTraversal({ traversableTree: source }).createRunner();
-    const data = [...runner.getIterable()].map(({ vertex }) =>
+    const data = [...runner.iterateEvents()].map(({ vertex }) =>
       vertex.getData(),
     );
     expect(data).toContain('root');
@@ -148,7 +148,7 @@ describe('canonical vertex content', () => {
     async (_name, TreeTraversal) => {
       const runner = new TreeTraversal({ traversableTree: source }).createRunner();
       const data: Array<string | undefined> = [];
-      for await (const { vertex } of runner.getIterable())
+      for await (const { vertex } of runner.iterateEvents())
         data.push(vertex.getData());
       expect(data).toContain('root');
       expect(data).toContain('child');

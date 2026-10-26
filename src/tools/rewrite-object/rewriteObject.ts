@@ -1,7 +1,7 @@
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TraversalVisitorInputOptions } from '@core/TraversalVisitor';
-import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { TreeVisitorContext } from '@core/TraversalVisitor';
+import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
 import type { TO_IsCompositeAssertionsMixin } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
 import type { Vertex } from '@core/Vertex';
@@ -22,8 +22,8 @@ import type { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirst
 export type RewriteFnOptions<
   InK extends TraversableObjectPropKey,
   InV,
-> = TraversalVisitorInputOptions<
-  DepthFirstTraversalOrder.POST_ORDER,
+> = TreeVisitorContext<
+  DepthFirstPhase.POST_ORDER,
   TraversableObjectTTP<InK, InV>,
   TraversableObjectTTP<InK, InV>
 > &
@@ -174,8 +174,8 @@ export function rewriteObject<
         vertex: Vertex<
           TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
         >,
-        options: TraversalVisitorInputOptions<
-          DepthFirstTraversalOrder.POST_ORDER,
+        options: TreeVisitorContext<
+          DepthFirstPhase.POST_ORDER,
           TraversableObjectTTP<InK, InV>,
           TraversableObjectTTP<OutK, OutV>
         >,

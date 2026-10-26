@@ -7,7 +7,7 @@ import type { VisitorRecord } from '@core/graph/types';
 import { deepFreeze } from '@utils/deepFreeze';
 import { captureDagSourcePatch, captureDagConfigPatch } from './dagSourcePatch';
 import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
-import { DagTraversalOrder } from './DagTraversalOrder';
+import { DagVisitorPhase } from './DagTraversalOrder';
 import type { DagVisitor } from './DagTraversalVisitor';
 
 export type DagDiscoveryOptions = {
@@ -37,7 +37,7 @@ export type DagTraversalVisitors<
   R extends VertexTypes = T,
   ID = unknown,
 > = {
-  [K in DagTraversalOrder]: VisitorRecord<DagVisitor<T, R, K, ID>>[];
+  [K in DagVisitorPhase]: VisitorRecord<DagVisitor<T, R, K, ID>>[];
 };
 
 export type DagSortChildrenHintsFn<T extends VertexTypes> = (
@@ -113,8 +113,8 @@ export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
 > = deepFreeze({
   sortChildrenHints: null,
   visitors: {
-    [DagTraversalOrder.ON_READY]: [],
-    [DagTraversalOrder.ON_COMPLETE]: [],
+    [DagVisitorPhase.ON_WORK_READY]: [],
+    [DagVisitorPhase.ON_SUBGRAPH_READY]: [],
   },
   saveNotMutatedResolvedGraph: false,
   traversalRunnerInternalObjects: {
@@ -139,11 +139,11 @@ export function mergeDagTraversalInstanceConfigs<
     ...base,
     ...capturedInput,
     visitors: {
-      [DagTraversalOrder.ON_READY]: normalizeVisitorDefinitions(
-        visitors[DagTraversalOrder.ON_READY],
+      [DagVisitorPhase.ON_WORK_READY]: normalizeVisitorDefinitions(
+        visitors[DagVisitorPhase.ON_WORK_READY],
       ),
-      [DagTraversalOrder.ON_COMPLETE]: normalizeVisitorDefinitions(
-        visitors[DagTraversalOrder.ON_COMPLETE],
+      [DagVisitorPhase.ON_SUBGRAPH_READY]: normalizeVisitorDefinitions(
+        visitors[DagVisitorPhase.ON_SUBGRAPH_READY],
       ),
     },
     traversalRunnerInternalObjects: {

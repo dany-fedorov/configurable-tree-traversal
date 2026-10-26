@@ -8,8 +8,8 @@ import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   type DepthFirstTraversalInstanceConfig,
 } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { DepthFirstTraversalOrder as Order } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase as Order } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { DepthFirstTraversalInstanceConfigDeepPartial } from '@depth-first-traversal/type-helpers/DepthFirstTraversalInstanceConfigDeepPartial';
 import type { IndexRange } from '@depth-first-traversal/in-order-helpers/IndexRange';
 import { deepFreeze } from '@utils/deepFreeze';
@@ -18,7 +18,7 @@ export type AsyncDepthFirstTraversalVisitors<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
-  [K in DepthFirstTraversalOrder]: VisitorRecord<
+  [K in DepthFirstPhase]: VisitorRecord<
     AsyncTraversalVisitor<K, TTP, RW_TTP>
   >[];
 };

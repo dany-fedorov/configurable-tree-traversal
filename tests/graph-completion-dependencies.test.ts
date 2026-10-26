@@ -155,11 +155,11 @@ test.each([
     )
       container.store.prepareSlots(join, []);
     const visits = [
-      { ref: gate, order: 'ON_READY' as const },
+      { ref: gate, order: 'ON_WORK_READY' as const },
       ...(status === 'READY'
-        ? [{ ref: join, order: 'ON_READY' as const }]
+        ? [{ ref: join, order: 'ON_WORK_READY' as const }]
         : status === 'COMPLETING'
-        ? [{ ref: join, order: 'ON_COMPLETE' as const }]
+        ? [{ ref: join, order: 'ON_SUBGRAPH_READY' as const }]
         : []),
     ];
     const restored = new GraphScheduling(container);

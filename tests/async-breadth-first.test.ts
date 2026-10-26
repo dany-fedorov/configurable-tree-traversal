@@ -1,7 +1,7 @@
 import {
   AsyncBreadthFirstTreeTraversal,
   BreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder as Order,
+  BreadthFirstPhase as Order,
 } from '../src/traversals/breadth-first-traversal';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import {
@@ -31,10 +31,10 @@ function traversal(
 }
 
 async function values(runner: {
-  getIterable(): AsyncIterable<{ vertex: { getData(): string } }>;
+  iterateEvents(): AsyncIterable<{ vertex: { getData(): string } }>;
 }): Promise<string[]> {
   const seen: string[] = [];
-  for await (const event of runner.getIterable())
+  for await (const event of runner.iterateEvents())
     seen.push(event.vertex.getData());
   return seen;
 }
@@ -49,7 +49,7 @@ test('accepts prefetched children in dequeue order rather than settlement order'
     },
     concurrency: 2,
   }).createRunner();
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
 
   expect((await iterator.next()).value?.vertex.getData()).toBe('root');
   const result = iterator.next();
@@ -68,18 +68,18 @@ test('projects level-order events and asynchronous visitor metadata', async () =
   t.addVisitorFor(Order.LEVEL_ORDER, async (vertex, options) => {
     metadata.push([
       vertex.getData(),
-      options.vertexVisitIndex,
-      options.previousVisitedVertexRef?.unref().getData(),
+      options.phaseVisitIndex,
+      options.previousPhaseVertexRef?.unref().getData(),
     ]);
   });
   const events = [];
-  for await (const event of t.createRunner().getIterable()) events.push(event);
+  for await (const event of t.createRunner().iterateEvents()) events.push(event);
 
   expect(events.map(({ vertex }) => vertex.getData())).toEqual([
     'root',
     'child',
   ]);
-  expect(events.map(({ order }) => order)).toEqual([
+  expect(events.map(({ phase }) => phase)).toEqual([
     Order.LEVEL_ORDER,
     Order.LEVEL_ORDER,
   ]);
@@ -131,7 +131,7 @@ test('deleting the root skips prefetched children and clears the tree root', asy
   const runner = t.createRunner();
 
   const yielded: string[] = [];
-  for await (const event of runner.getIterable()) {
+  for await (const event of runner.iterateEvents()) {
     yielded.push(event.vertex.getData());
   }
   expect(yielded).toEqual([]);
@@ -144,7 +144,7 @@ test('preserves paused visitor outcomes through repeated resumptions', async () 
   const t = traversal(node('root', node('child')));
   t.addVisitorFor(Order.LEVEL_ORDER, async (vertex) => {
     seen.push(`halt:${vertex.getData()}`);
-    return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+    return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
   });
   t.addVisitorFor(Order.LEVEL_ORDER, async (vertex) => {
     seen.push(`after:${vertex.getData()}`);
@@ -192,11 +192,11 @@ test('retains prefetched outcomes settled during halt and resumes in dequeue ord
   });
   traversal.addVisitorFor(Order.LEVEL_ORDER, async (vertex) =>
     vertex.getData() === 'A'
-      ? { commands: [{ commandName: Command.HALT_TRAVERSAL }] }
+      ? { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] }
       : undefined,
   );
   const runner = traversal.createRunner();
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
 
   expect((await iterator.next()).value?.vertex.getData()).toBe('root');
   const halted = iterator.next();
@@ -221,7 +221,7 @@ test('uses new iterator filters when resuming after consumer closure', async () 
     visited.push(vertex.getData());
   });
   const runner = t.createRunner();
-  for await (const event of runner.getIterable({
+  for await (const event of runner.iterateEvents({
     disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
   })) {
     expect(event.vertex.getData()).toBe('root');
@@ -241,9 +241,9 @@ test('uses new iterator filters when resuming after consumer closure', async () 
 
 test('directly exposes session iterator ownership and synchronous close control', async () => {
   const runner = traversal().createRunner();
-  const first = runner.getIterable();
+  const first = runner.iterateEvents();
   expect((await first.next()).done).toBe(false);
-  const second = runner.getIterable();
+  const second = runner.iterateEvents();
   await expect(second.next()).rejects.toThrow('Another active iterator');
   await expect(first.return(undefined)).resolves.toEqual({
     done: true,
@@ -260,7 +260,7 @@ test('an unopened iterator does not change later execution filters', async () =>
   });
   const runner = t.createRunner();
 
-  runner.getIterable({
+  runner.iterateEvents({
     disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
   });
   await runner.run();
@@ -275,10 +275,10 @@ test('a lease-rejected iterator does not change resumed execution filters', asyn
     visited.push(vertex.getData());
   });
   const runner = t.createRunner();
-  const active = runner.getIterable();
+  const active = runner.iterateEvents();
   expect((await active.next()).value?.vertex.getData()).toBe('root');
 
-  const rejected = runner.getIterable({
+  const rejected = runner.iterateEvents({
     disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
   });
   await expect(rejected.next()).rejects.toThrow('Another active iterator');
@@ -350,7 +350,7 @@ test.each([null, undefined])(
     await expect(runner.run()).rejects.toBe(failure);
     expect(runner.getStatus()).toBe(Status.FAILED);
     await expect(runner.run()).rejects.toBe(failure);
-    await expect(runner.getIterable().next()).rejects.toBe(failure);
+    await expect(runner.iterateEvents().next()).rejects.toBe(failure);
   },
 );
 
@@ -411,7 +411,7 @@ test('matches synchronous BFS for timing-independent generated trees', async () 
     const expected = Array.from(
       new BreadthFirstTreeTraversal<Tree>({ traversableTree: tree })
         .createRunner()
-        .getIterable(),
+        .iterateEvents(),
       (event) => event.vertex.getData(),
     );
     await expect(

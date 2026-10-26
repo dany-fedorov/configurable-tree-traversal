@@ -22,7 +22,7 @@ import {
   type AsyncBreadthFirstTraversalVisitors,
 } from './lib/AsyncBreadthFirstTraversalInstanceConfig';
 import { AsyncBreadthFirstTreeRunner } from './lib/AsyncBreadthFirstTraversalRunner';
-import type { BreadthFirstTraversalOrder } from './lib/BreadthFirstTraversalOrder';
+import type { BreadthFirstPhase } from './lib/BreadthFirstTraversalOrder';
 
 export class AsyncBreadthFirstTreeTraversal<
   TTP extends VertexTypes = VertexTypes,
@@ -55,7 +55,7 @@ export class AsyncBreadthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends BreadthFirstTraversalOrder>(
+  addVisitorFor<ORDER extends BreadthFirstPhase>(
     order: ORDER,
     visitor: AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
@@ -76,7 +76,7 @@ export class AsyncBreadthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends BreadthFirstTraversalOrder>(
+  addVisitorGroupFor<ORDER extends BreadthFirstPhase>(
     order: ORDER,
     group: VisitorGroupDefinition<
       AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
@@ -96,13 +96,13 @@ export class AsyncBreadthFirstTreeTraversal<
     return this;
   }
 
-  listVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
+  listVisitorsFor<ORDER extends BreadthFirstPhase>(
     order: ORDER,
   ): AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
     return copyVisitorRecords(this.visitors[order]);
   }
 
-  setVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
+  setVisitorsFor<ORDER extends BreadthFirstPhase>(
     order: ORDER,
     input: VisitorPhaseInput<
       AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>

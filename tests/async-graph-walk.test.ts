@@ -33,17 +33,17 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
           yield* source.outgoing(vertex);
         },
       },
-      emitPhases: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
+      emitEvents: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
       expandVertex: async () => true,
       followEdge: async () => true,
     }).createRunner();
     const expected = new GraphWalk({
       source: sync.source,
       strategy,
-      emitPhases: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
+      emitEvents: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
     }).createRunner();
-    expect(await collect(runner.getIterable())).toEqual([
-      ...expected.getIterable(),
+    expect(await collect(runner.iterateEvents())).toEqual([
+      ...expected.iterateEvents(),
     ]);
     expect(runner.summary()).toEqual(expected.summary());
     expect(fixture.calls).toEqual(sync.calls);
@@ -102,7 +102,7 @@ it.each([false, true])(
         : {}),
     };
     const runner = new AsyncGraphWalk({ source }).createRunner();
-    const events = await collect(runner.getIterable());
+    const events = await collect(runner.iterateEvents());
     expect(events).toMatchObject([
       { vertex: { data: 'A' } },
       { vertex: { data: 'B' } },
@@ -137,7 +137,7 @@ it('captures source callbacks and receiver while retaining shared caller data an
     throw new Error('mutated callback');
   };
   data.title = 'shared';
-  const events = await collect(runner.getIterable());
+  const events = await collect(runner.iterateEvents());
   expect(events).toMatchObject([{ vertex: { data: { title: 'shared' } } }]);
   const first = events[0]!;
   expect(first.kind === 'vertex' && first.vertex.vertexId).toBe(id);
@@ -173,7 +173,7 @@ it('registration and configure changes snapshot async callbacks and detach liste
       ],
     }),
   ).toBe(walk);
-  expect(walk.configure({ emitPhases: [] })).toBe(walk);
+  expect(walk.configure({ emitEvents: [] })).toBe(walk);
   await old.run();
   await walk.createRunner().run();
   expect(calls).toEqual(['old', 'group:first', 'group:second']);
@@ -300,7 +300,7 @@ it('prefers async iteration and falls back only for an absent async factory', as
       outgoing: () => [],
     },
   }).createRunner();
-  expect(await collect(runner.getIterable())).toMatchObject([
+  expect(await collect(runner.iterateEvents())).toMatchObject([
     { vertex: { vertexId: 'A' } },
   ]);
   expect(calls).toEqual(['async']);

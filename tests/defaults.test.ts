@@ -7,14 +7,14 @@ import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   makeEffectiveDepthFirstTraversalRunnerIterableConfig,
 } from '../src/traversals/depth-first-traversal';
 import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
   BreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder,
+  BreadthFirstPhase,
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
 } from '../src/traversals/breadth-first-traversal';
 
@@ -84,8 +84,8 @@ describe('exported traversal defaults', () => {
         traversableTree: tree,
       });
       const values = [
-        ...traversal.createRunner().getIterable({
-          iterateOver: [DepthFirstTraversalOrder.IN_ORDER],
+        ...traversal.createRunner().iterateEvents({
+          iterateOver: [DepthFirstPhase.IN_ORDER],
         }),
       ].map(({ vertex }) => vertex.getData());
 
@@ -102,16 +102,16 @@ describe('exported traversal defaults', () => {
       DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT.iterateOver,
       makeEffectiveDepthFirstTraversalRunnerIterableConfig,
       [
-        DepthFirstTraversalOrder.PRE_ORDER,
-        DepthFirstTraversalOrder.IN_ORDER,
-        DepthFirstTraversalOrder.POST_ORDER,
+        DepthFirstPhase.PRE_ORDER,
+        DepthFirstPhase.IN_ORDER,
+        DepthFirstPhase.POST_ORDER,
       ],
     ],
     [
       'breadth-first',
       BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT.iterateOver,
       makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
-      [BreadthFirstTraversalOrder.LEVEL_ORDER],
+      [BreadthFirstPhase.LEVEL_ORDER],
     ],
   ] as const)(
     'mutating the exported %s iterable order cannot corrupt effective options',
@@ -139,7 +139,7 @@ describe('exported traversal defaults', () => {
   test('mutating the exported BFS visitor list cannot register a future visitor', () => {
     const records =
       BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.visitors[
-        BreadthFirstTraversalOrder.LEVEL_ORDER
+        BreadthFirstPhase.LEVEL_ORDER
       ];
     let unexpectedVisits = 0;
     const record = {
@@ -186,9 +186,9 @@ describe('exported traversal defaults', () => {
     try {
       const traversal = new DepthFirstTreeTraversal<Tree>({
         traversableTree: tree,
-      }).addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => undefined);
+      }).addVisitorFor(DepthFirstPhase.PRE_ORDER, () => undefined);
       expect(
-        traversal.listVisitorsFor(DepthFirstTraversalOrder.PRE_ORDER)[0]
+        traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER)[0]
           ?.priority,
       ).toBe(100);
       expect(mutationError).toBeInstanceOf(TypeError);
@@ -227,11 +227,11 @@ describe('exported traversal defaults', () => {
       breadthIterable.iterateOver.length = 0;
       depthTraversal.icfg.saveNotMutatedResolvedTree = true;
       breadthTraversal.icfg.saveNotMutatedResolvedTree = true;
-      depthTraversal.icfg.visitors[DepthFirstTraversalOrder.PRE_ORDER].push(
+      depthTraversal.icfg.visitors[DepthFirstPhase.PRE_ORDER].push(
         depthRecord,
       );
       breadthTraversal.icfg.visitors[
-        BreadthFirstTraversalOrder.LEVEL_ORDER
+        BreadthFirstPhase.LEVEL_ORDER
       ].push(breadthRecord);
     }).not.toThrow();
     expect(depthIterable.iterateOver).toEqual([]);
@@ -239,10 +239,10 @@ describe('exported traversal defaults', () => {
     expect(depthTraversal.icfg.saveNotMutatedResolvedTree).toBe(true);
     expect(breadthTraversal.icfg.saveNotMutatedResolvedTree).toBe(true);
     expect(
-      depthTraversal.icfg.visitors[DepthFirstTraversalOrder.PRE_ORDER],
+      depthTraversal.icfg.visitors[DepthFirstPhase.PRE_ORDER],
     ).toEqual([depthRecord]);
     expect(
-      breadthTraversal.icfg.visitors[BreadthFirstTraversalOrder.LEVEL_ORDER],
+      breadthTraversal.icfg.visitors[BreadthFirstPhase.LEVEL_ORDER],
     ).toEqual([breadthRecord]);
   });
 });

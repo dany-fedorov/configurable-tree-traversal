@@ -21,7 +21,7 @@ function setup() {
       visitorsState: {},
     },
     visitorMetadata: {
-      ON_READY: [
+      ON_WORK_READY: [
         {
           addedIndex: 0,
           priority: 100,
@@ -30,7 +30,7 @@ function setup() {
       ],
     },
     iterableConfig: {
-      iterateOver: ['ON_READY'],
+      iterateOver: ['ON_WORK_READY'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },

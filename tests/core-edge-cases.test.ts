@@ -1,7 +1,7 @@
 import {
   CTTRef,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   DepthFirstTraversalResolvedTreesContainer,
   ResolvedTree,
   type VertexTypes,
@@ -237,7 +237,7 @@ describe('saved resolved-tree consistency', () => {
       node('keep'),
     );
     const traversal = makeTraversal(root, true);
-    traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+    traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
       switch (vertex.getData()) {
         case 'root':
           return {

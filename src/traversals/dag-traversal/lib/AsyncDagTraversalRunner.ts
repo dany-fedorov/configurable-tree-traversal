@@ -36,7 +36,7 @@ import {
 import { inspectDagMilestones as captureDagInspection } from '../inspectDag';
 import type { DagMilestoneSnapshot } from './DagInspection';
 import { DagPolicy } from './DagPolicy';
-import { DagTraversalOrder } from './DagTraversalOrder';
+import { DagVisitorPhase } from './DagTraversalOrder';
 import type { DagEvent } from './DagTraversalVisitor';
 import {
   makeEffectiveDagTraversalRunnerIterableConfig,
@@ -179,8 +179,8 @@ export class AsyncDagTraversalRunner<
               ) as ReturnType<NonNullable<typeof input.sortChildrenHints>>,
           }),
       visit: {
-        [DagTraversalOrder.ON_READY]: (call) => this.visit(call),
-        [DagTraversalOrder.ON_COMPLETE]: (call) => this.visit(call),
+        [DagVisitorPhase.ON_WORK_READY]: (call) => this.visit(call),
+        [DagVisitorPhase.ON_SUBGRAPH_READY]: (call) => this.visit(call),
       },
     });
     const kernel = (this.kernel = new TraversalKernel({
@@ -205,11 +205,11 @@ export class AsyncDagTraversalRunner<
       container: this.resolvedGraphsContainer,
       stateBridge: this.state,
       visitorMetadata: {
-        [DagTraversalOrder.ON_READY]: this.metadataFor(
-          DagTraversalOrder.ON_READY,
+        [DagVisitorPhase.ON_WORK_READY]: this.metadataFor(
+          DagVisitorPhase.ON_WORK_READY,
         ),
-        [DagTraversalOrder.ON_COMPLETE]: this.metadataFor(
-          DagTraversalOrder.ON_COMPLETE,
+        [DagVisitorPhase.ON_SUBGRAPH_READY]: this.metadataFor(
+          DagVisitorPhase.ON_SUBGRAPH_READY,
         ),
       },
       iterableConfig: this.iterableConfig,
@@ -317,10 +317,10 @@ export class AsyncDagTraversalRunner<
     return ref === this.state.traversalRootVertexRef;
   }
 
-  getIterable(
+  iterateEvents(
     config?: DagTraversalRunnerIterableConfigInput,
   ): AsyncGenerator<Event<T, R, ID>, void, unknown> {
-    return this.execution.getIterable(config);
+    return this.execution.iterateEvents(config);
   }
 
   async run(config?: DagTraversalRunnerIterableConfigInput): Promise<this> {
@@ -329,22 +329,22 @@ export class AsyncDagTraversalRunner<
   }
 
   private visit(call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>) {
-    const order = call.order as DagTraversalOrder;
-    const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
-    return visitorRecord.visitor(call.ref.unref(), {
+    const order = call.order as DagVisitorPhase;
+    const registration = this.icfg.visitors[order][call.recordIndex]!;
+    return registration.visitor(call.ref.unref(), {
       ...call.metadata,
       resolvedGraph: this.getResolvedGraph(),
       notMutatedResolvedGraph: this.notMutatedResolvedGraph,
       vertexRef: call.ref,
-      order,
+      phase: order,
       isGraphRoot: this.isGraphRootVertex(call.ref),
       isTraversalRoot: this.isTraversalRootVertex(call.ref),
-      visitorRecord,
+      registration,
       // The record and options share the same phase selected above.
     } as never);
   }
 
-  private metadataFor(order: DagTraversalOrder) {
+  private metadataFor(order: DagVisitorPhase) {
     return this.icfg.visitors[order].map(
       ({
         addedIndex,
@@ -379,14 +379,12 @@ export class AsyncDagTraversalRunner<
               vertexId: this.getResolvedGraph().getVertexId(
                 progress.event.vertexRef,
               ),
-              ...(progress.event.order === DagTraversalOrder.ON_READY
+              ...(progress.event.order === DagVisitorPhase.ON_WORK_READY
                 ? ({
                     kind: 'workCompleted',
-                    order: DagTraversalOrder.ON_READY,
                   } as const)
                 : ({
                     kind: 'subgraphCompleted',
-                    order: DagTraversalOrder.ON_COMPLETE,
                   } as const)),
               isGraphRoot: progress.event.isRoot,
               isTraversalRoot: progress.event.isTraversalRoot,

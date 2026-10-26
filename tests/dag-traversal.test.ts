@@ -7,7 +7,7 @@ import {
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src/core/TraversalVisitor';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree/TraversableObjectTree';
 
 type Node = { id: string; children: string[]; dependsOn?: string[] };
@@ -40,7 +40,7 @@ test('visits a shared join once after both prerequisites', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   }).createRunner();
-  const values = [...runner.getIterable({ iterateOver: [Order.ON_READY] })].map(
+  const values = [...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] })].map(
     ({ vertex }) => vertex.getData(),
   );
   expect(values).toEqual(['root', 'A', 'B', 'join']);
@@ -54,18 +54,18 @@ test('defaults to both orders and keeps initial and completion work in one FIFO'
   const events = [
     ...new DagTraversal<TestGraph>({ traversableGraph: graphAdapter() })
       .createRunner()
-      .getIterable(),
-  ].map(({ vertex, order }) => `${order}:${vertex.getData()}`);
+      .iterateEvents(),
+  ].map(({ vertex, kind }) => `${kind}:${vertex.getData()}`);
 
   expect(events).toEqual([
-    'ON_READY:root',
-    'ON_READY:A',
-    'ON_READY:B',
-    'ON_READY:join',
-    'ON_COMPLETE:join',
-    'ON_COMPLETE:A',
-    'ON_COMPLETE:B',
-    'ON_COMPLETE:root',
+    'workCompleted:root',
+    'workCompleted:A',
+    'workCompleted:B',
+    'workCompleted:join',
+    'subgraphCompleted:join',
+    'subgraphCompleted:A',
+    'subgraphCompleted:B',
+    'subgraphCompleted:root',
   ]);
 });
 
@@ -73,7 +73,7 @@ test('distinguishes graph root from the retained traversal root', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   }).createRunner();
-  const events = [...runner.getIterable({ iterateOver: [Order.ON_READY] })];
+  const events = [...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] })];
   expect(events.map(({ isGraphRoot }) => isGraphRoot)).toEqual([
     true,
     false,
@@ -98,7 +98,7 @@ test('finishes an empty graph', () => {
     },
   }).createRunner();
 
-  expect([...runner.getIterable()]).toEqual([]);
+  expect([...runner.iterateEvents()]).toEqual([]);
   expect(runner.getStatus()).toBe(Status.FINISHED);
   expect(runner.getResolvedGraph().getRoot()).toBeNull();
 });
@@ -202,7 +202,7 @@ test('applies rewrite, disable, and delete commands with tombstones', () => {
     late: { id: 'late', children: [] },
   });
   const traversal = new DagTraversal<TestGraph>({ traversableGraph: adapter });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
     switch (vertex.getData()) {
       case 'rewrite':
         return {
@@ -231,7 +231,7 @@ test('applies rewrite, disable, and delete commands with tombstones', () => {
   expect(graph.getVertexById('late')).toBeNull();
 });
 
-test('rewrites hints at ON_READY and rejects the same command at ON_COMPLETE', () => {
+test('rewrites hints at ON_WORK_READY and rejects the same command at ON_SUBGRAPH_READY', () => {
   const traversal = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter({
       root: { id: 'root', children: ['old'] },
@@ -239,7 +239,7 @@ test('rewrites hints at ON_READY and rejects the same command at ON_COMPLETE', (
       replacement: { id: 'replacement', children: [] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'root'
       ? {
           commands: [
@@ -259,7 +259,7 @@ test('rewrites hints at ON_READY and rejects the same command at ON_COMPLETE', (
     traversableGraph: graphAdapter({ root: { id: 'root', children: [] } }),
   });
   invalid.addVisitorFor(
-    Order.ON_COMPLETE,
+    Order.ON_SUBGRAPH_READY,
     () =>
       ({
         commands: [
@@ -270,7 +270,7 @@ test('rewrites hints at ON_READY and rejects the same command at ON_COMPLETE', (
         ],
       } as never),
   );
-  expect(() => invalid.createRunner().run()).toThrow(/only.*ON_READY|pre-order/i);
+  expect(() => invalid.createRunner().run()).toThrow(/only.*ON_WORK_READY|pre-order/i);
 });
 
 test('captures a structural graph snapshot before rewrite and delete', () => {
@@ -281,7 +281,7 @@ test('captures a structural graph snapshot before rewrite and delete', () => {
     }),
     saveNotMutatedResolvedGraph: true,
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'child'
       ? {
           commands: [
@@ -313,17 +313,17 @@ test('halts synchronously and resumes without repeating a visitor', () => {
       child: { id: 'child', children: [] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
     visits.push(vertex.getData());
     if (!halted) {
       halted = true;
-      return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+      return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
     }
     return undefined;
   });
   const runner = traversal.createRunner();
 
-  expect([...runner.getIterable()]).toEqual([]);
+  expect([...runner.iterateEvents()]).toEqual([]);
   expect(runner.isHalted()).toBe(true);
   runner.run();
   expect(visits).toEqual(['root', 'child']);
@@ -350,7 +350,7 @@ test('tree source receives a real tree context and graph visitors', () => {
     },
   };
   const traversal = new DagTraversal<Tree>({ traversableTree: tree });
-  traversal.addVisitorFor(Order.ON_READY, (_vertex, options) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (_vertex, options) => {
     expect(options.resolvedGraph).toBeDefined();
     expect(options).not.toHaveProperty('resolvedTree');
   });
@@ -366,7 +366,7 @@ test('runs ObjectTreeSource with its real ancestor context', () => {
   }).createRunner();
 
   expect(
-    [...runner.getIterable({ iterateOver: [Order.ON_READY] })].map(
+    [...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] })].map(
       ({ vertex }) => vertex.getData().key,
     ),
   ).toEqual(['__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__', 'branch', 'leaf']);
@@ -412,7 +412,7 @@ test.each([false, true])(
         sortChildrenHints: (children) => children.reverse(),
       })
         .createRunner()
-        .getIterable({ iterateOver: [Order.ON_READY] }),
+        .iterateEvents({ iterateOver: [Order.ON_WORK_READY] }),
     ];
 
     expect(events.map(({ vertex }) => vertex.getData())).toEqual([
@@ -433,7 +433,7 @@ test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
     }),
   });
   traversal.addVisitorFor(
-    Order.ON_READY,
+    Order.ON_WORK_READY,
     () => ({
       commands: [
         {
@@ -444,13 +444,13 @@ test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
     }),
     { resolutionStyle: Style.CONCURRENT },
   );
-  traversal.addVisitorFor(Order.ON_READY, (vertex, options) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex, options) => {
     seen.push([
       vertex.getData(),
-      options.vertexVisitIndex,
-      options.curVertexVisitorVisitIndex,
-      options.previousVisitedVertexRef?.unref().getData() ?? null,
-      options.vertexVisitorsChainState,
+      options.phaseVisitIndex,
+      options.visitorIndex,
+      options.previousPhaseVertexRef?.unref().getData() ?? null,
+      options.visitorChainState,
     ]);
   });
 
@@ -466,7 +466,7 @@ test('exposes lifecycle statuses while each visitor chain runs', () => {
   const traversal = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter({ root: { id: 'root', children: [] } }),
   });
-  for (const order of [Order.ON_READY, Order.ON_COMPLETE]) {
+  for (const order of [Order.ON_WORK_READY, Order.ON_SUBGRAPH_READY]) {
     traversal.addVisitorFor(order, (_vertex, options) => {
       statuses.push(options.resolvedGraph.getStatusOf(options.vertexRef)!);
     });
@@ -484,7 +484,7 @@ test('tombstones deleted ids and closes later arrivals', () => {
       survivor: { id: 'survivor', children: ['victim'] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'victim'
       ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
       : undefined,
@@ -502,7 +502,7 @@ test('deleting the graph root empties the graph', () => {
   const traversal = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'root'
       ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
       : undefined,
@@ -520,7 +520,7 @@ test('rejects thenables and retains callback failures', () => {
       root: { id: 'root', children: [] },
     }),
   });
-  traversal.addVisitorFor(Order.ON_READY, () => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, () => {
     throw error;
   });
   const runner = traversal.createRunner();
@@ -541,15 +541,15 @@ test('enforces one iterator and resumes after consumer close', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   }).createRunner();
-  const first = runner.getIterable({ iterateOver: [Order.ON_READY] });
+  const first = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
   expect(first.next().value?.vertex.getData()).toBe('root');
-  const second = runner.getIterable();
+  const second = runner.iterateEvents();
   expect(() => second.next()).toThrow(/one active iterator/i);
   first.return?.(undefined);
   expect(runner.isHalted()).toBe(true);
 
   expect(
-    [...runner.getIterable({ iterateOver: [Order.ON_READY] })].map(
+    [...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] })].map(
       ({ vertex }) => vertex.getData(),
     ),
   ).toEqual(['A', 'B', 'join']);

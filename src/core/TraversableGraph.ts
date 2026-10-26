@@ -7,7 +7,7 @@ import type {
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { HintVertexId, MaybePromise } from '@core/graph/types';
 
-export type MakeGraphVertexOptions<
+export type DagChildResolutionContext<
   T extends VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
@@ -26,7 +26,7 @@ export interface DagDiscoverySource<
   resolveRoot(): DagVertexResolution<T, ID>;
   resolveChild(
     hint: T['VertexHint'],
-    options: MakeGraphVertexOptions<T, R, ID>,
+    options: DagChildResolutionContext<T, R, ID>,
   ): DagVertexResolution<T, ID>;
   getVertexIdFromHint?(hint: T['VertexHint']): HintVertexId<ID> | undefined;
 }
@@ -42,7 +42,7 @@ export interface AsyncDagDiscoverySource<
   resolveRoot(): MaybePromise<DagVertexResolution<T, ID>>;
   resolveChild(
     hint: T['VertexHint'],
-    options: MakeGraphVertexOptions<T, R, ID>,
+    options: DagChildResolutionContext<T, R, ID>,
   ): MaybePromise<DagVertexResolution<T, ID>>;
   getVertexIdFromHint?(
     hint: T['VertexHint'],

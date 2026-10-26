@@ -56,7 +56,7 @@ Built-in object adapter methods retain published untagged `{ vertexContent, ... 
 
 ## Typed DAG event identities
 
-`DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_READY`, and `subgraphCompleted` means `ON_COMPLETE`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged. Dispatch from `advance().frontier` tickets or an enabled pre-work `ON_READY` visitor; emitted `workCompleted` events are committed observations, including when deferred work settles.
+`DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_WORK_READY`, and `subgraphCompleted` means `ON_SUBGRAPH_READY`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged. Dispatch from `advance().frontier` tickets or an enabled pre-work `ON_WORK_READY` visitor; emitted `workCompleted` events are committed observations, including when deferred work settles.
 
 ## Root dependencies
 
@@ -95,14 +95,14 @@ Replace the deprecated exported symbol with a command result:
 ```ts
 // Before: import { DEFER_READY } ...; return DEFER_READY;
 import { TraversalVisitorCommandName as Command } from 'configurable-tree-traversal';
-traversal.addVisitorFor(DagTraversalOrder.ON_READY, () => ({
+traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => ({
   commands: [{ commandName: Command.DEFER_READY }],
 }));
 ```
 
-Deferral is valid only in DAG `ON_READY` and must be the **only command in its result**. Mixing it with `NOOP`, a rewrite, halt, or any other command rejects before applying that result's commands. The deprecated sentinel normalizes to the same transition.
+Deferral is valid only in DAG `ON_WORK_READY` and must be the **only command in its result**. Mixing it with `NOOP`, a rewrite, halt, or any other command rejects before applying that result's commands. The deprecated sentinel normalizes to the same transition.
 
-Deferral ends the visitor chain, discards uncommitted group commands, skips remaining visitors, leaves work incomplete, and releases callback capacity. Already committed changes and external effects remain. `HALT_TRAVERSAL` instead retains its runner-wide resumable behavior. The default `workCompletion: 'visitorReturn'` completes W on normal `ON_READY` chain return. Prefer `workCompletion: 'externalSettlement'` for external work: the chain's commands commit, then W remains incomplete with a guarded deferred generation, even for zero or filtered callbacks. Explicit DEFER remains useful for ending a chain early and skipping later callbacks. Synthetic roots and `completedWork` seeds do not require new settlement. ON_COMPLETE remains automatic. Dispatch from the deferred summary frontier (or an actual enabled callback); emitted deferred ON_READY events arrive only on settlement. Generations remain runner-local symbols, not durable claims.
+Deferral ends the visitor chain, discards uncommitted group commands, skips remaining visitors, leaves work incomplete, and releases callback capacity. Already committed changes and external effects remain. `PAUSE_TRAVERSAL` instead retains its runner-wide resumable behavior. The default `workCompletion: 'visitorReturn'` completes W on normal `ON_WORK_READY` chain return. Prefer `workCompletion: 'externalSettlement'` for external work: the chain's commands commit, then W remains incomplete with a guarded deferred generation, even for zero or filtered callbacks. Explicit DEFER remains useful for ending a chain early and skipping later callbacks. Synthetic roots and `completedWork` seeds do not require new settlement. ON_SUBGRAPH_READY remains automatic. Dispatch from the deferred summary frontier (or an actual enabled callback); emitted deferred ON_WORK_READY events arrive only on settlement. Generations remain runner-local symbols, not durable claims.
 
 ## Command batching
 
@@ -121,7 +121,7 @@ The same phase input configures a class, `configure`, `setVisitorsFor`, or a hel
 
 ```ts
 import {
-  DepthFirstTreeTraversal, DepthFirstTraversalOrder as Order,
+  DepthFirstTreeTraversal, DepthFirstPhase as Order,
   ObjectTreeSource, traverseTreeDepthFirst,
   type VisitorPhaseInput, type TraversalVisitor,
   type TraversableObjectTTP,
@@ -151,11 +151,11 @@ Explicit groups run in array order, sorting priority only inside a group. Policy
 
 ## Phase-aware visitors
 
-Registration keys, configuration visitor maps, helper maps, and `options.order` now infer the actual phase. Deferral is restricted to `ON_READY`; hint rewrites are restricted to `PRE_ORDER`, `LEVEL_ORDER`, and `ON_READY`. Runtime validation remains for JavaScript/unsafe casts, including eager-discovery topology restrictions.
+Registration keys, configuration visitor maps, helper maps, and `options.phase` now infer the actual phase. Deferral is restricted to `ON_WORK_READY`; hint rewrites are restricted to `PRE_ORDER`, `LEVEL_ORDER`, and `ON_WORK_READY`. Runtime validation remains for JavaScript/unsafe casts, including eager-discovery topology restrictions.
 
 General `TraversalVisitor` and `DagVisitor` aliases remain usable for callbacks returning common commands, across add/configure/set/helper entry points. Give phase-specific callbacks an appropriate phase parameter instead of widening a forbidden command to the whole traversal order union.
 
-The callback context's `options.visitorRecord` is now a readonly, phase-neutral `VisitorRegistrationMetadata` view: `addedIndex`, `priority`, `commandCommitMode`, and deprecated `resolutionStyle`. Its supported TypeScript contract has no executable `.visitor`. If you previously invoked `options.visitorRecord.visitor`, retain your own callback reference or retrieve full typed records using `traversal.listVisitorsFor(order)`. Configuration, listing, and replacement APIs still expose full callback records. The runtime object may retain `.visitor` for existing JavaScript callers.
+The callback context's `options.registration` is now a readonly, phase-neutral `VisitorRegistrationMetadata` view: `addedIndex`, `priority`, `commandCommitMode`, and deprecated `resolutionStyle`. Its supported TypeScript contract has no executable `.visitor`. If you previously invoked `options.registration.visitor`, retain your own callback reference or retrieve full typed records using `traversal.listVisitorsFor(order)`. Configuration, listing, and replacement APIs still expose full callback records. The runtime object may retain `.visitor` for existing JavaScript callers.
 
 ## Completion vocabulary
 
@@ -206,7 +206,7 @@ Own-property ID presence is significant: `{ vertexId: undefined }` supplies the 
 
 ## Child hint command
 
-Use `TraversalVisitorCommandName.REWRITE_CHILD_HINTS` with `{ newHints }`. `REWRITE_VERTEX_HINTS_ON_PRE_ORDER` remains a deprecated compatibility command with the same phase restrictions: DFS `PRE_ORDER`, BFS `LEVEL_ORDER`, or DAG `ON_READY`. Eager DAG discovery still rejects topology rewrites after validation. Resolved-tree structural child references are not hints.
+Use `TraversalVisitorCommandName.REWRITE_CHILD_HINTS` with `{ newHints }`. `REWRITE_VERTEX_HINTS_ON_PRE_ORDER` remains a deprecated compatibility command with the same phase restrictions: DFS `PRE_ORDER`, BFS `LEVEL_ORDER`, or DAG `ON_WORK_READY`. Eager DAG discovery still rejects topology rewrites after validation. Resolved-tree structural child references are not hints.
 
 ## Convenience helpers
 
@@ -217,19 +217,19 @@ All six helpers accept a single options object, with the source exactly once and
 const runner = traverseTreeDepthFirst({
   ...config,
   traversableTree: tree,
-  visitors: { [DepthFirstTraversalOrder.POST_ORDER]: visit },
+  visitors: { [DepthFirstPhase.POST_ORDER]: visit },
 });
 // Before: traverseTreeBreadthFirst(tree, visit, config);
 const breadth = traverseTreeBreadthFirst({
   ...config,
   traversableTree: tree,
-  visitors: { [BreadthFirstTraversalOrder.LEVEL_ORDER]: visit },
+  visitors: { [BreadthFirstPhase.LEVEL_ORDER]: visit },
 });
 // Before: traverseDag({ traversableGraph: graph }, { onReadyVisitor: work }, config);
 const dag = traverseDag({
   ...config,
   traversableGraph: graph,
-  visitors: { [DagTraversalOrder.ON_READY]: work },
+  visitors: { [DagVisitorPhase.ON_WORK_READY]: work },
 });
 ```
 
@@ -255,7 +255,7 @@ Package root, subpaths, namespaces, classes, commands, and the deprecated sentin
 
 ## Independent execution selectors
 
-Use `emitPhases` for event selection and `visitorPhases: 'all' | { include: [...] } | { exclude: [...] }` for callbacks. Empty include means no callbacks; empty exclude means all callbacks; empty emit means no events. Every execution request patches fields independently: omitted fields, `{}`, and no object retain previous effective settings. Caller arrays are copied on activation; already-admitted chains retain their snapshot until the boundary finishes.
+Use `emitEvents` for event selection and `visitorPhases: 'all' | { include: [...] } | { exclude: [...] }` for callbacks. Empty include means no callbacks; empty exclude means all callbacks; empty emit means no events. Every execution request patches fields independently: omitted fields, `{}`, and no object retain previous effective settings. Caller arrays are copied on activation; already-admitted chains retain their snapshot until the boundary finishes.
 
 Deprecated `iterateOver` aliases emission. A non-null legacy enable list wins over disable, including empty enable. Legacy fields patch against retained effective legacy fields, so an emission-only change preserves callbacks; disable-only updates cannot override a retained enable. Clearing enable with null activates the retained disable list. A canonical callback selector replaces that concern and clears dormant legacy fields. Equivalent canonical/legacy aliases for one concern in one request reject, even with undefined alias fields; unrelated concerns may mix. Invalid phases/malformed selectors reject before changing configuration. Inspection includes both views; project the desired fields when building another request.
 
@@ -289,7 +289,7 @@ Call sync `runner.prepare()` or await async `runner.prepare()` to preview the fu
 
 After `run()`, replace `deferredIds` plus optional generation lookups with `summary().deferredFrontier`: detached readonly `{ vertexId, generation }` records guarantee atomic live generations. Claim/dispatch in the host, retain the record with the attempt, validate and durably accept the result, then `settle(record.vertexId, outcome, record.generation)` and run again. The frontier is observational; `readyIds` continues to mean dependency eligibility.
 
-DAG events add committed `kind: 'workCompleted'` / `'subgraphCompleted'` while retaining `order: ON_READY` / `ON_COMPLETE`, filters, order and timing. ON_READY visitors remain pre-work; deferred ON_READY events follow settlement. Seeds emit no synthetic work event. Dispatch from the frontier rather than completion events.
+DAG events add committed `kind: 'workCompleted'` / `'subgraphCompleted'` with no callback phase metadata. Select emitted kinds with `emitEvents` and readiness callbacks with `visitorPhases`; event ordering and commit timing are unchanged. ON_WORK_READY visitors remain pre-work; deferred ON_WORK_READY events follow settlement. Seeds emit no synthetic work event. Dispatch from the frontier rather than completion events.
 
 ## Family-safe execution and cooperative pause
 
@@ -312,3 +312,12 @@ Remove `traversableTree` from helper options: the helper owns its source. Inline
 ## Visitor query ownership
 
 All six `listVisitorsFor` methods now return mutable detached arrays and copied records. Editing a query does not configure the builder, a future runner, or earlier snapshots. Submit updates through set/add/configure. Callback closures are shared; frozen group metadata/identity remains shared for list/set round trips. Advanced raw fields have no new ownership guarantee.
+
+
+## Execution and callback vocabulary
+
+Use `runner.iterateEvents()` for event iteration and `TraversalVisitorCommandName.PAUSE_TRAVERSAL` for a command-boundary pause. `requestPause()` still drains admitted callbacks cooperatively; inspection exposes `pauseRequested`. `HALTED`, `isHalted()`, `run()` and explicit stop reasons retain their meanings.
+
+`TraversalExecutionOptions<VisitorPhase, EmittedKind = VisitorPhase>` separates callback eligibility from emitted observations. DAG emission accepts `emitEvents: ['workCompleted', 'subgraphCompleted']`; DAG visitors use `DagVisitorPhase.ON_WORK_READY` and `ON_SUBGRAPH_READY`. Tree enums are `DepthFirstPhase` and `BreadthFirstPhase`. Walking emission accepts literal `'vertex'`, `'edge'` and `'path'` strings and narrows event unions. Deprecated `iterateOver` still translates family callback phases internally; use the canonical selectors for new code. `emitPhases` is removed and rejects at runtime.
+
+Callbacks receive `phase`, `visitorIndex`, `visitorChainState`, `registration`, `phaseVisitIndex`, and `previousPhaseVertexRef` where applicable. Tree event records expose `phase`; committed DAG records expose `kind` without callback phase metadata. Shared sync/async context types are `TreeVisitorContext`, `DagVisitorContext`, `TreeChildResolutionContext`, and `DagChildResolutionContext`.

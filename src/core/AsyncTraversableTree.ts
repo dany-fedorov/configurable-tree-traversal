@@ -1,5 +1,5 @@
 import type {
-  MakeVertexOptions,
+  TreeChildResolutionContext,
   TreeVertexResolution,
 } from '@core/TraversableTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -12,6 +12,6 @@ export interface AsyncTreeSource<
   resolveRoot(): MaybePromise<TreeVertexResolution<T>>;
   resolveChild(
     hint: T['VertexHint'],
-    options: MakeVertexOptions<T, R>,
+    options: TreeChildResolutionContext<T, R>,
   ): MaybePromise<TreeVertexResolution<T>>;
 }

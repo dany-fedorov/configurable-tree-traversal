@@ -74,7 +74,7 @@ test('materialized definitions accept detached W and C prerequisite closures', (
   const graph = runner.getResolvedGraph();
   expect(graph.getParentsOf(graph.getVertexRefById('remoteC')!)).toEqual([]);
   expect(
-    [...runner.getIterable()]
+    [...runner.iterateEvents()]
       .filter((event) => event.kind === 'workCompleted')
       .map((event) => event.vertexId),
   ).toEqual(['remoteW', 'remoteC', 'child', 'root']);
@@ -238,7 +238,7 @@ test.each([{ omittedIds: [] }, { omittedIds: [undefined, null, NaN] }])(
     expect([
       ...result.dag
         .createRunner({ completedWork: new Set(omittedIds) })
-        .getIterable(),
+        .iterateEvents(),
     ]).toEqual([]);
   },
 );
@@ -304,7 +304,7 @@ test('forest definitions preserve authored order, structural sharing and omitted
     completedWork: new Set([undefined]),
   });
   const events: unknown[] = [];
-  for await (const event of runner.getIterable())
+  for await (const event of runner.iterateEvents())
     events.push([event.vertexId, event.kind]);
   expect(events).toEqual([
     [null, 'workCompleted'],
@@ -382,7 +382,7 @@ test('undefined is a live root identity rather than an absent record', () => {
   });
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(
-    [...result.dag.createRunner().getIterable()].map((event) => [
+    [...result.dag.createRunner().iterateEvents()].map((event) => [
       event.vertexId,
       event.kind,
     ]),

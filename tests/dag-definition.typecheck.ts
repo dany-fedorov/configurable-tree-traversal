@@ -44,7 +44,7 @@ const prepared = prepareDag(materializeDagSourceFromRecords<Data, ID>([], { id: 
 if (prepared.kind === 'valid') {
   const captured: DagDefinition<Data, ID> = prepared.dag.definition;
   const runner = prepared.dag.createRunner();
-  for (const event of runner.getIterable()) {
+  for (const event of runner.iterateEvents()) {
     const hints: ID[] = event.vertex.getChildrenHints();
     void hints;
   }

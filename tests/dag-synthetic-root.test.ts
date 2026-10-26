@@ -1,6 +1,6 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
 type G = VertexTypes<string, string>;
@@ -21,7 +21,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     });
     const seen: string[] = [];
-    for (const order of [Order.ON_READY, Order.ON_COMPLETE])
+    for (const order of [Order.ON_WORK_READY, Order.ON_SUBGRAPH_READY])
       traversal.addVisitorFor(order, (vertex, options) => {
         seen.push(vertex.getData());
         expect(options.isGraphRoot).toBe(false);
@@ -36,7 +36,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       });
     const runner = traversal.createRunner();
     const events: string[] = [];
-    for await (const event of runner.getIterable())
+    for await (const event of runner.iterateEvents())
       events.push(event.vertex.getData());
     expect(events.sort()).toEqual(['a', 'a', 'b', 'b']);
     expect(seen.sort()).toEqual(events);
@@ -87,7 +87,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     }).createRunner();
     const events = [];
-    for await (const event of runner.getIterable()) events.push(event);
+    for await (const event of runner.iterateEvents()) events.push(event);
     expect(events).toEqual([]);
     expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
   });
@@ -169,7 +169,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveChild: () => ({ vertexContent: { $d: 'a', $c: [] } }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       visited = true;
     });
     await expect(async () => {
@@ -195,7 +195,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       visited = true;
     });
     await expect(async () => {
@@ -263,7 +263,7 @@ test('synthetic catalog preserves arbitrary IDs without freezing or consuming it
     },
   });
   const seen: string[] = [];
-  traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
     seen.push(vertex.getData());
   });
   const runner = traversal.createRunner();

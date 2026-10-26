@@ -7,7 +7,7 @@ import {
   AsyncBreadthFirstTreeTraversal,
   DagTraversal,
   AsyncDagTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
 } from '../src';
 import {
   rewriteObject,
@@ -64,7 +64,7 @@ test('canonical found preserves exact data and child hint identity', () => {
   } as Options);
   const seen: unknown[] = [];
   new DepthFirstTreeTraversal({ traversableTree: tree })
-    .addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+    .addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
       seen.push(vertex.getData());
       if (vertex.getData() === data)
         expect(vertex.getChildrenHints()).toBe(childHints);
@@ -256,7 +256,7 @@ for (const Constructor of [
       );
     const runner = new Constructor({ traversableTree: tree }).createRunner();
     const keys: unknown[] = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       if (event !== null && !keys.includes(event.vertex.getData().key))
         keys.push(event.vertex.getData().key);
     }

@@ -1,7 +1,7 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
 import {
   createDagWorkSession,
@@ -156,7 +156,7 @@ test('wrapping requires external settlement and does not claim or run the runner
 test('sync cooperative pause preserves callback continuation', () => {
   const traversal = new DagTraversal<G, G, string>(options);
   const visited: string[] = [];
-  traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
     visited.push(vertex.getData());
     expect(coordinator.requestPause()).toBe(true);
     expect(coordinator.requestPause()).toBe(false);
@@ -171,7 +171,7 @@ test('async pause drains admitted callbacks and concurrent advance keeps runner 
   const entered = deferred<void>();
   const release = deferred<void>();
   const traversal = new AsyncDagTraversal<G, G, string>(options);
-  traversal.addVisitorFor(Order.ON_READY, async () => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, async () => {
     entered.resolve();
     await release.promise;
   });
@@ -210,7 +210,7 @@ test('deleted work rejects previously issued tickets as stale', () => {
     },
     discovery: 'eager',
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'parent'
       ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
       : undefined,
@@ -269,7 +269,7 @@ for (const async of [false, true]) {
       const traversal = async
         ? new AsyncDagTraversal<G>(input)
         : new DagTraversal<G>(input);
-      traversal.addVisitorFor(Order.ON_READY, () => {
+      traversal.addVisitorFor(Order.ON_WORK_READY, () => {
         throw error;
       });
       const coordinator =

@@ -1,7 +1,7 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as D,
+  DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
 } from '../src';
 type T = { VertexData: string; VertexHint: string };
@@ -17,14 +17,14 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
     const seen: string[] = [];
     const t = new (Ctor as typeof DagTraversal)<T>({ traversableGraph });
     t.addVisitorFor(
-      D.ON_READY,
+      D.ON_WORK_READY,
       () => {
         seen.push('high');
       },
       { priority: 1000, commandCommitMode: 'afterEachVisitor' },
     );
     t.addVisitorFor(
-      D.ON_READY,
+      D.ON_WORK_READY,
       () => {
         seen.push('low');
       },
@@ -38,7 +38,7 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
     const t = new (Ctor as typeof DagTraversal)<T>({
       traversableGraph,
       visitors: {
-        [D.ON_READY]: {
+        [D.ON_WORK_READY]: {
           groups: [
             {
               visitors: [
@@ -60,13 +60,13 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
                 {
                   priority: 1,
                   visitor: (_v, o) => {
-                    seen.push(['low', o.vertexVisitorsChainState]);
+                    seen.push(['low', o.visitorChainState]);
                   },
                 },
                 {
                   priority: 2,
                   visitor: (_v, o) => {
-                    seen.push(['high', o.vertexVisitorsChainState]);
+                    seen.push(['high', o.visitorChainState]);
                     return {
                       commands: [
                         {
@@ -85,15 +85,15 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    t.setVisitorsFor(D.ON_READY, t.listVisitorsFor(D.ON_READY));
+    t.setVisitorsFor(D.ON_WORK_READY, t.listVisitorsFor(D.ON_WORK_READY));
     t.addVisitorFor(
-      D.ON_READY,
+      D.ON_WORK_READY,
       (_v, o) => {
-        seen.push(['implicit', o.vertexVisitorsChainState]);
+        seen.push(['implicit', o.visitorChainState]);
       },
       { priority: 1000 },
     );
-    t.addVisitorGroupFor(D.ON_READY, {
+    t.addVisitorGroupFor(D.ON_WORK_READY, {
       visitors: [
         () => {
           seen.push('explicit');
@@ -101,13 +101,13 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
       ],
     });
     t.addVisitorFor(
-      D.ON_READY,
+      D.ON_WORK_READY,
       () => {
         seen.push('tail');
       },
       { priority: 9999 },
     );
-    t.configure({ visitors: { [D.ON_READY]: t.listVisitorsFor(D.ON_READY) } });
+    t.configure({ visitors: { [D.ON_WORK_READY]: t.listVisitorsFor(D.ON_WORK_READY) } });
     await t.createRunner().run();
     expect(seen).toEqual([
       ['high', 'committed'],
@@ -131,7 +131,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       next: string,
     ) =>
       t.addVisitorFor(
-        D.ON_READY,
+        D.ON_WORK_READY,
         (v) => {
           seen.push(v.getData());
           return {
@@ -157,7 +157,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const t = new Ctor<T>({
       traversableGraph,
       visitors: {
-        [D.ON_READY]: {
+        [D.ON_WORK_READY]: {
           groups: [
             {
               visitors: [
@@ -189,15 +189,15 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    t.addVisitorFor(D.ON_READY, () => {
+    t.addVisitorFor(D.ON_WORK_READY, () => {
       seen.push('fourth');
     });
-    t.addVisitorFor(D.ON_READY, () => {
+    t.addVisitorFor(D.ON_WORK_READY, () => {
       seen.push('fifth');
     });
     await t.createRunner().run();
     expect(seen).toEqual(['first', 'second', 'third', 'fourth', 'fifth']);
-    t.setVisitorsFor(D.ON_READY, [
+    t.setVisitorsFor(D.ON_WORK_READY, [
       {
         visitor: () => {
           seen.push('legacy-first');
@@ -222,7 +222,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph,
       workCompletion: 'externalSettlement',
     });
-    t.addVisitorGroupFor(D.ON_READY, {
+    t.addVisitorGroupFor(D.ON_WORK_READY, {
       commandCommitMode: 'afterGroup',
       visitors: [
         () => ({
@@ -235,7 +235,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       ],
     });
-    t.addVisitorGroupFor(D.ON_READY, {
+    t.addVisitorGroupFor(D.ON_WORK_READY, {
       commandCommitMode: 'afterGroup',
       visitors: [
         (v) => {
@@ -252,7 +252,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         () => ({ commands: [{ commandName: C.DEFER_READY }] }),
       ],
     });
-    t.addVisitorGroupFor(D.ON_READY, {
+    t.addVisitorGroupFor(D.ON_WORK_READY, {
       visitors: [
         () => {
           seen.push('must skip');
@@ -279,7 +279,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph,
       workCompletion: 'externalSettlement',
       visitors: {
-        [D.ON_READY]: {
+        [D.ON_WORK_READY]: {
           groups: [
             {
               commandCommitMode: 'afterGroup',
@@ -323,12 +323,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const t = new Ctor<T>({
       traversableGraph,
       visitors: {
-        [D.ON_READY]: {
+        [D.ON_WORK_READY]: {
           groups: [
             {
               commandCommitMode: 'afterGroup',
               visitors: [
-                () => ({ commands: [{ commandName: C.HALT_TRAVERSAL }] }),
+                () => ({ commands: [{ commandName: C.PAUSE_TRAVERSAL }] }),
                 () => ({
                   commands: [
                     {
@@ -363,7 +363,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const t = new Ctor<T>({
       traversableGraph,
       visitors: {
-        [D.ON_READY]: {
+        [D.ON_WORK_READY]: {
           groups: [
             {
               commandCommitMode: 'afterGroup',
@@ -395,7 +395,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const t = new Ctor<T>({
       traversableGraph,
       visitors: {
-        [D.ON_READY]: {
+        [D.ON_WORK_READY]: {
           groups: [
             {
               commandCommitMode: 'afterGroup',
@@ -409,7 +409,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    const original = t.listVisitorsFor(D.ON_READY);
+    const original = t.listVisitorsFor(D.ON_WORK_READY);
     const malformed: unknown[] = [
       null,
       7,
@@ -443,21 +443,21 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       expect(() =>
         t.configure({
           workCompletion: 'externalSettlement',
-          visitors: { [D.ON_READY]: input as never },
+          visitors: { [D.ON_WORK_READY]: input as never },
         }),
       ).toThrow(TypeError);
-      expect(t.listVisitorsFor(D.ON_READY)).toEqual(original);
+      expect(t.listVisitorsFor(D.ON_WORK_READY)).toEqual(original);
       expect(t.icfg.workCompletion).toBeUndefined();
     }
     expect(() =>
-      t.addVisitorGroupFor(D.ON_READY, { visitors: [original[0]!] } as never),
+      t.addVisitorGroupFor(D.ON_WORK_READY, { visitors: [original[0]!] } as never),
     ).toThrow(/own/);
     const changed = original.map((record) => ({
       ...record,
       commandCommitMode: 'afterEachVisitor' as const,
       resolutionStyle: undefined,
     }));
-    expect(() => t.setVisitorsFor(D.ON_READY, changed)).toThrow(/conflicting/);
+    expect(() => t.setVisitorsFor(D.ON_WORK_READY, changed)).toThrow(/conflicting/);
     expect(Object.isFrozen(original[0]!.visitorGroup)).toBe(true);
     await t.createRunner().run();
     expect(seen).toEqual(['original']);
@@ -487,7 +487,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               groups: [{ commandCommitMode: 'afterGroup', visitors: [member] }],
             };
       const t = new Constructor<T>({ traversableGraph });
-      t.configure({ visitors: { [D.ON_READY]: input as never } });
+      t.configure({ visitors: { [D.ON_WORK_READY]: input as never } });
       expect(reads).toBe(1);
       await t.createRunner().run();
       expect(calls).toEqual(['captured']);

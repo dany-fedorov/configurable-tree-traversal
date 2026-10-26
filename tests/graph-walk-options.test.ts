@@ -27,7 +27,7 @@ describe('walking configuration snapshots', () => {
     expect(config.strategy).toBe('breadthFirst');
     expect(config.revisit).toBe('once');
     expect(config.limits).toEqual({});
-    expect(config.execution.emitPhases).toEqual([Phase.VERTEX]);
+    expect(config.execution.emitEvents).toEqual([Phase.VERTEX]);
     expect(config.execution.visitorPhases).toBe('all');
     expect(config.visitors).toEqual({ vertex: [], edge: [], path: [] });
     expect(config.source.receiver).toBe(lazySource);
@@ -86,7 +86,7 @@ describe('walking configuration snapshots', () => {
   );
 
   test('copies selectors, limits and registration wrappers while retaining callbacks and receiver', () => {
-    const emitPhases = [Phase.VERTEX];
+    const emitEvents = [Phase.VERTEX];
     const include = [Phase.EDGE];
     const limits = { maxDepth: 4, maxSteps: undefined };
     const callback = () => undefined;
@@ -95,21 +95,21 @@ describe('walking configuration snapshots', () => {
     const hydrated = { ...source, resolveVertex: resolver };
     const config = normalizeWalkOptions({
       source: hydrated,
-      emitPhases,
+      emitEvents,
       visitorPhases: { include },
       limits,
       visitors: { vertex: records },
       followEdge: callback,
       expandVertex: callback,
     });
-    emitPhases.length = 0;
+    emitEvents.length = 0;
     include.length = 0;
     limits.maxDepth = 99;
     records[0]!.priority = 99;
     hydrated.roots = () => {
       throw new Error('changed');
     };
-    expect(config.execution.emitPhases).toEqual([Phase.VERTEX]);
+    expect(config.execution.emitEvents).toEqual([Phase.VERTEX]);
     expect(config.execution.visitorPhases).toEqual({ include: [Phase.EDGE] });
     expect(config.limits).toEqual({ maxDepth: 4 });
     expect(config.visitors.vertex[0]!.priority).toBe(5);
@@ -128,18 +128,18 @@ describe('walking configuration snapshots', () => {
 
   test('uses shared selector validation and field-wise legacy patches', () => {
     const config = normalizeWalkOptions({ source, iterateOver: [Phase.EDGE] });
-    expect(config.execution.emitPhases).toEqual([Phase.EDGE]);
+    expect(config.execution.emitEvents).toEqual([Phase.EDGE]);
     const patched = normalizeWalkOptions(
       { visitorPhases: { exclude: [Phase.PATH] } },
       config,
     );
-    expect(patched.execution.emitPhases).toEqual([Phase.EDGE]);
+    expect(patched.execution.emitEvents).toEqual([Phase.EDGE]);
     expect(patched.execution.visitorPhases).toEqual({ exclude: [Phase.PATH] });
     expect(() =>
-      normalizeWalkOptions({ source, emitPhases: [], iterateOver: [] }),
+      normalizeWalkOptions({ source, emitEvents: [], iterateOver: [] }),
     ).toThrow(TypeError);
     expect(() =>
-      normalizeWalkOptions({ source, emitPhases: ['ON_READY'] }),
+      normalizeWalkOptions({ source, emitEvents: ['ON_WORK_READY'] }),
     ).toThrow(TypeError);
   });
 
@@ -186,7 +186,7 @@ describe('walking configuration snapshots', () => {
     { visitors: null },
     { visitors: [] },
     { visitors: 1 },
-    { visitors: { ON_READY: [] } },
+    { visitors: { ON_WORK_READY: [] } },
     { visitors: { vertex: 1 } },
   ])('rejects malformed fields %p', (patch) => {
     expect(() => normalizeWalkOptions({ source, ...patch })).toThrow(TypeError);
@@ -218,7 +218,7 @@ describe('walking configuration snapshots', () => {
       followEdge: () => true,
       expandVertex: () => false,
       visitors: { edge: [] },
-      emitPhases: [Phase.PATH],
+      emitEvents: [Phase.PATH],
     };
     for (const [key, value] of Object.entries(values))
       Object.defineProperty(input, key, {
@@ -369,7 +369,7 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
       walk.configure({});
       expect(await found()).toBe(1);
       expect(() =>
-        walk.configure({ [predicate]: null, emitPhases: ['invalid'] as never }),
+        walk.configure({ [predicate]: null, emitEvents: ['invalid'] as never }),
       ).toThrow(TypeError);
       expect(await found()).toBe(1);
       walk.configure({ [predicate]: null });

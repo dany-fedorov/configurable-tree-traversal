@@ -1,5 +1,5 @@
 import {
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   rewriteObject as rewriteApi,
@@ -12,7 +12,7 @@ const { rewriteObject } = rewriteApi;
 function pauseBeforeRootRewrite() {
   let didHalt = false;
   return {
-    [DepthFirstTraversalOrder.POST_ORDER]: {
+    [DepthFirstPhase.POST_ORDER]: {
       priority: 200,
       visitor: (_vertex: unknown, { isTreeRoot }: { isTreeRoot: boolean }) => {
         if (!isTreeRoot || didHalt) return undefined;
@@ -20,7 +20,7 @@ function pauseBeforeRootRewrite() {
         return {
           commands: [
             {
-              commandName: TraversalVisitorCommandName.HALT_TRAVERSAL as const,
+              commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL as const,
             },
           ],
         };

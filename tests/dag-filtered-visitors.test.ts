@@ -1,7 +1,7 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
@@ -43,13 +43,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     });
     const seen: unknown[] = [];
     traversal.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       filterDagVisitor(isTask, (data, options) => {
-        seen.push(data, options.order, options.vertexRef.unref().getData());
+        seen.push(data, options.phase, options.vertexRef.unref().getData());
         expect(options.resolvedGraph.getVertexId(options.vertexRef)).toBe(
           'task',
         );
-        expect(options.visitorRecord.priority).toBe(12);
+        expect(options.registration.priority).toBe(12);
         return {
           commands: [
             {
@@ -68,12 +68,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { priority: 12 },
     );
     traversal.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       filterDagVisitor(
         (data: Data) => data.kind === 'task',
         (data, options) => {
           expect(data).toEqual({ kind: 'task', label: 'TASK' });
-          expect(options.vertexVisitorsChainState).toBe(task);
+          expect(options.visitorChainState).toBe(task);
           seen.push('after');
         },
       ),
@@ -81,7 +81,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     );
     const runner = traversal.createRunner();
     await runner.run();
-    expect(seen).toEqual([task, Order.ON_READY, task, 'after']);
+    expect(seen).toEqual([task, Order.ON_WORK_READY, task, 'after']);
     expect(
       runner.getResolvedGraph().getVertexRefById('group')!.unref().getData(),
     ).toBe(group);
@@ -96,10 +96,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     });
     const after: string[] = [];
     traversal.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       filterDagVisitor(isTask, () => DEFER_READY),
     );
-    traversal.addVisitorFor(Order.ON_READY, (_, options) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (_, options) => {
       after.push(options.resolvedGraph.getVertexId(options.vertexRef));
     });
     const runner = traversal.createRunner();
@@ -123,7 +123,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: source,
       });
       traversal.addVisitorFor(
-        Order.ON_READY,
+        Order.ON_WORK_READY,
         filterDagVisitor(
           (data: Data) => {
             if (where === 'predicate') throw error;
@@ -147,7 +147,7 @@ test('async filtered callbacks await commands and preserve rejected values', asy
     traversableGraph: source,
   });
   traversal.addVisitorFor(
-    Order.ON_READY,
+    Order.ON_WORK_READY,
     filterAsyncDagVisitor(isTask, async (data) => {
       await Promise.resolve();
       return {
@@ -168,7 +168,7 @@ test('async filtered callbacks await commands and preserve rejected values', asy
     runner.getResolvedGraph().getVertexRefById('task')!.unref().getData(),
   ).toEqual({ kind: 'task', label: 'task!' });
   traversal.addVisitorFor(
-    Order.ON_COMPLETE,
+    Order.ON_SUBGRAPH_READY,
     filterAsyncDagVisitor(isTask, async () => {
       throw undefined;
     }),
@@ -181,7 +181,7 @@ test('async filtering preserves deferral after awaited host work', async () => {
     traversableGraph: source,
   });
   traversal.addVisitorFor(
-    Order.ON_READY,
+    Order.ON_WORK_READY,
     filterAsyncDagVisitor(isTask, async (): Promise<typeof DEFER_READY> => {
       await Promise.resolve();
       return DEFER_READY;
@@ -207,7 +207,7 @@ test.each(['predicate', 'callback'] as const)(
       traversableGraph: source,
     });
     traversal.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       filterAsyncDagVisitor(
         (data: Data) => {
           if (where === 'predicate') throw error;

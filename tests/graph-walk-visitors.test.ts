@@ -20,7 +20,7 @@ it('runs mixed callbacks with emissions suppressed and unchanged source discover
       `e:${event.source.vertexId}:${event.edge.index}:${event.target.kind}`,
     );
   });
-  expect([...traversal.createRunner().getIterable({ emitPhases: [] })]).toEqual(
+  expect([...traversal.createRunner().iterateEvents({ emitEvents: [] })]).toEqual(
     [],
   );
   expect(seen).toEqual([
@@ -65,7 +65,7 @@ it('halts after its group and resumes only the remaining callbacks', () => {
     visitors: [
       () => {
         seen.push('first');
-        return { commands: [{ commandName: C.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: C.PAUSE_TRAVERSAL }] };
       },
       () => {
         seen.push('second');
@@ -100,7 +100,7 @@ it('commits flat afterGroup batches at sorted mode boundaries and halts once per
       Phase.VERTEX,
       () => {
         seen.push(label);
-        return { commands: [{ commandName: C.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: C.PAUSE_TRAVERSAL }] };
       },
       { priority, commandCommitMode: mode },
     );
@@ -111,7 +111,7 @@ it('commits flat afterGroup batches at sorted mode boundaries and halts once per
   runner.run();
   expect(seen).toEqual(['high', 'middle', 'each', 'tail']);
   expect(runner.isHalted()).toBe(true);
-  expect([...runner.getIterable()]).toMatchObject([
+  expect([...runner.iterateEvents()]).toMatchObject([
     { kind: 'vertex', vertex: { vertexId: 'A' } },
   ]);
 });
@@ -124,8 +124,8 @@ it('detaches list and context wrappers while preserving callback and group metad
     context,
   ) => {
     contexts.push(context);
-    expect('visitor' in context.visitorRecord).toBe(false);
-    (context.visitorRecord as { priority: number }).priority = -1;
+    expect('visitor' in context.registration).toBe(false);
+    (context.registration as { priority: number }).priority = -1;
     seen.push('first');
   };
   const t = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
@@ -145,10 +145,10 @@ it('detaches list and context wrappers while preserving callback and group metad
   t.createRunner().run();
   expect(seen).toEqual(['first', 'first']);
   expect(t.listVisitorsFor(Phase.VERTEX)[0]!.priority).toBe(100);
-  expect(contexts[0]!.visitorRecord.visitorGroup).toBe(group);
-  expect(contexts[0]!.visitorRecord).not.toBe(contexts[1]!.visitorRecord);
+  expect(contexts[0]!.registration.visitorGroup).toBe(group);
+  expect(contexts[0]!.registration).not.toBe(contexts[1]!.registration);
   expect(contexts[0]).toMatchObject({
-    order: Phase.VERTEX,
+    phase: Phase.VERTEX,
     occurrenceIndex: 0,
     observationIndex: 0,
     visitorIndex: 0,
@@ -165,7 +165,7 @@ it('supplies logical phase and occurrence indices independently of emission and 
         ['B', []],
       ],
     ),
-    emitPhases: [],
+    emitEvents: [],
   });
   t.addVisitorFor(Phase.EDGE, (event, context) => {
     seen.push([
@@ -203,7 +203,7 @@ it('keeps previous configuration after invalid phase/group/merged-bound patches'
     },
   });
   for (const patch of [
-    { visitors: { ON_READY: [] } },
+    { visitors: { ON_WORK_READY: [] } },
     {
       visitors: {
         vertex: {
@@ -221,7 +221,7 @@ it('keeps previous configuration after invalid phase/group/merged-bound patches'
     { strategy: 'depthFirst', visitors: { edge: { groups: null } } },
   ])
     expect(() => t.configure(patch as never)).toThrow(TypeError);
-  expect(() => t.addVisitorFor('ON_READY' as Phase, () => undefined)).toThrow(
+  expect(() => t.addVisitorFor('ON_WORK_READY' as Phase, () => undefined)).toThrow(
     TypeError,
   );
   expect(() =>
@@ -243,15 +243,15 @@ it('snapshots registrations, source identities and factory configuration per run
   const old = t.createRunner();
   t.configure({
     source: idGraph(['B'], [['B', []]]),
-    emitPhases: [Phase.PATH],
+    emitEvents: [Phase.PATH],
   });
   t.addVisitorFor(Phase.VERTEX, () => {
     seen.push('second');
   });
-  expect([...old.getIterable()]).toMatchObject([
+  expect([...old.iterateEvents()]).toMatchObject([
     { kind: 'vertex', vertex: { vertexId: 'A' } },
   ]);
-  expect([...t.createRunner().getIterable()]).toMatchObject([
+  expect([...t.createRunner().iterateEvents()]).toMatchObject([
     { kind: 'path', vertices: [{ vertexId: 'B' }] },
   ]);
   expect(seen).toEqual(['first', 'first', 'second']);
@@ -263,7 +263,7 @@ it('validates the whole command batch before applying HALT', () => {
   t.addVisitorGroupFor(Phase.VERTEX, {
     commandCommitMode: 'afterGroup',
     visitors: [
-      () => ({ commands: [{ commandName: C.HALT_TRAVERSAL }] }),
+      () => ({ commands: [{ commandName: C.PAUSE_TRAVERSAL }] }),
       () => {
         seen.push('invalid');
         return { commands: [{ commandName: C.DELETE_VERTEX }] } as never;
@@ -289,7 +289,7 @@ it.each([
   { commands: new Array<unknown>(1) },
   { commands: [{}] },
   { commands: [{ commandName: C.NOOP, commandArguments: {} }] },
-  { commands: [{ commandName: C.HALT_TRAVERSAL, commandArguments: {} }] },
+  { commands: [{ commandName: C.PAUSE_TRAVERSAL, commandArguments: {} }] },
   { commands: [{ commandName: C.DEFER_READY }] },
 ])('rejects malformed visitor results and unsupported commands %#', (value) => {
   const t = new GraphWalk({
@@ -327,7 +327,7 @@ it('defensively rejects thenables returned from synchronous visitors', async () 
 
 it('captures buffered command names before a later group callback mutates caller commands', () => {
   const command = {
-    commandName: C.HALT_TRAVERSAL as C.HALT_TRAVERSAL | C.NOOP,
+    commandName: C.PAUSE_TRAVERSAL as C.PAUSE_TRAVERSAL | C.NOOP,
   };
   const seen: string[] = [];
   const t = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
@@ -361,7 +361,7 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
         ({
           commands: [
             { commandName: C.NOOP, commandArguments: undefined },
-            { commandName: C.HALT_TRAVERSAL, commandArguments: undefined },
+            { commandName: C.PAUSE_TRAVERSAL, commandArguments: undefined },
           ],
         } as never),
     );

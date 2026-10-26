@@ -1,15 +1,16 @@
+import { emissionKind } from '../src/core/normalizeTraversalExecutionOptions';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import {
   DepthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
-  DepthFirstTraversalOrder as DFS,
+  DepthFirstPhase as DFS,
   BreadthFirstTreeTraversal,
   AsyncBreadthFirstTreeTraversal,
-  BreadthFirstTraversalOrder as BFS,
+  BreadthFirstPhase as BFS,
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as DAG,
+  DagVisitorPhase as DAG,
   TraversalVisitorCommandName as Command,
   makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS,
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS,
@@ -26,9 +27,9 @@ import type {
 } from '../src';
 import type { TestGraph } from './helpers/graph-fixtures';
 
-type Event = { order: string; vertex: { getData(): string } };
+type Event = { phase?: string; kind?: string; vertex: { getData(): string } };
 type Runner = {
-  getIterable(
+  iterateEvents(
     config?: unknown,
   ): Generator<Event> | AsyncGenerator<Event, void, unknown>;
   run(config?: unknown): unknown;
@@ -46,7 +47,8 @@ const families = [
   {
     name: 'sync DFS',
     phase: DFS.PRE_ORDER,
-    make: () => new DepthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
+    make: () =>
+      new DepthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
   },
   {
     name: 'async DFS',
@@ -57,7 +59,8 @@ const families = [
   {
     name: 'sync BFS',
     phase: BFS.LEVEL_ORDER,
-    make: () => new BreadthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
+    make: () =>
+      new BreadthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
   },
   {
     name: 'async BFS',
@@ -67,12 +70,12 @@ const families = [
   },
   {
     name: 'sync DAG',
-    phase: DAG.ON_READY,
+    phase: DAG.ON_WORK_READY,
     make: () => new DagTraversal<TestGraph>({ traversableGraph: graph }),
   },
   {
     name: 'async DAG',
-    phase: DAG.ON_READY,
+    phase: DAG.ON_WORK_READY,
     make: () => new AsyncDagTraversal<TestGraph>({ traversableGraph: graph }),
   },
 ];
@@ -87,11 +90,11 @@ function create(family: typeof families[number], halt = false) {
     phase: string,
     visitor: (
       vertex: Vertex<TestGraph>,
-    ) => void | { commands: { commandName: Command.HALT_TRAVERSAL }[] },
+    ) => void | { commands: { commandName: Command.PAUSE_TRAVERSAL }[] },
   ) => unknown;
   add(phase, (vertex) => {
     calls.push(vertex.getData());
-    if (halt) return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+    if (halt) return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
     return undefined;
   });
   if (halt)
@@ -102,8 +105,8 @@ function create(family: typeof families[number], halt = false) {
 }
 async function events(runner: Runner, config?: unknown) {
   const result: string[] = [];
-  for await (const event of runner.getIterable(config))
-    result.push(event.order);
+  for await (const event of runner.iterateEvents(config))
+    result.push(event.kind ?? event.phase!);
   return result;
 }
 
@@ -116,7 +119,7 @@ describe.each(families)('$name execution selection', (family) => {
     'selects callbacks with %j independently of empty emission',
     async (visitorPhases, enabled) => {
       const { runner, calls } = create(family);
-      expect(await events(runner, { emitPhases: [], visitorPhases })).toEqual(
+      expect(await events(runner, { emitEvents: [], visitorPhases })).toEqual(
         [],
       );
       expect(calls).toEqual(enabled ? ['root'] : []);
@@ -132,7 +135,9 @@ describe.each(families)('$name execution selection', (family) => {
         : [makeDAG(), defaultDAG];
     for (const config of configs) {
       const { runner, calls } = create(family);
-      expect(await events(runner, config)).toContain(family.phase);
+      expect(await events(runner, config)).toContain(
+        emissionKind(family.phase),
+      );
       expect(calls).toEqual(['root']);
     }
   });
@@ -144,8 +149,11 @@ describe.each(families)('$name execution selection', (family) => {
     ] as const) {
       const { runner, calls } = create(family);
       expect(
-        await events(runner, { emitPhases: [family.phase], visitorPhases }),
-      ).toEqual([family.phase]);
+        await events(runner, {
+          emitEvents: [emissionKind(family.phase)],
+          visitorPhases,
+        }),
+      ).toEqual([emissionKind(family.phase)]);
       expect(calls).toEqual(want);
     }
   });
@@ -162,23 +170,23 @@ describe.each(families)('$name execution selection', (family) => {
   test('emission-only resume retains disabled callbacks and snapshots caller arrays', async () => {
     const { runner, calls } = create(family);
     const include: string[] = [];
-    const emit = [family.phase];
-    const iterator = runner.getIterable({
-      emitPhases: emit,
+    const emit = [emissionKind(family.phase)];
+    const iterator = runner.iterateEvents({
+      emitEvents: emit,
       visitorPhases: { include },
     });
     expect((await iterator.next()).done).toBe(false);
     include.push(family.phase);
     emit.length = 0;
     expect(runner.inspect().iterableConfig).toMatchObject({
-      emitPhases: [family.phase],
+      emitEvents: [emissionKind(family.phase)],
       visitorPhases: { include: [] },
     });
     await iterator.return(undefined);
-    await runner.run({ emitPhases: [] });
+    await runner.run({ emitEvents: [] });
     expect(calls).toEqual([]);
     expect(runner.inspect().iterableConfig).toMatchObject({
-      emitPhases: [],
+      emitEvents: [],
       visitorPhases: { include: [] },
     });
   });
@@ -192,7 +200,7 @@ describe.each(families)('$name execution selection', (family) => {
     await runner.run({ enableVisitorFunctionsFor: null, iterateOver: [] });
     expect(calls).toEqual(['root', 'continued']);
     expect(runner.inspect().iterableConfig).toMatchObject({
-      emitPhases: [],
+      emitEvents: [],
       visitorPhases: { exclude: [family.phase] },
     });
   });
@@ -210,27 +218,29 @@ describe.each(families)('$name execution selection', (family) => {
 
   test('active chains retain admitted selection across a resume patch', async () => {
     const { runner, calls } = create(family, true);
-    await runner.run({ emitPhases: [family.phase] });
+    await runner.run({ emitEvents: [emissionKind(family.phase)] });
     expect(calls).toEqual(['root']);
     expect(runner.inspect().chains).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           config: expect.objectContaining({
-            emitPhases: [family.phase],
+            emitEvents: [emissionKind(family.phase)],
             visitorPhases: 'all',
           }),
         }),
       ]),
     );
     expect(
-      await events(runner, { emitPhases: [], visitorPhases: { include: [] } }),
-    ).toEqual([family.phase]);
+      await events(runner, { emitEvents: [], visitorPhases: { include: [] } }),
+    ).toEqual([emissionKind(family.phase)]);
     expect(calls).toEqual(['root', 'continued']);
   });
 
   test.each([
-    { emitPhases: ['WRONG_PHASE'] },
-    { emitPhases: new Array(1) },
+    { emitEvents: ['WRONG_PHASE'] },
+    { emitPhases: [] },
+    { typo: [] },
+    { emitEvents: new Array(1) },
     { iterateOver: ['WRONG_PHASE'] },
     { visitorPhases: { include: ['WRONG_PHASE'] } },
     { visitorPhases: { exclude: ['WRONG_PHASE'] } },
@@ -244,9 +254,9 @@ describe.each(families)('$name execution selection', (family) => {
     { visitorPhases: null },
     { visitorPhases: 'none' },
     { visitorPhases: { include: null } },
-    { emitPhases: null },
-    { emitPhases: [], iterateOver: [] },
-    { emitPhases: undefined, iterateOver: undefined },
+    { emitEvents: null },
+    { emitEvents: [], iterateOver: [] },
+    { emitEvents: undefined, iterateOver: undefined },
     null,
     false,
     'invalid',
@@ -263,7 +273,7 @@ describe.each(families)('$name execution selection', (family) => {
       ).rejects.toThrow(TypeError);
       expect(runner.inspect().iterableConfig).toEqual(before.iterableConfig);
       expect(calls).toEqual([]);
-      await runner.run({ emitPhases: [] });
+      await runner.run({ emitEvents: [] });
       expect(calls).toEqual(['root']);
     },
   );
@@ -274,7 +284,7 @@ describe.each(families)('$name execution selection', (family) => {
     let selectionReads = 0;
     let includeReads = 0;
     const input = {
-      get emitPhases() {
+      get emitEvents() {
         emissionReads += 1;
         if (emissionReads > 1) throw new Error('emission reread');
         return [];
@@ -295,7 +305,7 @@ describe.each(families)('$name execution selection', (family) => {
     expect(calls).toEqual(['root']);
     expect([emissionReads, selectionReads, includeReads]).toEqual([1, 1, 1]);
     expect(runner.inspect().iterableConfig).toMatchObject({
-      emitPhases: [],
+      emitEvents: [],
       visitorPhases: { include: [family.phase] },
     });
   });
@@ -308,16 +318,16 @@ describe.each(families)('$name execution selection', (family) => {
       enumerable: true,
       get: () => {
         reads += 1;
-        return reads === 1 ? family.phase : 'WRONG_PHASE';
+        return reads === 1 ? emissionKind(family.phase) : 'WRONG_PHASE';
       },
     });
-    expect(await events(runner, { emitPhases: phases })).toEqual([
-      family.phase,
+    expect(await events(runner, { emitEvents: phases })).toEqual([
+      emissionKind(family.phase),
     ]);
     expect(reads).toBe(1);
     expect(calls).toEqual(['root']);
     expect(runner.inspect().iterableConfig).toMatchObject({
-      emitPhases: [family.phase],
+      emitEvents: [emissionKind(family.phase)],
     });
   });
 
@@ -328,7 +338,7 @@ describe.each(families)('$name execution selection', (family) => {
     await expect(
       Promise.resolve().then(() =>
         runner.run({
-          get emitPhases() {
+          get emitEvents() {
             throw error;
           },
         }),
@@ -336,21 +346,21 @@ describe.each(families)('$name execution selection', (family) => {
     ).rejects.toBe(error);
     expect(runner.inspect()).toEqual(before);
     expect(calls).toEqual([]);
-    await runner.run({ emitPhases: [] });
+    await runner.run({ emitEvents: [] });
     expect(calls).toEqual(['root']);
   });
 
   test('callback-only and omitted resumes preserve emission selection', async () => {
     const { runner, calls } = create(family, true);
-    await runner.run({ emitPhases: [] });
+    await runner.run({ emitEvents: [] });
     expect(runner.inspect().iterableConfig).toMatchObject({
-      emitPhases: [],
+      emitEvents: [],
       visitorPhases: 'all',
     });
     await runner.run({ visitorPhases: { exclude: [] } });
     await runner.run();
     expect(runner.inspect().iterableConfig).toMatchObject({
-      emitPhases: [],
+      emitEvents: [],
       visitorPhases: { exclude: [] },
     });
     expect(calls).toEqual(['root', 'continued']);
@@ -363,7 +373,7 @@ describe.each(families)('$name execution selection', (family) => {
         iterateOver: [family.phase],
         visitorPhases: { exclude: [] },
       }),
-    ).toEqual([family.phase]);
+    ).toEqual([emissionKind(family.phase)]);
     expect(calls).toEqual(['root']);
   });
 });
@@ -375,14 +385,14 @@ function checkHelper<ORDER extends string>(
     previous?: TraversalRunnerIterableConfig<ORDER>,
   ) => TraversalRunnerIterableConfig<ORDER>,
 ) {
-  const emit = [phase];
+  const emit = [emissionKind(phase)];
   const exclude = [phase];
-  const initial = make({ emitPhases: emit, visitorPhases: { exclude } });
+  const initial = make({ emitEvents: emit, visitorPhases: { exclude } });
   emit.length = 0;
   exclude.length = 0;
   expect(initial.iterateOver).toEqual([phase]);
   expect(initial.disableVisitorFunctionsFor).toEqual([phase]);
-  const patched = make({ emitPhases: [] }, initial);
+  const patched = make({ emitEvents: [] }, initial);
   expect(patched.iterateOver).toEqual([]);
   expect(patched.disableVisitorFunctionsFor).toEqual([phase]);
   expect(make(undefined, patched)).toEqual(patched);
@@ -395,7 +405,7 @@ function checkHelper<ORDER extends string>(
 test('family config helpers share defaults, detachment, and independent patches', () => {
   checkHelper<DFS>(DFS.PRE_ORDER, makeDFS);
   checkHelper<BFS>(BFS.LEVEL_ORDER, makeBFS);
-  checkHelper<DAG>(DAG.ON_READY, makeDAG);
+  checkHelper<DAG>(DAG.ON_WORK_READY, makeDAG);
 });
 
 test.each([false, true])(
@@ -423,7 +433,7 @@ test.each([false, true])(
     await expect(
       Promise.resolve().then(async () => {
         await runner.run({
-          get emitPhases(): [] {
+          get emitEvents(): [] {
             throw error;
           },
         });
@@ -431,7 +441,7 @@ test.each([false, true])(
     ).rejects.toBe(error);
     expect(runner.inspect()).toEqual(before);
     const competitor = make();
-    await competitor.run({ emitPhases: [] });
+    await competitor.run({ emitEvents: [] });
     expect(competitor.getResolvedGraph().getRoot()?.unref().getData()).toBe(
       'root',
     );

@@ -1,6 +1,6 @@
 import {
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder as Order,
+  DepthFirstPhase as Order,
 } from '../src/traversals/depth-first-traversal';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import type { DepthFirstTraversalInOrderTraversalConfig as InOrderConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
@@ -20,7 +20,7 @@ const create = (inOrderTraversalConfig: Partial<InOrderConfig> = {}) =>
     inOrderTraversalConfig,
   });
 const collect = (runner: ReturnType<ReturnType<typeof create>['createRunner']>) =>
-  [...runner.getIterable({ iterateOver: [Order.IN_ORDER] })].map((event) =>
+  [...runner.iterateEvents({ iterateOver: [Order.IN_ORDER] })].map((event) =>
     event.vertex.getData(),
   );
 

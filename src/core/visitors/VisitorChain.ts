@@ -32,11 +32,11 @@ export class VisitorChain<
 
   constructor(input: VisitorChainInput<T, R>) {
     this.ref = input.ref;
-    this.canDeferReady = input.family === 'dag' && input.order === 'ON_READY';
+    this.canDeferReady = input.family === 'dag' && input.order === 'ON_WORK_READY';
     this.metadata = {
       ...input.metadata,
-      curVertexVisitorVisitIndex: 0,
-      vertexVisitorsChainState: null,
+      visitorIndex: 0,
+      visitorChainState: null,
     };
 
     const records = input.records.map((record) => ({
@@ -62,7 +62,7 @@ export class VisitorChain<
     if (this.position < this.batchEnds.length) {
       return this.emitVisit(
         this.position,
-        this.metadata.vertexVisitorsChainState,
+        this.metadata.visitorChainState,
       );
     }
 
@@ -80,7 +80,7 @@ export class VisitorChain<
     }
 
     this.awaitingOutcome = false;
-    this.metadata.curVertexVisitorVisitIndex++;
+    this.metadata.visitorIndex++;
     const value =
       outcome.value === DEFER_READY
         ? {
@@ -100,7 +100,7 @@ export class VisitorChain<
         throw new TypeError('DEFER_READY must be the sole command');
       if (!this.canDeferReady)
         throw new TypeError(
-          'DEFER_READY is only valid for DAG ON_READY visitors',
+          'DEFER_READY is only valid for DAG ON_WORK_READY visitors',
         );
       this.bufferedCommands.length = 0;
       this.pendingCommands = commands.slice();
@@ -119,12 +119,12 @@ export class VisitorChain<
 
     const ownHalt = this.pendingCommands.some(
       (command) =>
-        command.commandName === TraversalVisitorCommandName.HALT_TRAVERSAL,
+        command.commandName === TraversalVisitorCommandName.PAUSE_TRAVERSAL,
     );
     if (
-      Object.prototype.hasOwnProperty.call(result, 'vertexVisitorsChainState')
+      Object.prototype.hasOwnProperty.call(result, 'visitorChainState')
     ) {
-      this.metadata.vertexVisitorsChainState = result.vertexVisitorsChainState;
+      this.metadata.visitorChainState = result.visitorChainState;
     }
     this.pendingCommands = null;
     this.commandsEmitted = false;
@@ -155,7 +155,7 @@ export class VisitorChain<
       recordIndex,
       metadata: {
         ...this.metadata,
-        vertexVisitorsChainState: chainState,
+        visitorChainState: chainState,
       },
     };
   }

@@ -1,8 +1,8 @@
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
-  BreadthFirstTraversalOrder,
-  DepthFirstTraversalOrder,
+  BreadthFirstPhase,
+  DepthFirstPhase,
   TraversalVisitorCommandName,
   type AsyncCoreExecution,
   type AsyncBreadthFirstTraversalInstanceConfig,
@@ -30,9 +30,9 @@ const config: AsyncDepthFirstTraversalInstanceConfig<Input, Output> = {
   traversableTree: tree,
   sortChildrenHints: async (hints) => hints,
   visitors: {
-    [DepthFirstTraversalOrder.PRE_ORDER]: [],
-    [DepthFirstTraversalOrder.IN_ORDER]: [],
-    [DepthFirstTraversalOrder.POST_ORDER]: [],
+    [DepthFirstPhase.PRE_ORDER]: [],
+    [DepthFirstPhase.IN_ORDER]: [],
+    [DepthFirstPhase.POST_ORDER]: [],
   },
   inOrderTraversalConfig: {
     visitParentAfterChildren: { ranges: [[0, 1], -1] },
@@ -47,15 +47,15 @@ const config: AsyncDepthFirstTraversalInstanceConfig<Input, Output> = {
 
 const traversal = new AsyncDepthFirstTreeTraversal<Input, Output>(config);
 const visitor: AsyncTraversalVisitor<
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   Input,
   Output
 > = async (_vertex, options) => {
   const metadata: import('../src').VisitorRegistrationMetadata =
-    options.visitorRecord;
+    options.registration;
   void metadata;
   // @ts-expect-error Callback context metadata does not expose an executable callback.
-  options.visitorRecord.visitor;
+  options.registration.visitor;
   return {
     commands: [
       {
@@ -65,24 +65,24 @@ const visitor: AsyncTraversalVisitor<
     ],
   };
 };
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, visitor);
+traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, visitor);
 traversal.setVisitorsFor(
-  DepthFirstTraversalOrder.PRE_ORDER,
-  traversal.listVisitorsFor(DepthFirstTraversalOrder.PRE_ORDER),
+  DepthFirstPhase.PRE_ORDER,
+  traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER),
 );
 const runner = traversal.createRunner();
 const execution: AsyncCoreExecution<
-  ReturnType<typeof runner.getIterable> extends AsyncGenerator<infer E>
+  ReturnType<typeof runner.iterateEvents> extends AsyncGenerator<infer E>
     ? E
     : never
 > = runner;
-const iterable: AsyncGenerator = runner.getIterable();
+const iterable: AsyncGenerator = runner.iterateEvents();
 const result: Promise<typeof runner> = runner.run();
 
 const breadthConfig: AsyncBreadthFirstTraversalInstanceConfig<Input, Output> = {
   traversableTree: tree,
   sortChildrenHints: async (hints) => hints,
-  visitors: { [BreadthFirstTraversalOrder.LEVEL_ORDER]: [] },
+  visitors: { [BreadthFirstPhase.LEVEL_ORDER]: [] },
   saveNotMutatedResolvedTree: false,
   traversalRunnerInternalObjects: {
     resolvedTreesContainer: null,
@@ -94,7 +94,7 @@ const breadthTraversal = new AsyncBreadthFirstTreeTraversal<Input, Output>(
   breadthConfig,
 );
 const breadthVisitor: AsyncTraversalVisitor<
-  BreadthFirstTraversalOrder,
+  BreadthFirstPhase,
   Input,
   Output
 > = async () => ({
@@ -106,24 +106,24 @@ const breadthVisitor: AsyncTraversalVisitor<
   ],
 });
 breadthTraversal.addVisitorFor(
-  BreadthFirstTraversalOrder.LEVEL_ORDER,
+  BreadthFirstPhase.LEVEL_ORDER,
   breadthVisitor,
 );
 breadthTraversal.setVisitorsFor(
-  BreadthFirstTraversalOrder.LEVEL_ORDER,
-  breadthTraversal.listVisitorsFor(BreadthFirstTraversalOrder.LEVEL_ORDER),
+  BreadthFirstPhase.LEVEL_ORDER,
+  breadthTraversal.listVisitorsFor(BreadthFirstPhase.LEVEL_ORDER),
 );
 const breadthRunner = breadthTraversal.createRunner();
 const breadthExecution: AsyncCoreExecution<
-  ReturnType<typeof breadthRunner.getIterable> extends AsyncGenerator<infer E>
+  ReturnType<typeof breadthRunner.iterateEvents> extends AsyncGenerator<infer E>
     ? E
     : never
 > = breadthRunner;
-const breadthIterable: AsyncGenerator = breadthRunner.getIterable();
+const breadthIterable: AsyncGenerator = breadthRunner.iterateEvents();
 const breadthResult: Promise<typeof breadthRunner> = breadthRunner.run();
 
 breadthTraversal.addVisitorFor(
-  BreadthFirstTraversalOrder.LEVEL_ORDER,
+  BreadthFirstPhase.LEVEL_ORDER,
   // @ts-expect-error Async BFS visitors must rewrite to the output data type.
   async () => ({
     commands: [
@@ -136,7 +136,7 @@ breadthTraversal.addVisitorFor(
 );
 
 // @ts-expect-error Async DFS visitors must rewrite to the output data type.
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, async () => ({
+traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, async () => ({
   commands: [
     {
       commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,

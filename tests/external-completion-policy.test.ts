@@ -1,7 +1,7 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
@@ -83,7 +83,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ...external,
     });
     traversal.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       (vertex) => {
         seen.push(vertex.getData());
         return {
@@ -108,9 +108,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       runner.summary().vertices.get(id)!.generation!,
     );
     const events: string[] = [];
-    for await (const event of runner.getIterable())
-      events.push(`${event.order}:${event.vertex.getData()}`);
-    expect(events).toContain('ON_READY:committed');
+    for await (const event of runner.iterateEvents())
+      events.push(`${event.kind}:${event.vertex.getData()}`);
+    expect(events).toContain('workCompleted:committed');
     expect(seen).toEqual(['A', 'B']);
   });
 
@@ -122,7 +122,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       completedWork: new Set(['A']),
       ...external,
     });
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       throw new Error('filtered callback ran');
     });
     const runner = traversal.createRunner();
@@ -155,7 +155,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ...external,
     });
     traversal.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       () => ({
         commands: [
           {
@@ -167,11 +167,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { commandCommitMode: 'afterGroup' },
     );
     traversal.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       () => ({ commands: [{ commandName: Command.DEFER_READY }] }),
       { commandCommitMode: 'afterGroup' },
     );
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       throw new Error('must skip later callback');
     });
     const runner = traversal.createRunner();
@@ -181,9 +181,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(runner.summary().vertices.get('A')!.generation).toBe(generation);
     runner.settle('A', { kind: 'workCompleted' }, generation);
     const events: string[] = [];
-    for await (const event of runner.getIterable())
-      events.push(`${event.order}:${event.vertex.getData()}`);
-    expect(events).toEqual(['ON_READY:A', 'ON_COMPLETE:A']);
+    for await (const event of runner.iterateEvents())
+      events.push(`${event.kind}:${event.vertex.getData()}`);
+    expect(events).toEqual(['workCompleted:A', 'subgraphCompleted:A']);
     expect(runner.summary().deferredIds).toEqual(['B']);
     expect(runner.settle('A', { kind: 'workCompleted' }, generation)).toBe(
       false,
@@ -241,16 +241,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       ...external,
     });
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => ({
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => ({
       commands: [
         {
           commandName: Command.REWRITE_VERTEX_DATA,
           commandArguments: { newData: vertex.getData() + '!' },
         },
-        { commandName: Command.HALT_TRAVERSAL },
+        { commandName: Command.PAUSE_TRAVERSAL },
       ],
     }));
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getData());
     });
     const runner = traversal.createRunner();
@@ -270,7 +270,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       ...external,
     });
-    traversal.addVisitorFor(Order.ON_READY, () => ({
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
       commands: [{ commandName: Command.DELETE_VERTEX }],
     }));
     const runner = traversal.createRunner();
@@ -318,7 +318,7 @@ test('async external settlement frees logical chain capacity while a physical ca
       }),
     },
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
     seen.push(vertex.getData());
     return vertex.getData() === 'busy' ? release.promise : undefined;
   });
@@ -356,11 +356,11 @@ test('external async close drains callbacks before recording pause and retains g
       }),
     },
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'busy' ? release.promise : undefined,
   );
   const runner = traversal.createRunner();
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
   const pending = iterator.next();
   await eventLoopTurn();
   const generation = runner.summary().vertices.get('A')!.generation!;

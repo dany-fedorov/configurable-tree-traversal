@@ -82,7 +82,7 @@ function createLifecycleInspection(library, fixture, completed, options) {
     return library.DEFER_READY;
   };
   traversal.addVisitorFor(
-    library.DagTraversalOrder.ON_READY,
+    library.DagVisitorPhase.ON_WORK_READY,
     options.mode === 'async'
       ? async () => {
           await Promise.resolve();

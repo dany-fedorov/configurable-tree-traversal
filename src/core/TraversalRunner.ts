@@ -12,7 +12,7 @@ export type TreeTraversalEvent<
 > = {
   vertex: Vertex<TTP | RW_TTP>;
   vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
-  order: ORDER;
+  phase: ORDER;
   isTreeRoot: boolean;
   isTraversalRoot: boolean;
 };
@@ -64,10 +64,10 @@ export abstract class TreeTraversalRunner<
 
   abstract requestPause(): boolean;
 
-  abstract run: (config?: TraversalIterableConfigInput<ORDER>) => this;
+  abstract run: (config?: TraversalIterableConfigInput<ORDER, ORDER>) => this;
 
-  abstract getIterable: (
-    config?: TraversalIterableConfigInput<ORDER>,
+  abstract iterateEvents: (
+    config?: TraversalIterableConfigInput<ORDER, ORDER>,
   ) => Generator<
     TreeTraversalEvent<ORDER, TTP, RW_TTP>,
     void,

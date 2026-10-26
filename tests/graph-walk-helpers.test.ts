@@ -25,7 +25,7 @@ it('runs canonical phase-keyed visitors and returns independent sync runners', (
   const seen: string[] = [];
   const runner = walkGraph({
     source,
-    emitPhases: [],
+    emitEvents: [],
     visitors: {
       [Phase.VERTEX]: (event) => {
         seen.push(`v:${event.vertex.data}`);
@@ -56,7 +56,7 @@ it('awaits async visitors and returns the completed async runner', async () => {
     ),
     revisit: 'walks',
     limits: { maxDepth: 1 },
-    emitPhases: [],
+    emitEvents: [],
     visitors: {
       [Phase.VERTEX]: async (event) => {
         seen.push(`v:${event.vertex.data}`);
@@ -84,7 +84,7 @@ it('returns a halted sync runner that resumes after the admitted callback', () =
       [Phase.VERTEX]: [
         () => {
           seen.push('halt');
-          return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+          return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
         },
         () => {
           seen.push('tail');
@@ -107,7 +107,7 @@ it('returns a halted async runner that resumes after the admitted callback', asy
       [Phase.VERTEX]: [
         async () => {
           seen.push('halt');
-          return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+          return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
         },
         async () => {
           seen.push('tail');

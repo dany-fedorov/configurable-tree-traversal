@@ -9,9 +9,9 @@ import {
   DepthFirstTreeTraversal,
   GraphWalk,
   GraphWalkPhase as WALK,
-  BreadthFirstTraversalOrder as BFS,
-  DagTraversalOrder as DAG,
-  DepthFirstTraversalOrder as DFS,
+  BreadthFirstPhase as BFS,
+  DagVisitorPhase as DAG,
+  DepthFirstPhase as DFS,
   TraversalRunnerStatus,
   type CoreInspection,
   type GraphWalkEvent,
@@ -40,21 +40,21 @@ const dfs = new AsyncDepthFirstTreeTraversal({ traversableTree: tree });
 const concrete = dfs.createRunner();
 const common: AsyncCoreExecution<unknown> = concrete;
 common.run();
-common.run({ emitPhases: [], visitorPhases: 'all' });
+common.run({ emitEvents: [], visitorPhases: 'all' });
 // @ts-expect-error Erasing the execution family cannot grant DAG phases.
-common.run({ emitPhases: ['ON_READY'] });
+common.run({ emitEvents: ['ON_WORK_READY'] });
 // @ts-expect-error Erasing the execution family cannot grant even DFS phases.
-common.getIterable({ visitorPhases: { include: [DFS.PRE_ORDER] } });
+common.iterateEvents({ visitorPhases: { include: [DFS.PRE_ORDER] } });
 const precise: AsyncTraversalExecution<DFS, unknown> = concrete;
-precise.run({ emitPhases: [DFS.PRE_ORDER] });
+precise.run({ emitEvents: [DFS.PRE_ORDER] });
 precise.inspect();
 precise.requestPause();
 const asyncReturn: Promise<IteratorResult<unknown, void>> = precise
-  .getIterable()
+  .iterateEvents()
   .return(undefined);
 const asyncRun: Promise<typeof precise> = precise.run();
 // @ts-expect-error DFS abstraction rejects DAG phases.
-precise.run({ emitPhases: [DAG.ON_READY] });
+precise.run({ emitEvents: ['workCompleted'] });
 // @ts-expect-error Function parameter variance prevents unsafe widening from a concrete runner.
 const unsafeConcrete: AsyncTraversalExecution<DFS | DAG, unknown> = concrete;
 // @ts-expect-error Function parameter variance prevents unsafe widening through an abstraction.
@@ -62,7 +62,7 @@ const unsafeAbstract: AsyncTraversalExecution<DFS | DAG, unknown> = precise;
 // @ts-expect-error Historical name must also prevent unsafe phase widening.
 const unsafeHistorical: AsyncCoreExecution<unknown, DFS | DAG> = precise;
 // @ts-expect-error Concrete API still rejects another family's phase.
-concrete.getIterable({ emitPhases: [BFS.LEVEL_ORDER] });
+concrete.iterateEvents({ emitEvents: [BFS.LEVEL_ORDER] });
 
 const syncConcrete = new DepthFirstTreeTraversal({
   traversableTree: tree,
@@ -72,13 +72,13 @@ sync.inspect();
 sync.isHalted();
 sync.requestPause();
 const syncReturn: IteratorResult<unknown, void> = sync
-  .getIterable()
+  .iterateEvents()
   .return(undefined);
-const historical: TreeTraversalIterable<DFS, Tree, Tree> = sync.getIterable();
+const historical: TreeTraversalIterable<DFS, Tree, Tree> = sync.iterateEvents();
 const syncPrecise: SyncTraversalExecution<DFS, unknown> = sync;
 const syncRun: typeof syncPrecise = syncPrecise.run();
 // @ts-expect-error Sync abstraction rejects DAG phases.
-syncPrecise.run({ emitPhases: [DAG.ON_READY] });
+syncPrecise.run({ emitEvents: ['workCompleted'] });
 // @ts-expect-error Sync capability must reject unsafe phase widening.
 const unsafeSync: SyncTraversalExecution<DFS | DAG, unknown> = syncPrecise;
 // @ts-expect-error Historical sync class must reject unsafe phase widening.
@@ -86,27 +86,36 @@ const unsafeSyncHistorical: TreeTraversalRunner<DFS | DAG, Tree, Tree> = sync;
 // @ts-expect-error Concrete sync source cannot be widened either.
 const unsafeSyncConcrete: SyncTraversalExecution<DFS | DAG, unknown> =
   syncConcrete;
-const breadth: SyncTraversalExecution<BFS, unknown> = new BreadthFirstTreeTraversal(
-  { traversableTree: tree },
-).createRunner();
-const dag: SyncTraversalExecution<DAG, unknown> = new DagTraversal({
+const breadth: SyncTraversalExecution<BFS, unknown> =
+  new BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
+const dag: SyncTraversalExecution<
+  DAG,
+  unknown,
+  CoreInspection,
+  'workCompleted' | 'subgraphCompleted'
+> = new DagTraversal({
   traversableTree: tree,
 }).createRunner();
 const asyncBreadth: AsyncTraversalExecution<BFS, unknown> =
   new AsyncBreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
-const asyncDag: AsyncTraversalExecution<DAG, unknown> = new AsyncDagTraversal({
+const asyncDag: AsyncTraversalExecution<
+  DAG,
+  unknown,
+  CoreInspection,
+  'workCompleted' | 'subgraphCompleted'
+> = new AsyncDagTraversal({
   traversableTree: tree,
 }).createRunner();
-breadth.run({ emitPhases: [BFS.LEVEL_ORDER] });
-dag.run({ emitPhases: [DAG.ON_READY] });
-asyncBreadth.run({ emitPhases: [BFS.LEVEL_ORDER] });
-asyncDag.run({ emitPhases: [DAG.ON_READY] });
+breadth.run({ emitEvents: [BFS.LEVEL_ORDER] });
+dag.run({ emitEvents: ['workCompleted'] });
+asyncBreadth.run({ emitEvents: [BFS.LEVEL_ORDER] });
+asyncDag.run({ emitEvents: ['workCompleted'] });
 // @ts-expect-error BFS abstraction rejects DFS phases.
-breadth.getIterable({ emitPhases: [DFS.PRE_ORDER] });
+breadth.iterateEvents({ emitEvents: [DFS.PRE_ORDER] });
 // @ts-expect-error DAG abstraction rejects BFS phases.
-dag.getIterable({ visitorPhases: { exclude: [BFS.LEVEL_ORDER] } });
+dag.iterateEvents({ visitorPhases: { exclude: [BFS.LEVEL_ORDER] } });
 // @ts-expect-error Async BFS abstraction rejects DFS phases.
-asyncBreadth.run({ emitPhases: [DFS.PRE_ORDER] });
+asyncBreadth.run({ emitEvents: [DFS.PRE_ORDER] });
 // @ts-expect-error Async DAG abstraction rejects DFS phases.
 asyncDag.run({ iterateOver: [DFS.POST_ORDER] });
 void [
@@ -123,13 +132,13 @@ void [
   unsafeSyncConcrete,
 ];
 
-const closed = sync.getIterable().return(undefined);
+const closed = sync.iterateEvents().return(undefined);
 // @ts-expect-error A closed generator must not expose an unchecked any value.
 const invalidClosedValue: number = closed.value;
 // @ts-expect-error Closing a sync generator accepts only its void completion value.
-sync.getIterable().return(42);
+sync.iterateEvents().return(42);
 // @ts-expect-error Closing an async generator accepts only its void completion value.
-precise.getIterable().return(42);
+precise.iterateEvents().return(42);
 void invalidClosedValue;
 
 function paused(state: TraversalExecutionState<ExecutionInspection>): boolean {
@@ -196,16 +205,16 @@ const walkKind: 'graph-walk' = detailedWalk.inspect().kind;
 const graphMode: 'graph' = detailedAsyncWalk.inspect().sourceMode;
 const commonKind: string = commonWalk.inspect().kind;
 const syncWalkRun: typeof commonWalk = commonWalk.run({
-  emitPhases: [WALK.EDGE],
+  emitEvents: [WALK.EDGE],
 });
 const asyncWalkRun: Promise<typeof commonAsyncWalk> = commonAsyncWalk.run({
-  emitPhases: [WALK.VERTEX],
+  emitEvents: [WALK.VERTEX],
 });
 const syncWalkReturn: IteratorResult<WalkEvent, void> = detailedWalk
-  .getIterable()
+  .iterateEvents()
   .return(undefined);
 const asyncWalkReturn: Promise<IteratorResult<WalkEvent, void>> =
-  detailedAsyncWalk.getIterable().return(undefined);
+  detailedAsyncWalk.iterateEvents().return(undefined);
 for (const execution of [
   syncConcrete,
   concrete,
@@ -245,9 +254,9 @@ const unsafeAsyncWalk: AsyncTraversalExecution<
   ExecutionInspection
 > = walkingAsync;
 // @ts-expect-error Family-safe capabilities reject DAG phases.
-commonWalk.run({ emitPhases: [DAG.ON_READY] });
+commonWalk.run({ emitEvents: ['workCompleted'] });
 // @ts-expect-error Async generalized capabilities reject DFS phases.
-commonAsyncWalk.getIterable({ visitorPhases: [DFS.PRE_ORDER] });
+commonAsyncWalk.iterateEvents({ visitorPhases: [DFS.PRE_ORDER] });
 void [
   oldAsyncShape,
   oldState,

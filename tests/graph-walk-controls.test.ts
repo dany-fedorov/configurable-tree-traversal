@@ -20,7 +20,7 @@ it('filters before inline hydration and target lookup, keeping link indices', ()
     },
   })
     .createRunner()
-    .run({ emitPhases: [] });
+    .run({ emitEvents: [] });
   expect(calls).not.toContain('resolve:B');
   expect(followed).toEqual(['A:0', 'A:1', 'A:2', 'C:0', 'D:0']);
   expect(runner.summary().counts).toMatchObject({
@@ -66,7 +66,7 @@ it('emits pruned occurrences before expansion and retains the first pruning deci
       return vertex.vertexId !== 'B';
     },
   }).createRunner();
-  const iterator = runner.getIterable({ emitPhases: [Phase.VERTEX] });
+  const iterator = runner.iterateEvents({ emitEvents: [Phase.VERTEX] });
   expect(iterator.next().value).toMatchObject({ vertex: { vertexId: 'A' } });
   expect(expanded).toEqual([]);
   expect([...iterator].map((e) => e.vertex.vertexId)).toEqual([
@@ -152,7 +152,7 @@ it('detaches predicate wrappers from subsequent observations and expansion', () 
       return true;
     },
   }).createRunner();
-  expect([...runner.getIterable({ emitPhases: [Phase.EDGE] })]).toMatchObject([
+  expect([...runner.iterateEvents({ emitEvents: [Phase.EDGE] })]).toMatchObject([
     {
       edge: { from: 'A', to: 'B' },
       source: { vertexId: 'A' },

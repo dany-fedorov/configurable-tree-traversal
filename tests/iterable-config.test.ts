@@ -1,7 +1,7 @@
 import { makeEffectiveDepthFirstTraversalRunnerIterableConfig as depthConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
 import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig as breadthConfig } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
-import { DepthFirstTraversalOrder as DepthOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { BreadthFirstTraversalOrder as BreadthOrder } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
+import { DepthFirstPhase as DepthOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { BreadthFirstPhase as BreadthOrder } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
 
 test('effective depth-first options do not mutate future defaults', () => {
   const options = depthConfig();

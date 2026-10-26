@@ -1,6 +1,6 @@
 import {
-  BreadthFirstTraversalOrder,
-  DepthFirstTraversalOrder,
+  BreadthFirstPhase,
+  DepthFirstPhase,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   traverseTreeBreadthFirstAsync,
@@ -39,7 +39,7 @@ test('async breadth-first helper registers its visitor and returns a halted runn
     async (vertex) => {
       visits.push(vertex.getData());
       return {
-        commands: [{ commandName: TraversalVisitorCommandName.HALT_TRAVERSAL }],
+        commands: [{ commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL }],
       };
     },
   );
@@ -47,27 +47,27 @@ test('async breadth-first helper registers its visitor and returns a halted runn
   expect(visits).toEqual(['root']);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.HALTED);
   expect(runner.inspect().kind).toBe('breadth-first');
-  expect(BreadthFirstTraversalOrder.LEVEL_ORDER).toBe('LEVEL_ORDER');
+  expect(BreadthFirstPhase.LEVEL_ORDER).toBe('LEVEL_ORDER');
 });
 
 test('async depth-first helper registers each named visitor', async () => {
-  const orders: DepthFirstTraversalOrder[] = [];
+  const orders: DepthFirstPhase[] = [];
   const runner = await traverseTreeDepthFirstAsync(tree('root'), {
     preOrderVisitor: async (_vertex, options) => {
-      orders.push(options.order);
+      orders.push(options.phase);
     },
     inOrderVisitor: async (_vertex, options) => {
-      orders.push(options.order);
+      orders.push(options.phase);
     },
     postOrderVisitor: async (_vertex, options) => {
-      orders.push(options.order);
+      orders.push(options.phase);
     },
   });
 
   expect(orders).toEqual([
-    DepthFirstTraversalOrder.PRE_ORDER,
-    DepthFirstTraversalOrder.IN_ORDER,
-    DepthFirstTraversalOrder.POST_ORDER,
+    DepthFirstPhase.PRE_ORDER,
+    DepthFirstPhase.IN_ORDER,
+    DepthFirstPhase.POST_ORDER,
   ]);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });

@@ -2,7 +2,7 @@ import type { VisitorInputs } from '@core/TraversalVisitor';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import type { TreeSource } from '@core/TraversableTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import type { BreadthFirstTraversalRunnerInternalObjects } from './BreadthFirstTraversalRunnerInternalObjects';
 import type { BreadthFirstTraversalVisitors } from './BreadthFirstTraversalVisitors';
 import { deepFreeze } from '@utils/deepFreeze';
@@ -56,7 +56,7 @@ export const BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
 > = deepFreeze({
   sortChildrenHints: null,
   visitors: {
-    [BreadthFirstTraversalOrder.LEVEL_ORDER]: [],
+    [BreadthFirstPhase.LEVEL_ORDER]: [],
   },
   saveNotMutatedResolvedTree: false,
   traversalRunnerInternalObjects: {
@@ -80,8 +80,8 @@ export function mergeBreadthFirstTraversalInstanceConfigs<
     ...base,
     ...input,
     visitors: {
-      [BreadthFirstTraversalOrder.LEVEL_ORDER]: normalizeVisitorDefinitions(
-        visitors[BreadthFirstTraversalOrder.LEVEL_ORDER],
+      [BreadthFirstPhase.LEVEL_ORDER]: normalizeVisitorDefinitions(
+        visitors[BreadthFirstPhase.LEVEL_ORDER],
       ),
     },
     traversalRunnerInternalObjects: {

@@ -11,7 +11,7 @@ import type { TestGraph } from './helpers/graph-fixtures';
 import { CTTRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 
-function setup(iterateOver: Array<'ON_READY' | 'ON_COMPLETE'> = []) {
+function setup(iterateOver: Array<'ON_WORK_READY' | 'ON_SUBGRAPH_READY'> = []) {
   const kernel = new TraversalKernel<TestGraph>({
     kind: 'dag',
     execution: 'sync',
@@ -41,7 +41,7 @@ function setup(iterateOver: Array<'ON_READY' | 'ON_COMPLETE'> = []) {
 }
 
 test('invokes callbacks synchronously and restores the physical count', () => {
-  const kernel = setup(['ON_READY']);
+  const kernel = setup(['ON_WORK_READY']);
   const runtime: SyncDriverState = { inFlightCallbackCount: 0 };
   const seen: number[] = [];
   const bindings: CallbackBindings<TestGraph> = {
@@ -183,7 +183,7 @@ test('callback bindings dispatch every request by its discriminant', () => {
       return hints.reverse();
     },
     visit: {
-      ON_READY: () => {
+      ON_WORK_READY: () => {
         calls.push('visit');
         return undefined;
       },
@@ -234,13 +234,13 @@ test('callback bindings dispatch every request by its discriminant', () => {
       owner: { kind: 'chain', id: 3, epoch: 0 },
       kind: 'VISIT',
       ref,
-      order: 'ON_READY',
+      order: 'ON_WORK_READY',
       recordIndex: 0,
       metadata: {
-        vertexVisitIndex: 0,
-        curVertexVisitorVisitIndex: 0,
-        previousVisitedVertexRef: null,
-        vertexVisitorsChainState: null,
+        phaseVisitIndex: 0,
+        visitorIndex: 0,
+        previousPhaseVertexRef: null,
+        visitorChainState: null,
       },
     }),
   ).toEqual({ kind: 'VISIT', value: undefined });
@@ -270,13 +270,13 @@ test('callback bindings use sort fallback and reject missing visitors', () => {
       owner: { kind: 'chain', id: 2, epoch: 0 },
       kind: 'VISIT',
       ref: new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: [] })),
-      order: 'ON_READY',
+      order: 'ON_WORK_READY',
       recordIndex: 0,
       metadata: {
-        vertexVisitIndex: 0,
-        curVertexVisitorVisitIndex: 0,
-        previousVisitedVertexRef: null,
-        vertexVisitorsChainState: null,
+        phaseVisitIndex: 0,
+        visitorIndex: 0,
+        previousPhaseVertexRef: null,
+        visitorChainState: null,
       },
     }),
   ).toThrow(/no callback binding/i);

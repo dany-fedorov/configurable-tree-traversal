@@ -22,7 +22,7 @@ import {
   type AsyncDepthFirstTraversalVisitors,
 } from '@depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
 import { AsyncDepthFirstTreeRunner } from '@depth-first-traversal/lib/AsyncDepthFirstTraversalRunner';
-import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 
 export class AsyncDepthFirstTreeTraversal<
   TTP extends VertexTypes = VertexTypes,
@@ -55,7 +55,7 @@ export class AsyncDepthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends DepthFirstTraversalOrder>(
+  addVisitorFor<ORDER extends DepthFirstPhase>(
     order: ORDER,
     visitor: AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
@@ -76,7 +76,7 @@ export class AsyncDepthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends DepthFirstTraversalOrder>(
+  addVisitorGroupFor<ORDER extends DepthFirstPhase>(
     order: ORDER,
     group: VisitorGroupDefinition<
       AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
@@ -96,13 +96,13 @@ export class AsyncDepthFirstTreeTraversal<
     return this;
   }
 
-  listVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
+  listVisitorsFor<ORDER extends DepthFirstPhase>(
     order: ORDER,
   ): AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
     return copyVisitorRecords(this.visitors[order]);
   }
 
-  setVisitorsFor<ORDER extends DepthFirstTraversalOrder>(
+  setVisitorsFor<ORDER extends DepthFirstPhase>(
     order: ORDER,
     input: VisitorPhaseInput<
       AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>

@@ -77,7 +77,7 @@ it.each([
     const { source, calls } = contextFixture();
     const runner = new GraphWalk({ source, limits }).createRunner();
     expect([
-      ...runner.getIterable({ emitPhases: [Phase.VERTEX, Phase.PATH] }),
+      ...runner.iterateEvents({ emitEvents: [Phase.VERTEX, Phase.PATH] }),
     ]).toHaveLength(2);
     expect(calls).toEqual(['roots', 'resolve:A']);
     expect(runner.summary().counts).toMatchObject({
@@ -211,7 +211,7 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
       limits: { maxDepth: 2 },
     }).createRunner();
     const vertices = [
-      ...runner.getIterable({ emitPhases: [Phase.VERTEX] }),
+      ...runner.iterateEvents({ emitEvents: [Phase.VERTEX] }),
     ].map((e) => [e.vertex.vertexId, e.depth]);
     expect(vertices).toEqual(
       strategy === 'breadthFirst'

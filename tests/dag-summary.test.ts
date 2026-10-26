@@ -1,7 +1,7 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   DEFER_READY,
   type DagSummary,
 } from '../src/traversals/dag-traversal';
@@ -32,7 +32,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       calls++;
     });
     const runner = traversal.createRunner();
@@ -153,7 +153,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getData());
       return DEFER_READY;
     });
@@ -248,7 +248,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             }),
           },
         });
-        traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
+        traversal.addVisitorFor(Order.ON_WORK_READY, () => DEFER_READY);
         const runner = traversal.createRunner();
         await runner.run();
         expect(runner.summary().readyIds).toEqual(expected);
@@ -281,7 +281,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       calls++;
       const summary = runner.summary();
       expect(summary.inFlightIds.includes(vertex.getData())).toBe(true);
@@ -323,7 +323,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => DEFER_READY);
     const runner = traversal.createRunner();
     await runner.run();
     expect(runner.summary().counts.discovered).toBe(3);
@@ -356,7 +356,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       });
       let visited = false;
-      traversal.addVisitorFor(Order.ON_READY, () => {
+      traversal.addVisitorFor(Order.ON_WORK_READY, () => {
         visited = true;
         return DEFER_READY;
       });
@@ -385,7 +385,7 @@ test('async summary excludes unresolved callbacks and includes active completion
       resolveChild: () => ({ vertexContent: null }),
     },
   });
-  traversal.addVisitorFor(Order.ON_COMPLETE, () => complete.promise);
+  traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, () => complete.promise);
   const runner = traversal.createRunner();
   const running = runner.run();
   await eventLoopTurn();
@@ -416,7 +416,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => DEFER_READY);
     const runner = traversal.createRunner();
     await expect(async () => {
       await runner.run();

@@ -63,7 +63,7 @@ test('two object-ID instances compose a completion wire without sharing local id
     firstIds.get(finish),
   ]);
   expect(
-    [...result.dag.createRunner().getIterable()].map((e) => [
+    [...result.dag.createRunner().iterateEvents()].map((e) => [
       e.vertexId.name,
       e.kind,
     ]),
@@ -183,7 +183,7 @@ test('preserves forest order, detached prerequisites and empty-entry known omiss
   runner.run();
   expect(runner.summary().unusedCompletedWorkIds).toEqual([]);
   expect(
-    [...result.dag.createRunner().getIterable()]
+    [...result.dag.createRunner().iterateEvents()]
       .filter((e) => e.kind === 'workCompleted')
       .map((e) => e.vertexId),
   ).toEqual(['b', 'remote', 'a']);
@@ -475,7 +475,7 @@ test('remaps forest entry references and empty omission catalogs before composit
   const events: unknown[] = [];
   for await (const event of (
     await result.dag.createAsyncRunner()
-  ).getIterable())
+  ).iterateEvents())
     events.push([event.vertexId, event.kind]);
   expect(events).toEqual([
     [1, 'workCompleted'],
@@ -540,7 +540,7 @@ test('composition retains omitted discovery positions before dependent siblings'
     await result.dag.createAsyncRunner(),
   ]) {
     const events: unknown[] = [];
-    for await (const event of runner.getIterable())
+    for await (const event of runner.iterateEvents())
       events.push([event.vertexId, event.kind]);
     expect(events).toEqual([
       ['root', 'workCompleted'],

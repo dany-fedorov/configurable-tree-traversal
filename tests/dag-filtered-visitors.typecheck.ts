@@ -5,13 +5,13 @@ import {
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import type {
   DagVisitor,
   AsyncDagVisitor,
-  DagVisitorOptions,
+  DagVisitorContext,
 } from '../src/traversals/dag-traversal/lib/DagTraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
@@ -30,10 +30,10 @@ declare const traversal: DagTraversal<T, R, ID>;
 declare const asyncTraversal: AsyncDagTraversal<T, R, ID>;
 
 traversal.addVisitorFor(
-  Order.ON_READY,
+  Order.ON_WORK_READY,
   filterDagVisitor(isTask, (data, options) => {
     const task: Task = data;
-    const context: DagVisitorOptions<T, R, Order.ON_READY, ID> = options;
+    const context: DagVisitorContext<T, R, Order.ON_WORK_READY, ID> = options;
     const graph: ResolvedGraph<T | R, ID> = options.resolvedGraph;
     const current: Data = options.vertexRef.unref().getData();
     // @ts-expect-error The live graph remains heterogeneous.
@@ -56,11 +56,11 @@ traversal.addVisitorFor(
   }),
 );
 
-const ready: DagVisitor<T, R, Order.ON_READY, ID> = filterDagVisitor(
+const ready: DagVisitor<T, R, Order.ON_WORK_READY, ID> = filterDagVisitor(
   isTask,
   () => DEFER_READY,
 );
-const asyncReady: AsyncDagVisitor<T, R, Order.ON_READY, ID> =
+const asyncReady: AsyncDagVisitor<T, R, Order.ON_WORK_READY, ID> =
   filterAsyncDagVisitor(
     isTask,
     async (): Promise<typeof DEFER_READY> => DEFER_READY,
@@ -73,7 +73,7 @@ const standalone = filterDagVisitor(isTask, (data) => {
 });
 
 traversal.addVisitorFor(
-  Order.ON_READY,
+  Order.ON_WORK_READY,
   filterDagVisitor(
     (data: Data): boolean => data.kind === 'task',
     (data) => {
@@ -86,10 +86,10 @@ traversal.addVisitorFor(
 );
 
 traversal.addVisitorFor(
-  Order.ON_COMPLETE,
+  Order.ON_SUBGRAPH_READY,
   // @ts-expect-error Narrowed input does not change the output rewrite type.
   filterDagVisitor(isTask, (data, options) => {
-    const phase: Order.ON_COMPLETE = options.order;
+    const phase: Order.ON_SUBGRAPH_READY = options.phase;
     void [data.label, phase];
     return {
       commands: [
@@ -103,12 +103,12 @@ traversal.addVisitorFor(
 );
 
 traversal.addVisitorFor(
-  Order.ON_COMPLETE,
+  Order.ON_SUBGRAPH_READY,
   // @ts-expect-error Completion-phase visitors cannot defer ready work.
   filterDagVisitor(isTask, () => DEFER_READY),
 );
 asyncTraversal.addVisitorFor(
-  Order.ON_COMPLETE,
+  Order.ON_SUBGRAPH_READY,
   filterAsyncDagVisitor(
     isTask,
     // @ts-expect-error Async completion-phase visitors cannot defer ready work.
@@ -121,7 +121,7 @@ const mixed: DagVisitor<T, R, Order, ID> = filterDagVisitor(
   () => DEFER_READY,
 );
 traversal.addVisitorFor(
-  Order.ON_READY,
+  Order.ON_WORK_READY,
   // @ts-expect-error A predicate must accept rewritten output data too.
   filterDagVisitor(
     (data: Input) => data.kind === 'task',
@@ -129,7 +129,7 @@ traversal.addVisitorFor(
   ),
 );
 traversal.addVisitorFor(
-  Order.ON_COMPLETE,
+  Order.ON_SUBGRAPH_READY,
   // @ts-expect-error Completion visitors cannot rewrite child hints.
   filterDagVisitor(isTask, () => ({
     commands: [
@@ -142,9 +142,9 @@ traversal.addVisitorFor(
 );
 
 asyncTraversal.addVisitorFor(
-  Order.ON_READY,
+  Order.ON_WORK_READY,
   filterAsyncDagVisitor(isTask, async (data, options) => {
-    const context: DagVisitorOptions<T, R, Order.ON_READY, ID> = options;
+    const context: DagVisitorContext<T, R, Order.ON_WORK_READY, ID> = options;
     void context;
     return {
       commands: [
@@ -159,7 +159,7 @@ asyncTraversal.addVisitorFor(
   }),
 );
 traversal.addVisitorFor(
-  Order.ON_READY,
+  Order.ON_WORK_READY,
   // @ts-expect-error Sync filtering cannot admit an async callback.
   filterDagVisitor(isTask, async () => undefined),
 );

@@ -19,7 +19,7 @@ for (const revisit of ['simplePaths', 'walks'] as const) {
     revisit,
     limits: { maxDepth: 2 },
   }).createRunner();
-  const paths = [...runner.getIterable({ emitPhases: [GraphWalkPhase.PATH] })];
+  const paths = [...runner.iterateEvents({ emitEvents: [GraphWalkPhase.PATH] })];
   // Paths include the zero-edge root and every admitted prefix, not only leaves.
   assert.equal(paths[0]!.depth, 0);
   assert.equal(paths[1]!.edges[0]!.index, 0);

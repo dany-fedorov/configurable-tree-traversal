@@ -1,7 +1,7 @@
 import type { MaterializedDagSource } from '../src/sources';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import {
   materializeDagSourceFromRecords,
   materializeDagSourceFromRoots,
@@ -69,7 +69,7 @@ test('arbitrary IDs retain identity and caller data stays shared and unfrozen', 
     items[0]!.value = 2;
     const traversal = new DagTraversal(source);
     const seen: typeof items = [];
-    traversal.addVisitorFor(DagTraversalOrder.ON_READY, (vertex) => {
+    traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getData());
     });
     const runner = traversal.createRunner();
@@ -315,7 +315,7 @@ test('empty forests produce finished empty graphs with no holder events', async 
     await materializeDagSourceFromRootsAsync([], { id: (item: string) => item }),
   ]) {
     const runner = new DagTraversal(source).createRunner();
-    expect([...runner.getIterable()]).toEqual([]);
+    expect([...runner.iterateEvents()]).toEqual([]);
     expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
   }
 });

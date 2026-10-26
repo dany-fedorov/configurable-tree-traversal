@@ -3,7 +3,7 @@ import type { Ref, VertexId } from '@core/graph/types';
 
 export type EligibleVisit<T extends VertexTypes> = {
   ref: Ref<T>;
-  order: 'ON_READY' | 'ON_COMPLETE';
+  order: 'ON_WORK_READY' | 'ON_SUBGRAPH_READY';
 };
 
 export type GraphStall<T extends VertexTypes> = {

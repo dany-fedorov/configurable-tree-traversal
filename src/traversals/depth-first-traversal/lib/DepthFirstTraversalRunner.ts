@@ -22,7 +22,7 @@ import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { deepFreeze } from '@utils/deepFreeze';
 import { DepthFirstTraversalRunnerState } from './DepthFirstTraversalRunnerState';
 import { DepthFirstTraversalResolvedTreesContainer } from './DepthFirstTraversalResolvedTreesContainer';
-import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
+import { DepthFirstPhase } from './DepthFirstTraversalOrder';
 import {
   mergeInstanceConfigs,
   type DepthFirstTraversalInstanceConfig,
@@ -37,12 +37,12 @@ import { initVisitors } from '../init-helpers/initVisitors';
 type Event<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
-> = TreeTraversalEvent<DepthFirstTraversalOrder, TTP, RW_TTP>;
+> = TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>;
 
 export class DepthFirstTreeRunner<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
-> implements TreeTraversalRunner<DepthFirstTraversalOrder, TTP, RW_TTP>
+> implements TreeTraversalRunner<DepthFirstPhase, TTP, RW_TTP>
 {
   icfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
   state: DepthFirstTraversalRunnerState<TTP, RW_TTP>;
@@ -91,7 +91,7 @@ export class DepthFirstTreeRunner<
               )['VertexHint'][],
           }),
       visit: Object.fromEntries(
-        Object.values(DepthFirstTraversalOrder).map((order) => [
+        Object.values(DepthFirstPhase).map((order) => [
           order,
           (
             call: Extract<
@@ -99,8 +99,8 @@ export class DepthFirstTreeRunner<
               { kind: 'VISIT' }
             >,
           ) => {
-            const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
-            return visitorRecord.visitor(call.ref.unref(), {
+            const registration = this.icfg.visitors[order][call.recordIndex]!;
+            return registration.visitor(call.ref.unref(), {
               ...call.metadata,
               resolvedTree: this.getResolvedTree(),
               notMutatedResolvedTree:
@@ -108,9 +108,9 @@ export class DepthFirstTreeRunner<
               isTreeRoot: this.isTreeRootVertex(call.ref),
               isTraversalRoot: this.isTraversalRootVertex(call.ref),
               vertexRef: call.ref,
-              visitorRecord,
-              vertexVisitorsChainState: call.metadata.vertexVisitorsChainState,
-              order,
+              registration,
+              visitorChainState: call.metadata.visitorChainState,
+              phase: order,
               // The record and options share the same phase selected above.
             } as never);
           },
@@ -220,14 +220,14 @@ export class DepthFirstTreeRunner<
         yield {
           vertex: event.vertex,
           vertexRef: event.vertexRef,
-          order: event.order as DepthFirstTraversalOrder,
+          phase: event.order as DepthFirstPhase,
           isTreeRoot: event.isRoot,
           isTraversalRoot: event.isTraversalRoot,
         };
     }
   }
 
-  *getIterable(
+  *iterateEvents(
     config?: DepthFirstTraversalRunnerIterableConfigInput,
   ): Generator<Event<TTP, RW_TTP>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
@@ -266,7 +266,7 @@ export class DepthFirstTreeRunner<
   }
 
   run(config?: DepthFirstTraversalRunnerIterableConfigInput): this {
-    for (const _event of this.getIterable(config)) {
+    for (const _event of this.iterateEvents(config)) {
       /* Drain traversal events. */
     }
     return this;

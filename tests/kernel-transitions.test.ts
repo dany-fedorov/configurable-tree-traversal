@@ -35,14 +35,14 @@ function makeKernel(
     container,
     stateBridge,
     visitorMetadata: {
-      ON_READY: Array.from({ length: visitorCount }, (_, addedIndex) => ({
+      ON_WORK_READY: Array.from({ length: visitorCount }, (_, addedIndex) => ({
         addedIndex,
         priority: 100,
         resolutionStyle: Style.SEQUENTIAL,
       })),
       ...(options.includeCompletion
         ? {
-            ON_COMPLETE: [
+            ON_SUBGRAPH_READY: [
               {
                 addedIndex: 0,
                 priority: 100,
@@ -53,7 +53,7 @@ function makeKernel(
         : {}),
     },
     iterableConfig: {
-      iterateOver: options.iterateOver ?? ['ON_READY'],
+      iterateOver: options.iterateOver ?? ['ON_WORK_READY'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
@@ -178,7 +178,7 @@ test('steps from an owned root request through visit and event backpressure', ()
   const visit = kernel.poll('drive');
   expect(visit.kind).toBe('CALL');
   if (visit.kind !== 'CALL') throw new Error('Expected visitor call');
-  expect(visit.call).toMatchObject({ kind: 'VISIT', order: 'ON_READY' });
+  expect(visit.call).toMatchObject({ kind: 'VISIT', order: 'ON_WORK_READY' });
 
   kernel.submit({
     requestId: visit.call.requestId,
@@ -229,9 +229,9 @@ test('resume copies every optional filter shape without retaining caller arrays'
   const { kernel } = makeKernel();
   kernel.resume({});
   kernel.resume({
-    iterateOver: ['ON_COMPLETE'],
-    enableVisitorFunctionsFor: ['ON_READY'],
-    disableVisitorFunctionsFor: ['ON_COMPLETE'],
+    iterateOver: ['ON_SUBGRAPH_READY'],
+    enableVisitorFunctionsFor: ['ON_WORK_READY'],
+    disableVisitorFunctionsFor: ['ON_SUBGRAPH_READY'],
   });
   const configured = kernel.inspect().iterableConfig;
   kernel.resume({});
@@ -339,7 +339,7 @@ test('kernel inspection maps breadth-first policy frames', () => {
       scheduling: { eligible: Array<{ ref: Ref<TestGraph>; order: string }> };
     }
   ).scheduling;
-  scheduling.eligible.push({ ref: vertexRef, order: 'ON_COMPLETE' });
+  scheduling.eligible.push({ ref: vertexRef, order: 'ON_SUBGRAPH_READY' });
   expect(kernel.inspect().readyVisits).toEqual([
     { vertexRefId: vertexRef.getId(), order: 'LEVEL_ORDER' },
   ]);
@@ -528,7 +528,7 @@ test('commits a halting command batch once and resumes at the next visitor', () 
             commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
             commandArguments: { vertexVisitorsChainState: 'once' },
           },
-          { commandName: Command.HALT_TRAVERSAL },
+          { commandName: Command.PAUSE_TRAVERSAL },
         ],
       },
     },
@@ -547,8 +547,8 @@ test('commits a halting command batch once and resumes at the next visitor', () 
   }
   expect(second.call.recordIndex).toBe(1);
   expect(second.call.metadata).toMatchObject({
-    curVertexVisitorVisitIndex: 1,
-    vertexVisitorsChainState: 'once',
+    visitorIndex: 1,
+    visitorChainState: 'once',
   });
 });
 
@@ -617,7 +617,7 @@ test('drains an already started chain before reporting HALTED', () => {
   const event = kernel.poll('drain');
   if (event.kind !== 'EVENT') throw new Error('Expected retained event');
   expect(kernel.inspect()).toMatchObject({
-    haltRequested: true,
+    pauseRequested: true,
     chains: [],
     pendingRequests: [],
     pendingEventBoundaryCount: 1,
@@ -805,7 +805,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
   if (completeA.kind !== 'CALL' || completeA.call.kind !== 'VISIT') {
     throw new Error('Expected A completion visitor call');
   }
-  expect(completeA.call.order).toBe('ON_COMPLETE');
+  expect(completeA.call.order).toBe('ON_SUBGRAPH_READY');
 
   kernel.submit({
     requestId: completeA.call.requestId,

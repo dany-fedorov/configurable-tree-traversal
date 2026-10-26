@@ -146,7 +146,7 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     'followEdge',
     'expandVertex',
     'visitors',
-    'emitPhases',
+    'emitEvents',
     'iterateOver',
     'visitorPhases',
     'enableVisitorFunctionsFor',
@@ -225,12 +225,22 @@ export function normalizeWalkOptions<Data, Edge, ID>(
         );
   }
   const defaults = normalizeTraversalExecutionOptions(phases, {
-    emitPhases: [GraphWalkPhase.VERTEX],
+    emitEvents: [GraphWalkPhase.VERTEX],
     visitorPhases: 'all',
   });
   const execution = normalizeTraversalExecutionOptions(
     phases,
-    snapshot as TraversalIterableConfigInput<GraphWalkPhase>,
+    Object.fromEntries(
+      Object.entries(snapshot).filter(([key]) =>
+        [
+          'emitEvents',
+          'iterateOver',
+          'visitorPhases',
+          'enableVisitorFunctionsFor',
+          'disableVisitorFunctionsFor',
+        ].includes(key),
+      ),
+    ) as TraversalIterableConfigInput<GraphWalkPhase>,
     previous?.execution ?? defaults,
   );
   return {

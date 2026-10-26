@@ -4,7 +4,7 @@ import type { TraversalVisitor } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { BreadthFirstTreeTraversal } from './BreadthFirstTraversal';
 import type { BreadthFirstTraversalInstanceConfigInput } from './lib/BreadthFirstTraversalInstanceConfig';
-import { BreadthFirstTraversalOrder } from './lib/BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from './lib/BreadthFirstTraversalOrder';
 import type { BreadthFirstTreeRunner } from './lib/BreadthFirstTraversalRunner';
 
 /** Options for a single-call BreadthFirst traversal with phase-keyed callbacks. */
@@ -16,7 +16,7 @@ export type BreadthFirstTraversalHelperOptions<
   'visitors' | 'traversableTree'
 > & { traversableTree: TreeSource<TTP, RW_TTP> } & {
   visitors?: {
-    [K in BreadthFirstTraversalOrder]?: VisitorPhaseInput<
+    [K in BreadthFirstPhase]?: VisitorPhaseInput<
       TraversalVisitor<K, TTP, RW_TTP>
     >;
   };
@@ -34,7 +34,7 @@ export function traverseTreeBreadthFirst<
   RW_TTP extends VertexTypes = TTP,
 >(
   traversableTree: TreeSource<TTP, RW_TTP>,
-  visitor: TraversalVisitor<BreadthFirstTraversalOrder, TTP, RW_TTP> | null,
+  visitor: TraversalVisitor<BreadthFirstPhase, TTP, RW_TTP> | null,
   config?: BreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
 ): BreadthFirstTreeRunner<TTP, RW_TTP>;
 export function traverseTreeBreadthFirst<
@@ -44,7 +44,7 @@ export function traverseTreeBreadthFirst<
   sourceOrOptions:
     | TreeSource<TTP, RW_TTP>
     | BreadthFirstTraversalHelperOptions<TTP, RW_TTP>,
-  visitor?: TraversalVisitor<BreadthFirstTraversalOrder, TTP, RW_TTP> | null,
+  visitor?: TraversalVisitor<BreadthFirstPhase, TTP, RW_TTP> | null,
   config?: BreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
 ): BreadthFirstTreeRunner<TTP, RW_TTP> {
   let traversalConfig: BreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>;
@@ -63,7 +63,7 @@ export function traverseTreeBreadthFirst<
   const traversal = new BreadthFirstTreeTraversal<TTP, RW_TTP>(traversalConfig);
   if (levelOrderVisitor) {
     traversal.addVisitorFor(
-      BreadthFirstTraversalOrder.LEVEL_ORDER,
+      BreadthFirstPhase.LEVEL_ORDER,
       levelOrderVisitor,
     );
   }

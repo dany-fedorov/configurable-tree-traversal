@@ -21,7 +21,7 @@ if (prepared.kind === 'valid') {
   const id: ID = dag.vertices[0]!.vertexId;
   const data: Task = dag.vertices[0]!.data;
   const runner = dag.createRunner({ completedWork: new Set<ID>(['research']) });
-  for (const event of runner.getIterable()) {
+  for (const event of runner.iterateEvents()) {
     const eventId: ID = event.vertexId;
     const hints: ID[] = event.vertex.getChildrenHints();
     void [eventId, hints];
@@ -57,7 +57,7 @@ async function checkAsync() {
   const result = await prepareDagAsync(source);
   if (result.kind !== 'valid') return;
   const runner = await result.dag.createAsyncRunner();
-  for await (const event of runner.getIterable()) {
+  for await (const event of runner.iterateEvents()) {
     const id: ID = event.vertexId;
     void id;
   }

@@ -9,7 +9,7 @@ const visitors = {
     commands: [
       { commandName: Command.NOOP as const, commandArguments: undefined },
       {
-        commandName: Command.HALT_TRAVERSAL as const,
+        commandName: Command.PAUSE_TRAVERSAL as const,
         commandArguments: undefined,
       },
     ],

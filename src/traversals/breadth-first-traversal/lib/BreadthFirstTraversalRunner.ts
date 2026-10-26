@@ -27,7 +27,7 @@ import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversa
 import { deepFreeze } from '@utils/deepFreeze';
 import { initBreadthFirstVisitors } from '../init-helpers/initVisitors';
 import type { BreadthFirstTraversalInstanceConfig } from './BreadthFirstTraversalInstanceConfig';
-import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import {
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
   type BreadthFirstTraversalRunnerIterableConfig,
@@ -39,7 +39,7 @@ type Event<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = TreeTraversalEvent<
-  BreadthFirstTraversalOrder,
+  BreadthFirstPhase,
   TTP,
   RW_TTP
 >;
@@ -47,7 +47,7 @@ type Event<
 export class BreadthFirstTreeRunner<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> implements TreeTraversalRunner<BreadthFirstTraversalOrder, TTP, RW_TTP>
+> implements TreeTraversalRunner<BreadthFirstPhase, TTP, RW_TTP>
 {
   icfg: BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
   state: BreadthFirstTraversalRunnerState<TTP, RW_TTP>;
@@ -106,12 +106,12 @@ export class BreadthFirstTreeRunner<
               )['VertexHint'][],
           }),
       visit: {
-        [BreadthFirstTraversalOrder.LEVEL_ORDER]: (
+        [BreadthFirstPhase.LEVEL_ORDER]: (
           call: Extract<CallSpec<TTP, RW_TTP>, { kind: 'VISIT' }>,
         ) => {
-          const order = BreadthFirstTraversalOrder.LEVEL_ORDER;
-          const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
-          return visitorRecord.visitor(call.ref.unref(), {
+          const order = BreadthFirstPhase.LEVEL_ORDER;
+          const registration = this.icfg.visitors[order][call.recordIndex]!;
+          return registration.visitor(call.ref.unref(), {
             ...call.metadata,
             resolvedTree: this.getResolvedTree(),
             notMutatedResolvedTree:
@@ -119,9 +119,9 @@ export class BreadthFirstTreeRunner<
             isTreeRoot: this.isTreeRootVertex(call.ref),
             isTraversalRoot: this.isTraversalRootVertex(call.ref),
             vertexRef: call.ref,
-            visitorRecord,
-            vertexVisitorsChainState: call.metadata.vertexVisitorsChainState,
-            order,
+            registration,
+            visitorChainState: call.metadata.visitorChainState,
+            phase: order,
           });
         },
       },
@@ -133,8 +133,8 @@ export class BreadthFirstTreeRunner<
       container: graphContainer,
       stateBridge: this.state,
       visitorMetadata: {
-        [BreadthFirstTraversalOrder.LEVEL_ORDER]: this.icfg.visitors[
-          BreadthFirstTraversalOrder.LEVEL_ORDER
+        [BreadthFirstPhase.LEVEL_ORDER]: this.icfg.visitors[
+          BreadthFirstPhase.LEVEL_ORDER
         ].map(
           ({
             addedIndex,
@@ -221,14 +221,14 @@ export class BreadthFirstTreeRunner<
         yield {
           vertex: event.vertex,
           vertexRef: event.vertexRef,
-          order: event.order as BreadthFirstTraversalOrder,
+          phase: event.order as BreadthFirstPhase,
           isTreeRoot: event.isRoot,
           isTraversalRoot: event.isTraversalRoot,
         };
     }
   }
 
-  *getIterable(
+  *iterateEvents(
     config?: BreadthFirstTraversalRunnerIterableConfigInput,
   ): Generator<Event<TTP, RW_TTP>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
@@ -269,7 +269,7 @@ export class BreadthFirstTreeRunner<
   }
 
   run(config?: BreadthFirstTraversalRunnerIterableConfigInput): this {
-    for (const _event of this.getIterable(config)) {
+    for (const _event of this.iterateEvents(config)) {
       /* Drain traversal events. */
     }
     return this;

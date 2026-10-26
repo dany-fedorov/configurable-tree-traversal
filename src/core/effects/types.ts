@@ -22,8 +22,8 @@ export type VisitOrder =
   | 'IN_ORDER'
   | 'POST_ORDER'
   | 'LEVEL_ORDER'
-  | 'ON_READY'
-  | 'ON_COMPLETE';
+  | 'ON_WORK_READY'
+  | 'ON_SUBGRAPH_READY';
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
@@ -36,10 +36,10 @@ export type OwnerToken = {
 };
 
 export type VisitMetadata<T extends VertexTypes> = {
-  vertexVisitIndex: number;
-  curVertexVisitorVisitIndex: number;
-  previousVisitedVertexRef: Ref<T> | null;
-  vertexVisitorsChainState: unknown;
+  phaseVisitIndex: number;
+  visitorIndex: number;
+  previousPhaseVertexRef: Ref<T> | null;
+  visitorChainState: unknown;
 };
 
 export type CallSpec<

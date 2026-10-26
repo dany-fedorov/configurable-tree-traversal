@@ -5,9 +5,9 @@ import {
   AsyncBreadthFirstTreeTraversal,
   DagTraversal,
   AsyncDagTraversal,
-  DepthFirstTraversalOrder as F,
-  BreadthFirstTraversalOrder as B,
-  DagTraversalOrder as D,
+  DepthFirstPhase as F,
+  BreadthFirstPhase as B,
+  DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
   TraversalVisitorFunctionResolutionStyle as Style,
   type Vertex,
@@ -188,26 +188,26 @@ const families = [
     create(calls: string[], shape: Shape) {
       const traversal = new DagTraversal<T, T, string>({
         traversableGraph,
-        visitors: { [D.ON_READY]: definitions(calls, shape) },
+        visitors: { [D.ON_WORK_READY]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(D.ON_READY),
+        list: () => traversal.listVisitorsFor(D.ON_WORK_READY),
         run: () => traversal.createRunner().run(),
         roundTrip: () =>
           traversal.setVisitorsFor(
-            D.ON_READY,
-            traversal.listVisitorsFor(D.ON_READY),
+            D.ON_WORK_READY,
+            traversal.listVisitorsFor(D.ON_WORK_READY),
           ),
         replace: () =>
           traversal.configure({
             visitors: {
-              [D.ON_READY]: () => {
+              [D.ON_WORK_READY]: () => {
                 calls.push('configured');
               },
             },
           }),
         add: () =>
-          traversal.addVisitorFor(D.ON_READY, () => {
+          traversal.addVisitorFor(D.ON_WORK_READY, () => {
             calls.push('added');
           }),
       };
@@ -218,26 +218,26 @@ const families = [
     create(calls: string[], shape: Shape) {
       const traversal = new AsyncDagTraversal<T, T, string>({
         traversableGraph,
-        visitors: { [D.ON_READY]: definitions(calls, shape) },
+        visitors: { [D.ON_WORK_READY]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(D.ON_READY),
+        list: () => traversal.listVisitorsFor(D.ON_WORK_READY),
         run: () => traversal.createRunner().run(),
         roundTrip: () =>
           traversal.setVisitorsFor(
-            D.ON_READY,
-            traversal.listVisitorsFor(D.ON_READY),
+            D.ON_WORK_READY,
+            traversal.listVisitorsFor(D.ON_WORK_READY),
           ),
         replace: () =>
           traversal.configure({
             visitors: {
-              [D.ON_READY]: () => {
+              [D.ON_WORK_READY]: () => {
                 calls.push('configured');
               },
             },
           }),
         add: () =>
-          traversal.addVisitorFor(D.ON_READY, () => {
+          traversal.addVisitorFor(D.ON_WORK_READY, () => {
             calls.push('added');
           }),
       };

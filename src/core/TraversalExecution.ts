@@ -22,22 +22,26 @@ export interface SyncTraversalExecution<
   Phase extends string,
   Event,
   Inspection extends ExecutionInspection = CoreInspection,
+  EmittedKind extends string = Phase,
 > extends TraversalExecutionState<Inspection> {
   // Function properties preserve contravariance: a family cannot be widened to
   // accept phases which its concrete runner does not support.
-  getIterable: (
-    config?: TraversalIterableConfigInput<Phase>,
+  iterateEvents: (
+    config?: TraversalIterableConfigInput<Phase, EmittedKind>,
   ) => Generator<Event, void, unknown>;
-  run: (config?: TraversalIterableConfigInput<Phase>) => this;
+  run: (config?: TraversalIterableConfigInput<Phase, EmittedKind>) => this;
 }
 
 export interface AsyncTraversalExecution<
   Phase extends string,
   Event,
   Inspection extends ExecutionInspection = CoreInspection,
+  EmittedKind extends string = Phase,
 > extends TraversalExecutionState<Inspection> {
-  getIterable: (
-    config?: TraversalIterableConfigInput<Phase>,
+  iterateEvents: (
+    config?: TraversalIterableConfigInput<Phase, EmittedKind>,
   ) => AsyncGenerator<Event, void, unknown>;
-  run: (config?: TraversalIterableConfigInput<Phase>) => Promise<this>;
+  run: (
+    config?: TraversalIterableConfigInput<Phase, EmittedKind>,
+  ) => Promise<this>;
 }

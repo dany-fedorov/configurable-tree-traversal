@@ -1,12 +1,12 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
 } from '../src/traversals/depth-first-traversal';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import {
@@ -26,7 +26,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversal = new Constructor<G>({ traversableGraph: rootOnly });
     let visits = 0;
     traversal.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       () => ({
         commands: [
           {
@@ -38,18 +38,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { resolutionStyle: Style.CONCURRENT },
     );
     traversal.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       () => {
         visits++;
         return DEFER_READY;
       },
       { resolutionStyle: Style.CONCURRENT },
     );
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       throw Error('must skip');
     });
     const runner = traversal.createRunner();
-    await runner.run({ iterateOver: [Order.ON_READY] });
+    await runner.run({ iterateOver: [Order.ON_WORK_READY] });
     const token = runner.summary().vertices.get('a')!.generation!;
     expect(() => runner.settle('missing', { ok: true }, token)).toThrow();
     expect(() => runner.settle('a', { ok: true }, Symbol())).toThrow();
@@ -59,11 +59,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     runner.settle('a', { ok: true }, token);
     runner.settle('a', { ok: true }, token);
     const events: string[] = [];
-    for await (const event of runner.getIterable({
-      iterateOver: [Order.ON_COMPLETE],
+    for await (const event of runner.iterateEvents({
+      iterateOver: [Order.ON_SUBGRAPH_READY],
     }))
-      events.push(`${event.order}:${event.vertex.getData()}`);
-    expect(events).toEqual(['ON_READY:a', 'ON_COMPLETE:a']);
+      events.push(`${event.kind}:${event.vertex.getData()}`);
+    expect(events).toEqual(['workCompleted:a', 'subgraphCompleted:a']);
     expect(visits).toBe(2);
   });
 
@@ -71,7 +71,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     `${Constructor.name} preserves settlement error %p and guards replay`,
     async (error) => {
       const traversal = new Constructor<G>({ traversableGraph: rootOnly });
-      traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
+      traversal.addVisitorFor(Order.ON_WORK_READY, () => DEFER_READY);
       const runner = traversal.createRunner();
       await runner.run();
       const token = runner.summary().vertices.get('a')!.generation!;
@@ -92,10 +92,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} rejects completion deferral`, async () => {
     const traversal = new Constructor<G>({ traversableGraph: rootOnly });
     // @ts-expect-error Runtime validation for JavaScript callers.
-    traversal.addVisitorFor(Order.ON_COMPLETE, () => DEFER_READY);
+    traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, () => DEFER_READY);
     await expect(async () => {
       await traversal.createRunner().run();
-    }).rejects.toThrow(/ON_READY/);
+    }).rejects.toThrow(/ON_WORK_READY/);
   });
 
   test(`${Constructor.name} lazy deferred discovery reports a partial frontier until settlement`, async () => {
@@ -112,7 +112,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => DEFER_READY);
     const runner = traversal.createRunner();
     await runner.run();
     expect(runner.summary().discovery).toEqual({
@@ -146,10 +146,10 @@ test('tree visitors cannot use the DAG deferral sentinel', () => {
     },
   });
   traversal.addVisitorFor(
-    DepthFirstTraversalOrder.PRE_ORDER,
+    DepthFirstPhase.PRE_ORDER,
     () => DEFER_READY as never,
   );
-  expect(() => traversal.createRunner().run()).toThrow(/ON_READY/);
+  expect(() => traversal.createRunner().run()).toThrow(/ON_WORK_READY/);
 });
 
 test('settlement wakes an active async consumer while another physical callback is pending', async () => {
@@ -168,7 +168,7 @@ test('settlement wakes an active async consumer while another physical callback 
       }),
     },
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
     const id = vertex.getData();
     seen.push(id);
     return id === 'b' ? waitB.promise : DEFER_READY;
@@ -208,7 +208,7 @@ test('deleted orphan refuses a previously issued deferred generation', async () 
       }),
     },
   });
-  traversal.addVisitorFor(Order.ON_READY, async (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
     if (vertex.getData() === 'p') {
       await finishP.promise;
       return { commands: [{ commandName: Command.DELETE_VERTEX }] };
@@ -238,11 +238,11 @@ test('halt waits for a physical callback and retains deferred handles across res
       resolveChild: (id) => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
     },
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'a' ? DEFER_READY : release.promise,
   );
   const runner = traversal.createRunner();
-  const iterator = runner.getIterable({ iterateOver: [Order.ON_READY] });
+  const iterator = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
   const next = iterator.next();
   await eventLoopTurn();
   const token = runner.summary().vertices.get('a')!.generation!;
@@ -275,7 +275,7 @@ test('failure settlement cannot free a still-running callback permit or accept a
       resolveChild: (id) => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
     },
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'b' ? release.promise : DEFER_READY,
   );
   const runner = traversal.createRunner();
@@ -329,7 +329,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             }),
           },
         });
-        traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
+        traversal.addVisitorFor(Order.ON_WORK_READY, () => DEFER_READY);
         return traversal.createRunner();
       };
       const completed = new Set(['design']);

@@ -7,7 +7,7 @@ import {
 import { DagTraversalStallError } from '../src/core/errors/DagTraversalStallError';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { materializeDagSourceFromRecords, materializeDagSourceFromRoots } from '../src/sources';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
@@ -48,7 +48,7 @@ test('a prepared topology starts independent seeded runners without source I/O',
   const visited: string[] = [];
   const first = result.dag.createRunner({
     visitors: {
-      [Order.ON_READY]: (vertex) => {
+      [Order.ON_WORK_READY]: (vertex) => {
         visited.push(vertex.getData().name);
       },
     },
@@ -63,7 +63,7 @@ test('a prepared topology starts independent seeded runners without source I/O',
   expect(second.summary().completedWorkIds).toEqual(['a']);
   expect(visited).toEqual(['a', 'b']);
   expect(
-    [...second.getIterable()]
+    [...second.iterateEvents()]
       .filter((event) => event.kind === 'workCompleted')
       .map((event) => event.vertexId),
   ).toEqual(['b']);
@@ -324,19 +324,19 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
   const result = await prepareDagAsync({ traversableGraph: adapter });
   if (result.kind !== 'valid') throw new Error('Expected valid');
   const runner = result.dag.createRunner();
-  const events = [...runner.getIterable()].map((event) => [
+  const events = [...runner.iterateEvents()].map((event) => [
     event.vertexId,
     event.kind,
   ]);
   expect(events).toEqual(
-    [...original.getIterable()].map((event) => [event.vertexId, event.kind]),
+    [...original.iterateEvents()].map((event) => [event.vertexId, event.kind]),
   );
   const seeded = result.dag.createRunner({
     completedWork: new Set<ID>([undefined, 'earlier', 'remote']),
   });
   expect(seeded.summary().unusedCompletedWorkIds).toEqual([]);
   expect(
-    [...seeded.getIterable()]
+    [...seeded.iterateEvents()]
       .filter((event) => event.kind === 'workCompleted')
       .map((event) => event.vertexId),
   ).toEqual(['root', 'work']);
@@ -400,7 +400,7 @@ test('prepared definitions preserve effective implicit work dependencies and roo
   if (ignored.kind !== 'valid') throw new Error('Expected valid');
   const runner = ignored.dag.createRunner();
   expect(
-    [...runner.getIterable()]
+    [...runner.iterateEvents()]
       .filter((event) => event.kind === 'workCompleted')
       .map((event) => event.vertexId),
   ).toEqual(['a', 'b']);
@@ -430,7 +430,7 @@ test('prepared forest completion joins retain structural sharing and order', () 
       .getParentsOf(graph.getVertexRefById('shared')!)!
       .map((ref) => graph.getVertexId(ref)),
   ).toEqual(['left', 'right']);
-  const events = [...runner.getIterable()].map((event) => [
+  const events = [...runner.iterateEvents()].map((event) => [
     event.vertexId,
     event.kind,
   ]);
@@ -488,7 +488,7 @@ test('prepared runners reject topology-changing visitor commands independently',
   if (result.kind !== 'valid') throw new Error('Expected valid');
   const runner = result.dag.createRunner({
     visitors: {
-      [Order.ON_READY]: () => ({
+      [Order.ON_WORK_READY]: () => ({
         commands: [
           {
             commandName: Command.REWRITE_CHILD_HINTS,
@@ -677,12 +677,12 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       const result = await prepare<T, string>({ traversableGraph: adapter });
       if (result.kind !== 'valid') throw new Error('Expected valid');
       const replay = result.dag.createRunner();
-      const events = [...replay.getIterable()].map((event) => [
+      const events = [...replay.iterateEvents()].map((event) => [
         event.vertexId,
         event.kind,
       ]);
       expect(events).toEqual(
-        [...original.getIterable()].map((event) => [
+        [...original.iterateEvents()].map((event) => [
           event.vertexId,
           event.kind,
         ]),

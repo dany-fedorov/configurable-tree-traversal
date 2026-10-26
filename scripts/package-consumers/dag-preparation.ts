@@ -42,7 +42,7 @@ work.generation = Symbol();
 summary.deferredFrontier.push(work);
 // @ts-expect-error ID domain is preserved at the readiness boundary.
 const other: DagDeferredWork<'other'> = work;
-const event: DagEvent<G> = sync.getIterable().next().value!;
+const event: DagEvent<G> = sync.iterateEvents().next().value!;
 const kind: 'workCompleted' | 'subgraphCompleted' = event.kind;
 void [prepared, other, kind];
 

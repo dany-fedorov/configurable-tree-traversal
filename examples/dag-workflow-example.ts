@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import type { VertexTypes } from '../src/core';
 import {
   DagTraversal,
-  DagTraversalOrder,
+  DagVisitorPhase,
   hasSingleSink,
 } from '../src/traversals/dag-traversal';
 
@@ -43,7 +43,7 @@ const traversal = new DagTraversal<Workflow>({
 const readyTasks: string[] = [];
 const completedSubtrees: string[] = [];
 
-traversal.addVisitorFor(DagTraversalOrder.ON_READY, (vertex) => {
+traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex) => {
   const task = vertex.getData();
   if (task === 'publish') {
     assert(readyTasks.includes('compile-module'));
@@ -53,7 +53,7 @@ traversal.addVisitorFor(DagTraversalOrder.ON_READY, (vertex) => {
   }
   readyTasks.push(task);
 });
-traversal.addVisitorFor(DagTraversalOrder.ON_COMPLETE, (vertex) => {
+traversal.addVisitorFor(DagVisitorPhase.ON_SUBGRAPH_READY, (vertex) => {
   completedSubtrees.push(vertex.getData());
 });
 

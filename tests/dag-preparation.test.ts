@@ -3,7 +3,7 @@ import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/Dag
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
@@ -38,7 +38,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             };
           },
         },
-      }).addVisitorFor(Order.ON_READY, (vertex) => {
+      }).addVisitorFor(Order.ON_WORK_READY, (vertex) => {
         visits.push(vertex.getData());
       });
       const runner = traversal.createRunner();
@@ -55,7 +55,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       expect(calls).toEqual(['a', 'b']);
       await runner.prepare();
       const events = [];
-      for await (const event of runner.getIterable())
+      for await (const event of runner.iterateEvents())
         events.push([event.vertex.getData(), event.kind]);
       expect(events).toEqual([
         ['a', 'workCompleted'],
@@ -165,7 +165,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     })
-      .addVisitorFor(Order.ON_READY, (vertex) => {
+      .addVisitorFor(Order.ON_WORK_READY, (vertex) => {
         visits.push(vertex.getData());
       })
       .createRunner();
@@ -179,7 +179,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       counts: { discovered: 3 },
     });
     const events = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       events.push([event.vertex.getData(), event.kind]);
       if (event.kind === 'workCompleted')
         expect(runner.summary().completedWorkIds).toContain(
@@ -235,7 +235,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
                 },
         },
       })
-        .addVisitorFor(Order.ON_READY, () => {
+        .addVisitorFor(Order.ON_WORK_READY, () => {
           visits++;
         })
         .createRunner();
@@ -320,7 +320,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       traversableGraph: single,
     }).createRunner();
-    const iterator = runner.getIterable();
+    const iterator = runner.iterateEvents();
     expect((await iterator.next()).done).toBe(false);
     await expect(async () => runner.prepare()).rejects.toThrow(
       /active iterator/i,
@@ -337,7 +337,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }).createRunner();
     await expect(async () =>
       // @ts-expect-error Invalid phases also reject recoverably for JavaScript callers.
-      runner.run({ emitPhases: ['PRE_ORDER'] }),
+      runner.run({ emitEvents: ['PRE_ORDER'] }),
     ).rejects.toThrow();
     await runner.prepare();
     expect(runner.getStopReason()).toBe('prepared');
@@ -356,7 +356,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           ? { traversableGraph: source }
           : { traversableTree: source },
       )
-        .addVisitorFor(Order.ON_READY, () => ({
+        .addVisitorFor(Order.ON_WORK_READY, () => ({
           commands: [
             {
               commandName: Command.REWRITE_CHILD_HINTS,
@@ -409,7 +409,7 @@ for (const adopt of [false, true]) {
         },
       },
     })
-      .addVisitorFor(Order.ON_READY, (vertex) => {
+      .addVisitorFor(Order.ON_WORK_READY, (vertex) => {
         visits.push(vertex.getData());
       })
       .createRunner();

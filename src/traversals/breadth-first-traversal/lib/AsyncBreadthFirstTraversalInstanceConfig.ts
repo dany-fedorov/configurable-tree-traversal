@@ -8,14 +8,14 @@ import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   type BreadthFirstTraversalInstanceConfig,
 } from './BreadthFirstTraversalInstanceConfig';
-import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type AsyncBreadthFirstTraversalVisitors<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
-  [K in BreadthFirstTraversalOrder]: VisitorRecord<
+  [K in BreadthFirstPhase]: VisitorRecord<
     AsyncTraversalVisitor<K, TTP, RW_TTP>
   >[];
 };
@@ -62,7 +62,7 @@ export const ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   ...BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   sortChildrenHints: null,
   visitors: {
-    [BreadthFirstTraversalOrder.LEVEL_ORDER]: [],
+    [BreadthFirstPhase.LEVEL_ORDER]: [],
   },
   concurrency: Infinity,
 });
@@ -79,8 +79,8 @@ export function mergeAsyncBreadthFirstTraversalInstanceConfigs<
     ...base,
     ...input,
     visitors: {
-      [BreadthFirstTraversalOrder.LEVEL_ORDER]: normalizeVisitorDefinitions(
-        visitors[BreadthFirstTraversalOrder.LEVEL_ORDER],
+      [BreadthFirstPhase.LEVEL_ORDER]: normalizeVisitorDefinitions(
+        visitors[BreadthFirstPhase.LEVEL_ORDER],
       ),
     },
     traversalRunnerInternalObjects: {

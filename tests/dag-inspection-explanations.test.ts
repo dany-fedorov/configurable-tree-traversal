@@ -2,7 +2,7 @@ import { makeDagInspection } from '../src/traversals/dag-traversal/lib/DagInspec
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   TraversalVisitorCommandName as Command,
   materializeDagSourceFromRecords,
   inspectDagMilestones,
@@ -116,7 +116,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       materializeDagSourceFromRecords([{ id: 'leaf' }], { id: (v) => v.id }),
     );
     let pending: unknown;
-    traversal.addVisitorFor(Order.ON_COMPLETE, () => {
+    traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, () => {
       pending = inspectDagMilestones(runner).explain({
         vertexId: 'leaf',
         milestone: 'completion',
@@ -175,7 +175,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversal = new Constructor(
       materializeDagSourceFromRecords([{ id: 'deleted' }], { id: (v) => v.id }),
     );
-    traversal.addVisitorFor(Order.ON_READY, () => ({
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
       commands: [{ commandName: Command.DELETE_VERTEX }],
     }));
     const runner = traversal.createRunner();
@@ -215,8 +215,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => ({
-      commands: [{ commandName: Command.HALT_TRAVERSAL }],
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
+      commands: [{ commandName: Command.PAUSE_TRAVERSAL }],
     }));
     const runner = traversal.createRunner();
     const initial = inspectDagMilestones(runner);

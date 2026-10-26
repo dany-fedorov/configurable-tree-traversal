@@ -1,6 +1,6 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 
@@ -26,7 +26,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       expect(resolved).toEqual(['a', 'b', 'c']);
       seen.push(vertex.getData());
     });
@@ -65,7 +65,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           }),
         },
       });
-      traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+      traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
         seen.push(vertex.getData());
       });
       await expect(async () => {
@@ -88,7 +88,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           resolveChild: () => ({ vertexContent: null }),
         },
       });
-      traversal.addVisitorFor(Order.ON_READY, () => ({
+      traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
         commands: [
           command === Command.DISABLE_SUBTREE_TRAVERSAL
             ? { commandName: command }
@@ -124,7 +124,7 @@ test('async eager discovery waits for actual promised resolver results', async (
       },
     },
   });
-  traversal.addVisitorFor(Order.ON_READY, async () => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, async () => {
     expect(resolved).toEqual(['a', 'b']);
   });
   await traversal.createRunner().run();
@@ -171,7 +171,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       seen.push(vertex.getData());
     });
     await traversal.createRunner().run();
@@ -258,7 +258,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => ({
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => ({
       commands: [
         vertex.getData() === 'a'
           ? { commandName: Command.DELETE_VERTEX }
@@ -339,7 +339,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_COMPLETE, (vertex) => {
+    traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (vertex) => {
       completed.push(vertex.getData());
     });
     await expect(async () => {
@@ -369,7 +369,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       visits += 1;
     });
     await expect(async () => {

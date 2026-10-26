@@ -4,9 +4,9 @@ import {
   rewriteObjectAs,
 } from '../src/tools/rewrite-object/rewriteObject';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
-import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { BreadthFirstTreeTraversal } from '../src/traversals/breadth-first-traversal';
-import { BreadthFirstTraversalOrder } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 
 describe('object rewriting', () => {
@@ -152,7 +152,7 @@ describe('object rewriting', () => {
     const tree = new ObjectTreeSource({ a: shared, b: shared });
     const traversal = new BreadthFirstTreeTraversal({ traversableTree: tree });
     let visits = 0;
-    traversal.addVisitorFor(BreadthFirstTraversalOrder.LEVEL_ORDER, () => {
+    traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, () => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
@@ -170,7 +170,7 @@ describe('object rewriting', () => {
     const tree = new ObjectTreeSource(input);
     const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
     let visits = 0;
-    traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+    traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
@@ -203,18 +203,18 @@ describe('object rewriting', () => {
     const tree = new ObjectTreeSource(input);
     const firstTraversal = new DepthFirstTreeTraversal({ traversableTree: tree });
     let visits = 0;
-    firstTraversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => {
+    firstTraversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
       }
     });
-    const firstIterator = firstTraversal.createRunner().getIterable();
+    const firstIterator = firstTraversal.createRunner().iterateEvents();
     expect(firstIterator.next().done).toBe(false);
 
     const secondIterator = new DepthFirstTreeTraversal({ traversableTree: tree })
       .createRunner()
-      .getIterable();
+      .iterateEvents();
     expect(secondIterator.next().done).toBe(false);
     secondIterator.return(undefined);
 

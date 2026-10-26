@@ -1,10 +1,10 @@
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder as D,
+  DagVisitorPhase as D,
   DepthFirstTreeTraversal,
-  DepthFirstTraversalOrder as F,
-  BreadthFirstTraversalOrder as B,
+  DepthFirstPhase as F,
+  BreadthFirstPhase as B,
   TraversalVisitorCommandName as C,
   TraversalVisitorFunctionResolutionStyle as Style,
   DEFER_READY,
@@ -64,7 +64,7 @@ const graph: DagDiscoverySource<T> = {
   resolvePrerequisite: () => lookup,
 };
 const common: TraversalVisitor<string, T, T> = (_vertex, options) => {
-  const metadata: VisitorRegistrationMetadata = options.visitorRecord;
+  const metadata: VisitorRegistrationMetadata = options.registration;
   // @ts-expect-error callback context exposes metadata, not executable records
   metadata.visitor;
   // @ts-expect-error callback metadata is readonly
@@ -88,7 +88,7 @@ const callback = depth.listVisitorsFor(F.POST_ORDER)[0]!.visitor;
 depth.addVisitorFor(
   F.PRE_ORDER,
   (_v, options) => {
-    const phase: F.PRE_ORDER = options.order;
+    const phase: F.PRE_ORDER = options.phase;
     void phase;
     return {
       commands: [
@@ -113,18 +113,18 @@ const dag = new DagTraversal({
   rootDependencies: 'honor',
   implicitParentDependency: false,
 });
-dag.addVisitorFor(D.ON_READY, (_v, options) => {
-  const phase: D.ON_READY = options.order;
+dag.addVisitorFor(D.ON_WORK_READY, (_v, options) => {
+  const phase: D.ON_WORK_READY = options.phase;
   void phase;
   return { commands: [{ commandName: C.DEFER_READY }] };
 });
-dag.addVisitorFor(D.ON_READY, () => DEFER_READY);
-dag.addVisitorFor(D.ON_COMPLETE, dagCommon);
-dag.addVisitorFor(D.ON_COMPLETE, () => ({
+dag.addVisitorFor(D.ON_WORK_READY, () => DEFER_READY);
+dag.addVisitorFor(D.ON_SUBGRAPH_READY, dagCommon);
+dag.addVisitorFor(D.ON_SUBGRAPH_READY, () => ({
   // @ts-expect-error completion visitors cannot defer
   commands: [{ commandName: C.DEFER_READY }],
 }));
-dag.addVisitorFor(D.ON_READY, () => ({
+dag.addVisitorFor(D.ON_WORK_READY, () => ({
   // @ts-expect-error deferral must be the only command
   commands: [{ commandName: C.NOOP }, { commandName: C.DEFER_READY }],
 }));
@@ -147,7 +147,7 @@ const syncHelpers = [
   }),
   traverseDag({
     traversableGraph: graph,
-    visitors: { [D.ON_READY]: dagCommon },
+    visitors: { [D.ON_WORK_READY]: dagCommon },
   }),
   traverseTreeDepthFirst(tree, { postOrderVisitor: common }),
   traverseTreeBreadthFirst(tree, common),
@@ -164,7 +164,7 @@ const asyncHelpers: Promise<unknown>[] = [
   }),
   traverseDagAsync({
     traversableGraph: graph,
-    visitors: { [D.ON_READY]: dagCommon },
+    visitors: { [D.ON_WORK_READY]: dagCommon },
   }),
   traverseTreeDepthFirstAsync(tree, { postOrderVisitor: common }),
   traverseTreeBreadthFirstAsync(tree, common),
@@ -176,11 +176,11 @@ traverseDag({
   traversableGraph: graph,
   visitors: {
     // @ts-expect-error helper phase prevents completion deferral
-    [D.ON_COMPLETE]: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
+    [D.ON_SUBGRAPH_READY]: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
   },
 });
 const asyncDag = new AsyncDagTraversal({ traversableGraph: graph });
-asyncDag.addVisitorFor(D.ON_READY, async () => ({
+asyncDag.addVisitorFor(D.ON_WORK_READY, async () => ({
   commands: [{ commandName: C.DEFER_READY }],
 }));
 void [
@@ -238,7 +238,7 @@ const oldTreeResult: MakeTreeVertexResult<T> = { vertexContent: canonical };
 // @ts-expect-error tree sources do not accept graph identity
 const wrongTree: TreeVertexResolution<T> = found;
 const execution: TraversalExecutionOptions<F> = {
-  emitPhases: [],
+  emitEvents: [],
   visitorPhases: { exclude: [] },
 };
 const bothSelectors: TraversalExecutionOptions<F> = {
@@ -246,7 +246,7 @@ const bothSelectors: TraversalExecutionOptions<F> = {
   visitorPhases: { include: [], exclude: [] },
 };
 const mixedSelectors: TraversalExecutionOptions<F> = {
-  emitPhases: [],
+  emitEvents: [],
   // @ts-expect-error canonical and legacy emission names cannot coexist
   iterateOver: [],
 };

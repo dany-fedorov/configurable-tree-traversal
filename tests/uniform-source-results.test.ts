@@ -36,7 +36,7 @@ for (const Constructor of [
     };
     const runner = new Constructor({ traversableTree: source }).createRunner();
     const seen: string[] = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       if (event !== null) seen.push(event.vertex.getData());
     }
     expect(seen.filter((data, index) => seen.indexOf(data) === index)).toEqual([
@@ -55,7 +55,7 @@ for (const Constructor of [
     }).createRunner();
     await runner.run();
     const seen: unknown[] = [];
-    for await (const event of runner.getIterable()) seen.push(event);
+    for await (const event of runner.iterateEvents()) seen.push(event);
     expect(seen).toEqual([]);
   });
 }
@@ -78,7 +78,7 @@ for (const Constructor of [
     };
     const runner = new Constructor({ traversableTree: source }).createRunner();
     const seen: string[] = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       if (event !== null) seen.push(event.vertex.getData());
     }
     expect(seen.filter((data, index) => seen.indexOf(data) === index)).toEqual([
@@ -219,7 +219,7 @@ for (const Constructor of [
         },
       }).createRunner();
       const seen: string[] = [];
-      for await (const event of runner.getIterable()) {
+      for await (const event of runner.iterateEvents()) {
         if (event !== null && !seen.includes(event.vertex.getData()))
           seen.push(event.vertex.getData());
       }
@@ -279,7 +279,7 @@ for (const Constructor of [
       };
       const runner = new Constructor({ traversableTree: source }).createRunner();
       const seen: string[] = [];
-      for await (const event of runner.getIterable()) {
+      for await (const event of runner.iterateEvents()) {
         if (event !== null && !seen.includes(event.vertex.getData()))
           seen.push(event.vertex.getData());
       }

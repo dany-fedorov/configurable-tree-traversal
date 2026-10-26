@@ -1,5 +1,5 @@
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstTraversalOrder as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { DepthFirstTraversalInOrderTraversalConfig as Config } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
@@ -20,7 +20,7 @@ function walk(
     },
     inOrderTraversalConfig: config,
   });
-  return [...t.createRunner().getIterable({ iterateOver: [Order.IN_ORDER] })].map(
+  return [...t.createRunner().iterateEvents({ iterateOver: [Order.IN_ORDER] })].map(
     (v) => v.vertex.getData(),
   );
 }

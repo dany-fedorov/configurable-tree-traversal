@@ -1,7 +1,7 @@
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder as Order,
+  DagVisitorPhase as Order,
   DEFER_READY,
 } from '../src';
 import type { DagDiscoverySource, VertexTypes } from '../src';
@@ -24,7 +24,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           resolveChild: () => ({ vertexContent: null }),
         },
       })
-        .addVisitorFor(Order.ON_READY, (v) => {
+        .addVisitorFor(Order.ON_WORK_READY, (v) => {
           visited.push(v.getData());
         })
         .createRunner();
@@ -55,7 +55,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           }),
         },
       })
-        .addVisitorFor(Order.ON_READY, (v) => {
+        .addVisitorFor(Order.ON_WORK_READY, (v) => {
           visited.push(v.getData());
           return DEFER_READY;
         })
@@ -157,7 +157,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveChild: () => ({ vertexContent: null }),
       },
     })
-      .addVisitorFor(Order.ON_READY, (v) => {
+      .addVisitorFor(Order.ON_WORK_READY, (v) => {
         visited.push(v.getData());
       })
       .createRunner();
@@ -240,7 +240,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     })
-      .addVisitorFor(Order.ON_READY, (v) => {
+      .addVisitorFor(Order.ON_WORK_READY, (v) => {
         visited.push(v.getData());
         return DEFER_READY;
       })
@@ -318,7 +318,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     })
-      .addVisitorFor(Order.ON_READY, (v) => {
+      .addVisitorFor(Order.ON_WORK_READY, (v) => {
         visited.push(v.getData());
         return DEFER_READY;
       })
