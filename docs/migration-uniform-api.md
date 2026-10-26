@@ -179,7 +179,7 @@ The table below applies to graph sources and prerequisite lookup. Tree sources u
 | `{ vertexContent: null, vertexId? }`                           | `{ kind: 'omitted', vertexId?, satisfiesDependencies: true }`                             |
 | Lookup `undefined`                                             | `{ kind: 'missing' }`                                                                     |
 
-`found` contains non-null content. `omitted` deliberately excludes a vertex and satisfies its W and C prerequisites. `missing` cannot satisfy prerequisites and is valid only from `resolvePrerequisite`; it is invalid from `makeRoot`/`makeVertex`. Bare `null` is invalid everywhere; bare `undefined` is invalid from root/hint callbacks. Existing untagged `MakeVertexResult` and lookup-only `undefined` remain deprecated inputs. These rules add no silent omission path.
+`found` contains non-null content. `omitted` deliberately excludes a vertex and satisfies its W and C prerequisites. `missing` cannot satisfy prerequisites and is valid only from `resolvePrerequisite`; it is invalid from `resolveRoot`/`resolveChild`. Bare `null` is invalid everywhere; bare `undefined` is invalid from root/hint callbacks. Existing untagged `MakeVertexResult` and lookup-only `undefined` remain deprecated inputs. These rules add no silent omission path.
 
 <!-- standalone -->
 
