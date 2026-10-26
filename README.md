@@ -59,17 +59,20 @@ const accepted = new Set(['research']);
 const session = prepared.dag.createSession({ completedWork: accepted });
 const boundary = session.advance();
 if (boundary.kind === 'awaitingSettlement') {
-  console.log(boundary.frontier.map(ticket => ticket.vertexId));
-  // ['implement', 'testPlan']; retain each ticket with its host attempt.
+  if (boundary.frontier.map(ticket => ticket.vertexId).join(',') !== 'implement,testPlan') {
+    throw new Error('Unexpected ready tasks');
+  }
+  // Retain each frontier ticket with its host attempt.
   const ticket = boundary.frontier[0]!;
   // Dispatch through host claims/capacity, then validate and persist the result.
   accepted.add(ticket.vertexId); // Simulate durable acceptance.
   session.complete(ticket); // { kind: 'accepted' }
-  session.advance(); // Observe newly eligible work after accepted completion.
+  const next = session.advance(); // Observe newly eligible work.
+  if (next.kind !== 'awaitingSettlement') throw new Error('Expected pending work');
 }
 ```
 
-`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
+`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Dispatch from `advance().frontier` tickets; `ON_READY` visitors can also start work before deferral. `workCompleted` iterator events use `ON_READY` as their order but report work **after** commitment, so they are observations, not dispatch requests. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
 
 See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) for independent sessions, duplicate reports, and recovery. Custom graph adapters and existing `runner.prepare()` / guarded `settle()` APIs remain available.
 

@@ -66,7 +66,9 @@ export type PreparedAsyncDagSessionOptions<ID> =
 
 /** An in-memory validated topology; data and identities remain shallow caller values. */
 export interface PreparedDag<Data, ID = unknown> {
+  /** Live-child convenience projection; omission slots are absent. Do not use for round-trip reconstruction. */
   readonly vertices: readonly PreparedDagVertex<Data, ID>[];
+  /** Faithful ordered entry, slots, omissions, and W/C declarations for reconstruction or revision. */
   readonly definition: DagDefinition<Data, ID>;
   createRunner(
     options?: PreparedDagRunnerOptions<Data, ID>,

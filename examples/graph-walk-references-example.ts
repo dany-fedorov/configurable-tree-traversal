@@ -29,6 +29,7 @@ const source: AsyncGraphWalkSource<Code, Reference, string> = {
   },
   async outgoing(vertex) {
     if (vertex.data.kind === 'symbol') return [];
+    // Lazy links wrap targets; walkSourceFrom catalog links instead use { to, data }.
     return [
       {
         target: {

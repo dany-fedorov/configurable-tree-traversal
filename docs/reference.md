@@ -71,15 +71,15 @@ IDs use SameValueZero, including object/symbol identity and valid `undefined`, `
 
 ### Walking records and ordering
 
-`GraphWalkPhase.VERTEX`, `.EDGE`, `.PATH` select records with corresponding `kind` strings:
+Use the `GraphWalkPhase.VERTEX`, `.EDGE`, `.PATH` enum values in `emitPhases` and `visitorPhases`; plain strings such as `'edge'` are event kinds, not phase selector values. The phases select records with corresponding `kind` strings:
 
 | Kind | Fields |
 | --- | --- |
 | `vertex` | `vertex`, route `depth`, incoming `via` edge or `null` for a root |
-| `edge` | `edge`, found `source`, target depth, `target: { kind: 'found', vertex } \| { kind: 'omitted' }` |
+| `edge` | `edge`, found `source`, `depth` of the target route (source depth + 1), `target: { kind: 'found', vertex } \| { kind: 'omitted' }` |
 | `path` | Ordered `vertices`, ordered `edges`, route `depth` |
 
-`GraphWalkEvent<Data, Edge, ID>` is that union. `GraphWalkEventFor<Data, Edge, Phase, ID>` and `GraphWalkPathEvent<Data, Edge, ID>` select precise records. Endpoint data stays typed; narrow `event.source.data.kind` and, after `event.target.kind === 'found'`, `event.target.vertex.data.kind` directly. No ID registry or fabricated tree `Vertex` is required. See the [typed reference example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts).
+In an edge record, `source` is the found source **vertex**, not the source adapter passed to the constructor. Its `depth` describes the candidate target route even when that target is omitted. `GraphWalkEvent<Data, Edge, ID>` is that union. `GraphWalkEventFor<Data, Edge, Phase, ID>` and `GraphWalkPathEvent<Data, Edge, ID>` select precise records. Endpoint data stays typed; narrow `event.source.data.kind` and, after `event.target.kind === 'found'`, `event.target.vertex.data.kind` directly. No ID registry or fabricated tree `Vertex` is required. See the [typed reference example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts).
 
 A found root observes vertex then path. A followed link resolves/reuses its target, observes edge first, then vertex and path if a found occurrence is newly admitted under the policy. An omitted target of a followed link produces edge only. An omitted root has no incoming edge and produces no observation; it increments the unique `omittedVertices` count and consumes a root-pull step and an admitted occurrence. Record resolver outcomes in the host if omitted root IDs are needed. Under `once`, returning/self/parallel links still observe edges without repeated vertex/path observations. Visitor chains commit before their selected record emits. Expansion follows the occurrence's observations: a pause after yielding a vertex does not eagerly fetch adjacency. BFS preserves root/level source order; DFS exhausts each root's descendants before requesting the next root and follows outgoing order. Both are iterative. Pausing between edge and vertex retains pending observations and expansion without replaying resolution, completed callbacks or delivered records.
 
@@ -123,7 +123,7 @@ Terminal close requires no active execution owner; close during an active run/it
 
 ### Walking adapters and inspection
 
-`walkSourceFrom(items, { id, outgoing, roots })` eagerly copies a finite catalog. `outgoing(item)` returns `{ to, data }` links; roots are explicit IDs. It rejects duplicate vertex IDs, unknown roots and unknown targets, preserves order/parallel links, and shares caller IDs/data. `await walkSourceFromAsync(...)` awaits finite inputs, roots and selectors once, then returns the same reusable **synchronous** source. These eager adapters differ from lazy custom source callbacks.
+`walkSourceFrom(items, { id, outgoing, roots })` eagerly copies a finite catalog. `outgoing(item)` returns `{ to, data }` links; roots are explicit IDs. The adapter maps each catalog `{ to, data }` to a lazy-source `{ target: { vertexId: to }, data }` link and resolves targets from its validated catalog. Custom lazy sources use the target wrapper and may supply an inline `resolution`; catalog links do not accept competing inline payloads. It rejects duplicate vertex IDs, unknown roots and unknown targets, preserves order/parallel links, and shares caller IDs/data. `await walkSourceFromAsync(...)` awaits finite inputs, roots and selectors once, then returns the same reusable **synchronous** source. These eager adapters differ from lazy custom source callbacks.
 
 `walkSourceFromDag(definition, { relations })` requires a nonempty duplicate-free selection of `children`, `workDependencies`, `completionDependencies`. Roots follow entry order. Links point parent-to-child or dependent-to-prerequisite, in canonical children/work/completion order and declaration order within each. `GraphWalkDagRelation` is `{ kind: 'child', slotIndex } | { kind: 'workDependency' } | { kind: 'completionDependency' }`; the unreleased stale name `DagWalkRelation` is not an alias. Preserve parallel child slots; anonymous omissions produce no target, known omitted IDs resolve as omissions. This adapter performs shape normalization and selected-topology membership checks, permits cycles, invokes no source I/O, and does not prepare/validate execution dependencies or assert W/C facts.
 
@@ -208,8 +208,8 @@ All four source helpers return ordinary `{ traversableGraph, syntheticRoot: true
 
 | Helper | Input and selectors | Membership and identity |
 | --- | --- | --- |
-| `graphFrom(items, selectors)` | Iterable items; required `id(item)`; optional `children(item)`, `dependsOn(item)`, `dependsOnComplete(item)` return iterable IDs | Every item is catalogued, including disconnected entries. Any duplicate ID rejects, even the same record twice. Structural child IDs must exist in the catalog. |
-| `forestFrom(roots, selectors)` | Iterable root items; same selectors, but `children(item)` returns iterable items | Expands iteratively. The same record can appear under multiple parents; different records with the same ID reject. |
+| `graphFrom(items, selectors)` | Iterable items; required `id(item)`; optional `children(item)`, `dependsOn(item)`, `dependsOnComplete(item)` return iterable IDs | Every item is catalogued, including disconnected entries. Any duplicate ID rejects, even the same record twice. Structural child IDs must exist in the catalog; `children` returns IDs, not records. |
+| `forestFrom(roots, selectors)` | Iterable root items; same selectors, but `children(item)` returns iterable items | Expands iteratively. `children` returns records, not IDs. The same record can appear under multiple parents; different records with the same ID reject. |
 | `graphFromAsync(items, selectors)` | Iterable/async-iterable items; value-or-promise selectors, with iterable/async-iterable edge results | Awaits materialization, then returns a synchronous source with the same graph rules. |
 | `forestFromAsync(roots, selectors)` | Iterable/async-iterable roots; value-or-promise selectors; children yield records | Awaits materialization with the same forest sharing rules. |
 
@@ -239,7 +239,7 @@ Inputs accept `traversableGraph`, `syntheticRoot`, `rootDependencies`, and `impl
 
 Structural child cycles throw `DagDiscoveryCycleError<ID = unknown>`, exported from the root, core and DAG traversal subpaths. Its readonly, frozen `vertexIds` is an ordered closed cycle witness (first ID repeated at the end), retaining arbitrary caller ID identity; it is not SCC membership. Catch values remain `unknown`, so narrow with `instanceof` before inspection. Collection adapters reject missing child IDs eagerly with `TypeError`, before preparation starts. For fully authored topology, `prepareDagDefinition` instead reports structural invalidity through `invalid.issues`; source discovery cannot finish materializing a cyclic DAG before reporting its error. Dependency invalidity appears in the `milestone` issue within `invalid.issues`, and caller-thrown values are never reclassified.
 
-`dag.vertices` is a detached readonly array of descriptions: `{ vertexId, data, children, dependsOn, dependsOnComplete }`. Owned records and edge arrays are immutable, while data and IDs retain shallow caller identity. The definition preserves structural order, real-root versus synthetic-forest semantics, omissions satisfying prerequisites, effective implicit dependencies, and the original root W policy. Replay normalizes discovery hints to ID links; original opaque hints and callback contexts are not captured.
+`dag.vertices` is a convenience projection of live vertices, not a round-trip source; its `children` omits omission slots. Use `dag.definition` for faithful reconstruction, composition and revision. The projection is a detached readonly array of descriptions: `{ vertexId, data, children, dependsOn, dependsOnComplete }`. Owned records and edge arrays are immutable, while data and IDs retain shallow caller identity. The definition preserves structural order, real-root versus synthetic-forest semantics, omissions satisfying prerequisites, effective implicit dependencies, and the original root W policy. Replay normalizes discovery hints to ID links; original opaque hints and callback contexts are not captured.
 
 | Factory | Result | Options |
 | --- | --- | --- |
@@ -254,7 +254,7 @@ A prepared definition is an in-memory value, not a durable checkpoint or editabl
 
 #### Materialized DAG definitions
 
-`dag.definition` is a `DagDefinition<Data, ID>` containing ordered `vertices` (`vertexId`, `data`, `slots`, `dependsOn`, `dependsOnComplete`), `omittedIds`, and an `entry` tagged as `root`, `forest`, or `empty`. Dependencies are the captured effective W/C constraints. A slot is `{ kind: 'vertex', vertexId }` or `{ kind: 'omitted', identity: { vertexId } | null }`; the wrapper preserves a known `undefined` identity separately from an anonymous omission. Anonymous omission slots in vertex records remain stored, while replay filters them without inventing ID hints. Forest catalog slots require identities.
+`dag.definition` is a `DagDefinition<Data, ID>` containing ordered `vertices` (`vertexId`, `data`, `slots`, `dependsOn`, `dependsOnComplete`), `omittedIds`, and an `entry` tagged as `root`, `forest`, or `empty`. Dependencies are the captured effective W/C constraints. A definition slot is `{ kind: 'vertex', vertexId }` or `{ kind: 'omitted', identity: { vertexId } | null }`; the wrapper preserves a known `undefined` identity separately from an anonymous omission. Lower-level resolved-graph `ChildSlot` uses *own-property presence* of `vertexId` for the same distinction; the two public encodings are not interchangeable. Anonymous omission slots in vertex records remain stored, while replay filters them without inventing ID hints. Forest catalog slots require identities.
 
 `defineDag(input)` copies and freezes owned arrays and records, retaining shallow caller data and ID references. Malformed required fields and duplicate live/omitted identity declarations throw `TypeError`. SameValueZero identity applies throughout, including dependency deduplication. Shape normalization does not validate graph semantics.
 
@@ -349,6 +349,8 @@ For heterogeneous fragments, declare the data and ID unions explicitly with `com
 | `getStatus()`, `getStopReason()`, `isHalted()`, `inspect()` | Shared `TraversalExecutionState` observations of the coordinated runner. |
 | `inspectDag()` | Captures a detached `DagInspection<ID>` for dependency explanations and queries without advancing execution. |
 | `requestPause()` | Returns the runner's boolean cooperative pause request result; admitted callbacks drain before pause acknowledgement. |
+
+Dispatch external work from `advance()`'s `awaitingSettlement.frontier`, after host claim/capacity checks. `workCompleted` iterator events report committed W and cannot request dispatch; an enabled `ON_READY` visitor runs before work and can dispatch directly. Use `summary()` for progress, `inspectDag()` for dependency explanations, and `inspect()` for shared execution/iterator state.
 
 `DagCoordinationBoundary<ID>` discriminates the three advance results; its frontier contains readonly `DagWorkTicket<ID>` objects exposing only `vertexId`. Hidden provenance binds each ticket to its issuing facade and deferred generation. Foreign, copied, forged, and stale tickets reject before settlement mutation. Repeated observations of the same deferred work remain usable. Tickets do not transfer between two facades wrapping the same runner. The existing settlement implementation owns duplicate and conflict behavior.
 
@@ -542,6 +544,10 @@ Enabled eager/synthetic options require a fresh graph-source runner. Explicit
 Eager mode rejects child-hint rewrites and subtree-disabling commands after
 validation; data rewrites and vertex deletion retain their existing behavior.
 
+### Structural sinks
+
+`hasSingleSink(graph)` counts vertices with no **structural children** in a resolved graph snapshot. It returns true only when exactly one such vertex exists: an empty graph returns false, and a single isolated leaf returns true. Work and completion dependency arrows do not affect this count; use `inspectDag()` for milestone dependency questions.
+
 ### DAG dependency queries and explanations
 
 `inspectDag(runner)` captures a synchronous detached `DagInspection<ID>` from either DAG runner, including tree-source runners with their existing unknown ID domain. Import it and `DagExplanation`, `DagBlocker`, `DagMilestoneStatus`, `DagMilestoneQueryOptions`, and `DagMilestoneQueryResult` from the package root or DAG subpath. Capture performs no callbacks, source lookup, scheduling, settlement, or iterator ownership changes. Methods reuse that capture after the runner advances; take another inspection for current facts. Owned arrays and result records are copied on every query. IDs and caller data retain shallow identity and are never frozen.
@@ -651,7 +657,7 @@ deprecated exported symbol remains a compatibility input with the same behavior.
 mode; use eager discovery and a complete synthetic-root catalog for a global
 frontier, including descendants of deferred parents.
 
-`summary()` invokes no callbacks or resolvers and does not advance scheduling.
+`summary()` invokes no callbacks or resolvers and does not advance scheduling. It reports progress; `inspectDag()` captures dependency constraints/blockers, while `inspect()` reports execution and iterator state.
 Its detached map, entries and arrays have readonly TypeScript types and retain
 original ID identity without freezing caller objects. It reports discovery mode/completeness, per-vertex work
 state and unmet prerequisites, and counts/IDs for ready, deferred, in-flight,

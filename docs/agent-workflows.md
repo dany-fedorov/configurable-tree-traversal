@@ -110,7 +110,7 @@ Avoid making a child wait on its own ancestor's C when that ancestor must wait f
 
 ## Accept results and resume
 
-Start from the [quickstart](../README.md#quickstart-find-the-next-agent-tasks). To advance its session after the host accepts `testPlan`:
+Start from the [quickstart](../README.md#quickstart-find-the-next-agent-tasks). To advance its session after the host accepts `testPlan`, dispatch from the `advance()` frontier. This continuation assumes the quickstart's `session` and `accepted` values:
 
 ```ts
 const pending = session.advance();
@@ -128,7 +128,7 @@ if (pending.kind === 'awaitingSettlement') {
 
 `advance()` drains execution and returns `awaitingSettlement` with readonly tickets, `paused`, or `finished`; async sessions return a promise. `complete(ticket)` and `failTraversal(ticket, error)` are synchronous. The first accepted report returns `{ kind: 'accepted' }`; the identical report returns `{ kind: 'alreadyAccepted' }`. A failure fails the whole runner and the next advance throws the exact error. Conflicting reports, copied/forged tickets, and tickets from another facade or session reject. Repeated observations of the same deferred work stay usable. Follow completion with advance to observe new work. Use `session.inspectDag().explain({ vertexId, milestone: 'work' })` to explain blockers without advancing, and `session.inspect()` for lifecycle state. `failTraversal` is the sole fatal settlement method.
 
-Tickets expose only `vertexId`; their provenance and generation are private. They are local capabilities: serializing or copying a ticket does not preserve settlement authority. Filter each frontier through host claims, waits, and capacity. A ticket is not a distributed lease or persistent attempt ID. `summary()` remains a detached progress observation, and `requestPause()` delegates cooperative pause to the runner.
+Tickets expose only `vertexId`; their provenance and generation are private. They are local capabilities: serializing or copying a ticket does not preserve settlement authority. Filter each frontier through host claims, waits, and capacity. A ticket is not a distributed lease or persistent attempt ID. Use `summary()` for work progress/frontier, `inspectDag()` for dependency blockers, and `inspect()` for execution/iterator state. All three observe without advancing. `requestPause()` delegates cooperative pause to the runner.
 
 For existing custom-source runners, set `workCompletion: 'externalSettlement'` and wrap with `coordinateDag(runner)` or `coordinateDagAsync(runner)`. Wrapping runs no callbacks and acquires no separate execution owner; direct runner access remains available. The lower-level guarded frontier and settlement contract also remains available.
 

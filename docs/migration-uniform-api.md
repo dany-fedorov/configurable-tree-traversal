@@ -28,7 +28,7 @@ Coordination requires external settlement. Frontier tickets are nominal readonly
 
 ## Materialized definitions, fragments, inspection, and revisions
 
-These optional APIs extend prepared DAGs in this unreleased checkout. `prepared.definition` retains entry mode, ordered discovery slots and omissions; rebuilding only from `.vertices` loses those facts. Author values with `defineDag`, validate with `prepareDagDefinition`, or reuse shapes through `defineDagFragment`, `instantiateDagFragment` and `composeDag`. Structural child links and W/C wires remain separate.
+These optional APIs extend prepared DAGs in this unreleased checkout. `prepared.definition` retains entry mode, ordered discovery slots and omissions; `.vertices` is a live-child convenience projection and rebuilding from it loses those facts. Use `definition.vertices` when authoring revisions. Author values with `defineDag`, validate with `prepareDagDefinition`, or reuse shapes through `defineDagFragment`, `instantiateDagFragment` and `composeDag`. Structural child links and W/C wires remain separate.
 
 Use `inspectDag(runner)` for detached milestone navigation and explanations. Use `reviseDag(prepared, operations)` for ordered atomic edits: success returns a fresh prepared DAG plus a shallow `diffDagDefinitions` result; graph invalidity returns issues. Full replacement records explicitly declare slots and both dependency lists. Removal requires explicit repair of dangling references. Programmer errors throw.
 
@@ -44,7 +44,7 @@ The shared execution interfaces add a defaulted inspection parameter, preserving
 
 ## Typed DAG event identities
 
-`DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_READY`, and `subgraphCompleted` means `ON_COMPLETE`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged.
+`DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_READY`, and `subgraphCompleted` means `ON_COMPLETE`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged. Dispatch from `advance().frontier` tickets or an enabled pre-work `ON_READY` visitor; emitted `workCompleted` events are committed observations, including when deferred work settles.
 
 ## Root dependencies
 

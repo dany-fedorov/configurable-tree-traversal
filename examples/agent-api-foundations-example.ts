@@ -45,7 +45,10 @@ async function main(): Promise<void> {
   });
   if (prepared.kind === 'invalid') throw new Error('Invalid workflow');
   const { dag } = prepared;
+  // vertices is a live-child projection; definition carries ordered slots.
   assert.equal(dag.vertices.length, 4);
+  assert.equal(dag.definition.vertices.length, 4);
+  assert.equal(dag.definition.entry.kind, 'forest');
   const discoveryCalls = sourceCalls;
 
   // This set stands in for completion facts durably accepted by the host.
@@ -67,7 +70,9 @@ async function main(): Promise<void> {
   assert.equal(research.vertexId, 'research');
   assert.throws(() => session.complete(research), TypeError);
 
-  // Dispatch these tickets through host claims/capacity, then validate results.
+  // Dispatch only these frontier tickets through host claims/capacity.
+  // ON_READY workCompleted events observe accepted work after settlement.
+  // Validate results before reporting them to the session.
   for (const ticket of candidates) {
     accepted.add(ticket.vertexId); // Persist acceptance before completing locally.
     assert.deepEqual(session.complete(ticket), { kind: 'accepted' });

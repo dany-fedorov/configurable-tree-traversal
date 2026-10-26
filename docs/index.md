@@ -9,6 +9,7 @@ These pages describe the **unreleased uniform, composable, and graph-walking API
 | Task | Reading order | Stop when you have… |
 | --- | --- | --- |
 | Build an autonomous-agent workflow | [Quickstart](../README.md#quickstart-find-the-next-agent-tasks) → [workflow guide](agent-workflows.md) | A graph adapter, execution model, and host-owned recovery design |
+| Dispatch agent work from a prepared graph | [Quickstart](../README.md#quickstart-find-the-next-agent-tasks) → [ticket coordination](reference.md#ticket-coordination) → [result acceptance](agent-workflows.md#accept-results-and-resume) | Frontier tickets for dispatch, completion events for observation, and host-owned claims |
 | Reuse a graph across independent runs | [Collection sources](reference.md#collection-and-forest-sources) → [prepared definitions](reference.md#reusable-prepared-dags) → [ticket coordination](reference.md#ticket-coordination) | A validated topology, session boundaries, and accepted-fact recovery |
 | Compose reusable workflow shapes | [Fragment contract](reference.md#dag-fragments-and-composition) → [workflow integration](agent-workflows.md#reuse-workflow-fragments) | Typed local ports, explicit ID maps, and validated W/C connections |
 | Revise a prepared work graph | [Revision contract](reference.md#validated-dag-revisions) → [host revision policy](agent-workflows.md#retries-human-waits-and-graph-revisions) | Atomic declaration edits, shallow diffs, isolated sessions and explicit accepted facts |

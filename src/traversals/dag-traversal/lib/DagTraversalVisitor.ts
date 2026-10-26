@@ -65,6 +65,11 @@ export type AsyncDagVisitor<
     ) => MaybePromise<RESULT>
   : never;
 
+/**
+ * Committed milestone observation: `ON_READY`/`workCompleted` emits after W,
+ * including deferred settlement, while an `ON_READY` visitor runs before work.
+ * Dispatch external work from coordinator frontier tickets or a pre-work visitor.
+ */
 export type DagEvent<T extends TreeTypeParameters, ID = unknown> = {
   vertexId: ID;
   vertex: Vertex<T>;

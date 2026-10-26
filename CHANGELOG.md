@@ -2,9 +2,11 @@
 
 ## Unreleased
 
+- Unify expected preparation/composition/revision failures under `invalid.issues` and align collection dependency selectors with `dependsOn` / `dependsOnComplete`, rejecting retired selector keys. Clarify ticket dispatch, committed event timing, faithful definitions, walking adapter mapping and structural sink semantics in current guides.
+
 - Simplify tree-source and object-hook omission to `{ kind: 'omitted' }`, including DAG traversal over tree adapters; reject graph acknowledgement metadata on trees while requiring explicit `satisfiesDependencies: true` on graph/prerequisite omissions.
 
-- Expose shared lifecycle inspection and `inspectDag()` on sync/async coordination sessions; add explicit fatal `failTraversal` and retain `fail` as a deprecated alias.
+- Expose shared lifecycle inspection and `inspectDag()` on sync/async coordination sessions; use `failTraversal` as the sole fatal settlement method.
 - Export `DagDiscoveryCycleError` with an immutable closed ID witness from root, core and DAG traversal entry points.
 - Reject unknown walking option/limit keys before discovery while preserving configuration on invalid patches; accept explicit `undefined` arguments for shared parameterless NOOP/HALT commands.
 
