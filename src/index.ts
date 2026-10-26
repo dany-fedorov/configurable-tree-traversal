@@ -11,3 +11,5 @@ export * from '@breadth-first-traversal/index';
 export * from '@traversable-object-tree/index';
 export * from './traversals/dag-traversal';
 export * from './sources';
+export * as graphWalk from './traversals/graph-walk';
+export * from './traversals/graph-walk';

@@ -121,7 +121,7 @@ const traversal = new DepthFirstTraversal({
     }),
     makeVertex: (childHint: any) =>
       childHint === null
-        ? { kind: 'omitted', satisfiesDependencies: true }
+        ? { kind: 'omitted' }
         : { kind: 'found', vertex: { vertexContent: childHint } },
   },
 });

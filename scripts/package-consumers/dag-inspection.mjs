@@ -15,10 +15,19 @@ for (const Constructor of [esm.DagTraversal, cjs.AsyncDagTraversal]) {
     ...esm.graphFrom([{ id: task }], { id: (item) => item.id }),
     workCompletion: 'externalSettlement',
   }).makeRunner();
+  const target = { vertexId: task, milestone: 'work' };
+  assert.deepEqual(runner.inspectDag().explain(target), {
+    kind: 'unknown',
+    target,
+    discoveryComplete: false,
+  });
   await runner.prepare();
   await runner.run();
   const snapshot = cjs.inspectDag(runner);
-  const target = { vertexId: task, milestone: 'work' };
+  assert.deepEqual(
+    runner.inspectDag().explain(target),
+    snapshot.explain(target),
+  );
   assert.deepEqual(snapshot.explain(target).blockers, [
     { kind: 'unfinishedWork', target, work: 'deferred' },
   ]);
@@ -27,6 +36,7 @@ for (const Constructor of [esm.DagTraversal, cjs.AsyncDagTraversal]) {
   await runner.run();
   assert.equal(snapshot.explain(target).satisfied, false);
   assert.equal(dag.inspectDag(runner).explain(target).satisfied, true);
+  assert.equal(runner.inspectDag().explain(target).satisfied, true);
   assert.deepEqual(snapshot.dependentsOf(target).milestones, [
     { vertexId: task, milestone: 'completion' },
   ]);

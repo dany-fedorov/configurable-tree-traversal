@@ -13,6 +13,7 @@ export * from './lib/DagTraversalRunnerIterableConfig';
 export * from './lib/DagTraversalRunnerState';
 export * from './lib/DagTraversalVisitor';
 export * from '../../core/errors/DagTraversalStallError';
+export * from '../../core/errors/DagDiscoveryCycleError';
 export * from './lib/DagProgress';
 export * from './coordinateDag';
 export * from './prepareDag';
@@ -54,3 +55,4 @@ export type {
 } from './lib/DagRevision';
 
 export * from './reviseDag';
+export * from './lib/DagFragmentValidationError';

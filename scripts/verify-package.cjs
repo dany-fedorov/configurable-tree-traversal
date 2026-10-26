@@ -65,6 +65,7 @@ try {
     assert.equal(depth.AsyncDepthFirstTraversal, lib.AsyncDepthFirstTraversal);
     assert.equal(breadth.AsyncBreadthFirstTraversal, lib.AsyncBreadthFirstTraversal);
     assert.equal(dag.DagTraversalStallError, lib.DagTraversalStallError);
+    assert.equal(dag.DagFragmentValidationError, lib.DagFragmentValidationError);
     assert.equal(core.DagTraversalStallError, lib.DagTraversalStallError);
     assert.equal(dag.DEFER_READY, lib.DEFER_READY);
     assert.equal(dag.DagTraversal, lib.DagTraversal);
@@ -188,7 +189,7 @@ try {
     import lib, { AsyncDepthFirstTraversal as RootAsyncDepthFirstTraversal } from 'configurable-tree-traversal';
     import { DepthFirstTraversal } from 'configurable-tree-traversal/traversals/depth-first-traversal';
     import { BreadthFirstTraversal } from 'configurable-tree-traversal/traversals/breadth-first-traversal';
-    import { AsyncDagTraversal, DagTraversal, DagTraversalOrder, DagTraversalStallError, DEFER_READY } from 'configurable-tree-traversal/traversals/dag-traversal';
+    import { AsyncDagTraversal, DagTraversal, DagTraversalOrder, DagTraversalStallError, DagFragmentValidationError, DEFER_READY } from 'configurable-tree-traversal/traversals/dag-traversal';
     import { TraversableObjectTree } from 'configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree';
     import { rewriteObject } from 'configurable-tree-traversal/tools/rewrite-object';
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
@@ -197,6 +198,7 @@ try {
     assert.equal(DepthFirstTraversal, lib.DepthFirstTraversal);
     assert.equal(BreadthFirstTraversal, lib.BreadthFirstTraversal);
     assert.equal(DagTraversalStallError, lib.DagTraversalStallError);
+    assert.equal(DagFragmentValidationError, lib.DagFragmentValidationError);
     assert.equal(DagTraversal, lib.DagTraversal);
     assert.equal(AsyncDagTraversal, lib.AsyncDagTraversal);
     assert.equal(TraversableObjectTree, lib.TraversableObjectTree);
@@ -412,7 +414,7 @@ try {
   fs.writeFileSync(
     path.join(consumer, 'consumer.mts'),
     `
-    import namespace, { AsyncDagTraversal, DagTraversal, DagTraversalOrder, DEFER_READY, DepthFirstTraversal, DepthFirstTraversalOrder, TraversableObjectTree, core } from 'configurable-tree-traversal';
+    import namespace, { DagFragmentValidationError, DagTraversalStallError, AsyncDagTraversal, DagTraversal, DagTraversalOrder, DEFER_READY, DepthFirstTraversal, DepthFirstTraversalOrder, TraversableObjectTree, core } from 'configurable-tree-traversal';
     import cjs = require('configurable-tree-traversal');
     import dagCjs = require('configurable-tree-traversal/traversals/dag-traversal');
     import { DEFER_READY as subpathSentinel, DagTraversal as SubpathDag } from 'configurable-tree-traversal/traversals/dag-traversal';
@@ -424,6 +426,15 @@ try {
     import type { AsyncTraversableGraph, DagSummary, TraversableGraph, TreeTypeParameters, VertexId } from 'configurable-tree-traversal';
     import type { DagSummary as CjsSummary } from 'configurable-tree-traversal/traversals/dag-traversal';
     type Tree = TreeTypeParameters<string, string>;
+    const esmFragmentError: dagCjs.DagFragmentValidationError<'root'> = new DagFragmentValidationError<'root'>([]);
+    const cjsFragmentError: DagFragmentValidationError<'root'> = new cjs.DagFragmentValidationError<'root'>([]);
+    const fragmentConstructor: typeof DagFragmentValidationError = dagCjs.DagFragmentValidationError;
+    const stallConstructor: typeof DagTraversalStallError = cjs.core.DagTraversalStallError;
+    const esmStallError: dagCjs.DagTraversalStallError<'root'> = new DagTraversalStallError<'root'>({
+      dependencies: [], unknownPrerequisiteIds: [], dependencyCycles: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
+    });
+    const cjsStallError: DagTraversalStallError<'root'> = new dagCjs.DagTraversalStallError<'root'>(esmStallError.diagnostics);
+    void [esmFragmentError, cjsFragmentError, fragmentConstructor, stallConstructor, esmStallError, cjsStallError];
     const esmSentinel: typeof cjs.DEFER_READY = DEFER_READY;
     const cjsSentinel: typeof DEFER_READY = cjs.DEFER_READY;
     const subpath: typeof dagCjs.DEFER_READY = subpathSentinel;
@@ -476,6 +487,7 @@ try {
     'dag-inspection',
     'dag-fragments',
     'dag-revisions',
+    'graph-walk',
   ];
   for (const name of typeFixtures) {
     for (const extension of ['ts', 'cts', 'mts']) {
@@ -492,6 +504,7 @@ try {
     'dag-inspection.mjs',
     'dag-fragments.mjs',
     'dag-revisions.mjs',
+    'graph-walk.mjs',
   ]) {
     fs.copyFileSync(
       path.join(root, 'scripts/package-consumers', file),
@@ -527,6 +540,29 @@ try {
               ),
             ]
           : ['consumer.ts', ...typeFixtures.map((name) => name + '.ts')]),
+      ],
+      { cwd: consumer, stdio: 'inherit' },
+    );
+  }
+  const optionalCommands = 'walking-optional-commands.ts';
+  fs.copyFileSync(
+    path.join(root, 'scripts/package-consumers', optionalCommands),
+    path.join(consumer, optionalCommands),
+  );
+  for (const resolution of ['node', 'node16']) {
+    execFileSync(
+      process.execPath,
+      [
+        compiler,
+        '--strict',
+        '--noEmit',
+        '--target',
+        'ES2020',
+        '--module',
+        resolution === 'node16' ? 'Node16' : 'commonjs',
+        '--moduleResolution',
+        resolution,
+        optionalCommands,
       ],
       { cwd: consumer, stdio: 'inherit' },
     );
@@ -658,6 +694,8 @@ try {
     'dist/traversals/breadth-first-traversal/index.d.ts',
     'dist/traversals/dag-traversal/index.js',
     'dist/traversals/dag-traversal/index.d.ts',
+    'dist/traversals/graph-walk/index.js',
+    'dist/traversals/graph-walk/index.d.ts',
     'dist/traversals/dag-traversal/lib/DagTraversalRunner.js',
     'dist/traversals/dag-traversal/lib/DagTraversalRunner.d.ts',
     'dist/traversable-tree-implementations/traversable-object-tree/index.js',

@@ -21,10 +21,15 @@ for (const Constructor of [
   AsyncDagTraversal<T>,
 ]) {
   describe(Constructor.name, () => {
-    test.each(['vertexId', 'dependsOn', 'dependsOnComplete'])(
+    test.each([
+      'vertexId',
+      'dependsOn',
+      'dependsOnComplete',
+      'satisfiesDependencies',
+    ])(
       'rejects own %s, including undefined, before tagged results discard it',
       async (field) => {
-        for (const value of [undefined, []]) {
+        for (const value of [undefined, true, false, []]) {
           for (const result of [
             { vertexContent: null, [field]: value },
             {
@@ -36,7 +41,7 @@ for (const Constructor of [
               vertex: { vertexContent: content },
               [field]: value,
             },
-            { kind: 'omitted', satisfiesDependencies: true, [field]: value },
+            { kind: 'omitted', [field]: value },
           ]) {
             for (const atRoot of [true, false]) {
               const source = {

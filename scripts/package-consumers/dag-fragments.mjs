@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const cjs = require('configurable-tree-traversal');
 const cjsDag = require('configurable-tree-traversal/traversals/dag-traversal');
 for (const name of [
+  'DagFragmentValidationError',
   'defineDag',
   'prepareDagDefinition',
   'defineDagFragment',
@@ -96,5 +97,37 @@ assert.equal(
     ],
   }).kind,
   'invalid',
+);
+
+const objectId = { task: 'root' };
+assert.throws(
+  () =>
+    cjsDag.defineDagFragment(
+      {
+        vertices: [
+          {
+            vertexId: objectId,
+            data: null,
+            slots: [],
+            dependsOn: [undefined],
+            dependsOnComplete: [],
+          },
+        ],
+        omittedIds: [],
+        entry: { kind: 'root', vertexId: objectId },
+      },
+      {},
+    ),
+  (error) => {
+    assert(error instanceof esm.DagFragmentValidationError);
+    assert(error instanceof TypeError);
+    assert.equal(error.issues[0].kind, 'milestone');
+    const edge = error.issues[0].diagnostics.dependencyEdges.find(
+      (edge) => edge.reason === 'workDependency',
+    );
+    assert.equal(edge.from.vertexId, objectId);
+    assert.equal(edge.to.vertexId, undefined);
+    return true;
+  },
 );
 console.log('Packed DAG fragment consumers passed');

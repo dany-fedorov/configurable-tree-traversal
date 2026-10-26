@@ -1,6 +1,6 @@
 # configurable-tree-traversal
 
-**Dependency-aware building blocks for autonomous-agent workflows, plus general tree and DAG traversal for TypeScript and JavaScript.**
+**Dependency-aware building blocks for autonomous-agent workflows, plus general graph and tree traversal for TypeScript and JavaScript.**
 
 Give CTT a graph of work and accepted completion facts. It determines what can run next, enforces work and structural-completion dependencies, and exposes progress without executing business work. Your host chooses agents, dispatches tasks, accepts results, and persists state.
 
@@ -15,6 +15,7 @@ Give CTT a graph of work and accepted completion facts. It determines what can r
 | Resume after a process restart or wait for human input | Reconstruction from accepted completion facts | [Recovery and storage](docs/agent-workflows.md#persist-facts-and-reconstruct) |
 | Review a composite task only after all its subtasks finish | `dependsOnComplete` | [Work versus completion](docs/agent-workflows.md#work-dependencies-and-completion-joins) |
 | Fetch dependencies from a task catalog or service | `resolvePrerequisite(id)` | [Discover prerequisites](docs/agent-workflows.md#discover-the-graph) |
+| Explore cyclic context, code references, or provenance | Lazy typed vertex/edge/path walking with explicit bounds | [Graph exploration](docs/agent-workflows.md#explore-context-and-references) |
 | Walk or transform a repository index, AST, or JSON object | Iterative sync/async DFS, BFS, pruning, rewriting | [Tree and object traversal](docs/reference.md#traverse-an-object) |
 
 CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool execution, claims, retries, timeouts, business outcomes, and durable storage. It can use SQLite, another database, or another storage provider without a CTT storage dependency.
@@ -25,7 +26,7 @@ CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool
 npm install configurable-tree-traversal
 ```
 
-**This checkout documents the unreleased uniform and composable APIs.** The published npm release is **0.11.0**; its API differs from the examples below. See the [migration guide](docs/migration-uniform-api.md) for changed defaults and compatibility forms. The package version stays unchanged until release. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
+**This checkout documents the unreleased uniform, composable, and graph-walking APIs.** The published npm release is **0.11.0**; its API differs from the examples below. See the [migration guide](docs/migration-uniform-api.md) for changed defaults and compatibility forms. The package version stays unchanged until release. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
 
 ## Quickstart: find the next agent tasks
 
@@ -49,26 +50,29 @@ const tasks = [
 ];
 const prepared = prepareDag(graphFrom(tasks, {
   id: task => task.id,
-  dependencies: task => task.requires,
+  dependsOn: task => task.requires,
 }));
-if (prepared.kind === 'invalid') throw new Error('Invalid workflow');
+if (prepared.kind === 'invalid') throw new Error('Invalid dependency constraints');
 
 // In-memory stand-in for completion facts already accepted by the host.
 const accepted = new Set(['research']);
 const session = prepared.dag.createSession({ completedWork: accepted });
 const boundary = session.advance();
 if (boundary.kind === 'awaitingSettlement') {
-  console.log(boundary.frontier.map(ticket => ticket.vertexId));
-  // ['implement', 'testPlan']; retain each ticket with its host attempt.
+  if (boundary.frontier.map(ticket => ticket.vertexId).join(',') !== 'implement,testPlan') {
+    throw new Error('Unexpected ready tasks');
+  }
+  // Retain each frontier ticket with its host attempt.
   const ticket = boundary.frontier[0]!;
   // Dispatch through host claims/capacity, then validate and persist the result.
   accepted.add(ticket.vertexId); // Simulate durable acceptance.
   session.complete(ticket); // { kind: 'accepted' }
-  session.advance(); // Observe newly eligible work after accepted completion.
+  const next = session.advance(); // Observe newly eligible work.
+  if (next.kind !== 'awaitingSettlement') throw new Error('Expected pending work');
 }
 ```
 
-`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
+`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Dispatch from `advance().frontier` tickets; `ON_READY` visitors can also start work before deferral. `workCompleted` iterator events use `ON_READY` as their order but report work **after** commitment, so they are observations, not dispatch requests. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
 
 See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) for independent sessions, duplicate reports, and recovery. Custom graph adapters and existing `runner.prepare()` / guarded `settle()` APIs remain available.
 

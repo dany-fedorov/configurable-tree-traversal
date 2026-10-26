@@ -49,7 +49,7 @@ type T = TreeTypeParameters<Item, ID>;
 declare const items: readonly Item[];
 const source = graphFrom(items, {
   id: (item) => item.id,
-  dependencies: (item) => item.requires,
+  dependsOn: (item) => item.requires,
 });
 const sourceIdentity: CollectionSource<Item, ID> = source;
 const subpathIdentity: SubpathSource<Item, ID> = sourceIdentity;
@@ -62,7 +62,7 @@ const forest: CollectionSource<Item, ID> = forestFrom(items, {
 });
 const asyncSource: Promise<CollectionSource<Item, ID>> = graphFromAsync(items, {
   id: async (item) => item.id,
-  dependencies: async (item) => item.requires,
+  dependsOn: async (item) => item.requires,
 });
 const asyncForest: Promise<CollectionSource<Item, ID>> = forestFromAsync(
   items,
@@ -85,6 +85,8 @@ if (prepared.kind === 'valid') {
     const requiredTicket: dagCjs.DagWorkTicket<ID> = subpathTicket;
     const id: ID = requiredTicket.vertexId;
     session.complete(requiredTicket);
+    // @ts-expect-error Fatal settlement exposes only the canonical method.
+    session.fail(requiredTicket, undefined);
     // @ts-expect-error Tickets retain their exact ID domain.
     const wrong: DagWorkTicket<string> = ticket;
     // @ts-expect-error Tickets cannot be constructed from public fields.
@@ -107,8 +109,14 @@ if (prepared.kind === 'valid') {
   vertex.children.push(vertex.vertexId);
   void [coordinator, data, children];
 } else {
-  const missing: readonly ID[] = prepared.diagnostics.unknownPrerequisiteIds;
-  void missing;
+  for (const issue of prepared.issues) {
+    if (issue.kind === 'milestone') {
+      const missing: readonly ID[] = issue.diagnostics.unknownPrerequisiteIds;
+      void missing;
+    }
+  }
+  // @ts-expect-error Preparation invalidity has no top-level diagnostics alias.
+  prepared.diagnostics;
 }
 
 function inspect(event: DagEvent<T, ID>) {
@@ -182,3 +190,18 @@ graphFrom(items, { id: (item) => item.id, children: () => items });
 // @ts-expect-error Preparation cannot accept completed execution facts.
 prepareDag({ ...source, completedWork: new Set<ID>() });
 void [cjsIdentity, factoryIdentity, explicitIdentity, forest, checkAsync];
+
+function inspectSession(session: DagCoordinator<ID> | AsyncDagCoordinator<ID>) {
+  const state: import('configurable-tree-traversal').TraversalExecutionState =
+    session;
+  const inspection: import('configurable-tree-traversal').DagInspection<ID> =
+    session.inspectDag();
+  const fatal: (ticket: DagWorkTicket<ID>, error: unknown) => unknown =
+    session.failTraversal;
+  const ErrorConstructor: typeof cjs.DagDiscoveryCycleError =
+    dagCjs.DagDiscoveryCycleError;
+  const error = new ErrorConstructor<ID>([]);
+  const witness: readonly ID[] = error.vertexIds;
+  void [state, inspection, fatal, witness];
+}
+void inspectSession;

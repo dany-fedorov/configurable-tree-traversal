@@ -43,6 +43,7 @@ export abstract class TraversalRunnerIterable<
   >;
 }
 
+/** Historical sync tree-only base; DAG and walking runners expose execution capabilities. */
 export abstract class TraversalRunner<
   ORDER extends string,
   TTP extends TreeTypeParameters,

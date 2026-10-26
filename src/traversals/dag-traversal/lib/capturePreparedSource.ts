@@ -46,7 +46,7 @@ export function capturePreparedSource<T extends TreeTypeParameters, ID>(
     value: PrerequisiteResolutionResult<T, ID>,
     prerequisite: boolean,
   ) => {
-    const normalized = normalizeSourceResult(value, prerequisite);
+    const normalized = normalizeSourceResult<T, ID>(value, prerequisite);
     if (normalized === undefined) return undefined;
     // These fields use ordinary property access in the engine, so inherited and
     // non-enumerable source properties must survive capture too.

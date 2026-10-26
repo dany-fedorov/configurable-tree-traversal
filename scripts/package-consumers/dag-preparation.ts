@@ -52,3 +52,23 @@ const rootWork: DagDeferredWork<ID> = subpathWork;
 // @ts-expect-error Subpath frontier ID domain must remain exact.
 const wrongSubpath: SubpathWork<number> = rootWork;
 void wrongSubpath;
+
+new DagTraversal<G, G, ID>({
+  traversableGraph: source,
+  traversableTree: undefined,
+}).configure({
+  traversableGraph: undefined,
+  traversableTree: undefined,
+});
+new AsyncDagTraversal<G, G, ID>({
+  traversableGraph: source,
+  traversableTree: undefined,
+}).configure({
+  traversableGraph: undefined,
+  traversableTree: undefined,
+});
+// @ts-expect-error Undefined placeholders do not supply a required constructor source.
+new DagTraversal<G, G, ID>({
+  traversableGraph: undefined,
+  traversableTree: undefined,
+});

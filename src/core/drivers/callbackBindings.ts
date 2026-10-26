@@ -137,7 +137,7 @@ export function bindGraphSource<
       mapSourceResult(
         // Kernel prerequisite IDs originate from this source's typed dependencies.
         adapter.resolvePrerequisite!(id as ID),
-        (value) => normalizeSourceResult(value, true),
+        (value) => normalizeSourceResult<T, ID>(value, true),
       );
   }
   return bound;

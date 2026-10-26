@@ -66,6 +66,7 @@ type TreeMetadataRestrictions = {
   vertexId?: never;
   dependsOn?: never;
   dependsOnComplete?: never;
+  satisfiesDependencies?: never;
 };
 
 /** @deprecated Return a tagged tree found or omitted result. */
@@ -80,7 +81,6 @@ export type TreeFoundVertexResult<T extends TreeTypeParameters> =
 
 export type TreeOmittedVertexResult = TreeMetadataRestrictions & {
   kind: 'omitted';
-  satisfiesDependencies: true;
 };
 
 export type TreeSourceVertexResult<T extends TreeTypeParameters> =

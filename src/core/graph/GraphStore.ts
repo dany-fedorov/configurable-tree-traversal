@@ -1,7 +1,7 @@
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { GetPathToOptions, VertexResolved } from '@core/ResolvedTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import { createVertexIdLabeler } from '@core/graph/identity';
+import { DagDiscoveryCycleError } from '@core/errors/DagDiscoveryCycleError';
 import type {
   ChildSlot,
   GraphEdge,
@@ -33,7 +33,6 @@ export class GraphStore<T extends TreeTypeParameters>
   private readonly entries = new Map<Ref<T>, Entry<T>>();
   private readonly ids = new Map<VertexId, IdState<T>>();
   private readonly treeRecords = new Map<Ref<T>, VertexResolved<T>>();
-  private readonly labelId = createVertexIdLabeler();
   private root: Ref<T> | null = null;
   private topologyVersion = 0;
 
@@ -170,10 +169,9 @@ export class GraphStore<T extends TreeTypeParameters>
     if (this.mode === 'dag') {
       const path = this.findPath(child, parent);
       if (path !== null) {
-        const labels = [parent, ...path].map((ref) =>
-          this.labelId(this.getEntry(ref).id),
+        throw new DagDiscoveryCycleError(
+          [parent, ...path].map((ref) => this.getEntry(ref).id),
         );
-        throw new Error(`Discovery cycle detected: ${labels.join(' -> ')}`);
       }
     }
 

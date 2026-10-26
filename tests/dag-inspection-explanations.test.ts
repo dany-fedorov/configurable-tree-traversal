@@ -30,8 +30,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         {
           id: (v) => v.id,
           children: (v) => v.children,
-          dependencies: (v) => v.work,
-          completionDependencies: (v) => v.complete,
+          dependsOn: (v) => v.work,
+          dependsOnComplete: (v) => v.complete,
         },
       ),
       completedWork: new Set(['bundle']),
@@ -311,7 +311,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           { id: 'a', work: ['b'] },
           { id: 'b', work: ['a'] },
         ],
-        { id: (v) => v.id, dependencies: (v) => v.work },
+        { id: (v) => v.id, dependsOn: (v) => v.work },
       ),
     ).makeRunner();
     await expect((async () => cyclic.prepare())()).rejects.toBeDefined();
@@ -334,7 +334,7 @@ test('explanations walk deep unfinished work chains iteratively', () => {
     work: id === 11999 ? [] : [id + 1],
   }));
   const runner = new DagTraversal({
-    ...graphFrom(records, { id: (v) => v.id, dependencies: (v) => v.work }),
+    ...graphFrom(records, { id: (v) => v.id, dependsOn: (v) => v.work }),
     workCompletion: 'externalSettlement',
   }).makeRunner();
   runner.prepare();

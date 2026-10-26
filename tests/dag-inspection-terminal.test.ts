@@ -171,7 +171,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ],
       {
         id: (item) => item.id,
-        completionDependencies: (item) => item.complete,
+        dependsOnComplete: (item) => item.complete,
       },
     );
     const runner = new Constructor(source).makeRunner();

@@ -7,8 +7,8 @@ export type MaterializedRecord<Item, ID> = {
   item: Item;
   id: ID;
   children: ID[];
-  dependencies: ID[];
-  completionDependencies: ID[];
+  dependsOn: ID[];
+  dependsOnComplete: ID[];
 };
 
 export async function collect<Item>(
@@ -32,8 +32,8 @@ export function materializedSource<Item, ID>(
     vertex: {
       vertexId: record.id,
       vertexContent: { $data: record.item, $childHints: [...record.children] },
-      dependsOn: [...record.dependencies],
-      dependsOnComplete: [...record.completionDependencies],
+      dependsOn: [...record.dependsOn],
+      dependsOnComplete: [...record.dependsOnComplete],
     },
   });
   // The traversal replaces the holder identity and hides its data in public views.
@@ -46,8 +46,8 @@ export function materializedSource<Item, ID>(
           item: undefined as Item,
           id: holder,
           children: roots,
-          dependencies: [],
-          completionDependencies: [],
+          dependsOn: [],
+          dependsOnComplete: [],
         }),
       makeVertex: (id) => {
         const record = records.get(id);
@@ -72,5 +72,13 @@ export function validateChildren<Item, ID>(
       if (!records.has(child))
         throw new TypeError('Structural child is absent from the collection');
     }
+  }
+}
+
+/** Reject retired selector names before reading the catalog or invoking callbacks. */
+export function validateCollectionSelectors(selectors: object): void {
+  for (const key of ['dependencies', 'completionDependencies']) {
+    if (key in selectors)
+      throw new TypeError('Use dependsOn and dependsOnComplete selectors');
   }
 }

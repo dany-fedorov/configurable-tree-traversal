@@ -305,3 +305,16 @@ new DagTraversal({ traversableGraph: graph }).configure({
   workCompletion: null,
 });
 void [stopReason, coreStopReason, inspectionStopReason];
+
+const canonicalTreeOmitted: import('../src').TreeOmittedVertexResult = {
+  kind: 'omitted',
+};
+const canonicalCoreTreeOmitted: import('../src/core').TreeOmittedVertexResult =
+  canonicalTreeOmitted;
+// @ts-expect-error Graph callbacks must explicitly acknowledge milestone satisfaction.
+const treeOmittedAsGraph: import('../src').OmittedVertexResult =
+  canonicalTreeOmitted;
+// @ts-expect-error Graph acknowledgement is unsupported tree metadata.
+const graphOmittedAsTree: import('../src').TreeOmittedVertexResult =
+  canonicalOmitted;
+void [canonicalCoreTreeOmitted, treeOmittedAsGraph, graphOmittedAsTree];

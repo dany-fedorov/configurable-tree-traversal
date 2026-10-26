@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Preserve fragment definition issues in exported `DagFragmentValidationError<ID = unknown>` while keeping direct success values and ordinary port/mapping TypeErrors. Add defaulted ID typing to `DagTraversalStallError` and synchronous `inspectDag()` on both DAG runners.
+- Allow `null` to clear walking predicates; keep omitted/undefined patches retaining previous predicates. Explicit optional predicate/source undefined inputs remain valid under exact optional property typing. Fix the DAG configure source guard shipped in 0.11.0 to ignore inherited/own-undefined placeholders, capture source getters once, and retain atomic source-mode rejection.
+- Clarify preparation/frontier choices, tree-only bases, legacy object adapter direct results, family root/slot distinctions, and buffered tree/DAG emission.
+
+- Unify expected preparation/composition/revision failures under `invalid.issues` and align collection dependency selectors with `dependsOn` / `dependsOnComplete`, rejecting retired selector keys. Clarify ticket dispatch, committed event timing, faithful definitions, walking adapter mapping and structural sink semantics in current guides.
+
+- Simplify tree-source and object-hook omission to `{ kind: 'omitted' }`, including DAG traversal over tree adapters; reject graph acknowledgement metadata on trees while requiring explicit `satisfiesDependencies: true` on graph/prerequisite omissions.
+
+- Expose shared lifecycle inspection and `inspectDag()` on sync/async coordination sessions; use `failTraversal` as the sole fatal settlement method.
+- Export `DagDiscoveryCycleError` with an immutable closed ID witness from root, core and DAG traversal entry points.
+- Reject unknown walking option/limit keys before discovery while preserving configuration on invalid patches; accept explicit `undefined` arguments for shared parameterless NOOP/HALT commands.
+
+- Add lazy sync/async `GraphWalk` exploration and canonical `walkGraph` / `walkGraphAsync` helpers with mixed typed vertex/edge/path observations, hydrated targets, cyclic/parallel relationships, bounded simple paths/repeated walks, explicit completeness outcomes, cooperative pause and terminal iterator disposal.
+- Add finite catalog and selected DAG-declaration walking adapters, default-preserving common execution inspection, and coherent root/namespace/subpath CJS/ESM exports. Preserve tree/DAG contracts and the published 0.11.0 release boundary.
+
 - Add atomic validated `reviseDag` edits and pure shallow `diffDagDefinitions` results; preserve old sessions/tickets and require explicit host-selected completion facts for new sessions.
 - Hide omitted and deleted synthetic holder identities from DAG inspection while preserving caller symbol IDs.
 

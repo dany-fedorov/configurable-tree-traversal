@@ -1,6 +1,12 @@
 import {
   TraversableObjectTree,
+  type TraversableObjectTTP,
   DepthFirstTraversal,
+  AsyncDepthFirstTraversal,
+  BreadthFirstTraversal,
+  AsyncBreadthFirstTraversal,
+  DagTraversal,
+  AsyncDagTraversal,
   DepthFirstTraversalOrder,
 } from '../src';
 import {
@@ -27,7 +33,7 @@ test('canonical hook replaces and omits properties in reconstructed output and d
   expect(
     rewriteWithHook({ keep: { leaf: 1 }, replace: 2, skip: 3 }, (hint) =>
       hint.key === 'skip'
-        ? { kind: 'omitted', satisfiesDependencies: true }
+        ? { kind: 'omitted' }
         : hint.key === 'replace'
         ? {
             kind: 'found',
@@ -96,30 +102,31 @@ test.each([
   { kind: 'other' },
   { kind: 'found', vertex: null },
   { kind: 'found', vertex: { vertexContent: null } },
-  { kind: 'omitted' },
 ])('rejects malformed canonical result %p', (result) => {
   expect(() => rewriteWithHook({ a: 1 }, () => result)).toThrow(TypeError);
 });
 
-test.each(['vertexId', 'dependsOn', 'dependsOnComplete'])(
-  'rejects hook %s before omission/default discards it',
-  (field) => {
-    for (const result of [
-      { kind: 'useDefault', [field]: undefined },
-      { kind: 'omitted', satisfiesDependencies: true, [field]: undefined },
-      {
-        kind: 'found',
-        vertex: {
-          vertexContent: { $data: { key: 'a', value: 2 }, $childHints: [] },
-          [field]: undefined,
-        },
+test.each([
+  'vertexId',
+  'dependsOn',
+  'dependsOnComplete',
+  'satisfiesDependencies',
+])('rejects hook %s before omission/default discards it', (field) => {
+  for (const result of [
+    { kind: 'useDefault', [field]: undefined },
+    { kind: 'omitted', [field]: undefined },
+    {
+      kind: 'found',
+      vertex: {
+        vertexContent: { $data: { key: 'a', value: 2 }, $childHints: [] },
+        [field]: undefined,
       },
-    ])
-      expect(() => rewriteWithHook({ a: 1 }, () => result)).toThrow(
-        /graph metadata/i,
-      );
-  },
-);
+    },
+  ])
+    expect(() => rewriteWithHook({ a: 1 }, () => result)).toThrow(
+      /graph metadata/i,
+    );
+});
 
 test('active canonical and legacy hooks conflict; disabled legacy hooks remain compatible', () => {
   const canonical = () => ({ kind: 'useDefault' as const });
@@ -151,7 +158,7 @@ test('legacy returnMe and canonical results reconstruct equivalent output', () =
   ).outputObject;
   const canonical = rewriteWithHook({ a: 1, skip: 2 }, (hint) =>
     hint.key === 'skip'
-      ? { kind: 'omitted', satisfiesDependencies: true }
+      ? { kind: 'omitted' }
       : { kind: 'found', vertex: { vertexContent: content } },
   );
   expect(canonical).toEqual({ changed: 4 });
@@ -167,7 +174,7 @@ test.each(['resolveVertexHook', 'makeVertexHook'] as const)(
         reads += 1;
         if (reads > 1) throw new Error('configuration read twice');
         return name === 'resolveVertexHook'
-          ? () => ({ kind: 'omitted', satisfiesDependencies: true })
+          ? () => ({ kind: 'omitted' })
           : () => ({ returnMe: null });
       },
     });
@@ -202,27 +209,78 @@ test.each([undefined, null, false, Symbol('hook failure')])(
   },
 );
 
-test.each(['vertexId', 'dependsOn', 'dependsOnComplete'])(
-  'legacy hook cannot discard %s metadata before default/pruning',
-  (field) => {
-    for (const returnMe of [undefined, null]) {
-      expect(() =>
-        rewriteObject(
-          { a: 1 },
-          {
-            makeVertexHook: () => ({
-              ...(returnMe === undefined ? {} : { returnMe }),
-              [field]: undefined,
-            }),
-          },
-        ),
-      ).toThrow(/graph metadata/i);
-    }
-  },
-);
+test.each([
+  'vertexId',
+  'dependsOn',
+  'dependsOnComplete',
+  'satisfiesDependencies',
+])('legacy hook cannot discard %s metadata before default/pruning', (field) => {
+  for (const returnMe of [undefined, null]) {
+    expect(() =>
+      rewriteObject(
+        { a: 1 },
+        {
+          makeVertexHook: () => ({
+            ...(returnMe === undefined ? {} : { returnMe }),
+            [field]: undefined,
+          }),
+        },
+      ),
+    ).toThrow(/graph metadata/i);
+  }
+});
 
 test('rejects a nonfunction canonical hook before traversal', () => {
   expect(() =>
     rewriteObject({}, { resolveVertexHook: null } as unknown as Options),
   ).toThrow(TypeError);
 });
+
+type ObjectT = TraversableObjectTTP<string | number | symbol, unknown>;
+for (const Constructor of [
+  DepthFirstTraversal<ObjectT>,
+  AsyncDepthFirstTraversal<ObjectT>,
+  BreadthFirstTraversal<ObjectT>,
+  AsyncBreadthFirstTraversal<ObjectT>,
+  DagTraversal<ObjectT>,
+  AsyncDagTraversal<ObjectT>,
+]) {
+  test(`${Constructor.name} object hooks use plain omissions and preserve callback errors`, async () => {
+    const tree: import('../src').TraversableTree<ObjectT> =
+      new TraversableObjectTree(
+        { keep: 1, skip: 2 },
+        {
+          resolveVertexHook: (hint) =>
+            hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
+        },
+      );
+    const runner = new Constructor({ traversableTree: tree }).makeRunner();
+    const keys: unknown[] = [];
+    for await (const event of runner.getIterable()) {
+      if (event !== null && !keys.includes(event.vertex.getData().key))
+        keys.push(event.vertex.getData().key);
+    }
+    expect(keys).toContain('keep');
+    expect(keys).not.toContain('skip');
+    for (const failure of [undefined, null, Symbol('object callback')]) {
+      const failed = new Constructor({
+        traversableTree: new TraversableObjectTree(
+          { child: 1 },
+          {
+            resolveVertexHook: () => {
+              throw failure;
+            },
+          },
+        ),
+      }).makeRunner();
+      let caught = false;
+      try {
+        await failed.run();
+      } catch (error) {
+        caught = true;
+        expect(error).toBe(failure);
+      }
+      expect(caught).toBe(true);
+    }
+  });
+}

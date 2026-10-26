@@ -15,6 +15,7 @@ export type ObjectVertexHookResult<T extends TreeTypeParameters> =
       vertexId?: never;
       dependsOn?: never;
       dependsOnComplete?: never;
+      satisfiesDependencies?: never;
     }
   | TreeFoundVertexResult<T>
   | TreeOmittedVertexResult;

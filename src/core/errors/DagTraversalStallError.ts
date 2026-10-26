@@ -27,12 +27,22 @@ export type DagTraversalStallDiagnostics<ID = unknown> = {
   structurallyIncompleteIds: ID[];
 };
 
-export class DagTraversalStallError extends Error {
-  readonly diagnostics: DagTraversalStallDiagnostics;
+// Keep legacy constructor calls in the unknown domain (including heterogeneous
+// IDs); explicit type arguments validate diagnostics on TypeScript 4.7 too.
+type DiagnosticId<ID> = [ID][ID extends unknown ? 0 : never];
+
+/** Explicit ID annotations type diagnostics; arbitrary catches retain the unknown ID domain. */
+export class DagTraversalStallError<ID = unknown> extends Error {
+  readonly diagnostics: DagTraversalStallDiagnostics<ID>;
 
   constructor(
-    diagnostics: Omit<DagTraversalStallDiagnostics, 'dependencyEdges'> &
-      Partial<Pick<DagTraversalStallDiagnostics, 'dependencyEdges'>>,
+    diagnostics: Omit<
+      DagTraversalStallDiagnostics<DiagnosticId<ID>>,
+      'dependencyEdges'
+    > &
+      Partial<
+        Pick<DagTraversalStallDiagnostics<DiagnosticId<ID>>, 'dependencyEdges'>
+      >,
   ) {
     const ids = diagnostics.dependencies.flatMap(({ id, unmet }) => [
       id,

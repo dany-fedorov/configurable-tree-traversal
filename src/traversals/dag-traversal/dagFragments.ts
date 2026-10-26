@@ -1,4 +1,5 @@
 import { defineDag } from './defineDag';
+import { DagFragmentValidationError } from './lib/DagFragmentValidationError';
 import type {
   DagDefinition,
   DagDefinitionResult,
@@ -36,7 +37,7 @@ export function defineDagFragment<Data, ID, Port extends string>(
 ): DagFragment<Data, ID, Port> {
   const result = prepareDagDefinition(definition);
   if (result.kind === 'invalid')
-    throw new TypeError('DAG fragments require a closed valid definition');
+    throw new DagFragmentValidationError(result.issues);
   const live = new Set(
     result.dag.definition.vertices.map((vertex) => vertex.vertexId),
   );

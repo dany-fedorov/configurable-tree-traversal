@@ -1,6 +1,5 @@
-import type { DagDefinition } from './DagDefinition';
+import type { DagDefinition, DagDefinitionResult } from './DagDefinition';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalConfigureInput } from './DagTraversalInstanceConfig';
 import type { AsyncDagTraversalConfigureInput } from './AsyncDagTraversalInstanceConfig';
 import type { DagTraversalRunner } from './DagTraversalRunner';
@@ -67,7 +66,9 @@ export type PreparedAsyncDagSessionOptions<ID> =
 
 /** An in-memory validated topology; data and identities remain shallow caller values. */
 export interface PreparedDag<Data, ID = unknown> {
+  /** Live-child convenience projection; omission slots are absent. Do not use for round-trip reconstruction. */
   readonly vertices: readonly PreparedDagVertex<Data, ID>[];
+  /** Faithful ordered entry, slots, omissions, and W/C declarations for reconstruction or revision. */
   readonly definition: DagDefinition<Data, ID>;
   createRunner(
     options?: PreparedDagRunnerOptions<Data, ID>,
@@ -91,6 +92,7 @@ export interface PreparedDag<Data, ID = unknown> {
   ): Promise<AsyncDagCoordinator<ID>>;
 }
 
-export type PrepareDagResult<Data, ID = unknown> =
-  | { kind: 'valid'; dag: PreparedDag<Data, ID> }
-  | { kind: 'invalid'; diagnostics: DagTraversalStallDiagnostics<ID> };
+export type PrepareDagResult<Data, ID = unknown> = DagDefinitionResult<
+  Data,
+  ID
+>;

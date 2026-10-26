@@ -10,12 +10,12 @@ import type {
   VisitOrder,
 } from '@core/effects/types';
 
-export type InspectionFilters = Readonly<{
-  emitPhases: readonly VisitOrder[];
-  visitorPhases: VisitorPhaseSelection<VisitOrder>;
-  iterateOver: readonly VisitOrder[];
-  enableVisitorFunctionsFor: readonly VisitOrder[] | null;
-  disableVisitorFunctionsFor: readonly VisitOrder[] | null;
+export type InspectionFilters<Phase extends string = VisitOrder> = Readonly<{
+  emitPhases: readonly Phase[];
+  visitorPhases: VisitorPhaseSelection<Phase>;
+  iterateOver: readonly Phase[];
+  enableVisitorFunctionsFor: readonly Phase[] | null;
+  disableVisitorFunctionsFor: readonly Phase[] | null;
 }>;
 
 export type KernelInspection = Readonly<{

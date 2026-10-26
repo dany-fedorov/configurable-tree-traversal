@@ -178,6 +178,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     { kind: 'found', vertex: { vertexContent: null } },
     { kind: 'omitted' },
     { kind: 'omitted', satisfiesDependencies: false },
+    { kind: 'omitted', satisfiesDependencies: undefined },
     null,
     undefined,
   ])(
@@ -348,4 +349,32 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       runner.resolvedGraphsContainer.store.getIdState('missing'),
     ).toBeUndefined();
   });
+}
+
+for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
+  test.each([
+    {},
+    { satisfiesDependencies: undefined },
+    { satisfiesDependencies: false },
+  ])(
+    `${Constructor.name} rejects unacknowledged prerequisite omission %j`,
+    async (acknowledgement) => {
+      const runner = new Constructor({
+        traversableGraph: {
+          makeRoot: () => ({
+            vertexId: 'root',
+            dependsOn: ['optional'],
+            vertexContent: { $data: 'root', $childHints: [] },
+          }),
+          makeVertex: () => ({ vertexContent: null }),
+          resolvePrerequisite: () => ({ kind: 'omitted', ...acknowledgement }),
+        } as unknown as TraversableGraph<G>,
+      }).makeRunner();
+      await expect(async () => {
+        await runner.run();
+      }).rejects.toThrow(
+        'Omitted source result requires satisfiesDependencies: true',
+      );
+    },
+  );
 }

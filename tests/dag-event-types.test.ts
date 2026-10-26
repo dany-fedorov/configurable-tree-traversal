@@ -79,7 +79,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           kind: 'found',
           vertex: { vertexContent: { $data: 'task', $childHints: [] } },
         }),
-        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        makeVertex: () => ({ kind: 'omitted' }),
       },
     }).makeRunner();
     const ids = [];

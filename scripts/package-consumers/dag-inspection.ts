@@ -1,4 +1,5 @@
 import {
+  DagTraversalStallError,
   DagTraversal,
   AsyncDagTraversal,
   graphFrom,
@@ -17,10 +18,12 @@ const records: { id: ID; work: ID[] }[] = [
 ];
 const source = graphFrom(records, {
   id: (v) => v.id,
-  dependencies: (v) => v.work,
+  dependsOn: (v) => v.work,
 });
 const inspections: DagInspection<ID>[] = [
   inspectDag(new DagTraversal(source).makeRunner()),
+  new DagTraversal(source).makeRunner().inspectDag(),
+  new AsyncDagTraversal(source).makeRunner().inspectDag(),
   dag.inspectDag(new AsyncDagTraversal(source).makeRunner()),
 ];
 const sameFunction: typeof inspectDag = cjs.inspectDag;
@@ -45,3 +48,40 @@ inspections[0]!.explain({ vertexId: 'other', milestone: 'work' });
 // @ts-expect-error Milestone kinds are qualified.
 inspections[0]!.explain({ vertexId: 'build', milestone: 'ready' });
 void [sameFunction, sameResult];
+
+const typedStall: dag.DagTraversalStallError<ID> =
+  new DagTraversalStallError<ID>({
+    dependencies: [{ id: 'review', unmet: ['build'] }],
+    unknownPrerequisiteIds: [],
+    dependencyCycles: [],
+    dependencyBlockedIds: ['review'],
+    structurallyIncompleteIds: [],
+  });
+const stalledId: ID = typedStall.diagnostics.dependencies[0]!.id;
+const defaultStall: DagTraversalStallError = typedStall;
+// @ts-expect-error Default error diagnostics remain unknown.
+const unknownId: ID = defaultStall.diagnostics.dependencies[0]!.id;
+// @ts-expect-error Typed errors retain the selected ID domain.
+const wrongStall: DagTraversalStallError<'other'> = typedStall;
+// @ts-expect-error Async runner inspection returns a synchronous snapshot.
+const asyncSnapshot: Promise<DagInspection<ID>> = new AsyncDagTraversal(source)
+  .makeRunner()
+  .inspectDag();
+const methodSnapshot = new DagTraversal(source).makeRunner().inspectDag();
+// @ts-expect-error Runner method retains the source identity domain.
+methodSnapshot.explain({ vertexId: 'other', milestone: 'work' });
+void [stalledId, unknownId, wrongStall, asyncSnapshot];
+
+const heterogeneousStall = new DagTraversalStallError({
+  dependencies: [{ id: { task: 'root' }, unmet: [undefined, null, NaN] }],
+  unknownPrerequisiteIds: [undefined, null, NaN],
+  dependencyCycles: [],
+  dependencyBlockedIds: [],
+  structurallyIncompleteIds: [],
+});
+const legacyUnknown: unknown =
+  heterogeneousStall.diagnostics.dependencies[0]!.id;
+// @ts-expect-error Omitting the error type argument preserves the unknown default.
+const legacyDomain: { task: string } | null | undefined | number =
+  heterogeneousStall.diagnostics.dependencies[0]!.id;
+void [legacyUnknown, legacyDomain];

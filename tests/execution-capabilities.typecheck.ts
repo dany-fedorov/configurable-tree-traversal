@@ -1,4 +1,7 @@
 import {
+  GraphWalk,
+  AsyncGraphWalk,
+  GraphWalkPhase as WALK,
   AsyncBreadthFirstTraversal,
   AsyncDagTraversal,
   AsyncDepthFirstTraversal,
@@ -8,6 +11,10 @@ import {
   BreadthFirstTraversalOrder as BFS,
   DagTraversalOrder as DAG,
   DepthFirstTraversalOrder as DFS,
+  TraversalRunnerStatus,
+  type CoreInspection,
+  type ExecutionInspection,
+  type TraversalExecutionState,
   type AsyncCoreExecution,
   type AsyncTraversalExecution,
   type SyncTraversalExecution,
@@ -23,7 +30,7 @@ const tree: TraversableTree<Tree> = {
     kind: 'found',
     vertex: { vertexContent: { $data: 'root', $childHints: [] } },
   }),
-  makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+  makeVertex: () => ({ kind: 'omitted' }),
 };
 const dfs = new AsyncDepthFirstTraversal({ traversableTree: tree });
 const concrete = dfs.makeRunner();
@@ -120,3 +127,105 @@ sync.getIterable().return(42);
 // @ts-expect-error Closing an async generator accepts only its void completion value.
 precise.getIterable().return(42);
 void invalidClosedValue;
+
+function paused(state: TraversalExecutionState<ExecutionInspection>): boolean {
+  const inspection = state.inspect();
+  return state.isHalted() && inspection.status === TraversalRunnerStatus.HALTED;
+}
+const oldShape: CoreInspection = syncConcrete.inspect();
+paused(syncConcrete);
+void oldShape;
+
+const observedSync: SyncTraversalExecution<DFS, unknown, ExecutionInspection> =
+  syncConcrete;
+const observedAsync: AsyncTraversalExecution<
+  DFS,
+  unknown,
+  ExecutionInspection
+> = concrete;
+paused(observedSync);
+paused(observedAsync);
+// @ts-expect-error Common inspection does not promise tree/DAG frames.
+observedSync.inspect().frames;
+// @ts-expect-error Generalizing inspection cannot widen supported phases.
+const unsafeObserved: SyncTraversalExecution<
+  DFS | DAG,
+  unknown,
+  ExecutionInspection
+> = syncConcrete;
+void unsafeObserved;
+
+// Common-inspection wrappers preserve each family's phase domain across all eight runners.
+const commonBreadth: SyncTraversalExecution<BFS, unknown, ExecutionInspection> =
+  breadth;
+const commonDag: SyncTraversalExecution<DAG, unknown, ExecutionInspection> =
+  dag;
+const commonAsyncBreadth: AsyncTraversalExecution<
+  BFS,
+  unknown,
+  ExecutionInspection
+> = asyncBreadth;
+const commonAsyncDag: AsyncTraversalExecution<
+  DAG,
+  unknown,
+  ExecutionInspection
+> = asyncDag;
+const oldInspections: CoreInspection[] = [
+  syncConcrete.inspect(),
+  concrete.inspect(),
+  breadth.inspect(),
+  dag.inspect(),
+  asyncBreadth.inspect(),
+  asyncDag.inspect(),
+];
+void oldInspections;
+paused(commonBreadth);
+paused(commonDag);
+paused(commonAsyncBreadth);
+paused(commonAsyncDag);
+
+const walkingSource = { roots: () => [], outgoing: () => [] };
+const walking = new GraphWalk({ source: walkingSource }).makeRunner();
+const asyncWalking = new AsyncGraphWalk({ source: walkingSource }).makeRunner();
+const commonWalking: SyncTraversalExecution<
+  WALK,
+  unknown,
+  ExecutionInspection
+> = walking;
+const commonAsyncWalking: AsyncTraversalExecution<
+  WALK,
+  unknown,
+  ExecutionInspection
+> = asyncWalking;
+paused(commonWalking);
+paused(commonAsyncWalking);
+// @ts-expect-error Walking does not promise detailed old tree/DAG inspection.
+const oldWalkingInspection: CoreInspection = walking.inspect();
+// @ts-expect-error Default inspection remains CoreInspection for existing callers.
+const oldWalkingCapability: SyncTraversalExecution<WALK, unknown> = walking;
+// @ts-expect-error Default async inspection remains CoreInspection.
+const oldAsyncWalkingCapability: AsyncTraversalExecution<WALK, unknown> =
+  asyncWalking;
+// @ts-expect-error A common-inspection walker cannot accept tree phases.
+const unsafeWalking: SyncTraversalExecution<
+  WALK | DFS,
+  unknown,
+  ExecutionInspection
+> = walking;
+// @ts-expect-error Async phase variance is retained with common inspection.
+const unsafeAsyncWalking: AsyncTraversalExecution<
+  WALK | DAG,
+  unknown,
+  ExecutionInspection
+> = asyncWalking;
+const walkingClose: void = walking.close();
+const asyncWalkingClose: Promise<void> = asyncWalking.close();
+void [
+  oldWalkingInspection,
+  oldWalkingCapability,
+  oldAsyncWalkingCapability,
+  unsafeWalking,
+  unsafeAsyncWalking,
+  walkingClose,
+  asyncWalkingClose,
+];

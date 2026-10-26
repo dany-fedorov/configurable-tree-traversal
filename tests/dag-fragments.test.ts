@@ -1,4 +1,11 @@
-import { defineDagFragment, instantiateDagFragment, composeDag } from '../src';
+import {
+  defineDagFragment,
+  instantiateDagFragment,
+  composeDag,
+  DagFragmentValidationError,
+  type DagDefinitionIssue,
+} from '../src';
+import * as dag from '../src/traversals/dag-traversal';
 
 const vertex = <ID>(
   vertexId: ID,
@@ -644,3 +651,187 @@ test('wire endpoint getters run once and retain exact thrown values', () => {
     },
   });
 });
+
+test('fragment validation exposes structural issues with shallow object and undefined identities', () => {
+  const id = { task: 'root' };
+  const definition = {
+    vertices: [
+      {
+        ...vertex<unknown>(id),
+        slots: [{ kind: 'vertex' as const, vertexId: undefined }],
+      },
+    ],
+    omittedIds: [],
+    entry: { kind: 'root' as const, vertexId: id },
+  };
+  expect.assertions(8);
+  try {
+    defineDagFragment(definition, { root: id });
+  } catch (error) {
+    expect(error).toBeInstanceOf(TypeError);
+    expect(error).toBeInstanceOf(DagFragmentValidationError);
+    expect(error).toBeInstanceOf(dag.DagFragmentValidationError);
+    if (!(error instanceof DagFragmentValidationError)) throw error;
+    expect(error.name).toBe('DagFragmentValidationError');
+    expect(error.issues).toEqual([
+      {
+        kind: 'missingStructuralEndpoint',
+        parent: { vertexId: id },
+        vertexId: undefined,
+      },
+    ]);
+    const issue = error.issues[0]!;
+    if (issue.kind !== 'missingStructuralEndpoint')
+      throw new Error('Expected structural issue');
+    expect(issue.parent!.vertexId).toBe(id);
+    expect(Object.prototype.hasOwnProperty.call(issue, 'vertexId')).toBe(true);
+    expect(issue.vertexId).toBeUndefined();
+  }
+});
+
+test('forged fragments expose milestone validation before any mapping', () => {
+  const id = { task: 'root' };
+  let mappings = 0;
+  const fragment = {
+    definition: {
+      vertices: [vertex<unknown>(id, [undefined])],
+      omittedIds: [],
+      entry: { kind: 'root' as const, vertexId: id },
+    },
+    ports: { root: id },
+  };
+  expect.assertions(6);
+  try {
+    instantiateDagFragment(fragment, {
+      mapId: () => {
+        mappings++;
+        return 'mapped';
+      },
+    });
+  } catch (error) {
+    expect(error).toBeInstanceOf(DagFragmentValidationError);
+    if (!(error instanceof DagFragmentValidationError)) throw error;
+    expect(error.issues).toMatchObject([
+      {
+        kind: 'milestone',
+        diagnostics: { unknownPrerequisiteIds: [undefined] },
+      },
+    ]);
+    const issue = error.issues[0]!;
+    if (issue.kind !== 'milestone') throw new Error('Expected milestone issue');
+    const edge = issue.diagnostics.dependencyEdges.find(
+      (edge) => edge.reason === 'workDependency',
+    )!;
+    expect(edge.from.vertexId).toBe(id);
+    expect(edge.to.vertexId).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(edge.to, 'vertexId')).toBe(
+      true,
+    );
+    expect(mappings).toBe(0);
+  }
+});
+
+test('fragment validation errors detach their issue array while retaining issue and ID identity', () => {
+  const id = {};
+  const issue: DagDefinitionIssue<typeof id> = {
+    kind: 'unreachable',
+    vertexIds: [id],
+  };
+  const issues = [issue];
+  const error = new DagFragmentValidationError(issues);
+  issues.length = 0;
+  expect(error.issues).toEqual([issue]);
+  expect(error.issues[0]).toBe(issue);
+  expect(Object.isFrozen(id)).toBe(false);
+});
+
+test('fragment port and mapping failures retain their plain TypeError taxonomy', () => {
+  const valid = single();
+  for (const operation of [
+    () => defineDagFragment(valid.definition, { start: 'unknown' }),
+    () => defineDagFragment(valid.definition, null as any),
+    () => defineDagFragment(null as any, {}),
+    () =>
+      instantiateDagFragment(
+        { ...valid, ports: { start: 'unknown' } },
+        { mapId: (id) => id },
+      ),
+    () =>
+      instantiateDagFragment(
+        defineDagFragment(
+          {
+            vertices: [vertex('a'), vertex('b')],
+            omittedIds: [],
+            entry: {
+              kind: 'forest',
+              slots: [
+                { kind: 'vertex', vertexId: 'a' },
+                { kind: 'vertex', vertexId: 'b' },
+              ],
+            },
+          },
+          {},
+        ),
+        { mapId: () => 'same' },
+      ),
+  ]) {
+    expect(operation).toThrow(TypeError);
+    expect(operation).not.toThrow(DagFragmentValidationError);
+  }
+});
+
+test.each(['structuralCycle', 'milestone'] as const)(
+  'closed invalid fragments preserve %s details through construction and instantiation',
+  (kind) => {
+    const id = { task: 'root' };
+    const definition = {
+      vertices: [
+        {
+          ...vertex<unknown>(id),
+          slots: [{ kind: 'vertex' as const, vertexId: undefined }],
+        },
+        {
+          ...vertex<unknown>(undefined, [], kind === 'milestone' ? [id] : []),
+          slots:
+            kind === 'structuralCycle'
+              ? [{ kind: 'vertex' as const, vertexId: id }]
+              : [],
+        },
+      ],
+      omittedIds: [],
+      entry: { kind: 'root' as const, vertexId: id },
+    };
+    for (const construct of [
+      () => defineDagFragment(definition, { root: id }),
+      () =>
+        instantiateDagFragment(
+          { definition, ports: { root: id } },
+          {
+            mapId: () => {
+              throw new Error('Validation must precede mapping');
+            },
+          },
+        ),
+    ]) {
+      try {
+        construct();
+        throw new Error('Expected invalid fragment');
+      } catch (error) {
+        if (!(error instanceof DagFragmentValidationError)) throw error;
+        expect(error.issues).toHaveLength(1);
+        const issue = error.issues[0]!;
+        expect(issue.kind).toBe(kind);
+        if (issue.kind === 'structuralCycle') {
+          expect(issue.vertexIds).toEqual([id, undefined]);
+          expect(issue.vertexIds[0]).toBe(id);
+        } else if (issue.kind === 'milestone') {
+          const edge = issue.diagnostics.dependencyEdges.find(
+            (edge) => edge.reason === 'completionDependency',
+          )!;
+          expect(edge.from.vertexId).toBeUndefined();
+          expect(edge.to.vertexId).toBe(id);
+        }
+      }
+    }
+  },
+);

@@ -15,8 +15,8 @@ export type CollectionSource<Item, ID> = {
 export type GraphSelectors<Item, ID> = {
   id(item: Item): ID;
   children?(item: Item): Iterable<ID>;
-  dependencies?(item: Item): Iterable<ID>;
-  completionDependencies?(item: Item): Iterable<ID>;
+  dependsOn?(item: Item): Iterable<ID>;
+  dependsOnComplete?(item: Item): Iterable<ID>;
 };
 
 export type ForestSelectors<Item, ID> = Omit<
@@ -31,8 +31,8 @@ export type AsyncCollection<Item> = Iterable<Item> | AsyncIterable<Item>;
 export type AsyncGraphSelectors<Item, ID> = {
   id(item: Item): MaybePromise<ID>;
   children?(item: Item): MaybePromise<AsyncCollection<ID>>;
-  dependencies?(item: Item): MaybePromise<AsyncCollection<ID>>;
-  completionDependencies?(item: Item): MaybePromise<AsyncCollection<ID>>;
+  dependsOn?(item: Item): MaybePromise<AsyncCollection<ID>>;
+  dependsOnComplete?(item: Item): MaybePromise<AsyncCollection<ID>>;
 };
 
 export type AsyncForestSelectors<Item, ID> = Omit<

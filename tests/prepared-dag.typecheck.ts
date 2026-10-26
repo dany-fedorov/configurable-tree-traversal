@@ -3,6 +3,8 @@ import {
   prepareDag,
   prepareDagAsync,
   type PreparedDag,
+  type PrepareDagResult,
+  type DagDefinitionResult,
 } from '../src';
 
 type ID = 'research' | 'review';
@@ -11,7 +13,7 @@ const source = graphFrom<Task, ID>(
   [{ id: 'research', title: 'Read', requires: [] }],
   {
     id: (item) => item.id,
-    dependencies: (item) => item.requires,
+    dependsOn: (item) => item.requires,
   },
 );
 const prepared = prepareDag(source);
@@ -38,10 +40,19 @@ if (prepared.kind === 'valid') {
   dag.createRunner({ traversableTree: undefined });
   void [id, data];
 } else {
-  const missing: ID[] = prepared.diagnostics.unknownPrerequisiteIds;
+  const definitionResult: DagDefinitionResult<Task, ID> = prepared;
+  const preparationResult: PrepareDagResult<Task, ID> = definitionResult;
+  for (const issue of prepared.issues) {
+    if (issue.kind === 'milestone') {
+      const missing: ID[] = issue.diagnostics.unknownPrerequisiteIds;
+      void missing;
+    }
+  }
+  // @ts-expect-error Invalid preparation exposes issues with no diagnostics alias.
+  prepared.diagnostics;
   // @ts-expect-error An invalid result has no executable definition.
   prepared.dag.createRunner();
-  void missing;
+  void preparationResult;
 }
 async function checkAsync() {
   const result = await prepareDagAsync(source);

@@ -1,3 +1,4 @@
+import { getVisitorBatchEnds } from './getVisitorBatchEnds';
 import { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import { normalizeVisitorOptions } from './normalizeVisitorOptions';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
@@ -42,15 +43,7 @@ export class VisitorChain<
       ...record,
       ...normalizeVisitorOptions(record),
     }));
-    this.batchEnds = records.map((record, index) => {
-      const next = records[index + 1];
-      return (
-        record.commandCommitMode === 'afterEachVisitor' ||
-        next === undefined ||
-        next.commandCommitMode !== 'afterGroup' ||
-        next.visitorGroup !== record.visitorGroup
-      );
-    });
+    this.batchEnds = getVisitorBatchEnds(records);
   }
 
   poll(): VisitorChainPoll<T, R> {

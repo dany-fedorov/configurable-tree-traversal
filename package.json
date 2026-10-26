@@ -1,7 +1,7 @@
 {
   "name": "configurable-tree-traversal",
   "version": "0.11.0",
-  "description": "Walk trees and DAGs your way: DFS or BFS, pre/in/post-order, prune, pause, resume. No recursion, no stack overflows.",
+  "description": "Composable, type-safe tree and graph traversal, DAG coordination, and lazy graph walking for agent workflows.",
   "main": "./dist/index.js",
   "scripts": {
     "test": "jest --runInBand",
@@ -37,7 +37,11 @@
     "object traversal",
     "traversal",
     "tree",
-    "graph"
+    "graph",
+    "dag",
+    "graph walking",
+    "agent",
+    "workflow"
   ],
   "author": "Dany Fedorov",
   "license": "MIT",
@@ -135,6 +139,17 @@
       },
       "default": "./dist/traversals/dag-traversal/index.js"
     },
+    "./traversals/graph-walk": {
+      "import": {
+        "types": "./dist/traversals/graph-walk/index.d.mts",
+        "default": "./dist/traversals/graph-walk/index.mjs"
+      },
+      "require": {
+        "types": "./dist/traversals/graph-walk/index.d.ts",
+        "default": "./dist/traversals/graph-walk/index.js"
+      },
+      "default": "./dist/traversals/graph-walk/index.js"
+    },
     "./traversable-tree-implementations/traversable-object-tree": {
       "import": {
         "types": "./dist/traversable-tree-implementations/traversable-object-tree/index.d.mts",
@@ -193,6 +208,9 @@
       ],
       "traversals/dag-traversal": [
         "dist/traversals/dag-traversal/index.d.ts"
+      ],
+      "traversals/graph-walk": [
+        "dist/traversals/graph-walk/index.d.ts"
       ],
       "traversable-tree-implementations/traversable-object-tree": [
         "dist/traversable-tree-implementations/traversable-object-tree/index.d.ts"

@@ -16,6 +16,10 @@ import type { VisitorRecord } from '@core/graph/types';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import {
+  captureDagSourcePatch,
+  assertExactlyOneDagSource,
+} from './lib/dagSourcePatch';
+import {
   ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncDagTraversalInstanceConfigs,
   type AsyncDagTraversalConfigureInput,
@@ -45,19 +49,20 @@ export class AsyncDagTraversal<
       (
         | {
             traversableGraph: TraversableGraph<T, R, ID>;
-            traversableTree?: never;
+            traversableTree?: undefined;
           }
         | {
             traversableTree: unknown extends ID
               ? AsyncTraversableTree<T, R>
               : never;
-            traversableGraph?: never;
+            traversableGraph?: undefined;
           }
       ),
   );
   constructor(input: AsyncDagTraversalInstanceConfigInput<T, R, ID>);
   constructor(input: AsyncDagTraversalInstanceConfigInput<T, R, ID>) {
-    this.sourceMode = assertExactlyOneSource(input);
+    const sources = captureDagSourcePatch(input);
+    this.sourceMode = assertExactlyOneDagSource(sources);
     this.icfg = mergeAsyncDagTraversalInstanceConfigs(
       {
         ...(ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncDagTraversalInstanceConfig<
@@ -65,25 +70,30 @@ export class AsyncDagTraversal<
           R,
           ID
         >),
-        ...(this.sourceMode === 'graph'
-          ? { traversableGraph: input.traversableGraph }
-          : { traversableTree: input.traversableTree }),
+        ...sources,
       } as AsyncDagTraversalInstanceConfig<T, R, ID>,
       input,
+      sources,
     );
     this.visitors = initVisitors(this.icfg.visitors);
   }
 
+  /**
+   * Configure future runners. Own defined same-family sources replace; inherited
+   * and own undefined sources retain the active source. Mode changes reject atomically.
+   */
   configure(input: AsyncDagTraversalConfigureInput<T, R, ID>): this {
+    const sources = captureDagSourcePatch(input);
     if (
-      (this.sourceMode === 'graph' && 'traversableTree' in input) ||
-      (this.sourceMode === 'tree' && 'traversableGraph' in input)
+      (this.sourceMode === 'graph' && sources.traversableTree !== undefined) ||
+      (this.sourceMode === 'tree' && sources.traversableGraph !== undefined)
     ) {
       throw new TypeError('DAG source mode cannot change after construction');
     }
     this.icfg = mergeAsyncDagTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       input,
+      sources,
     );
     this.visitors = initVisitors(this.icfg.visitors);
     return this;
@@ -165,19 +175,4 @@ function initVisitors<
       sortVisitorRecords(records),
     ]),
   ) as AsyncDagTraversalVisitors<T, R, ID>;
-}
-
-function assertExactlyOneSource(input: object): 'tree' | 'graph' {
-  const graph =
-    Object.prototype.hasOwnProperty.call(input, 'traversableGraph') &&
-    (input as { traversableGraph?: unknown }).traversableGraph !== undefined;
-  const tree =
-    Object.prototype.hasOwnProperty.call(input, 'traversableTree') &&
-    (input as { traversableTree?: unknown }).traversableTree !== undefined;
-  if (graph === tree) {
-    throw new TypeError(
-      'DAG traversal requires exactly one tree or graph source',
-    );
-  }
-  return graph ? 'graph' : 'tree';
 }

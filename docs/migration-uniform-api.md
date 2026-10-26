@@ -12,29 +12,51 @@ These additions compose with existing DAG constructors and runners; custom adapt
 
 | Existing integration | Optional simpler surface |
 | --- | --- |
-| Hand-built synthetic catalog holder with `makeRoot` / `makeVertex` | `graphFrom(items, { id, dependencies, children?, completionDependencies? })`; use `forestFrom` when children are records |
+| Hand-built synthetic catalog holder with `makeRoot` / `makeVertex` | `graphFrom(items, { id, dependsOn?, children?, dependsOnComplete? })`; use `forestFrom` when children are records |
 | Re-discovering the same source for each runner | `prepareDag(source)` / `await prepareDagAsync(source)` once, then independent `dag.createRunner()` or `await dag.createAsyncRunner()` |
 | External runner plus captured `{ vertexId, generation }` | `coordinateDag(runner)` / `coordinateDagAsync(runner)`, or prepared `createSession()` / `await createAsyncSession()` |
 | `run()` → summary frontier → `settle()` → `run()` | `advance()` → frontier ticket → `complete(ticket)` → `advance()` |
 | Callback-local data filtering | `filterDagVisitor(guard, (data, context) => ...)` or `filterAsyncDagVisitor`; the callback receives narrowed data |
 
+The unreleased collection selector names `dependencies` and `completionDependencies` are replaced by `dependsOn` and `dependsOnComplete`. All four adapters throw `TypeError` for the retired keys before input/selector callbacks, including inherited keys and keys present with `undefined`, to prevent silently dropping dependency edges. Task-data properties, diagnostic fields, walking relation selections and definition-diff aspects retain their names.
+
 Collection adapters copy membership and edge lists while retaining shallow item/ID identity. Async source helpers materialize iterable/async-iterable inputs and selectors into ordinary synchronous sources. `graphFrom` children are catalog IDs; `forestFrom` children are records, with shared references allowed. Missing child IDs and conflicting record identities reject.
 
-Preparation returns `{ kind: 'valid', dag }` or `{ kind: 'invalid', diagnostics }` for engine dependency validation failures. Adapter-thrown errors retain their identity, even a caller-thrown stall error. Prepared replay normalizes hints to IDs, owns topology, and invokes no original adapters; original hint/context snapshots are not preserved. Async runner and session factories return promises. Runner options permit visitors, completed-work seeds, and completion policy; session options permit only `completedWork` plus async `concurrency`. Topology/source/state overrides reject, including own fields with `undefined`.
+Preparation returns `{ kind: 'valid', dag }` or `{ kind: 'invalid', issues }`, sharing `DagDefinitionResult` with definition preparation, composition and revision. Engine dependency validation failures contain one `{ kind: 'milestone', diagnostics }` issue, with no top-level `diagnostics` alias. Adapter-thrown errors retain their identity, even a caller-thrown stall error. Prepared replay normalizes hints to IDs, owns topology, and invokes no original adapters; original hint/context snapshots are not preserved. Async runner and session factories return promises. Runner options permit visitors, completed-work seeds, and completion policy; session options permit only `completedWork` plus async `concurrency`. Topology/source/state overrides reject, including own fields with `undefined`.
 
-Coordination requires external settlement. Frontier tickets are nominal readonly local capabilities, bound to their issuing facade and generation. First acceptance returns `{ kind: 'accepted' }`, identical reports return `{ kind: 'alreadyAccepted' }`, and conflicting/foreign/stale tickets reject. `fail(ticket, error)` is fatal, preserving exact errors. Reconstruct from accepted completion facts after restart; copied or serialized tickets cannot settle work. See [source and prepared contracts](reference.md#collection-and-forest-sources) and the [ticket contract](reference.md#ticket-coordination).
+Coordination requires external settlement. Frontier tickets are nominal readonly local capabilities, bound to their issuing facade and generation. First acceptance returns `{ kind: 'accepted' }`, identical reports return `{ kind: 'alreadyAccepted' }`, and conflicting/foreign/stale tickets reject. `failTraversal(ticket, error)` is fatal, preserving exact errors. Reconstruct from accepted completion facts after restart; copied or serialized tickets cannot settle work. See [source and prepared contracts](reference.md#collection-and-forest-sources) and the [ticket contract](reference.md#ticket-coordination).
 
 ## Materialized definitions, fragments, inspection, and revisions
 
-These optional APIs extend prepared DAGs in this unreleased checkout. `prepared.definition` retains entry mode, ordered discovery slots and omissions; rebuilding only from `.vertices` loses those facts. Author values with `defineDag`, validate with `prepareDagDefinition`, or reuse shapes through `defineDagFragment`, `instantiateDagFragment` and `composeDag`. Structural child links and W/C wires remain separate.
+These optional APIs extend prepared DAGs in this unreleased checkout. `prepared.definition` retains entry mode, ordered discovery slots and omissions; `.vertices` is a live-child convenience projection and rebuilding from it loses those facts. Use `definition.vertices` when authoring revisions. Author values with `defineDag`, validate with `prepareDagDefinition`, or reuse shapes through `defineDagFragment`, `instantiateDagFragment` and `composeDag`. Structural child links and W/C wires remain separate.
 
 Use `inspectDag(runner)` for detached milestone navigation and explanations. Use `reviseDag(prepared, operations)` for ordered atomic edits: success returns a fresh prepared DAG plus a shallow `diffDagDefinitions` result; graph invalidity returns issues. Full replacement records explicitly declare slots and both dependency lists. Removal requires explicit repair of dangling references. Programmer errors throw.
 
 Create a new session from the revised DAG. Old tickets, generations, callbacks and completion facts stay in the old execution. Select valid `completedWork` facts explicitly for the new definition; diffs do not infer artifact invalidation. See [definition contracts](reference.md#materialized-dag-definitions), [fragment contracts](reference.md#dag-fragments-and-composition), [inspection](reference.md#dag-dependency-queries-and-explanations), and [revisions](reference.md#validated-dag-revisions).
 
+## General graph walking and common inspection
+
+The unreleased walking family is additive: use `GraphWalk`, `AsyncGraphWalk`, `walkGraph` or `walkGraphAsync` with a single options object and a walking `source`. Root, `graphWalk` namespace and `traversals/graph-walk` subpath exports share identity. Existing tree/DAG source types and event timing are unchanged. Explicit target wrappers support ID-only or inline-hydrated discovery; event records carry typed vertices, edges and prefixes rather than tree `Vertex` instances. Use explicit adapters for finite catalogs or selected `DagDefinition` relations.
+
+Defaults are BFS, unique vertices (`once`), vertex-only emission and serial execution. `simplePaths`/`walks` require depth or step bounds; always inspect `summary().outcome`. A supplied `configure` limits record replaces the old record, with merged validation before mutation. The first accepted resolution wins even after omission; this intentionally differs from DAG milestone omission. Walking explicit emission selectors narrow at delivery, including buffered records, without changing tree/DAG admission semantics. Consumer iterator return pauses; walking runner close is terminal disposal. Closing a failed walker rethrows its exact error without repeated cleanup; overlapping async closes share a promise. See the [full walking contract](reference.md#general-graph-walking).
+
+The shared execution interfaces add a defaulted inspection parameter, preserving `CoreInspection` for existing code. `TraversalExecutionState<ExecutionInspection>` accepts all families; `SyncTraversalExecution<Phase, Event, ExecutionInspection>` and its async counterpart keep phase safety while generalizing inspection. Choose `GraphWalkInspection` for walking detail; old two-parameter wrappers still expect tree/DAG inspection. No common source interface, DAG settlement, concurrency option or durable checkpoint is added to walking.
+
+## Configuration and diagnostic follow-up
+
+Walking predicates `followEdge` and `expandVertex` now accept `null` to restore the absent predicate, initially or in `configure()`. Omitted/undefined patches retain an existing predicate. Limits still replace; visitor/phase records still patch field-wise. These optional predicates and DAG optional source placeholders explicitly accept `undefined` under `exactOptionalPropertyTypes`.
+
+DAG configure source checks now match construction: ignore inherited keys and own undefined keys, replace an own defined same-family source, and reject an own defined opposite-family source atomically. This relaxes a configure guard present in published 0.11.0, fixing placeholder/inheritance handling. Exactly one own defined source remains required at construction; typed-ID tree restrictions remain. Builders affect future runners only. See the [configuration table](reference.md#configuration-patches).
+
+`defineDagFragment` and definition validation during instantiation now throw `DagFragmentValidationError<ID = unknown> extends TypeError` with structured `issues`; successful values remain direct fragments/instances. Malformed shapes, port errors and mapping collisions remain ordinary `TypeError`s, and caller exceptions propagate exactly. `DagTraversalStallError<ID = unknown>` supports explicit typed diagnostic annotations and construction. Neither error infers ID types from arbitrary catches. Both DAG runner families now expose synchronous `inspectDag()` alongside the existing free function and session method.
+
+`Traversal` / `TraversalRunner` are tree-only bases; use execution capabilities for cross-family wrappers. The common `ExecutionInspection.kind` remains an open string for structural implementations. Tree/DAG iterators may deliver previously buffered events on resume even when the new selector excludes their phase, so their return types remain broad. Walking selects at delivery and narrows accordingly.
+
+Built-in object adapter methods retain published untagged `{ vertexContent, ... }` direct returns. New custom sources and canonical object hooks use tagged results; see [abstract trees](reference.md#abstract-trees). Family-specific root flags and omission-preserving definition slots keep their distinct meanings. For choosing preparation versus execution and dispatch, see the [workflow decision table](agent-workflows.md#discover-the-graph).
+
 ## Typed DAG event identities
 
-`DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_READY`, and `subgraphCompleted` means `ON_COMPLETE`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged.
+`DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_READY`, and `subgraphCompleted` means `ON_COMPLETE`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged. Dispatch from `advance().frontier` tickets or an enabled pre-work `ON_READY` visitor; emitted `workCompleted` events are committed observations, including when deferred work settles.
 
 ## Root dependencies
 
@@ -149,6 +171,8 @@ The boolean settlement forms remain deprecated inputs; the old progress string i
 
 ## Source resolution
 
+The table below applies to graph sources and prerequisite lookup. Tree sources use `{ kind: 'omitted' }` without a milestone acknowledgement, including when a DAG runner consumes a tree adapter. Tree callbacks and object hooks reject `satisfiesDependencies`, even an own field set to undefined; graph/prerequisite omissions require literal `true`, never false or undefined. Published untagged `{ vertexContent: null }` inputs remain compatible.
+
 | Deprecated source result                                       | Canonical source result                                                                   |
 | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `{ vertexContent, vertexId?, dependsOn?, dependsOnComplete? }` | `{ kind: 'found', vertex: { vertexContent, vertexId?, dependsOn?, dependsOnComplete? } }` |
@@ -178,7 +202,7 @@ function resolvePrerequisite(id: unknown): PrerequisiteResolutionResult<Tasks> {
 }
 ```
 
-Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Graph roots/hints accept `SourceVertexResult`; prerequisite lookup accepts `PrerequisiteResolutionResult`, including `MissingVertexResult`. Tree adapters instead use `MakeTreeVertexResult<T>`, `TreeFoundVertexResult<T>`, `TreeOmittedVertexResult`, and `TreeSourceVertexResult<T>`. Remove tree annotations using graph-capable result types (or infer them). Tree callbacks reject `vertexId`, `dependsOn`, and `dependsOnComplete`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Async adapters accept value-or-promise equivalents.
+Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Graph roots/hints accept `SourceVertexResult`; prerequisite lookup accepts `PrerequisiteResolutionResult`, including `MissingVertexResult`. Tree adapters instead use `MakeTreeVertexResult<T>`, `TreeFoundVertexResult<T>`, `TreeOmittedVertexResult`, and `TreeSourceVertexResult<T>`. Remove tree annotations using graph-capable result types (or infer them). Tree callbacks reject `vertexId`, `dependsOn`, `dependsOnComplete`, and `satisfiesDependencies`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Async adapters accept value-or-promise equivalents.
 
 ## Child hint command
 
@@ -243,7 +267,7 @@ Statuses remain compatible. `getStopReason()` and inspection `stopReason` return
 
 Generic `MakeMutationCommandFunction<Output, RewriteInput = Output['VertexData']>` requires full replacement by default; name an explicit rewrite-input parameter for custom adapters. Object helpers use `TO_MutationPropertyPatch<Output>` (`Partial<Output['VertexData']>`), supporting typed key-only/value-only patches. Incorrect key/value types and incomplete generic replacements now fail compilation. Omit `rewrite` for no patch; present null/undefined/primitive rewrites throw TypeError. `{ rewrite: { value: undefined } }` sets undefined when allowed by the output type. Assembler errors retain exact identity.
 
-Use `resolveVertexHook` in object adapters and `rewriteObject`: return `{ kind: 'useDefault' }`, tagged tree `found` replacement content, or `{ kind: 'omitted', satisfiesDependencies: true }`. Null/undefined canonical results and graph metadata reject. The hook applies to child/hint resolution. Deprecated `makeVertexHook`/`returnMe` normalize to the same behavior; two active hooks reject. Undefined hooks and the old null-disabled hook do not conflict. Cycle checks and shallow identities remain unchanged.
+Use `resolveVertexHook` in object adapters and `rewriteObject`: return `{ kind: 'useDefault' }`, tagged tree `found` replacement content, or `{ kind: 'omitted' }`. Null/undefined canonical results and graph metadata reject. The hook applies to child/hint resolution. Deprecated `makeVertexHook`/`returnMe` normalize to the same behavior; two active hooks reject. Undefined hooks and the old null-disabled hook do not conflict. Cycle checks and shallow identities remain unchanged.
 
 ## Safe queries and identity names
 

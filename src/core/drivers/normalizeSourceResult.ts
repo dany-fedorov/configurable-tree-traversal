@@ -1,6 +1,7 @@
 import type {
   MakeVertexResult,
   PrerequisiteResolutionResult,
+  TreeSourceVertexResult,
 } from '@core/TraversableTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
@@ -13,7 +14,8 @@ export function assertNoTreeMetadata(
   if (
     Object.prototype.hasOwnProperty.call(result, 'vertexId') ||
     Object.prototype.hasOwnProperty.call(result, 'dependsOn') ||
-    Object.prototype.hasOwnProperty.call(result, 'dependsOnComplete')
+    Object.prototype.hasOwnProperty.call(result, 'dependsOnComplete') ||
+    Object.prototype.hasOwnProperty.call(result, 'satisfiesDependencies')
   ) {
     throw new TypeError(`${sourceName} results cannot include graph metadata`);
   }
@@ -30,8 +32,11 @@ function assertOwnGraphIdentity(result: object): void {
 }
 
 /** Normalize adapter vocabulary before any scheduling or identity decisions. */
-export function normalizeSourceResult<T extends TreeTypeParameters>(
-  result: PrerequisiteResolutionResult<T>,
+export function normalizeSourceResult<
+  T extends TreeTypeParameters,
+  ID = unknown,
+>(
+  result: PrerequisiteResolutionResult<T, ID> | TreeSourceVertexResult<T>,
   prerequisite: boolean,
   treeSourceName?: string,
 ): MakeVertexResult<T> | undefined {
@@ -61,7 +66,10 @@ export function normalizeSourceResult<T extends TreeTypeParameters>(
       return vertex;
     }
     case 'omitted':
-      if (result.satisfiesDependencies !== true) {
+      if (
+        treeSourceName === undefined &&
+        result.satisfiesDependencies !== true
+      ) {
         throw new TypeError(
           'Omitted source result requires satisfiesDependencies: true',
         );

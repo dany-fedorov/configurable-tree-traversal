@@ -100,6 +100,7 @@ export class TraversableObjectTree<
 
   static makeMutationCommandFactory = makeMutationCommandFactory;
 
+  /** Retains the published untagged direct result; custom sources should use tagged results. */
   makeRoot(): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
     const { getChildrenOfProperty, getRootPropertyFromInputObject } = this.icfg;
     const rootProp = getRootPropertyFromInputObject(this.rootObject);
@@ -116,6 +117,7 @@ export class TraversableObjectTree<
     };
   }
 
+  /** Retains direct vertexContent access, including null omission, for compatibility. */
   makeVertex(
     vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
     options: MakeVertexOptions<

@@ -1,3 +1,5 @@
+import { DagDiscoveryCycleError as SubpathCycleError } from '../src/traversals/dag-traversal';
+import { DagDiscoveryCycleError } from '../src';
 import {
   prepareDag,
   prepareDagAsync,
@@ -111,9 +113,16 @@ test('dependency invalidity is structured while adapter errors keep exact identi
   const invalid = prepareDag({
     traversableGraph: { ...adapter, makeRoot: () => root },
   });
-  expect(invalid.kind).toBe('invalid');
-  if (invalid.kind === 'invalid')
-    expect(invalid.diagnostics.unknownPrerequisiteIds).toEqual(['missing']);
+  expect(invalid).toMatchObject({
+    kind: 'invalid',
+    issues: [
+      {
+        kind: 'milestone',
+        diagnostics: { unknownPrerequisiteIds: ['missing'] },
+      },
+    ],
+  });
+  expect(invalid).not.toHaveProperty('diagnostics');
   const error = new DagTraversalStallError({
     dependencies: [],
     unknownPrerequisiteIds: [],
@@ -144,6 +153,32 @@ test('dependency invalidity is structured while adapter errors keep exact identi
 });
 
 for (const prepare of [prepareDag, prepareDagAsync]) {
+  test.each([
+    undefined,
+    null,
+    Symbol('caller error'),
+    { reason: 'caller error' },
+    new DagDiscoveryCycleError(['caller', 'caller']),
+    new DagTraversalStallError({
+      dependencies: [],
+      unknownPrerequisiteIds: [],
+      dependencyCycles: [],
+      dependencyBlockedIds: [],
+      structurallyIncompleteIds: [],
+    }),
+  ])(`${prepare.name} preserves exact source failures: %p`, async (error) => {
+    await expect(async () =>
+      prepare<T, string>({
+        traversableGraph: {
+          ...source(),
+          makeRoot: () => {
+            throw error;
+          },
+        },
+      }),
+    ).rejects.toBe(error);
+  });
+
   test(`${prepare.name} retains omitted hints and prerequisite identities across seeds`, async () => {
     const adapter: TraversableGraph<T, T, string> = {
       makeRoot: () => ({
@@ -213,25 +248,41 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     expect(empty.dag.createSession().advance()).toEqual({ kind: 'finished' });
   });
 
-  test(`${prepare.name} returns missing and cyclic dependency diagnostics`, async () => {
+  test(`${prepare.name} returns missing prerequisites as milestone issues`, async () => {
     const missing = await prepare<TreeTypeParameters<string, string>, string>(
-      graphFrom(['a'], { id: (id) => id, dependencies: () => ['absent'] }),
+      graphFrom(['a'], { id: (id) => id, dependsOn: () => ['absent'] }),
     );
     expect(missing).toMatchObject({
       kind: 'invalid',
-      diagnostics: { unknownPrerequisiteIds: ['absent'] },
+      issues: [
+        {
+          kind: 'milestone',
+          diagnostics: { unknownPrerequisiteIds: ['absent'] },
+        },
+      ],
     });
+    expect(missing).not.toHaveProperty('diagnostics');
+  });
+
+  test(`${prepare.name} returns dependency cycles as milestone issues`, async () => {
     const cycle = await prepare<TreeTypeParameters<string, string>, string>(
       graphFrom(['a', 'b'], {
         id: (id) => id,
-        dependencies: (id) => [id === 'a' ? 'b' : 'a'],
+        dependsOn: (id) => [id === 'a' ? 'b' : 'a'],
       }),
     );
-    expect(cycle).toMatchObject({ kind: 'invalid' });
-    if (cycle.kind === 'invalid')
-      expect(cycle.diagnostics.dependencyCycles[0]).toEqual(
-        expect.arrayContaining(['a', 'b']),
-      );
+    expect(cycle).toMatchObject({
+      kind: 'invalid',
+      issues: [
+        {
+          kind: 'milestone',
+          diagnostics: {
+            dependencyCycles: [expect.arrayContaining(['a', 'b'])],
+          },
+        },
+      ],
+    });
+    expect(cycle).not.toHaveProperty('diagnostics');
   });
 }
 
@@ -367,7 +418,7 @@ test('prepared forest completion joins retain structural sharing and order', () 
     forestFrom(roots, {
       id: (item) => item.id,
       children: (item) => item.children,
-      completionDependencies: (item) => item.after ?? [],
+      dependsOnComplete: (item) => item.after ?? [],
     }),
   );
   if (result.kind !== 'valid') throw new Error('Expected valid');
@@ -641,4 +692,39 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       ).toEqual(['root', 'b', 'c']);
     }
   });
+}
+
+for (const async of [false, true]) {
+  test.each([false, true])(
+    `${
+      async ? 'async' : 'sync'
+    } discovery cycles expose an identity-preserving closed witness (self=%p)`,
+    async (self) => {
+      const a = { name: 'same' };
+      const b = self ? a : { name: 'same' };
+      const graph = graphFrom(
+        [{ id: a, children: [b] }, ...(self ? [] : [{ id: b, children: [a] }])],
+        {
+          id: (item) => item.id,
+          children: (item) => item.children,
+        },
+      );
+      let failure: unknown;
+      try {
+        if (async) await prepareDagAsync(graph);
+        else prepareDag(graph);
+      } catch (error) {
+        failure = error;
+      }
+      expect(SubpathCycleError).toBe(DagDiscoveryCycleError);
+      expect(failure).toBeInstanceOf(DagDiscoveryCycleError);
+      if (!(failure instanceof DagDiscoveryCycleError))
+        throw Error('Expected typed discovery cycle');
+      expect(failure.name).toBe('DagDiscoveryCycleError');
+      expect(failure.message).toMatch(/^Discovery cycle detected:/);
+      expect(failure.vertexIds).toEqual(self ? [a, a] : [b, a, b]);
+      expect(failure.vertexIds[0]).toBe(b);
+      expect(Object.isFrozen(failure.vertexIds)).toBe(true);
+    },
+  );
 }

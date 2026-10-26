@@ -64,7 +64,7 @@ for (const api of [cjs, esm]) {
       selections++;
       return item.id;
     },
-    dependencies: (item) => item.requires,
+    dependsOn: (item) => item.requires,
   });
   let lookups = 0;
   const countedSource = {
@@ -248,6 +248,63 @@ for (const api of [cjs, esm]) {
       runner.getResolvedGraph().getVertexRefById(groupId).unref().getData()
         .label,
       'bundle',
+    );
+  }
+}
+
+assert.equal(esm.DagDiscoveryCycleError, cjs.DagDiscoveryCycleError);
+assert.equal(dag.DagDiscoveryCycleError, esm.DagDiscoveryCycleError);
+assert.equal(cjsDag.DagDiscoveryCycleError, esm.DagDiscoveryCycleError);
+for (const api of [esm, cjs]) {
+  assert.throws(
+    () =>
+      api.prepareDag(
+        api.graphFrom([{ id: 'a', children: ['a'] }], {
+          id: (item) => item.id,
+          children: (item) => item.children,
+        }),
+      ),
+    (error) =>
+      error instanceof esm.DagDiscoveryCycleError &&
+      error.vertexIds.join(',') === 'a,a',
+  );
+  for (const prepare of [api.prepareDag, api.prepareDagAsync]) {
+    const invalid = await prepare(
+      api.graphFrom([{ id: 'b', deps: ['missing'] }], {
+        id: (item) => item.id,
+        dependsOn: (item) => item.deps,
+      }),
+    );
+    assert.equal(invalid.kind, 'invalid');
+    assert.equal('diagnostics' in invalid, false);
+    assert.equal(invalid.issues.length, 1);
+    assert.equal(invalid.issues[0].kind, 'milestone');
+    assert.deepEqual(invalid.issues[0].diagnostics.unknownPrerequisiteIds, [
+      'missing',
+    ]);
+  }
+  const prepared = api.prepareDag(
+    api.graphFrom([{ id: 'a' }], { id: (item) => item.id }),
+  );
+  for (const session of [
+    prepared.dag.createSession(),
+    await prepared.dag.createAsyncSession(),
+  ]) {
+    assert.equal(session.getStopReason(), 'prepared');
+    assert.equal(session.isHalted(), true);
+    assert.equal(session.inspect().status, session.getStatus());
+    assert.equal(
+      session.inspectDag().explain({ vertexId: 'a', milestone: 'work' })
+        .satisfied,
+      false,
+    );
+    const boundary = await session.advance();
+    assert.equal('fail' in session, false);
+    const error = { fatal: true };
+    session.failTraversal(boundary.frontier[0], error);
+    await assert.rejects(
+      async () => session.advance(),
+      (value) => value === error,
     );
   }
 }

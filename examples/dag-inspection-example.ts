@@ -12,7 +12,7 @@ const runner = new DagTraversal({
     {
       id: (item) => item.id,
       children: (item) => item.children,
-      completionDependencies: (item) => item.complete,
+      dependsOnComplete: (item) => item.complete,
     },
   ),
   completedWork: new Set(['bundle']),
@@ -20,7 +20,12 @@ const runner = new DagTraversal({
 }).makeRunner();
 runner.prepare();
 runner.run();
-const captured = inspectDag(runner);
+const captured = runner.inspectDag();
+// The free function remains equivalent; async runners expose the same sync method.
+assert.deepEqual(
+  inspectDag(runner).explain({ vertexId: 'review', milestone: 'work' }),
+  captured.explain({ vertexId: 'review', milestone: 'work' }),
+);
 assert.equal(
   captured.explain({ vertexId: 'bundle', milestone: 'work' }).kind,
   'known',
@@ -38,7 +43,7 @@ console.log('Captured blockers:', before.blockers);
 const child = runner.summary().deferredFrontier[0]!;
 runner.settle(child.vertexId, { kind: 'workCompleted' }, child.generation);
 runner.run();
-const after = inspectDag(runner).explain({
+const after = runner.inspectDag().explain({
   vertexId: 'bundle',
   milestone: 'completion',
 });

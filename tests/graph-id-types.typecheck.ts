@@ -349,3 +349,64 @@ const extendedDefault: DefaultLegacyResult = {
   vertexContent: { $data: 'a', $childHints: [] },
 };
 void extendedDefault;
+
+// Own undefined source placeholders do not select or replace a source.
+new DagTraversal({
+  traversableGraph: source,
+  traversableTree: undefined,
+}).configure({
+  traversableGraph: undefined,
+  traversableTree: undefined,
+});
+new AsyncDagTraversal({
+  traversableGraph: asyncSource,
+  traversableTree: undefined,
+}).configure({
+  traversableGraph: undefined,
+  traversableTree: undefined,
+});
+new DagTraversal({
+  traversableTree: tree,
+  traversableGraph: undefined,
+}).configure({
+  traversableTree: undefined,
+  traversableGraph: undefined,
+});
+new AsyncDagTraversal({
+  traversableTree: tree,
+  traversableGraph: undefined,
+}).configure({
+  traversableTree: undefined,
+  traversableGraph: undefined,
+});
+// @ts-expect-error A defined constructor source is still required.
+new DagTraversal({ traversableGraph: undefined, traversableTree: undefined });
+// @ts-expect-error Async construction also requires a defined source.
+new AsyncDagTraversal({
+  traversableGraph: undefined,
+  traversableTree: undefined,
+});
+// @ts-expect-error Two defined sources are still mutually exclusive.
+new DagTraversal({ traversableGraph: source, traversableTree: tree });
+new AsyncDagTraversal<W, W, string>({
+  // @ts-expect-error Explicit undefined does not allow typed graph IDs on tree sources.
+  traversableTree: tree,
+  traversableGraph: undefined,
+});
+traversal.configure({ traversableTree: undefined });
+// @ts-expect-error Source patch placeholders do not admit a defined tree in a typed graph.
+traversal.configure({ traversableGraph: undefined, traversableTree: tree });
+
+const syncPlaceholderSummary: DagSummary<string> = new DagTraversal({
+  traversableGraph: source,
+  traversableTree: undefined,
+})
+  .makeRunner()
+  .summary();
+const asyncPlaceholderSummary: DagSummary<string> = new AsyncDagTraversal({
+  traversableGraph: source,
+  traversableTree: undefined,
+})
+  .makeRunner()
+  .summary();
+void [syncPlaceholderSummary, asyncPlaceholderSummary];

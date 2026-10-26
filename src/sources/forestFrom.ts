@@ -1,4 +1,8 @@
-import { collect, materializedSource } from './materialize';
+import {
+  validateCollectionSelectors,
+  collect,
+  materializedSource,
+} from './materialize';
 import type { MaterializedRecord } from './materialize';
 import type {
   AsyncCollection,
@@ -12,6 +16,7 @@ export function forestFrom<Item, ID>(
   roots: Iterable<Item>,
   selectors: ForestSelectors<Item, ID>,
 ): CollectionSource<Item, ID> {
+  validateCollectionSelectors(selectors);
   const identities = new Map<Item, ID>();
   const owners = new Map<ID, Item>();
   const queue: Item[] = [];
@@ -34,10 +39,8 @@ export function forestFrom<Item, ID>(
       item,
       id,
       children: Array.from(selectors.children?.(item) ?? [], discover),
-      dependencies: [...(selectors.dependencies?.(item) ?? [])],
-      completionDependencies: [
-        ...(selectors.completionDependencies?.(item) ?? []),
-      ],
+      dependsOn: [...(selectors.dependsOn?.(item) ?? [])],
+      dependsOnComplete: [...(selectors.dependsOnComplete?.(item) ?? [])],
     });
   }
   return materializedSource(records, [...new Set(rootIds)]);
@@ -48,6 +51,7 @@ export async function forestFromAsync<Item, ID>(
   roots: AsyncCollection<Item>,
   selectors: AsyncForestSelectors<Item, ID>,
 ): Promise<CollectionSource<Item, ID>> {
+  validateCollectionSelectors(selectors);
   const identities = new Map<Item, ID>();
   const owners = new Map<ID, Item>();
   const queue: Item[] = [];
@@ -74,9 +78,9 @@ export async function forestFromAsync<Item, ID>(
       item,
       id,
       children,
-      dependencies: await collect(selectors.dependencies?.(item) ?? []),
-      completionDependencies: await collect(
-        selectors.completionDependencies?.(item) ?? [],
+      dependsOn: await collect(selectors.dependsOn?.(item) ?? []),
+      dependsOnComplete: await collect(
+        selectors.dependsOnComplete?.(item) ?? [],
       ),
     });
   }

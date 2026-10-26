@@ -5,6 +5,7 @@ import type { TraversableTree } from '@core/TraversableTree';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { VisitorRecord } from '@core/graph/types';
 import { deepFreeze } from '@utils/deepFreeze';
+import { captureDagSourcePatch, captureDagConfigPatch } from './dagSourcePatch';
 import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
 import { DagTraversalOrder } from './DagTraversalOrder';
 import type { DagVisitor } from './DagTraversalVisitor';
@@ -22,10 +23,13 @@ export type DagSource<
   R extends TreeTypeParameters = T,
   ID = unknown,
 > =
-  | { traversableGraph: TraversableGraph<T, R, ID>; traversableTree?: never }
+  | {
+      traversableGraph: TraversableGraph<T, R, ID>;
+      traversableTree?: undefined;
+    }
   | {
       traversableTree: unknown extends ID ? TraversableTree<T, R> : never;
-      traversableGraph?: never;
+      traversableGraph?: undefined;
     };
 
 export type DagTraversalVisitors<
@@ -91,10 +95,15 @@ export type DagTraversalConfigureInput<
   ID = unknown,
 > = DagTraversalOptionsInput<T, R, ID> &
   (
-    | { traversableGraph?: TraversableGraph<T, R, ID>; traversableTree?: never }
     | {
-        traversableTree?: unknown extends ID ? TraversableTree<T, R> : never;
-        traversableGraph?: never;
+        traversableGraph?: TraversableGraph<T, R, ID> | undefined;
+        traversableTree?: undefined;
+      }
+    | {
+        traversableTree?:
+          | (unknown extends ID ? TraversableTree<T, R> : never)
+          | undefined;
+        traversableGraph?: undefined;
       }
   );
 
@@ -121,8 +130,9 @@ export function mergeDagTraversalInstanceConfigs<
 >(
   base: DagTraversalInstanceConfig<T, R, ID>,
   input: DagTraversalConfigureInput<T, R, ID>,
+  sources = captureDagSourcePatch(input),
 ): DagTraversalInstanceConfig<T, R, ID> {
-  const capturedInput = { ...input };
+  const capturedInput = captureDagConfigPatch(input, sources);
   assertDagWorkCompletion(capturedInput.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
   return {
