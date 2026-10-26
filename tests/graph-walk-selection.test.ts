@@ -1,8 +1,4 @@
-import {
-  GraphWalk,
-  GraphWalkPhase as Phase,
-  DepthFirstPhase,
-} from '../src';
+import { DepthFirstPhase, GraphWalk, GraphWalkPhase as Phase } from '../src';
 import { contextFixture } from './helpers/graph-walk-fixtures';
 
 it('selects observations independently of exploration and committed logical counts', () => {
@@ -72,7 +68,7 @@ it('preserves legacy alias behavior through field-wise patches', () => {
   const runner = new GraphWalk({
     source: contextFixture().source,
   }).createRunner();
-  const iterator = runner.iterateEvents({ iterateOver: [Phase.EDGE] });
+  const iterator = runner.iterateEvents({ emitEvents: [Phase.EDGE] });
   expect(iterator.next().value).toMatchObject({ kind: 'edge' });
   iterator.return();
   expect(

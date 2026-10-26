@@ -1,8 +1,13 @@
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import {
+  createInternalAsyncDagTraversal,
+  createInternalDagTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
@@ -219,11 +224,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: graph,
       }).createRunner();
       for (const injected of [
-        { state: runner.state },
-        { resolvedGraphsContainer: runner.resolvedGraphsContainer },
+        { state: runnerInternals(runner).state },
+        {
+          resolvedGraphsContainer:
+            runnerInternals(runner).resolvedGraphsContainer,
+        },
       ]) {
         expect(() =>
-          new Constructor<G>({
+          (Constructor === DagTraversal
+            ? createInternalDagTraversal
+            : createInternalAsyncDagTraversal)<G>({
             traversableGraph: graph,
             ...options,
             traversalRunnerInternalObjects: injected,
@@ -272,7 +282,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ],
     }));
     const runner = traversal.createRunner();
-    await runner.run({ iterateOver: [] });
+    await runner.run({ emitEvents: [] });
     expect(runner.getResolvedGraph().getVertexById('a')).toBeNull();
     expect(
       runner.getResolvedGraph().getVertexById('b')!.getValue().getData(),

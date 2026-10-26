@@ -1,12 +1,12 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
 import { MutableRef } from '@core/CTTRef';
 import {
   ResolvedTreeStore,
-  VertexResolutionContext,
   TreeVertexRecord,
+  VertexResolutionContext,
 } from '@core/ResolvedTree';
-import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { Vertex } from '@core/Vertex';
+import type { DepthFirstTreeResolvedOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export type OriginalTreeRefsMap<
@@ -24,11 +24,11 @@ export class DepthFirstTraversalResolvedTreesContainer<
 
   constructor(
     cfg: Pick<
-      DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
+      DepthFirstTreeResolvedOptions<TTP, RW_TTP>,
       'retainOriginalTreeStructure'
     > & {
       traversalRunnerInternalObjects: Pick<
-        DepthFirstTraversalInstanceConfig<
+        DepthFirstTreeResolvedOptions<
           TTP,
           RW_TTP
         >['traversalRunnerInternalObjects'],

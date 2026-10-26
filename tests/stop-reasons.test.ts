@@ -1,21 +1,30 @@
+import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
-  DagTraversal,
+  AsyncBreadthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
+} from '../src/traversals/breadth-first-traversal';
+import {
   AsyncDagTraversal,
+  DagTraversal,
   DagVisitorPhase as Order,
   DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
-  DepthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
+  DepthFirstTreeTraversal,
 } from '../src/traversals/depth-first-traversal';
-import {
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
-} from '../src/traversals/breadth-first-traversal';
-import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
+import {
+  createInternalAsyncBreadthFirstTreeTraversal,
+  createInternalAsyncDagTraversal,
+  createInternalAsyncDepthFirstTreeTraversal,
+  createInternalBreadthFirstTreeTraversal,
+  createInternalDagTraversal,
+  createInternalDepthFirstTreeTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 const tree = {
@@ -145,11 +154,17 @@ for (const Constructor of [
   AsyncDepthFirstTreeTraversal<G>,
 ]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
-    const state = new DepthFirstTreeTraversal<G>({
-      traversableTree: tree,
-    }).createRunner().state;
+    const state = runnerInternals(
+      new DepthFirstTreeTraversal<G>({
+        traversableTree: tree,
+      }).createRunner(),
+    ).state;
     state.status = Status.HALTED;
-    const runner = new Constructor({
+    const runner = (
+      Constructor === DepthFirstTreeTraversal
+        ? createInternalDepthFirstTreeTraversal
+        : createInternalAsyncDepthFirstTreeTraversal
+    )({
       traversableTree: tree,
       traversalRunnerInternalObjects: { state },
     }).createRunner();
@@ -163,11 +178,17 @@ for (const Constructor of [
   AsyncBreadthFirstTreeTraversal<G>,
 ]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
-    const state = new BreadthFirstTreeTraversal<G>({
-      traversableTree: tree,
-    }).createRunner().state;
+    const state = runnerInternals(
+      new BreadthFirstTreeTraversal<G>({
+        traversableTree: tree,
+      }).createRunner(),
+    ).state;
     state.status = Status.HALTED;
-    const runner = new Constructor({
+    const runner = (
+      Constructor === BreadthFirstTreeTraversal
+        ? createInternalBreadthFirstTreeTraversal
+        : createInternalAsyncBreadthFirstTreeTraversal
+    )({
       traversableTree: tree,
       traversalRunnerInternalObjects: { state },
     }).createRunner();
@@ -178,10 +199,15 @@ for (const Constructor of [
 }
 for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
-    const state = new DagTraversal<G>({ traversableGraph: graph }).createRunner()
-      .state;
+    const state = runnerInternals(
+      new DagTraversal<G>({ traversableGraph: graph }).createRunner(),
+    ).state;
     state.status = Status.HALTED;
-    const runner = new Constructor({
+    const runner = (
+      Constructor === DagTraversal
+        ? createInternalDagTraversal
+        : createInternalAsyncDagTraversal
+    )<G>({
       traversableGraph: graph,
       traversalRunnerInternalObjects: { state },
     }).createRunner();

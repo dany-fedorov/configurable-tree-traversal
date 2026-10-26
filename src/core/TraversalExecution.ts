@@ -1,10 +1,10 @@
-import type { ExecutionInspection } from '@core/ExecutionInspection';
 import type { CoreInspection } from '@core/CoreInspection';
+import type { ExecutionInspection } from '@core/ExecutionInspection';
 import type {
   TraversalRunnerStatus,
   TraversalStopReason,
 } from '@core/TraversalRunner';
-import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 
 /** Observational state and a cooperative pause request, independent of ownership. */
 export interface TraversalExecutionState<
@@ -27,9 +27,9 @@ export interface SyncTraversalExecution<
   // Function properties preserve contravariance: a family cannot be widened to
   // accept phases which its concrete runner does not support.
   iterateEvents: (
-    config?: TraversalIterableConfigInput<Phase, EmittedKind>,
+    config?: TraversalExecutionOptions<Phase, EmittedKind>,
   ) => Generator<Event, void, unknown>;
-  run: (config?: TraversalIterableConfigInput<Phase, EmittedKind>) => this;
+  run: (config?: TraversalExecutionOptions<Phase, EmittedKind>) => this;
 }
 
 export interface AsyncTraversalExecution<
@@ -39,9 +39,9 @@ export interface AsyncTraversalExecution<
   EmittedKind extends string = Phase,
 > extends TraversalExecutionState<Inspection> {
   iterateEvents: (
-    config?: TraversalIterableConfigInput<Phase, EmittedKind>,
+    config?: TraversalExecutionOptions<Phase, EmittedKind>,
   ) => AsyncGenerator<Event, void, unknown>;
   run: (
-    config?: TraversalIterableConfigInput<Phase, EmittedKind>,
+    config?: TraversalExecutionOptions<Phase, EmittedKind>,
   ) => Promise<this>;
 }

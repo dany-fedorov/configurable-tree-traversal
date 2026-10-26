@@ -1,8 +1,13 @@
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import {
+  createInternalAsyncDagTraversal,
+  createInternalDagTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 const graph: DagDiscoverySource<G> = {
@@ -162,10 +167,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: graph,
     }).createRunner();
     for (const injected of [
-      { state: runner.state },
-      { resolvedGraphsContainer: runner.resolvedGraphsContainer },
+      { state: runnerInternals(runner).state },
+      {
+        resolvedGraphsContainer:
+          runnerInternals(runner).resolvedGraphsContainer,
+      },
     ]) {
-      const traversal = new Constructor<G>({
+      const traversal = (
+        Constructor === DagTraversal
+          ? createInternalDagTraversal
+          : createInternalAsyncDagTraversal
+      )<G>({
         traversableGraph: graph,
         completedWork: new Set(),
         traversalRunnerInternalObjects: injected,

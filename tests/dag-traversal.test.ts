@@ -1,14 +1,11 @@
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree/TraversableObjectTree';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree/TraversableObjectTree';
 
 type Node = { id: string; children: string[]; dependsOnWork?: string[] };
 type TestGraph = VertexTypes<string, string>;
@@ -26,7 +23,9 @@ function graphAdapter(
     return {
       vertexContent: { $d: node.id, $c: node.children },
       vertexId: node.id,
-      ...(node.dependsOnWork === undefined ? {} : { dependsOnWork: node.dependsOnWork }),
+      ...(node.dependsOnWork === undefined
+        ? {}
+        : { dependsOnWork: node.dependsOnWork }),
     };
   };
   return {
@@ -41,7 +40,7 @@ test('visits a shared join once after both prerequisites', () => {
     traversableGraph: graphAdapter(),
   }).createRunner();
   const values = [
-    ...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] }),
+    ...runner.iterateEvents({ emitEvents: ['workCompleted'] }),
   ].map(({ vertex }) => vertex.getData());
   expect(values).toEqual(['root', 'A', 'B', 'join']);
   const graph = runner.getResolvedGraph();
@@ -73,9 +72,7 @@ test('distinguishes graph root from the retained traversal root', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   }).createRunner();
-  const events = [
-    ...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] }),
-  ];
+  const events = [...runner.iterateEvents({ emitEvents: ['workCompleted'] })];
   expect(events.map(({ isGraphRoot }) => isGraphRoot)).toEqual([
     true,
     false,
@@ -372,7 +369,7 @@ test('runs ObjectTreeSource with its real ancestor context', () => {
   }).createRunner();
 
   expect(
-    [...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] })].map(
+    [...runner.iterateEvents({ emitEvents: ['workCompleted'] })].map(
       ({ vertex }) => vertex.getData().key,
     ),
   ).toEqual(['__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__', 'branch', 'leaf']);
@@ -418,7 +415,7 @@ test.each([false, true])(
         sortChildrenHints: (children) => children.reverse(),
       })
         .createRunner()
-        .iterateEvents({ iterateOver: [Order.ON_WORK_READY] }),
+        .iterateEvents({ emitEvents: ['workCompleted'] }),
     ];
 
     expect(events.map(({ vertex }) => vertex.getData())).toEqual([
@@ -448,7 +445,7 @@ test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
         },
       ],
     }),
-    { resolutionStyle: Style.CONCURRENT },
+    { commandCommitMode: 'afterGroup' },
   );
   traversal.addVisitorFor(Order.ON_WORK_READY, (vertex, options) => {
     seen.push([
@@ -547,7 +544,7 @@ test('enforces one iterator and resumes after consumer close', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   }).createRunner();
-  const first = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const first = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   expect(first.next().value?.vertex.getData()).toBe('root');
   const second = runner.iterateEvents();
   expect(() => second.next()).toThrow(/one active iterator/i);
@@ -555,7 +552,7 @@ test('enforces one iterator and resumes after consumer close', () => {
   expect(runner.isHalted()).toBe(true);
 
   expect(
-    [...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] })].map(
+    [...runner.iterateEvents({ emitEvents: ['workCompleted'] })].map(
       ({ vertex }) => vertex.getData(),
     ),
   ).toEqual(['A', 'B', 'join']);

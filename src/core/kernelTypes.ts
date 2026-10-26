@@ -1,28 +1,28 @@
-import type { InOrderOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type {
-  TraversalRunnerStatus,
-  TraversalStopReason,
-} from '@core/TraversalRunner';
-import type {
-  EffectiveTraversalExecutionOptions,
-  TraversalRunnerIterableConfig,
-  TraversalIterableConfigInput,
-} from '@core/TraversalRunnerIterableConfig';
-import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
-import type { MakeVertexResult } from '@core/TraversableTree';
-import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
-import type { HintVertexId, VertexRef, VertexId } from '@core/graph/types';
-import type { VisitorExecutionState } from '@core/executeVisitors';
 import type {
   Outcome,
   OwnerToken,
   VisitMetadata,
   VisitOrder,
 } from '@core/effects/types';
-import type { RegistrationMetadata } from '@core/visitors/types';
+import type { VisitorExecutionState } from '@core/executeVisitors';
+import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
+import type { HintVertexId, VertexId, VertexRef } from '@core/graph/types';
+import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { EligibleVisit } from '@core/scheduling/types';
+import type { MakeVertexResult } from '@core/TraversableTree';
+import type {
+  TraversalRunnerStatus,
+  TraversalStopReason,
+} from '@core/TraversalRunner';
+import type {
+  ResolvedTraversalExecutionOptions,
+  TraversalIterableConfigInput,
+  TraversalRunnerIterableConfig,
+} from '@core/TraversalRunnerIterableConfig';
+import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { RegistrationMetadata } from '@core/visitors/types';
+import type { InOrderOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 
 export type KernelStateBridge<T extends VertexTypes> = {
   status: TraversalRunnerStatus;
@@ -84,7 +84,7 @@ export type ChainState<T extends VertexTypes, R extends VertexTypes = T> = {
   waitingFor: 'none' | 'callback' | 'batch';
   commands: TraversalVisitorCommand<R>[];
   metadata: VisitMetadata<T | R>;
-  config: EffectiveTraversalExecutionOptions<VisitOrder>;
+  config: ResolvedTraversalExecutionOptions<VisitOrder>;
 };
 
 export type VertexWork<T extends VertexTypes> = {

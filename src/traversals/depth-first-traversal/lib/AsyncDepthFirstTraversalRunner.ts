@@ -1,5 +1,3 @@
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
@@ -14,20 +12,23 @@ import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTreeStore } from '@core/ResolvedTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { TreeTraversalEvent } from '@core/TraversalRunner';
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { AsyncTraversalExecution } from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
+import type {
+  TraversalStopReason,
+  TreeTraversalEvent,
+} from '@core/TraversalRunner';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import {
   mergeAsyncDepthFirstTraversalInstanceConfigs,
-  type AsyncDepthFirstTraversalInstanceConfig,
+  type AsyncDepthFirstTreeResolvedOptions,
 } from './AsyncDepthFirstTraversalInstanceConfig';
 import { DepthFirstPhase } from './DepthFirstTraversalOrder';
 import { DepthFirstTraversalResolvedTreesContainer } from './DepthFirstTraversalResolvedTreesContainer';
-import {
-  makeEffectiveDepthFirstTraversalRunnerIterableConfig,
-  type DepthFirstTraversalRunnerIterableConfigInput,
-} from './DepthFirstTraversalRunnerIterableConfig';
+import { makeEffectiveDepthFirstTraversalRunnerIterableConfig } from './DepthFirstTraversalRunnerIterableConfig';
 import { DepthFirstTraversalRunnerState } from './DepthFirstTraversalRunnerState';
 
 type Event<
@@ -35,13 +36,28 @@ type Event<
   RW_TTP extends VertexTypes,
 > = TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>;
 
-export class AsyncDepthFirstTreeRunner<
+export interface AsyncDepthFirstTreeRunner<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> extends AsyncTraversalExecution<
+    DepthFirstPhase,
+    TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>
+  > {
+  getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
+  getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
+  getResolvedGraph(): ResolvedGraph<TTP | RW_TTP>;
+  isTraversalRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
+  isTreeRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
+  isTraversalLeaf(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
+}
+
+export class InternalAsyncDepthFirstTreeRunner<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > {
-  icfg: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
-  state: DepthFirstTraversalRunnerState<TTP, RW_TTP>;
-  resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
+  private icfg: AsyncDepthFirstTreeResolvedOptions<TTP, RW_TTP>;
+  private state: DepthFirstTraversalRunnerState<TTP, RW_TTP>;
+  private resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
     TTP,
     RW_TTP
   >;
@@ -50,7 +66,7 @@ export class AsyncDepthFirstTreeRunner<
     DepthFirstPhase
   >;
 
-  constructor(icfgInput: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
+  constructor(icfgInput: AsyncDepthFirstTreeResolvedOptions<TTP, RW_TTP>) {
     this.icfg = mergeAsyncDepthFirstTraversalInstanceConfigs(icfgInput, {});
     this.icfg.visitors = Object.fromEntries(
       Object.entries(this.icfg.visitors).map(([order, records]) => [
@@ -195,13 +211,13 @@ export class AsyncDepthFirstTreeRunner<
   }
 
   iterateEvents(
-    config?: DepthFirstTraversalRunnerIterableConfigInput,
+    config?: TraversalExecutionOptions<DepthFirstPhase>,
   ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown> {
     return this.execution.iterateEvents(config);
   }
 
   async run(
-    config?: DepthFirstTraversalRunnerIterableConfigInput,
+    config?: TraversalExecutionOptions<DepthFirstPhase>,
   ): Promise<this> {
     await this.execution.run(config);
     return this;

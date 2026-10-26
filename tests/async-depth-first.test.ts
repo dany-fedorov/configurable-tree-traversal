@@ -1,18 +1,19 @@
+import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
 import {
   AsyncDepthFirstTreeTraversal,
-  DepthFirstTreeTraversal,
   DepthFirstPhase as Order,
+  DepthFirstTreeTraversal,
 } from '../src/traversals/depth-first-traversal';
-import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import type { InOrderOptions } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import { ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
-import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
+import type { InOrderOptions } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import type { TestGraph } from './helpers/graph-fixtures';
+import {
+  createInternalAsyncDepthFirstTreeRunner,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 type Node = { $d: string; $c: (Node | null)[] };
 type Tree = VertexTypes<string, Node | null>;
@@ -36,7 +37,7 @@ async function values(
   order: Order,
 ): Promise<string[]> {
   const seen: string[] = [];
-  for await (const event of runner.iterateEvents({ iterateOver: [order] })) {
+  for await (const event of runner.iterateEvents({ emitEvents: [order] })) {
     seen.push(event.vertex.getData());
   }
   return seen;
@@ -52,7 +53,7 @@ test('exposes asynchronous depth-first post-order traversal', async () => {
   });
   const seen: string[] = [];
   for await (const event of traversal.createRunner().iterateEvents({
-    iterateOver: [Order.POST_ORDER],
+    emitEvents: [Order.POST_ORDER],
   })) {
     seen.push(event.vertex.getData());
     expect(event.isTreeRoot).toBe(event.vertex.getData() === 'root');
@@ -134,13 +135,13 @@ test('resumes repeated mid-chain halts without repeating visitors', async () => 
   });
   const runner = t.createRunner();
 
-  await expect(runner.run({ iterateOver: [] })).resolves.toBe(runner);
+  await expect(runner.run({ emitEvents: [] })).resolves.toBe(runner);
   expect(runner.getStatus()).toBe(Status.HALTED);
   expect(visits).toEqual(['halt:root']);
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(runner.getStatus()).toBe(Status.HALTED);
   expect(visits).toEqual(['halt:root', 'after:root', 'halt:leaf']);
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(runner.getStatus()).toBe(Status.FINISHED);
   expect(visits).toEqual([
     'halt:root',
@@ -153,7 +154,7 @@ test('resumes repeated mid-chain halts without repeating visitors', async () => 
 test('uses new iterator filters when resuming after consumer closure', async () => {
   const runner = traversal(node('root', node('leaf'))).createRunner();
   for await (const event of runner.iterateEvents({
-    iterateOver: [Order.PRE_ORDER],
+    emitEvents: [Order.PRE_ORDER],
   })) {
     expect(event.vertex.getData()).toBe('root');
     break;
@@ -202,7 +203,7 @@ test('retains saved original tree data through asynchronous mutations', async ()
   expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
     'ROOT',
   );
-  const saved = runner.resolvedTreesContainer.originalTreeView;
+  const saved = runnerInternals(runner).resolvedTreesContainer.originalTreeView;
   expect(saved?.getRoot()?.getValue().getData()).toBe('root');
   expect(
     saved?.getChildrenOf(saved.getRoot()!)?.[0]?.getValue().getData(),
@@ -215,7 +216,7 @@ test('accepts the existing synchronous object-tree adapter', async () => {
   }).createRunner();
   const keys: Array<string | number | symbol> = [];
   for await (const event of runner.iterateEvents({
-    iterateOver: [Order.PRE_ORDER],
+    emitEvents: [Order.PRE_ORDER],
   })) {
     keys.push(event.vertex.getData().key);
   }
@@ -237,7 +238,7 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
     {
       addedIndex: 10,
       priority: 100,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor',
       visitor: async () => {
         seen.push('first');
       },
@@ -252,7 +253,7 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
   t.addVisitorFor(Order.PRE_ORDER, async () => {
     seen.push('late');
   });
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(seen).toEqual([
     'first',
     'second',
@@ -261,16 +262,18 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
     'first',
     'second',
   ]);
-  expect(runner.icfg.inOrder.afterChildIndices).toEqual({
+  expect(runnerInternals(runner).icfg.inOrder.afterChildIndices).toEqual({
     ranges: [[0, 0]],
   });
 });
 
 test('reuses injected tree storage and state objects', async () => {
-  const first = await traversal(node('root', node('child'))).createRunner().run();
-  const state = traversal().createRunner().state;
+  const first = await traversal(node('root', node('child')))
+    .createRunner()
+    .run();
+  const state = runnerInternals(traversal().createRunner()).state;
   const root = first.getResolvedTreeStore().getRoot();
-  const second = new AsyncDepthFirstTreeTraversal<Tree>({
+  const second = createInternalAsyncDepthFirstTreeRunner<Tree>({
     traversableTree: {
       resolveRoot: () => {
         throw new Error('Existing root must be reused');
@@ -278,12 +281,12 @@ test('reuses injected tree storage and state objects', async () => {
       resolveChild: (hint) => ({ vertexContent: hint }),
     },
     traversalRunnerInternalObjects: {
-      resolvedTreesContainer: first.resolvedTreesContainer,
+      resolvedTreesContainer: runnerInternals(first).resolvedTreesContainer,
       state,
     },
-  }).createRunner();
-  expect(second.state.visitorsState).toBe(state.visitorsState);
-  expect(second.state.subtreeTraversalDisabledRefs).toBe(
+  });
+  expect(runnerInternals(second).state.visitorsState).toBe(state.visitorsState);
+  expect(runnerInternals(second).state.subtreeTraversalDisabledRefs).toBe(
     state.subtreeTraversalDisabledRefs,
   );
   await expect(values(second, Order.PRE_ORDER)).resolves.toEqual([
@@ -368,7 +371,8 @@ test('exports recursively frozen asynchronous defaults', () => {
 test('matches synchronous DFS for timing-independent generated trees', async () => {
   for (let seed = 1; seed <= 12; seed++) {
     let value = seed;
-    const random = () => ((value = (value * 48271) % 2147483647) - 1) / 2147483646;
+    const random = () =>
+      ((value = (value * 48271) % 2147483647) - 1) / 2147483646;
     const make = (depth: number, label: string): Node =>
       node(
         label,
@@ -390,7 +394,7 @@ test('matches synchronous DFS for timing-independent generated trees', async () 
     });
     for (const order of Object.values(Order)) {
       const expected = Array.from(
-        sync.createRunner().iterateEvents({ iterateOver: [order] }),
+        sync.createRunner().iterateEvents({ emitEvents: [order] }),
         (event) => event.vertex.getData(),
       );
       await expect(

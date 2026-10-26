@@ -1,15 +1,16 @@
-import type { VisitorInputs } from '@core/TraversalVisitor';
-import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import { assertDagWorkCompletion } from './DagTraversalInstanceConfig';
-import type { DagDiscoveryOptions } from './DagTraversalInstanceConfig';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
-import type { MaybePromise, VisitorRecord } from '@core/graph/types';
+import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
+import type { VisitorRecord } from '@core/graph/types';
 import type { AsyncDagDiscoverySource } from '@core/TraversableGraph';
+import type { VisitorInputs } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import { deepFreeze } from '@utils/deepFreeze';
-import { captureDagSourcePatch, captureDagConfigPatch } from './dagSourcePatch';
-import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
+import { captureDagConfigPatch, captureDagSourcePatch } from './dagSourcePatch';
+import type { DagSchedulingOptions } from './DagTraversalInstanceConfig';
+import { assertDagWorkCompletion } from './DagTraversalInstanceConfig';
 import { DagVisitorPhase } from './DagTraversalOrder';
+import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
 import type { AsyncDagVisitor } from './DagTraversalVisitor';
 
 export type AsyncDagSource<
@@ -34,17 +35,13 @@ export type AsyncDagTraversalVisitors<
   [K in DagVisitorPhase]: VisitorRecord<AsyncDagVisitor<T, R, K, ID>>[];
 };
 
-export type AsyncDagSortChildrenHintsFn<T extends VertexTypes> = (
-  childrenHints: T['VertexHint'][],
-) => MaybePromise<T['VertexHint'][]>;
-
 type AsyncDagTraversalOptions<
   T extends VertexTypes,
   R extends VertexTypes,
   ID = unknown,
-> = DagDiscoveryOptions & {
+> = DagSchedulingOptions & {
   completedWork?: ReadonlySet<ID>;
-  sortChildrenHints: AsyncDagSortChildrenHintsFn<T> | null;
+  sortChildrenHints: AsyncChildHintSorter<T> | null;
   visitors: AsyncDagTraversalVisitors<T, R, ID>;
   retainOriginalGraphStructure: boolean;
   concurrency: number;
@@ -56,7 +53,7 @@ type AsyncDagTraversalOptions<
   };
 };
 
-export type AsyncDagTraversalInstanceConfig<
+export type AsyncDagResolvedOptions<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
@@ -73,18 +70,15 @@ type AsyncDagTraversalOptionsInput<
   >
 > & {
   visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R, ID>>;
-  traversalRunnerInternalObjects?: Partial<
-    AsyncDagTraversalOptions<T, R, ID>['traversalRunnerInternalObjects']
-  >;
 };
 
-export type AsyncDagTraversalInstanceConfigInput<
+export type AsyncDagOptions<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
 > = AsyncDagSource<T, R, ID> & AsyncDagTraversalOptionsInput<T, R, ID>;
 
-export type AsyncDagTraversalConfigureInput<
+export type AsyncDagOptionsPatch<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
@@ -115,7 +109,7 @@ export const ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG = deepFreeze({
     state: null,
   },
 }) as unknown as Omit<
-  AsyncDagTraversalInstanceConfig<VertexTypes>,
+  AsyncDagResolvedOptions<VertexTypes>,
   'traversableGraph' | 'traversableTree'
 >;
 
@@ -124,10 +118,10 @@ export function mergeAsyncDagTraversalInstanceConfigs<
   R extends VertexTypes,
   ID = unknown,
 >(
-  base: AsyncDagTraversalInstanceConfig<T, R, ID>,
-  input: AsyncDagTraversalConfigureInput<T, R, ID>,
+  base: AsyncDagResolvedOptions<T, R, ID>,
+  input: AsyncDagOptionsPatch<T, R, ID>,
   sources = captureDagSourcePatch(input),
-): AsyncDagTraversalInstanceConfig<T, R, ID> {
+): AsyncDagResolvedOptions<T, R, ID> {
   const capturedInput = captureDagConfigPatch(input, sources);
   assertDagWorkCompletion(capturedInput.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
@@ -144,9 +138,8 @@ export function mergeAsyncDagTraversalInstanceConfigs<
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
-      ...(input.traversalRunnerInternalObjects ?? {}),
     },
-  } as AsyncDagTraversalInstanceConfig<T, R, ID>;
+  } as AsyncDagResolvedOptions<T, R, ID>;
   if (
     merged.concurrency !== Infinity &&
     (!Number.isInteger(merged.concurrency) || merged.concurrency <= 0)

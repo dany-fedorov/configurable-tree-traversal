@@ -1,15 +1,16 @@
 import {
-  MutableRef,
-  AsyncDepthFirstTreeTraversal,
   AsyncBreadthFirstTreeTraversal,
+  AsyncDagTraversal,
+  AsyncDepthFirstTreeTraversal,
   BreadthFirstTreeTraversal,
   DagTraversal,
-  AsyncDagTraversal,
-  type VertexResolutionContext,
   DepthFirstTreeTraversal,
-  type VertexTypes,
+  MutableRef,
   Vertex,
+  type VertexResolutionContext,
+  type VertexTypes,
 } from '../src';
+import { runnerInternals } from './internal-runner-fixtures';
 
 type Hint = { label: string };
 type Data = { label: string; nested: { count: number } };
@@ -118,10 +119,11 @@ for (const Constructor of [
     expect(view.getResolutionContextOf(unknown)).toBeNull();
     expect(() => view.getPathTo(unknown)).toThrow(/Could not find ref/);
     // Deliberate editing remains available through the advanced container.
+    const internal = runnerInternals(runner);
     const tree =
-      'resolvedTreesContainer' in runner
-        ? runner.resolvedTreesContainer.resolvedTree
-        : runner.resolvedGraphsContainer.treeContainer!.resolvedTree;
+      'resolvedTreesContainer' in internal
+        ? internal.resolvedTreesContainer.resolvedTree
+        : internal.resolvedGraphsContainer.treeContainer!.resolvedTree;
     expect(view).toBe(tree.asReadOnly());
     tree.delete(child);
     expect(view.getChildrenOf(root)).toEqual([]);
@@ -158,7 +160,8 @@ test('safe queries preserve saved topology while explicit active edits stay live
     .run();
   const tree = runner.getResolvedTreeStore();
   const view = tree.asReadOnly();
-  const saved = runner.resolvedTreesContainer.originalTreeView!;
+  const saved =
+    runnerInternals(runner).resolvedTreesContainer.originalTreeView!;
   const savedView = saved.asReadOnly();
   const root = view.getRoot()!;
   const child = view.getChildrenOf(root)![0]!;

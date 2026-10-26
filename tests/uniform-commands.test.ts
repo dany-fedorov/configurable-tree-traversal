@@ -1,18 +1,18 @@
+import type { VertexTypes } from '../src';
 import {
-  DagTraversal,
+  AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstPhase as BfsOrder,
+  BreadthFirstTreeTraversal,
+  DagTraversal,
   DagVisitorPhase as DagOrder,
   DEFER_READY,
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
   DepthFirstPhase as DfsOrder,
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
-  BreadthFirstPhase as BfsOrder,
+  DepthFirstTreeTraversal,
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src';
-import type { VertexTypes } from '../src';
 
 type G = VertexTypes<string, string>;
 const source = {
@@ -228,7 +228,7 @@ for (const [Constructor, order, sourceKey] of [
       (vertex) => {
         seen.push(`group2:${vertex.$data}`);
       },
-      { resolutionStyle: Style.CONCURRENT },
+      { resolutionStyle: Style.CONCURRENT } as never,
     );
     add(
       order as DfsOrder.PRE_ORDER,
@@ -251,7 +251,7 @@ for (const [Constructor, order, sourceKey] of [
       add(order as DfsOrder, () => undefined, {
         commandCommitMode: 'afterEachVisitor',
         resolutionStyle: Style.CONCURRENT,
-      }),
+      } as never),
     ).toThrow(/conflict/i);
   });
 }

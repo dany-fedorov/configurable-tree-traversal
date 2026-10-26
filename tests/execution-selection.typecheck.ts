@@ -1,33 +1,53 @@
+import type { TraversalExecutionOptions, VisitorPhaseSelection } from '../src';
 import {
-  GraphWalk,
-  AsyncGraphWalk,
-  GraphWalkPhase,
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  DepthFirstPhase as DFS,
-  BreadthFirstTreeTraversal,
   AsyncBreadthFirstTreeTraversal,
-  BreadthFirstPhase as BFS,
-  DagTraversal,
   AsyncDagTraversal,
-  DagVisitorPhase as DAG,
-  DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS,
+  AsyncDepthFirstTreeTraversal,
+  AsyncGraphWalk,
+  BreadthFirstPhase as BFS,
+  BreadthFirstTreeTraversal,
   BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultBFS,
+  DagTraversal,
+  DagVisitorPhase as DAG,
   DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDAG,
-  makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS,
+  DepthFirstPhase as DFS,
+  DepthFirstTreeTraversal,
+  DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS,
+  GraphWalk,
+  GraphWalkPhase,
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS,
   makeEffectiveDagTraversalRunnerIterableConfig as makeDAG,
+  makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS,
 } from '../src';
-import type { VisitorPhaseSelection, TraversalExecutionOptions } from '../src';
 
 export function executionSelectionTypes() {
   const dfs = [
-    new DepthFirstTreeTraversal({}).createRunner(),
-    new AsyncDepthFirstTreeTraversal({}).createRunner(),
+    new DepthFirstTreeTraversal({
+      traversableTree: {
+        resolveRoot: () => ({ kind: 'omitted' }),
+        resolveChild: () => ({ kind: 'omitted' }),
+      },
+    }).createRunner(),
+    new AsyncDepthFirstTreeTraversal({
+      traversableTree: {
+        resolveRoot: () => ({ kind: 'omitted' }),
+        resolveChild: () => ({ kind: 'omitted' }),
+      },
+    }).createRunner(),
   ];
   const bfs = [
-    new BreadthFirstTreeTraversal({}).createRunner(),
-    new AsyncBreadthFirstTreeTraversal({}).createRunner(),
+    new BreadthFirstTreeTraversal({
+      traversableTree: {
+        resolveRoot: () => ({ kind: 'omitted' }),
+        resolveChild: () => ({ kind: 'omitted' }),
+      },
+    }).createRunner(),
+    new AsyncBreadthFirstTreeTraversal({
+      traversableTree: {
+        resolveRoot: () => ({ kind: 'omitted' }),
+        resolveChild: () => ({ kind: 'omitted' }),
+      },
+    }).createRunner(),
   ];
   const dag = [
     new DagTraversal({
@@ -51,13 +71,17 @@ export function executionSelectionTypes() {
   };
   for (const runner of dfs) {
     runner.run(options);
+    // @ts-expect-error Legacy normalized storage is not a public execution input.
     runner.run(makeDFS());
+    // @ts-expect-error Legacy normalized storage is not a public execution input.
     runner.iterateEvents(defaultDFS);
     runner.iterateEvents({
       emitEvents: phases,
       visitorPhases: { exclude: [] },
     });
+    // @ts-expect-error Legacy selectors are not canonical inputs.
     runner.run({ iterateOver: phases, enableVisitorFunctionsFor: phases });
+    // @ts-expect-error Legacy selectors are not canonical inputs.
     runner.run({ emitEvents: phases, disableVisitorFunctionsFor: [] });
     // @ts-expect-error Canonical selectors cannot include and exclude.
     runner.run({ visitorPhases: { include: [], exclude: [] } });
@@ -71,7 +95,9 @@ export function executionSelectionTypes() {
     runner.run({ emitEvents: [DAG.ON_WORK_READY] });
   }
   for (const runner of bfs) {
+    // @ts-expect-error Legacy normalized storage is not a public execution input.
     runner.run(makeBFS());
+    // @ts-expect-error Legacy normalized storage is not a public execution input.
     runner.iterateEvents(defaultBFS);
     runner.run({ emitEvents: [BFS.LEVEL_ORDER], visitorPhases: 'all' });
     // @ts-expect-error BFS rejects DFS visitor phases.
@@ -92,7 +118,9 @@ export function executionSelectionTypes() {
     runner.iterateEvents({ emitEvents: [DAG.ON_WORK_READY] });
     // @ts-expect-error Committed event kinds are not callback phases.
     runner.run({ visitorPhases: { include: ['workCompleted'] } });
+    // @ts-expect-error Legacy normalized storage is not a public execution input.
     runner.run(makeDAG());
+    // @ts-expect-error Legacy normalized storage is not a public execution input.
     runner.iterateEvents(defaultDAG);
     runner.run({
       emitEvents: ['workCompleted'],

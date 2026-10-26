@@ -1,46 +1,50 @@
+import { assertPublicOptions } from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
-import type { NoInferPhase } from '@core/TraversalVisitor';
+import { TreeTraversal } from '@core/Traversal';
+import type {
+  NoInferPhase,
+  TraversalVisitor,
+  TraversalVisitorFunctionOptions,
+  VisitorGroupDefinition,
+  VisitorPhaseInput,
+} from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
+import { initVisitors } from '@depth-first-traversal/init-helpers/initVisitors';
 import type {
-  VisitorPhaseInput,
-  VisitorGroupDefinition,
-} from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import { TreeTraversal } from '@core/Traversal';
-import type {
-  DepthFirstTraversalInstanceConfig,
-  DepthFirstTraversalInstanceConfigInput,
+  DepthFirstTreeOptions,
+  DepthFirstTreeOptionsPatch,
+  DepthFirstTreeResolvedOptions,
 } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeInstanceConfigs,
 } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import type {
-  TraversalVisitor,
-  TraversalVisitorFunctionOptions,
-} from '@core/TraversalVisitor';
-import { initVisitors } from '@depth-first-traversal/init-helpers/initVisitors';
 import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
+import {
+  InternalDepthFirstTreeRunner,
+  type DepthFirstTreeRunner,
+} from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
+import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
 
 export class DepthFirstTreeTraversal<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > extends TreeTraversal<DepthFirstPhase, TTP, RW_TTP> {
-  icfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
+  private icfg: DepthFirstTreeResolvedOptions<TTP, RW_TTP>;
 
-  visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
+  private visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
 
-  constructor(icfgInput: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>) {
+  constructor(icfgInput: DepthFirstTreeOptions<TTP, RW_TTP>) {
     super();
+    assertPublicOptions(icfgInput);
     this.icfg = mergeInstanceConfigs(
-      DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as DepthFirstTraversalInstanceConfig<
+      DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as DepthFirstTreeResolvedOptions<
         TTP,
         RW_TTP
       >,
@@ -49,9 +53,8 @@ export class DepthFirstTreeTraversal<
     this.visitors = initVisitors(this.icfg);
   }
 
-  configure(
-    icfgInput: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-  ): this {
+  configure(icfgInput: DepthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
+    assertPublicOptions(icfgInput);
     this.icfg = mergeInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,
@@ -121,8 +124,8 @@ export class DepthFirstTreeTraversal<
     return this;
   }
 
-  createRunner() {
-    return new DepthFirstTreeRunner({
+  createRunner(): DepthFirstTreeRunner<TTP, RW_TTP> {
+    return new InternalDepthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,
     });

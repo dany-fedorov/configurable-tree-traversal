@@ -1,9 +1,10 @@
-import {
-  DepthFirstTreeTraversal,
-  DepthFirstPhase as Order,
-} from '../src/traversals/depth-first-traversal';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import {
+  DepthFirstPhase as Order,
+  DepthFirstTreeTraversal,
+} from '../src/traversals/depth-first-traversal';
 import type { InOrderOptions as InOrderConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
+import { traversalInternals } from './internal-runner-fixtures';
 
 type Node = { $d: string; $c: Node[] };
 type Tree = VertexTypes<string, Node>;
@@ -22,13 +23,13 @@ const create = (inOrder: Partial<InOrderConfig> = {}) =>
 const collect = (
   runner: ReturnType<ReturnType<typeof create>['createRunner']>,
 ) =>
-  [...runner.iterateEvents({ iterateOver: [Order.IN_ORDER] })].map((event) =>
+  [...runner.iterateEvents({ emitEvents: [Order.IN_ORDER] })].map((event) =>
     event.vertex.getData(),
   );
 
 test('editing one traversal range does not change future traversal defaults', () => {
   const traversal = create();
-  const range = traversal.icfg.inOrder.afterChildIndices;
+  const range = traversalInternals(traversal).icfg.inOrder.afterChildIndices;
   if (!Array.isArray(range))
     throw new Error('Expected the documented default range');
   const original = range[0];
@@ -49,7 +50,7 @@ test('editing one traversal range does not change future traversal defaults', ()
 test('an existing runner keeps its in-order configuration after traversal configuration is edited', () => {
   const traversal = create({ afterChildIndices: 0 });
   const runner = traversal.createRunner();
-  traversal.icfg.inOrder.afterChildIndices = 2;
+  traversalInternals(traversal).icfg.inOrder.afterChildIndices = 2;
   expect(collect(runner)).toEqual(['a', 'root', 'b', 'c']);
 });
 

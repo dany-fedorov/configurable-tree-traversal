@@ -1,13 +1,13 @@
 import type { DriverInspection } from '../src/core/CoreInspection';
-import type { TraversalRunnerIterableConfig } from '../src/core/TraversalRunnerIterableConfig';
-import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
+import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
+import { Wakeup } from '../src/core/drivers/Wakeup';
 import type { VisitOrder } from '../src/core/effects/types';
 import type {
   AsyncSessionControl,
   SessionProgress,
 } from '../src/core/kernelTypes';
-import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
-import { Wakeup } from '../src/core/drivers/Wakeup';
+import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
+import type { TraversalRunnerIterableConfig } from '../src/core/TraversalRunnerIterableConfig';
 import { eventLoopTurn } from './helpers/graph-fixtures';
 
 const inspection: DriverInspection = Object.freeze({
@@ -20,7 +20,7 @@ const inspection: DriverInspection = Object.freeze({
   concurrency: 2,
   hasSorter: false,
   hasHintIds: false,
-  iterableConfig: Object.freeze({
+  executionOptions: Object.freeze({
     emitEvents: Object.freeze([]),
     visitorPhases: 'all' as const,
     iterateOver: Object.freeze<VisitOrder[]>([]),

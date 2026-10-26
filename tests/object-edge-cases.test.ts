@@ -1,12 +1,12 @@
 import {
-  DepthFirstTreeTraversal,
   DepthFirstPhase,
+  DepthFirstTreeTraversal,
+  objectRewrite as rewriteObjectApi,
+  ObjectTreeSource,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
-  TraversalVisitorFunctionResolutionStyle,
-  ObjectTreeSource,
-  objectRewrite as rewriteObjectApi,
 } from '../src';
+import { legacyObjectOptions } from './legacy-object-options';
 
 const { rewriteObject, rewriteObjectAs } = rewriteObjectApi;
 
@@ -147,7 +147,7 @@ describe('object traversal and rewriting edge cases', () => {
         prune: { hidden: 2 },
         replace: { ignored: 3 },
       },
-      {
+      legacyObjectOptions({
         makeVertexHook: (hint) => {
           if (hint.key === 'prune') return { returnMe: null };
           if (hint.key === 'replace') {
@@ -164,7 +164,7 @@ describe('object traversal and rewriting edge cases', () => {
           if (!isTreeRoot) visited.push(key);
           return undefined;
         },
-      },
+      }),
     );
 
     expect(outputAtReturn).toEqual({ keep: 1, replacement: { visible: 4 } });
@@ -230,7 +230,7 @@ describe('object traversal and rewriting edge cases', () => {
           {
             addedIndex: 0,
             priority: 200,
-            resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+            commandCommitMode: 'afterEachVisitor',
             visitor: (_vertex, { isTreeRoot }) => {
               if (!isTreeRoot || haltedAtRoot) return undefined;
               haltedAtRoot = true;
@@ -398,17 +398,20 @@ describe('object traversal and rewriting edge cases', () => {
 
   test('a hook that substitutes an ancestor identity is rejected as a cycle', () => {
     const input = { child: { leaf: 1 } };
-    const tree = new ObjectTreeSource(input, {
-      makeVertexHook: (hint) =>
-        hint.key === 'child'
-          ? {
-              returnMe: {
-                $d: { key: hint.key, value: input },
-                $c: [{ key: 'again', value: input }],
-              },
-            }
-          : {},
-    });
+    const tree = new ObjectTreeSource(
+      input,
+      legacyObjectOptions({
+        makeVertexHook: (hint) =>
+          hint.key === 'child'
+            ? {
+                returnMe: {
+                  $d: { key: hint.key, value: input },
+                  $c: [{ key: 'again', value: input }],
+                },
+              }
+            : {},
+      }),
+    );
     const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
 
     expect(() => traversal.createRunner().run()).toThrow(

@@ -1,11 +1,12 @@
+import type { DagDiscoverySource, VertexTypes } from '../src';
 import {
-  DagTraversal,
   AsyncDagTraversal,
+  DagTraversal,
   DagVisitorPhase as Order,
 } from '../src';
-import type { DagDiscoverySource, VertexTypes } from '../src';
-import { mergeDagTraversalInstanceConfigs } from '../src/traversals/dag-traversal/lib/DagTraversalInstanceConfig';
 import { mergeAsyncDagTraversalInstanceConfigs } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig';
+import { mergeDagTraversalInstanceConfigs } from '../src/traversals/dag-traversal/lib/DagTraversalInstanceConfig';
+import { traversalInternals } from './internal-runner-fixtures';
 
 type Data = VertexTypes<string, string>;
 
@@ -17,7 +18,10 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       const calls: string[] = [];
       const originalId = { name: 'original' };
       const replacementId = Symbol('replacement');
-      function source(data: string, vertexId: unknown): DagDiscoverySource<Data> {
+      function source(
+        data: string,
+        vertexId: unknown,
+      ): DagDiscoverySource<Data> {
         return {
           resolveRoot() {
             calls.push(data);
@@ -206,11 +210,18 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       });
       traversal.configure(patch);
       expect(calls).toEqual([]);
-      expect(Object.getPrototypeOf(traversal.icfg)).toBe(Object.prototype);
+      expect(Object.getPrototypeOf(traversalInternals(traversal).icfg)).toBe(
+        Object.prototype,
+      );
       expect(
-        Object.getOwnPropertyDescriptor(traversal.icfg, '__proto__')?.value,
+        Object.getOwnPropertyDescriptor(
+          traversalInternals(traversal).icfg,
+          '__proto__',
+        )?.value,
       ).toBe(value);
-      expect(Reflect.get(traversal.icfg, symbol)).toBe(value);
+      expect(Reflect.get(traversalInternals(traversal).icfg, symbol)).toBe(
+        value,
+      );
       await run('original');
     });
 
@@ -287,7 +298,9 @@ for (const merge of [
       resolveChild: () => ({ vertexContent: null }),
     };
     const base = {
-      ...new DagTraversal<Data>({ traversableGraph: source }).icfg,
+      ...traversalInternals(
+        new DagTraversal<Data>({ traversableGraph: source }),
+      ).icfg,
       concurrency: Infinity,
     };
     const merged = merge<Data, Data>(base, {

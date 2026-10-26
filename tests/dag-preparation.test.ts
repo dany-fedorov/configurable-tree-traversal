@@ -1,11 +1,16 @@
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
-import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
+import {
+  createInternalAsyncDagTraversal,
+  createInternalDagTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
@@ -298,7 +303,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         sourceMode: 'graph',
         saveOriginal: false,
       });
-      const runner = new Constructor<G>({
+      const runner = (
+        Constructor === DagTraversal
+          ? createInternalDagTraversal
+          : createInternalAsyncDagTraversal
+      )<G>({
         traversableGraph: single,
         traversalRunnerInternalObjects: {
           ...(injection !== 'container' ? { state } : {}),
@@ -348,7 +357,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   for (const sourceMode of ['graph', 'tree'] as const) {
     test(`${Constructor.name} prepared ${sourceMode} topology stays frozen`, async () => {
       const source = {
-        resolveRoot: () => ({ vertexContent: { $data: 'root', $childHints: [] } }),
+        resolveRoot: () => ({
+          vertexContent: { $data: 'root', $childHints: [] },
+        }),
         resolveChild: () => ({ vertexContent: null }),
       };
       const runner = new Constructor<G>(
@@ -451,16 +462,27 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   for (const injection of ['state', 'container'] as const) {
     test(`${Constructor.name} rejects injected tree ${injection} without changing continuation`, async () => {
       const tree = {
-        resolveRoot: () => ({ vertexContent: { $data: 'root', $childHints: [] } }),
+        resolveRoot: () => ({
+          vertexContent: { $data: 'root', $childHints: [] },
+        }),
         resolveChild: () => ({ vertexContent: null }),
       };
-      const fresh = new Constructor<G>({ traversableTree: tree }).createRunner();
-      const runner = new Constructor<G>({
+      const fresh = new Constructor<G>({
+        traversableTree: tree,
+      }).createRunner();
+      const runner = (
+        Constructor === DagTraversal
+          ? createInternalDagTraversal
+          : createInternalAsyncDagTraversal
+      )<G>({
         traversableTree: tree,
         traversalRunnerInternalObjects:
           injection === 'state'
-            ? { state: fresh.state }
-            : { resolvedGraphsContainer: fresh.resolvedGraphsContainer },
+            ? { state: runnerInternals(fresh).state }
+            : {
+                resolvedGraphsContainer:
+                  runnerInternals(fresh).resolvedGraphsContainer,
+              },
       }).createRunner();
       const before = runner.inspect();
       await expect(async () => runner.prepare()).rejects.toThrow(/injected/i);
@@ -470,7 +492,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     });
   }
   test(`${Constructor.name} injected failure wins over preparation validation`, async () => {
-    const runner = new Constructor<G>({
+    const runner = (
+      Constructor === DagTraversal
+        ? createInternalDagTraversal
+        : createInternalAsyncDagTraversal
+    )<G>({
       traversableGraph: single,
       traversalRunnerInternalObjects: {
         state: new DagTraversalRunnerState<G>({
@@ -521,18 +547,19 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
 test('sync preparation is owned during callbacks and can pause at the root', () => {
   let rootCalls = 0;
-  const runner: ReturnType<DagTraversal<G>['createRunner']> = new DagTraversal<G>({
-    traversableTree: {
-      resolveRoot: () => {
-        rootCalls++;
-        expect(() => runner.prepare()).toThrow(/active iterator/i);
-        expect(() => runner.run()).toThrow(/active iterator/i);
-        expect(runner.requestPause()).toBe(true);
-        return { vertexContent: { $data: 'root', $childHints: [] } };
+  const runner: ReturnType<DagTraversal<G>['createRunner']> =
+    new DagTraversal<G>({
+      traversableTree: {
+        resolveRoot: () => {
+          rootCalls++;
+          expect(() => runner.prepare()).toThrow(/active iterator/i);
+          expect(() => runner.run()).toThrow(/active iterator/i);
+          expect(runner.requestPause()).toBe(true);
+          return { vertexContent: { $data: 'root', $childHints: [] } };
+        },
+        resolveChild: () => ({ vertexContent: null }),
       },
-      resolveChild: () => ({ vertexContent: null }),
-    },
-  }).createRunner();
+    }).createRunner();
   runner.prepare();
   expect(runner.getStopReason()).toBe('paused');
   runner.prepare();

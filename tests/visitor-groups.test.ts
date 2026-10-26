@@ -1,9 +1,10 @@
 import {
-  DagTraversal,
   AsyncDagTraversal,
+  DagTraversal,
   DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
 } from '../src';
+import { traversalInternals } from './internal-runner-fixtures';
 type T = { VertexData: string; VertexHint: string };
 const traversableGraph = {
   resolveRoot: () => ({
@@ -449,7 +450,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       ).toThrow(TypeError);
       expect(t.listVisitorsFor(D.ON_WORK_READY)).toEqual(original);
-      expect(t.icfg.workCompletion).toBeUndefined();
+      expect(traversalInternals(t).icfg.workCompletion).toBeUndefined();
     }
     expect(() =>
       t.addVisitorGroupFor(D.ON_WORK_READY, {

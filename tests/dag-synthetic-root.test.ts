@@ -1,7 +1,8 @@
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { runnerInternals } from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
@@ -221,7 +222,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }).createRunner();
     await runner.run();
     const graph = runner.getResolvedGraph();
-    const internal = runner.resolvedGraphsContainer.resolvedGraph;
+    const internal =
+      runnerInternals(runner).resolvedGraphsContainer.resolvedGraph;
     const hidden = internal.getRoot()!;
     expect(graph.get(hidden)).toBeNull();
     expect(graph.has(hidden)).toBe(false);

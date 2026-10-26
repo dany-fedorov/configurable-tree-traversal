@@ -1,9 +1,9 @@
+import type { MutableRef } from '@core/CTTRef';
+import type { VisitorRecord } from '@core/graph/types';
+import type { ResolvedTreeStore } from '@core/ResolvedTree';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type { ResolvedTreeStore } from '@core/ResolvedTree';
-import type { MutableRef } from '@core/CTTRef';
-import type { VisitorRecord } from '@core/graph/types';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export enum TraversalVisitorCommandName {
@@ -114,8 +114,6 @@ export type CommandCommitMode = 'afterEachVisitor' | 'afterGroup';
 export type TraversalVisitorFunctionOptions = {
   priority: number;
   commandCommitMode?: CommandCommitMode | undefined;
-  /** @deprecated Use commandCommitMode. */
-  resolutionStyle?: TraversalVisitorFunctionResolutionStyle | undefined;
 };
 
 /** A callback or caller definition; registration bookkeeping is assigned internally. */
@@ -157,6 +155,8 @@ export type VisitorGroupMetadata = Readonly<{
 export type VisitorRegistrationMetadata = Readonly<
   TraversalVisitorFunctionOptions & {
     addedIndex: number;
+    /** @deprecated Use commandCommitMode. */
+    resolutionStyle?: TraversalVisitorFunctionResolutionStyle | undefined;
     visitorGroup?: VisitorGroupMetadata | undefined;
   }
 >;

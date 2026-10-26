@@ -1,31 +1,35 @@
-import { emissionKind } from '../src/core/normalizeTraversalExecutionOptions';
-import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
-import {
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  DepthFirstPhase as DFS,
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
-  BreadthFirstPhase as BFS,
-  DagTraversal,
-  AsyncDagTraversal,
-  DagVisitorPhase as DAG,
-  TraversalVisitorCommandName as Command,
-  makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS,
-  makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS,
-  makeEffectiveDagTraversalRunnerIterableConfig as makeDAG,
-  DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS,
-  BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultBFS,
-  DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDAG,
-} from '../src';
 import type {
   CoreInspection,
-  Vertex,
-  TraversalRunnerIterableConfig,
   TraversalIterableConfigInput,
+  TraversalRunnerIterableConfig,
+  Vertex,
 } from '../src';
+import {
+  AsyncBreadthFirstTreeTraversal,
+  AsyncDagTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstPhase as BFS,
+  BreadthFirstTreeTraversal,
+  BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultBFS,
+  DagTraversal,
+  DagVisitorPhase as DAG,
+  DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDAG,
+  DepthFirstPhase as DFS,
+  DepthFirstTreeTraversal,
+  DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS,
+  makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS,
+  makeEffectiveDagTraversalRunnerIterableConfig as makeDAG,
+  makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS,
+  TraversalVisitorCommandName as Command,
+} from '../src';
+import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
+import { emissionKind } from '../src/core/normalizeTraversalExecutionOptions';
+import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import type { TestGraph } from './helpers/graph-fixtures';
+import {
+  createInternalAsyncDagTraversalRunner,
+  createInternalDagTraversalRunner,
+} from './internal-runner-fixtures';
 
 type Event = { phase?: string; kind?: string; vertex: { getData(): string } };
 type Runner = {
@@ -178,14 +182,14 @@ describe.each(families)('$name execution selection', (family) => {
     expect((await iterator.next()).done).toBe(false);
     include.push(family.phase);
     emit.length = 0;
-    expect(runner.inspect().iterableConfig).toMatchObject({
+    expect(runner.inspect().executionOptions).toMatchObject({
       emitEvents: [emissionKind(family.phase)],
       visitorPhases: { include: [] },
     });
     await iterator.return(undefined);
     await runner.run({ emitEvents: [] });
     expect(calls).toEqual([]);
-    expect(runner.inspect().iterableConfig).toMatchObject({
+    expect(runner.inspect().executionOptions).toMatchObject({
       emitEvents: [],
       visitorPhases: { include: [] },
     });
@@ -199,7 +203,7 @@ describe.each(families)('$name execution selection', (family) => {
     });
     await runner.run({ enableVisitorFunctionsFor: null, iterateOver: [] });
     expect(calls).toEqual(['root', 'continued']);
-    expect(runner.inspect().iterableConfig).toMatchObject({
+    expect(runner.inspect().executionOptions).toMatchObject({
       emitEvents: [],
       visitorPhases: { exclude: [family.phase] },
     });
@@ -209,11 +213,13 @@ describe.each(families)('$name execution selection', (family) => {
     const { runner } = create(family, true);
     await runner.run({ enableVisitorFunctionsFor: [family.phase] });
     await runner.run({ disableVisitorFunctionsFor: [family.phase] });
-    expect(runner.inspect().iterableConfig).toMatchObject({
+    expect(runner.inspect().executionOptions).toMatchObject({
       visitorPhases: { include: [family.phase] },
-      enableVisitorFunctionsFor: [family.phase],
-      disableVisitorFunctionsFor: [family.phase],
     });
+    expect(runner.inspect().executionOptions).not.toHaveProperty('iterateOver');
+    expect(runner.inspect().executionOptions).not.toHaveProperty(
+      'enableVisitorFunctionsFor',
+    );
   });
 
   test('active chains retain admitted selection across a resume patch', async () => {
@@ -271,7 +277,9 @@ describe.each(families)('$name execution selection', (family) => {
       await expect(
         Promise.resolve().then(() => runner.run(input)),
       ).rejects.toThrow(TypeError);
-      expect(runner.inspect().iterableConfig).toEqual(before.iterableConfig);
+      expect(runner.inspect().executionOptions).toEqual(
+        before.executionOptions,
+      );
       expect(calls).toEqual([]);
       await runner.run({ emitEvents: [] });
       expect(calls).toEqual(['root']);
@@ -304,7 +312,7 @@ describe.each(families)('$name execution selection', (family) => {
     await runner.run(input);
     expect(calls).toEqual(['root']);
     expect([emissionReads, selectionReads, includeReads]).toEqual([1, 1, 1]);
-    expect(runner.inspect().iterableConfig).toMatchObject({
+    expect(runner.inspect().executionOptions).toMatchObject({
       emitEvents: [],
       visitorPhases: { include: [family.phase] },
     });
@@ -326,7 +334,7 @@ describe.each(families)('$name execution selection', (family) => {
     ]);
     expect(reads).toBe(1);
     expect(calls).toEqual(['root']);
-    expect(runner.inspect().iterableConfig).toMatchObject({
+    expect(runner.inspect().executionOptions).toMatchObject({
       emitEvents: [emissionKind(family.phase)],
     });
   });
@@ -353,13 +361,13 @@ describe.each(families)('$name execution selection', (family) => {
   test('callback-only and omitted resumes preserve emission selection', async () => {
     const { runner, calls } = create(family, true);
     await runner.run({ emitEvents: [] });
-    expect(runner.inspect().iterableConfig).toMatchObject({
+    expect(runner.inspect().executionOptions).toMatchObject({
       emitEvents: [],
       visitorPhases: 'all',
     });
     await runner.run({ visitorPhases: { exclude: [] } });
     await runner.run();
-    expect(runner.inspect().iterableConfig).toMatchObject({
+    expect(runner.inspect().executionOptions).toMatchObject({
       emitEvents: [],
       visitorPhases: { exclude: [] },
     });
@@ -424,8 +432,8 @@ test.each([false, true])(
         },
       };
       return isAsync
-        ? new AsyncDagTraversal<TestGraph>(input).createRunner()
-        : new DagTraversal<TestGraph>(input).createRunner();
+        ? createInternalAsyncDagTraversalRunner<TestGraph>(input)
+        : createInternalDagTraversalRunner<TestGraph>(input);
     };
     const runner = make();
     const before = runner.inspect();

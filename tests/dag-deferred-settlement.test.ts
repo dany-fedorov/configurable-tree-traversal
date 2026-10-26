@@ -1,19 +1,16 @@
+import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
-  DagTraversal,
   AsyncDagTraversal,
+  DagTraversal,
   DagVisitorPhase as Order,
   DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
-  DepthFirstTreeTraversal,
   DepthFirstPhase,
+  DepthFirstTreeTraversal,
 } from '../src/traversals/depth-first-traversal';
-import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
 type G = VertexTypes<string, string>;
@@ -35,7 +32,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         ],
       }),
-      { resolutionStyle: Style.CONCURRENT },
+      { commandCommitMode: 'afterGroup' },
     );
     traversal.addVisitorFor(
       Order.ON_WORK_READY,
@@ -43,13 +40,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         visits++;
         return DEFER_READY;
       },
-      { resolutionStyle: Style.CONCURRENT },
+      { commandCommitMode: 'afterGroup' },
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       throw Error('must skip');
     });
     const runner = traversal.createRunner();
-    await runner.run({ iterateOver: [Order.ON_WORK_READY] });
+    await runner.run({ emitEvents: ['workCompleted'] });
     const token = runner.summary().vertices.get('a')!.generation!;
     expect(() => runner.settle('missing', { ok: true }, token)).toThrow();
     expect(() => runner.settle('a', { ok: true }, Symbol())).toThrow();
@@ -60,7 +57,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     runner.settle('a', { ok: true }, token);
     const events: string[] = [];
     for await (const event of runner.iterateEvents({
-      iterateOver: [Order.ON_SUBGRAPH_READY],
+      emitEvents: ['subgraphCompleted'],
     }))
       events.push(`${event.kind}:${event.vertex.getData()}`);
     expect(events).toEqual(['workCompleted:a', 'subgraphCompleted:a']);
@@ -235,14 +232,17 @@ test('halt waits for a physical callback and retains deferred handles across res
     syntheticRoot: true,
     traversableGraph: {
       resolveRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b'] } }),
-      resolveChild: (id) => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
+      resolveChild: (id) => ({
+        vertexId: id,
+        vertexContent: { $d: id, $c: [] },
+      }),
     },
   });
   traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'a' ? DEFER_READY : release.promise,
   );
   const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const iterator = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   const next = iterator.next();
   await eventLoopTurn();
   const token = runner.summary().vertices.get('a')!.generation!;
@@ -272,7 +272,10 @@ test('failure settlement cannot free a still-running callback permit or accept a
     syntheticRoot: true,
     traversableGraph: {
       resolveRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b', 'c'] } }),
-      resolveChild: (id) => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
+      resolveChild: (id) => ({
+        vertexId: id,
+        vertexContent: { $d: id, $c: [] },
+      }),
     },
   });
   traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
@@ -342,7 +345,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         completed.add(id);
         const rebuilt = make(completed);
         await rebuilt.run();
-        expect(rebuilt.summary().readyOrDeferredIds).toEqual(retained.summary().readyOrDeferredIds);
+        expect(rebuilt.summary().readyOrDeferredIds).toEqual(
+          retained.summary().readyOrDeferredIds,
+        );
         expect(rebuilt.summary().completedWorkIds).toEqual(
           retained.summary().completedWorkIds,
         );

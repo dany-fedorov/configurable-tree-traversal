@@ -1,7 +1,7 @@
 import type { VisitOrder } from './effects/types';
 import type {
-  EffectiveTraversalExecutionOptions,
   EmissionKind,
+  ResolvedTraversalExecutionOptions,
   TraversalIterableConfigInput,
   TraversalRunnerIterableConfig,
   VisitorPhaseSelection,
@@ -53,8 +53,8 @@ function readExecutionOptions<ORDER extends string>(
 export function normalizeTraversalExecutionOptions<ORDER extends string>(
   phases: readonly ORDER[],
   input?: TraversalIterableConfigInput<ORDER>,
-  previous?: EffectiveTraversalExecutionOptions<ORDER>,
-): EffectiveTraversalExecutionOptions<ORDER> {
+  previous?: ResolvedTraversalExecutionOptions<ORDER>,
+): ResolvedTraversalExecutionOptions<ORDER> {
   const config = readExecutionOptions(input);
   const has = (key: string) =>
     Object.prototype.hasOwnProperty.call(config, key);
@@ -200,9 +200,9 @@ export function detachTraversalExecutionOptions<ORDER extends string>(
   return patch;
 }
 
-/** Public legacy helpers must remain directly reusable as execution inputs. */
+/** Translate resolved selections for internal phase-gate consumers. */
 export function toLegacyTraversalExecutionConfig<ORDER extends string>(
-  config: EffectiveTraversalExecutionOptions<ORDER>,
+  config: ResolvedTraversalExecutionOptions<ORDER>,
 ): TraversalRunnerIterableConfig<ORDER> {
   return {
     iterateOver: config.iterateOver,

@@ -1,9 +1,10 @@
 import { MutableRef } from '../src/core/CTTRef';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
+import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { runnerInternals } from './internal-runner-fixtures';
 
 type GraphTTP = VertexTypes<
   { label: string; nested: { count: number } },
@@ -108,12 +109,14 @@ test('a rejected active edge does not mutate the original snapshot', () => {
 });
 
 test('tree acceptance uses supplied graph ids and dependencies', () => {
-  const treeContainer = new DepthFirstTreeTraversal<GraphTTP>({
-    traversableTree: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
-    },
-  }).createRunner().resolvedTreesContainer;
+  const treeContainer = runnerInternals(
+    new DepthFirstTreeTraversal<GraphTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
+      },
+    }).createRunner(),
+  ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
     saveOriginal: true,
@@ -147,13 +150,15 @@ test('tree acceptance uses supplied graph ids and dependencies', () => {
 });
 
 test('tree acceptance validates saved parent mappings before graph insertion', () => {
-  const treeContainer = new DepthFirstTreeTraversal<GraphTTP>({
-    traversableTree: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
-    },
-    retainOriginalTreeStructure: true,
-  }).createRunner().resolvedTreesContainer;
+  const treeContainer = runnerInternals(
+    new DepthFirstTreeTraversal<GraphTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
+      },
+      retainOriginalTreeStructure: true,
+    }).createRunner(),
+  ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
     saveOriginal: true,
@@ -184,13 +189,15 @@ test('tree acceptance validates saved parent mappings before graph insertion', (
 });
 
 function treeEdgeContainer() {
-  const treeContainer = new DepthFirstTreeTraversal<GraphTTP>({
-    traversableTree: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
-    },
-    retainOriginalTreeStructure: true,
-  }).createRunner().resolvedTreesContainer;
+  const treeContainer = runnerInternals(
+    new DepthFirstTreeTraversal<GraphTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
+      },
+      retainOriginalTreeStructure: true,
+    }).createRunner(),
+  ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
     saveOriginal: false,

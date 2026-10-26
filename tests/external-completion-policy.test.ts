@@ -1,15 +1,18 @@
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
-  DagTraversal,
   AsyncDagTraversal,
+  DagTraversal,
   DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
-import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { traversalInternals } from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 const catalog = {
-  resolveRoot: () => ({ vertexContent: { $data: '', $childHints: ['A', 'B'] } }),
+  resolveRoot: () => ({
+    vertexContent: { $data: '', $childHints: ['A', 'B'] },
+  }),
   resolveChild: (id: string) => ({
     vertexId: id,
     dependsOnWork: id === 'B' ? ['A'] : [],
@@ -55,8 +58,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} tree source defers parent work before admitting children`, async () => {
     const runner = new Constructor<G>({
       traversableTree: {
-        resolveRoot: () => ({ vertexContent: { $data: 'A', $childHints: ['B'] } }),
-        resolveChild: () => ({ vertexContent: { $data: 'B', $childHints: [] } }),
+        resolveRoot: () => ({
+          vertexContent: { $data: 'A', $childHints: ['B'] },
+        }),
+        resolveChild: () => ({
+          vertexContent: { $data: 'B', $childHints: [] },
+        }),
       },
       ...external,
     }).createRunner();
@@ -143,7 +150,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(() =>
       traversal.configure({ ...invalid, discovery: 'eager' }),
     ).toThrow(TypeError);
-    expect(traversal.icfg.workCompletion).toBe('externalSettlement');
+    expect(traversalInternals(traversal).icfg.workCompletion).toBe(
+      'externalSettlement',
+    );
   });
 }
 
@@ -384,7 +393,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} rejects an invalid retained policy before source execution`, () => {
     const traversal = new Constructor<G>({ traversableGraph: catalog });
     // JavaScript callers can mutate the advanced configuration record.
-    Object.assign(traversal.icfg, { workCompletion: null });
+    Object.assign(traversalInternals(traversal).icfg, { workCompletion: null });
     expect(() => traversal.createRunner()).toThrow(TypeError);
   });
 }

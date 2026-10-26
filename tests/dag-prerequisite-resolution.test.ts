@@ -1,8 +1,9 @@
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { runnerInternals } from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 
@@ -82,7 +83,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           diagnostics: { unknownPrerequisiteIds: ['external'] },
         });
         expect(
-          runner.resolvedGraphsContainer.store.getIdState('external'),
+          runnerInternals(runner).resolvedGraphsContainer.store.getIdState(
+            'external',
+          ),
         ).toBeUndefined();
       }
       expect(calls).toEqual(['external']);
@@ -201,7 +204,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(graph.getRoot()).toBeNull();
     expect(events).toContain('generated');
     expect(runner.summary().counts.subgraphCompleted).toBe(3);
-    const saved = runner.resolvedGraphsContainer.originalGraphView!;
+    const saved =
+      runnerInternals(runner).resolvedGraphsContainer.originalGraphView!;
     const originalParser = saved.getVertexById('parser')!;
     expect(saved.getParentsOf(originalParser)).toEqual([]);
     expect(saved.getPathsTo(originalParser)).toEqual([[originalParser]]);

@@ -1,12 +1,9 @@
+import type { TreeSource } from '../src/core/TraversableTree';
+import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
 import { DepthFirstPhase as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import type { TreeSource } from '../src/core/TraversableTree';
 
 type Node = { $d: string; $c: (Node | null)[] };
 type TTP = VertexTypes<string, Node | null>;
@@ -28,7 +25,7 @@ const values = (
   runner: ReturnType<ReturnType<typeof traversal>['createRunner']>,
   order: Order,
 ) =>
-  [...runner.iterateEvents({ iterateOver: [order] })].map((event) =>
+  [...runner.iterateEvents({ emitEvents: [order] })].map((event) =>
     event.vertex.getData(),
   );
 
@@ -90,7 +87,7 @@ describe('depth-first traversal', () => {
       t.addVisitorFor(order, (_v, o) => {
         visits.push(o.phase);
       });
-    t.createRunner().run({ disableVisitorFunctionsFor: [Order.PRE_ORDER] });
+    t.createRunner().run({ visitorPhases: { exclude: [Order.PRE_ORDER] } });
     expect(visits).toEqual([Order.IN_ORDER, Order.POST_ORDER]);
   });
 
@@ -107,7 +104,7 @@ describe('depth-first traversal', () => {
       visits.push(`second:${v.getData()}`);
     });
     const runner = t.createRunner();
-    runner.run({ iterateOver: [] });
+    runner.run({ emitEvents: [] });
     expect(runner.getStatus()).toBe(Status.HALTED);
     expect(visits).toEqual(['first:root']);
     runner.run();
@@ -125,7 +122,7 @@ describe('depth-first traversal', () => {
   test('changes iterator filters when resuming after a break', () => {
     const runner = traversal(node('root', node('leaf'))).createRunner();
     for (const event of runner.iterateEvents({
-      iterateOver: [Order.PRE_ORDER],
+      emitEvents: [Order.PRE_ORDER],
     })) {
       expect(event.vertex.getData()).toBe('root');
       break;
@@ -214,14 +211,14 @@ describe('depth-first traversal', () => {
           ],
         };
       },
-      { resolutionStyle: Style.CONCURRENT },
+      { commandCommitMode: 'afterGroup' },
     );
     t.addVisitorFor(
       Order.PRE_ORDER,
       (v) => {
         seen.push(v.getData());
       },
-      { resolutionStyle: Style.CONCURRENT },
+      { commandCommitMode: 'afterGroup' },
     );
     t.addVisitorFor(Order.PRE_ORDER, (v) => {
       seen.push(v.getData());
@@ -282,7 +279,7 @@ describe('depth-first traversal', () => {
     t.addVisitorFor(Order.POST_ORDER, () => {
       count++;
     });
-    t.createRunner().run({ iterateOver: [] });
+    t.createRunner().run({ emitEvents: [] });
     expect(count).toBe(20001);
   });
 });
@@ -300,7 +297,7 @@ test('passes chain state from concurrent commands to the first sequential visito
         },
       ],
     }),
-    { resolutionStyle: Style.CONCURRENT },
+    { commandCommitMode: 'afterGroup' },
   );
   t.addVisitorFor(Order.PRE_ORDER, (_vertex, options) => {
     seen = options.visitorChainState;
@@ -316,7 +313,7 @@ test('retains equal-priority registration order after replacing visitor records'
     {
       addedIndex: 100,
       priority: 100,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor',
       visitor: () => {
         seen.push('existing');
       },
@@ -336,7 +333,7 @@ test('a resolved tree can be traversed again as an adapter', () => {
     .getResolvedTreeStore();
   const again = new DepthFirstTreeTraversal({ traversableTree: resolvedTree });
   const data = [
-    ...again.createRunner().iterateEvents({ iterateOver: [Order.POST_ORDER] }),
+    ...again.createRunner().iterateEvents({ emitEvents: [Order.POST_ORDER] }),
   ].map((event) => event.vertex.getData().getValue().getData());
   expect(data).toEqual(['a', 'b', 'root']);
 });

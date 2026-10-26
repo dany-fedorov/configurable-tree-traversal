@@ -1,10 +1,11 @@
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { DEFER_READY } from '../src/traversals/dag-traversal/lib/DagProgress';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
+import { runnerInternals } from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 function bundleGraph() {
@@ -16,7 +17,10 @@ function bundleGraph() {
     resolveChild: (hint: string) => ({
       vertexId: hint,
       ...(hint === 'join'
-        ? { dependsOnWork: ['bundle'], dependsOnSubgraphCompletion: ['bundle', 'bundle'] }
+        ? {
+            dependsOnWork: ['bundle'],
+            dependsOnSubgraphCompletion: ['bundle', 'bundle'],
+          }
         : {}),
       vertexContent: { $d: hint, $c: hint === 'bundle' ? ['a', 'b', 'a'] : [] },
     }),
@@ -415,7 +419,7 @@ test('halt during held async C preserves pending completion and releases only af
     }
   });
   const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents({ iterateOver: [] });
+  const iterator = runner.iterateEvents({ emitEvents: [] });
   const running = iterator.next();
   await entered.promise;
   expect(runner.summary().vertices.get('join')!.work).toBe('pending');
@@ -437,7 +441,7 @@ test('validated summaries read completion presence without copying original decl
     .createRunner()
     .run();
   const declarations = jest.spyOn(
-    runner.resolvedGraphsContainer.store,
+    runnerInternals(runner).resolvedGraphsContainer.store,
     'getDeclaredCompleteDependencies',
   );
   try {

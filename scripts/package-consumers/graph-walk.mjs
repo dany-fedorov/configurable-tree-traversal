@@ -14,10 +14,16 @@ assert.equal(root.DEFER_READY, cjs.DEFER_READY);
 assert.equal(root.graphWalk, cjs.graphWalk);
 for (const entry of entries) {
   for (const name of [
-    'GraphWalk',
-    'AsyncGraphWalk',
     'GraphWalkRunner',
     'AsyncGraphWalkRunner',
+    'InternalGraphWalkRunner',
+    'InternalAsyncGraphWalkRunner',
+  ])
+    assert.equal(name in entry, false);
+
+  for (const name of [
+    'GraphWalk',
+    'AsyncGraphWalk',
     'GraphWalkPhase',
     'walkGraph',
     'walkGraphAsync',
@@ -64,7 +70,13 @@ assert.deepEqual(
   ['vertex', 'edge', 'vertex', 'edge', 'edge'],
 );
 const sync = cjsWalking.walkGraph({ source: catalog });
-for (const entry of entries) assert(sync instanceof entry.GraphWalkRunner);
+for (const entry of entries)
+  assert.equal(
+    Object.getPrototypeOf(sync),
+    Object.getPrototypeOf(
+      new entry.GraphWalk({ source: catalog }).createRunner(),
+    ),
+  );
 assert.equal(sync.summary().outcome.kind, 'exhausted');
 assert.equal(sync.summary().counts.uniqueFoundVertices, 6);
 assert.equal(
@@ -120,7 +132,12 @@ for await (const event of stream.iterateEvents({
 }))
   streamed.push(event);
 for (const entry of entries)
-  assert(stream instanceof entry.AsyncGraphWalkRunner);
+  assert.equal(
+    Object.getPrototypeOf(stream),
+    Object.getPrototypeOf(
+      new entry.AsyncGraphWalk({ source: catalog }).createRunner(),
+    ),
+  );
 assert.deepEqual(
   streamed
     .filter((event) => event.kind === 'vertex')
@@ -226,9 +243,15 @@ const materialized = await walking.materializeWalkSourceFromRecordsAsync(
   },
 );
 const asyncHelper = await walking.walkGraphAsync({ source: materialized });
-assert(asyncHelper instanceof cjs.AsyncGraphWalkRunner);
 assert.equal(
-  walking.walkGraph({ source: materialized }).summary().counts.uniqueFoundVertices,
+  Object.getPrototypeOf(asyncHelper),
+  Object.getPrototypeOf(
+    new cjs.AsyncGraphWalk({ source: materialized }).createRunner(),
+  ),
+);
+assert.equal(
+  walking.walkGraph({ source: materialized }).summary().counts
+    .uniqueFoundVertices,
   1,
 );
 
@@ -249,7 +272,13 @@ const projected = walking.materializeWalkSourceFromDagDefinition(
     omittedIds: [symbolId],
     entry: { kind: 'root', vertexId: objectId },
   }),
-  { relations: ['subgraphCompletionDependencies', 'children', 'workDependencies'] },
+  {
+    relations: [
+      'subgraphCompletionDependencies',
+      'children',
+      'workDependencies',
+    ],
+  },
 );
 const relations = [];
 const dagWalk = await walking.walkGraphAsync({

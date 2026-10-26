@@ -1,13 +1,13 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
-import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
 import type {
+  TreeChildResolutionContext,
   TreeVertexFound,
   TreeVertexOmitted,
-  TreeChildResolutionContext,
 } from '@core/TraversableTree';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { VertexContentInput } from '@core/Vertex';
+import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
+import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
 
 export type ObjectVertexHookResult<T extends VertexTypes> =
   | {
@@ -36,7 +36,7 @@ export type TraversableObjectTreeInstanceConfig_makeVertexHook<
   returnMe?: VertexContentInput<TraversableObjectTTP<InK, InV>> | null;
 };
 
-export type TraversableObjectTreeInstanceConfigInput<
+export type ObjectTreeOptions<
   In,
   InK extends TraversableObjectPropKey,
   InV,
@@ -56,28 +56,33 @@ export type TraversableObjectTreeInstanceConfigInput<
       TraversableObjectTTP<OutK, OutV>
     >,
   ) => ObjectVertexHookResult<TraversableObjectTTP<InK, InV>>;
-  /** @deprecated Use resolveVertexHook. */
-  makeVertexHook?: TraversableObjectTreeInstanceConfig_makeVertexHook<
-    InK,
-    InV,
-    OutK,
-    OutV
-  > | null;
 };
 
-export type TraversableObjectTreeInstanceConfig<
+/** @deprecated Compatibility decoding only; public construction uses ObjectTreeOptions. */
+export type LegacyObjectTreeOptions<
+  In,
+  InK extends TraversableObjectPropKey,
+  InV,
+  OutK extends TraversableObjectPropKey,
+  OutV,
+> = ObjectTreeOptions<In, InK, InV, OutK, OutV> & {
+  /** @deprecated Use resolveVertexHook. */
+  makeVertexHook?:
+    | TraversableObjectTreeInstanceConfig_makeVertexHook<InK, InV, OutK, OutV>
+    | null
+    | undefined;
+};
+
+export type ObjectTreeResolvedOptions<
   In,
   InK extends TraversableObjectPropKey,
   InV,
   OutK extends TraversableObjectPropKey,
   OutV,
 > = Required<
-  Omit<
-    TraversableObjectTreeInstanceConfigInput<In, InK, InV, OutK, OutV>,
-    'resolveVertexHook'
-  >
+  Omit<LegacyObjectTreeOptions<In, InK, InV, OutK, OutV>, 'resolveVertexHook'>
 > & {
-  resolveVertexHook: TraversableObjectTreeInstanceConfigInput<
+  resolveVertexHook: LegacyObjectTreeOptions<
     In,
     InK,
     InV,

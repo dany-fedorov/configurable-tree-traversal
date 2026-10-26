@@ -6,7 +6,7 @@ import {
 } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
-import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import type { DepthFirstTreeResolvedOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 
 type TestTTP = VertexTypes<{ label: string }, string>;
@@ -209,7 +209,7 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
         resolvedTreesContainer: null,
         state: null,
       },
-    } as unknown as DepthFirstTraversalInstanceConfig<TestTTP, TestTTP>);
+    } as unknown as DepthFirstTreeResolvedOptions<TestTTP, TestTTP>);
     const rootRef = makeRef('root', ['child']);
     const childRef = makeRef('child');
     container.setRoot(rootRef);
@@ -232,7 +232,7 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
         resolvedTreesContainer: null,
         state: null,
       },
-    } as unknown as DepthFirstTraversalInstanceConfig<TestTTP, TestTTP>);
+    } as unknown as DepthFirstTreeResolvedOptions<TestTTP, TestTTP>);
     const rootRef = makeRef('root', ['child']);
     const childRef = makeRef('child');
 

@@ -1,56 +1,61 @@
-import type { NoInferPhase } from '@core/TraversalVisitor';
+import { assertPublicOptions } from '@core/assertPublicOptions';
+import type { VisitorRecord } from '@core/graph/types';
+import type {
+  NoInferPhase,
+  TraversalVisitorFunctionOptions,
+  VisitorGroupDefinition,
+  VisitorPhaseInput,
+} from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
-import type {
-  VisitorPhaseInput,
-  VisitorGroupDefinition,
-} from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
-import type { VisitorRecord } from '@core/graph/types';
-import {
-  captureDagSourcePatch,
-  assertExactlyOneDagSource,
-} from './lib/dagSourcePatch';
 import { initDagVisitors } from './init-helpers/initVisitors';
+import {
+  assertExactlyOneDagSource,
+  captureDagSourcePatch,
+} from './lib/dagSourcePatch';
 import {
   DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeDagTraversalInstanceConfigs,
-  type DagTraversalConfigureInput,
-  type DagTraversalInstanceConfig,
-  type DagTraversalInstanceConfigInput,
+  type DagOptions,
+  type DagOptionsPatch,
+  type DagResolvedOptions,
   type DagTraversalVisitors,
 } from './lib/DagTraversalInstanceConfig';
-import type { DagVisitor } from './lib/DagTraversalVisitor';
 import type { DagVisitorPhase } from './lib/DagTraversalOrder';
-import { DagTraversalRunner } from './lib/DagTraversalRunner';
+import {
+  InternalDagTraversalRunner,
+  type DagTraversalRunner,
+} from './lib/DagTraversalRunner';
+import type { DagVisitor } from './lib/DagTraversalVisitor';
 
 export class DagTraversal<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
 > {
-  icfg: DagTraversalInstanceConfig<T, R, ID>;
-  visitors: DagTraversalVisitors<T, R, ID>;
+  private icfg: DagResolvedOptions<T, R, ID>;
+  private visitors: DagTraversalVisitors<T, R, ID>;
   private readonly sourceMode: 'tree' | 'graph';
 
-  constructor(input: DagTraversalInstanceConfigInput<T, R, ID>) {
+  constructor(input: DagOptions<T, R, ID>) {
     assertNoConcurrency(input);
+    assertPublicOptions(input);
     const sources = captureDagSourcePatch(input);
     this.sourceMode = assertExactlyOneDagSource(sources);
     this.icfg = mergeDagTraversalInstanceConfigs(
       {
-        ...(DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as DagTraversalInstanceConfig<
+        ...(DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as DagResolvedOptions<
           T,
           R,
           ID
         >),
         ...sources,
-      } as DagTraversalInstanceConfig<T, R, ID>,
+      } as DagResolvedOptions<T, R, ID>,
       input,
       sources,
     );
@@ -61,8 +66,9 @@ export class DagTraversal<
    * Configure future runners. Own defined same-family sources replace; inherited
    * and own undefined sources retain the active source. Mode changes reject atomically.
    */
-  configure(input: DagTraversalConfigureInput<T, R, ID>): this {
+  configure(input: DagOptionsPatch<T, R, ID>): this {
     assertNoConcurrency(input);
+    assertPublicOptions(input);
     const sources = captureDagSourcePatch(input);
     if (
       (this.sourceMode === 'graph' && sources.traversableTree !== undefined) ||
@@ -132,7 +138,10 @@ export class DagTraversal<
   }
 
   createRunner(): DagTraversalRunner<T, R, ID> {
-    return new DagTraversalRunner({ ...this.icfg, visitors: this.visitors });
+    return new InternalDagTraversalRunner({
+      ...this.icfg,
+      visitors: this.visitors,
+    });
   }
 }
 

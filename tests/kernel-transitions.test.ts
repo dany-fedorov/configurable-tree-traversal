@@ -1,18 +1,21 @@
-import type { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
-import { TraversalKernel } from '../src/core/TraversalKernel';
-import type { CallbackReply, VisitOrder } from '../src/core/effects/types';
-import type { Outcome } from '../src/core/effects/types';
-import type { MakeVertexResult } from '../src/core/TraversableTree';
+import { MutableRef } from '../src/core/CTTRef';
+import type {
+  CallbackReply,
+  Outcome,
+  VisitOrder,
+} from '../src/core/effects/types';
+import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { VertexRef } from '../src/core/graph/types';
+import type { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
+import type { MakeVertexResult } from '../src/core/TraversableTree';
+import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import {
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src/core/TraversalVisitor';
-import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { TestGraph } from './helpers/graph-fixtures';
-import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
+import type { TestGraph } from './helpers/graph-fixtures';
 
 function makeKernel(
   visitorCount = 1,
@@ -139,11 +142,7 @@ function rootReply(
   return { requestId, kind: 'MAKE_ROOT', outcome };
 }
 
-function invokePrivate<R>(
-  target: object,
-  name: string,
-  ...args: unknown[]
-): R {
+function invokePrivate<R>(target: object, name: string, ...args: unknown[]): R {
   const method = (target as unknown as Record<string, unknown>)[name] as (
     ...values: unknown[]
   ) => R;
@@ -233,16 +232,16 @@ test('resume copies every optional filter shape without retaining caller arrays'
     enableVisitorFunctionsFor: ['ON_WORK_READY'],
     disableVisitorFunctionsFor: ['ON_SUBGRAPH_READY'],
   });
-  const configured = kernel.inspect().iterableConfig;
+  const configured = kernel.inspect().executionOptions;
   kernel.resume({});
-  expect(kernel.inspect().iterableConfig).toEqual(configured);
+  expect(kernel.inspect().executionOptions).toEqual(configured);
   kernel.resume({
     enableVisitorFunctionsFor: null,
     disableVisitorFunctionsFor: null,
   });
-  expect(kernel.inspect().iterableConfig).toMatchObject({
-    enableVisitorFunctionsFor: null,
-    disableVisitorFunctionsFor: null,
+  expect(kernel.inspect().executionOptions).toEqual({
+    emitEvents: ['subgraphCompleted'],
+    visitorPhases: 'all',
   });
 });
 
@@ -920,7 +919,8 @@ test('retains every started-chain event in FIFO order while halting', () => {
   expect(kernel.inspect().pendingEventBoundaryCount).toBe(1);
 
   const second = kernel.poll('drain');
-  if (second.kind !== 'EVENT') throw new Error('Expected second retained event');
+  if (second.kind !== 'EVENT')
+    throw new Error('Expected second retained event');
   expect(second.boundaryId).not.toBe(first.boundaryId);
   expect(second.event.vertex.getData()).toBe('b');
   kernel.acknowledgeEvent(second.boundaryId);

@@ -1,25 +1,8 @@
 import {
-  getTraversalExecutionPhases,
-  normalizeTraversalExecutionOptions,
-} from './normalizeTraversalExecutionOptions';
-import type {
-  EffectiveTraversalExecutionOptions,
-  TraversalIterableConfigInput,
-} from './TraversalRunnerIterableConfig';
-import type {
-  DagSummary,
-  DagDeferredWork,
-  DagSettlementOutcome,
-  DagSettlementGeneration,
-  DagVertexProgress,
-} from '../traversals/dag-traversal/lib/DagProgress';
-import type { DagInspectionState, VertexId } from '@core/graph/types';
+  BreadthFirstPolicy,
+  type BreadthFirstPolicyState,
+} from '@breadth-first-traversal/lib/BreadthFirstPolicy';
 import type { KernelInspection } from '@core/CoreInspection';
-import { assertDagWorkCompletion } from '../traversals/dag-traversal/lib/DagTraversalInstanceConfig';
-import type { TraversalStopReason } from '@core/TraversalRunner';
-import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
-import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 import type {
   CallbackReply,
   CallSpec,
@@ -31,24 +14,44 @@ import type {
   PumpMode,
   VisitOrder,
 } from '@core/effects/types';
-import type { VertexRef } from '@core/graph/types';
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
+import type {
+  DagInspectionState,
+  VertexId,
+  VertexRef,
+} from '@core/graph/types';
 import type { ChainState, FrameState, KernelOptions } from '@core/kernelTypes';
-import { PrerequisiteResolution } from '@core/scheduling/PrerequisiteResolution';
 import { GraphScheduling } from '@core/scheduling/GraphScheduling';
+import { PrerequisiteResolution } from '@core/scheduling/PrerequisiteResolution';
+import type { TraversalStopReason } from '@core/TraversalRunner';
+import { TraversalRunnerStatus } from '@core/TraversalRunner';
+import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
+import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import { VisitorChain } from '@core/visitors/VisitorChain';
-import { deepFreeze } from '@utils/deepFreeze';
 import {
   DepthFirstPolicy,
   type DepthFirstFrame,
 } from '@depth-first-traversal/lib/DepthFirstPolicy';
 import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import {
-  BreadthFirstPolicy,
-  type BreadthFirstPolicyState,
-} from '@breadth-first-traversal/lib/BreadthFirstPolicy';
+import { deepFreeze } from '@utils/deepFreeze';
 import { DagPolicy } from '../traversals/dag-traversal/lib/DagPolicy';
+import type {
+  DagDeferredWork,
+  DagSettlementGeneration,
+  DagSettlementOutcome,
+  DagSummary,
+  DagVertexProgress,
+} from '../traversals/dag-traversal/lib/DagProgress';
+import { assertDagWorkCompletion } from '../traversals/dag-traversal/lib/DagTraversalInstanceConfig';
+import {
+  getTraversalExecutionPhases,
+  normalizeTraversalExecutionOptions,
+} from './normalizeTraversalExecutionOptions';
+import type {
+  ResolvedTraversalExecutionOptions,
+  TraversalIterableConfigInput,
+} from './TraversalRunnerIterableConfig';
 
 type NormalizedDagSettlementOutcome =
   | { kind: 'workCompleted' }
@@ -173,7 +176,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   private readonly boundaries: Boundary<T | R>[] = [];
 
   private readonly phases: readonly VisitOrder[];
-  private executionConfig: EffectiveTraversalExecutionOptions<VisitOrder>;
+  private executionConfig: ResolvedTraversalExecutionOptions<VisitOrder>;
 
   constructor(private readonly options: KernelOptions<T, R>) {
     assertDagWorkCompletion(options.workCompletion);
@@ -614,7 +617,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       concurrency: this.options.concurrency,
       hasSorter: this.options.hasSorter,
       hasHintIds: this.options.hasHintIds,
-      iterableConfig: this.copyConfig(this.executionConfig),
+      executionOptions: this.inspectConfig(this.executionConfig),
       readyVisits: this.scheduling.inspectEligible().map((visit) => ({
         vertexRefId: visit.ref.getRefId(),
         order:
@@ -653,7 +656,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           state.group === 'concurrent' ? 'afterGroup' : 'afterEachVisitor',
         position: state.position,
         waitingFor: state.waitingFor,
-        config: this.copyConfig(state.config),
+        config: this.inspectConfig(state.config),
       })),
       pendingRequests: Array.from(
         this.pendingRequests.values(),
@@ -714,7 +717,8 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
         ? 'ready'
         : 'pending';
       if (state === 'pending') pending += 1;
-      if (state === 'ready' || state === 'deferred') readyOrDeferredIds.push(id);
+      if (state === 'ready' || state === 'deferred')
+        readyOrDeferredIds.push(id);
       if (state === 'deferred') {
         deferredWorkIds.push(id);
         if (deferred!.outcome === undefined) {
@@ -959,8 +963,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           const visitorState =
             this.options.stateBridge.visitorsState[runtime.state.order];
           if (visitorState !== undefined) {
-            visitorState.visitorIndex =
-              runtime.state.metadata.visitorIndex;
+            visitorState.visitorIndex = runtime.state.metadata.visitorIndex;
           }
         }
         return;
@@ -1242,7 +1245,8 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           if (
             (this.depthFirstPolicy !== null &&
               runtime.state.order !== DepthFirstPhase.PRE_ORDER) ||
-            (this.options.kind === 'dag' && runtime.state.order !== 'ON_WORK_READY')
+            (this.options.kind === 'dag' &&
+              runtime.state.order !== 'ON_WORK_READY')
           ) {
             throw new Error(
               this.options.kind === 'dag'
@@ -1274,8 +1278,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       visitorState !== undefined &&
       this.visitorsEnabledFor(state.config, state.order)
     ) {
-      visitorState.visitorIndex =
-        state.metadata.visitorIndex;
+      visitorState.visitorIndex = state.metadata.visitorIndex;
       visitorState.phaseVisitIndex += 1;
       visitorState.previousPhaseVertexRef = state.ref;
     }
@@ -1284,8 +1287,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       visitorState !== undefined &&
       this.visitorsEnabledFor(state.config, state.order)
     ) {
-      visitorState.visitorIndex =
-        state.metadata.visitorIndex;
+      visitorState.visitorIndex = state.metadata.visitorIndex;
       visitorState.phaseVisitIndex += 1;
       visitorState.previousPhaseVertexRef = state.ref;
     }
@@ -1318,8 +1320,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       this.depthFirstPolicy === null &&
       this.breadthFirstPolicy === null
     ) {
-      visitorState.visitorIndex =
-        state.metadata.visitorIndex;
+      visitorState.visitorIndex = state.metadata.visitorIndex;
       visitorState.previousPhaseVertexRef = state.ref;
     }
     if (state.config.iterateOver.includes(state.order)) {
@@ -2196,6 +2197,11 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
         ? selection.include!.includes(order)
         : !selection.exclude.includes(order))
     );
+  }
+
+  private inspectConfig(config: typeof this.executionConfig) {
+    const { emitEvents, visitorPhases } = this.copyConfig(config);
+    return { emitEvents, visitorPhases };
   }
 
   private copyConfig(config: typeof this.executionConfig) {

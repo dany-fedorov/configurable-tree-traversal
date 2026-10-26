@@ -1,11 +1,11 @@
+import type { AsyncGraphWalkSource } from '../src';
 import {
   AsyncGraphWalk,
-  AsyncGraphWalkRunner,
-  TraversalRunnerStatus as Status,
   GraphWalk,
   GraphWalkPhase as Phase,
+  TraversalRunnerStatus as Status,
 } from '../src';
-import type { AsyncGraphWalkSource } from '../src';
+import { InternalAsyncGraphWalkRunner as AsyncGraphWalkRunner } from '../src/traversals/graph-walk/AsyncGraphWalkRunner';
 import { contextFixture } from './helpers/graph-walk-fixtures';
 
 async function collect<T>(values: AsyncIterable<T>): Promise<T[]> {

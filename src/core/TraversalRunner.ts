@@ -1,9 +1,9 @@
+import type { CoreInspection } from '@core/CoreInspection';
+import type { MutableRef } from '@core/CTTRef';
+import type { SyncTraversalExecution } from '@core/TraversalExecution';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type { MutableRef } from '@core/CTTRef';
-import type { CoreInspection } from '@core/CoreInspection';
-import type { SyncTraversalExecution } from '@core/TraversalExecution';
-import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 
 export type TreeTraversalEvent<
   ORDER extends string,
@@ -49,10 +49,7 @@ export abstract class TreeTraversalRunner<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > implements
-    SyncTraversalExecution<
-      ORDER,
-      TreeTraversalEvent<ORDER, TTP, RW_TTP>
-    >
+    SyncTraversalExecution<ORDER, TreeTraversalEvent<ORDER, TTP, RW_TTP>>
 {
   abstract getStatus(): TraversalRunnerStatus;
 
@@ -64,13 +61,9 @@ export abstract class TreeTraversalRunner<
 
   abstract requestPause(): boolean;
 
-  abstract run: (config?: TraversalIterableConfigInput<ORDER, ORDER>) => this;
+  abstract run: (config?: TraversalExecutionOptions<ORDER, ORDER>) => this;
 
   abstract iterateEvents: (
-    config?: TraversalIterableConfigInput<ORDER, ORDER>,
-  ) => Generator<
-    TreeTraversalEvent<ORDER, TTP, RW_TTP>,
-    void,
-    unknown
-  >;
+    config?: TraversalExecutionOptions<ORDER, ORDER>,
+  ) => Generator<TreeTraversalEvent<ORDER, TTP, RW_TTP>, void, unknown>;
 }

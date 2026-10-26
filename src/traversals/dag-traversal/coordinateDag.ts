@@ -1,14 +1,15 @@
 import type { TraversalExecutionState } from '@core/TraversalExecution';
-import { inspectDagMilestones } from './inspectDag';
-import type { DagMilestoneSnapshot } from './lib/DagInspection';
 import type { VertexTypes } from '@core/TreeTypeParameters';
+import { inspectDagMilestones } from './inspectDag';
 import type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
-import type { DagTraversalRunner } from './lib/DagTraversalRunner';
+import type { DagMilestoneSnapshot } from './lib/DagInspection';
 import type {
   DagDeferredWork,
   DagSettlementOutcome,
   DagSummary,
 } from './lib/DagProgress';
+import { dagRunnerCapabilities } from './lib/dagRunnerCapabilities';
+import type { DagTraversalRunner } from './lib/DagTraversalRunner';
 
 declare const ticketBrand: unique symbol;
 
@@ -62,15 +63,15 @@ type SettlementRunner<ID> = Pick<
   | 'getStatus'
   | 'isHalted'
   | 'inspect'
-> & {
-  readonly icfg: { workCompletion?: 'visitorReturn' | 'externalSettlement' };
-};
+>;
 
 function makeCoordination<ID>(
   runner: SettlementRunner<ID>,
   inspectDependencies: () => DagMilestoneSnapshot<ID>,
 ) {
-  if (runner.icfg.workCompletion !== 'externalSettlement') {
+  if (
+    dagRunnerCapabilities.get(runner)?.workCompletion !== 'externalSettlement'
+  ) {
     throw new TypeError(
       'DAG coordination requires externalSettlement work completion',
     );

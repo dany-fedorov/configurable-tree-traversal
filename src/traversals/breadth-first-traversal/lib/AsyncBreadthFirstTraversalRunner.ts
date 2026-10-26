@@ -1,5 +1,3 @@
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
@@ -14,39 +12,54 @@ import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTreeStore } from '@core/ResolvedTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { TreeTraversalEvent } from '@core/TraversalRunner';
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { AsyncTraversalExecution } from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
+import type {
+  TraversalStopReason,
+  TreeTraversalEvent,
+} from '@core/TraversalRunner';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import {
   mergeAsyncBreadthFirstTraversalInstanceConfigs,
-  type AsyncBreadthFirstTraversalInstanceConfig,
+  type AsyncBreadthFirstTreeResolvedOptions,
 } from './AsyncBreadthFirstTraversalInstanceConfig';
 import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import {
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
   type BreadthFirstTraversalRunnerIterableConfig,
-  type BreadthFirstTraversalRunnerIterableConfigInput,
 } from './BreadthFirstTraversalRunnerIterableConfig';
 import { BreadthFirstTraversalRunnerState } from './BreadthFirstTraversalRunnerState';
 
 type Event<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
-> = TreeTraversalEvent<
-  BreadthFirstPhase,
-  TTP,
-  RW_TTP
->;
+> = TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>;
 
-export class AsyncBreadthFirstTreeRunner<
+export interface AsyncBreadthFirstTreeRunner<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> extends AsyncTraversalExecution<
+    BreadthFirstPhase,
+    TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>
+  > {
+  getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
+  getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
+  getResolvedGraph(): ResolvedGraph<TTP | RW_TTP>;
+  isTraversalRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
+  isTreeRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
+}
+
+export class InternalAsyncBreadthFirstTreeRunner<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > {
-  icfg: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
-  state: BreadthFirstTraversalRunnerState<TTP, RW_TTP>;
-  resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
+  private icfg: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>;
+  private state: BreadthFirstTraversalRunnerState<TTP, RW_TTP>;
+  private resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
     TTP,
     RW_TTP
   >;
@@ -57,9 +70,7 @@ export class AsyncBreadthFirstTreeRunner<
     BreadthFirstPhase
   >;
 
-  constructor(
-    icfgInput: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-  ) {
+  constructor(icfgInput: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>) {
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(icfgInput, {});
     this.icfg.visitors = Object.fromEntries(
       Object.entries(this.icfg.visitors).map(([order, records]) => [
@@ -198,13 +209,13 @@ export class AsyncBreadthFirstTreeRunner<
   }
 
   iterateEvents(
-    config?: BreadthFirstTraversalRunnerIterableConfigInput,
+    config?: TraversalExecutionOptions<BreadthFirstPhase>,
   ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown> {
     return this.execution.iterateEvents(config);
   }
 
   async run(
-    config?: BreadthFirstTraversalRunnerIterableConfigInput,
+    config?: TraversalExecutionOptions<BreadthFirstPhase>,
   ): Promise<this> {
     await this.execution.run(config);
     return this;

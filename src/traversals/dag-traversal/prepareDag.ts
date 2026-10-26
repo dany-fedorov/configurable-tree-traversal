@@ -1,17 +1,19 @@
-import type {
-  DagDiscoverySource,
-  AsyncDagDiscoverySource,
-} from '@core/TraversableGraph';
-import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   DagTraversalStallError,
   type DagTraversalStallDiagnostics,
 } from '@core/errors/DagTraversalStallError';
+import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
+import type {
+  AsyncDagDiscoverySource,
+  DagDiscoverySource,
+} from '@core/TraversableGraph';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { AsyncDagTraversal } from './AsyncDagTraversal';
-import { prepareDagSource } from './lib/prepareDagSource';
-import type { PrepareDagResult } from './lib/DagDefinition';
 import { capturePreparedSource } from './lib/capturePreparedSource';
-import { makePreparedDag, assertPreparedOptions } from './lib/makePreparedDag';
+import type { PrepareDagResult } from './lib/DagDefinition';
+import { dagRunnerCapabilities } from './lib/dagRunnerCapabilities';
+import { assertPreparedOptions, makePreparedDag } from './lib/makePreparedDag';
+import { prepareDagSource } from './lib/prepareDagSource';
 
 export type PrepareDagOptions = {
   syntheticRoot?: boolean;
@@ -91,7 +93,8 @@ export async function prepareDagAsync<T extends VertexTypes, ID = unknown>(
   return {
     kind: 'valid',
     dag: makePreparedDag(
-      runner.resolvedGraphsContainer,
+      dagRunnerCapabilities.get(runner)!
+        .container as unknown as ResolvedGraphsContainer<T, T, ID>,
       captured.candidates,
       input.rootDependencies ?? 'honor',
     ),

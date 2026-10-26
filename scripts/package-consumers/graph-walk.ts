@@ -163,8 +163,8 @@ const all: Generator<
   void,
   unknown
 > = result.iterateEvents();
-// @ts-expect-error Legacy selectors deliberately retain the full event union.
 const narrowLegacy: typeof mixed = result.iterateEvents({
+  // @ts-expect-error Legacy selectors are not canonical execution inputs.
   iterateOver: [Phase.EDGE],
 });
 // @ts-expect-error No selector cannot promise only the selected phases.
@@ -191,7 +191,11 @@ walkGraphAsync({
   revisit: 'simplePaths',
   limits: { maxCandidateReadAttempts: 10 },
 });
-new GraphWalk({ source, shouldFollowEdge: null, shouldExpandVertex: null }).configure({
+new GraphWalk({
+  source,
+  shouldFollowEdge: null,
+  shouldExpandVertex: null,
+}).configure({
   shouldFollowEdge: null,
   shouldExpandVertex: null,
 });
@@ -221,8 +225,10 @@ new AsyncGraphWalk({
 });
 // @ts-expect-error Nullable reset does not admit nonfunction predicates.
 new GraphWalk({ source }).configure({ shouldFollowEdge: false });
-// @ts-expect-error Async predicates accept callbacks or null, never booleans.
-new AsyncGraphWalk({ source: asyncSource }).configure({ shouldExpandVertex: false });
+new AsyncGraphWalk({ source: asyncSource }).configure({
+  // @ts-expect-error Async predicates accept callbacks or null, never booleans.
+  shouldExpandVertex: false,
+});
 new GraphWalk({ source }).configure({ revisit: 'walks' });
 new AsyncGraphWalk({ source }).configure({ revisit: 'simplePaths' });
 // @ts-expect-error Route enumeration always requires depth or step bounds.
@@ -266,7 +272,9 @@ walkGraph({
   source,
   visitors: {
     // @ts-expect-error Walking does not support work settlement commands.
-    [Phase.EDGE]: () => ({ commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] }),
+    [Phase.EDGE]: () => ({
+      commands: [{ commandName: Command.DEFER_WORK_COMPLETION }],
+    }),
   },
 });
 walkGraphAsync({
@@ -365,11 +373,26 @@ void [
   namespaceRelation,
 ];
 
-
-const canonicalEdgePredicate: import('configurable-tree-traversal').GraphWalkEdgePredicate<string, Relation, ID> = () => true;
-const canonicalExpansionPredicate: import('configurable-tree-traversal').GraphWalkExpansionPredicate<string, Relation, ID> = () => false;
-const canonicalAsyncEdgePredicate: import('configurable-tree-traversal').AsyncGraphWalkEdgePredicate<string, Relation, ID> = async () => true;
-const canonicalAsyncExpansionPredicate: import('configurable-tree-traversal').AsyncGraphWalkExpansionPredicate<string, Relation, ID> = async () => false;
+const canonicalEdgePredicate: import('configurable-tree-traversal').GraphWalkEdgePredicate<
+  string,
+  Relation,
+  ID
+> = () => true;
+const canonicalExpansionPredicate: import('configurable-tree-traversal').GraphWalkExpansionPredicate<
+  string,
+  Relation,
+  ID
+> = () => false;
+const canonicalAsyncEdgePredicate: import('configurable-tree-traversal').AsyncGraphWalkEdgePredicate<
+  string,
+  Relation,
+  ID
+> = async () => true;
+const canonicalAsyncExpansionPredicate: import('configurable-tree-traversal').AsyncGraphWalkExpansionPredicate<
+  string,
+  Relation,
+  ID
+> = async () => false;
 const walkingCounts: {
   candidateReadAttempts: number;
   admittedTargets: number;
@@ -379,7 +402,17 @@ const walkingCounts: {
   processedObservations: Readonly<Record<Phase, number>>;
 } = result.summary().counts;
 new GraphWalk({ source }).addVisitorFor(Phase.EDGE, (event, context) => {
-  const coordinates: number[] = [event.edge.outgoingIndex, context.admissionIndex, context.phaseObservationIndex];
+  const coordinates: number[] = [
+    event.edge.outgoingIndex,
+    context.admissionIndex,
+    context.phaseObservationIndex,
+  ];
   void coordinates;
 });
-void [canonicalEdgePredicate, canonicalExpansionPredicate, canonicalAsyncEdgePredicate, canonicalAsyncExpansionPredicate, walkingCounts];
+void [
+  canonicalEdgePredicate,
+  canonicalExpansionPredicate,
+  canonicalAsyncEdgePredicate,
+  canonicalAsyncExpansionPredicate,
+  walkingCounts,
+];

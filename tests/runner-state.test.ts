@@ -6,6 +6,10 @@ import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
 import type { DepthFirstTraversalRunnerState } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerState';
+import {
+  createInternalDepthFirstTreeTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 type Node = { $d: string; $c: Node[] };
 type Tree = VertexTypes<string, Node>;
@@ -29,9 +33,11 @@ const context = (
 });
 
 function makeState(): DepthFirstTraversalRunnerState<Tree, Tree> {
-  return new DepthFirstTreeTraversal<Tree>({
-    traversableTree: adapter(node('root')),
-  }).createRunner().state;
+  return runnerInternals(
+    new DepthFirstTreeTraversal<Tree>({
+      traversableTree: adapter(node('root')),
+    }).createRunner(),
+  ).state;
 }
 
 test('depth-first state injection retains supplied continuation objects', () => {
@@ -48,10 +54,12 @@ test('depth-first state injection retains supplied continuation objects', () => 
   source.traversalRootVertexRef = activeParentRef;
   source.status = TraversalRunnerStatus.HALTED;
 
-  const injected = new DepthFirstTreeTraversal<Tree>({
-    traversableTree: adapter(node('unused')),
-    traversalRunnerInternalObjects: { state: source },
-  }).createRunner().state;
+  const injected = runnerInternals(
+    createInternalDepthFirstTreeTraversal<Tree>({
+      traversableTree: adapter(node('unused')),
+      traversalRunnerInternalObjects: { state: source },
+    }).createRunner(),
+  ).state;
 
   expect(injected.STACK).toBe(source.STACK);
   expect(injected.postOrderNotVisitedChildrenCountMap).toBe(

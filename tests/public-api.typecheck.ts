@@ -4,40 +4,40 @@ import {
   AsyncDepthFirstTreeTraversal,
   DagTraversal,
   DagVisitorPhase,
-  DepthFirstTreeTraversal,
   DepthFirstPhase,
+  DepthFirstTreeTraversal,
   ObjectTreeSource,
-  Vertex,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
-  traverseTreeDepthFirst,
-  traverseTreeBreadthFirstAsync,
   traverseDag,
   traverseDagAsync,
+  traverseTreeBreadthFirstAsync,
+  traverseTreeDepthFirst,
   traverseTreeDepthFirstAsync,
+  Vertex,
   type AsyncCoreExecution,
   type ChildSlot,
   type CoreInspection,
-  type StructuralChildEdge,
-  type ResolvedGraphVertex,
-  type ResolvedVertexStatus,
+  type DagDiscoverySource,
   type HintVertexId,
   type KernelInspection,
   type MaybePromise,
   type ResolvedGraph,
-  type DagDiscoverySource,
-  type TreeTraversalRunner,
-  type VertexTypes,
+  type ResolvedGraphVertex,
+  type ResolvedVertexStatus,
+  type StructuralChildEdge,
   type TreeSource,
+  type TreeTraversalRunner,
   type VertexId,
+  type VertexTypes,
 } from '../src';
 import type {
   ChildSlot as CoreChildSlot,
-  StructuralChildEdge as CoreGraphEdge,
-  ResolvedGraphVertex as CoreGraphVertex,
-  ResolvedVertexStatus as CoreGraphVertexStatus,
   HintVertexId as CoreHintVertexId,
   MaybePromise as CoreMaybePromise,
+  ResolvedGraphVertex as CoreGraphVertex,
+  ResolvedVertexStatus as CoreGraphVertexStatus,
+  StructuralChildEdge as CoreGraphEdge,
   VertexId as CoreVertexId,
 } from '../src/core';
 import {
@@ -77,7 +77,7 @@ for (const event of concreteRunner.iterateEvents()) {
 const interfaceRunner: TreeTraversalRunner<DepthFirstPhase, Tree, Tree> =
   traversal.createRunner();
 interfaceRunner.iterateEvents();
-interfaceRunner.run({ iterateOver: [] });
+interfaceRunner.run({ emitEvents: [] });
 const failedStatus: TraversalRunnerStatus = TraversalRunnerStatus.FAILED;
 
 const convenienceRunner = traverseTreeDepthFirst(tree, {
@@ -272,8 +272,7 @@ const incompleteOmission: import('../src').DagVertexOmitted = {
   kind: 'omitted',
 };
 // @ts-expect-error A bare null is not a resolution result.
-const nullResolution: import('../src').DagPrerequisiteResolution<Tree> =
-  null;
+const nullResolution: import('../src').DagPrerequisiteResolution<Tree> = null;
 void canonicalSource;
 void missingRoot;
 void nullFound;
@@ -316,6 +315,5 @@ const canonicalCoreTreeOmitted: import('../src/core').TreeVertexOmitted =
 const treeOmittedAsGraph: import('../src').DagVertexOmitted =
   canonicalTreeOmitted;
 // @ts-expect-error Graph acknowledgement is unsupported tree metadata.
-const graphOmittedAsTree: import('../src').TreeVertexOmitted =
-  canonicalOmitted;
+const graphOmittedAsTree: import('../src').TreeVertexOmitted = canonicalOmitted;
 void [canonicalCoreTreeOmitted, treeOmittedAsGraph, graphOmittedAsTree];

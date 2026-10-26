@@ -1,5 +1,5 @@
 import type { AsyncTraversalExecution } from '@core/TraversalExecution';
-import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 
 /** Historical execution name. Erasing the phase type permits no explicit phases. */
 export interface AsyncCoreExecution<
@@ -14,6 +14,6 @@ export interface AsyncCoreExecution<
   > {
   // Preserve the extensible historical interface and its fluent return type.
   run: (
-    config?: TraversalIterableConfigInput<Phase, EmittedKind>,
+    config?: TraversalExecutionOptions<Phase, EmittedKind>,
   ) => Promise<this>;
 }

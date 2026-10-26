@@ -1,10 +1,11 @@
+import type { DagDiscoverySource, VertexTypes } from '../src';
 import {
   AsyncDagTraversal,
   DagTraversal,
   DagVisitorPhase as Order,
   DEFER_READY,
 } from '../src';
-import type { DagDiscoverySource, VertexTypes } from '../src';
+import { runnerInternals } from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 
@@ -261,12 +262,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             vertexId: id,
             satisfiesDependencies: true,
           }),
-          resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+          resolveChild: () => ({
+            kind: 'omitted',
+            satisfiesDependencies: true,
+          }),
         },
       }).createRunner();
       await runner.run();
       expect(runner.getResolvedGraph().getRoot()).toBeNull();
-      expect(runner.resolvedGraphsContainer.store.getIdState(id)).toEqual({
+      expect(
+        runnerInternals(runner).resolvedGraphsContainer.store.getIdState(id),
+      ).toEqual({
         kind: 'omitted',
       });
     },
@@ -346,7 +352,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       await runner.run();
     }).rejects.toBeInstanceOf(TypeError);
     expect(
-      runner.resolvedGraphsContainer.store.getIdState('missing'),
+      runnerInternals(runner).resolvedGraphsContainer.store.getIdState(
+        'missing',
+      ),
     ).toBeUndefined();
   });
 }

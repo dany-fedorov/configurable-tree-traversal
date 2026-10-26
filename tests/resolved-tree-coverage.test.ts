@@ -1,12 +1,13 @@
 import {
-  MutableRef,
   DepthFirstTreeTraversal,
+  MutableRef,
   ResolvedTreeStore,
-  type VertexTypes,
-  Vertex,
   TreeVertexRecord,
+  Vertex,
   type VertexResolutionContext,
+  type VertexTypes,
 } from '../src';
+import { runnerInternals } from './internal-runner-fixtures';
 
 type Node = { $d: string; $c: Node[] };
 type TestTTP = VertexTypes<string, Node>;
@@ -40,13 +41,15 @@ function makeContext(
 }
 
 function makeSavingContainer() {
-  return new DepthFirstTreeTraversal<TestTTP>({
-    traversableTree: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: (hint) => ({ vertexContent: hint }),
-    },
-    retainOriginalTreeStructure: true,
-  }).createRunner().resolvedTreesContainer;
+  return runnerInternals(
+    new DepthFirstTreeTraversal<TestTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: (hint) => ({ vertexContent: hint }),
+      },
+      retainOriginalTreeStructure: true,
+    }).createRunner(),
+  ).resolvedTreesContainer;
 }
 
 describe('resolved-tree public fallbacks', () => {

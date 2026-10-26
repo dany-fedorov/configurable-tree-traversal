@@ -1,18 +1,19 @@
 import {
-  ObjectTreeSource,
-  type TraversableObjectTTP,
-  DepthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
+  AsyncDagTraversal,
   AsyncDepthFirstTreeTraversal,
   BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
   DagTraversal,
-  AsyncDagTraversal,
   DepthFirstPhase,
+  DepthFirstTreeTraversal,
+  ObjectTreeSource,
+  type TraversableObjectTTP,
 } from '../src';
 import {
   rewriteObject,
   type RewriteObjectOptions,
 } from '../src/tools/rewrite-object/rewriteObject';
+import { legacyObjectOptions } from './legacy-object-options';
 
 type Options = RewriteObjectOptions<
   unknown,
@@ -131,17 +132,23 @@ test.each([
 test('active canonical and legacy hooks conflict; disabled legacy hooks remain compatible', () => {
   const canonical = () => ({ kind: 'useDefault' as const });
   expect(() =>
-    rewriteObject({ a: 1 }, {
-      resolveVertexHook: canonical,
-      makeVertexHook: () => ({}),
-    } as Options),
+    rewriteObject(
+      { a: 1 },
+      legacyObjectOptions({
+        resolveVertexHook: canonical,
+        makeVertexHook: () => ({}),
+      }) as Options,
+    ),
   ).toThrow(TypeError);
   for (const makeVertexHook of [undefined, null]) {
     expect(
-      rewriteObject({ a: 1 }, {
-        resolveVertexHook: canonical,
-        makeVertexHook,
-      } as Options).outputAtReturn,
+      rewriteObject(
+        { a: 1 },
+        legacyObjectOptions({
+          resolveVertexHook: canonical,
+          makeVertexHook,
+        }) as Options,
+      ).outputAtReturn,
     ).toEqual({ a: 1 });
   }
 });
@@ -150,11 +157,11 @@ test('legacy returnMe and canonical results reconstruct equivalent output', () =
   const content = { $data: { key: 'changed', value: 4 }, $childHints: [] };
   const legacy = rewriteObject(
     { a: 1, skip: 2 },
-    {
+    legacyObjectOptions({
       makeVertexHook: (hint) => ({
         returnMe: hint.key === 'skip' ? null : content,
       }),
-    },
+    }),
   ).outputAtReturn;
   const canonical = rewriteWithHook({ a: 1, skip: 2 }, (hint) =>
     hint.key === 'skip'
@@ -219,12 +226,12 @@ test.each([
     expect(() =>
       rewriteObject(
         { a: 1 },
-        {
+        legacyObjectOptions({
           makeVertexHook: () => ({
             ...(returnMe === undefined ? {} : { returnMe }),
             [field]: undefined,
           }),
-        },
+        }),
       ),
     ).toThrow(/graph metadata/i);
   }
@@ -246,14 +253,13 @@ for (const Constructor of [
   AsyncDagTraversal<ObjectT>,
 ]) {
   test(`${Constructor.name} object hooks use plain omissions and preserve callback errors`, async () => {
-    const tree: import('../src').TreeSource<ObjectT> =
-      new ObjectTreeSource(
-        { keep: 1, skip: 2 },
-        {
-          resolveVertexHook: (hint) =>
-            hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
-        },
-      );
+    const tree: import('../src').TreeSource<ObjectT> = new ObjectTreeSource(
+      { keep: 1, skip: 2 },
+      {
+        resolveVertexHook: (hint) =>
+          hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
+      },
+    );
     const runner = new Constructor({ traversableTree: tree }).createRunner();
     const keys: unknown[] = [];
     for await (const event of runner.iterateEvents()) {

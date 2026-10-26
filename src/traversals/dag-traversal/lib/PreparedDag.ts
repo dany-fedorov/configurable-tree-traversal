@@ -1,10 +1,10 @@
-import type { DagDefinition } from './DagDefinition';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { DagTraversalConfigureInput } from './DagTraversalInstanceConfig';
-import type { AsyncDagTraversalConfigureInput } from './AsyncDagTraversalInstanceConfig';
-import type { DagTraversalRunner } from './DagTraversalRunner';
+import type { AsyncDagWorkSession, DagWorkSession } from '../coordinateDag';
+import type { AsyncDagOptionsPatch } from './AsyncDagTraversalInstanceConfig';
 import type { AsyncDagTraversalRunner } from './AsyncDagTraversalRunner';
-import type { DagWorkSession, AsyncDagWorkSession } from '../coordinateDag';
+import type { DagDefinition } from './DagDefinition';
+import type { DagOptionsPatch } from './DagTraversalInstanceConfig';
+import type { DagTraversalRunner } from './DagTraversalRunner';
 
 export type PreparedDagVertex<Data, ID> = Readonly<{
   vertexId: ID;
@@ -26,11 +26,7 @@ type OwnedOptions = {
 };
 
 export type PreparedDagRunnerOptions<Data, ID> = Pick<
-  DagTraversalConfigureInput<
-    VertexTypes<Data, ID>,
-    VertexTypes<Data, ID>,
-    ID
-  >,
+  DagOptionsPatch<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>,
   | 'visitors'
   | 'completedWork'
   | 'workCompletion'
@@ -39,11 +35,7 @@ export type PreparedDagRunnerOptions<Data, ID> = Pick<
   OwnedOptions;
 
 export type PreparedAsyncDagRunnerOptions<Data, ID> = Pick<
-  AsyncDagTraversalConfigureInput<
-    VertexTypes<Data, ID>,
-    VertexTypes<Data, ID>,
-    ID
-  >,
+  AsyncDagOptionsPatch<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>,
   | 'visitors'
   | 'completedWork'
   | 'workCompletion'
@@ -59,10 +51,9 @@ export type DagWorkSessionOptions<ID> = OwnedOptions & {
   retainOriginalGraphStructure?: never;
 };
 
-export type AsyncDagWorkSessionOptions<ID> =
-  DagWorkSessionOptions<ID> & {
-    concurrency?: number;
-  };
+export type AsyncDagWorkSessionOptions<ID> = DagWorkSessionOptions<ID> & {
+  concurrency?: number;
+};
 
 /** An in-memory validated topology; data and identities remain shallow caller values. */
 export interface PreparedDag<Data, ID = unknown> {
@@ -72,19 +63,11 @@ export interface PreparedDag<Data, ID = unknown> {
   readonly definition: DagDefinition<Data, ID>;
   createRunner(
     options?: PreparedDagRunnerOptions<Data, ID>,
-  ): DagTraversalRunner<
-    VertexTypes<Data, ID>,
-    VertexTypes<Data, ID>,
-    ID
-  >;
+  ): DagTraversalRunner<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>;
   createAsyncRunner(
     options?: PreparedAsyncDagRunnerOptions<Data, ID>,
   ): Promise<
-    AsyncDagTraversalRunner<
-      VertexTypes<Data, ID>,
-      VertexTypes<Data, ID>,
-      ID
-    >
+    AsyncDagTraversalRunner<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>
   >;
   createWorkSession(options?: DagWorkSessionOptions<ID>): DagWorkSession<ID>;
   createAsyncWorkSession(

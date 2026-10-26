@@ -1,16 +1,17 @@
-import type { VisitorInputs } from '@core/TraversalVisitor';
-import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
+import type { ChildHintSorter } from '@core/ChildHintSorter';
+import type { VisitorRecord } from '@core/graph/types';
 import type { DagDiscoverySource } from '@core/TraversableGraph';
 import type { TreeSource } from '@core/TraversableTree';
+import type { VisitorInputs } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { VisitorRecord } from '@core/graph/types';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import { deepFreeze } from '@utils/deepFreeze';
-import { captureDagSourcePatch, captureDagConfigPatch } from './dagSourcePatch';
-import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
+import { captureDagConfigPatch, captureDagSourcePatch } from './dagSourcePatch';
 import { DagVisitorPhase } from './DagTraversalOrder';
+import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
 import type { DagVisitor } from './DagTraversalVisitor';
 
-export type DagDiscoveryOptions = {
+export type DagSchedulingOptions = {
   workCompletion?: 'visitorReturn' | 'externalSettlement';
   discovery?: 'lazy' | 'eager';
   rootDependencies?: 'honor' | 'ignore';
@@ -40,17 +41,13 @@ export type DagTraversalVisitors<
   [K in DagVisitorPhase]: VisitorRecord<DagVisitor<T, R, K, ID>>[];
 };
 
-export type DagSortChildrenHintsFn<T extends VertexTypes> = (
-  childrenHints: T['VertexHint'][],
-) => T['VertexHint'][];
-
 type DagTraversalOptions<
   T extends VertexTypes,
   R extends VertexTypes,
   ID = unknown,
-> = DagDiscoveryOptions & {
+> = DagSchedulingOptions & {
   completedWork?: ReadonlySet<ID>;
-  sortChildrenHints: DagSortChildrenHintsFn<T> | null;
+  sortChildrenHints: ChildHintSorter<T> | null;
   visitors: DagTraversalVisitors<T, R, ID>;
   retainOriginalGraphStructure: boolean;
   traversalRunnerInternalObjects: {
@@ -61,7 +58,7 @@ type DagTraversalOptions<
   };
 };
 
-export type DagTraversalInstanceConfig<
+export type DagResolvedOptions<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
@@ -78,18 +75,15 @@ type DagTraversalOptionsInput<
   >
 > & {
   visitors?: VisitorInputs<DagTraversalVisitors<T, R, ID>>;
-  traversalRunnerInternalObjects?: Partial<
-    DagTraversalOptions<T, R, ID>['traversalRunnerInternalObjects']
-  >;
 };
 
-export type DagTraversalInstanceConfigInput<
+export type DagOptions<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
 > = DagSource<T, R, ID> & DagTraversalOptionsInput<T, R, ID>;
 
-export type DagTraversalConfigureInput<
+export type DagOptionsPatch<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
@@ -128,10 +122,10 @@ export function mergeDagTraversalInstanceConfigs<
   R extends VertexTypes,
   ID = unknown,
 >(
-  base: DagTraversalInstanceConfig<T, R, ID>,
-  input: DagTraversalConfigureInput<T, R, ID>,
+  base: DagResolvedOptions<T, R, ID>,
+  input: DagOptionsPatch<T, R, ID>,
   sources = captureDagSourcePatch(input),
-): DagTraversalInstanceConfig<T, R, ID> {
+): DagResolvedOptions<T, R, ID> {
   const capturedInput = captureDagConfigPatch(input, sources);
   assertDagWorkCompletion(capturedInput.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
@@ -148,9 +142,8 @@ export function mergeDagTraversalInstanceConfigs<
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
-      ...(input.traversalRunnerInternalObjects ?? {}),
     },
-  } as DagTraversalInstanceConfig<T, R, ID>;
+  } as DagResolvedOptions<T, R, ID>;
 }
 
 /** Validate configuration before changing traversal ownership or executing callbacks. */

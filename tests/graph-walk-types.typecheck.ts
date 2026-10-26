@@ -1,24 +1,23 @@
+import type {
+  AsyncGraphWalkOptions,
+  AsyncGraphWalkOptionsPatch,
+  AsyncGraphWalkSource,
+  GraphWalkEvent,
+  GraphWalkEventFor,
+  GraphWalkOptions,
+  GraphWalkOptionsPatch,
+  GraphWalkSource,
+  GraphWalkTarget,
+  GraphWalkVisitorResult,
+} from '../src';
 import {
-  GraphWalk,
   AsyncGraphWalk,
-  TraversalVisitorCommandName as Command,
   DepthFirstPhase,
+  GraphWalk,
+  GraphWalkPhase as Phase,
+  TraversalVisitorCommandName as Command,
 } from '../src';
 import type { InspectionFilters } from '../src/core/CoreInspection';
-import { GraphWalkPhase as Phase } from '../src';
-import type {
-  GraphWalkSource,
-  AsyncGraphWalkSource,
-  GraphWalkTarget,
-} from '../src';
-import type {
-  GraphWalkOptions,
-  AsyncGraphWalkOptions,
-  GraphWalkConfigureInput,
-  AsyncGraphWalkConfigureInput,
-} from '../src';
-import type { GraphWalkEvent, GraphWalkEventFor } from '../src';
-import type { GraphWalkVisitorResult } from '../src';
 
 const source: GraphWalkSource<string, number, undefined> = {
   roots: () => [
@@ -64,11 +63,10 @@ const syncOptions: GraphWalkOptions<string, number, undefined> = {
     return true;
   },
 };
-const patch: GraphWalkConfigureInput<string, number, undefined> = {
+const patch: GraphWalkOptionsPatch<string, number, undefined> = {
   revisit: 'walks',
 };
-const asyncPatch: AsyncGraphWalkConfigureInput<string, number, undefined> =
-  patch;
+const asyncPatch: AsyncGraphWalkOptionsPatch<string, number, undefined> = patch;
 const symbol = Symbol('id');
 const target: GraphWalkTarget<string, typeof symbol> = { vertexId: symbol };
 const objectId = { vertexId: 'arbitrary', resolution: 'id field' };
@@ -145,10 +143,10 @@ const wrongPhase: GraphWalkOptions<string, number, undefined> = {
   // @ts-expect-error Walking rejects another family's phases.
   emitEvents: [DepthFirstPhase.PRE_ORDER],
 };
-// @ts-expect-error Canonical and legacy emission selectors are exclusive.
 const mixedSelectors: GraphWalkOptions<string, number, undefined> = {
   source,
   emitEvents: [Phase.EDGE],
+  // @ts-expect-error Legacy selectors are not canonical input.
   iterateOver: [Phase.PATH],
 };
 const defer: GraphWalkVisitorResult = {
@@ -230,8 +228,8 @@ const allEvents: Generator<
 > = runner.iterateEvents();
 // @ts-expect-error Unselected calls cannot promise only edge events.
 const unsafeEdges: typeof edgeEvents = runner.iterateEvents();
-// @ts-expect-error Legacy selectors intentionally retain the full event union.
 const legacyEdges: typeof edgeEvents = runner.iterateEvents({
+  // @ts-expect-error Legacy selectors are not canonical execution inputs.
   iterateOver: [Phase.EDGE],
 });
 // @ts-expect-error A walking runner cannot accept another family's phase.
@@ -406,8 +404,8 @@ const asyncAll: AsyncGenerator<
 > = asyncRunner.iterateEvents();
 // @ts-expect-error No-selector iteration includes persisted mixed phases.
 const asyncNarrowAll: typeof asyncEdges = asyncRunner.iterateEvents();
-// @ts-expect-error Legacy selector does not narrow.
 const asyncNarrowLegacy: typeof asyncEdges = asyncRunner.iterateEvents({
+  // @ts-expect-error Legacy selectors are not canonical execution inputs.
   iterateOver: [Phase.EDGE],
 });
 asyncCapability.iterateEvents({
@@ -471,21 +469,21 @@ const nullAsyncOptions: AsyncGraphWalkOptions<string, number, undefined> = {
   shouldFollowEdge: null,
   shouldExpandVertex: null,
 };
-const nullPatch: GraphWalkConfigureInput<string, number, undefined> = {
+const nullPatch: GraphWalkOptionsPatch<string, number, undefined> = {
   shouldFollowEdge: null,
   shouldExpandVertex: null,
 };
-const nullAsyncPatch: AsyncGraphWalkConfigureInput<string, number, undefined> =
+const nullAsyncPatch: AsyncGraphWalkOptionsPatch<string, number, undefined> =
   nullPatch;
 new GraphWalk(nullSyncOptions).configure(nullPatch);
 new AsyncGraphWalk(nullAsyncOptions).configure(nullAsyncPatch);
-const invalidPredicates: GraphWalkConfigureInput<string, number, undefined> = {
+const invalidPredicates: GraphWalkOptionsPatch<string, number, undefined> = {
   // @ts-expect-error Predicates accept callbacks or null, never booleans.
   shouldFollowEdge: false,
   // @ts-expect-error Predicates accept callbacks or null, never numbers.
   shouldExpandVertex: 0,
 };
-const invalidAsyncPredicates: AsyncGraphWalkConfigureInput<
+const invalidAsyncPredicates: AsyncGraphWalkOptionsPatch<
   string,
   number,
   undefined

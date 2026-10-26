@@ -1,12 +1,12 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MutableRef } from '@core/CTTRef';
-import type { Vertex } from '@core/Vertex';
-import type { DepthFirstTraversalVisitorsState } from '@depth-first-traversal/lib/DepthFirstTraversalVisitorsState';
-import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { jsonStringifySafe } from '@utils/jsonStringifySafe';
+import type { VertexResolutionContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { Vertex } from '@core/Vertex';
+import type { DepthFirstTreeResolvedOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { DepthFirstTraversalVisitorsState } from '@depth-first-traversal/lib/DepthFirstTraversalVisitorsState';
+import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export function initDepthFirstVisitorsState<
   TTP extends VertexTypes,
@@ -51,7 +51,7 @@ export class DepthFirstTraversalRunnerState<
 
   constructor(
     cfg: Pick<
-      DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
+      DepthFirstTreeResolvedOptions<TTP, RW_TTP>,
       'traversalRunnerInternalObjects'
     >,
   ) {

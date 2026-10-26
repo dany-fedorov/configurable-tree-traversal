@@ -1,11 +1,11 @@
 import {
-  BreadthFirstTreeTraversal,
   BreadthFirstPhase,
-  DepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
   DepthFirstPhase,
+  DepthFirstTreeTraversal,
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
+  type CommandCommitMode,
   type TraversalVisitor,
   type VertexTypes,
 } from '../src';
@@ -31,28 +31,28 @@ describe.each(['depth-first', 'breadth-first'] as const)(
         strategy === 'depth-first'
           ? new DepthFirstTreeTraversal<Tree>({ traversableTree: adapter })
           : new BreadthFirstTreeTraversal<Tree>({ traversableTree: adapter });
-      const add = (visitor: Visitor, resolutionStyle: Style) => {
+      const add = (visitor: Visitor, commandCommitMode: CommandCommitMode) => {
         if (traversal instanceof DepthFirstTreeTraversal) {
           traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, visitor, {
-            resolutionStyle,
+            commandCommitMode,
           });
         } else {
           traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, visitor, {
-            resolutionStyle,
+            commandCommitMode,
           });
         }
       };
       return { traversal, add };
     }
 
-    test('rejects an unknown visitor style during registration', () => {
+    test('rejects an unknown command commit mode during registration', () => {
       const { add } = makeTraversal();
       const calls: string[] = [];
       expect(() =>
         add(() => {
           calls.push('invalid');
-        }, 'ASYNC' as Style),
-      ).toThrow(/unknown visitor resolution style/i);
+        }, 'ASYNC' as CommandCommitMode),
+      ).toThrow(/unknown visitor command commit mode/i);
       expect(calls).toEqual([]);
     });
 
@@ -62,7 +62,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       add((vertex) => {
         calls.push(['halt', vertex.getData()]);
         return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
-      }, Style.CONCURRENT);
+      }, 'afterGroup');
       add((vertex) => {
         calls.push(['rewrite', vertex.getData()]);
         return {
@@ -77,10 +77,10 @@ describe.each(['depth-first', 'breadth-first'] as const)(
             },
           ],
         };
-      }, Style.CONCURRENT);
+      }, 'afterGroup');
       add((vertex, options) => {
         calls.push(['sequential', vertex.getData(), options.visitorChainState]);
-      }, Style.SEQUENTIAL);
+      }, 'afterEachVisitor');
       const runner = traversal.createRunner().run();
 
       expect(runner.getStatus()).toBe(Status.HALTED);
@@ -108,13 +108,13 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       add(() => {
         calls.push('delete');
         return { commands: [{ commandName: Command.DELETE_VERTEX }] };
-      }, Style.CONCURRENT);
+      }, 'afterGroup');
       add((vertex) => {
         calls.push(vertex.getData());
-      }, Style.CONCURRENT);
+      }, 'afterGroup');
       add(() => {
         calls.push('must not run');
-      }, Style.SEQUENTIAL);
+      }, 'afterEachVisitor');
       const runner = traversal.createRunner();
 
       expect([...runner.iterateEvents()]).toEqual([]);

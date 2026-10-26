@@ -1,45 +1,47 @@
+import { assertPublicOptions } from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
-import type { NoInferPhase } from '@core/TraversalVisitor';
+import { TreeTraversal } from '@core/Traversal';
+import type {
+  NoInferPhase,
+  TraversalVisitor,
+  TraversalVisitorFunctionOptions,
+  VisitorGroupDefinition,
+  VisitorPhaseInput,
+} from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
-import type {
-  VisitorPhaseInput,
-  VisitorGroupDefinition,
-} from '@core/TraversalVisitor';
-import { TreeTraversal } from '@core/Traversal';
-import type {
-  TraversalVisitor,
-  TraversalVisitorFunctionOptions,
-} from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
 import { initBreadthFirstVisitors } from './init-helpers/initVisitors';
 import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeBreadthFirstTraversalInstanceConfigs,
-  type BreadthFirstTraversalInstanceConfig,
-  type BreadthFirstTraversalInstanceConfigInput,
+  type BreadthFirstTreeOptions,
+  type BreadthFirstTreeOptionsPatch,
+  type BreadthFirstTreeResolvedOptions,
 } from './lib/BreadthFirstTraversalInstanceConfig';
 import type { BreadthFirstPhase } from './lib/BreadthFirstTraversalOrder';
-import { BreadthFirstTreeRunner } from './lib/BreadthFirstTraversalRunner';
+import {
+  InternalBreadthFirstTreeRunner,
+  type BreadthFirstTreeRunner,
+} from './lib/BreadthFirstTraversalRunner';
 import type { BreadthFirstTraversalVisitors } from './lib/BreadthFirstTraversalVisitors';
 
 export class BreadthFirstTreeTraversal<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > extends TreeTraversal<BreadthFirstPhase, TTP, RW_TTP> {
-  icfg: BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
-  visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
+  private icfg: BreadthFirstTreeResolvedOptions<TTP, RW_TTP>;
+  private visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
 
-  constructor(
-    icfgInput: BreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-  ) {
+  constructor(icfgInput: BreadthFirstTreeOptions<TTP, RW_TTP>) {
     super();
+    assertPublicOptions(icfgInput);
     this.icfg = mergeBreadthFirstTraversalInstanceConfigs(
-      BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as BreadthFirstTraversalInstanceConfig<
+      BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as BreadthFirstTreeResolvedOptions<
         TTP,
         RW_TTP
       >,
@@ -48,9 +50,8 @@ export class BreadthFirstTreeTraversal<
     this.visitors = initBreadthFirstVisitors(this.icfg);
   }
 
-  configure(
-    icfgInput: BreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-  ): this {
+  configure(icfgInput: BreadthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
+    assertPublicOptions(icfgInput);
     this.icfg = mergeBreadthFirstTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,
@@ -121,7 +122,7 @@ export class BreadthFirstTreeTraversal<
   }
 
   createRunner(): BreadthFirstTreeRunner<TTP, RW_TTP> {
-    return new BreadthFirstTreeRunner({
+    return new InternalBreadthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,
     });

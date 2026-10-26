@@ -1,25 +1,26 @@
 import { MutableRef } from '../src/core/CTTRef';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName,
-  TraversalVisitorFunctionResolutionStyle,
-} from '../src/core/TraversalVisitor';
+import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
 import {
-  BreadthFirstTreeTraversal,
   BreadthFirstPhase,
+  BreadthFirstTreeTraversal,
   traverseTreeBreadthFirst,
 } from '../src/traversals/breadth-first-traversal';
 import { BreadthFirstTraversalRunnerState } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerState';
 import {
-  DepthFirstTreeTraversal,
   DepthFirstPhase,
+  DepthFirstTreeTraversal,
   traverseTreeDepthFirst,
 } from '../src/traversals/depth-first-traversal';
 import { shouldYieldForOrder } from '../src/traversals/depth-first-traversal/iterable-helpers/shouldYieldForOrder';
 import type { DepthFirstTraversalRunnerIterableConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
+import {
+  createInternalBreadthFirstTreeTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 type Node = { $d: string; $c: Array<Node | null> };
 type Tree = VertexTypes<string, Node | null>;
@@ -98,13 +99,13 @@ test('breadth-first set/list visitors preserve priority order when executed', ()
     {
       addedIndex: 0,
       priority: 10,
-      resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor',
       visitor: lowerPriority,
     },
     {
       addedIndex: 1,
       priority: 20,
-      resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor',
       visitor: higherPriority,
     },
   ]);
@@ -153,7 +154,7 @@ test.each(['depth-first', 'breadth-first'] as const)(
         commands: [{ commandName: TraversalVisitorCommandName.NOOP }],
       }));
       for (const event of traversal.createRunner().iterateEvents({
-        iterateOver: [DepthFirstPhase.PRE_ORDER],
+        emitEvents: [DepthFirstPhase.PRE_ORDER],
       }))
         values.push(event.vertex.getData());
     } else {
@@ -194,7 +195,7 @@ test.each(['depth-first', 'breadth-first'] as const)(
           });
     const runner = traversal.createRunner();
     const root = new MutableRef(new Vertex<Tree>(node('late-root')));
-    runner.resolvedTreesContainer.setRoot(root);
+    runnerInternals(runner).resolvedTreesContainer.setRoot(root);
     expect(
       [...runner.iterateEvents()].map((event) => event.vertex.getData()),
     ).toEqual(
@@ -241,8 +242,8 @@ test('an enable list runs only named depth-first visitors while iteration filter
 
   const yielded = [
     ...traversal.createRunner().iterateEvents({
-      enableVisitorFunctionsFor: [DepthFirstPhase.PRE_ORDER],
-      iterateOver: [DepthFirstPhase.POST_ORDER],
+      visitorPhases: { include: [DepthFirstPhase.PRE_ORDER] },
+      emitEvents: [DepthFirstPhase.POST_ORDER],
     }),
   ];
 
@@ -264,7 +265,7 @@ test('object-form fallback ranges control depth-first in-order boundaries', () =
   expect(
     [
       ...traversal.createRunner().iterateEvents({
-        iterateOver: [DepthFirstPhase.IN_ORDER],
+        emitEvents: [DepthFirstPhase.IN_ORDER],
       }),
     ].map((event) => event.vertex.getData()),
   ).toEqual(['first', 'root', 'second']);
@@ -339,7 +340,7 @@ test.each(['missing', 'disabled'] as const)(
         mode === 'disabled' ? new Set([rootRef]) : new Set(),
     });
     let childResolutionCalls = 0;
-    const traversal = new BreadthFirstTreeTraversal<Tree>({
+    const traversal = createInternalBreadthFirstTreeTraversal<Tree>({
       traversableTree: {
         resolveRoot: () => {
           throw new Error('the injected resolved root should be reused');
@@ -350,7 +351,8 @@ test.each(['missing', 'disabled'] as const)(
         },
       },
       traversalRunnerInternalObjects: {
-        resolvedTreesContainer: seedRunner.resolvedTreesContainer,
+        resolvedTreesContainer:
+          runnerInternals(seedRunner).resolvedTreesContainer,
         state,
       },
     });

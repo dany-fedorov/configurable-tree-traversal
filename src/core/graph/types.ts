@@ -1,13 +1,13 @@
 import type { MutableRef } from '@core/CTTRef';
-import type {
-  TraversalVisitorFunctionOptions,
-  VisitorGroupMetadata,
-} from '@core/TraversalVisitor';
-import type { TraversalVisitorResult } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { TreeVertexRecord } from '@core/ResolvedTree';
+import type {
+  TraversalVisitorResult,
+  VisitorGroupMetadata,
+} from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { Vertex } from '@core/Vertex';
+import type { LegacyVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 
 export type VertexId = unknown;
 
@@ -74,7 +74,7 @@ export type VisitorRecord<F> = {
   addedIndex: number;
   visitor: F;
   readonly visitorGroup?: VisitorGroupMetadata | undefined;
-} & TraversalVisitorFunctionOptions;
+} & LegacyVisitorOptions;
 
 export type IdState<T extends VertexTypes> =
   | { kind: 'live'; ref: VertexRef<T> }

@@ -1,11 +1,15 @@
 import {
-  MutableRef,
   DepthFirstTreeTraversal,
+  MutableRef,
   ResolvedTreeStore,
-  type VertexTypes,
-  Vertex,
   TreeVertexRecord,
+  Vertex,
+  type VertexTypes,
 } from '../src';
+import {
+  createInternalDepthFirstTreeTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 type TestGraph = VertexTypes<string, string>;
 
@@ -85,14 +89,17 @@ test('an injected tree container retains its graph facade and store', () => {
     resolveRoot: () => ({ vertexContent: null }),
     resolveChild: () => ({ vertexContent: null }),
   };
-  const source = new DepthFirstTreeTraversal<TestGraph>({
-    traversableTree,
-  }).createRunner().resolvedTreesContainer;
-  const injected = new DepthFirstTreeTraversal<TestGraph>({ traversableTree })
-    .configure({
+  const source = runnerInternals(
+    new DepthFirstTreeTraversal<TestGraph>({
+      traversableTree,
+    }).createRunner(),
+  ).resolvedTreesContainer;
+  const injected = runnerInternals(
+    createInternalDepthFirstTreeTraversal<TestGraph>({
+      traversableTree,
       traversalRunnerInternalObjects: { resolvedTreesContainer: source },
-    })
-    .createRunner().resolvedTreesContainer;
+    }).createRunner(),
+  ).resolvedTreesContainer;
 
   expect(injected.resolvedTree).toBe(source.resolvedTree);
   expect(injected.resolvedTree.getResolvedGraph()).toBe(

@@ -1,9 +1,9 @@
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
+  AsyncDagTraversal,
   DagTraversal,
   DagVisitorPhase,
-  AsyncDagTraversal,
 } from '../src/traversals/dag-traversal';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
 const identities = [undefined, null, NaN, { name: 'task' }, Symbol('task')];
 
@@ -133,7 +133,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       calls.push(event.kind);
     }
     expect(calls).toEqual(['ready', 'workCompleted']);
-    expect(runner.inspect().iterableConfig.emitEvents).toEqual([
+    expect(runner.inspect().executionOptions.emitEvents).toEqual([
       'workCompleted',
     ]);
   });

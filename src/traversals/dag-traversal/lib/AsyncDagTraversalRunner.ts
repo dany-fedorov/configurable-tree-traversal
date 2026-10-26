@@ -1,49 +1,51 @@
-import type { DagInspectionState } from '@core/graph/types';
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { TraversalStopReason } from '@core/TraversalRunner';
-import type {
-  DagSummary,
-  DagSettlementOutcome,
-  DagSettlementGeneration,
-} from './DagProgress';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
+import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import {
   bindGraphSource,
   bindTreeSource,
   createCallbackBindings,
 } from '@core/drivers/callbackBindings';
-import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import { createAsyncDriver } from '@core/drivers/runAsync';
 import type { CallSpec, KernelEvent } from '@core/effects/types';
 import type { ResolvedGraphsContainerOptions } from '@core/graph/ResolvedGraphsContainer';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
+import type { DagInspectionState } from '@core/graph/types';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
-import type { ResolvedGraph, OriginalGraphView } from '@core/ResolvedGraph';
+import type { OriginalGraphView, ResolvedGraph } from '@core/ResolvedGraph';
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { AsyncTraversalExecution } from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  type DepthFirstTraversalInstanceConfig,
+  type DepthFirstTreeResolvedOptions,
 } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
+import { inspectDagMilestones as captureDagInspection } from '../inspectDag';
 import {
   mergeAsyncDagTraversalInstanceConfigs,
-  type AsyncDagTraversalInstanceConfig,
+  type AsyncDagResolvedOptions,
 } from './AsyncDagTraversalInstanceConfig';
-import { inspectDagMilestones as captureDagInspection } from '../inspectDag';
 import type { DagMilestoneSnapshot } from './DagInspection';
 import { DagPolicy } from './DagPolicy';
+import type {
+  DagSettlementGeneration,
+  DagSettlementOutcome,
+  DagSummary,
+} from './DagProgress';
+import { dagRunnerCapabilities } from './dagRunnerCapabilities';
 import { DagVisitorPhase } from './DagTraversalOrder';
-import type { DagEvent } from './DagTraversalVisitor';
 import {
   makeEffectiveDagTraversalRunnerIterableConfig,
   type DagTraversalRunnerIterableConfig,
-  type DagTraversalRunnerIterableConfigInput,
 } from './DagTraversalRunnerIterableConfig';
 import { DagTraversalRunnerState } from './DagTraversalRunnerState';
+import type { DagEvent } from './DagTraversalVisitor';
 
 import {
   captureDagTerminalObservation,
@@ -55,7 +57,33 @@ type Event<T extends VertexTypes, R extends VertexTypes, ID> = DagEvent<
   ID
 >;
 
-export class AsyncDagTraversalRunner<
+export interface AsyncDagTraversalRunner<
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
+  ID = unknown,
+> extends AsyncTraversalExecution<
+    DagVisitorPhase,
+    DagEvent<T | R, ID>,
+    CoreInspection,
+    'workCompleted' | 'subgraphCompleted'
+  > {
+  readonly originalGraphView: OriginalGraphView<T, ID> | null;
+  prepare(): Promise<this>;
+  inspectDagState(): DagInspectionState<ID>;
+  inspectMilestones(): DagMilestoneSnapshot<ID>;
+  summary(): DagSummary<ID>;
+  settle(
+    id: ID,
+    outcome: DagSettlementOutcome,
+    expectedGeneration: DagSettlementGeneration,
+  ): boolean;
+  getResolvedTreeView(): ResolvedTreeView<T | R> | null;
+  getResolvedGraph(): ResolvedGraph<T | R, ID>;
+  isGraphRootVertex(ref: MutableRef<Vertex<T | R>>): boolean;
+  isTraversalRootVertex(ref: MutableRef<Vertex<T | R>>): boolean;
+}
+
+export class InternalAsyncDagTraversalRunner<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
@@ -63,9 +91,9 @@ export class AsyncDagTraversalRunner<
   private readonly terminalObservation: ReturnType<
     typeof getDagTerminalObservation
   >;
-  readonly icfg: AsyncDagTraversalInstanceConfig<T, R, ID>;
-  readonly state: DagTraversalRunnerState<T, R>;
-  readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
+  private readonly icfg: AsyncDagResolvedOptions<T, R, ID>;
+  private readonly state: DagTraversalRunnerState<T, R>;
+  private readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
   private iterableConfig: DagTraversalRunnerIterableConfig =
     makeEffectiveDagTraversalRunnerIterableConfig();
@@ -73,7 +101,7 @@ export class AsyncDagTraversalRunner<
   private readonly notifyProgress: () => void;
   private readonly execution: AsyncRunnerSession<Event<T, R, ID>>;
 
-  constructor(input: AsyncDagTraversalInstanceConfig<T, R, ID>) {
+  constructor(input: AsyncDagResolvedOptions<T, R, ID>) {
     if (
       input.rootDependencies !== undefined &&
       input.rootDependencies !== 'honor' &&
@@ -144,7 +172,7 @@ export class AsyncDagTraversalRunner<
         ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
         traversableTree: treeSource!,
         retainOriginalTreeStructure: input.retainOriginalGraphStructure,
-      } as unknown as DepthFirstTraversalInstanceConfig<T, R>);
+      } as unknown as DepthFirstTreeResolvedOptions<T, R>);
       // Tree-source inputs are accepted only when ID is unknown.
       this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R, ID>({
         sourceMode: 'tree',
@@ -236,6 +264,11 @@ export class AsyncDagTraversalRunner<
     this.notifyProgress = driver.notifyProgress;
     const projectedControl = this.projectEvents(driver, policy);
     this.execution = new AsyncRunnerSession(projectedControl);
+    dagRunnerCapabilities.set(this, {
+      workCompletion: this.icfg.workCompletion,
+      container: this
+        .resolvedGraphsContainer as unknown as ResolvedGraphsContainer<VertexTypes>,
+    });
   }
 
   async prepare(): Promise<this> {
@@ -316,12 +349,14 @@ export class AsyncDagTraversalRunner<
   }
 
   iterateEvents(
-    config?: DagTraversalRunnerIterableConfigInput,
+    config?: TraversalExecutionOptions<DagVisitorPhase>,
   ): AsyncGenerator<Event<T, R, ID>, void, unknown> {
     return this.execution.iterateEvents(config);
   }
 
-  async run(config?: DagTraversalRunnerIterableConfigInput): Promise<this> {
+  async run(
+    config?: TraversalExecutionOptions<DagVisitorPhase>,
+  ): Promise<this> {
     await this.execution.run(config);
     return this;
   }

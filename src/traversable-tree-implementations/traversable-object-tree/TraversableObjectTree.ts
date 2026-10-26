@@ -2,23 +2,24 @@ import {
   assertNoTreeMetadata,
   normalizeSourceResult,
 } from '@core/drivers/normalizeSourceResult';
-import { normalizeVertexContent } from '@core/Vertex';
 import {
   AbstractTreeSource,
-  TreeChildResolutionContext,
   MakeTreeVertexResult,
+  TreeChildResolutionContext,
   TreeVertexResolution,
 } from '@core/TraversableTree';
-import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
-import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
-import type {
-  TraversableObjectTreeInstanceConfig,
-  TraversableObjectTreeInstanceConfigInput,
-} from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
+import { normalizeVertexContent } from '@core/Vertex';
 import { getChildrenOfPropertyDefault } from '@traversable-object-tree/lib/getChildrenOfPropertyDefault';
 import { getRootPropertyFromInputObjectDefault } from '@traversable-object-tree/lib/getRootPropertyFromInputObjectDefault';
 import { createObjectMutationBinder } from '@traversable-object-tree/lib/makeMutationCommandFactory';
+import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
+import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import type {
+  ObjectTreeOptions,
+  ObjectTreeResolvedOptions,
+} from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
+import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
+import type { LegacyObjectTreeOptions } from './lib/TraversableObjectTreeInstanceConfig';
 
 type ObjectCycleState = {
   seenIdentities: WeakSet<object>;
@@ -35,13 +36,7 @@ export class ObjectTreeSource<
   TraversableObjectTTP<InK, InV>,
   TraversableObjectTTP<OutK, OutV>
 > {
-  private readonly icfg: TraversableObjectTreeInstanceConfig<
-    In,
-    InK,
-    InV,
-    OutK,
-    OutV
-  >;
+  private readonly icfg: ObjectTreeResolvedOptions<In, InK, InV, OutK, OutV>;
   public readonly rootObject: In;
   private readonly cycleStateByResolvedTree = new WeakMap<
     object,
@@ -62,18 +57,14 @@ export class ObjectTreeSource<
 
   constructor(
     rootObject: In,
-    icfgInput?: TraversableObjectTreeInstanceConfigInput<
-      In,
-      InK,
-      InV,
-      OutK,
-      OutV
-    >,
+    icfgInput?: ObjectTreeOptions<In, InK, InV, OutK, OutV>,
   ) {
     super();
     this.rootObject = rootObject;
     const { resolveVertexHook, makeVertexHook, ...otherOptions } =
-      icfgInput ?? {};
+      (icfgInput as
+        | LegacyObjectTreeOptions<In, InK, InV, OutK, OutV>
+        | undefined) ?? {};
     if (
       resolveVertexHook !== undefined &&
       typeof resolveVertexHook !== 'function'

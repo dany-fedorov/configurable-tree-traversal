@@ -1,3 +1,19 @@
+import type {
+  AsyncDagDiscoverySource,
+  DagDiscoverySource,
+  DagSummary,
+  DagTraversalStallDiagnostics,
+  DagVertexFound,
+  DagVertexOmitted,
+  DagVertexProgress,
+  DagVertexResolution,
+  HintVertexId,
+  MakeVertexResult,
+  OriginalGraphView,
+  ResolvedGraph,
+  TreeSource,
+  VertexTypes,
+} from '../src';
 import {
   AsyncDagTraversal,
   DagTraversal,
@@ -5,22 +21,7 @@ import {
   traverseDag,
   traverseDagAsync,
 } from '../src';
-import type {
-  AsyncDagDiscoverySource,
-  DagDiscoverySource,
-  TreeSource,
-  VertexTypes,
-  DagVertexResolution,
-  DagVertexFound,
-  MakeVertexResult,
-  DagVertexOmitted,
-  HintVertexId,
-  ResolvedGraph,
-  OriginalGraphView,
-  DagSummary,
-  DagVertexProgress,
-  DagTraversalStallDiagnostics,
-} from '../src';
+import { runnerInternals } from './internal-runner-fixtures';
 
 type W = VertexTypes<string, string>;
 type R = VertexTypes<number, { next: string }>;
@@ -69,7 +70,8 @@ const ref = graph.getVertexRefById('a');
 if (ref !== null) {
   const id: string = graph.getVertexId(ref);
   const alias: string = graph.getIdOf(ref);
-  const dependencies: readonly string[] | undefined = graph.get(ref)?.dependsOnWork;
+  const dependencies: readonly string[] | undefined =
+    graph.get(ref)?.dependsOnWork;
   void [id, alias, dependencies];
 }
 graph.getVertexById('a');
@@ -254,14 +256,15 @@ void [
   wrongHint,
 ];
 
+const rawContainer = runnerInternals(runner).resolvedGraphsContainer;
 const containerGraph: ResolvedGraph<W, string | symbol> =
-  runner.resolvedGraphsContainer.resolvedGraph;
+  rawContainer.resolvedGraph;
 const containerSnapshot: OriginalGraphView<W, string> | null =
-  runner.resolvedGraphsContainer.originalGraphView;
+  rawContainer.originalGraphView;
 // @ts-expect-error Exposed container graph lookups retain the ID domain.
-runner.resolvedGraphsContainer.publicResolvedGraph.getVertexRefById(42);
+rawContainer.publicResolvedGraph.getVertexRefById(42);
 // @ts-expect-error The exposed store lookup retains the ID domain.
-runner.resolvedGraphsContainer.store.getIdState(42);
+rawContainer.store.getIdState(42);
 // @ts-expect-error The exposed snapshot alias retains the ID domain.
 containerSnapshot?.getVertexById(42);
 // @ts-expect-error The runner snapshot retains the ID domain.
@@ -280,8 +283,8 @@ new AsyncDagTraversal({
   completedWork: new Set([42]),
 });
 traverseDagAsync({
-  // @ts-expect-error Inferred async helpers cannot seed wrong-domain completed work.
   traversableGraph: asyncSource,
+  // @ts-expect-error Inferred async helpers cannot seed wrong-domain completed work.
   completedWork: new Set([42]),
 });
 traverseDagAsync({ traversableGraph: asyncSource }, null, {
@@ -342,7 +345,9 @@ if (ref !== null) {
   // @ts-expect-error The raw container may return its private synthetic symbol.
   const unsafeRawId: string = containerGraph.getVertexId(ref);
   const publicId: string =
-    runner.resolvedGraphsContainer.publicResolvedGraph.getVertexId(ref);
+    runnerInternals(
+      runner,
+    ).resolvedGraphsContainer.publicResolvedGraph.getVertexId(ref);
   void [rawId, unsafeRawId, publicId];
 }
 

@@ -6,7 +6,6 @@ import {
   DepthFirstPhase as F,
   BreadthFirstPhase as B,
   TraversalVisitorCommandName as C,
-  TraversalVisitorFunctionResolutionStyle as Style,
   DEFER_READY,
   core,
   traverseTreeDepthFirst,
@@ -101,7 +100,7 @@ depth.addVisitorFor(
   },
   { commandCommitMode: 'afterGroup' },
 );
-depth.addVisitorFor(F.PRE_ORDER, common, { resolutionStyle: Style.CONCURRENT });
+depth.addVisitorFor(F.PRE_ORDER, common, { commandCommitMode: 'afterGroup' });
 depth.addVisitorFor(F.POST_ORDER, () => ({
   commands: [
     // @ts-expect-error hint rewriting is invalid after children complete
@@ -229,8 +228,7 @@ const undefinedAcknowledgement = {
   satisfiesDependencies: undefined,
 };
 // @ts-expect-error Even present undefined is graph metadata.
-const undefinedOmissionAsTree: TreeVertexOmitted =
-  undefinedAcknowledgement;
+const undefinedOmissionAsTree: TreeVertexOmitted = undefinedAcknowledgement;
 void [graphOmissionAsTree, treeOmissionAsGraph, undefinedOmissionAsTree];
 const treeResult: TreeVertexResolution<T> = treeFound;
 const oldTreeResult: MakeTreeVertexResult<T> = { vertexContent: canonical };
@@ -290,6 +288,7 @@ if (vertexRef) {
 const hookResult: ObjectVertexHookResult<TraversableObjectTTP<string, number>> =
   { kind: 'useDefault' };
 new ObjectTreeSource({ a: 1 }, { resolveVertexHook: () => hookResult });
+// @ts-expect-error Preferred object options use the tagged resolution hook.
 new ObjectTreeSource({ a: 1 }, { makeVertexHook: () => ({ returnMe: null }) });
 type Prop = TraversableObjectTTP<string, number | undefined>;
 const objectPatch: ObjectMutationPatch<Prop> = { value: undefined };
@@ -308,10 +307,7 @@ declare const replace: MutationCommandBuilder<Prop>;
 replace({ rewrite: { key: 'new', value: 1 } });
 // @ts-expect-error generic builder requires complete data by default
 replace({ rewrite: { key: 'incomplete' } });
-rewriteObject(
-  { a: 1 },
-  { resolveVertexHook: () => ({ kind: 'useDefault' }) },
-);
+rewriteObject({ a: 1 }, { resolveVertexHook: () => ({ kind: 'useDefault' }) });
 void [
   treeOmitted,
   treeResult,

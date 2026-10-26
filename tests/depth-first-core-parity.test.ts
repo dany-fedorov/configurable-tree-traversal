@@ -1,12 +1,17 @@
 import {
-  MutableRef,
-  DepthFirstTreeTraversal,
   DepthFirstPhase,
+  DepthFirstTreeTraversal,
+  MutableRef,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   Vertex,
 } from '../src';
 import type { TestGraph } from './helpers/graph-fixtures';
+import {
+  createInternalDepthFirstTreeRunner,
+  runnerInternals,
+  traversalInternals,
+} from './internal-runner-fixtures';
 
 test('DFS shared core preserves the callback, context, and event trace', () => {
   const trace: string[] = [];
@@ -21,7 +26,9 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
       resolveChild: (hint, { resolutionContext, resolvedTree }) => {
         const root = resolvedTree.getRoot();
         trace.push(
-          `adapter:${hint}:parent=${resolutionContext.parentVertex.getData()}:depth=${resolutionContext.depth}:index=${resolutionContext.hintIndex}:children=${
+          `adapter:${hint}:parent=${resolutionContext.parentVertex.getData()}:depth=${
+            resolutionContext.depth
+          }:index=${resolutionContext.hintIndex}:children=${
             root === null
               ? ''
               : (resolvedTree.getChildrenOf(root) ?? [])
@@ -30,8 +37,7 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
           }`,
         );
         return {
-          vertexContent:
-            hint === 'missing' ? null : { $d: hint, $c: [] },
+          vertexContent: hint === 'missing' ? null : { $d: hint, $c: [] },
         };
       },
     },
@@ -40,7 +46,9 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
   for (const order of Object.values(DepthFirstPhase)) {
     traversal.addVisitorFor(order, (vertex, options) => {
       trace.push(
-        `visitor:${order}:${vertex.getData()}:visit=${options.phaseVisitIndex}:current=${options.visitorIndex}`,
+        `visitor:${order}:${vertex.getData()}:visit=${
+          options.phaseVisitIndex
+        }:current=${options.visitorIndex}`,
       );
       return undefined;
     });
@@ -137,7 +145,9 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
     phase: 'paused',
     position: 1,
   });
-  expect(runner.state.visitorsState[DepthFirstPhase.PRE_ORDER]).toMatchObject({
+  expect(
+    runnerInternals(runner).state.visitorsState[DepthFirstPhase.PRE_ORDER],
+  ).toMatchObject({
     phaseVisitIndex: 0,
     visitorIndex: 1,
     previousPhaseVertexRef: null,
@@ -155,8 +165,7 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
       vertexContent: { $d: 'root', $c: ['missing', 'child'] },
     }),
     resolveChild: (hint: string) => ({
-      vertexContent:
-        hint === 'missing' ? null : { $d: hint, $c: [] },
+      vertexContent: hint === 'missing' ? null : { $d: hint, $c: [] },
     }),
   };
   const first = new DepthFirstTreeTraversal<TestGraph>({
@@ -174,7 +183,7 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
   if (originalChild === undefined) throw new Error('Expected a resolved child');
   const childRecord = first.getResolvedTreeStore().get(originalChild);
 
-  const second = new DepthFirstTreeTraversal<TestGraph>({
+  const second = createInternalDepthFirstTreeRunner<TestGraph>({
     traversableTree: {
       resolveRoot: () => {
         throw new Error('Existing root must be reused');
@@ -182,13 +191,13 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
       resolveChild: adapter.resolveChild,
     },
     traversalRunnerInternalObjects: {
-      resolvedTreesContainer: first.resolvedTreesContainer,
+      resolvedTreesContainer: runnerInternals(first).resolvedTreesContainer,
     },
-  }).createRunner();
+  });
 
   const events = Array.from(
     second.iterateEvents({
-      iterateOver: [DepthFirstPhase.PRE_ORDER],
+      emitEvents: [DepthFirstPhase.PRE_ORDER],
     }),
   );
   expect(events.map((event) => event.vertex.getData())).toEqual([
@@ -271,7 +280,7 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
   expect(
     Array.from(
       traversal.createRunner().iterateEvents({
-        iterateOver: [DepthFirstPhase.PRE_ORDER],
+        emitEvents: [DepthFirstPhase.PRE_ORDER],
       }),
     ).map((event) => event.vertex.getData()),
   ).toEqual(['root', 'first']);
@@ -284,7 +293,7 @@ test('disabled visitor execution leaves injected per-order state unchanged', () 
       resolveChild: () => ({ vertexContent: null }),
     },
   });
-  const seed = traversal.createRunner().state;
+  const seed = runnerInternals(traversal.createRunner()).state;
   const previous = new MutableRef(
     new Vertex<TestGraph>({ $d: 'previous', $c: [] }),
   );
@@ -297,17 +306,17 @@ test('disabled visitor execution leaves injected per-order state unchanged', () 
   traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => {
     visitorCalls += 1;
   });
-  const runner = new DepthFirstTreeTraversal<TestGraph>({
-    traversableTree: traversal.icfg.traversableTree,
-    visitors: traversal.visitors,
+  const runner = createInternalDepthFirstTreeRunner<TestGraph>({
+    traversableTree: traversalInternals(traversal).icfg.traversableTree,
+    visitors: traversalInternals(traversal).visitors,
     traversalRunnerInternalObjects: { state: seed },
-  }).createRunner();
+  });
 
   expect(
     Array.from(
       runner.iterateEvents({
-        iterateOver: [DepthFirstPhase.PRE_ORDER],
-        disableVisitorFunctionsFor: [DepthFirstPhase.PRE_ORDER],
+        emitEvents: [DepthFirstPhase.PRE_ORDER],
+        visitorPhases: { exclude: [DepthFirstPhase.PRE_ORDER] },
       }),
     ).map((event) => event.vertex.getData()),
   ).toEqual(['root']);

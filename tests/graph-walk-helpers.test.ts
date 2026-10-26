@@ -1,10 +1,8 @@
 import {
-  AsyncGraphWalkRunner,
-  GraphWalkRunner,
+  graphWalk,
   GraphWalkPhase as Phase,
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
-  graphWalk,
   walkGraph,
   walkGraphAsync,
 } from '../src';
@@ -12,6 +10,8 @@ import {
   walkGraph as familyWalk,
   walkGraphAsync as familyWalkAsync,
 } from '../src/traversals/graph-walk';
+import { InternalAsyncGraphWalkRunner as AsyncGraphWalkRunner } from '../src/traversals/graph-walk/AsyncGraphWalkRunner';
+import { InternalGraphWalkRunner as GraphWalkRunner } from '../src/traversals/graph-walk/GraphWalkRunner';
 import { idGraph } from './helpers/graph-walk-fixtures';
 
 it('runs canonical phase-keyed visitors and returns independent sync runners', () => {

@@ -1,15 +1,15 @@
-import {
-  DepthFirstTreeTraversal,
-  DepthFirstPhase as DepthOrder,
-} from '../src/traversals/depth-first-traversal';
-import {
-  BreadthFirstTreeTraversal,
-  BreadthFirstPhase as BreadthOrder,
-} from '../src/traversals/breadth-first-traversal';
+import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import type { TreeSource } from '../src/core/TraversableTree';
+import {
+  BreadthFirstPhase as BreadthOrder,
+  BreadthFirstTreeTraversal,
+} from '../src/traversals/breadth-first-traversal';
+import {
+  DepthFirstPhase as DepthOrder,
+  DepthFirstTreeTraversal,
+} from '../src/traversals/depth-first-traversal';
 
 type Node = { $d: number; $c: Array<Node | null> };
 type Tree = VertexTypes<number, Node | null>;
@@ -76,7 +76,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
         [DepthOrder.POST_ORDER, expected.post],
       ] as const) {
         expect(
-          [...dfs.createRunner().iterateEvents({ iterateOver: [order] })].map(
+          [...dfs.createRunner().iterateEvents({ emitEvents: [order] })].map(
             (event) => event.vertex.getData(),
           ),
         ).toEqual(result);
@@ -107,7 +107,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
         [
           ...dfs
             .createRunner()
-            .iterateEvents({ iterateOver: [DepthOrder.POST_ORDER] }),
+            .iterateEvents({ emitEvents: [DepthOrder.POST_ORDER] }),
         ].map((event) => event.vertex.getData()),
       ).toEqual(expected.post);
       const bfs = new BreadthFirstTreeTraversal<Tree>({
@@ -204,7 +204,7 @@ test('disabling a subtree in-order stops unresolved children but retains complet
   );
   const runner = traversal.createRunner();
   expect(
-    [...runner.iterateEvents({ iterateOver: [DepthOrder.POST_ORDER] })].map(
+    [...runner.iterateEvents({ emitEvents: [DepthOrder.POST_ORDER] })].map(
       (event) => event.vertex.getData(),
     ),
   ).toEqual([1, 0]);

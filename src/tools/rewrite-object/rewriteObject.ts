@@ -1,23 +1,27 @@
-import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import { assertPublicOptions } from '@core/assertPublicOptions';
+import type { MutationRequest } from '@core/MakeMutationCommandFunctionFactory';
+import type { GetPathToOptions } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TreeVisitorContext } from '@core/TraversalVisitor';
-import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
-import type { ObjectCompositeClassification } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
 import type { Vertex } from '@core/Vertex';
-import type { GetPathToOptions } from '@core/ResolvedTree';
-import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
-import type { MutationRequest } from '@core/MakeMutationCommandFunctionFactory';
-import type { TraversableObjectTreeInstanceConfigInput } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
+import type { DepthFirstTreeOptionsPatch } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
+import { traverseTreeDepthFirst } from '@depth-first-traversal/traverseDepthFirst';
 import type {
   ObjectMutationOptions,
   ObjectMutationPatch,
 } from '@traversable-object-tree/lib/makeMutationCommandFactory';
-import type { DepthFirstTraversalInstanceConfigInput } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import type { ObjectCompositeClassification } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
+import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
+import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import type {
+  LegacyObjectTreeOptions,
+  ObjectTreeOptions,
+} from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
+import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
 import { ObjectTreeSource } from '@traversable-object-tree/TraversableObjectTree';
-import { traverseTreeDepthFirst } from '@depth-first-traversal/traverseDepthFirst';
-import type { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
 
 export type RewriteFnOptions<
   InK extends TraversableObjectPropKey,
@@ -78,13 +82,13 @@ export type RewriteObjectOptions<
   OutK extends TraversableObjectPropKey,
   OutV,
 > = Partial<
-  TraversableObjectTreeInstanceConfigInput<In, InK, InV, OutK, OutV> &
+  ObjectTreeOptions<In, InK, InV, OutK, OutV> &
     ObjectMutationOptions<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     > &
     Omit<
-      DepthFirstTraversalInstanceConfigInput<
+      DepthFirstTreeOptionsPatch<
         TraversableObjectTTP<InK, InV>,
         TraversableObjectTTP<OutK, OutV>
       >,
@@ -108,6 +112,7 @@ export function rewriteObject<
   object: In,
   options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
 ): RewriteObjectResult<InK, InV, Out, OutK, OutV> {
+  if (options) assertPublicOptions(options);
   if (options && 'traversableTree' in options) {
     throw new TypeError(
       'rewriteObject owns its source; traversableTree is unsupported',
@@ -122,7 +127,9 @@ export function rewriteObject<
       ? options.getOutputObjectFromRootValue
       : (rootValue: OutV | null) => rootValue as unknown as Out;
   const resolveVertexHook = options?.resolveVertexHook;
-  const makeVertexHook = options?.makeVertexHook;
+  const makeVertexHook = (
+    options as LegacyObjectTreeOptions<In, InK, InV, OutK, OutV> | undefined
+  )?.makeVertexHook;
   const tree = new ObjectTreeSource<In, InK, InV, OutK, OutV>(object, {
     ...(resolveVertexHook === undefined ? {} : { resolveVertexHook }),
     ...(!makeVertexHook
@@ -141,23 +148,20 @@ export function rewriteObject<
         __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ as InK,
       ),
   });
-  const bindObjectMutation =
-    ObjectTreeSource.createObjectMutationBinder<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
-    >({
-      ...(options?.isArray ? { isArray: options.isArray } : {}),
-      ...(options?.isObject ? { isObject: options.isObject } : {}),
-      ...(options?.assembleArray
-        ? { assembleArray: options.assembleArray }
-        : {}),
-      ...(options?.assembleObject
-        ? { assembleObject: options.assembleObject }
-        : {}),
-      ...(options?.assembledMap
-        ? { assembledMap: options.assembledMap }
-        : { assembledMap: new Map() }),
-    });
+  const bindObjectMutation = ObjectTreeSource.createObjectMutationBinder<
+    TraversableObjectTTP<InK, InV>,
+    TraversableObjectTTP<OutK, OutV>
+  >({
+    ...(options?.isArray ? { isArray: options.isArray } : {}),
+    ...(options?.isObject ? { isObject: options.isObject } : {}),
+    ...(options?.assembleArray ? { assembleArray: options.assembleArray } : {}),
+    ...(options?.assembleObject
+      ? { assembleObject: options.assembleObject }
+      : {}),
+    ...(options?.assembledMap
+      ? { assembledMap: options.assembledMap }
+      : { assembledMap: new Map() }),
+  });
   const traversalRunner = traverseTreeDepthFirst<
     TraversableObjectTTP<InK, InV>,
     TraversableObjectTTP<OutK, OutV>
@@ -230,12 +234,6 @@ export function rewriteObject<
         ? {}
         : {
             retainOriginalTreeStructure: options.retainOriginalTreeStructure,
-          }),
-      ...(options?.traversalRunnerInternalObjects === undefined
-        ? {}
-        : {
-            traversalRunnerInternalObjects:
-              options.traversalRunnerInternalObjects,
           }),
     },
   );

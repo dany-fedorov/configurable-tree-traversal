@@ -4,9 +4,13 @@ import {
   type TraversalVisitorFunctionOptions,
 } from '@core/TraversalVisitor';
 
+export type LegacyVisitorOptions = TraversalVisitorFunctionOptions & {
+  resolutionStyle?: Style | undefined;
+};
+
 export function normalizeVisitorOptions(
-  options: Partial<TraversalVisitorFunctionOptions>,
-): Required<TraversalVisitorFunctionOptions> {
+  options: Partial<LegacyVisitorOptions>,
+): Required<LegacyVisitorOptions> {
   const { commandCommitMode, resolutionStyle } = options;
   if (
     resolutionStyle !== undefined &&

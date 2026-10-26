@@ -1,15 +1,16 @@
-import type { VisitorInputs } from '@core/TraversalVisitor';
-import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
-import type { MaybePromise, VisitorRecord } from '@core/graph/types';
+import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
+import type { VisitorRecord } from '@core/graph/types';
+import type { VisitorInputs } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
+import { deepFreeze } from '@utils/deepFreeze';
 import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  type BreadthFirstTraversalInstanceConfig,
+  type BreadthFirstTreeResolvedOptions,
 } from './BreadthFirstTraversalInstanceConfig';
 import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
-import { deepFreeze } from '@utils/deepFreeze';
 
 export type AsyncBreadthFirstTraversalVisitors<
   TTP extends VertexTypes,
@@ -20,43 +21,43 @@ export type AsyncBreadthFirstTraversalVisitors<
   >[];
 };
 
-export type AsyncBreadthFirstSortChildrenHintsFn<
-  TTP extends VertexTypes,
-> = (childrenHints: TTP['VertexHint'][]) => MaybePromise<TTP['VertexHint'][]>;
-
-export type AsyncBreadthFirstTraversalInstanceConfig<
+export type AsyncBreadthFirstTreeResolvedOptions<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = Omit<
-  BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
+  BreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
   'traversableTree' | 'sortChildrenHints' | 'visitors'
 > & {
   traversableTree: AsyncTreeSource<TTP, RW_TTP>;
-  sortChildrenHints: AsyncBreadthFirstSortChildrenHintsFn<TTP> | null;
+  sortChildrenHints: AsyncChildHintSorter<TTP> | null;
   visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
   concurrency: number;
 };
 
-export type AsyncBreadthFirstTraversalInstanceConfigInput<
+export type AsyncBreadthFirstTreeOptionsPatch<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = Partial<
   Omit<
-    AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-    'visitors' | 'traversalRunnerInternalObjects'
+    AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
+    'visitors' | 'traversalRunnerInternalObjects' | 'inOrder'
   >
 > & {
   visitors?: VisitorInputs<AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>>;
-  traversalRunnerInternalObjects?: Partial<
-    AsyncBreadthFirstTraversalInstanceConfig<
-      TTP,
-      RW_TTP
-    >['traversalRunnerInternalObjects']
-  >;
+};
+
+export type AsyncBreadthFirstTreeOptions<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> = AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP> & {
+  traversableTree: AsyncBreadthFirstTreeResolvedOptions<
+    TTP,
+    RW_TTP
+  >['traversableTree'];
 };
 
 export const ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
-  AsyncBreadthFirstTraversalInstanceConfig<VertexTypes>,
+  AsyncBreadthFirstTreeResolvedOptions<VertexTypes>,
   'traversableTree'
 > = deepFreeze({
   ...BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -71,11 +72,11 @@ export function mergeAsyncBreadthFirstTraversalInstanceConfigs<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 >(
-  base: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-  input: AsyncBreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-): AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP> {
+  base: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
+  input: AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP>,
+): AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP> {
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
-  const merged: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP> = {
+  const merged: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP> = {
     ...base,
     ...input,
     visitors: {
@@ -85,7 +86,6 @@ export function mergeAsyncBreadthFirstTraversalInstanceConfigs<
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
-      ...(input.traversalRunnerInternalObjects ?? {}),
     },
   };
   if (

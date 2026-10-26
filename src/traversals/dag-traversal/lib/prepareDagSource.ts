@@ -1,15 +1,16 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { DagDiscoverySource } from '@core/TraversableGraph';
 import {
   DagTraversalStallError,
   type DagTraversalStallDiagnostics,
 } from '@core/errors/DagTraversalStallError';
+import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
+import type { DagDiscoverySource } from '@core/TraversableGraph';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { DagTraversal } from '../DagTraversal';
 import type { PrepareDagInput } from '../prepareDag';
-import type { PrepareDagResult } from './DagDefinition';
-import type { DagDefinition } from './DagDefinition';
 import { capturePreparedSource } from './capturePreparedSource';
-import { makePreparedDag, assertPreparedOptions } from './makePreparedDag';
+import type { DagDefinition, PrepareDagResult } from './DagDefinition';
+import { dagRunnerCapabilities } from './dagRunnerCapabilities';
+import { assertPreparedOptions, makePreparedDag } from './makePreparedDag';
 
 /** Shared source preparation keeps caller-error and W/C validation semantics. */
 export function prepareDagSource<T extends VertexTypes, ID>(
@@ -49,7 +50,8 @@ export function prepareDagSource<T extends VertexTypes, ID>(
   return {
     kind: 'valid',
     dag: makePreparedDag(
-      runner.resolvedGraphsContainer,
+      dagRunnerCapabilities.get(runner)!
+        .container as unknown as ResolvedGraphsContainer<T, T, ID>,
       captured.candidates,
       input.rootDependencies ?? 'honor',
       authoredDefinition,

@@ -1,34 +1,34 @@
-export * from './CTTAbstractParent';
-export * from './CTTRef';
-export * from './MakeMutationCommandFunctionFactory';
-export * from './ResolvedTree';
-export * from './ResolvedTreeView';
-export * from './ResolvedTreeTypeParameters';
-export * from './TraversableTree';
-export * from './TraversalVisitor';
-export * from './TreeTypeParameters';
-export * from './Vertex';
-export * from './Traversal';
-export * from './TraversalRunner';
-export * from './TraversalRunnerIterableConfig';
 export * from './AsyncCoreExecution';
-export * from './TraversalExecution';
-export * from './ExecutionInspection';
 export * from './AsyncTraversableTree';
 export * from './AsyncTraversalVisitor';
+export type { AsyncChildHintSorter, ChildHintSorter } from './ChildHintSorter';
 export * from './CoreInspection';
-export * from './ResolvedGraph';
-export * from './TraversableGraph';
+export * from './CTTAbstractParent';
+export * from './CTTRef';
+export * from './errors/DagDiscoveryCycleError';
+export * from './errors/DagTraversalStallError';
+export * from './ExecutionInspection';
 export type {
   ChildSlot,
-  StructuralChildEdge,
-  ResolvedGraphVertex,
-  ResolvedVertexStatus,
   HintVertexId,
   MaybePromise,
+  ResolvedGraphVertex,
+  ResolvedVertexStatus,
+  StructuralChildEdge,
   VertexId,
   VertexRef,
 } from './graph/types';
-export * from './errors/DagTraversalStallError';
-
-export * from './errors/DagDiscoveryCycleError';
+export * from './MakeMutationCommandFunctionFactory';
+export * from './ResolvedGraph';
+export * from './ResolvedTree';
+export * from './ResolvedTreeTypeParameters';
+export * from './ResolvedTreeView';
+export * from './TraversableGraph';
+export * from './TraversableTree';
+export * from './Traversal';
+export * from './TraversalExecution';
+export * from './TraversalRunner';
+export * from './TraversalRunnerIterableConfig';
+export * from './TraversalVisitor';
+export * from './TreeTypeParameters';
+export * from './Vertex';

@@ -1,12 +1,3 @@
-import type { DagInspectionState } from '@core/graph/types';
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { TraversalStopReason } from '@core/TraversalRunner';
-import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
-import type {
-  DagSummary,
-  DagSettlementOutcome,
-  DagSettlementGeneration,
-} from './DagProgress';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
 import {
@@ -18,30 +9,41 @@ import { runSync, type SyncDriverState } from '@core/drivers/runSync';
 import type { CallbackBindings, CallSpec } from '@core/effects/types';
 import type { ResolvedGraphsContainerOptions } from '@core/graph/ResolvedGraphsContainer';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
-import type { ResolvedGraph, OriginalGraphView } from '@core/ResolvedGraph';
+import type { DagInspectionState } from '@core/graph/types';
+import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
+import type { OriginalGraphView, ResolvedGraph } from '@core/ResolvedGraph';
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { SyncTraversalExecution } from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
+import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  type DepthFirstTraversalInstanceConfig,
+  type DepthFirstTreeResolvedOptions,
 } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import { deepFreeze } from '@utils/deepFreeze';
-import { inspectDagMilestones as captureDagInspection } from '../inspectDag';
 import { initDagVisitors } from '../init-helpers/initVisitors';
+import { inspectDagMilestones as captureDagInspection } from '../inspectDag';
 import type { DagMilestoneSnapshot } from './DagInspection';
-import type { DagTraversalInstanceConfig } from './DagTraversalInstanceConfig';
 import { DagPolicy } from './DagPolicy';
+import type {
+  DagSettlementGeneration,
+  DagSettlementOutcome,
+  DagSummary,
+} from './DagProgress';
+import { dagRunnerCapabilities } from './dagRunnerCapabilities';
+import type { DagResolvedOptions } from './DagTraversalInstanceConfig';
 import { DagVisitorPhase } from './DagTraversalOrder';
-import type { DagEvent } from './DagTraversalVisitor';
 import {
   makeEffectiveDagTraversalRunnerIterableConfig,
   type DagTraversalRunnerIterableConfig,
-  type DagTraversalRunnerIterableConfigInput,
 } from './DagTraversalRunnerIterableConfig';
 import { DagTraversalRunnerState } from './DagTraversalRunnerState';
+import type { DagEvent } from './DagTraversalVisitor';
 
 import {
   captureDagTerminalObservation,
@@ -53,7 +55,33 @@ type Event<T extends VertexTypes, R extends VertexTypes, ID> = DagEvent<
   ID
 >;
 
-export class DagTraversalRunner<
+export interface DagTraversalRunner<
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
+  ID = unknown,
+> extends SyncTraversalExecution<
+    DagVisitorPhase,
+    DagEvent<T | R, ID>,
+    CoreInspection,
+    'workCompleted' | 'subgraphCompleted'
+  > {
+  readonly originalGraphView: OriginalGraphView<T, ID> | null;
+  prepare(): this;
+  inspectDagState(): DagInspectionState<ID>;
+  inspectMilestones(): DagMilestoneSnapshot<ID>;
+  summary(): DagSummary<ID>;
+  settle(
+    id: ID,
+    outcome: DagSettlementOutcome,
+    expectedGeneration: DagSettlementGeneration,
+  ): boolean;
+  getResolvedTreeView(): ResolvedTreeView<T | R> | null;
+  getResolvedGraph(): ResolvedGraph<T | R, ID>;
+  isGraphRootVertex(ref: MutableRef<Vertex<T | R>>): boolean;
+  isTraversalRootVertex(ref: MutableRef<Vertex<T | R>>): boolean;
+}
+
+export class InternalDagTraversalRunner<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
@@ -61,9 +89,9 @@ export class DagTraversalRunner<
   private readonly terminalObservation: ReturnType<
     typeof getDagTerminalObservation
   >;
-  readonly icfg: DagTraversalInstanceConfig<T, R, ID>;
-  readonly state: DagTraversalRunnerState<T, R>;
-  readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
+  private readonly icfg: DagResolvedOptions<T, R, ID>;
+  private readonly state: DagTraversalRunnerState<T, R>;
+  private readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
   private iterableConfig: DagTraversalRunnerIterableConfig =
     makeEffectiveDagTraversalRunnerIterableConfig();
@@ -75,7 +103,7 @@ export class DagTraversalRunner<
   private readonly kernel: TraversalKernel<T, R>;
   private readonly bindings: CallbackBindings<T, R>;
 
-  constructor(input: DagTraversalInstanceConfig<T, R, ID>) {
+  constructor(input: DagResolvedOptions<T, R, ID>) {
     if (
       input.rootDependencies !== undefined &&
       input.rootDependencies !== 'honor' &&
@@ -139,7 +167,7 @@ export class DagTraversalRunner<
         ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
         traversableTree: treeSource!,
         retainOriginalTreeStructure: input.retainOriginalGraphStructure,
-      } as unknown as DepthFirstTraversalInstanceConfig<T, R>);
+      } as unknown as DepthFirstTreeResolvedOptions<T, R>);
       // Tree-source inputs are accepted only when ID is unknown.
       this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R, ID>({
         sourceMode: 'tree',
@@ -228,6 +256,11 @@ export class DagTraversalRunner<
             },
           }
         : {}),
+    });
+    dagRunnerCapabilities.set(this, {
+      workCompletion: this.icfg.workCompletion,
+      container: this
+        .resolvedGraphsContainer as unknown as ResolvedGraphsContainer<VertexTypes>,
     });
   }
 
@@ -338,7 +371,7 @@ export class DagTraversalRunner<
   }
 
   *iterateEvents(
-    config?: DagTraversalRunnerIterableConfigInput,
+    config?: TraversalExecutionOptions<DagVisitorPhase>,
   ): Generator<Event<T, R, ID>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
     if (this.activeIterator) {
@@ -386,7 +419,7 @@ export class DagTraversalRunner<
     }
   }
 
-  run(config?: DagTraversalRunnerIterableConfigInput): this {
+  run(config?: TraversalExecutionOptions<DagVisitorPhase>): this {
     for (const _event of this.iterateEvents(config)) {
       /* Drain traversal events. */
     }

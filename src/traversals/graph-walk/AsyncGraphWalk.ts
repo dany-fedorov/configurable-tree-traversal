@@ -1,32 +1,35 @@
+import type { VisitorRecord } from '@core/graph/types';
 import type {
   NoInferPhase,
   TraversalVisitorFunctionOptions,
   VisitorGroupDefinition,
   VisitorPhaseInput,
 } from '@core/TraversalVisitor';
-import type { VisitorRecord } from '@core/graph/types';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
-import { GraphWalkPhase } from './GraphWalkPhase';
-import type { AsyncGraphWalkVisitor } from './GraphWalkVisitor';
+import {
+  InternalAsyncGraphWalkRunner,
+  type AsyncGraphWalkRunner,
+} from './AsyncGraphWalkRunner';
 import type {
   AsyncGraphWalkOptions,
-  AsyncGraphWalkConfigureInput,
+  AsyncGraphWalkOptionsPatch,
 } from './GraphWalkOptions';
-import { AsyncGraphWalkRunner } from './AsyncGraphWalkRunner';
+import { GraphWalkPhase } from './GraphWalkPhase';
+import type { AsyncGraphWalkVisitor } from './GraphWalkVisitor';
+import type { GraphWalkResolvedOptions } from './lib/normalizeWalkOptions';
 import { normalizeWalkOptions } from './lib/normalizeWalkOptions';
-import type { NormalizedWalkOptions } from './lib/normalizeWalkOptions';
 
 export class AsyncGraphWalk<Data, Edge, ID> {
-  private options: NormalizedWalkOptions<Data, Edge, ID>;
+  private options: GraphWalkResolvedOptions<Data, Edge, ID>;
   constructor(options: AsyncGraphWalkOptions<Data, Edge, ID>) {
     this.options = normalizeWalkOptions(options);
   }
-  configure(patch: AsyncGraphWalkConfigureInput<Data, Edge, ID>): this {
+  configure(patch: AsyncGraphWalkOptionsPatch<Data, Edge, ID>): this {
     this.options = normalizeWalkOptions(patch, this.options);
     return this;
   }
@@ -88,6 +91,8 @@ export class AsyncGraphWalk<Data, Edge, ID> {
     >[];
   }
   createRunner(): AsyncGraphWalkRunner<Data, Edge, ID> {
-    return new AsyncGraphWalkRunner(normalizeWalkOptions({}, this.options));
+    return new InternalAsyncGraphWalkRunner(
+      normalizeWalkOptions({}, this.options),
+    );
   }
 }

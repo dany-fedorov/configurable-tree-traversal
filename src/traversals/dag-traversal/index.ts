@@ -1,58 +1,55 @@
-export * from './AsyncDagTraversal';
-export * from './DagTraversal';
-export * from './hasSingleSink';
-export * from './traverseDag';
-export * from './traverseDagAsync';
-export * from './lib/AsyncDagTraversalInstanceConfig';
-export * from './lib/AsyncDagTraversalRunner';
-export * from './lib/DagTraversalInstanceConfig';
-export * from './lib/DagTraversalOrder';
-export * from './lib/DagTraversalRunner';
-export * from './lib/DagTraversalRunnerInternalObjects';
-export * from './lib/DagTraversalRunnerIterableConfig';
-export * from './lib/DagTraversalRunnerState';
-export * from './lib/DagTraversalVisitor';
-export * from '../../core/errors/DagTraversalStallError';
 export * from '../../core/errors/DagDiscoveryCycleError';
-export * from './lib/DagProgress';
+export * from '../../core/errors/DagTraversalStallError';
+export * from './AsyncDagTraversal';
 export * from './coordinateDag';
-export * from './prepareDag';
-export * from './lib/PreparedDag';
+export * from './dagFragments';
+export * from './DagTraversal';
+export * from './defineDag';
+export * from './diffDagDefinitions';
 export * from './filterDagVisitor';
+export * from './hasSingleSink';
 export * from './inspectDag';
+export * from './lib/AsyncDagTraversalInstanceConfig';
+export type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
 export type {
-  DagMilestoneSnapshot,
-  DagMilestoneStatus,
+  DagDefinition,
+  DagDefinitionIssue,
+  DagDefinitionSlot,
+  DagDefinitionVertex,
+  PrepareDagResult,
+} from './lib/DagDefinition';
+export type {
+  DagCompositionOptions,
+  DagFragment,
+  DagFragmentInstance,
+} from './lib/DagFragment';
+export * from './lib/DagFragmentValidationError';
+export type {
   DagBlocker,
   DagExplanation,
   DagMilestoneQueryOptions,
   DagMilestoneQueryResult,
+  DagMilestoneSnapshot,
+  DagMilestoneStatus,
 } from './lib/DagInspection';
-export * from './defineDag';
-export type {
-  DagDefinition,
-  DagDefinitionSlot,
-  DagDefinitionVertex,
-} from './lib/DagDefinition';
-export * from './prepareDagDefinition';
-export type {
-  DagDefinitionIssue,
-  PrepareDagResult,
-} from './lib/DagDefinition';
-export * from './dagFragments';
-export type {
-  DagFragment,
-  DagFragmentInstance,
-  DagCompositionOptions,
-} from './lib/DagFragment';
-export * from './diffDagDefinitions';
+export * from './lib/DagProgress';
 export type {
   DagDefinitionChangeAspect,
-  DagDefinitionVertexChange,
   DagDefinitionDiff,
+  DagDefinitionVertexChange,
   DagRevisionOperation,
   DagRevisionResult,
 } from './lib/DagRevision';
-
+export * from './lib/DagTraversalInstanceConfig';
+export * from './lib/DagTraversalOrder';
+export type { DagTraversalRunner } from './lib/DagTraversalRunner';
+export * from './lib/DagTraversalRunnerInternalObjects';
+export * from './lib/DagTraversalRunnerIterableConfig';
+export * from './lib/DagTraversalRunnerState';
+export * from './lib/DagTraversalVisitor';
+export * from './lib/PreparedDag';
+export * from './prepareDag';
+export * from './prepareDagDefinition';
 export * from './reviseDag';
-export * from './lib/DagFragmentValidationError';
+export * from './traverseDag';
+export * from './traverseDagAsync';

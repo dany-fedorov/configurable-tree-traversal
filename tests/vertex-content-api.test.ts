@@ -8,9 +8,10 @@ import {
   ObjectTreeSource,
   Vertex,
   type TreeSource,
-  type VertexTypes,
   type VertexContentInput,
+  type VertexTypes,
 } from '../src';
+import { legacyObjectOptions } from './legacy-object-options';
 
 type T = VertexTypes<string | undefined, string>;
 
@@ -188,13 +189,18 @@ describe('canonical vertex content', () => {
   test('accepts canonical object-tree hook content without skipping cycle checks', () => {
     const cycle: { child?: unknown } = {};
     cycle.child = cycle;
-    const tree = new ObjectTreeSource(cycle, {
-      makeVertexHook: (hint) => ({
-        returnMe: { $data: hint, $childHints: [] },
+    const tree = new ObjectTreeSource(
+      cycle,
+      legacyObjectOptions({
+        makeVertexHook: (hint) => ({
+          returnMe: { $data: hint, $childHints: [] },
+        }),
       }),
-    });
+    );
     expect(() =>
-      new DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().run(),
+      new DepthFirstTreeTraversal({ traversableTree: tree })
+        .createRunner()
+        .run(),
     ).toThrow(/object identity cycle/i);
   });
 });

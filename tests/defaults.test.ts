@@ -4,19 +4,20 @@ import {
   type VertexTypes,
 } from '../src/core';
 import {
-  DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
-  DepthFirstTreeTraversal,
-  DepthFirstPhase,
-  makeEffectiveDepthFirstTraversalRunnerIterableConfig,
-} from '../src/traversals/depth-first-traversal';
-import {
+  BreadthFirstPhase,
+  BreadthFirstTreeTraversal,
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
-  BreadthFirstTreeTraversal,
-  BreadthFirstPhase,
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
 } from '../src/traversals/breadth-first-traversal';
+import {
+  DepthFirstPhase,
+  DepthFirstTreeTraversal,
+  DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
+  DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
+  makeEffectiveDepthFirstTraversalRunnerIterableConfig,
+} from '../src/traversals/depth-first-traversal';
+import { traversalInternals } from './internal-runner-fixtures';
 
 type Node = { $d: string; $c: Node[] };
 type Tree = VertexTypes<string, Node>;
@@ -84,7 +85,7 @@ describe('exported traversal defaults', () => {
       });
       const values = [
         ...traversal.createRunner().iterateEvents({
-          iterateOver: [DepthFirstPhase.IN_ORDER],
+          emitEvents: [DepthFirstPhase.IN_ORDER],
         }),
       ].map(({ vertex }) => vertex.getData());
 
@@ -187,8 +188,7 @@ describe('exported traversal defaults', () => {
         traversableTree: tree,
       }).addVisitorFor(DepthFirstPhase.PRE_ORDER, () => undefined);
       expect(
-        traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER)[0]
-          ?.priority,
+        traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER)[0]?.priority,
       ).toBe(100);
       expect(mutationError).toBeInstanceOf(TypeError);
     } finally {
@@ -224,22 +224,34 @@ describe('exported traversal defaults', () => {
     expect(() => {
       depthIterable.iterateOver.length = 0;
       breadthIterable.iterateOver.length = 0;
-      depthTraversal.icfg.retainOriginalTreeStructure = true;
-      breadthTraversal.icfg.retainOriginalTreeStructure = true;
-      depthTraversal.icfg.visitors[DepthFirstPhase.PRE_ORDER].push(depthRecord);
-      breadthTraversal.icfg.visitors[BreadthFirstPhase.LEVEL_ORDER].push(
-        breadthRecord,
-      );
+      traversalInternals(depthTraversal).icfg.retainOriginalTreeStructure =
+        true;
+      traversalInternals(breadthTraversal).icfg.retainOriginalTreeStructure =
+        true;
+      traversalInternals(depthTraversal).icfg.visitors[
+        DepthFirstPhase.PRE_ORDER
+      ].push(depthRecord);
+      traversalInternals(breadthTraversal).icfg.visitors[
+        BreadthFirstPhase.LEVEL_ORDER
+      ].push(breadthRecord);
     }).not.toThrow();
     expect(depthIterable.iterateOver).toEqual([]);
     expect(breadthIterable.iterateOver).toEqual([]);
-    expect(depthTraversal.icfg.retainOriginalTreeStructure).toBe(true);
-    expect(breadthTraversal.icfg.retainOriginalTreeStructure).toBe(true);
-    expect(depthTraversal.icfg.visitors[DepthFirstPhase.PRE_ORDER]).toEqual([
-      depthRecord,
-    ]);
     expect(
-      breadthTraversal.icfg.visitors[BreadthFirstPhase.LEVEL_ORDER],
+      traversalInternals(depthTraversal).icfg.retainOriginalTreeStructure,
+    ).toBe(true);
+    expect(
+      traversalInternals(breadthTraversal).icfg.retainOriginalTreeStructure,
+    ).toBe(true);
+    expect(
+      traversalInternals(depthTraversal).icfg.visitors[
+        DepthFirstPhase.PRE_ORDER
+      ],
+    ).toEqual([depthRecord]);
+    expect(
+      traversalInternals(breadthTraversal).icfg.visitors[
+        BreadthFirstPhase.LEVEL_ORDER
+      ],
     ).toEqual([breadthRecord]);
   });
 });

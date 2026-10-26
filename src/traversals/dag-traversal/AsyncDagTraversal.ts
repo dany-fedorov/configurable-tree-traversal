@@ -1,33 +1,37 @@
-import type { NoInferPhase } from '@core/TraversalVisitor';
-import type { DagDiscoverySource } from '@core/TraversableGraph';
+import { assertPublicOptions } from '@core/assertPublicOptions';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
+import { sortVisitorRecords } from '@core/executeVisitors';
+import type { VisitorRecord } from '@core/graph/types';
+import type { DagDiscoverySource } from '@core/TraversableGraph';
+import type {
+  NoInferPhase,
+  TraversalVisitorFunctionOptions,
+  VisitorGroupDefinition,
+  VisitorPhaseInput,
+} from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
-import type {
-  VisitorPhaseInput,
-  VisitorGroupDefinition,
-} from '@core/TraversalVisitor';
-import { sortVisitorRecords } from '@core/executeVisitors';
-import type { VisitorRecord } from '@core/graph/types';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
-import {
-  captureDagSourcePatch,
-  assertExactlyOneDagSource,
-} from './lib/dagSourcePatch';
 import {
   ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncDagTraversalInstanceConfigs,
-  type AsyncDagTraversalConfigureInput,
-  type AsyncDagTraversalInstanceConfig,
-  type AsyncDagTraversalInstanceConfigInput,
+  type AsyncDagOptions,
+  type AsyncDagOptionsPatch,
+  type AsyncDagResolvedOptions,
   type AsyncDagTraversalVisitors,
 } from './lib/AsyncDagTraversalInstanceConfig';
-import { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
+import {
+  InternalAsyncDagTraversalRunner,
+  type AsyncDagTraversalRunner,
+} from './lib/AsyncDagTraversalRunner';
+import {
+  assertExactlyOneDagSource,
+  captureDagSourcePatch,
+} from './lib/dagSourcePatch';
 import type { DagVisitorPhase } from './lib/DagTraversalOrder';
 import type { AsyncDagVisitor } from './lib/DagTraversalVisitor';
 
@@ -36,14 +40,14 @@ export class AsyncDagTraversal<
   R extends VertexTypes = T,
   ID = unknown,
 > {
-  icfg: AsyncDagTraversalInstanceConfig<T, R, ID>;
-  visitors: AsyncDagTraversalVisitors<T, R, ID>;
+  private icfg: AsyncDagResolvedOptions<T, R, ID>;
+  private visitors: AsyncDagTraversalVisitors<T, R, ID>;
   private readonly sourceMode: 'tree' | 'graph';
 
   // Infer sync graph identities directly instead of through MaybePromise results.
   constructor(
     input: Omit<
-      AsyncDagTraversalInstanceConfigInput<T, R, ID>,
+      AsyncDagOptions<T, R, ID>,
       'traversableGraph' | 'traversableTree'
     > &
       (
@@ -52,26 +56,25 @@ export class AsyncDagTraversal<
             traversableTree?: undefined;
           }
         | {
-            traversableTree: unknown extends ID
-              ? AsyncTreeSource<T, R>
-              : never;
+            traversableTree: unknown extends ID ? AsyncTreeSource<T, R> : never;
             traversableGraph?: undefined;
           }
       ),
   );
-  constructor(input: AsyncDagTraversalInstanceConfigInput<T, R, ID>);
-  constructor(input: AsyncDagTraversalInstanceConfigInput<T, R, ID>) {
+  constructor(input: AsyncDagOptions<T, R, ID>);
+  constructor(input: AsyncDagOptions<T, R, ID>) {
+    assertPublicOptions(input);
     const sources = captureDagSourcePatch(input);
     this.sourceMode = assertExactlyOneDagSource(sources);
     this.icfg = mergeAsyncDagTraversalInstanceConfigs(
       {
-        ...(ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncDagTraversalInstanceConfig<
+        ...(ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncDagResolvedOptions<
           T,
           R,
           ID
         >),
         ...sources,
-      } as AsyncDagTraversalInstanceConfig<T, R, ID>,
+      } as AsyncDagResolvedOptions<T, R, ID>,
       input,
       sources,
     );
@@ -82,7 +85,8 @@ export class AsyncDagTraversal<
    * Configure future runners. Own defined same-family sources replace; inherited
    * and own undefined sources retain the active source. Mode changes reject atomically.
    */
-  configure(input: AsyncDagTraversalConfigureInput<T, R, ID>): this {
+  configure(input: AsyncDagOptionsPatch<T, R, ID>): this {
+    assertPublicOptions(input);
     const sources = captureDagSourcePatch(input);
     if (
       (this.sourceMode === 'graph' && sources.traversableTree !== undefined) ||
@@ -155,7 +159,7 @@ export class AsyncDagTraversal<
   }
 
   createRunner(): AsyncDagTraversalRunner<T, R, ID> {
-    return new AsyncDagTraversalRunner({
+    return new InternalAsyncDagTraversalRunner({
       ...this.icfg,
       visitors: this.visitors,
     });

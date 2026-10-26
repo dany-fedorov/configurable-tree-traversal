@@ -1,3 +1,12 @@
+import { MutableRef } from '../src/core/CTTRef';
+import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
+import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import { Vertex } from '../src/core/Vertex';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import type { TestGraph } from './helpers/graph-fixtures';
 import {
   deferred,
@@ -5,18 +14,10 @@ import {
   eventLoopTurn,
   graphAdapter,
 } from './helpers/graph-fixtures';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { MutableRef } from '../src/core/CTTRef';
-import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
-import { Vertex } from '../src/core/Vertex';
-import { ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig';
-import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
+  createInternalAsyncDagTraversalRunner,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 const rejectAfter = (milliseconds: number) =>
   new Promise<never>((_resolve, reject) => {
@@ -43,7 +44,7 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
     if (data === 'B') await bVisit.promise;
   });
   const iterator = traversal.createRunner().iterateEvents({
-    iterateOver: [Order.ON_WORK_READY],
+    emitEvents: ['workCompleted'],
   });
 
   await expect(iterator.next()).resolves.toMatchObject({
@@ -157,7 +158,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
   const runner = traversal.createRunner();
   const values: string[] = [];
   for await (const event of runner.iterateEvents({
-    iterateOver: [Order.ON_WORK_READY],
+    emitEvents: ['workCompleted'],
   })) {
     values.push(event.vertex.getData());
     expect(event.isGraphRoot).toBe(
@@ -278,7 +279,7 @@ test('isolates visitor configuration when making a runner', async () => {
     {
       addedIndex: 10,
       priority: 2,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor',
       visitor: async () => void seen.push('first'),
     },
   ]);
@@ -293,7 +294,7 @@ test('isolates visitor configuration when making a runner', async () => {
   const runner = traversal.createRunner();
   traversal.setVisitorsFor(Order.ON_WORK_READY, []);
 
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(seen).toEqual(['first', 'second']);
 });
 
@@ -304,7 +305,7 @@ test('accepts initial and empty quiescent state but rejects active injection', a
       sourceMode: 'graph',
       saveOriginal: false,
     });
-    const runner = new AsyncDagTraversal<TestGraph>({
+    const runner = createInternalAsyncDagTraversalRunner<TestGraph>({
       traversableGraph: graphAdapter({
         root: { children: [], dependencies: [] },
       }),
@@ -312,9 +313,9 @@ test('accepts initial and empty quiescent state but rejects active injection', a
         state,
         resolvedGraphsContainer: container,
       },
-    }).createRunner();
-    expect(runner.state).toBe(state);
-    expect(runner.resolvedGraphsContainer).toBe(container);
+    });
+    expect(runnerInternals(runner).state).toBe(state);
+    expect(runnerInternals(runner).resolvedGraphsContainer).toBe(container);
     await runner.run();
     expect(runner.getStatus()).toBe(Status.FINISHED);
   }
@@ -326,10 +327,10 @@ test('accepts initial and empty quiescent state but rejects active injection', a
     ),
   });
   expect(() =>
-    new AsyncDagTraversal<TestGraph>({
+    createInternalAsyncDagTraversalRunner<TestGraph>({
       traversableGraph: graphAdapter(),
       traversalRunnerInternalObjects: { state: active },
-    }).createRunner(),
+    }),
   ).toThrow(/quiescent|running/i);
 });
 
@@ -339,7 +340,7 @@ test('validates injected container mode and snapshot compatibility', () => {
     saveOriginal: false,
   });
   expect(() =>
-    new AsyncDagTraversal<TestGraph>({
+    createInternalAsyncDagTraversalRunner<TestGraph>({
       traversableTree: {
         resolveRoot: () => ({ vertexContent: null }),
         resolveChild: () => ({ vertexContent: null }),
@@ -347,7 +348,7 @@ test('validates injected container mode and snapshot compatibility', () => {
       traversalRunnerInternalObjects: {
         resolvedGraphsContainer: graphContainer,
       },
-    }).createRunner(),
+    }),
   ).toThrow(/source mode/i);
 
   const snapshotContainer = new ResolvedGraphsContainer<TestGraph>({
@@ -355,12 +356,12 @@ test('validates injected container mode and snapshot compatibility', () => {
     saveOriginal: true,
   });
   expect(() =>
-    new AsyncDagTraversal<TestGraph>({
+    createInternalAsyncDagTraversalRunner<TestGraph>({
       traversableGraph: graphAdapter(),
       traversalRunnerInternalObjects: {
         resolvedGraphsContainer: snapshotContainer,
       },
-    }).createRunner(),
+    }),
   ).toThrow(/snapshot mode/i);
 });
 
@@ -378,7 +379,7 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
     readyVisits: [{ vertexRef: root, order: Order.ON_WORK_READY }],
   });
   let sourceCalls = 0;
-  const runner = new AsyncDagTraversal<TestGraph>({
+  const runner = createInternalAsyncDagTraversalRunner<TestGraph>({
     traversableGraph: {
       resolveRoot: () => {
         sourceCalls++;
@@ -390,7 +391,7 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
       state,
       resolvedGraphsContainer: container,
     },
-  }).createRunner();
+  });
 
   expect(runner.isHalted()).toBe(true);
   expect(sourceCalls).toBe(0);
@@ -407,7 +408,7 @@ test.each([new Error('injected failure'), undefined])(
       failure: { error: failure },
     });
     let sourceCalls = 0;
-    const runner = new AsyncDagTraversal<TestGraph>({
+    const runner = createInternalAsyncDagTraversalRunner<TestGraph>({
       traversableGraph: {
         resolveRoot: () => {
           sourceCalls++;
@@ -416,7 +417,7 @@ test.each([new Error('injected failure'), undefined])(
         resolveChild: () => ({ vertexContent: null }),
       },
       traversalRunnerInternalObjects: { state },
-    }).createRunner();
+    });
 
     for (const attempt of [
       () => runner.run(),
@@ -450,13 +451,13 @@ test.each([new Error('live failure'), undefined])(
       resolveRoot: () => root.promise,
       resolveChild: () => ({ vertexContent: null }),
     };
-    const runner = new AsyncDagTraversal<TestGraph>({
+    const runner = createInternalAsyncDagTraversalRunner<TestGraph>({
       traversableGraph: source,
       traversalRunnerInternalObjects: {
         state,
         resolvedGraphsContainer: container,
       },
-    }).createRunner();
+    });
     const running = runner.run();
     await eventLoopTurn();
     root.reject(failure);
@@ -470,7 +471,7 @@ test.each([new Error('live failure'), undefined])(
     expect(caught).toBe(true);
     expect(state.failure).toEqual({ error: failure });
 
-    const reconstructed = new AsyncDagTraversal<TestGraph>({
+    const reconstructed = createInternalAsyncDagTraversalRunner<TestGraph>({
       traversableGraph: {
         resolveRoot: () => {
           throw new Error('terminal reconstruction must not resolve source');
@@ -481,7 +482,7 @@ test.each([new Error('live failure'), undefined])(
         state,
         resolvedGraphsContainer: container,
       },
-    }).createRunner();
+    });
     caught = false;
     try {
       await reconstructed.run();

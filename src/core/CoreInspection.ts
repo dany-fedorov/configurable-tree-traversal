@@ -1,17 +1,17 @@
 import type {
-  VisitorPhaseSelection,
-  EmissionKind,
-} from './TraversalRunnerIterableConfig';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type {
-  TraversalRunnerStatus,
-  TraversalStopReason,
-} from '@core/TraversalRunner';
-import type {
   CallbackValues,
   OwnerToken,
   VisitOrder,
 } from '@core/effects/types';
+import type {
+  TraversalRunnerStatus,
+  TraversalStopReason,
+} from '@core/TraversalRunner';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type {
+  EmissionKind,
+  VisitorPhaseSelection,
+} from './TraversalRunnerIterableConfig';
 
 export type InspectionFilters<
   Phase extends string = VisitOrder,
@@ -19,9 +19,6 @@ export type InspectionFilters<
 > = Readonly<{
   emitEvents: readonly EmittedKind[];
   visitorPhases: VisitorPhaseSelection<Phase>;
-  iterateOver: readonly Phase[];
-  enableVisitorFunctionsFor: readonly Phase[] | null;
-  disableVisitorFunctionsFor: readonly Phase[] | null;
 }>;
 
 export type KernelInspection = Readonly<{
@@ -34,7 +31,7 @@ export type KernelInspection = Readonly<{
   concurrency: number;
   hasSorter: boolean;
   hasHintIds: boolean;
-  iterableConfig: InspectionFilters;
+  executionOptions: InspectionFilters;
   readyVisits: readonly Readonly<{
     vertexRefId: string;
     order: VisitOrder;

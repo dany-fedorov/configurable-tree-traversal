@@ -1,33 +1,35 @@
-import { WalkResources } from './WalkResources';
-import { WalkVisitorChain } from './WalkVisitorChain';
-import type { WalkVisitor } from './normalizeWalkOptions';
-import type { VisitorRecord } from '@core/graph/types';
-import { TraversalRunnerStatus as Status } from '@core/TraversalRunner';
-import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { Outcome } from '@core/effects/types';
-import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
+import type { VisitorRecord } from '@core/graph/types';
 import { normalizeTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
+import type { TraversalStopReason } from '@core/TraversalRunner';
+import { TraversalRunnerStatus as Status } from '@core/TraversalRunner';
+import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
+import type { GraphWalkEdge, GraphWalkEvent } from '../GraphWalkEvent';
+import type { GraphWalkRouteContext } from '../GraphWalkOptions';
 import { GraphWalkPhase as Phase } from '../GraphWalkPhase';
 import type {
   GraphWalkVertex,
   GraphWalkVertexResult,
 } from '../GraphWalkSource';
-import type { GraphWalkEdge, GraphWalkEvent } from '../GraphWalkEvent';
-import type { NormalizedWalkOptions } from './normalizeWalkOptions';
-import type { WalkAction, WalkOperation } from './WalkEffects';
-import type { GraphWalkSummary, GraphWalkOutcome } from './GraphWalkSummary';
 import type { GraphWalkInspection } from './GraphWalkInspection';
-import { WalkFrontier, projectPath, routeContains } from './WalkFrontier';
-import type { GraphWalkRouteContext } from '../GraphWalkOptions';
+import type { GraphWalkOutcome, GraphWalkSummary } from './GraphWalkSummary';
+import type {
+  GraphWalkResolvedOptions,
+  WalkVisitor,
+} from './normalizeWalkOptions';
+import type { WalkAction, WalkOperation } from './WalkEffects';
 import type { WalkRoute } from './WalkFrontier';
+import { projectPath, routeContains, WalkFrontier } from './WalkFrontier';
+import { WalkResources } from './WalkResources';
+import type { WalkCursor, WalkTarget } from './WalkSourceCache';
 import {
-  WalkSourceCache,
   copyResolution,
   makeCursor,
   pullCursor,
   readStep,
+  WalkSourceCache,
 } from './WalkSourceCache';
-import type { WalkCursor, WalkTarget } from './WalkSourceCache';
+import { WalkVisitorChain } from './WalkVisitorChain';
 
 const phases = [Phase.VERTEX, Phase.EDGE, Phase.PATH];
 type Observation<Data, Edge, ID> = Extract<
@@ -81,7 +83,7 @@ export class WalkKernel<Data, Edge, ID> {
   private execution;
 
   constructor(
-    private readonly options: NormalizedWalkOptions<Data, Edge, ID>,
+    private readonly options: GraphWalkResolvedOptions<Data, Edge, ID>,
     private readonly executionKind: 'sync' | 'async' = 'sync',
   ) {
     this.frontier = new WalkFrontier(options.strategy);
@@ -593,17 +595,13 @@ export class WalkKernel<Data, Edge, ID> {
     });
   }
   inspect(): GraphWalkInspection {
-    const execution = normalizeTraversalExecutionOptions(
+    const { emitEvents, visitorPhases } = normalizeTraversalExecutionOptions(
       phases,
       undefined,
       this.execution,
     );
+    const execution = { emitEvents, visitorPhases };
     Object.freeze(execution.emitEvents);
-    Object.freeze(execution.iterateOver);
-    if (execution.enableVisitorFunctionsFor !== null)
-      Object.freeze(execution.enableVisitorFunctionsFor);
-    if (execution.disableVisitorFunctionsFor !== null)
-      Object.freeze(execution.disableVisitorFunctionsFor);
     if (execution.visitorPhases !== 'all') {
       if ('include' in execution.visitorPhases)
         Object.freeze(execution.visitorPhases.include);

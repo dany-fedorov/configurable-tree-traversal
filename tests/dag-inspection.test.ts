@@ -1,21 +1,20 @@
 import {
-  DagVisitorPhase as Order,
-  TraversalVisitorCommandName as Command,
-} from '../src';
-import { DagTraversalStallError as CTTStallError } from '../src';
-import {
   AsyncDagTraversal,
   DagTraversal,
-  materializeDagSourceFromRecords,
+  DagTraversalStallError as CTTStallError,
+  DagVisitorPhase as Order,
   inspectDagMilestones,
+  materializeDagSourceFromRecords,
+  TraversalVisitorCommandName as Command,
 } from '../src';
-import { TraversalKernel } from '../src/core/TraversalKernel';
-import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import type { CallSpec } from '../src/core/effects/types';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
+import { TraversalKernel } from '../src/core/TraversalKernel';
+import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { runnerInternals } from './internal-runner-fixtures';
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} reports exact W waits when the same seeded ID still blocks C`, async () => {
@@ -775,7 +774,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     }).createRunner();
     const iterator = runner.iterateEvents({
-      iterateOver: [Order.ON_WORK_READY],
+      emitEvents: ['workCompleted'],
     });
     const first = await iterator.next();
     expect(first.done).toBe(false);
@@ -955,7 +954,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     }).createRunner();
     // Exercise raw bookkeeping deletion independently of runner callback scheduling.
-    const container = runner.resolvedGraphsContainer;
+    const container = runnerInternals(runner).resolvedGraphsContainer;
     const scheduling = new GraphScheduling(container);
     const ref = scheduling.acceptRoot({
       vertexContent: { $data: 'forest', $childHints: [] },

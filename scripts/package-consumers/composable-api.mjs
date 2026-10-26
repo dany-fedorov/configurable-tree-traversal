@@ -114,11 +114,7 @@ for (const api of [cjs, esm]) {
   for (const [TreeTraversal, phase, graphMode] of [
     [api.DepthFirstTreeTraversal, F.PRE_ORDER, false],
     [api.AsyncDepthFirstTreeTraversal, F.PRE_ORDER, false],
-    [
-      api.BreadthFirstTreeTraversal,
-      api.BreadthFirstPhase.LEVEL_ORDER,
-      false,
-    ],
+    [api.BreadthFirstTreeTraversal, api.BreadthFirstPhase.LEVEL_ORDER, false],
     [
       api.AsyncBreadthFirstTreeTraversal,
       api.BreadthFirstPhase.LEVEL_ORDER,
@@ -189,7 +185,10 @@ for (const api of [cjs, esm]) {
       const runner = new TreeTraversal({
         ...(graphMode
           ? {
-              traversableGraph: { resolveRoot, resolveChild: () => found('unused') },
+              traversableGraph: {
+                resolveRoot,
+                resolveChild: () => found('unused'),
+              },
             }
           : { traversableTree: { ...tree, resolveRoot } }),
         workCompletion: 'externalSettlement',
@@ -244,10 +243,7 @@ for (const api of [cjs, esm]) {
       for await (const event of runner.iterateEvents()) events.push(event);
       assert.deepEqual(
         events.map(({ kind }) => kind),
-        [
-          'workCompleted',
-          'subgraphCompleted',
-        ],
+        ['workCompleted', 'subgraphCompleted'],
       );
       assert.equal(runner.getStopReason(), 'finished');
       assert.equal(sources, 1);
@@ -272,15 +268,18 @@ for (const api of [cjs, esm]) {
               },
             };
       const fresh = new TreeTraversal(input).createRunner();
-      const injected = new TreeTraversal({
-        ...input,
-        traversalRunnerInternalObjects: { state: fresh.state },
-      }).createRunner();
-      const before = injected.inspect();
-      await assert.rejects(async () => injected.prepare(), /injected/i);
-      assert.deepEqual(injected.inspect(), before);
-      await injected.run();
-      assert.equal(injected.getStopReason(), 'finished');
+      const before = fresh.inspect();
+      assert.throws(
+        () =>
+          new TreeTraversal({
+            ...input,
+            traversalRunnerInternalObjects: { state: {} },
+          }),
+        /not a public option/i,
+      );
+      assert.deepEqual(fresh.inspect(), before);
+      await fresh.run();
+      assert.equal(fresh.getStopReason(), 'finished');
       const frozen = new TreeTraversal({
         ...input,
         visitors: {
@@ -426,18 +425,32 @@ for (const api of [cjs, esm]) {
       ['work', 'work', 'workDependency'],
     );
     assert.deepEqual(
-      failure.diagnostics.dependencyEdges.map(({ waiter, prerequisite, reason }) => [
-        waiter.vertexId,
-        waiter.milestone,
-        prerequisite.vertexId,
-        prerequisite.milestone,
-        reason,
-      ]),
+      failure.diagnostics.dependencyEdges.map(
+        ({ waiter, prerequisite, reason }) => [
+          waiter.vertexId,
+          waiter.milestone,
+          prerequisite.vertexId,
+          prerequisite.milestone,
+          reason,
+        ],
+      ),
       [
         [id, 'work', missing, 'work', 'workDependency'],
-        [id, 'work', missingCompletion, 'subgraphCompletion', 'subgraphCompletionDependency'],
+        [
+          id,
+          'work',
+          missingCompletion,
+          'subgraphCompletion',
+          'subgraphCompletionDependency',
+        ],
         [id, 'subgraphCompletion', id, 'work', 'ownWork'],
-        [id, 'subgraphCompletion', 'child', 'subgraphCompletion', 'structuralChild'],
+        [
+          id,
+          'subgraphCompletion',
+          'child',
+          'subgraphCompletion',
+          'structuralChild',
+        ],
         ['child', 'subgraphCompletion', 'child', 'work', 'ownWork'],
       ],
     );

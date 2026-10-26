@@ -1,15 +1,15 @@
-import type { CallbackBindings, VisitOrder } from '../src/core/effects/types';
-import { TraversalKernel } from '../src/core/TraversalKernel';
-import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import { createAsyncDriver } from '../src/core/drivers/runAsync';
+import type { CallbackBindings, VisitOrder } from '../src/core/effects/types';
+import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
+import type { VertexRef } from '../src/core/graph/types';
+import { TraversalKernel } from '../src/core/TraversalKernel';
+import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import {
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src/core/TraversalVisitor';
 import type { TestGraph } from './helpers/graph-fixtures';
-import type { VertexRef } from '../src/core/graph/types';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
 function setup(options: {
@@ -183,8 +183,10 @@ test('the limiter includes promised sorting and prefetched child resolution', as
             value: { vertexContent: { $d: 'root', $c: ['child'] } },
           };
         }
-        if (call.kind === 'SORT_HINTS') return { kind: call.kind, value: sorted.promise };
-        if (call.kind === 'MAKE_VERTEX') return { kind: call.kind, value: child.promise };
+        if (call.kind === 'SORT_HINTS')
+          return { kind: call.kind, value: sorted.promise };
+        if (call.kind === 'MAKE_VERTEX')
+          return { kind: call.kind, value: child.promise };
         throw new Error(`Unexpected ${call.kind}`);
       },
     },
@@ -244,7 +246,8 @@ test('stores a child rejection while halted and surfaces it after resume', async
             value: { vertexContent: { $d: 'root', $c: ['child'] } },
           };
         }
-        if (call.kind === 'MAKE_VERTEX') return { kind: call.kind, value: child.promise };
+        if (call.kind === 'MAKE_VERTEX')
+          return { kind: call.kind, value: child.promise };
         throw new Error(`Unexpected ${call.kind}`);
       },
     },
@@ -590,7 +593,7 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
     stateBridge,
     visitorMetadata: {
       LEVEL_ORDER: [
-        { addedIndex: 0, priority: 100, resolutionStyle: Style.SEQUENTIAL },
+        { addedIndex: 0, priority: 100, commandCommitMode: 'afterEachVisitor' },
       ],
     },
     iterableConfig: {
@@ -678,7 +681,8 @@ test('breadth-first closes an unsorted empty async frame', async () => {
       kernel,
       {
         invoke(call) {
-          if (call.kind !== 'MAKE_ROOT') throw new Error(`Unexpected ${call.kind}`);
+          if (call.kind !== 'MAKE_ROOT')
+            throw new Error(`Unexpected ${call.kind}`);
           return {
             kind: call.kind,
             value: { vertexContent: { $d: 'root', $c: [] } },

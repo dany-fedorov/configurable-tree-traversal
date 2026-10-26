@@ -1,27 +1,29 @@
+import type { VisitorRecord } from '@core/graph/types';
 import { normalizeTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
+import type {
+  ResolvedTraversalExecutionOptions,
+  TraversalIterableConfigInput,
+} from '@core/TraversalRunnerIterableConfig';
+import type { VisitorPhaseInput } from '@core/TraversalVisitor';
 import {
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
-import type { VisitorPhaseInput } from '@core/TraversalVisitor';
-import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
-import type { EffectiveTraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
-import type { VisitorRecord } from '@core/graph/types';
-import type { GraphWalkSource, AsyncGraphWalkSource } from '../GraphWalkSource';
 import type {
-  GraphWalkStrategy,
-  GraphWalkRevisitPolicy,
-  GraphWalkLimits,
-  GraphWalkEdgePredicate,
   AsyncGraphWalkEdgePredicate,
-  GraphWalkExpansionPredicate,
   AsyncGraphWalkExpansionPredicate,
+  GraphWalkEdgePredicate,
+  GraphWalkExpansionPredicate,
+  GraphWalkLimits,
+  GraphWalkRevisitPolicy,
+  GraphWalkStrategy,
 } from '../GraphWalkOptions';
-import type {
-  GraphWalkVisitor,
-  AsyncGraphWalkVisitor,
-} from '../GraphWalkVisitor';
 import { GraphWalkPhase } from '../GraphWalkPhase';
+import type { AsyncGraphWalkSource, GraphWalkSource } from '../GraphWalkSource';
+import type {
+  AsyncGraphWalkVisitor,
+  GraphWalkVisitor,
+} from '../GraphWalkVisitor';
 
 /** Captured methods retain the caller receiver without binding or freezing it. */
 export type NormalizedWalkSource<Data, Edge, ID> = {
@@ -41,7 +43,7 @@ export type NormalizedWalkSource<Data, Edge, ID> = {
 export type WalkVisitor<Data, Edge, Phase extends GraphWalkPhase, ID> =
   | GraphWalkVisitor<Data, Edge, Phase, ID>
   | AsyncGraphWalkVisitor<Data, Edge, Phase, ID>;
-export type NormalizedWalkOptions<Data, Edge, ID> = {
+export type GraphWalkResolvedOptions<Data, Edge, ID> = {
   source: NormalizedWalkSource<Data, Edge, ID>;
   strategy: GraphWalkStrategy;
   revisit: GraphWalkRevisitPolicy;
@@ -59,7 +61,7 @@ export type NormalizedWalkOptions<Data, Edge, ID> = {
       WalkVisitor<Data, Edge, Phase, ID>
     >[];
   };
-  execution: EffectiveTraversalExecutionOptions<GraphWalkPhase>;
+  execution: ResolvedTraversalExecutionOptions<GraphWalkPhase>;
 };
 
 const phases = [
@@ -139,8 +141,8 @@ function copyLimits(input: unknown): GraphWalkLimits {
 /** Validate a detached candidate before a facade commits any configuration. */
 export function normalizeWalkOptions<Data, Edge, ID>(
   input: unknown,
-  previous?: NormalizedWalkOptions<Data, Edge, ID>,
-): NormalizedWalkOptions<Data, Edge, ID> {
+  previous?: GraphWalkResolvedOptions<Data, Edge, ID>,
+): GraphWalkResolvedOptions<Data, Edge, ID> {
   const value = object(input, 'Walking options must be an object');
   if (Object.prototype.hasOwnProperty.call(value, 'concurrency')) {
     throw new TypeError('Walking does not support a concurrency option');
@@ -260,12 +262,12 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     strategy,
     revisit,
     limits,
-    shouldFollowEdge: shouldFollowEdge as NormalizedWalkOptions<
+    shouldFollowEdge: shouldFollowEdge as GraphWalkResolvedOptions<
       Data,
       Edge,
       ID
     >['shouldFollowEdge'],
-    shouldExpandVertex: shouldExpandVertex as NormalizedWalkOptions<
+    shouldExpandVertex: shouldExpandVertex as GraphWalkResolvedOptions<
       Data,
       Edge,
       ID

@@ -1,16 +1,16 @@
 import type { MaybePromise } from '@core/graph/types';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VisitorPhaseInput } from '@core/TraversalVisitor';
-import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
+import type { GraphWalkEdge, GraphWalkPathEvent } from './GraphWalkEvent';
 import type { GraphWalkPhase } from './GraphWalkPhase';
 import type {
-  GraphWalkSource,
   AsyncGraphWalkSource,
+  GraphWalkSource,
   GraphWalkVertex,
 } from './GraphWalkSource';
-import type { GraphWalkEdge, GraphWalkPathEvent } from './GraphWalkEvent';
 import type {
-  GraphWalkVisitor,
   AsyncGraphWalkVisitor,
+  GraphWalkVisitor,
 } from './GraphWalkVisitor';
 
 export type GraphWalkStrategy = 'breadthFirst' | 'depthFirst';
@@ -87,7 +87,7 @@ type GraphWalkFields<Data, Edge, ID> = {
       GraphWalkVisitor<Data, Edge, Phase, ID>
     >;
   };
-} & TraversalIterableConfigInput<GraphWalkPhase>;
+} & TraversalExecutionOptions<GraphWalkPhase>;
 type AsyncGraphWalkFields<Data, Edge, ID> = {
   source: AsyncGraphWalkSource<Data, Edge, ID>;
   strategy?: GraphWalkStrategy;
@@ -106,7 +106,7 @@ type AsyncGraphWalkFields<Data, Edge, ID> = {
       AsyncGraphWalkVisitor<Data, Edge, Phase, ID>
     >;
   };
-} & TraversalIterableConfigInput<GraphWalkPhase>;
+} & TraversalExecutionOptions<GraphWalkPhase>;
 
 export type GraphWalkOptions<Data, Edge, ID> = GraphWalkFields<Data, Edge, ID> &
   GraphWalkRevisitOptions;
@@ -118,14 +118,14 @@ export type AsyncGraphWalkOptions<Data, Edge, ID> = AsyncGraphWalkFields<
   GraphWalkRevisitOptions;
 /** Atomic top-level patch. Supplied limits replace the previous limits record;
  * the merged revisit policy must still have a depth or candidate-read bound. */
-export type GraphWalkConfigureInput<Data, Edge, ID> = Partial<
+export type GraphWalkOptionsPatch<Data, Edge, ID> = Partial<
   GraphWalkFields<Data, Edge, ID>
 > & {
   revisit?: GraphWalkRevisitPolicy;
   limits?: GraphWalkLimits;
 };
 /** Async counterpart with the same atomic patch and limits replacement rules. */
-export type AsyncGraphWalkConfigureInput<Data, Edge, ID> = Partial<
+export type AsyncGraphWalkOptionsPatch<Data, Edge, ID> = Partial<
   AsyncGraphWalkFields<Data, Edge, ID>
 > & {
   revisit?: GraphWalkRevisitPolicy;

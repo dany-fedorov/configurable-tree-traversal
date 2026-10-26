@@ -1,22 +1,19 @@
-import type { VisitorInputs } from '@core/TraversalVisitor';
-import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
+import type { ChildHintSorter } from '@core/ChildHintSorter';
 import type { TreeSource } from '@core/TraversableTree';
+import type { VisitorInputs } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
+import { deepFreeze } from '@utils/deepFreeze';
 import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import type { BreadthFirstTraversalRunnerInternalObjects } from './BreadthFirstTraversalRunnerInternalObjects';
 import type { BreadthFirstTraversalVisitors } from './BreadthFirstTraversalVisitors';
-import { deepFreeze } from '@utils/deepFreeze';
 
-export type BreadthFirstSortChildrenHintsFn<TTP extends VertexTypes> = (
-  childrenHints: TTP['VertexHint'][],
-) => TTP['VertexHint'][];
-
-export type BreadthFirstTraversalInstanceConfig<
+export type BreadthFirstTreeResolvedOptions<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = {
   traversableTree: TreeSource<TTP, RW_TTP>;
-  sortChildrenHints: BreadthFirstSortChildrenHintsFn<TTP> | null;
+  sortChildrenHints: ChildHintSorter<TTP> | null;
   visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
   retainOriginalTreeStructure: boolean;
   traversalRunnerInternalObjects: {
@@ -32,26 +29,30 @@ export type BreadthFirstTraversalInstanceConfig<
   };
 };
 
-export type BreadthFirstTraversalInstanceConfigInput<
+export type BreadthFirstTreeOptionsPatch<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = Partial<
   Omit<
-    BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-    'visitors' | 'traversalRunnerInternalObjects'
+    BreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
+    'visitors' | 'traversalRunnerInternalObjects' | 'inOrder'
   >
 > & {
   visitors?: VisitorInputs<BreadthFirstTraversalVisitors<TTP, RW_TTP>>;
-  traversalRunnerInternalObjects?: Partial<
-    BreadthFirstTraversalInstanceConfig<
-      TTP,
-      RW_TTP
-    >['traversalRunnerInternalObjects']
-  >;
+};
+
+export type BreadthFirstTreeOptions<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> = BreadthFirstTreeOptionsPatch<TTP, RW_TTP> & {
+  traversableTree: BreadthFirstTreeResolvedOptions<
+    TTP,
+    RW_TTP
+  >['traversableTree'];
 };
 
 export const BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
-  BreadthFirstTraversalInstanceConfig<VertexTypes, VertexTypes>,
+  BreadthFirstTreeResolvedOptions<VertexTypes, VertexTypes>,
   'traversableTree'
 > = deepFreeze({
   sortChildrenHints: null,
@@ -69,9 +70,9 @@ export function mergeBreadthFirstTraversalInstanceConfigs<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 >(
-  base: BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-  input: BreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-): BreadthFirstTraversalInstanceConfig<TTP, RW_TTP> {
+  base: BreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
+  input: BreadthFirstTreeOptionsPatch<TTP, RW_TTP>,
+): BreadthFirstTreeResolvedOptions<TTP, RW_TTP> {
   const visitors = {
     ...base.visitors,
     ...(input.visitors ?? {}),
@@ -86,7 +87,6 @@ export function mergeBreadthFirstTraversalInstanceConfigs<
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
-      ...(input.traversalRunnerInternalObjects ?? {}),
     },
   };
 }

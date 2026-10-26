@@ -1,17 +1,18 @@
 import {
-  MutableRef,
-  DepthFirstTreeTraversal,
   DepthFirstPhase,
+  DepthFirstTreeTraversal,
+  MutableRef,
+  objectRewrite as rewriteObjectApi,
+  ObjectTreeSource,
   ResolvedTreeStore,
   TraversalVisitorCommandName,
   TraversalVisitorFunctionResolutionStyle,
-  Vertex,
   TreeVertexRecord,
-  ObjectTreeSource,
-  objectRewrite as rewriteObjectApi,
+  Vertex,
   type TraversableObjectTTP,
   type TreeVisitorContext,
 } from '../src';
+import { legacyObjectOptions } from './legacy-object-options';
 
 const { rewriteObject } = rewriteObjectApi;
 
@@ -66,8 +67,7 @@ describe('rewrite object option integration', () => {
             {
               addedIndex: 0,
               priority: 100,
-              resolutionStyle:
-                TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+              commandCommitMode: 'afterEachVisitor',
               visitor: (vertex, { isTreeRoot }) => {
                 inOrder.push(isTreeRoot ? 'root' : vertex.getData().key);
               },
@@ -80,31 +80,18 @@ describe('rewrite object option integration', () => {
     expect(inOrder).toEqual(['a', 'b', 'c', 'root']);
   });
 
-  test('uses and advances an injected empty runner state', () => {
-    const injectedState = new DepthFirstTreeTraversal({
-      traversableTree: new ObjectTreeSource({ value: 1 }),
-    }).createRunner().state;
-    injectedState.visitorsState[
-      DepthFirstPhase.POST_ORDER
-    ].phaseVisitIndex = 40;
+  test('starts rewrite visitor coordinates in its own fresh runner state', () => {
     const seenIndices: number[] = [];
-
     rewriteObject(
       { value: 1 },
       {
-        traversalRunnerInternalObjects: { state: injectedState },
         rewrite: (_property, { phaseVisitIndex }) => {
           seenIndices.push(phaseVisitIndex);
           return undefined;
         },
       },
     );
-
-    expect(seenIndices).toEqual([40, 41]);
-    expect(
-      injectedState.visitorsState[DepthFirstPhase.POST_ORDER]
-        .phaseVisitIndex,
-    ).toBe(42);
+    expect(seenIndices).toEqual([0, 1]);
   });
 });
 
@@ -220,7 +207,7 @@ describe('object identity bookkeeping', () => {
     const traversal = new DepthFirstTreeTraversal({
       traversableTree: new ObjectTreeSource(
         { custom: { ignored: true } },
-        {
+        legacyObjectOptions({
           makeVertexHook: (hint) =>
             hint.key === 'custom'
               ? {
@@ -233,7 +220,7 @@ describe('object identity bookkeeping', () => {
                   },
                 }
               : {},
-        },
+        }),
       ),
     });
     traversal.addVisitorFor(

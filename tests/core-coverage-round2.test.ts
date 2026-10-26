@@ -1,15 +1,16 @@
 import { MutableRef } from '../src/core/CTTRef';
-import { Vertex } from '../src/core/Vertex';
 import { GraphStore } from '../src/core/graph/GraphStore';
-import { StructuralGraphSnapshot } from '../src/core/graph/snapshot';
-import { BreadthFirstPolicy } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstPolicy';
-import { DepthFirstPolicy } from '../src/traversals/depth-first-traversal/lib/DepthFirstPolicy';
-import { shouldYieldForOrder } from '../src/traversals/depth-first-traversal/iterable-helpers/shouldYieldForOrder';
-import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { createVertexIdLabeler } from '../src/core/graph/identity';
-import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { StructuralGraphSnapshot } from '../src/core/graph/snapshot';
 import type { VertexResolutionContext } from '../src/core/ResolvedTree';
+import { Vertex } from '../src/core/Vertex';
+import { BreadthFirstPolicy } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstPolicy';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { shouldYieldForOrder } from '../src/traversals/depth-first-traversal/iterable-helpers/shouldYieldForOrder';
+import { DepthFirstPolicy } from '../src/traversals/depth-first-traversal/lib/DepthFirstPolicy';
+import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { TestGraph } from './helpers/graph-fixtures';
+import { runnerInternals } from './internal-runner-fixtures';
 
 function ref(data: string, hints: string[] = []) {
   return new MutableRef(new Vertex<TestGraph>({ $d: data, $c: hints }));
@@ -144,7 +145,7 @@ test('depth runner leaf checks include explicit subtree disabling', () => {
   const branch = ref('branch', ['child']);
   expect(runner.isTraversalLeaf(leaf)).toBe(true);
   expect(runner.isTraversalLeaf(branch)).toBe(false);
-  runner.state.subtreeTraversalDisabledRefs.add(branch);
+  runnerInternals(runner).state.subtreeTraversalDisabledRefs.add(branch);
   expect(runner.isTraversalLeaf(branch)).toBe(true);
 });
 

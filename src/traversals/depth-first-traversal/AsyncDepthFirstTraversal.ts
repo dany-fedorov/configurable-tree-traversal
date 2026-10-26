@@ -1,41 +1,45 @@
-import type { NoInferPhase } from '@core/TraversalVisitor';
+import { assertPublicOptions } from '@core/assertPublicOptions';
+import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
+import { sortVisitorRecords } from '@core/executeVisitors';
+import type { VisitorRecord } from '@core/graph/types';
+import type {
+  NoInferPhase,
+  TraversalVisitorFunctionOptions,
+  VisitorGroupDefinition,
+  VisitorPhaseInput,
+} from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
-import type {
-  VisitorPhaseInput,
-  VisitorGroupDefinition,
-} from '@core/TraversalVisitor';
-import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
-import { sortVisitorRecords } from '@core/executeVisitors';
-import type { VisitorRecord } from '@core/graph/types';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import {
   ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncDepthFirstTraversalInstanceConfigs,
-  type AsyncDepthFirstTraversalInstanceConfig,
-  type AsyncDepthFirstTraversalInstanceConfigInput,
   type AsyncDepthFirstTraversalVisitors,
+  type AsyncDepthFirstTreeOptions,
+  type AsyncDepthFirstTreeOptionsPatch,
+  type AsyncDepthFirstTreeResolvedOptions,
 } from '@depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
-import { AsyncDepthFirstTreeRunner } from '@depth-first-traversal/lib/AsyncDepthFirstTraversalRunner';
+import {
+  InternalAsyncDepthFirstTreeRunner,
+  type AsyncDepthFirstTreeRunner,
+} from '@depth-first-traversal/lib/AsyncDepthFirstTraversalRunner';
 import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 
 export class AsyncDepthFirstTreeTraversal<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > {
-  icfg: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
-  visitors: AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>;
+  private icfg: AsyncDepthFirstTreeResolvedOptions<TTP, RW_TTP>;
+  private visitors: AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>;
 
-  constructor(
-    icfgInput: AsyncDepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-  ) {
+  constructor(icfgInput: AsyncDepthFirstTreeOptions<TTP, RW_TTP>) {
+    assertPublicOptions(icfgInput);
     this.icfg = mergeAsyncDepthFirstTraversalInstanceConfigs(
-      ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncDepthFirstTraversalInstanceConfig<
+      ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncDepthFirstTreeResolvedOptions<
         TTP,
         RW_TTP
       >,
@@ -44,9 +48,8 @@ export class AsyncDepthFirstTreeTraversal<
     this.visitors = this.initVisitors(this.icfg.visitors);
   }
 
-  configure(
-    icfgInput: AsyncDepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-  ): this {
+  configure(icfgInput: AsyncDepthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
+    assertPublicOptions(icfgInput);
     this.icfg = mergeAsyncDepthFirstTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,
@@ -121,7 +124,7 @@ export class AsyncDepthFirstTreeTraversal<
   }
 
   createRunner(): AsyncDepthFirstTreeRunner<TTP, RW_TTP> {
-    return new AsyncDepthFirstTreeRunner({
+    return new InternalAsyncDepthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,
     });

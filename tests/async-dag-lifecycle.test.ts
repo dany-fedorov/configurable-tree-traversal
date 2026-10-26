@@ -1,5 +1,5 @@
-import type { VisitResult } from '../src/core/graph/types';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
+import type { VisitResult } from '../src/core/graph/types';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
@@ -11,6 +11,7 @@ import {
   eventLoopTurn,
   graphAdapter,
 } from './helpers/graph-fixtures';
+import { createInternalAsyncDagTraversal } from './internal-runner-fixtures';
 
 function twoBranches() {
   return graphAdapter({
@@ -37,7 +38,7 @@ test('halts the requester between visitors without repeating the first visitor',
     calls.push('second');
   });
   const runner = traversal.createRunner();
-  const first = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const first = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   const halted = first.next();
   await eventLoopTurn();
   expect(calls).toEqual(['first']);
@@ -45,7 +46,7 @@ test('halts the requester between visitors without repeating the first visitor',
   halt.resolve();
   await expect(halted).resolves.toEqual({ done: true, value: undefined });
   expect(runner.getStatus()).toBe(Status.HALTED);
-  const resumed = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
     value: { vertex: { $d: 'root' } },
@@ -79,7 +80,7 @@ test('delivers another started chain once while the requester halts', async () =
     calls.push(`${vertex.getData()}:second`);
   });
   const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const iterator = runner.iterateEvents({ emitEvents: ['workCompleted'] });
 
   expect((await iterator.next()).value?.vertex.getData()).toBe('root');
   const drainingEvent = iterator.next();
@@ -103,7 +104,7 @@ test('delivers another started chain once while the requester halts', async () =
   expect(calls.filter((call) => call === 'B:second')).toHaveLength(1);
   expect(runner.getStatus()).toBe(Status.HALTED);
 
-  const resumed = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
     value: { vertex: { $d: 'A' } },
@@ -132,7 +133,7 @@ test('loop close waits for a pending visitor and preserves its buffered event', 
     }
   });
   const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const iterator = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   expect((await iterator.next()).value?.vertex.getData()).toBe('root');
   const pending = iterator.next();
   await started.promise;
@@ -150,7 +151,7 @@ test('loop close waits for a pending visitor and preserves its buffered event', 
   childVisit.resolve();
   await expect(closing).resolves.toEqual({ done: true, value: undefined });
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
-  const resumed = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
     value: { vertex: { $d: 'child' }, kind: 'workCompleted' },
@@ -177,7 +178,7 @@ test('a committed buffered event retains its original filter eligibility', async
     }
   });
   const runner = traversal.createRunner();
-  const first = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const first = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await first.next();
   const pending = first.next();
   await started.promise;
@@ -186,7 +187,7 @@ test('a committed buffered event retains its original filter eligibility', async
   childVisit.resolve();
   await expect(closing).resolves.toEqual({ done: true, value: undefined });
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
-  const changedFilters = runner.iterateEvents({ iterateOver: [] });
+  const changedFilters = runner.iterateEvents({ emitEvents: [] });
   await expect(changedFilters.next()).resolves.toMatchObject({
     done: false,
     value: { vertex: { $d: 'child' }, kind: 'workCompleted' },
@@ -224,7 +225,7 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   const runner = traversal.createRunner();
   const events: string[] = [];
 
-  const first = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const first = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   const firstNext = first.next();
   await eventLoopTurn();
   expect(calls).toEqual(['root:halt']);
@@ -233,7 +234,7 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   expect(runner.getStatus()).toBe(Status.HALTED);
 
   const closingIterator = runner.iterateEvents({
-    iterateOver: [Order.ON_WORK_READY],
+    emitEvents: ['workCompleted'],
   });
   const rootEvent = await closingIterator.next();
   expect(rootEvent.done).toBe(false);
@@ -248,7 +249,7 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   await eventLoopTurn();
   expect(closed).toBe(false);
   const competing = runner.iterateEvents({
-    iterateOver: [Order.ON_WORK_READY],
+    emitEvents: ['workCompleted'],
   });
   await expect(competing.next()).rejects.toThrow('Another active iterator');
 
@@ -257,7 +258,7 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   await expect(childEvent).resolves.toEqual({ done: true, value: undefined });
   expect(runner.getStatus()).toBe(Status.HALTED);
 
-  const resumed = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   const resumedEvent = await resumed.next();
   expect(resumedEvent.done).toBe(false);
   events.push(resumedEvent.value!.vertex.getData());
@@ -287,7 +288,7 @@ test('shared DAG objects retain one runner owner through halt and release at fin
     root: { children: [], dependencies: [] },
   });
   const makeTraversal = () =>
-    new AsyncDagTraversal<TestGraph>({
+    createInternalAsyncDagTraversal<TestGraph>({
       traversableGraph: source,
       traversalRunnerInternalObjects: {
         state,
@@ -305,11 +306,11 @@ test('shared DAG objects retain one runner owner through halt and release at fin
   const ownerNext = ownerIterator.next();
   await eventLoopTurn();
 
-  const competitorConfig = competitor.inspect().iterableConfig;
+  const competitorConfig = competitor.inspect().executionOptions;
   await expect(
     competitor.iterateEvents({ emitEvents: [] }).next(),
   ).rejects.toThrow(/another active runner/i);
-  expect(competitor.inspect().iterableConfig).toEqual(competitorConfig);
+  expect(competitor.inspect().executionOptions).toEqual(competitorConfig);
   expect(owner.getStatus()).toBe(Status.RUNNING);
   halt.resolve();
   await expect(ownerNext).resolves.toEqual({ done: true, value: undefined });
@@ -342,7 +343,7 @@ test('close does not await a pending resolver and reuses its result on resume', 
       },
     },
   }).createRunner();
-  const iterator = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const iterator = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await iterator.next();
   const pending = iterator.next();
   await eventLoopTurn();
@@ -361,7 +362,7 @@ test('close does not await a pending resolver and reuses its result on resume', 
   });
   await eventLoopTurn();
 
-  const resumed = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
     value: { vertex: { $d: 'child' } },
@@ -454,7 +455,7 @@ test('retains the first live failure and ignores later sibling settlement', asyn
     return undefined;
   });
   const runner = traversal.createRunner();
-  const running = runner.run({ iterateOver: [] });
+  const running = runner.run({ emitEvents: [] });
   await eventLoopTurn();
   await eventLoopTurn();
 
@@ -506,7 +507,7 @@ test('consumer error escapes while a draining traversal failure is retained', as
   const consuming = (async () => {
     try {
       for await (const event of runner.iterateEvents({
-        iterateOver: [Order.ON_WORK_READY],
+        emitEvents: ['workCompleted'],
       })) {
         if (event.vertex.getData() === 'A') throw consumerError;
       }

@@ -1,5 +1,3 @@
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
 import {
@@ -11,51 +9,64 @@ import type { CallbackBindings, CallSpec } from '@core/effects/types';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTreeStore } from '@core/ResolvedTree';
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { SyncTraversalExecution } from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
 import type {
-  TreeTraversalRunner,
+  TraversalStopReason,
   TreeTraversalEvent,
+  TreeTraversalRunner,
 } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  type DepthFirstTraversalInstanceConfig,
+  type DepthFirstTreeResolvedOptions,
 } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import { deepFreeze } from '@utils/deepFreeze';
 import { initBreadthFirstVisitors } from '../init-helpers/initVisitors';
-import type { BreadthFirstTraversalInstanceConfig } from './BreadthFirstTraversalInstanceConfig';
+import type { BreadthFirstTreeResolvedOptions } from './BreadthFirstTraversalInstanceConfig';
 import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import {
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
   type BreadthFirstTraversalRunnerIterableConfig,
-  type BreadthFirstTraversalRunnerIterableConfigInput,
 } from './BreadthFirstTraversalRunnerIterableConfig';
 import { BreadthFirstTraversalRunnerState } from './BreadthFirstTraversalRunnerState';
 
 type Event<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
-> = TreeTraversalEvent<
-  BreadthFirstPhase,
-  TTP,
-  RW_TTP
->;
+> = TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>;
 
-export class BreadthFirstTreeRunner<
+export interface BreadthFirstTreeRunner<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> extends SyncTraversalExecution<
+    BreadthFirstPhase,
+    TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>
+  > {
+  getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
+  getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
+  getResolvedGraph(): ResolvedGraph<TTP | RW_TTP>;
+  isTraversalRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
+  isTreeRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
+}
+
+export class InternalBreadthFirstTreeRunner<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > implements TreeTraversalRunner<BreadthFirstPhase, TTP, RW_TTP>
 {
-  icfg: BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
-  state: BreadthFirstTraversalRunnerState<TTP, RW_TTP>;
-  resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
+  private icfg: BreadthFirstTreeResolvedOptions<TTP, RW_TTP>;
+  private state: BreadthFirstTraversalRunnerState<TTP, RW_TTP>;
+  private resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
     TTP,
     RW_TTP
   >;
-  curGenerator: Generator<Event<TTP, RW_TTP> | null> | null = null;
+  private curGenerator: Generator<Event<TTP, RW_TTP> | null> | null = null;
 
   private iterableConfig: BreadthFirstTraversalRunnerIterableConfig =
     makeEffectiveBreadthFirstTraversalRunnerIterableConfig();
@@ -67,7 +78,7 @@ export class BreadthFirstTreeRunner<
   private readonly kernel: TraversalKernel<TTP, RW_TTP>;
   private readonly bindings: CallbackBindings<TTP, RW_TTP>;
 
-  constructor(icfgInput: BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
+  constructor(icfgInput: BreadthFirstTreeResolvedOptions<TTP, RW_TTP>) {
     this.icfg = { ...icfgInput, visitors: initBreadthFirstVisitors(icfgInput) };
     this.state = new BreadthFirstTraversalRunnerState(
       icfgInput.traversalRunnerInternalObjects.state,
@@ -81,7 +92,7 @@ export class BreadthFirstTreeRunner<
         resolvedTreesContainer:
           icfgInput.traversalRunnerInternalObjects.resolvedTreesContainer,
       },
-    } as unknown as DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
+    } as unknown as DepthFirstTreeResolvedOptions<TTP, RW_TTP>;
     this.resolvedTreesContainer = new DepthFirstTraversalResolvedTreesContainer(
       resolvedTreeConfig,
     );
@@ -230,7 +241,7 @@ export class BreadthFirstTreeRunner<
   }
 
   *iterateEvents(
-    config?: BreadthFirstTraversalRunnerIterableConfigInput,
+    config?: TraversalExecutionOptions<BreadthFirstPhase>,
   ): Generator<Event<TTP, RW_TTP>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
     if (this.activeIterator) {
@@ -269,7 +280,7 @@ export class BreadthFirstTreeRunner<
     }
   }
 
-  run(config?: BreadthFirstTraversalRunnerIterableConfigInput): this {
+  run(config?: TraversalExecutionOptions<BreadthFirstPhase>): this {
     for (const _event of this.iterateEvents(config)) {
       /* Drain traversal events. */
     }

@@ -1,11 +1,15 @@
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
-  DagTraversal,
   AsyncDagTraversal,
-  DagTraversalRunner,
-  AsyncDagTraversalRunner,
+  DagTraversal,
   DagVisitorPhase,
 } from '../src/traversals/dag-traversal';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { InternalAsyncDagTraversalRunner as AsyncDagTraversalRunner } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalRunner';
+import { InternalDagTraversalRunner as DagTraversalRunner } from '../src/traversals/dag-traversal/lib/DagTraversalRunner';
+import {
+  runnerInternals,
+  traversalInternals,
+} from './internal-runner-fixtures';
 
 type G = VertexTypes<string, string>;
 const graph = {
@@ -43,7 +47,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         expect(runner.summary().completedWorkIds).toEqual([]);
         expect(runner.summary().deferredWorkIds).toEqual(['A']);
         expect(runner.summary().vertices.get('B')!.work).toBe('pending');
-        expect(traversal.icfg.workCompletion).toBe('externalSettlement');
+        expect(traversalInternals(traversal).icfg.workCompletion).toBe(
+          'externalSettlement',
+        );
         expect(reads).toBe(1);
       },
     );
@@ -60,16 +66,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: graph,
         workCompletion: 'externalSettlement',
       });
-      const before = traversal.icfg;
-      const visitors = traversal.visitors;
+      const before = traversalInternals(traversal).icfg;
+      const visitors = traversalInternals(traversal).visitors;
       expect(() =>
         entry === 'constructor'
           ? new Constructor<G>(input)
           : traversal.configure(input),
       ).toThrow(TypeError);
       expect(reads).toBe(1);
-      expect(traversal.icfg).toBe(before);
-      expect(traversal.visitors).toBe(visitors);
+      expect(traversalInternals(traversal).icfg).toBe(before);
+      expect(traversalInternals(traversal).visitors).toBe(visitors);
     });
 
     test.each([undefined, null, { reason: 'getter failure' }])(
@@ -80,8 +86,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           workCompletion: 'externalSettlement',
         });
         traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => undefined);
-        const before = traversal.icfg;
-        const visitors = traversal.visitors;
+        const before = traversalInternals(traversal).icfg;
+        const visitors = traversalInternals(traversal).visitors;
         const input = {
           traversableGraph: graph,
           discovery: 'eager' as const,
@@ -98,8 +104,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           expect(actual).toBe(error);
         }
         expect(caught).toBe(true);
-        expect(traversal.icfg).toBe(before);
-        expect(traversal.visitors).toBe(visitors);
+        expect(traversalInternals(traversal).icfg).toBe(before);
+        expect(traversalInternals(traversal).visitors).toBe(visitors);
       },
     );
   }
@@ -128,7 +134,8 @@ for (const Runner of [DagTraversalRunner, AsyncDagTraversalRunner]) {
   test(`${Runner.name} captures external ownership once for its config and execution`, async () => {
     let reads = 0;
     const input = {
-      ...new DagTraversal<G>({ traversableGraph: graph }).icfg,
+      ...traversalInternals(new DagTraversal<G>({ traversableGraph: graph }))
+        .icfg,
       concurrency: 1,
       get workCompletion(): Policy {
         return ++reads === 1 ? 'externalSettlement' : 'visitorReturn';
@@ -138,14 +145,17 @@ for (const Runner of [DagTraversalRunner, AsyncDagTraversalRunner]) {
     await runner.run();
     expect(runner.summary().completedWorkIds).toEqual([]);
     expect(runner.summary().deferredWorkIds).toEqual(['A']);
-    expect(runner.icfg.workCompletion).toBe('externalSettlement');
+    expect(runnerInternals(runner).icfg.workCompletion).toBe(
+      'externalSettlement',
+    );
     expect(reads).toBe(1);
   });
 
   test(`${Runner.name} rejects the first invalid policy`, () => {
     let reads = 0;
     const input = {
-      ...new DagTraversal<G>({ traversableGraph: graph }).icfg,
+      ...traversalInternals(new DagTraversal<G>({ traversableGraph: graph }))
+        .icfg,
       concurrency: 1,
       get workCompletion(): Policy {
         return (++reads === 1 ? 'invalid' : 'visitorReturn') as Policy;

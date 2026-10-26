@@ -1,16 +1,17 @@
-import { MutableRef } from '../src/core/CTTRef';
 import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
-import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
+import { MutableRef } from '../src/core/CTTRef';
 import {
   bindGraphSource,
   bindTreeSource,
 } from '../src/core/drivers/callbackBindings';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
+import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 import type { TreeChildResolutionContext } from '../src/core/TraversableTree';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { runnerInternals } from './internal-runner-fixtures';
 
 type InputTTP = VertexTypes<string, string>;
 type RewriteTTP = VertexTypes<number, number>;
@@ -34,13 +35,15 @@ function childContext(
 }
 
 test('tree binding reuses the legacy facade and passes real tree options', () => {
-  const treeContainer = new DepthFirstTreeTraversal<InputTTP, RewriteTTP>({
-    traversableTree: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
-    },
-    retainOriginalTreeStructure: true,
-  }).createRunner().resolvedTreesContainer;
+  const treeContainer = runnerInternals(
+    new DepthFirstTreeTraversal<InputTTP, RewriteTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
+      },
+      retainOriginalTreeStructure: true,
+    }).createRunner(),
+  ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
     saveOriginal: true,
@@ -102,12 +105,14 @@ test.each(['vertexId', 'dependsOnWork'] as const)(
       // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
       resolveChild: async () => ({ vertexContent: null, ...metadata }),
     };
-    const treeContainer = new DepthFirstTreeTraversal<InputTTP>({
-      traversableTree: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: () => ({ vertexContent: null }),
-      },
-    }).createRunner().resolvedTreesContainer;
+    const treeContainer = runnerInternals(
+      new DepthFirstTreeTraversal<InputTTP>({
+        traversableTree: {
+          resolveRoot: () => ({ vertexContent: null }),
+          resolveChild: () => ({ vertexContent: null }),
+        },
+      }).createRunner(),
+    ).resolvedTreesContainer;
     const container = new ResolvedGraphsContainer({
       sourceMode: 'tree',
       saveOriginal: false,
@@ -131,12 +136,14 @@ test.each([
   (method, field) => {
     const metadata =
       field === 'vertexId' ? { vertexId: 'id' } : { dependsOnWork: [] };
-    const treeContainer = new DepthFirstTreeTraversal<InputTTP, RewriteTTP>({
-      traversableTree: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: () => ({ vertexContent: null }),
-      },
-    }).createRunner().resolvedTreesContainer;
+    const treeContainer = runnerInternals(
+      new DepthFirstTreeTraversal<InputTTP, RewriteTTP>({
+        traversableTree: {
+          resolveRoot: () => ({ vertexContent: null }),
+          resolveChild: () => ({ vertexContent: null }),
+        },
+      }).createRunner(),
+    ).resolvedTreesContainer;
     const container = new ResolvedGraphsContainer<InputTTP, RewriteTTP>({
       sourceMode: 'tree',
       saveOriginal: false,
@@ -197,12 +204,14 @@ test('graph binding passes graph options and forwards hint identity', () => {
 });
 
 test('graph binding rejects a tree-mode container', () => {
-  const treeContainer = new DepthFirstTreeTraversal<InputTTP>({
-    traversableTree: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
-    },
-  }).createRunner().resolvedTreesContainer;
+  const treeContainer = runnerInternals(
+    new DepthFirstTreeTraversal<InputTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
+      },
+    }).createRunner(),
+  ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
     saveOriginal: false,
@@ -237,12 +246,14 @@ test('tree binding rejects a graph-mode container', () => {
 });
 
 test('tree binding preserves a throwing then accessor for sync diagnostics', () => {
-  const treeContainer = new DepthFirstTreeTraversal<InputTTP>({
-    traversableTree: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
-    },
-  }).createRunner().resolvedTreesContainer;
+  const treeContainer = runnerInternals(
+    new DepthFirstTreeTraversal<InputTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
+      },
+    }).createRunner(),
+  ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
     saveOriginal: false,

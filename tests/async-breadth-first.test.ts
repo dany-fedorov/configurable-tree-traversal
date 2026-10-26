@@ -1,17 +1,18 @@
+import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
   AsyncBreadthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
   BreadthFirstPhase as Order,
+  BreadthFirstTreeTraversal,
 } from '../src/traversals/breadth-first-traversal';
-import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
+import {
+  createInternalAsyncBreadthFirstTreeTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 type Node = { $d: string; $c: (Node | null)[] };
 type Tree = VertexTypes<string, Node | null>;
@@ -73,7 +74,8 @@ test('projects level-order events and asynchronous visitor metadata', async () =
     ]);
   });
   const events = [];
-  for await (const event of t.createRunner().iterateEvents()) events.push(event);
+  for await (const event of t.createRunner().iterateEvents())
+    events.push(event);
 
   expect(events.map(({ vertex }) => vertex.getData())).toEqual([
     'root',
@@ -151,16 +153,16 @@ test('preserves paused visitor outcomes through repeated resumptions', async () 
   });
   const runner = t.createRunner();
 
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(runner.inspect().chains[0]).toMatchObject({
     order: Order.LEVEL_ORDER,
     phase: 'paused',
     position: 1,
   });
   expect(seen).toEqual(['halt:root']);
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(seen).toEqual(['halt:root', 'after:root', 'halt:child']);
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(seen).toEqual([
     'halt:root',
     'after:root',
@@ -222,7 +224,7 @@ test('uses new iterator filters when resuming after consumer closure', async () 
   });
   const runner = t.createRunner();
   for await (const event of runner.iterateEvents({
-    disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+    visitorPhases: { exclude: [Order.LEVEL_ORDER] },
   })) {
     expect(event.vertex.getData()).toBe('root');
     break;
@@ -232,8 +234,8 @@ test('uses new iterator filters when resuming after consumer closure', async () 
   expect(visited).toEqual([]);
 
   await runner.run({
-    iterateOver: [],
-    enableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+    emitEvents: [],
+    visitorPhases: { include: [Order.LEVEL_ORDER] },
   });
   expect(visited).toEqual(['child']);
   expect(runner.getStatus()).toBe(Status.FINISHED);
@@ -261,7 +263,7 @@ test('an unopened iterator does not change later execution filters', async () =>
   const runner = t.createRunner();
 
   runner.iterateEvents({
-    disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+    visitorPhases: { exclude: [Order.LEVEL_ORDER] },
   });
   await runner.run();
 
@@ -279,7 +281,7 @@ test('a lease-rejected iterator does not change resumed execution filters', asyn
   expect((await active.next()).value?.vertex.getData()).toBe('root');
 
   const rejected = runner.iterateEvents({
-    disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+    visitorPhases: { exclude: [Order.LEVEL_ORDER] },
   });
   await expect(rejected.next()).rejects.toThrow('Another active iterator');
   await active.return(undefined);
@@ -292,9 +294,9 @@ test('snapshots builder configuration and reuses injected tree storage and state
   const first = await traversal(node('root', node('child')))
     .createRunner()
     .run();
-  const state = traversal().createRunner().state;
+  const state = runnerInternals(traversal().createRunner()).state;
   const visitors: string[] = [];
-  const t = new AsyncBreadthFirstTreeTraversal<Tree>({
+  const t = createInternalAsyncBreadthFirstTreeTraversal<Tree>({
     traversableTree: {
       resolveRoot: () => {
         throw new Error('Existing root must be reused');
@@ -302,7 +304,7 @@ test('snapshots builder configuration and reuses injected tree storage and state
       resolveChild: (hint) => ({ vertexContent: hint }),
     },
     traversalRunnerInternalObjects: {
-      resolvedTreesContainer: first.resolvedTreesContainer,
+      resolvedTreesContainer: runnerInternals(first).resolvedTreesContainer,
       state,
     },
   }).configure({ sortChildrenHints: async (hints) => hints.reverse() });
@@ -310,7 +312,7 @@ test('snapshots builder configuration and reuses injected tree storage and state
     {
       addedIndex: 10,
       priority: 1,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor',
       visitor: async (vertex) => {
         visitors.push(vertex.getData());
       },
@@ -322,11 +324,11 @@ test('snapshots builder configuration and reuses injected tree storage and state
     visitors.push('late');
   });
 
-  expect(runner.state.visitorsState).toBe(state.visitorsState);
-  expect(runner.state.subtreeTraversalDisabledRefs).toBe(
+  expect(runnerInternals(runner).state.visitorsState).toBe(state.visitorsState);
+  expect(runnerInternals(runner).state.subtreeTraversalDisabledRefs).toBe(
     state.subtreeTraversalDisabledRefs,
   );
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(visitors).toEqual(['root', 'child']);
   expect(runner.getResolvedTreeStore().getRoot()).toBe(
     first.getResolvedTreeStore().getRoot(),

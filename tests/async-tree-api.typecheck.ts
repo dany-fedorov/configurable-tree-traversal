@@ -4,9 +4,9 @@ import {
   BreadthFirstPhase,
   DepthFirstPhase,
   TraversalVisitorCommandName,
+  type AsyncBreadthFirstTreeOptions,
   type AsyncCoreExecution,
-  type AsyncBreadthFirstTraversalInstanceConfig,
-  type AsyncDepthFirstTraversalInstanceConfig,
+  type AsyncDepthFirstTreeOptions,
   type AsyncTraversalVisitor,
   type AsyncTreeSource,
   type VertexTypes,
@@ -26,7 +26,7 @@ const tree: AsyncTreeSource<Input, Output> = {
   },
 };
 
-const config: AsyncDepthFirstTraversalInstanceConfig<Input, Output> = {
+const config: AsyncDepthFirstTreeOptions<Input, Output> = {
   traversableTree: tree,
   sortChildrenHints: async (hints) => hints,
   visitors: {
@@ -41,7 +41,6 @@ const config: AsyncDepthFirstTraversalInstanceConfig<Input, Output> = {
     visitAfterOmittedChildren: true,
   },
   retainOriginalTreeStructure: false,
-  traversalRunnerInternalObjects: {},
   concurrency: Infinity,
 };
 
@@ -78,15 +77,11 @@ const execution: AsyncCoreExecution<
 const iterable: AsyncGenerator = runner.iterateEvents();
 const result: Promise<typeof runner> = runner.run();
 
-const breadthConfig: AsyncBreadthFirstTraversalInstanceConfig<Input, Output> = {
+const breadthConfig: AsyncBreadthFirstTreeOptions<Input, Output> = {
   traversableTree: tree,
   sortChildrenHints: async (hints) => hints,
   visitors: { [BreadthFirstPhase.LEVEL_ORDER]: [] },
   retainOriginalTreeStructure: false,
-  traversalRunnerInternalObjects: {
-    resolvedTreesContainer: null,
-    state: null,
-  },
   concurrency: 2,
 };
 const breadthTraversal = new AsyncBreadthFirstTreeTraversal<Input, Output>(

@@ -70,7 +70,8 @@ const ref = graph.getVertexRefById('a');
 if (ref !== null) {
   const id: string = graph.getVertexId(ref);
   const alias: string = graph.getIdOf(ref);
-  const dependencies: readonly string[] | undefined = graph.get(ref)?.dependsOnWork;
+  const dependencies: readonly string[] | undefined =
+    graph.get(ref)?.dependsOnWork;
   void [id, alias, dependencies];
 }
 graph.getVertexById('a');
@@ -255,14 +256,13 @@ void [
   wrongHint,
 ];
 
-const containerGraph: ResolvedGraph<W, string | symbol> =
-  runner.resolvedGraphsContainer.resolvedGraph;
+const containerGraph: ResolvedGraph<W, string> = runner.getResolvedGraph();
 const containerSnapshot: OriginalGraphView<W, string> | null =
-  runner.resolvedGraphsContainer.originalGraphView;
-// @ts-expect-error Exposed container graph lookups retain the ID domain.
-runner.resolvedGraphsContainer.publicResolvedGraph.getVertexRefById(42);
-// @ts-expect-error The exposed store lookup retains the ID domain.
-runner.resolvedGraphsContainer.store.getIdState(42);
+  runner.originalGraphView;
+// @ts-expect-error Public graph lookups retain the ID domain.
+runner.getResolvedGraph().getVertexRefById(42);
+// @ts-expect-error Raw container state is not a public capability.
+runner.resolvedGraphsContainer;
 // @ts-expect-error The exposed snapshot alias retains the ID domain.
 containerSnapshot?.getVertexById(42);
 // @ts-expect-error The runner snapshot retains the ID domain.
@@ -281,8 +281,8 @@ new AsyncDagTraversal({
   completedWork: new Set([42]),
 });
 traverseDagAsync({
-  // @ts-expect-error Inferred async helpers cannot seed wrong-domain completed work.
   traversableGraph: asyncSource,
+  // @ts-expect-error Inferred async helpers cannot seed wrong-domain completed work.
   completedWork: new Set([42]),
 });
 traverseDagAsync({ traversableGraph: asyncSource }, null, {
@@ -337,14 +337,12 @@ void [
   rewritingIds,
 ];
 
-// Raw bookkeeping can expose the private synthetic root, unlike the public forest view.
+// Public views retain the caller's identity domain and hide synthetic holders.
 if (ref !== null) {
-  const rawId: string | symbol = containerGraph.getVertexId(ref);
-  // @ts-expect-error The raw container may return its private synthetic symbol.
-  const unsafeRawId: string = containerGraph.getVertexId(ref);
-  const publicId: string =
-    runner.resolvedGraphsContainer.publicResolvedGraph.getVertexId(ref);
-  void [rawId, unsafeRawId, publicId];
+  const publicId: string = containerGraph.getVertexId(ref);
+  // @ts-expect-error Public string IDs cannot become synthetic symbols.
+  const syntheticId: symbol = containerGraph.getVertexId(ref);
+  void [publicId, syntheticId];
 }
 
 // Default legacy results remain object types usable by existing extending interfaces.

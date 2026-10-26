@@ -1,7 +1,8 @@
-import { GraphWalk, GraphWalkRunner, GraphWalkPhase as Phase } from '../src';
-import { WalkKernel } from '../src/traversals/graph-walk/lib/WalkKernel';
-import { SyncWalkSession } from '../src/traversals/graph-walk/lib/SyncWalkSession';
+import { GraphWalk, GraphWalkPhase as Phase, GraphWalkRunner } from '../src';
+import { InternalGraphWalkRunner } from '../src/traversals/graph-walk/GraphWalkRunner';
 import { normalizeWalkOptions } from '../src/traversals/graph-walk/lib/normalizeWalkOptions';
+import { SyncWalkSession } from '../src/traversals/graph-walk/lib/SyncWalkSession';
+import { WalkKernel } from '../src/traversals/graph-walk/lib/WalkKernel';
 import { idGraph } from './helpers/graph-walk-fixtures';
 
 it('keeps poll passive and settles each issued request exactly once', () => {
@@ -145,5 +146,5 @@ it('reports in-flight requests passively from inside source calls', () => {
       pendingRequests: [expect.objectContaining({ operation: 'outgoing' })],
     }),
   ]);
-  expect(runner).toBeInstanceOf(GraphWalkRunner);
+  expect(runner).toBeInstanceOf(InternalGraphWalkRunner);
 });

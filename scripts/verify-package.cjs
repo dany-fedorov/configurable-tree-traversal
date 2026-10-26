@@ -57,8 +57,6 @@ try {
     const rewrite = require('configurable-tree-traversal/tools/rewrite-object');
     const vertex = require('configurable-tree-traversal/core/Vertex');
     const explicitVertex = require('configurable-tree-traversal/core/Vertex.js');
-    const depthRunner = require('configurable-tree-traversal/traversals/depth-first-traversal/lib/DepthFirstTraversalRunner');
-    const dagRunner = require('configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner');
     assert.equal(core.Vertex, lib.core.Vertex);
     assert.equal(core.MutableRef, lib.MutableRef);
     assert.equal(core.TreeVertexRecord, lib.TreeVertexRecord);
@@ -77,8 +75,10 @@ try {
     assert.equal(rewrite.rewriteObject, lib.rewriteObject);
     assert.equal(vertex.Vertex, lib.core.Vertex);
     assert.equal(explicitVertex.Vertex, lib.core.Vertex);
-    assert.equal(depthRunner.DepthFirstTreeRunner, depth.DepthFirstTreeRunner);
-    assert.equal(dagRunner.DagTraversalRunner, dag.DagTraversalRunner);
+    assert.equal('DepthFirstTreeRunner' in depth, false);
+    assert.equal('InternalDepthFirstTreeRunner' in depth, false);
+    assert.equal('DagTraversalRunner' in dag, false);
+    assert.equal('InternalDagTraversalRunner' in dag, false);
     assert.equal(depth.traverseTreeDepthFirst, lib.traverseTreeDepthFirst);
     assert.equal(depth.traverseTreeDepthFirstAsync, lib.traverseTreeDepthFirstAsync);
     assert.equal(breadth.traverseTreeBreadthFirst, lib.traverseTreeBreadthFirst);
@@ -137,7 +137,7 @@ try {
 
     const tree = new lib.ObjectTreeSource({ a: { b: 1 }, c: 2 });
     const depthVisits = [...new lib.DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().iterateEvents({
-      iterateOver: [lib.DepthFirstPhase.POST_ORDER],
+      emitEvents: [lib.DepthFirstPhase.POST_ORDER],
     })].map(event => event.vertex.getData().key).slice(0, -1);
     assert.deepEqual(depthVisits, ['b', 'a', 'c']);
     const breadthVisits = [...new lib.BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner().iterateEvents()]
@@ -244,7 +244,11 @@ try {
         });
         traversal.addVisitorFor(implementation.DagVisitorPhase.ON_SUBGRAPH_READY, vertex => { events.push('C:' + vertex.getData()); });
         const runner = traversal.createRunner();
-        assert(runner instanceof cjs[mode === 'async' ? 'AsyncDagTraversalRunner' : 'DagTraversalRunner']);
+        const CjsBuilder = cjs[mode === 'async' ? 'AsyncDagTraversal' : 'DagTraversal'];
+        const counterpart = new CjsBuilder({ traversableGraph: graph }).createRunner();
+        assert.equal(Object.getPrototypeOf(runner), Object.getPrototypeOf(counterpart));
+        assert.equal('DagTraversalRunner' in implementation, false);
+        assert.equal('AsyncDagTraversalRunner' in implementation, false);
         await runner.run();
         assert.deepEqual(calls, ['build']);
         assert.deepEqual(events.filter(event => event.startsWith('W:')), ['W:build']);
@@ -318,11 +322,10 @@ try {
     import { AsyncBreadthFirstTreeTraversal, AsyncDagTraversal, AsyncDepthFirstTreeTraversal, DepthFirstTreeTraversal, DepthFirstPhase, BreadthFirstTreeTraversal, DagTraversal, DagVisitorPhase, ObjectTreeSource, TraversalRunnerStatus, TraversalVisitorCommandName, core, objectRewrite, rewriteObject, traverseTreeBreadthFirstAsync, traverseDag, traverseDagAsync, traverseTreeDepthFirst, traverseTreeDepthFirstAsync } from 'configurable-tree-traversal';
     import type { AsyncDagDiscoverySource, ChildSlot, CoreInspection, StructuralChildEdge, ResolvedGraphVertex, ResolvedVertexStatus, HintVertexId, MaybePromise, ResolvedGraph, TreeTraversalRunner, DagDiscoverySource, TreeSource, VertexTypes, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
     import type { ChildSlot as CoreChildSlot, StructuralChildEdge as CoreGraphEdge, ResolvedGraphVertex as CoreGraphVertex, ResolvedVertexStatus as CoreGraphVertexStatus, HintVertexId as CoreHintVertexId, MaybePromise as CoreMaybePromise, VertexId as CoreVertexId } from 'configurable-tree-traversal/core';
-    import type { DepthFirstTraversalRunnerIterableConfigInput } from 'configurable-tree-traversal/traversals/depth-first-traversal';
+    import type { TraversalExecutionOptions, DepthFirstTreeOptions, DepthFirstTreeOptionsPatch } from 'configurable-tree-traversal';
     import { DEFER_READY } from 'configurable-tree-traversal';
     import type { DagSummary, DagSettlementGeneration, DagSettlementOutcome, DagVertexProgress, DagWorkState } from 'configurable-tree-traversal';
     import type { DagSummary as SubpathSummary } from 'configurable-tree-traversal/traversals/dag-traversal';
-    import type { DagTraversalRunnerIterableConfigInput } from 'configurable-tree-traversal/traversals/dag-traversal';
     import { Vertex } from 'configurable-tree-traversal/core/Vertex';
     import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
 
@@ -349,9 +352,23 @@ try {
         commandArguments: { newData: 'changed' },
       }],
     }));
+    const requiredSource: DepthFirstTreeOptions<Tree> = { traversableTree: abstractTree };
+    const partialOptions: DepthFirstTreeOptionsPatch<Tree> = { visitors: {} };
+    abstractTraversal.configure(partialOptions);
+    // @ts-expect-error standalone construction requires a source
+    new DepthFirstTreeTraversal({});
+    // @ts-expect-error normalized engine state is not a public configuration port
+    abstractTraversal.configure({ traversalRunnerInternalObjects: {} });
+    // @ts-expect-error builder state is private
+    abstractTraversal.icfg;
     const runnerInterface: TreeTraversalRunner<DepthFirstPhase, Tree, Tree> = abstractTraversal.createRunner();
+    // @ts-expect-error raw engine state is private
+    abstractTraversal.createRunner().state;
+    // @ts-expect-error runners are capabilities and expose no normalized constructor
+    new (null as unknown as typeof import('configurable-tree-traversal')).DepthFirstTreeRunner({});
+    void requiredSource;
     runnerInterface.iterateEvents();
-    runnerInterface.run({ iterateOver: [] });
+    runnerInterface.run({ emitEvents: [] });
     const command: TraversalVisitorCommand<Tree> = {
       commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
       commandArguments: { newData: 'typed' },
@@ -365,7 +382,7 @@ try {
     });
 
     const tree = new ObjectTreeSource({ a: 1 });
-    const config: DepthFirstTraversalRunnerIterableConfigInput = { iterateOver: [] };
+    const config: TraversalExecutionOptions<DepthFirstPhase> = { emitEvents: [] };
     const runner = new DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().run(config);
     const status: TraversalRunnerStatus = runner.getStatus();
     const failedStatus: TraversalRunnerStatus = TraversalRunnerStatus.FAILED;
@@ -379,7 +396,7 @@ try {
       resolvePrerequisite: id => id === undefined ? undefined : { vertexId: id, vertexContent: abstractRoot },
     };
     const asyncGraph: AsyncDagDiscoverySource<Tree> = { ...graph, resolvePrerequisite: id => Promise.resolve(graph.resolvePrerequisite!(id)) };
-    const dagConfig: DagTraversalRunnerIterableConfigInput = { iterateOver: [DagVisitorPhase.ON_WORK_READY] };
+    const dagConfig: TraversalExecutionOptions<DagVisitorPhase> = { emitEvents: ['workCompleted'] };
     const dag = new DagTraversal({ traversableGraph: graph }).createRunner();
     const resolvedGraph: ResolvedGraph<Tree> = dag.run(dagConfig).getResolvedGraph();
     const asyncDepth = new AsyncDepthFirstTreeTraversal({ traversableTree: abstractTree }).createRunner();

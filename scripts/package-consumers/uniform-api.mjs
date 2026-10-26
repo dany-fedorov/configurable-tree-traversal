@@ -12,8 +12,7 @@ for (const [api, other] of [
   [cjs, esm],
   [esm, cjs],
 ]) {
-  const { TraversalVisitorCommandName: Command, DagVisitorPhase: Order } =
-    api;
+  const { TraversalVisitorCommandName: Command, DagVisitorPhase: Order } = api;
   const legacyVertex = new api.core.Vertex({ $d: 'legacy', $c: [] });
   assert(legacyVertex instanceof other.core.Vertex);
   assert.deepEqual({ ...legacyVertex }, { $data: 'legacy', $childHints: [] });
@@ -81,7 +80,9 @@ for (const [api, other] of [
 
       assert.deepEqual(
         visits,
-        helper === 'traverseTreeDepthFirst' ? ['leaf', 'root'] : ['root', 'leaf'],
+        helper === 'traverseTreeDepthFirst'
+          ? ['leaf', 'root']
+          : ['root', 'leaf'],
       );
       const groupCalls = [];
       await api[helper + suffix]({
@@ -160,7 +161,10 @@ for (const [api, other] of [
       });
       traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
         commands: [
-          { commandName: other.TraversalVisitorCommandName.DEFER_WORK_COMPLETION },
+          {
+            commandName:
+              other.TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+          },
         ],
       }));
       const runner = traversal.createRunner();
@@ -183,7 +187,7 @@ for (const [api, other] of [
       assert.equal(runner.getStatus(), 'FINISHED');
     }
 
-    for (const entry of ['constructor', 'configure', 'runner']) {
+    for (const entry of ['constructor', 'configure']) {
       let reads = 0;
       const input = {
         traversableGraph: {
@@ -199,18 +203,9 @@ for (const [api, other] of [
           ? new TreeTraversal(input)
           : new TreeTraversal({ traversableGraph: input.traversableGraph });
       if (entry === 'configure') traversal.configure(input);
-      const Runner = asyncMode
-        ? api.AsyncDagTraversalRunner
-        : api.DagTraversalRunner;
-      const runner =
-        entry === 'runner'
-          ? new Runner({
-              ...traversal.icfg,
-              get workCompletion() {
-                return input.workCompletion;
-              },
-            })
-          : traversal.createRunner();
+      assert.equal('DagTraversalRunner' in api, false);
+      assert.equal('AsyncDagTraversalRunner' in api, false);
+      const runner = traversal.createRunner();
       await runner.run();
       assert.deepEqual(runner.summary().completedWorkIds, []);
       assert.deepEqual(runner.summary().deferredWorkIds, ['owned']);

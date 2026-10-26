@@ -1,6 +1,6 @@
-import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversableObjectTreeInstanceConfigInput } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
 import { __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ } from '@traversable-object-tree/lib/constants';
+import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import type { ObjectTreeOptions } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
 
 export function getRootPropertyFromInputObjectDefault<
   In,
@@ -11,7 +11,7 @@ export function getRootPropertyFromInputObjectDefault<
 >(
   rootKey?: InK,
 ): Required<
-  TraversableObjectTreeInstanceConfigInput<In, InK, InV, OutK, OutV>
+  ObjectTreeOptions<In, InK, InV, OutK, OutV>
 >['getRootPropertyFromInputObject'] {
   return function getRootPropertyFromInputObjectDefault_implementation(
     inputObject: In,

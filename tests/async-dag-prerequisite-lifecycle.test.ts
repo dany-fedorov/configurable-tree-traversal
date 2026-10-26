@@ -1,9 +1,13 @@
+import type { MakeVertexResult } from '../src/core/TraversableTree';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { MakeVertexResult } from '../src/core/TraversableTree';
 import type { TestGraph as G } from './helpers/graph-fixtures';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
+import {
+  createInternalAsyncDagTraversalRunner,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 const removed = { commands: [{ commandName: Command.DELETE_VERTEX as const }] };
 const found = { vertexContent: { $d: 'external', $c: [] } };
@@ -28,7 +32,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
     },
   });
   const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents({ iterateOver: [] });
+  const iterator = runner.iterateEvents({ emitEvents: [] });
   const running = iterator.next();
   await entered.promise;
   const before = runner.summary();
@@ -45,15 +49,16 @@ test('held lookup respects halt and iterator return, stores its reply and resume
   await iterator.return(undefined);
   await running;
   expect(() =>
-    new AsyncDagTraversal<G>({
+    createInternalAsyncDagTraversalRunner<G>({
       traversableGraph: {
         resolveRoot: () => ({ vertexContent: null }),
         resolveChild: () => ({ vertexContent: null }),
       },
       traversalRunnerInternalObjects: {
-        resolvedGraphsContainer: runner.resolvedGraphsContainer,
+        resolvedGraphsContainer:
+          runnerInternals(runner).resolvedGraphsContainer,
       },
-    }).createRunner(),
+    }),
   ).toThrow('Injected DAG objects belong to an active runner');
   gate.resolve(found);
   await eventLoopTurn();
@@ -256,7 +261,7 @@ for (const error of [undefined, null, { rejected: true }]) {
         resolvePrerequisite: () => gate.promise,
       },
     }).createRunner();
-    const iterator = runner.iterateEvents({ iterateOver: [] });
+    const iterator = runner.iterateEvents({ emitEvents: [] });
     const next = iterator.next();
     await eventLoopTurn();
     await iterator.return(undefined);
