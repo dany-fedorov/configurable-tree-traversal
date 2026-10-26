@@ -80,7 +80,7 @@ it('keeps the admitted chain selection while applying a new delivery selector', 
   expect(seen).toEqual(['halt', 'remaining']);
   expect(resumed).toMatchObject([{ kind: 'path' }]);
   expect(resumed.every((e) => e.kind === 'path')).toBe(true);
-  expect(runner.summary().counts.observations).toEqual({
+  expect(runner.summary().counts.processedObservations).toEqual({
     vertex: 1,
     edge: 0,
     path: 1,
@@ -93,7 +93,7 @@ it('pauses between edge/vertex/path without replay and never expands on iterator
   const edges = runner.iterateEvents({ emitEvents: [Phase.EDGE] });
   expect(edges.next().value).toMatchObject({
     kind: 'edge',
-    edge: { from: 'A', to: 'B', index: 0 },
+    edge: { from: 'A', to: 'B', outgoingIndex: 0 },
   });
   edges.return();
   const atEdge = [...fixture.calls];
@@ -108,13 +108,13 @@ it('pauses between edge/vertex/path without replay and never expands on iterator
   expect(paths.next().value).toMatchObject({ kind: 'path', depth: 1 });
   paths.return();
   expect(fixture.calls).toEqual(atEdge);
-  expect(runner.summary().counts.observations).toEqual({
+  expect(runner.summary().counts.processedObservations).toEqual({
     vertex: 3,
     edge: 1,
     path: 3,
   });
   expect([...runner.iterateEvents({ emitEvents: [] })]).toEqual([]);
-  expect(runner.summary().counts.observations).toEqual({
+  expect(runner.summary().counts.processedObservations).toEqual({
     vertex: 5,
     edge: 6,
     path: 5,
@@ -149,7 +149,7 @@ it('rejects competing owners and reentrant run without corrupting the owning ite
     'execution owner',
   );
   expect(() => runner.run()).toThrow('execution owner');
-  expect(runner.inspect().iterableConfig.emitEvents).toEqual([Phase.VERTEX]);
+  expect(runner.inspect().executionOptions.emitEvents).toEqual([Phase.VERTEX]);
   expect(owner.next().done).toBe(true);
   const reentrant = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
   reentrant.addVisitorFor(Phase.VERTEX, () => {
@@ -246,7 +246,7 @@ it('emits the drained observation before acknowledging cooperative pause and pre
       () => {
         seen.push('second');
         expect(runner.inspect()).toMatchObject({
-          activeVisitor: { phase: Phase.VERTEX, position: 1 },
+          activeVisitor: { phase: Phase.VERTEX, visitorIndex: 1 },
           inFlightCallbackCount: 1,
           pendingRequests: [{ operation: 'visitor' }],
         });

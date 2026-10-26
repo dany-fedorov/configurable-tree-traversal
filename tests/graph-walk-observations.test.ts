@@ -35,12 +35,12 @@ it('observes vertices and every parallel/returning relationship in one pass', ()
     status: TraversalRunnerStatus.FINISHED,
     outcome: { kind: 'exhausted' },
     counts: {
-      steps: 14,
-      occurrences: 8,
-      foundVertices: 5,
-      omittedVertices: 0,
-      observedLinks: 6,
-      observations: { vertex: 5, edge: 6, path: 5 },
+      candidateReadAttempts: 14,
+      admittedTargets: 8,
+      uniqueFoundVertices: 5,
+      uniqueOmittedVertices: 0,
+      discoveredLinks: 6,
+      processedObservations: { vertex: 5, edge: 6, path: 5 },
     },
   });
   expect(calls.filter((call) => call.startsWith('resolve:'))).toEqual([
@@ -93,7 +93,7 @@ it('projects first-discovery prefix paths including isolated roots', () => {
   expect(
     events.map((event) => ({
       ids: event.vertices.map((vertex) => vertex.vertexId),
-      edges: event.edges.map((edge) => [edge.from, edge.index, edge.to]),
+      edges: event.edges.map((edge) => [edge.from, edge.outgoingIndex, edge.to]),
       depth: event.depth,
     })),
   ).toEqual([
@@ -145,8 +145,8 @@ it('pauses without expanding yielded occurrences and resumes pending phases with
   ]);
   expect(inspection.openSourceIteratorCount).toBe(1);
   expect(Object.isFrozen(inspection)).toBe(true);
-  expect(Object.isFrozen(inspection.counts.observations)).toBe(true);
-  expect(Object.isFrozen(inspection.iterableConfig.emitEvents)).toBe(true);
+  expect(Object.isFrozen(inspection.counts.processedObservations)).toBe(true);
+  expect(Object.isFrozen(inspection.executionOptions.emitEvents)).toBe(true);
   const vertices = [
     ...runner.iterateEvents({
       emitEvents: [GraphWalkPhase.VERTEX],
@@ -158,12 +158,12 @@ it('pauses without expanding yielded occurrences and resumes pending phases with
     'C',
     'D',
   ]);
-  expect(runner.inspect().iterableConfig.visitorPhases).toEqual({
+  expect(runner.inspect().executionOptions.visitorPhases).toEqual({
     include: [],
   });
   expect(runner.inspect().openSourceIteratorCount).toBe(0);
-  expect(idle.counts.occurrences).toBe(0);
-  expect(inspection.counts.occurrences).toBe(3);
+  expect(idle.counts.admittedTargets).toBe(0);
+  expect(inspection.counts.admittedTargets).toBe(3);
 });
 
 it('retains detached emitted wrappers across caller mutation', () => {
@@ -213,7 +213,7 @@ it('protects execution ownership and validates selector patches atomically', () 
     }),
   ).toBe(factory);
   const configured = factory.createRunner();
-  expect(configured.inspect().iterableConfig.visitorPhases).toEqual({
+  expect(configured.inspect().executionOptions.visitorPhases).toEqual({
     exclude: [GraphWalkPhase.EDGE],
   });
   expect(configured.run().getStopReason()).toBe('finished');

@@ -14,14 +14,14 @@ export interface GraphWalkInspection extends ExecutionInspection {
   readonly concurrency: 1;
   readonly strategy: GraphWalkStrategy;
   readonly revisit: GraphWalkRevisitPolicy;
-  readonly iterableConfig: InspectionFilters<GraphWalkPhase>;
+  readonly executionOptions: InspectionFilters<GraphWalkPhase>;
   readonly counts: GraphWalkCounts;
   readonly frontierSize: number;
   readonly openSourceIteratorCount: number;
   readonly pendingObservationKinds: readonly GraphWalkPhase[];
   readonly activeVisitor: Readonly<{
     phase: GraphWalkPhase;
-    position: number;
+    visitorIndex: number;
   }> | null;
   readonly pendingRequests: readonly Readonly<{
     requestId: number;

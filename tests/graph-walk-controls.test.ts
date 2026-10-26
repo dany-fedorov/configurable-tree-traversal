@@ -11,11 +11,11 @@ it('filters before inline hydration and target lookup, keeping link indices', ()
   const followed: string[] = [];
   const runner = new GraphWalk({
     source,
-    followEdge(edge, context) {
+    shouldFollowEdge(edge, context) {
       expect(context.revisit).toBe('once');
       expect(context.source.vertexId).toBe(edge.from);
       expect(context.depth).toBeGreaterThan(0);
-      followed.push(`${edge.from}:${edge.index}`);
+      followed.push(`${edge.from}:${edge.outgoingIndex}`);
       return edge.to !== 'B';
     },
   })
@@ -24,10 +24,10 @@ it('filters before inline hydration and target lookup, keeping link indices', ()
   expect(calls).not.toContain('resolve:B');
   expect(followed).toEqual(['A:0', 'A:1', 'A:2', 'C:0', 'D:0']);
   expect(runner.summary().counts).toMatchObject({
-    occurrences: 5,
-    observedLinks: 5,
-    foundVertices: 4,
-    observations: { vertex: 4, edge: 3, path: 4 },
+    admittedTargets: 5,
+    discoveredLinks: 5,
+    uniqueFoundVertices: 4,
+    processedObservations: { vertex: 4, edge: 3, path: 4 },
   });
   const poison = {
     get kind() {
@@ -43,7 +43,7 @@ it('filters before inline hydration and target lookup, keeping link indices', ()
         { target: { vertexId: 'B', resolution: poison }, data: undefined },
       ],
     } as unknown as GraphWalkSource<string, undefined, string>,
-    followEdge: () => false,
+    shouldFollowEdge: () => false,
   })
     .createRunner()
     .run();
@@ -55,7 +55,7 @@ it('emits pruned occurrences before expansion and retains the first pruning deci
   const expanded: string[] = [];
   const runner = new GraphWalk({
     source,
-    expandVertex(vertex, context) {
+    shouldExpandVertex(vertex, context) {
       expanded.push(vertex.vertexId);
       expect(context.revisit).toBe('once');
       expect(
@@ -80,7 +80,7 @@ it('emits pruned occurrences before expansion and retains the first pruning deci
   expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
 });
 
-it.each(['followEdge', 'expandVertex'] as const)(
+it.each(['shouldFollowEdge', 'shouldExpandVertex'] as const)(
   '%s rejects nonbooleans and synchronous thenables',
   (key) => {
     for (const result of [
@@ -106,7 +106,7 @@ it.each(['followEdge', 'expandVertex'] as const)(
   },
 );
 
-it.each(['followEdge', 'expandVertex'] as const)(
+it.each(['shouldFollowEdge', 'shouldExpandVertex'] as const)(
   '%s retains arbitrary thrown values',
   (key) => {
     for (const error of [undefined, null, Symbol('error')]) {
@@ -141,12 +141,12 @@ it('detaches predicate wrappers from subsequent observations and expansion', () 
   );
   const runner = new GraphWalk({
     source,
-    followEdge(edge, context) {
+    shouldFollowEdge(edge, context) {
       (edge as { to: string }).to = 'bad';
       (context.source as { vertexId: string }).vertexId = 'bad';
       return true;
     },
-    expandVertex(vertex, context) {
+    shouldExpandVertex(vertex, context) {
       (vertex as { vertexId: string }).vertexId = 'bad';
       if (context.via !== null) (context.via as { to: string }).to = 'bad';
       return true;

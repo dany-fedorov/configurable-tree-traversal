@@ -13,12 +13,12 @@ it('selects observations independently of exploration and committed logical coun
   first.run({ emitEvents: [], visitorPhases: { include: [] } });
   second.run({ emitEvents: [Phase.VERTEX, Phase.EDGE] });
   expect(first.summary().counts).toEqual(second.summary().counts);
-  expect(first.summary().counts.occurrences).toBe(8);
+  expect(first.summary().counts.admittedTargets).toBe(8);
   expect(left.calls).toEqual(right.calls);
   expect(first.summary().counts).toMatchObject({
-    foundVertices: 5,
-    omittedVertices: 0,
-    observedLinks: 6,
+    uniqueFoundVertices: 5,
+    uniqueOmittedVertices: 0,
+    discoveredLinks: 6,
   });
 });
 
@@ -33,7 +33,7 @@ it('enforces explicit delivery selectors on buffered observations across a pause
   expect(second.next().value).toMatchObject({ kind: 'path', depth: 1 });
   second.return();
   expect([...runner.iterateEvents({ emitEvents: [] })]).toEqual([]);
-  expect(runner.summary().counts.observations).toEqual({
+  expect(runner.summary().counts.processedObservations).toEqual({
     vertex: 5,
     edge: 6,
     path: 5,
@@ -45,7 +45,7 @@ it('validates and detaches selector patches before activation without changing p
     source: contextFixture().source,
     emitEvents: ['edge'],
   }).createRunner();
-  const original = runner.inspect().iterableConfig;
+  const original = runner.inspect().executionOptions;
   expect(() =>
     runner.iterateEvents({
       emitEvents: [DepthFirstPhase.PRE_ORDER as unknown as Phase],
@@ -57,7 +57,7 @@ it('validates and detaches selector patches before activation without changing p
       iterateOver: [Phase.PATH],
     } as never),
   ).toThrow(TypeError);
-  expect(runner.inspect().iterableConfig).toEqual(original);
+  expect(runner.inspect().executionOptions).toEqual(original);
   const emitEvents = [Phase.VERTEX];
   const iterator = runner.iterateEvents({ emitEvents });
   emitEvents[0] = Phase.EDGE;

@@ -50,11 +50,11 @@ it.each(policies)(
     ]);
     expect(runner.summary()).toMatchObject({
       counts: {
-        foundVertices: 4,
-        omittedVertices: 0,
-        observedLinks: 5,
-        steps: 13,
-        occurrences: paths.length,
+        uniqueFoundVertices: 4,
+        uniqueOmittedVertices: 0,
+        discoveredLinks: 5,
+        candidateReadAttempts: 13,
+        admittedTargets: paths.length,
       },
       outcome:
         revisit === 'simplePaths'
@@ -65,7 +65,7 @@ it.each(policies)(
 );
 
 it.each(policies)(
-  'distinguishes parallel links and replays cached done steps under %s',
+  'distinguishes parallel links and replays cached done read attempts under %s',
   (revisit) => {
     const source = idGraph(
       ['A'],
@@ -77,19 +77,19 @@ it.each(policies)(
     const runner = new GraphWalk({
       source,
       revisit,
-      limits: { maxSteps: 7 },
+      limits: { maxCandidateReadAttempts: 7 },
     }).createRunner();
     const paths = [...runner.iterateEvents({ emitEvents: [Phase.PATH] })];
     expect(
       paths.map((path) => path.vertices.map((v) => v.vertexId).join('')),
     ).toEqual(['A', 'AB', 'AB']);
-    expect(paths.map((path) => path.edges.map((edge) => edge.index))).toEqual([
+    expect(paths.map((path) => path.edges.map((edge) => edge.outgoingIndex))).toEqual([
       [],
       [0],
       [1],
     ]);
     expect(runner.summary()).toMatchObject({
-      counts: { steps: 7, occurrences: 3, foundVertices: 2, observedLinks: 2 },
+      counts: { candidateReadAttempts: 7, admittedTargets: 3, uniqueFoundVertices: 2, discoveredLinks: 2 },
       outcome: { kind: 'exhausted' },
     });
   },
@@ -107,13 +107,13 @@ it.each(policies)(
         ],
       ),
       revisit,
-      limits: { maxSteps: 6 },
+      limits: { maxCandidateReadAttempts: 6 },
     })
       .createRunner()
       .run();
     expect(runner.summary()).toMatchObject({
-      counts: { steps: 6, occurrences: 3, observedLinks: 2 },
-      outcome: { kind: 'limited', reasons: ['maxSteps'] },
+      counts: { candidateReadAttempts: 6, admittedTargets: 3, discoveredLinks: 2 },
+      outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
     });
   },
 );
@@ -139,7 +139,7 @@ it.each(policies)(
       ),
     ).toEqual(['A', 'AB', 'B']);
     expect(runner.summary()).toMatchObject({
-      counts: { steps: 8, occurrences: 3, foundVertices: 2, observedLinks: 1 },
+      counts: { candidateReadAttempts: 8, admittedTargets: 3, uniqueFoundVertices: 2, discoveredLinks: 1 },
       outcome: { kind: 'exhausted' },
     });
   },
@@ -170,7 +170,7 @@ it.each(policies)(
       },
       revisit,
       limits: { maxDepth: 3 },
-      followEdge(edge, context) {
+      shouldFollowEdge(edge, context) {
         if (context.revisit === 'once')
           throw new Error('Missing route context');
         const path = context.path.vertices.map((v) => v.vertexId).join('');
@@ -179,7 +179,7 @@ it.each(policies)(
         followed.push(path + edge.to);
         return path !== 'AB' || edge.to !== 'D';
       },
-      expandVertex(vertex, context) {
+      shouldExpandVertex(vertex, context) {
         if (context.revisit === 'once')
           throw new Error('Missing route context');
         expect(context.depth).toBe(context.path.depth);
@@ -201,10 +201,10 @@ it.each(policies)(
       ),
     ).toHaveLength(2);
     expect(runner.summary().counts).toMatchObject({
-      occurrences: 6,
-      foundVertices: 4,
-      omittedVertices: 1,
-      observedLinks: 6,
+      admittedTargets: 6,
+      uniqueFoundVertices: 4,
+      uniqueOmittedVertices: 1,
+      discoveredLinks: 6,
     });
   },
 );
@@ -233,7 +233,7 @@ it.each(policies)(
       },
       revisit,
       limits: { maxDepth: 4 },
-      expandVertex: (_vertex, context) =>
+      shouldExpandVertex: (_vertex, context) =>
         context.revisit !== 'once' &&
         context.path.vertices.map((v) => v.vertexId).join('') !== 'ABD',
     }).createRunner();
@@ -255,7 +255,7 @@ it.each([0, 1])(
         source: idGraph(['A'], [['A', ['A']]]),
         revisit,
         limits: { maxDepth },
-        followEdge(edge) {
+        shouldFollowEdge(edge) {
           followed.push(edge.to);
           return true;
         },
@@ -298,8 +298,8 @@ it('tests simple path ancestry with SameValueZero and preserves object and symbo
   const runner = new GraphWalk({
     source,
     revisit: 'simplePaths',
-    limits: { maxSteps: 20 },
-    followEdge(edge) {
+    limits: { maxCandidateReadAttempts: 20 },
+    shouldFollowEdge(edge) {
       followed.push(edge.to);
       return true;
     },
@@ -367,8 +367,8 @@ it.each(policies)(
   'makes no source calls with zero global %s limits',
   (revisit) => {
     for (const limits of [
-      { maxSteps: 0 },
-      { maxDepth: 2, maxOccurrences: 0 },
+      { maxCandidateReadAttempts: 0 },
+      { maxDepth: 2, maxAdmittedTargets: 0 },
     ]) {
       const calls: string[] = [];
       const runner = new GraphWalk({
@@ -385,7 +385,7 @@ it.each(policies)(
         .createRunner()
         .run();
       expect(calls).toEqual([]);
-      expect(runner.summary().counts.steps).toBe(0);
+      expect(runner.summary().counts.candidateReadAttempts).toBe(0);
     }
   },
 );
@@ -411,15 +411,15 @@ it.each(policies)(
         },
       },
       revisit,
-      limits: { maxSteps: 4 },
-      followEdge: () => false,
+      limits: { maxCandidateReadAttempts: 4 },
+      shouldFollowEdge: () => false,
     })
       .createRunner()
       .run();
     expect(calls).toEqual(['B', 'C', 'closed']);
     expect(runner.summary()).toMatchObject({
-      counts: { steps: 4, occurrences: 1, foundVertices: 1, observedLinks: 2 },
-      outcome: { kind: 'limited', reasons: ['maxSteps'] },
+      counts: { candidateReadAttempts: 4, admittedTargets: 1, uniqueFoundVertices: 1, discoveredLinks: 2 },
+      outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
     });
     expect(runner.inspect().openSourceIteratorCount).toBe(0);
   },
@@ -438,14 +438,14 @@ it.each(policies)(
       },
       strategy: 'depthFirst',
       revisit,
-      limits: { maxSteps: 12000 },
+      limits: { maxCandidateReadAttempts: 12000 },
       emitEvents: [],
     })
       .createRunner()
       .run();
     expect(runner.summary()).toMatchObject({
-      counts: { steps: 12000, occurrences: 12000 },
-      outcome: { kind: 'limited', reasons: ['maxSteps'] },
+      counts: { candidateReadAttempts: 12000, admittedTargets: 12000 },
+      outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
     });
   },
 );
@@ -462,7 +462,7 @@ it.each(policies)(
       kind: 'exhausted',
     });
     factory.configure({ limits: { maxDepth: 1 } }).configure({ revisit });
-    expect(() => factory.configure({ limits: { maxOccurrences: 5 } })).toThrow(
+    expect(() => factory.configure({ limits: { maxAdmittedTargets: 5 } })).toThrow(
       TypeError,
     );
     const runner = factory.createRunner();
@@ -477,7 +477,7 @@ it('materializes a deep pending path iteratively after an emission selector chan
     source: idGraph(['A'], [['A', ['A']]]),
     strategy: 'depthFirst',
     revisit: 'walks',
-    limits: { maxSteps: 12000 },
+    limits: { maxCandidateReadAttempts: 12000 },
   }).createRunner();
   const vertices = runner.iterateEvents({ emitEvents: [Phase.VERTEX] });
   for (let i = 0; i < 12000; i++) expect(vertices.next().done).toBe(false);
@@ -490,14 +490,14 @@ it('materializes a deep pending path iteratively after an emission selector chan
   expect(paths[0]!.edges[11998]).toEqual({
     from: 'A',
     to: 'A',
-    index: 0,
+    outgoingIndex: 0,
     data: undefined,
   });
   expect(runner.summary().counts).toMatchObject({
-    steps: 12000,
-    occurrences: 12000,
-    foundVertices: 1,
-    observedLinks: 1,
+    candidateReadAttempts: 12000,
+    admittedTargets: 12000,
+    uniqueFoundVertices: 1,
+    discoveredLinks: 1,
   });
 });
 
@@ -539,7 +539,7 @@ it.each(policies)(
       },
       revisit,
       limits: { maxDepth: 4 },
-      followEdge(_edge, context) {
+      shouldFollowEdge(_edge, context) {
         if (context.revisit === 'once') throw new Error('Expected route');
         const path = context.path.vertices.map((v) => v.vertexId).join('');
         // Mutating a projected wrapper cannot change ancestry or future contexts.
@@ -565,10 +565,10 @@ it.each(policies)(
       'open:E',
     ]);
     expect(runner.summary().counts).toMatchObject({
-      occurrences: 6,
-      foundVertices: 5,
-      observedLinks: 5,
-      steps: 14,
+      admittedTargets: 6,
+      uniqueFoundVertices: 5,
+      discoveredLinks: 5,
+      candidateReadAttempts: 14,
     });
   },
 );
@@ -585,8 +585,8 @@ it.each([-0, 0])(
         outgoing: () => [{ target: { vertexId: -vertexId }, data: undefined }],
       },
       revisit: 'simplePaths',
-      limits: { maxSteps: 10 },
-      followEdge(edge) {
+      limits: { maxCandidateReadAttempts: 10 },
+      shouldFollowEdge(edge) {
         calls.push(edge.to);
         return true;
       },
@@ -595,7 +595,7 @@ it.each([-0, 0])(
       .run();
     expect(calls).toEqual([]);
     expect(runner.summary()).toMatchObject({
-      counts: { occurrences: 1, observedLinks: 1 },
+      counts: { admittedTargets: 1, discoveredLinks: 1 },
       outcome: { kind: 'exhausted' },
     });
   },

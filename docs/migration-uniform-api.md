@@ -44,7 +44,7 @@ The shared execution interfaces add a defaulted inspection parameter, preserving
 
 ## Configuration and diagnostic follow-up
 
-Walking predicates `followEdge` and `expandVertex` now accept `null` to restore the absent predicate, initially or in `configure()`. Omitted/undefined patches retain an existing predicate. Limits still replace; visitor/phase records still patch field-wise. These optional predicates and DAG optional source placeholders explicitly accept `undefined` under `exactOptionalPropertyTypes`.
+Walking predicates `shouldFollowEdge` and `shouldExpandVertex` now accept `null` to restore the absent predicate, initially or in `configure()`. Omitted/undefined patches retain an existing predicate. Limits still replace; visitor/phase records still patch field-wise. These optional predicates and DAG optional source placeholders explicitly accept `undefined` under `exactOptionalPropertyTypes`.
 
 DAG configure source checks now match construction: ignore inherited keys and own undefined keys, replace an own defined same-family source, and reject an own defined opposite-family source atomically. This relaxes a configure guard present in published 0.11.0, fixing placeholder/inheritance handling. Exactly one own defined source remains required at construction; typed-ID tree restrictions remain. Builders affect future runners only. See the [configuration table](reference.md#configuration-patches).
 
@@ -321,3 +321,12 @@ Use `runner.iterateEvents()` for event iteration and `TraversalVisitorCommandNam
 `TraversalExecutionOptions<VisitorPhase, EmittedKind = VisitorPhase>` separates callback eligibility from emitted observations. DAG emission accepts `emitEvents: ['workCompleted', 'subgraphCompleted']`; DAG visitors use `DagVisitorPhase.ON_WORK_READY` and `ON_SUBGRAPH_READY`. Tree enums are `DepthFirstPhase` and `BreadthFirstPhase`. Walking emission accepts literal `'vertex'`, `'edge'` and `'path'` strings and narrows event unions. Deprecated `iterateOver` still translates family callback phases internally; use the canonical selectors for new code. `emitPhases` is removed and rejects at runtime.
 
 Callbacks receive `phase`, `visitorIndex`, `visitorChainState`, `registration`, `phaseVisitIndex`, and `previousPhaseVertexRef` where applicable. Tree event records expose `phase`; committed DAG records expose `kind` without callback phase metadata. Shared sync/async context types are `TreeVisitorContext`, `DagVisitorContext`, `TreeChildResolutionContext`, and `DagChildResolutionContext`.
+
+
+### Walking predicates, budgets, and coordinates
+
+Walking options use `shouldFollowEdge` / `shouldExpandVertex`, typed as `GraphWalkEdgePredicate` / `GraphWalkExpansionPredicate` (and `Async` counterparts). The previous predicate option and type names are removed.
+
+Walking limits now use `maxCandidateReadAttempts` and `maxAdmittedTargets`; limited outcomes use the same reason literals. Route enumeration requires `maxDepth` or `maxCandidateReadAttempts`. Summary counts are `candidateReadAttempts`, `admittedTargets`, `uniqueFoundVertices`, `uniqueOmittedVertices`, `discoveredLinks`, and the per-phase record `processedObservations`. Charging is unchanged: attempted reads include exhaustion and cached replay, admissions include omitted and returning targets, and fresh links count before filtering. Observation acknowledgements count independently of delivery/callback filters.
+
+Visitor context uses `admissionIndex` and `phaseObservationIndex`. Walking edges use `outgoingIndex`, including cached replay; their `from`/`to` direction is unchanged. DAG child relation data still uses its separate original `slotIndex`. Walking inspection exposes `executionOptions` and `activeVisitor.visitorIndex`.

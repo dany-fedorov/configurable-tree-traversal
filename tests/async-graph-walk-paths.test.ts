@@ -33,9 +33,9 @@ it.each(policies)(
       },
       revisit,
       limits: { maxDepth: 3 },
-      followEdge: async (_edge, context) =>
+      shouldFollowEdge: async (_edge, context) =>
         context.revisit === revisit && context.path.depth < 3,
-      expandVertex: async (_vertex, context) =>
+      shouldExpandVertex: async (_vertex, context) =>
         context.revisit === revisit && context.path.depth >= 0,
     }).createRunner();
     const paths: string[] = [];
@@ -57,9 +57,9 @@ it.each(policies)(
       'open:D',
     ]);
     expect(runner.summary().counts).toMatchObject({
-      foundVertices: 4,
-      observedLinks: 5,
-      steps: 13,
+      uniqueFoundVertices: 4,
+      discoveredLinks: 5,
+      candidateReadAttempts: 13,
     });
   },
 );
@@ -148,8 +148,8 @@ it.each(policies)(
       'D>E',
     ]);
     expect(runner.summary().counts).toMatchObject({
-      foundVertices: 4,
-      observedLinks: 4,
+      uniqueFoundVertices: 4,
+      discoveredLinks: 4,
     });
     expect(runner.inspect().openSourceIteratorCount).toBe(0);
   },
@@ -215,7 +215,7 @@ it.each(policies)(
       'open:F',
     ]);
     expect(runner.summary()).toMatchObject({
-      counts: { foundVertices: 6, observedLinks: 6, occurrences: 9, steps: 19 },
+      counts: { uniqueFoundVertices: 6, discoveredLinks: 6, admittedTargets: 9, candidateReadAttempts: 19 },
       outcome: { kind: 'exhausted' },
     });
   },
@@ -247,7 +247,7 @@ it('closes each physical async iterator once after cached replay hits its step l
     },
     strategy: 'depthFirst',
     revisit: 'walks',
-    limits: { maxSteps: 3 },
+    limits: { maxCandidateReadAttempts: 3 },
   }).createRunner();
   const iterator = runner.iterateEvents({ emitEvents: [Phase.PATH] });
   const paths: string[] = [];
@@ -264,8 +264,8 @@ it('closes each physical async iterator once after cached replay hits its step l
   expect(trace).toEqual(['pull:A', 'close:A', 'close:roots']);
   expect(runner.inspect().openSourceIteratorCount).toBe(0);
   expect(runner.summary()).toMatchObject({
-    counts: { steps: 3, occurrences: 3, foundVertices: 1, observedLinks: 1 },
-    outcome: { kind: 'limited', reasons: ['maxSteps'] },
+    counts: { candidateReadAttempts: 3, admittedTargets: 3, uniqueFoundVertices: 1, discoveredLinks: 1 },
+    outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
   });
 });
 
@@ -281,11 +281,11 @@ it.each(policies)(
       kind: 'exhausted',
     });
     factory.configure({ limits: { maxDepth: 1 } }).configure({ revisit });
-    expect(() => factory.configure({ limits: { maxOccurrences: 5 } })).toThrow(
+    expect(() => factory.configure({ limits: { maxAdmittedTargets: 5 } })).toThrow(
       TypeError,
     );
     const runner = await factory.createRunner().run();
-    expect(runner.summary().counts.occurrences).toBe(
+    expect(runner.summary().counts.admittedTargets).toBe(
       revisit === 'walks' ? 2 : 1,
     );
   },
@@ -322,7 +322,7 @@ it.each(policies)(
           },
         },
         revisit,
-        limits: { maxDepth: 4, maxOccurrences: 3 },
+        limits: { maxDepth: 4, maxAdmittedTargets: 3 },
       }).createRunner();
       for await (const event of runner.iterateEvents({ emitEvents }))
         expect(emitEvents).toContain(event.kind);
@@ -332,12 +332,12 @@ it.each(policies)(
     expect(results[0]).toMatchObject({
       summary: {
         counts: {
-          steps: 4,
-          occurrences: 3,
-          foundVertices: 2,
-          observedLinks: 2,
+          candidateReadAttempts: 4,
+          admittedTargets: 3,
+          uniqueFoundVertices: 2,
+          discoveredLinks: 2,
         },
-        outcome: { kind: 'limited', reasons: ['maxOccurrences'] },
+        outcome: { kind: 'limited', reasons: ['maxAdmittedTargets'] },
       },
       calls: ['resolve:A', 'open:A', 'resolve:B'],
     });
@@ -348,8 +348,8 @@ it.each(policies)(
   'performs no async source I/O at zero %s global bounds',
   async (revisit) => {
     for (const limits of [
-      { maxSteps: 0 },
-      { maxDepth: 2, maxOccurrences: 0 },
+      { maxCandidateReadAttempts: 0 },
+      { maxDepth: 2, maxAdmittedTargets: 0 },
     ]) {
       const calls: string[] = [];
       const runner = await new AsyncGraphWalk({
@@ -367,8 +367,8 @@ it.each(policies)(
         .run();
       expect(calls).toEqual([]);
       expect(runner.summary().counts).toMatchObject({
-        steps: 0,
-        occurrences: 0,
+        candidateReadAttempts: 0,
+        admittedTargets: 0,
       });
     }
   },
@@ -396,15 +396,15 @@ it.each(policies)(
         },
       },
       revisit,
-      limits: { maxSteps: 4 },
-      followEdge: async () => false,
+      limits: { maxCandidateReadAttempts: 4 },
+      shouldFollowEdge: async () => false,
     })
       .createRunner()
       .run();
     expect(calls).toEqual(['B', 'C', 'closed']);
     expect(runner.summary()).toMatchObject({
-      counts: { steps: 4, occurrences: 1, foundVertices: 1, observedLinks: 2 },
-      outcome: { kind: 'limited', reasons: ['maxSteps'] },
+      counts: { candidateReadAttempts: 4, admittedTargets: 1, uniqueFoundVertices: 1, discoveredLinks: 2 },
+      outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
     });
     expect(runner.inspect().openSourceIteratorCount).toBe(0);
   },

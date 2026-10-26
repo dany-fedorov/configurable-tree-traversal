@@ -29,8 +29,8 @@ const source: GraphWalkSource<string, number, undefined> = {
 const asyncSource: AsyncGraphWalkSource<string, number, undefined> = source;
 const asyncOptions: AsyncGraphWalkOptions<string, number, undefined> = {
   source: asyncSource,
-  followEdge: async () => true,
-  expandVertex: async () => false,
+  shouldFollowEdge: async () => true,
+  shouldExpandVertex: async () => false,
   visitors: {
     [Phase.EDGE]: async (event) => {
       const id: undefined = event.edge.to;
@@ -56,9 +56,9 @@ const syncOptions: GraphWalkOptions<string, number, undefined> = {
       void vertices;
     },
   },
-  expandVertex: (_vertex, context) =>
+  shouldExpandVertex: (_vertex, context) =>
     context.revisit === 'once' || context.path.depth >= 0,
-  followEdge: (_edge, context) => {
+  shouldFollowEdge: (_edge, context) => {
     const data: string = context.source.data;
     void data;
     return true;
@@ -102,7 +102,7 @@ const command: GraphWalkVisitorResult = {
     { commandName: Command.NOOP },
   ],
 };
-// @ts-expect-error Route enumeration requires maxDepth or maxSteps.
+// @ts-expect-error Route enumeration requires maxDepth or maxCandidateReadAttempts.
 const unbounded: GraphWalkOptions<string, number, undefined> = {
   source,
   revisit: 'walks',
@@ -111,7 +111,7 @@ const unbounded: GraphWalkOptions<string, number, undefined> = {
 const occurrenceBound: GraphWalkOptions<string, number, undefined> = {
   source,
   revisit: 'simplePaths',
-  limits: { maxOccurrences: 4 },
+  limits: { maxAdmittedTargets: 4 },
 };
 const promiseRoots: GraphWalkSource<string, number, undefined> = {
   ...source,
@@ -133,7 +133,7 @@ const promiseOutgoing: GraphWalkSource<string, number, undefined> = {
 const promisePredicate: GraphWalkOptions<string, number, undefined> = {
   source,
   // @ts-expect-error Sync predicates cannot return promises.
-  followEdge: async () => true,
+  shouldFollowEdge: async () => true,
 };
 const promiseVisitor: GraphWalkOptions<string, number, undefined> = {
   source,
@@ -276,9 +276,9 @@ const unsafePaths: Generator<
   unknown
 > = mixedEvents;
 const promisedCounts: {
-  foundVertices: number;
-  omittedVertices: number;
-  observedLinks: number;
+  uniqueFoundVertices: number;
+  uniqueOmittedVertices: number;
+  discoveredLinks: number;
 } = runner.summary().counts;
 // @ts-expect-error Interim short counter names are not public.
 runner.summary().counts.found;
@@ -428,8 +428,8 @@ void [
 new GraphWalk({
   source,
   revisit: 'walks',
-  limits: { maxSteps: 10 },
-  followEdge(edge, context) {
+  limits: { maxCandidateReadAttempts: 10 },
+  shouldFollowEdge(edge, context) {
     if (context.revisit === 'once') {
       // @ts-expect-error Once predicates do not expose alternative route context.
       void context.path;
@@ -449,7 +449,7 @@ new AsyncGraphWalk({
   source: asyncSource,
   revisit: 'simplePaths',
   limits: { maxDepth: 2 },
-  async expandVertex(vertex, context) {
+  async shouldExpandVertex(vertex, context) {
     if (context.revisit !== 'once') {
       const path: GraphWalkEventFor<string, number, Phase.PATH, undefined> =
         context.path;
@@ -463,17 +463,17 @@ new AsyncGraphWalk({
 // Null explicitly clears optional predicates in both initial options and patches.
 const nullSyncOptions: GraphWalkOptions<string, number, undefined> = {
   source,
-  followEdge: null,
-  expandVertex: null,
+  shouldFollowEdge: null,
+  shouldExpandVertex: null,
 };
 const nullAsyncOptions: AsyncGraphWalkOptions<string, number, undefined> = {
   source: asyncSource,
-  followEdge: null,
-  expandVertex: null,
+  shouldFollowEdge: null,
+  shouldExpandVertex: null,
 };
 const nullPatch: GraphWalkConfigureInput<string, number, undefined> = {
-  followEdge: null,
-  expandVertex: null,
+  shouldFollowEdge: null,
+  shouldExpandVertex: null,
 };
 const nullAsyncPatch: AsyncGraphWalkConfigureInput<string, number, undefined> =
   nullPatch;
@@ -481,9 +481,9 @@ new GraphWalk(nullSyncOptions).configure(nullPatch);
 new AsyncGraphWalk(nullAsyncOptions).configure(nullAsyncPatch);
 const invalidPredicates: GraphWalkConfigureInput<string, number, undefined> = {
   // @ts-expect-error Predicates accept callbacks or null, never booleans.
-  followEdge: false,
+  shouldFollowEdge: false,
   // @ts-expect-error Predicates accept callbacks or null, never numbers.
-  expandVertex: 0,
+  shouldExpandVertex: 0,
 };
 const invalidAsyncPredicates: AsyncGraphWalkConfigureInput<
   string,
@@ -491,25 +491,98 @@ const invalidAsyncPredicates: AsyncGraphWalkConfigureInput<
   undefined
 > = {
   // @ts-expect-error Async predicates accept callbacks or null, never booleans.
-  followEdge: false,
+  shouldFollowEdge: false,
   // @ts-expect-error Async predicates accept callbacks or null, never numbers.
-  expandVertex: 0,
+  shouldExpandVertex: 0,
 };
 void [invalidPredicates, invalidAsyncPredicates];
 
 new GraphWalk({
   source,
-  followEdge: undefined,
-  expandVertex: undefined,
+  shouldFollowEdge: undefined,
+  shouldExpandVertex: undefined,
 }).configure({
-  followEdge: undefined,
-  expandVertex: undefined,
+  shouldFollowEdge: undefined,
+  shouldExpandVertex: undefined,
 });
 new AsyncGraphWalk({
   source: asyncSource,
-  followEdge: undefined,
-  expandVertex: undefined,
+  shouldFollowEdge: undefined,
+  shouldExpandVertex: undefined,
 }).configure({
-  followEdge: undefined,
-  expandVertex: undefined,
+  shouldFollowEdge: undefined,
+  shouldExpandVertex: undefined,
 });
+
+const edgePredicate: import('../src').GraphWalkEdgePredicate<
+  string,
+  number,
+  undefined
+> = () => true;
+const expansionPredicate: import('../src').GraphWalkExpansionPredicate<
+  string,
+  number,
+  undefined
+> = () => true;
+const asyncEdgePredicate: import('../src').AsyncGraphWalkEdgePredicate<
+  string,
+  number,
+  undefined
+> = async () => true;
+const asyncExpansionPredicate: import('../src').AsyncGraphWalkExpansionPredicate<
+  string,
+  number,
+  undefined
+> = async () => true;
+void [
+  edgePredicate,
+  expansionPredicate,
+  asyncEdgePredicate,
+  asyncExpansionPredicate,
+];
+// @ts-expect-error Previous predicate type names are removed.
+type RemovedEdgePredicate = import('../src').GraphWalkFollowEdge<
+  string,
+  number,
+  undefined
+>;
+// @ts-expect-error Previous expansion type names are removed.
+type RemovedExpansionPredicate = import('../src').GraphWalkExpandVertex<
+  string,
+  number,
+  undefined
+>;
+// @ts-expect-error Previous predicate options are removed.
+new GraphWalk({ source, followEdge: () => true });
+// @ts-expect-error Previous read budget is removed, including in bounded revisit mode.
+new GraphWalk({ source, revisit: 'walks', limits: { maxSteps: 1 } });
+// @ts-expect-error Previous admission budget is removed.
+new GraphWalk({ source, limits: { maxOccurrences: 1 } });
+const canonicalCounts: {
+  candidateReadAttempts: number;
+  admittedTargets: number;
+  processedObservations: Readonly<Record<Phase, number>>;
+} = runner.summary().counts;
+// @ts-expect-error Previous count fields are removed.
+runner.summary().counts.steps;
+// @ts-expect-error Previous inspection field is removed.
+runner.inspect().iterableConfig;
+// @ts-expect-error Previous visitor coordinate is removed.
+runner.inspect().activeVisitor?.position;
+registered.addVisitorFor(Phase.EDGE, (event, context) => {
+  const coordinates: readonly number[] = [
+    context.admissionIndex,
+    context.phaseObservationIndex,
+    event.edge.outgoingIndex,
+  ];
+  // @ts-expect-error Previous admission coordinate is removed.
+  context.occurrenceIndex;
+  // @ts-expect-error Previous phase observation coordinate is removed.
+  context.observationIndex;
+  // @ts-expect-error Previous edge coordinate is removed.
+  event.edge.index;
+  void coordinates;
+});
+void (null as unknown as RemovedEdgePredicate);
+void (null as unknown as RemovedExpansionPredicate);
+void canonicalCounts;

@@ -62,7 +62,7 @@ it('does not expand after delivery and rejects owners without changing their sel
   const calls: string[] = [];
   const runner = new AsyncGraphWalk({
     source: idGraph(['A'], [['A', []]]),
-    expandVertex: async () => {
+    shouldExpandVertex: async () => {
       calls.push('expand');
       return true;
     },
@@ -77,7 +77,7 @@ it('does not expand after delivery and rejects owners without changing their sel
   await expect(runner.iterateEvents({ emitEvents: [] }).next()).rejects.toThrow(
     'execution owner',
   );
-  expect(runner.inspect().iterableConfig.emitEvents).toEqual([Phase.VERTEX]);
+  expect(runner.inspect().executionOptions.emitEvents).toEqual([Phase.VERTEX]);
   await owner.return(undefined);
   expect(calls).toEqual([]);
   expect(await runner.run()).toBe(runner);
@@ -109,7 +109,7 @@ it('return drains a serial visitor chain while preserving its undelivered observ
   await closing;
   expect(trace).toEqual(['first', 'settled', 'second']);
   expect(runner.isHalted()).toBe(true);
-  expect(runner.summary().counts.observations.vertex).toBe(0);
+  expect(runner.summary().counts.processedObservations.vertex).toBe(0);
   const resumed = runner.iterateEvents({ visitorPhases: { include: [] } });
   expect((await resumed.next()).value).toMatchObject({ kind: 'vertex' });
   await resumed.return(undefined);
@@ -179,8 +179,8 @@ it.each([
     const runner = new AsyncGraphWalk({
       source,
       emitEvents: [],
-      followEdge: () => step('followEdge', true),
-      expandVertex: () => step('expandVertex', true),
+      shouldFollowEdge: () => step('followEdge', true),
+      shouldExpandVertex: () => step('expandVertex', true),
     }).createRunner();
     const iterator = runner.iterateEvents();
     const pending = iterator.next();
@@ -195,8 +195,8 @@ it.each([
     expect(runner.isHalted()).toBe(true);
     await runner.run();
     expect(runner.summary().counts).toMatchObject({
-      foundVertices: 2,
-      observedLinks: 1,
+      uniqueFoundVertices: 2,
+      discoveredLinks: 1,
     });
     expect(calls.filter((call) => call === 'resolve:A')).toHaveLength(1);
     expect(calls.filter((call) => call === 'resolve:B')).toHaveLength(1);
@@ -351,7 +351,7 @@ it('acknowledges pause between deliveries without new demand or expansion', asyn
   expect(runner.requestPause()).toBe(true);
   await iterator.return(undefined);
   expect(runner.getStopReason()).toBe('paused');
-  expect(runner.summary().counts.observations).toEqual({
+  expect(runner.summary().counts.processedObservations).toEqual({
     vertex: 1,
     edge: 0,
     path: 0,
@@ -441,7 +441,7 @@ it('invalid selectors fail before acquisition and immediate return admits no sou
   await iterator.return(undefined);
   expect(await pending).toEqual({ done: true, value: undefined });
   expect(runner.isHalted()).toBe(true);
-  expect(runner.summary().counts.steps).toBe(0);
+  expect(runner.summary().counts.candidateReadAttempts).toBe(0);
 });
 
 it('completion records cannot corrupt later iterator completion', async () => {

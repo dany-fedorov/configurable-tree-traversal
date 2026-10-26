@@ -59,7 +59,7 @@ const runner = new GraphWalk({ source })
   .addVisitorFor(GraphWalkPhase.EDGE, ({ edge, target }) => {
     assert.equal(target.kind, 'found');
     relationships.push(
-      `${edge.from}:${edge.index}:${edge.data.kind}:${edge.to}`,
+      `${edge.from}:${edge.outgoingIndex}:${edge.data.kind}:${edge.to}`,
     );
   })
   .createRunner();

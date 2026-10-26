@@ -34,8 +34,8 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
         },
       },
       emitEvents: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
-      expandVertex: async () => true,
-      followEdge: async () => true,
+      shouldExpandVertex: async () => true,
+      shouldFollowEdge: async () => true,
     }).createRunner();
     const expected = new GraphWalk({
       source: sync.source,
@@ -48,9 +48,9 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
     expect(runner.summary()).toEqual(expected.summary());
     expect(fixture.calls).toEqual(sync.calls);
     expect(runner.summary().counts).toMatchObject({
-      foundVertices: 5,
-      observedLinks: 6,
-      occurrences: 8,
+      uniqueFoundVertices: 5,
+      discoveredLinks: 6,
+      admittedTargets: 8,
     });
     expect(runner).toBeInstanceOf(AsyncGraphWalkRunner);
     expect(runner.getStatus()).toBe(Status.FINISHED);
@@ -148,7 +148,7 @@ it('registration and configure changes snapshot async callbacks and detach liste
   const calls: string[] = [];
   const walk = new AsyncGraphWalk({
     source: contextFixture().source,
-    limits: { maxOccurrences: 1 },
+    limits: { maxAdmittedTargets: 1 },
   });
   const visit = async () => {
     calls.push('old');
@@ -181,8 +181,8 @@ it('registration and configure changes snapshot async callbacks and detach liste
   expect(() => walk.configure({ revisit: 'walks' })).toThrow(TypeError);
   walk.configure({ limits: { maxDepth: 1 }, revisit: 'walks' });
   const bounded = await walk.createRunner().run();
-  // Replacing maxOccurrences admits A, E, AB, AB and AC at depth one.
-  expect(bounded.summary().counts.occurrences).toBe(5);
+  // Replacing maxAdmittedTargets admits A, E, AB, AB and AC at depth one.
+  expect(bounded.summary().counts.admittedTargets).toBe(5);
   expect(calls.slice(3)).toEqual(
     Array.from({ length: 5 }, () => ['group:first', 'group:second']).flat(),
   );
@@ -200,7 +200,7 @@ it('accepts resolved thenables from async sources, predicates and visitors', asy
       resolveVertex: () => thenable({ kind: 'found' as const, data: 'A' }),
       outgoing: () => thenable([]),
     },
-    expandVertex: () => thenable(true),
+    shouldExpandVertex: () => thenable(true),
     visitors: {
       vertex: (event) => {
         seen.push(event.vertex.data);
@@ -272,7 +272,7 @@ it.each([
     };
     const runner = new AsyncGraphWalk({
       source,
-      expandVertex: () =>
+      shouldExpandVertex: () =>
         stage === 'predicate' ? Promise.reject(error) : true,
     }).createRunner();
     await expect(runner.run()).rejects.toBe(error);
@@ -320,7 +320,7 @@ it.each([1, { then: () => undefined }])(
     } as unknown as AsyncGraphWalkSource<string, undefined, string>;
     const runner = new AsyncGraphWalk({ source }).createRunner();
     await expect(runner.run()).rejects.toBeInstanceOf(TypeError);
-    expect(runner.summary().counts.occurrences).toBe(0);
+    expect(runner.summary().counts.admittedTargets).toBe(0);
   },
 );
 

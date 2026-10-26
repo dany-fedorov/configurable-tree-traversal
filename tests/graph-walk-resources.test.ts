@@ -184,7 +184,7 @@ it.each([null, undefined, false, 0, { reason: 'cleanup' }])(
       const runner = new factory({
         source,
         strategy: 'depthFirst',
-        limits: { maxOccurrences: 2 },
+        limits: { maxAdmittedTargets: 2 },
       }).createRunner();
       let caught = false;
       try {
@@ -240,7 +240,7 @@ it('releases nested DFS iterators in reverse order on a global bound without ope
   const runner = new GraphWalk({
     source,
     strategy: 'depthFirst',
-    limits: { maxSteps: 3 },
+    limits: { maxCandidateReadAttempts: 3 },
   })
     .createRunner()
     .run();
@@ -248,7 +248,7 @@ it('releases nested DFS iterators in reverse order on a global bound without ope
   expect(returns).toEqual(['edges:B', 'edges:A', 'roots']);
   expect(runner.summary().outcome).toEqual({
     kind: 'limited',
-    reasons: ['maxSteps'],
+    reasons: ['maxCandidateReadAttempts'],
   });
   expect(Object.isFrozen(runner.summary().outcome)).toBe(true);
   const outcome = runner.summary().outcome;
@@ -322,7 +322,7 @@ it('close on INITIAL performs no source work and remains terminal', async () => 
     expect(runner.summary()).toMatchObject({
       status: Status.FINISHED,
       outcome: { kind: 'closed' },
-      counts: { steps: 0, occurrences: 0 },
+      counts: { candidateReadAttempts: 0, admittedTargets: 0 },
     });
   }
 });
@@ -332,7 +332,7 @@ it('attempts cleanup after a throwing return getter and tolerates missing return
   const returns: string[] = [];
   const runner = new GraphWalk({
     strategy: 'depthFirst',
-    limits: { maxOccurrences: 2 },
+    limits: { maxAdmittedTargets: 2 },
     source: {
       roots: () =>
         manual('roots', returns, () => ({
@@ -364,7 +364,7 @@ it('attempts cleanup after a throwing return getter and tolerates missing return
   expect(returns).toEqual(['roots']);
   expect(runner.summary().outcome).toEqual({ kind: 'failed', error: cleanup });
   const withoutReturn = new GraphWalk({
-    limits: { maxOccurrences: 1 },
+    limits: { maxAdmittedTargets: 1 },
     source: {
       roots: () => ({
         [Symbol.iterator]() {
@@ -383,7 +383,7 @@ it('attempts cleanup after a throwing return getter and tolerates missing return
     .run();
   expect(withoutReturn.summary().outcome).toEqual({
     kind: 'limited',
-    reasons: ['maxOccurrences'],
+    reasons: ['maxAdmittedTargets'],
   });
 });
 

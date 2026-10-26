@@ -46,7 +46,7 @@ it('captures passive frozen detached mechanical state while a visitor is pending
     frontierSize: 0,
     openSourceIteratorCount: 1,
     pendingObservationKinds: [Phase.VERTEX, Phase.PATH],
-    activeVisitor: { phase: Phase.VERTEX, position: 0 },
+    activeVisitor: { phase: Phase.VERTEX, visitorIndex: 0 },
     pendingRequests: [{ operation: 'visitor' }],
   });
   const token = snapshot.pendingRequests[0]!.vertexToken;
@@ -63,7 +63,7 @@ it('captures passive frozen detached mechanical state while a visitor is pending
     }
   }
   check(snapshot);
-  expect(() => Object.assign(snapshot.counts, { steps: 900 })).toThrow();
+  expect(() => Object.assign(snapshot.counts, { candidateReadAttempts: 900 })).toThrow();
   expect(runner.inspect()).toEqual(snapshot);
   expect(runner.inspect()).not.toBe(snapshot);
   expect(calls).toBe(0);
@@ -105,7 +105,7 @@ it('freezes owned summary records without freezing arbitrary failure objects', (
   const summary = runner.summary();
   expect(Object.isFrozen(summary)).toBe(true);
   expect(Object.isFrozen(summary.counts)).toBe(true);
-  expect(Object.isFrozen(summary.counts.observations)).toBe(true);
+  expect(Object.isFrozen(summary.counts.processedObservations)).toBe(true);
   expect(Object.isFrozen(summary.outcome)).toBe(true);
   expect(Object.isFrozen(error)).toBe(false);
   expect(runner.summary()).not.toBe(summary);
@@ -128,7 +128,7 @@ it('uses consistent private tokens across source, predicate, observation, and cl
   }
   const runner = new GraphWalk({
     strategy: 'depthFirst',
-    limits: { maxOccurrences: 2 },
+    limits: { maxAdmittedTargets: 2 },
     source: {
       roots: () => [{ vertexId: id }],
       resolveVertex: () => {
@@ -156,11 +156,11 @@ it('uses consistent private tokens across source, predicate, observation, and cl
         };
       },
     },
-    followEdge: () => {
+    shouldFollowEdge: () => {
       snapshot();
       return true;
     },
-    expandVertex: () => {
+    shouldExpandVertex: () => {
       snapshot();
       return true;
     },

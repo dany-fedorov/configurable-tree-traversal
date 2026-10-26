@@ -3,7 +3,8 @@ import type { GraphWalkPhase } from './GraphWalkPhase';
 
 export type GraphWalkEdge<Edge, ID> = Readonly<{
   from: ID;
-  index: number;
+  /** Zero-based source adjacency position before filtering; stable on cached replay. */
+  outgoingIndex: number;
   to: ID;
   data: Edge;
 }>;

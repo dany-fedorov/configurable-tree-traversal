@@ -38,7 +38,7 @@ it('runs canonical phase-keyed visitors and returns independent sync runners', (
   expect(runner).toBeInstanceOf(GraphWalkRunner);
   expect(runner.getStatus()).toBe(Status.FINISHED);
   expect(seen).toEqual(['v:A', 'e:B', 'v:B']);
-  expect(runner.summary().counts.foundVertices).toBe(2);
+  expect(runner.summary().counts.uniqueFoundVertices).toBe(2);
   expect(walkGraph({ source })).not.toBe(runner);
   expect(familyWalk).toBe(walkGraph);
   expect(graphWalk.walkGraph).toBe(walkGraph);

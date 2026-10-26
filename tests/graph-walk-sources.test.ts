@@ -41,7 +41,7 @@ it('captures catalog topology eagerly while retaining shallow caller data', () =
       ...factory.createRunner().iterateEvents({ emitEvents: [Phase.EDGE] }),
     ];
     expect(
-      events.map((event) => [event.edge.from, event.edge.to, event.edge.index]),
+      events.map((event) => [event.edge.from, event.edge.to, event.edge.outgoingIndex]),
     ).toEqual([
       ['A', 'B', 0],
       ['A', 'B', 1],
@@ -361,6 +361,7 @@ it('projects selected DAG relations in canonical order with parallel slots and d
     ['a', 'a', { kind: 'subgraphCompletionDependency' }, 'found'],
     ['a', 'skip', { kind: 'subgraphCompletionDependency' }, 'omitted'],
   ]);
+  expect(edges.map((event) => event.edge.outgoingIndex)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 });
 
 it.each(['workDependencies', 'subgraphCompletionDependencies'] as const)(
@@ -495,7 +496,7 @@ it('preserves forest root slots, arbitrary identities and known omitted roots', 
       (event) => event.vertex.vertexId,
     ),
   ).toEqual(ids);
-  expect(runner.summary().counts.omittedVertices).toBe(1);
+  expect(runner.summary().counts.uniqueOmittedVertices).toBe(1);
   expect(source.resolveVertex!('skip')).toEqual({ kind: 'omitted' });
   expect([...source.outgoing({ vertexId: 'skip', data: null })]).toEqual([]);
 });

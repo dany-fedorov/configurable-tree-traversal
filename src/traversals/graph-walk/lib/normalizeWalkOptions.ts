@@ -12,10 +12,10 @@ import type {
   GraphWalkStrategy,
   GraphWalkRevisitPolicy,
   GraphWalkLimits,
-  GraphWalkFollowEdge,
-  AsyncGraphWalkFollowEdge,
-  GraphWalkExpandVertex,
-  AsyncGraphWalkExpandVertex,
+  GraphWalkEdgePredicate,
+  AsyncGraphWalkEdgePredicate,
+  GraphWalkExpansionPredicate,
+  AsyncGraphWalkExpansionPredicate,
 } from '../GraphWalkOptions';
 import type {
   GraphWalkVisitor,
@@ -46,13 +46,13 @@ export type NormalizedWalkOptions<Data, Edge, ID> = {
   strategy: GraphWalkStrategy;
   revisit: GraphWalkRevisitPolicy;
   limits: GraphWalkLimits;
-  followEdge:
-    | GraphWalkFollowEdge<Data, Edge, ID>
-    | AsyncGraphWalkFollowEdge<Data, Edge, ID>
+  shouldFollowEdge:
+    | GraphWalkEdgePredicate<Data, Edge, ID>
+    | AsyncGraphWalkEdgePredicate<Data, Edge, ID>
     | undefined;
-  expandVertex:
-    | GraphWalkExpandVertex<Data, Edge, ID>
-    | AsyncGraphWalkExpandVertex<Data, Edge, ID>
+  shouldExpandVertex:
+    | GraphWalkExpansionPredicate<Data, Edge, ID>
+    | AsyncGraphWalkExpansionPredicate<Data, Edge, ID>
     | undefined;
   visitors: {
     [Phase in GraphWalkPhase]: VisitorRecord<
@@ -110,9 +110,17 @@ function assertKnownKeys(value: object, keys: readonly string[]): void {
 
 function copyLimits(input: unknown): GraphWalkLimits {
   const value = object(input, 'Walking limits must be an object');
-  assertKnownKeys(value, ['maxDepth', 'maxOccurrences', 'maxSteps']);
+  assertKnownKeys(value, [
+    'maxDepth',
+    'maxAdmittedTargets',
+    'maxCandidateReadAttempts',
+  ]);
   const result: GraphWalkLimits = {};
-  for (const key of ['maxDepth', 'maxOccurrences', 'maxSteps'] as const) {
+  for (const key of [
+    'maxDepth',
+    'maxAdmittedTargets',
+    'maxCandidateReadAttempts',
+  ] as const) {
     const bound = value[key];
     if (bound !== undefined) {
       if (
@@ -143,8 +151,8 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     'strategy',
     'revisit',
     'limits',
-    'followEdge',
-    'expandVertex',
+    'shouldFollowEdge',
+    'shouldExpandVertex',
     'visitors',
     'emitEvents',
     'iterateOver',
@@ -183,25 +191,29 @@ export function normalizeWalkOptions<Data, Edge, ID>(
   if (
     revisit !== 'once' &&
     limits.maxDepth === undefined &&
-    limits.maxSteps === undefined
+    limits.maxCandidateReadAttempts === undefined
   ) {
-    throw new TypeError('Route enumeration requires maxDepth or maxSteps');
+    throw new TypeError(
+      'Route enumeration requires maxDepth or maxCandidateReadAttempts',
+    );
   }
-  const followEdge =
-    snapshot['followEdge'] === undefined
-      ? previous?.followEdge
-      : snapshot['followEdge'] === null
+  const shouldFollowEdge =
+    snapshot['shouldFollowEdge'] === undefined
+      ? previous?.shouldFollowEdge
+      : snapshot['shouldFollowEdge'] === null
       ? undefined
-      : snapshot['followEdge'];
-  const expandVertex =
-    snapshot['expandVertex'] === undefined
-      ? previous?.expandVertex
-      : snapshot['expandVertex'] === null
+      : snapshot['shouldFollowEdge'];
+  const shouldExpandVertex =
+    snapshot['shouldExpandVertex'] === undefined
+      ? previous?.shouldExpandVertex
+      : snapshot['shouldExpandVertex'] === null
       ? undefined
-      : snapshot['expandVertex'];
+      : snapshot['shouldExpandVertex'];
   if (
-    (followEdge !== undefined && typeof followEdge !== 'function') ||
-    (expandVertex !== undefined && typeof expandVertex !== 'function')
+    (shouldFollowEdge !== undefined &&
+      typeof shouldFollowEdge !== 'function') ||
+    (shouldExpandVertex !== undefined &&
+      typeof shouldExpandVertex !== 'function')
   ) {
     throw new TypeError('Walking predicates must be callbacks');
   }
@@ -248,16 +260,16 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     strategy,
     revisit,
     limits,
-    followEdge: followEdge as NormalizedWalkOptions<
+    shouldFollowEdge: shouldFollowEdge as NormalizedWalkOptions<
       Data,
       Edge,
       ID
-    >['followEdge'],
-    expandVertex: expandVertex as NormalizedWalkOptions<
+    >['shouldFollowEdge'],
+    shouldExpandVertex: shouldExpandVertex as NormalizedWalkOptions<
       Data,
       Edge,
       ID
-    >['expandVertex'],
+    >['shouldExpandVertex'],
     visitors: {
       [GraphWalkPhase.VERTEX]: records(GraphWalkPhase.VERTEX),
       [GraphWalkPhase.EDGE]: records(GraphWalkPhase.EDGE),

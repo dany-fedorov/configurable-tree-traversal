@@ -36,11 +36,11 @@ it('deduplicates arbitrary IDs by SameValueZero without coercion', () => {
   expect(resolutions).toEqual(ids);
   expect(openings).toEqual(ids);
   expect(runner.summary().counts).toMatchObject({
-    foundVertices: 6,
-    omittedVertices: 0,
-    occurrences: 12,
-    observedLinks: 6,
-    steps: 26,
+    uniqueFoundVertices: 6,
+    uniqueOmittedVertices: 0,
+    admittedTargets: 12,
+    discoveredLinks: 6,
+    candidateReadAttempts: 26,
   });
 });
 
@@ -90,7 +90,7 @@ it('caches first accepted inline hydration and omission, copying wrappers but sh
             [
               event.edge.from,
               event.edge.to,
-              event.edge.index,
+              event.edge.outgoingIndex,
               event.target.kind,
             ],
           ]
@@ -103,8 +103,8 @@ it('caches first accepted inline hydration and omission, copying wrappers but sh
     ['A', 'changed', 3, 'found'],
   ]);
   expect(runner.summary().counts).toMatchObject({
-    foundVertices: 2,
-    omittedVertices: 2,
+    uniqueFoundVertices: 2,
+    uniqueOmittedVertices: 2,
   });
   expect(Object.isFrozen(data)).toBe(false);
 });
@@ -124,10 +124,10 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
       .createRunner()
       .run();
     expect(runner.summary().counts).toMatchObject({
-      foundVertices: 20000,
-      observedLinks: 19999,
-      occurrences: 20000,
-      steps: 40001,
+      uniqueFoundVertices: 20000,
+      discoveredLinks: 19999,
+      admittedTargets: 20000,
+      candidateReadAttempts: 40001,
     });
   },
 );
@@ -153,14 +153,14 @@ it('keeps independent runner caches and captured callback receivers', () => {
   source.label = 'new';
   const second = factory.createRunner();
   expect([...first.iterateEvents()]).toEqual([...second.iterateEvents()]);
-  expect(first.summary().counts.foundVertices).toBe(1);
-  expect(second.summary().counts.foundVertices).toBe(1);
+  expect(first.summary().counts.uniqueFoundVertices).toBe(1);
+  expect(second.summary().counts.uniqueFoundVertices).toBe(1);
 });
 
 it('exhausts empty roots and skips omitted roots without opening adjacency', () => {
   expect(
     new GraphWalk({ source: idGraph([], []) }).createRunner().run().summary()
-      .counts.steps,
+      .counts.candidateReadAttempts,
   ).toBe(1);
   const runner = new GraphWalk({
     source: {
@@ -173,10 +173,10 @@ it('exhausts empty roots and skips omitted roots without opening adjacency', () 
   }).createRunner();
   expect([...runner.iterateEvents()]).toEqual([]);
   expect(runner.summary().counts).toMatchObject({
-    occurrences: 1,
-    omittedVertices: 1,
-    foundVertices: 0,
-    steps: 3,
+    admittedTargets: 1,
+    uniqueOmittedVertices: 1,
+    uniqueFoundVertices: 0,
+    candidateReadAttempts: 3,
   });
 });
 
@@ -215,7 +215,7 @@ it('fails only when an admitted unresolved ID actually needs a fallback resolver
     source: { roots: () => [{ vertexId: 'A' }], outgoing: () => [] },
   }).createRunner();
   expect(() => runner.run()).toThrow(TypeError);
-  expect(runner.summary().counts.occurrences).toBe(1);
+  expect(runner.summary().counts.admittedTargets).toBe(1);
 });
 
 it.each([
@@ -252,9 +252,9 @@ it('counts a candidate before rejecting malformed inline hydration', () => {
   const runner = new GraphWalk({ source }).createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(runner.summary().counts).toMatchObject({
-    occurrences: 1,
-    foundVertices: 0,
-    omittedVertices: 0,
+    admittedTargets: 1,
+    uniqueFoundVertices: 0,
+    uniqueOmittedVertices: 0,
   });
 });
 
@@ -351,9 +351,9 @@ it('ignores later inline hydration without reading its getters', () => {
     { target: { kind: 'found', vertex: { vertexId: 'A', data: 'first' } } },
   ]);
   expect(runner.summary().counts).toMatchObject({
-    foundVertices: 1,
-    occurrences: 2,
-    observedLinks: 1,
+    uniqueFoundVertices: 1,
+    admittedTargets: 2,
+    discoveredLinks: 1,
   });
 });
 

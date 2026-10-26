@@ -17,7 +17,7 @@ it('runs mixed callbacks with emissions suppressed and unchanged source discover
   });
   traversal.addVisitorFor(Phase.EDGE, (event) => {
     seen.push(
-      `e:${event.source.vertexId}:${event.edge.index}:${event.target.kind}`,
+      `e:${event.source.vertexId}:${event.edge.outgoingIndex}:${event.target.kind}`,
     );
   });
   expect([...traversal.createRunner().iterateEvents({ emitEvents: [] })]).toEqual(
@@ -80,7 +80,7 @@ it('halts after its group and resumes only the remaining callbacks', () => {
   expect(runner.getStopReason()).toBe('paused');
   expect(runner.inspect().activeVisitor).toEqual({
     phase: Phase.VERTEX,
-    position: 2,
+    visitorIndex: 2,
   });
   runner.run();
   expect(seen).toEqual(['first', 'second', 'third']);
@@ -149,8 +149,8 @@ it('detaches list and context wrappers while preserving callback and group metad
   expect(contexts[0]!.registration).not.toBe(contexts[1]!.registration);
   expect(contexts[0]).toMatchObject({
     phase: Phase.VERTEX,
-    occurrenceIndex: 0,
-    observationIndex: 0,
+    admissionIndex: 0,
+    phaseObservationIndex: 0,
     visitorIndex: 0,
   });
 });
@@ -170,8 +170,8 @@ it('supplies logical phase and occurrence indices independently of emission and 
   t.addVisitorFor(Phase.EDGE, (event, context) => {
     seen.push([
       event.kind,
-      context.occurrenceIndex,
-      context.observationIndex,
+      context.admissionIndex,
+      context.phaseObservationIndex,
       context.visitorIndex,
     ]);
   });
@@ -179,8 +179,8 @@ it('supplies logical phase and occurrence indices independently of emission and 
     seen.push([
       event.kind,
       event.vertices.map((v) => v.vertexId),
-      context.occurrenceIndex,
-      context.observationIndex,
+      context.admissionIndex,
+      context.phaseObservationIndex,
     ]);
   });
   t.createRunner().run({ visitorPhases: { exclude: [Phase.VERTEX] } });

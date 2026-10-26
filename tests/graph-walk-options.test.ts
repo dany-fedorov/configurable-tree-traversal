@@ -33,8 +33,8 @@ describe('walking configuration snapshots', () => {
     expect(config.source.receiver).toBe(lazySource);
     expect(config.source.roots).toBe(lazySource.roots);
     expect(config.source.resolveVertex).toBeUndefined();
-    expect(config.followEdge).toBeUndefined();
-    expect(config.expandVertex).toBeUndefined();
+    expect(config.shouldFollowEdge).toBeUndefined();
+    expect(config.shouldExpandVertex).toBeUndefined();
   });
 
   test('construction and patches require a depth or step bound for enumeration', () => {
@@ -46,7 +46,7 @@ describe('walking configuration snapshots', () => {
         normalizeWalkOptions({
           source,
           revisit,
-          limits: { maxOccurrences: 2 },
+          limits: { maxAdmittedTargets: 2 },
         }),
       ).toThrow(TypeError);
       expect(
@@ -54,7 +54,7 @@ describe('walking configuration snapshots', () => {
           .revisit,
       ).toBe(revisit);
       expect(
-        normalizeWalkOptions({ source, revisit, limits: { maxSteps: 0 } })
+        normalizeWalkOptions({ source, revisit, limits: { maxCandidateReadAttempts: 0 } })
           .revisit,
       ).toBe(revisit);
     }
@@ -77,7 +77,7 @@ describe('walking configuration snapshots', () => {
   test.each([-1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1, '1', null])(
     'rejects invalid bounds %p',
     (value) => {
-      for (const key of ['maxDepth', 'maxSteps', 'maxOccurrences']) {
+      for (const key of ['maxDepth', 'maxCandidateReadAttempts', 'maxAdmittedTargets']) {
         expect(() =>
           normalizeWalkOptions({ source, limits: { [key]: value } }),
         ).toThrow(TypeError);
@@ -88,7 +88,7 @@ describe('walking configuration snapshots', () => {
   test('copies selectors, limits and registration wrappers while retaining callbacks and receiver', () => {
     const emitEvents = [Phase.VERTEX];
     const include = [Phase.EDGE];
-    const limits = { maxDepth: 4, maxSteps: undefined };
+    const limits = { maxDepth: 4, maxCandidateReadAttempts: undefined };
     const callback = () => undefined;
     const records = [{ visitor: callback, priority: 5 }];
     const resolver = () => ({ kind: 'omitted' as const });
@@ -99,8 +99,8 @@ describe('walking configuration snapshots', () => {
       visitorPhases: { include },
       limits,
       visitors: { vertex: records },
-      followEdge: callback,
-      expandVertex: callback,
+      shouldFollowEdge: callback,
+      shouldExpandVertex: callback,
     });
     emitEvents.length = 0;
     include.length = 0;
@@ -117,8 +117,8 @@ describe('walking configuration snapshots', () => {
     expect(config.source.receiver).toBe(hydrated);
     expect(config.source.roots).toBe(source.roots);
     expect(config.source.resolveVertex).toBe(resolver);
-    expect(config.followEdge).toBe(callback);
-    expect(config.expandVertex).toBe(callback);
+    expect(config.shouldFollowEdge).toBe(callback);
+    expect(config.shouldExpandVertex).toBe(callback);
     expect(Object.isFrozen(hydrated)).toBe(false);
     const copy = normalizeWalkOptions({}, config);
     expect(copy.visitors.vertex[0]).not.toBe(config.visitors.vertex[0]);
@@ -181,8 +181,8 @@ describe('walking configuration snapshots', () => {
     { limits: null },
     { limits: [] },
     { limits: 1 },
-    { followEdge: false },
-    { expandVertex: false },
+    { shouldFollowEdge: false },
+    { shouldExpandVertex: false },
     { visitors: null },
     { visitors: [] },
     { visitors: 1 },
@@ -214,9 +214,9 @@ describe('walking configuration snapshots', () => {
       source,
       strategy: 'depthFirst',
       revisit: 'once',
-      limits: { maxOccurrences: 0 },
-      followEdge: () => true,
-      expandVertex: () => false,
+      limits: { maxAdmittedTargets: 0 },
+      shouldFollowEdge: () => true,
+      shouldExpandVertex: () => false,
       visitors: { edge: [] },
       emitEvents: [Phase.PATH],
     };
@@ -303,7 +303,7 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
   test(`${Factory.name} rejects unknown options and limit keys before discovery and preserves configuration`, async () => {
     const roots = jest.fn(() => []);
     const lazy = { roots, outgoing: () => [] };
-    const traversal = new Factory({ source: lazy, limits: { maxSteps: 0 } });
+    const traversal = new Factory({ source: lazy, limits: { maxCandidateReadAttempts: 0 } });
     for (const key of ['stratgey', Symbol('option')]) {
       const bad = Object.defineProperty({}, key, { value: 'depthFirst' });
       expect(
@@ -315,11 +315,11 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
       () =>
         new Factory({
           source: lazy,
-          limits: { maxSteps: 2, maxDepht: 1 } as never,
+          limits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never,
         }),
     ).toThrow(TypeError);
     expect(() =>
-      traversal.configure({ limits: { maxSteps: 2, maxDepht: 1 } as never }),
+      traversal.configure({ limits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never }),
     ).toThrow(TypeError);
     expect(roots).not.toHaveBeenCalled();
     await traversal.createRunner().run();
@@ -337,16 +337,16 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
           ['child', []],
         ],
       ),
-      followEdge: null,
-      expandVertex: null,
+      shouldFollowEdge: null,
+      shouldExpandVertex: null,
     });
     const runner = walk.createRunner();
     await runner.run();
-    expect(runner.summary().counts.foundVertices).toBe(2);
-    expect(runner.summary().counts.observedLinks).toBe(1);
+    expect(runner.summary().counts.uniqueFoundVertices).toBe(2);
+    expect(runner.summary().counts.discoveredLinks).toBe(1);
   });
 
-  test.each(['followEdge', 'expandVertex'] as const)(
+  test.each(['shouldFollowEdge', 'shouldExpandVertex'] as const)(
     `${Factory.name} resets %s with null and retains it with undefined or omission atomically`,
     async (predicate) => {
       const walk = new Factory({
@@ -362,7 +362,7 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
       async function found() {
         const runner = walk.createRunner();
         await runner.run();
-        return runner.summary().counts.foundVertices;
+        return runner.summary().counts.uniqueFoundVertices;
       }
       expect(await found()).toBe(1);
       walk.configure({ [predicate]: undefined });
@@ -377,3 +377,19 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
     },
   );
 }
+
+
+it.each(['followEdge', 'expandVertex'])(
+  'rejects removed predicate option %s instead of retaining an alias',
+  (key) => {
+    const source = { roots: () => [], outgoing: () => [] };
+    expect(() => new GraphWalk({ source, [key]: () => true } as never)).toThrow(TypeError);
+  },
+);
+it.each(['maxSteps', 'maxOccurrences'])(
+  'rejects removed walking limit %s instead of retaining an alias',
+  (key) => {
+    const source = { roots: () => [], outgoing: () => [] };
+    expect(() => new GraphWalk({ source, limits: { [key]: 1 } } as never)).toThrow(TypeError);
+  },
+);

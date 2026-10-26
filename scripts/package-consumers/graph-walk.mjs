@@ -66,27 +66,27 @@ assert.deepEqual(
 const sync = cjsWalking.walkGraph({ source: catalog });
 for (const entry of entries) assert(sync instanceof entry.GraphWalkRunner);
 assert.equal(sync.summary().outcome.kind, 'exhausted');
-assert.equal(sync.summary().counts.foundVertices, 6);
+assert.equal(sync.summary().counts.uniqueFoundVertices, 6);
 assert.equal(
   (await root.walkGraphAsync({ source: catalog })).summary().counts
-    .foundVertices,
+    .uniqueFoundVertices,
   6,
 );
 
 for (const Factory of [cjsWalking.GraphWalk, walking.AsyncGraphWalk]) {
-  for (const predicate of ['followEdge', 'expandVertex']) {
+  for (const predicate of ['shouldFollowEdge', 'shouldExpandVertex']) {
     const walk = new Factory({ source: catalog, [predicate]: () => false });
     const filtered = walk.createRunner();
     await filtered.run();
-    assert.equal(filtered.summary().counts.foundVertices, 1);
+    assert.equal(filtered.summary().counts.uniqueFoundVertices, 1);
     walk.configure({ [predicate]: undefined });
     const retained = walk.createRunner();
     await retained.run();
-    assert.equal(retained.summary().counts.foundVertices, 1);
+    assert.equal(retained.summary().counts.uniqueFoundVertices, 1);
     walk.configure({ [predicate]: null });
     const reset = walk.createRunner();
     await reset.run();
-    assert.equal(reset.summary().counts.foundVertices, 6);
+    assert.equal(reset.summary().counts.uniqueFoundVertices, 6);
   }
 }
 
@@ -133,7 +133,7 @@ assert.deepEqual(
     .map((event) => event.target.kind),
   ['found', 'omitted', 'found'],
 );
-assert.equal(stream.summary().counts.omittedVertices, 1);
+assert.equal(stream.summary().counts.uniqueOmittedVertices, 1);
 
 const routes = [];
 const self = walking.materializeWalkSourceFromRecords([{ id: symbolId }], {
@@ -228,7 +228,7 @@ const materialized = await walking.materializeWalkSourceFromRecordsAsync(
 const asyncHelper = await walking.walkGraphAsync({ source: materialized });
 assert(asyncHelper instanceof cjs.AsyncGraphWalkRunner);
 assert.equal(
-  walking.walkGraph({ source: materialized }).summary().counts.foundVertices,
+  walking.walkGraph({ source: materialized }).summary().counts.uniqueFoundVertices,
   1,
 );
 
@@ -268,6 +268,6 @@ assert.deepEqual(relations, [
 ]);
 assert.equal(dagWalk.summary().outcome.kind, 'exhausted');
 const syncDagWalk = cjsWalking.walkGraph({ source: projected });
-assert.equal(syncDagWalk.summary().counts.foundVertices, 1);
-assert.equal(syncDagWalk.summary().counts.omittedVertices, 1);
+assert.equal(syncDagWalk.summary().counts.uniqueFoundVertices, 1);
+assert.equal(syncDagWalk.summary().counts.uniqueOmittedVertices, 1);
 console.log('Packed graph walking consumers passed');

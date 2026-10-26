@@ -18,8 +18,8 @@ export type GraphWalkVisitorResult = void | {
 
 export type GraphWalkVisitorContext<Phase extends GraphWalkPhase> = Readonly<{
   phase: Phase;
-  occurrenceIndex: number;
-  observationIndex: number;
+  admissionIndex: number;
+  phaseObservationIndex: number;
   visitorIndex: number;
   registration: VisitorRegistrationMetadata;
 }>;
