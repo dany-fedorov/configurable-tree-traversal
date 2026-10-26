@@ -19,16 +19,21 @@ export function captureDagConfigPatch<Input extends object>(
   input: Input,
   sources: DagSourcePatch,
 ): Input {
-  const options = Object.fromEntries(
-    Reflect.ownKeys(input)
-      .filter(
-        (key) =>
-          key !== 'traversableGraph' &&
-          key !== 'traversableTree' &&
-          Object.prototype.propertyIsEnumerable.call(input, key),
-      )
-      .map((key) => [key, Reflect.get(input, key)]),
-  );
+  const options: Record<PropertyKey, unknown> = {};
+  for (const key of Reflect.ownKeys(input)) {
+    if (
+      key !== 'traversableGraph' &&
+      key !== 'traversableTree' &&
+      Object.prototype.propertyIsEnumerable.call(input, key)
+    ) {
+      Object.defineProperty(options, key, {
+        value: Reflect.get(input, key),
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
   return { ...options, ...sources } as Input;
 }
 

@@ -54,6 +54,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
               ),
           ).toBeDefined();
         }
+        return runner;
       }
       return { traversal, original, replacement, calls, run };
     }
@@ -155,6 +156,62 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         [oppositeKey]: undefined,
       } as never);
       await constructed.makeRunner().run();
+    });
+
+    if (sourceKey === 'traversableGraph') {
+      test.each(['hidden', 'deleted', 'made enumerable'] as const)(
+        `${Factory.name} ${sourceKey} checks ordinary descriptors after earlier getters (%s)`,
+        async (change) => {
+          const { traversal, calls, run } = fixture();
+          if (change === 'deleted') {
+            traversal.configure({ workCompletion: 'externalSettlement' });
+          }
+          const patch = {
+            get discovery() {
+              if (change === 'deleted') {
+                Reflect.deleteProperty(patch, 'workCompletion');
+              } else {
+                Object.defineProperty(patch, 'workCompletion', {
+                  enumerable: change === 'made enumerable',
+                });
+              }
+              return 'eager' as const;
+            },
+          };
+          Object.defineProperty(patch, 'workCompletion', {
+            configurable: true,
+            enumerable: change !== 'made enumerable',
+            value:
+              change === 'deleted' ? 'visitorReturn' : 'externalSettlement',
+          });
+          traversal.configure(patch);
+          expect(calls).toEqual([]);
+          const runner = await run('original');
+          expect(runner.getStopReason()).toBe(
+            change === 'hidden' ? 'finished' : 'awaitingSettlement',
+          );
+        },
+      );
+    }
+
+    test(`${Factory.name} ${sourceKey} preserves ordinary symbol and own __proto__ options`, async () => {
+      const { traversal, calls, run } = fixture();
+      const symbol = Symbol('ordinary option');
+      const value = {};
+      const patch = Object.create(null) as object;
+      Object.defineProperty(patch, '__proto__', { enumerable: true, value });
+      Object.defineProperty(patch, symbol, {
+        enumerable: true,
+        get: () => value,
+      });
+      traversal.configure(patch);
+      expect(calls).toEqual([]);
+      expect(Object.getPrototypeOf(traversal.icfg)).toBe(Object.prototype);
+      expect(
+        Object.getOwnPropertyDescriptor(traversal.icfg, '__proto__')?.value,
+      ).toBe(value);
+      expect(Reflect.get(traversal.icfg, symbol)).toBe(value);
+      await run('original');
     });
 
     test.each([null, 0, {}])(
