@@ -23,8 +23,8 @@ for (const Constructor of [
   describe(Constructor.name, () => {
     test.each([
       'vertexId',
-      'dependsOn',
-      'dependsOnComplete',
+      'dependsOnWork',
+      'dependsOnSubgraphCompletion',
       'satisfiesDependencies',
     ])(
       'rejects own %s, including undefined, before tagged results discard it',
@@ -45,7 +45,8 @@ for (const Constructor of [
           ]) {
             for (const atRoot of [true, false]) {
               const source = {
-                resolveRoot: () => (atRoot ? result : { vertexContent: root }),
+                resolveRoot: () =>
+                  atRoot ? result : { vertexContent: root },
                 resolveChild: () => result,
               } as TreeSource<T>;
               const runner = new Constructor({

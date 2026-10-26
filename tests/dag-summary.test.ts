@@ -25,7 +25,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           calls++;
           return {
             vertexId: id,
-            dependsOn:
+            dependsOnWork:
               id === 'ready' ? ['done'] : id === 'bad' ? ['missing'] : [],
             vertexContent: { $d: id, $c: [] },
           };
@@ -50,7 +50,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(summary.diagnostics).toEqual({
       dependencies: [{ id: 'bad', unmet: ['missing'] }],
       unknownPrerequisiteIds: ['missing'],
-      dependencyCycles: [],
+      dependencyCycleComponents: [],
       dependencyBlockedIds: ['bad'],
       structurallyIncompleteIds: [],
       dependencyEdges: expect.any(Array),
@@ -84,7 +84,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           }
           return {
             vertexId: id,
-            dependsOn:
+            dependsOnWork:
               id === 'ready'
                 ? ['done']
                 : id === bad
@@ -102,7 +102,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }).rejects.toMatchObject({
       diagnostics: {
         unknownPrerequisiteIds: [missing],
-        dependencyCycles: [[cycle]],
+        dependencyCycleComponents: [[cycle]],
       },
     });
     expect(snapshots).toHaveLength(1);
@@ -112,7 +112,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(partial.diagnostics).toEqual({
       dependencies: [{ id: bad, unmet: [missing] }],
       unknownPrerequisiteIds: [missing],
-      dependencyCycles: [[cycle]],
+      dependencyCycleComponents: [[cycle]],
       dependencyBlockedIds: [bad],
       structurallyIncompleteIds: [],
       dependencyEdges: expect.any(Array),
@@ -122,7 +122,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const complete = runner.summary();
     expect(complete.discovery.complete).toBe(true);
     expect(complete.diagnostics).toEqual(partial.diagnostics);
-    partial.diagnostics!.dependencyCycles[0]!.length = 0;
+    partial.diagnostics!.dependencyCycleComponents[0]!.length = 0;
     partial.diagnostics!.unknownPrerequisiteIds.length = 0;
     partial.diagnostics!.dependencies.length = 0;
     expect(runner.summary().diagnostics).toEqual(complete.diagnostics);
@@ -143,7 +143,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn:
+          dependsOnWork:
             id === 'design'
               ? []
               : id === 'verify'
@@ -162,15 +162,15 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(runner.summary().counts.discovered).toBe(0);
     await runner.run();
     expect(runner.getStatus()).toBe(Status.HALTED);
-    expect(runner.summary().readyIds).toEqual(['backend', 'frontend']);
+    expect(runner.summary().readyOrDeferredIds).toEqual(['backend', 'frontend']);
     expect(runner.summary().counts).toEqual({
       discovered: 4,
       pending: 1,
-      ready: 2,
-      deferred: 2,
-      inFlight: 0,
+      readyOrDeferred: 2,
+      deferredWork: 2,
+      activeVisitorVertices: 0,
       workCompleted: 1,
-      subtreeCompleted: 1,
+      subgraphCompleted: 1,
     });
     expect(runner.summary().diagnostics).toBeNull();
     const backend = runner.summary().vertices.get('backend')!.generation!;
@@ -180,11 +180,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       runner.settle('backend', { ok: false, error: null }, backend),
     ).toThrow();
     await runner.run();
-    expect(runner.summary().readyIds).toEqual(['frontend']);
+    expect(runner.summary().readyOrDeferredIds).toEqual(['frontend']);
     const frontend = runner.summary().vertices.get('frontend')!.generation!;
     runner.settle('frontend', { ok: true }, frontend);
     await runner.run();
-    expect(runner.summary().readyIds).toEqual(['verify']);
+    expect(runner.summary().readyOrDeferredIds).toEqual(['verify']);
     runner.settle(
       'verify',
       { ok: true },
@@ -193,7 +193,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await runner.run();
     expect(runner.getStatus()).toBe(Status.FINISHED);
     expect(runner.summary().counts.workCompleted).toBe(4);
-    expect(runner.summary().counts.subtreeCompleted).toBe(4);
+    expect(runner.summary().counts.subgraphCompleted).toBe(4);
     expect(runner.settle('backend', { ok: true }, backend)).toBe(false);
     expect(seen).toEqual(['backend', 'frontend', 'verify']);
   });
@@ -243,7 +243,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             resolveRoot: () => ({ vertexContent: { $d: '', $c: ids } }),
             resolveChild: (id) => ({
               vertexId: id,
-              dependsOn: dependencies[ids.indexOf(id)]!,
+              dependsOnWork: dependencies[ids.indexOf(id)]!,
               vertexContent: { $d: id, $c: [] },
             }),
           },
@@ -251,7 +251,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversal.addVisitorFor(Order.ON_WORK_READY, () => DEFER_READY);
         const runner = traversal.createRunner();
         await runner.run();
-        expect(runner.summary().readyIds).toEqual(expected);
+        expect(runner.summary().readyOrDeferredIds).toEqual(expected);
         expect(runner.summary().discovery.complete).toBe(true);
         expect(runner.summary().completedWorkIds).toEqual([...completed]);
       }
@@ -275,7 +275,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           calls++;
           return {
             vertexId: id,
-            dependsOn: [],
+            dependsOnWork: [],
             vertexContent: { $d: id, $c: [] },
           };
         },
@@ -284,23 +284,23 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
       calls++;
       const summary = runner.summary();
-      expect(summary.inFlightIds.includes(vertex.getData())).toBe(true);
-      expect(summary.vertices.get(vertex.getData())!.work).toBe('running');
+      expect(summary.activeVisitorVertexIds.includes(vertex.getData())).toBe(true);
+      expect(summary.vertices.get(vertex.getData())!.work).toBe('visiting');
       return DEFER_READY;
     });
     const runner = traversal.createRunner();
     await runner.run();
     const count = calls;
     const summary = runner.summary();
-    expect(summary.readyIds).toEqual(ids);
-    (summary.readyIds as unknown[]).length = 0;
+    expect(summary.readyOrDeferredIds).toEqual(ids);
+    (summary.readyOrDeferredIds as unknown[]).length = 0;
     (summary.vertices as Map<unknown, unknown>).clear();
     first.key = 'changed';
     expect(Object.isFrozen(first)).toBe(false);
     const fresh = runner.summary();
-    expect(fresh.readyIds).toEqual(ids);
-    expect(fresh.vertices.get(first)!.id).toBe(first);
-    expect(fresh.vertices.get(second)!.id).toBe(second);
+    expect(fresh.readyOrDeferredIds).toEqual(ids);
+    expect(fresh.vertices.get(first)!.vertexId).toBe(first);
+    expect(fresh.vertices.get(second)!.vertexId).toBe(second);
     expect(calls).toBe(count);
     for (const id of ids)
       runner.settle(id, { ok: true }, fresh.vertices.get(id)!.generation!);
@@ -318,7 +318,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: [id === 'child' ? 'root' : 'child'],
+          dependsOnWork: [id === 'child' ? 'root' : 'child'],
           vertexContent: { $d: id, $c: id === 'child' ? ['leaf'] : [] },
         }),
       },
@@ -349,7 +349,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           resolveRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b'] } }),
           resolveChild: (id) => ({
             vertexId: id,
-            dependsOn:
+            dependsOnWork:
               invalid === 'cycle' ? [id === 'a' ? 'b' : 'a'] : ['missing'],
             vertexContent: { $d: id, $c: [] },
           }),
@@ -390,17 +390,17 @@ test('async summary excludes unresolved callbacks and includes active completion
   const running = runner.run();
   await eventLoopTurn();
   expect(runner.summary().discovery.complete).toBe(false);
-  expect(runner.summary().inFlightIds).toEqual([]);
+  expect(runner.summary().activeVisitorVertexIds).toEqual([]);
   expect(runner.inspect().inFlightCallbackCount).toBe(1);
   root.resolve({ vertexId: 'root', vertexContent: { $d: 'root', $c: [] } });
   await eventLoopTurn();
-  expect(runner.summary().inFlightIds).toEqual(['root']);
+  expect(runner.summary().activeVisitorVertexIds).toEqual(['root']);
   expect(runner.summary().vertices.get('root')!.work).toBe('completed');
   expect(runner.summary().completedWorkIds).toEqual(['root']);
-  expect(runner.summary().completedSubtreeIds).toEqual([]);
+  expect(runner.summary().completedSubgraphIds).toEqual([]);
   complete.resolve();
   await running;
-  expect(runner.summary().completedSubtreeIds).toEqual(['root']);
+  expect(runner.summary().completedSubgraphIds).toEqual(['root']);
 });
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
@@ -411,7 +411,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b'] } }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: id === 'b' ? ['b'] : [],
+          dependsOnWork: id === 'b' ? ['b'] : [],
           vertexContent: { $d: id, $c: [] },
         }),
       },
@@ -421,9 +421,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await expect(async () => {
       await runner.run();
     }).rejects.toThrow(/stalled/);
-    expect(runner.summary().diagnostics!.dependencyCycles).toEqual([['b']]);
-    runner.summary().diagnostics!.dependencyCycles[0]!.length = 0;
-    expect(runner.summary().diagnostics!.dependencyCycles).toEqual([['b']]);
+    expect(runner.summary().diagnostics!.dependencyCycleComponents).toEqual([['b']]);
+    runner.summary().diagnostics!.dependencyCycleComponents[0]!.length = 0;
+    expect(runner.summary().diagnostics!.dependencyCycleComponents).toEqual([['b']]);
   });
 
   test(`${Constructor.name} empty-root discovery closes only after resolution and preserves unused seeds in summary`, async () => {

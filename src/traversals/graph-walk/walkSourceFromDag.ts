@@ -13,12 +13,12 @@ import type {
 export type GraphWalkDagRelation =
   | { kind: 'child'; slotIndex: number }
   | { kind: 'workDependency' }
-  | { kind: 'completionDependency' };
+  | { kind: 'subgraphCompletionDependency' };
 
 type RelationSelection =
   | 'children'
   | 'workDependencies'
-  | 'completionDependencies';
+  | 'subgraphCompletionDependencies';
 
 /** Explore explicit declaration relationships without DAG scheduling or validation. */
 export function materializeWalkSourceFromDagDefinition<Data, ID>(
@@ -33,7 +33,7 @@ export function materializeWalkSourceFromDagDefinition<Data, ID>(
     if (
       relation !== 'children' &&
       relation !== 'workDependencies' &&
-      relation !== 'completionDependencies'
+      relation !== 'subgraphCompletionDependencies'
     )
       throw new TypeError('Unknown DAG relationship');
     if (relations.has(relation))
@@ -96,16 +96,16 @@ export function materializeWalkSourceFromDagDefinition<Data, ID>(
           links.push({ target, data: { kind: 'child', slotIndex } });
       });
     if (relations.has('workDependencies'))
-      for (const vertexId of vertex.dependsOn) {
+      for (const vertexId of vertex.dependsOnWork) {
         lookup(vertexId);
         links.push({ target: { vertexId }, data: { kind: 'workDependency' } });
       }
-    if (relations.has('completionDependencies'))
-      for (const vertexId of vertex.dependsOnComplete) {
+    if (relations.has('subgraphCompletionDependencies'))
+      for (const vertexId of vertex.dependsOnSubgraphCompletion) {
         lookup(vertexId);
         links.push({
           target: { vertexId },
-          data: { kind: 'completionDependency' },
+          data: { kind: 'subgraphCompletionDependency' },
         });
       }
   }

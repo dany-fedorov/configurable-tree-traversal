@@ -204,7 +204,7 @@ for (const api of [cjs, esm]) {
       assert.equal(runner.summary().discovery.mode, 'eager');
       assert.equal(visits, 0);
       assert.deepEqual(runner.summary().completedWorkIds, []);
-      assert.deepEqual(runner.summary().deferredFrontier, []);
+      assert.deepEqual(runner.summary().awaitingSettlement, []);
       await runner.prepare();
       assert.equal(sources, 1);
       const events = [];
@@ -213,14 +213,14 @@ for (const api of [cjs, esm]) {
       assert.equal(visits, 1);
       assert.equal(sources, 1);
       const snapshot = runner.summary();
-      const work = snapshot.deferredFrontier[0];
+      const work = snapshot.awaitingSettlement[0];
       assert.equal(typeof work.generation, 'symbol');
-      const preserved = runner.summary().deferredFrontier[0];
+      const preserved = runner.summary().awaitingSettlement[0];
       assert.notEqual(work, preserved);
       work.generation = Symbol();
-      snapshot.deferredFrontier.length = 0;
+      snapshot.awaitingSettlement.length = 0;
       assert.equal(
-        runner.summary().deferredFrontier[0].generation,
+        runner.summary().awaitingSettlement[0].generation,
         preserved.generation,
       );
       assert.throws(
@@ -240,7 +240,7 @@ for (const api of [cjs, esm]) {
         ),
         true,
       );
-      assert.deepEqual(runner.summary().deferredFrontier, []);
+      assert.deepEqual(runner.summary().awaitingSettlement, []);
       for await (const event of runner.iterateEvents()) events.push(event);
       assert.deepEqual(
         events.map(({ kind }) => kind),
@@ -340,7 +340,7 @@ for (const api of [cjs, esm]) {
                 : found(
                     'root',
                     stage === 'child' ? ['child'] : [],
-                    stage === 'prerequisite' ? { dependsOn: [42] } : {},
+                    stage === 'prerequisite' ? { dependsOnWork: [42] } : {},
                   ),
             resolveChild: inherited,
             resolvePrerequisite: inherited,
@@ -404,8 +404,8 @@ for (const api of [cjs, esm]) {
       traversableGraph: {
         resolveRoot: () =>
           found(id, ['child'], {
-            dependsOn: [missing],
-            dependsOnComplete: [missingCompletion],
+            dependsOnWork: [missing],
+            dependsOnSubgraphCompletion: [missingCompletion],
           }),
         resolveChild: (hint) => found(hint),
       },
@@ -419,34 +419,34 @@ for (const api of [cjs, esm]) {
     assert(failure instanceof api.DagTraversalStallError);
     assert(failure instanceof esm.DagTraversalStallError);
     const edge = failure.diagnostics.dependencyEdges[0];
-    assert.equal(edge.from.vertexId, id);
-    assert.equal(edge.to.vertexId, missing);
+    assert.equal(edge.waiter.vertexId, id);
+    assert.equal(edge.prerequisite.vertexId, missing);
     assert.deepEqual(
-      [edge.from.milestone, edge.to.milestone, edge.reason],
+      [edge.waiter.milestone, edge.prerequisite.milestone, edge.reason],
       ['work', 'work', 'workDependency'],
     );
     assert.deepEqual(
-      failure.diagnostics.dependencyEdges.map(({ from, to, reason }) => [
-        from.vertexId,
-        from.milestone,
-        to.vertexId,
-        to.milestone,
+      failure.diagnostics.dependencyEdges.map(({ waiter, prerequisite, reason }) => [
+        waiter.vertexId,
+        waiter.milestone,
+        prerequisite.vertexId,
+        prerequisite.milestone,
         reason,
       ]),
       [
         [id, 'work', missing, 'work', 'workDependency'],
-        [id, 'work', missingCompletion, 'completion', 'completionDependency'],
-        [id, 'completion', id, 'work', 'ownWork'],
-        [id, 'completion', 'child', 'completion', 'structuralChild'],
-        ['child', 'completion', 'child', 'work', 'ownWork'],
+        [id, 'work', missingCompletion, 'subgraphCompletion', 'subgraphCompletionDependency'],
+        [id, 'subgraphCompletion', id, 'work', 'ownWork'],
+        [id, 'subgraphCompletion', 'child', 'subgraphCompletion', 'structuralChild'],
+        ['child', 'subgraphCompletion', 'child', 'work', 'ownWork'],
       ],
     );
     const next = invalid.summary().diagnostics.dependencyEdges[0];
     assert.notEqual(next, edge);
-    assert.notEqual(next.from, edge.from);
-    assert.equal(next.from.vertexId, id);
-    edge.from.milestone = 'completion';
-    assert.equal(next.from.milestone, 'work');
+    assert.notEqual(next.waiter, edge.waiter);
+    assert.equal(next.waiter.vertexId, id);
+    edge.waiter.milestone = 'subgraphCompletion';
+    assert.equal(next.waiter.milestone, 'work');
     assert.equal(Object.isFrozen(id), false);
   }
   // A pause request waits for admitted discovery without canceling it; run adopts it.
@@ -488,7 +488,7 @@ for (const api of [cjs, esm]) {
   const legacy = new api.DagTraversalStallError({
     dependencies: [],
     unknownPrerequisiteIds: [],
-    dependencyCycles: [],
+    dependencyCycleComponents: [],
     dependencyBlockedIds: [],
     structurallyIncompleteIds: [],
   });

@@ -8,8 +8,8 @@ function vertex(
     vertexId,
     data: vertexId,
     slots: [],
-    dependsOn: [],
-    dependsOnComplete: [],
+    dependsOnWork: [],
+    dependsOnSubgraphCompletion: [],
     ...overrides,
   };
 }
@@ -54,10 +54,10 @@ test('materialized definitions accept detached W and C prerequisite closures', (
     vertices: [
       vertex('remoteC', { slots: [{ kind: 'vertex', vertexId: 'child' }] }),
       vertex('root', {
-        dependsOn: ['remoteW'],
-        dependsOnComplete: ['remoteC'],
+        dependsOnWork: ['remoteW'],
+        dependsOnSubgraphCompletion: ['remoteC'],
       }),
-      vertex('remoteW', { dependsOn: ['skip'] }),
+      vertex('remoteW', { dependsOnWork: ['skip'] }),
       vertex('child'),
     ],
     omittedIds: ['skip'],
@@ -80,7 +80,7 @@ test('materialized definitions accept detached W and C prerequisite closures', (
   ).toEqual(['remoteW', 'remoteC', 'child', 'root']);
 });
 
-test.each(['dependsOn', 'dependsOnComplete'] as const)(
+test.each(['dependsOnWork', 'dependsOnSubgraphCompletion'] as const)(
   'unknown %s endpoints use milestone diagnostics',
   (field) => {
     const result = prepareDagDefinition({
@@ -105,9 +105,9 @@ test('combined W/C cycles use existing labelled milestone diagnostics', () => {
     vertices: [
       vertex('root', {
         slots: [{ kind: 'vertex', vertexId: 'child' }],
-        dependsOnComplete: ['child'],
+        dependsOnSubgraphCompletion: ['child'],
       }),
-      vertex('child', { dependsOn: ['root'] }),
+      vertex('child', { dependsOnWork: ['root'] }),
     ],
     omittedIds: [],
     entry: { kind: 'root', vertexId: 'root' },
@@ -117,7 +117,7 @@ test('combined W/C cycles use existing labelled milestone diagnostics', () => {
   expect(result.issues).toMatchObject([
     {
       kind: 'milestone',
-      diagnostics: { dependencyCycles: [['root', 'child']] },
+      diagnostics: { dependencyCycleComponents: [['root', 'child']] },
     },
   ]);
 });
@@ -208,8 +208,8 @@ test('structural self cycles use SameValueZero identity and deterministic declar
         vertexId: NaN,
         data: 1,
         slots: [{ kind: 'vertex', vertexId: NaN }],
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
       },
     ],
     omittedIds: [],
@@ -270,8 +270,8 @@ test('forest definitions preserve authored order, structural sharing and omitted
         vertexId: id,
         data,
         slots: [],
-        dependsOn: [undefined],
-        dependsOnComplete: [undefined],
+        dependsOnWork: [undefined],
+        dependsOnSubgraphCompletion: [undefined],
       },
       {
         vertexId: null,
@@ -280,8 +280,8 @@ test('forest definitions preserve authored order, structural sharing and omitted
           { kind: 'vertex', vertexId: id },
           { kind: 'vertex', vertexId: id },
         ],
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
       },
     ],
     omittedIds: [undefined],
@@ -343,7 +343,7 @@ test('structural SCCs retain declaration order and stay separate before mileston
       vertices: [
         vertex('a', {
           slots: [{ kind: 'vertex', vertexId: 'b' }],
-          dependsOn: ['missing'],
+          dependsOnWork: ['missing'],
         }),
         vertex('b', { slots: [{ kind: 'vertex', vertexId: 'a' }] }),
         vertex('c', { slots: [{ kind: 'vertex', vertexId: 'c' }] }),
@@ -373,8 +373,8 @@ test('undefined is a live root identity rather than an absent record', () => {
         vertexId: undefined,
         data: 'live',
         slots: [],
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
       },
     ],
     omittedIds: [],
@@ -400,8 +400,8 @@ test('membership and SCC validation handle deep unreachable structures without r
       vertexId === 11999
         ? []
         : [{ kind: 'vertex' as const, vertexId: vertexId + 1 }],
-    dependsOn: [],
-    dependsOnComplete: [],
+    dependsOnWork: [],
+    dependsOnSubgraphCompletion: [],
   }));
   const result = prepareDagDefinition({
     vertices,

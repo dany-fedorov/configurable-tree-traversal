@@ -11,8 +11,8 @@ import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
 type G = VertexTypes<string, string>;
 const deferReady = () => ({
-  commands: [{ commandName: Command.DEFER_READY }] as [
-    { commandName: Command.DEFER_READY },
+  commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] as [
+    { commandName: Command.DEFER_WORK_COMPLETION },
   ],
 });
 const rootOnly = {
@@ -37,8 +37,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: id === 'work' ? ['parent'] : [],
-          dependsOnComplete: id === 'complete' ? ['parent'] : [],
+          dependsOnWork: id === 'work' ? ['parent'] : [],
+          dependsOnSubgraphCompletion: id === 'complete' ? ['parent'] : [],
           vertexContent: {
             $data: id,
             $childHints: id === 'parent' ? ['child'] : [],
@@ -60,7 +60,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await runner.run();
     const partial = runner.summary();
     expect(partial.vertices.get('parent')!.work).toBe('completed');
-    expect(partial.vertices.get('parent')!.subtreeComplete).toBe(false);
+    expect(partial.vertices.get('parent')!.subgraphComplete).toBe(false);
     expect(partial.vertices.get('work')!.work).toBe('deferred');
     expect(partial.vertices.get('complete')!.work).toBe('pending');
     runner.settle(
@@ -70,7 +70,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     );
     await runner.run();
     const complete = runner.summary();
-    expect(complete.vertices.get('parent')!.subtreeComplete).toBe(true);
+    expect(complete.vertices.get('parent')!.subgraphComplete).toBe(true);
     expect(complete.vertices.get('complete')!.work).toBe('deferred');
   });
 
@@ -223,7 +223,7 @@ test('canonical async settlement wakes W consumers while physical callbacks reta
       }),
       resolveChild: (id) => ({
         vertexId: id,
-        dependsOn: id === 'c' ? ['a'] : [],
+        dependsOnWork: id === 'c' ? ['a'] : [],
         vertexContent: { $data: id, $childHints: [] },
       }),
     },

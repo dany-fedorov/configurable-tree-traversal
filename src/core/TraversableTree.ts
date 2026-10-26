@@ -18,8 +18,8 @@ type RequiredGraphVertexIdentity<ID> =
   | (unknown extends ID ? unknown : never);
 
 type GraphDependencies<ID> = {
-  dependsOn?: readonly ID[];
-  dependsOnComplete?: readonly ID[];
+  dependsOnWork?: readonly ID[];
+  dependsOnSubgraphCompletion?: readonly ID[];
 };
 
 export type MakeVertexResult<
@@ -64,8 +64,8 @@ export type DagPrerequisiteResolution<
 /** Graph identity and prerequisites are unsupported by tree sources. */
 type TreeMetadataRestrictions = {
   vertexId?: never;
-  dependsOn?: never;
-  dependsOnComplete?: never;
+  dependsOnWork?: never;
+  dependsOnSubgraphCompletion?: never;
   satisfiesDependencies?: never;
 };
 

@@ -96,8 +96,8 @@ export function validateDefinition<Data, ID>(
     const vertex = byId.get(id);
     if (vertex !== undefined) {
       for (const next of slotIds(vertex.slots)) queue.push(next);
-      for (const next of vertex.dependsOn) queue.push(next);
-      for (const next of vertex.dependsOnComplete) queue.push(next);
+      for (const next of vertex.dependsOnWork) queue.push(next);
+      for (const next of vertex.dependsOnSubgraphCompletion) queue.push(next);
     }
   }
   const unreachable = [...byId.keys(), ...omitted].filter(

@@ -32,21 +32,21 @@ for (const traversal of [
   traversal.addVisitorFor(D.ON_WORK_READY, (_vertex, options) => {
     const phase: D.ON_WORK_READY = options.phase;
     void phase;
-    return { commands: [{ commandName: C.DEFER_READY }] };
+    return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
   });
   // @ts-expect-error Completion cannot defer, including by legacy sentinel.
   traversal.addVisitorFor(D.ON_SUBGRAPH_READY, () => DEFER_READY);
   traversal.addVisitorFor(D.ON_SUBGRAPH_READY, () => ({
     // @ts-expect-error Completion cannot defer by command.
-    commands: [{ commandName: C.DEFER_READY }],
+    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
   }));
   traversal.addVisitorFor(dagOrder, () => ({
     // @ts-expect-error A union phase can be completion.
-    commands: [{ commandName: C.DEFER_READY }],
+    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
   }));
   traversal.addVisitorFor(D.ON_WORK_READY, () => ({
     // @ts-expect-error Deferral cannot be combined with another command.
-    commands: [{ commandName: C.DEFER_READY }, { commandName: C.NOOP }],
+    commands: [{ commandName: C.DEFER_WORK_COMPLETION }, { commandName: C.NOOP }],
   }));
 
   traversal.configure({
@@ -195,7 +195,7 @@ for (const traversal of [
   });
   traversal.addVisitorFor(B.LEVEL_ORDER, () => ({
     // @ts-expect-error Tree callbacks cannot defer.
-    commands: [{ commandName: C.DEFER_READY }],
+    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
   }));
   traversal.configure({
     visitors: {
@@ -204,7 +204,7 @@ for (const traversal of [
           addedIndex: 0,
           priority: 1,
           // @ts-expect-error Config map controls phase.
-          visitor: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
+          visitor: () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
         },
       ],
     },
@@ -214,7 +214,7 @@ for (const traversal of [
       addedIndex: 0,
       priority: 1,
       // @ts-expect-error setVisitorsFor controls phase.
-      visitor: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
+      visitor: () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
     },
   ]);
 }
@@ -344,7 +344,7 @@ new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_WORK_READY, asyncCommon);
   });
   // @ts-expect-error Breadth-first helpers cannot defer DAG readiness.
   importedBreadth(tree.traversableTree, () => ({
-    commands: [{ commandName: C.DEFER_READY }],
+    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
   }));
 }
 {
@@ -362,7 +362,7 @@ new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_WORK_READY, asyncCommon);
   });
   // @ts-expect-error Breadth-first helpers cannot defer DAG readiness.
   importedBreadthAsync(tree.traversableTree, () => ({
-    commands: [{ commandName: C.DEFER_READY }],
+    commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
   }));
 }
 import {
@@ -488,7 +488,7 @@ new DagTraversal<T>(graph).setVisitorsFor(D.ON_WORK_READY, [
     visitor: (_v, o) => {
       const phase: D.ON_WORK_READY = o.phase;
       void phase;
-      return { commands: [{ commandName: C.DEFER_READY }] };
+      return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
     },
   },
 ]);
@@ -499,7 +499,7 @@ new AsyncDagTraversal<T>(graph).setVisitorsFor(D.ON_WORK_READY, [
     visitor: (_v, o) => {
       const phase: D.ON_WORK_READY = o.phase;
       void phase;
-      return { commands: [{ commandName: C.DEFER_READY }] };
+      return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
     },
   },
 ]);

@@ -23,7 +23,7 @@ const generatedStep = (id: string): DagVertexFound<ModuleGraph> => ({
   kind: 'found' as const,
   vertex: {
     vertexId: id,
-    dependsOn: ['module:parser'],
+    dependsOnWork: ['module:parser'],
     vertexContent: { $data: id, $childHints: [] },
   },
 });
@@ -36,8 +36,8 @@ async function main() {
         kind: 'found' as const,
         vertex: {
           vertexId: 'app',
-          // C includes parser's generated child step. Use dependsOn for W alone.
-          dependsOnComplete: ['module:parser'],
+          // C includes parser's generated child step. Use dependsOnWork for W alone.
+          dependsOnSubgraphCompletion: ['module:parser'],
           vertexContent: { $data: 'app', $childHints: [] },
         },
       }),
@@ -51,7 +51,7 @@ async function main() {
               kind: 'found' as const,
               vertex: {
                 vertexId: id,
-                dependsOn: definition.imports,
+                dependsOnWork: definition.imports,
                 vertexContent: {
                   $data: id,
                   $childHints: definition.generatedSteps,
@@ -76,7 +76,7 @@ async function main() {
   const parser = graph.getVertexRefById('module:parser')!;
   assert.deepEqual(graph.getParentsOf(parser), []);
   assert.deepEqual(graph.getPathsTo(parser), [[parser]]);
-  assert.equal(runner.summary().counts.subtreeCompleted, 4);
+  assert.equal(runner.summary().counts.subgraphCompleted, 4);
   console.log(events.join('\n'));
 }
 void main();

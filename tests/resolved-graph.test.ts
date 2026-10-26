@@ -12,8 +12,8 @@ test('rejects a back-edge without damaging accepted topology', () => {
   const store = new GraphStore<TestGraph>('dag');
   const a = new CTTRef(new Vertex<TestGraph>({ $d: 'A', $c: ['B'] }));
   const b = new CTTRef(new Vertex<TestGraph>({ $d: 'B', $c: ['A'] }));
-  store.insertVertex({ ref: a, id: 'A', dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: b, id: 'B', dependsOn: ['A'], depth: 1 });
+  store.insertVertex({ ref: a, id: 'A', dependsOnWork: [], depth: 0 });
+  store.insertVertex({ ref: b, id: 'B', dependsOnWork: ['A'], depth: 1 });
   store.setRoot(a);
   store.prepareSlots(a, ['B']);
   store.prepareSlots(b, ['A']);
@@ -36,8 +36,8 @@ test('reports a safe reconstructed cycle path for self and back edges', () => {
   };
   const a = ref('A', ['B']);
   const b = ref('B', ['A']);
-  store.insertVertex({ ref: a, id: dangerous, dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: b, id: 'B', dependsOn: [], depth: 1 });
+  store.insertVertex({ ref: a, id: dangerous, dependsOnWork: [], depth: 0 });
+  store.insertVertex({ ref: b, id: 'B', dependsOnWork: [], depth: 1 });
   store.prepareSlots(a, ['B']);
   store.prepareSlots(b, ['A']);
 
@@ -50,8 +50,8 @@ test('preserves parallel slots while deduplicating parents and paths', () => {
   const store = new GraphStore<TestGraph>('dag');
   const parent = ref('parent', ['child', 'child']);
   const child = ref('child');
-  store.insertVertex({ ref: parent, id: 'parent', dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: child, id: 'child', dependsOn: [], depth: 1 });
+  store.insertVertex({ ref: parent, id: 'parent', dependsOnWork: [], depth: 0 });
+  store.insertVertex({ ref: child, id: 'child', dependsOnWork: [], depth: 1 });
   store.setRoot(parent);
   store.prepareSlots(parent, ['child', 'child']);
 
@@ -74,7 +74,7 @@ test('same-slot acknowledgment is idempotent and conflicting links fail', () => 
     [child, 'child'],
     [other, 'other'],
   ] as const) {
-    store.insertVertex({ ref: vertexRef, id, dependsOn: [], depth: 0 });
+    store.insertVertex({ ref: vertexRef, id, dependsOnWork: [], depth: 0 });
   }
   store.prepareSlots(parent, ['child']);
   store.linkSlot(parent, 0, child);
@@ -90,11 +90,11 @@ test('validates unknown references and slot operations before mutation', () => {
   const parent = ref('parent', ['child']);
   const child = ref('child');
   const unknown = ref('unknown');
-  store.insertVertex({ ref: parent, id: 'parent', dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: child, id: 'child', dependsOn: [], depth: 1 });
+  store.insertVertex({ ref: parent, id: 'parent', dependsOnWork: [], depth: 0 });
+  store.insertVertex({ ref: child, id: 'child', dependsOnWork: [], depth: 1 });
 
   expect(() =>
-    store.insertVertex({ ref: unknown, id: 'child', dependsOn: [], depth: 0 }),
+    store.insertVertex({ ref: unknown, id: 'child', dependsOnWork: [], depth: 0 }),
   ).toThrow(/id/i);
   expect(() => store.prepareSlots(unknown, [])).toThrow(/reference/i);
   expect(() => store.linkSlot(parent, 0, child)).toThrow(/slot/i);
@@ -119,8 +119,8 @@ test('tracks omitted and deleted identity states and terminal slots', () => {
   const store = new GraphStore<TestGraph>('dag');
   const parent = ref('parent', ['omitted', 'deleted', 'disabled']);
   const child = ref('child');
-  store.insertVertex({ ref: parent, id: undefined, dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: child, id: null, dependsOn: [], depth: 1 });
+  store.insertVertex({ ref: parent, id: undefined, dependsOnWork: [], depth: 0 });
+  store.insertVertex({ ref: child, id: null, dependsOnWork: [], depth: 1 });
   store.prepareSlots(parent, ['omitted', 'deleted', 'disabled']);
   store.linkSlot(parent, 1, child);
   store.closeSlot(parent, 0, 'omitted');
@@ -153,7 +153,7 @@ test('removes a precomputed vertex set and detaches all incident edges', () => {
     [a, 'A'],
     [b, 'B'],
   ] as const) {
-    store.insertVertex({ ref: vertexRef, id, dependsOn: [], depth: 0 });
+    store.insertVertex({ ref: vertexRef, id, dependsOnWork: [], depth: 0 });
   }
   store.setRoot(root);
   store.prepareSlots(root, ['A', 'B']);
@@ -178,11 +178,11 @@ test('returns shallow query snapshots and exposes no store mutations', () => {
   const store = new GraphStore<TestGraph>('dag');
   const root = ref('root', ['child']);
   const child = ref('child');
-  store.insertVertex({ ref: root, id: 'root', dependsOn: [], depth: 0 });
+  store.insertVertex({ ref: root, id: 'root', dependsOnWork: [], depth: 0 });
   store.insertVertex({
     ref: child,
     id: 'child',
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     depth: 1,
   });
   store.setRoot(root);
@@ -201,7 +201,7 @@ test('returns shallow query snapshots and exposes no store mutations', () => {
   paths[0]!.length = 0;
   (vertex.incoming as unknown[]).length = 0;
   (vertex.slots as unknown[]).length = 0;
-  (vertex.dependsOn as unknown[]).length = 0;
+  (vertex.dependsOnWork as unknown[]).length = 0;
 
   expect(store.graph.getVertexRefs()).toEqual([root, child]);
   expect(store.graph.getChildrenOf(root)).toEqual([child]);
@@ -212,7 +212,7 @@ test('returns shallow query snapshots and exposes no store mutations', () => {
     vertex: child.unref(),
     vertexId: 'child',
     discoveryDepth: 1,
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     status: 'READY',
   });
   expect(
@@ -224,8 +224,8 @@ test('returns detached incoming edge and child slot records', () => {
   const store = new GraphStore<TestGraph>('dag');
   const root = ref('root', ['child']);
   const child = ref('child');
-  store.insertVertex({ ref: root, id: 'root', dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: child, id: 'child', dependsOn: [], depth: 1 });
+  store.insertVertex({ ref: root, id: 'root', dependsOnWork: [], depth: 0 });
+  store.insertVertex({ ref: child, id: 'child', dependsOnWork: [], depth: 1 });
   store.prepareSlots(root, ['child']);
   store.linkSlot(root, 0, child);
 
@@ -254,8 +254,8 @@ test('supports empty roots and path filtering', () => {
 
   const root = ref('root', ['child']);
   const child = ref('child');
-  store.insertVertex({ ref: root, id: 'root', dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: child, id: 'child', dependsOn: [], depth: 1 });
+  store.insertVertex({ ref: root, id: 'root', dependsOnWork: [], depth: 0 });
+  store.insertVertex({ ref: child, id: 'child', dependsOnWork: [], depth: 1 });
   store.setRoot(root);
   store.prepareSlots(root, ['child']);
   store.linkSlot(root, 0, child);
@@ -288,8 +288,8 @@ test('uses authoritative tree records for compatibility graph queries', () => {
     },
     $c: [],
   });
-  store.insertVertex({ ref: root, id: 'root', dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: child, id: 'child', dependsOn: [], depth: 1 });
+  store.insertVertex({ ref: root, id: 'root', dependsOnWork: [], depth: 0 });
+  store.insertVertex({ ref: child, id: 'child', dependsOnWork: [], depth: 1 });
   store.setRoot(root);
   store.setTreeRecord(root, rootRecord);
   store.setTreeRecord(child, childRecord);
@@ -328,7 +328,7 @@ test('handles deep chains iteratively for cycle checks and paths', () => {
     store.insertVertex({
       ref: vertexRef,
       id: index,
-      dependsOn: [],
+      dependsOnWork: [],
       depth: index,
     });
     store.prepareSlots(vertexRef, vertexRef.unref().getChildrenHints());
@@ -345,14 +345,14 @@ test('enforces remaining mode and reference invariants', () => {
   const dag = new GraphStore<TestGraph>('dag');
   const parent = ref('parent', ['child']);
   const child = ref('child');
-  dag.insertVertex({ ref: parent, id: 'parent', dependsOn: [], depth: 0 });
-  dag.insertVertex({ ref: child, id: 'child', dependsOn: [], depth: 1 });
+  dag.insertVertex({ ref: parent, id: 'parent', dependsOnWork: [], depth: 0 });
+  dag.insertVertex({ ref: child, id: 'child', dependsOnWork: [], depth: 1 });
 
   expect(() =>
     dag.insertVertex({
       ref: parent,
       id: 'another-id',
-      dependsOn: [],
+      dependsOnWork: [],
       depth: 0,
     }),
   ).toThrow(/reference/i);
@@ -406,7 +406,7 @@ test('tree slot linking appends once and tree queries tolerate partial records',
   store.insertVertex({
     ref: recordless,
     id: 'recordless',
-    dependsOn: [],
+    dependsOnWork: [],
     depth: 0,
   });
   expect(store.graph.get(recordless)?.slots).toEqual([]);
@@ -417,8 +417,8 @@ test('removal detaches a deleted parent from surviving children and clears root'
   const store = new GraphStore<TestGraph>('dag');
   const parent = ref('parent', ['child']);
   const child = ref('child');
-  store.insertVertex({ ref: parent, id: 'parent', dependsOn: [], depth: 0 });
-  store.insertVertex({ ref: child, id: 'child', dependsOn: [], depth: 1 });
+  store.insertVertex({ ref: parent, id: 'parent', dependsOnWork: [], depth: 0 });
+  store.insertVertex({ ref: child, id: 'child', dependsOnWork: [], depth: 1 });
   store.setRoot(parent);
   store.prepareSlots(parent, ['child']);
   store.linkSlot(parent, 0, child);
@@ -489,7 +489,7 @@ test('orders paths by child slots rather than edge acceptance order', () => {
     [x, 'x'],
     [y, 'y'],
   ] as const) {
-    store.insertVertex({ ref: vertexRef, id, dependsOn: [], depth: 0 });
+    store.insertVertex({ ref: vertexRef, id, dependsOnWork: [], depth: 0 });
   }
   store.setRoot(root);
   store.prepareSlots(root, ['A', 'B']);

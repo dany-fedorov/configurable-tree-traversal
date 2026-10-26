@@ -13,7 +13,7 @@ Give CTT a graph of work and accepted completion facts. It determines what can r
 | Coordinate research, implementation, testing, and review agents | Parallel branches and dependency joins | [Quickstart](#quickstart-find-the-next-agent-tasks) |
 | Let a coordinator choose which agents run next | Deferred work and a readable ready frontier | [Host-controlled execution](docs/agent-workflows.md#choose-an-execution-model) |
 | Resume after a process restart or wait for human input | Reconstruction from accepted completion facts | [Recovery and storage](docs/agent-workflows.md#persist-facts-and-reconstruct) |
-| Review a composite task only after all its subtasks finish | `dependsOnComplete` | [Work versus completion](docs/agent-workflows.md#work-dependencies-and-completion-joins) |
+| Review a composite task only after all its subtasks finish | `dependsOnSubgraphCompletion` | [Work versus completion](docs/agent-workflows.md#work-dependencies-and-completion-joins) |
 | Fetch dependencies from a task catalog or service | `resolvePrerequisite(id)` | [Discover prerequisites](docs/agent-workflows.md#discover-the-graph) |
 | Explore cyclic context, code references, or provenance | Lazy typed vertex/edge/path walking with explicit bounds | [Graph exploration](docs/agent-workflows.md#explore-context-and-references) |
 | Walk or transform a repository index, AST, or JSON object | Iterative sync/async DFS, BFS, pruning, rewriting | [Tree and object traversal](docs/reference.md#traverse-an-object) |
@@ -50,7 +50,7 @@ const tasks = [
 ];
 const prepared = prepareDag(materializeDagSourceFromRecords(tasks, {
   id: task => task.id,
-  dependsOn: task => task.requires,
+  dependsOnWork: task => task.requires,
 }));
 if (prepared.kind === 'invalid') throw new Error('Invalid dependency constraints');
 
@@ -59,20 +59,20 @@ const accepted = new Set(['research']);
 const session = prepared.dag.createWorkSession({ completedWork: accepted });
 const boundary = session.advance();
 if (boundary.kind === 'awaitingSettlement') {
-  if (boundary.frontier.map(ticket => ticket.vertexId).join(',') !== 'implement,testPlan') {
+  if (boundary.workTickets.map(ticket => ticket.vertexId).join(',') !== 'implement,testPlan') {
     throw new Error('Unexpected ready tasks');
   }
   // Retain each frontier ticket with its host attempt.
-  const ticket = boundary.frontier[0]!;
+  const ticket = boundary.workTickets[0]!;
   // Dispatch through host claims/capacity, then validate and persist the result.
   accepted.add(ticket.vertexId); // Simulate durable acceptance.
-  session.complete(ticket); // { kind: 'accepted' }
+  session.completeWork(ticket); // { kind: 'accepted' }
   const next = session.advance(); // Observe newly eligible work.
   if (next.kind !== 'awaitingSettlement') throw new Error('Expected pending work');
 }
 ```
 
-`materializeDagSourceFromRecords` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Dispatch from `advance().frontier` tickets; `ON_WORK_READY` visitors can also start work before deferral. `workCompleted` iterator events report work **after** commitment, so they are observations, not dispatch requests. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
+`materializeDagSourceFromRecords` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `completeWork(ticket)` accepts work without dispatching agents. Dispatch from `advance().workTickets` tickets; `ON_WORK_READY` visitors can also start work before deferral. `workCompleted` iterator events report work **after** commitment, so they are observations, not dispatch requests. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
 
 See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) for independent sessions, duplicate reports, and recovery. Custom graph adapters and existing `runner.prepare()` / guarded `settle()` APIs remain available.
 

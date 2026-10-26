@@ -10,8 +10,8 @@ export type PreparedDagVertex<Data, ID> = Readonly<{
   vertexId: ID;
   data: Data;
   children: readonly ID[];
-  dependsOn: readonly ID[];
-  dependsOnComplete: readonly ID[];
+  dependsOnWork: readonly ID[];
+  dependsOnSubgraphCompletion: readonly ID[];
 }>;
 
 type OwnedOptions = {

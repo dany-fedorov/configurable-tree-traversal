@@ -96,12 +96,12 @@ try {
       discovery: 'eager', syntheticRoot: true, completedWork: new Set(['design']),
       traversableGraph: {
         resolveRoot: () => ({ vertexContent: { $d: '', $c: ['design', 'build'] } }),
-        resolveChild: id => ({ vertexId: id, dependsOn: id === 'build' ? ['design'] : [], vertexContent: { $d: id, $c: [] } }),
+        resolveChild: id => ({ vertexId: id, dependsOnWork: id === 'build' ? ['design'] : [], vertexContent: { $d: id, $c: [] } }),
       },
     });
     progress.addVisitorFor(dag.DagVisitorPhase.ON_WORK_READY, () => dag.DEFER_READY);
     const progressRunner = progress.createRunner().run();
-    assert.deepEqual(progressRunner.summary().readyIds, ['build']);
+    assert.deepEqual(progressRunner.summary().readyOrDeferredIds, ['build']);
     const generation = progressRunner.summary().vertices.get('build').generation;
     assert.equal(progressRunner.settle('build', { ok: true }, generation), true);
     progressRunner.run();
@@ -110,7 +110,7 @@ try {
 
     const completion = new dag.DagTraversal({ traversableGraph: {
       resolveRoot: () => ({ vertexId: 'root', vertexContent: { $d: 'root', $c: ['join', 'bundle'] } }),
-      resolveChild: id => ({ vertexId: id, ...(id === 'join' ? { dependsOnComplete: ['bundle'] } : {}), vertexContent: { $d: id, $c: id === 'bundle' ? ['compile'] : [] } }),
+      resolveChild: id => ({ vertexId: id, ...(id === 'join' ? { dependsOnSubgraphCompletion: ['bundle'] } : {}), vertexContent: { $d: id, $c: id === 'bundle' ? ['compile'] : [] } }),
     } });
     const completeEvents = [];
     completion.addVisitorFor(dag.DagVisitorPhase.ON_WORK_READY, v => { completeEvents.push('W:' + v.getData()); });
@@ -118,19 +118,19 @@ try {
     const completionRunner = completion.createRunner().run();
     assert(completeEvents.indexOf('W:join') > completeEvents.indexOf('C:bundle'));
     assert(completeEvents.indexOf('C:bundle') > completeEvents.indexOf('C:compile'));
-    assert.deepEqual(completionRunner.summary().vertices.get('join').unmetCompletePrerequisiteIds, []);
-    assert.deepEqual(completionRunner.getResolvedGraph().get(completionRunner.getResolvedGraph().getVertexById('join')).dependsOnComplete, ['bundle']);
+    assert.deepEqual(completionRunner.summary().vertices.get('join').unmetSubgraphPrerequisiteIds, []);
+    assert.deepEqual(completionRunner.getResolvedGraph().get(completionRunner.getResolvedGraph().getVertexById('join')).dependsOnSubgraphCompletion, ['bundle']);
 
     const lookupCalls = [];
     const lookupRunner = new dag.DagTraversal({ traversableGraph: {
-      resolveRoot: () => ({ vertexId: 'app', dependsOnComplete: ['parser'], vertexContent: { $d: 'app', $c: [] } }),
+      resolveRoot: () => ({ vertexId: 'app', dependsOnSubgraphCompletion: ['parser'], vertexContent: { $d: 'app', $c: [] } }),
       resolveChild: () => ({ vertexContent: null }),
-      resolvePrerequisite: id => { lookupCalls.push(id); return { dependsOn: id === 'parser' ? ['lexer'] : [], vertexContent: { $d: id, $c: [] } }; },
+      resolvePrerequisite: id => { lookupCalls.push(id); return { dependsOnWork: id === 'parser' ? ['lexer'] : [], vertexContent: { $d: id, $c: [] } }; },
     } }).createRunner().run();
     assert.deepEqual(lookupCalls, ['parser', 'lexer']);
     const parser = lookupRunner.getResolvedGraph().getVertexById('parser');
     assert.deepEqual(lookupRunner.getResolvedGraph().getParentsOf(parser), []);
-    assert.equal(lookupRunner.summary().counts.subtreeCompleted, 3);
+    assert.equal(lookupRunner.summary().counts.subgraphCompleted, 3);
 
     const tree = new lib.ObjectTreeSource({ a: { b: 1 }, c: 2 });
     const depthVisits = [...new lib.DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().iterateEvents({
@@ -224,7 +224,7 @@ try {
           return { vertexId: id, vertexContent: { $d: id, $c: [] } };
         };
         const graph = {
-          resolveRoot: () => ({ vertexId: 'app', dependsOnComplete: ['build'], vertexContent: { $d: 'app', $c: ['seed'] } }),
+          resolveRoot: () => ({ vertexId: 'app', dependsOnSubgraphCompletion: ['build'], vertexContent: { $d: 'app', $c: ['seed'] } }),
           resolveChild: id => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
           resolvePrerequisite: mode === 'async' ? async id => resolved(id) : resolved,
         };
@@ -240,16 +240,16 @@ try {
         await runner.run();
         assert.deepEqual(calls, ['build']);
         assert.deepEqual(events.filter(event => event.startsWith('W:')), ['W:build']);
-        assert.deepEqual(runner.summary().deferredIds, ['build']);
-        assert.deepEqual(runner.summary().vertices.get('app').unmetCompletePrerequisiteIds, ['build']);
+        assert.deepEqual(runner.summary().deferredWorkIds, ['build']);
+        assert.deepEqual(runner.summary().vertices.get('app').unmetSubgraphPrerequisiteIds, ['build']);
         const generation = runner.summary().vertices.get('build').generation;
         assert.equal(runner.settle('build', { ok: true }, generation), true);
         await runner.run();
         assert(events.indexOf('W:app') > events.indexOf('C:build'));
         assert.equal(runner.getStatus(), 'FINISHED');
         assert.equal(runner.settle('build', { ok: true }, generation), false);
-        assert.deepEqual(runner.summary().vertices.get('app').unmetCompletePrerequisiteIds, []);
-        assert.equal(runner.summary().counts.subtreeCompleted, 3);
+        assert.deepEqual(runner.summary().vertices.get('app').unmetSubgraphPrerequisiteIds, []);
+        assert.equal(runner.summary().counts.subgraphCompleted, 3);
       }
     }
 
@@ -257,14 +257,14 @@ try {
     deferredTraversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => DEFER_READY);
     const deferredRunner = deferredTraversal.createRunner();
     await deferredRunner.run();
-    assert.deepEqual(deferredRunner.summary().deferredIds, ['task']);
+    assert.deepEqual(deferredRunner.summary().deferredWorkIds, ['task']);
     deferredRunner.settle('task', { ok: true }, deferredRunner.summary().vertices.get('task').generation);
     await deferredRunner.run();
     assert.equal(deferredRunner.getStatus(), 'FINISHED');
 
     const lookupEvents = [];
     const lookupTraversal = new AsyncDagTraversal({ traversableGraph: {
-      resolveRoot: () => ({ vertexId: 'app', dependsOn: ['parser'], vertexContent: { $d: 'app', $c: [] } }),
+      resolveRoot: () => ({ vertexId: 'app', dependsOnWork: ['parser'], vertexContent: { $d: 'app', $c: [] } }),
       resolveChild: () => ({ vertexContent: null }),
       resolvePrerequisite: async id => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
     } });
@@ -274,8 +274,8 @@ try {
 
     const completionEvents = [];
     const completionTraversal = new AsyncDagTraversal({ discovery: 'eager', traversableGraph: {
-      resolveRoot: () => ({ vertexId: 'bundle', dependsOnComplete: ['compile'], vertexContent: { $d: 'bundle', $c: ['compile'] } }),
-      resolveChild: id => ({ vertexId: id, dependsOn: [], vertexContent: { $d: id, $c: [] } }),
+      resolveRoot: () => ({ vertexId: 'bundle', dependsOnSubgraphCompletion: ['compile'], vertexContent: { $d: 'bundle', $c: ['compile'] } }),
+      resolveChild: id => ({ vertexId: id, dependsOnWork: [], vertexContent: { $d: id, $c: [] } }),
     } });
     completionTraversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, v => { completionEvents.push('W:' + v.getData()); });
     completionTraversal.addVisitorFor(DagVisitorPhase.ON_SUBGRAPH_READY, async v => { await Promise.resolve(); completionEvents.push('C:' + v.getData()); });
@@ -319,13 +319,13 @@ try {
     import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
 
     const stall: import('configurable-tree-traversal').DagTraversalStallDiagnostics = {
-      dependencies: [], unknownPrerequisiteIds: [], dependencyCycles: [], dependencyEdges: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
+      dependencies: [], unknownPrerequisiteIds: [], dependencyCycleComponents: [], dependencyEdges: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
     };
     const typedStall: import('configurable-tree-traversal/traversals/dag-traversal').DagTraversalStallError = new core.DagTraversalStallError(stall);
-    const milestone: import('configurable-tree-traversal').DagDependencyMilestone<'root'> = { vertexId: 'root', milestone: 'work' };
-    const dependencyEdge: import('configurable-tree-traversal/core').DagDependencyEdge<'root'> = { from: milestone, to: milestone, reason: 'workDependency' };
-    const subpathEdge: import('configurable-tree-traversal/traversals/dag-traversal').DagDependencyEdge<'root'> = dependencyEdge;
-    const edgeId: 'root' = subpathEdge.to.vertexId;
+    const milestone: import('configurable-tree-traversal').DagMilestone<'root'> = { vertexId: 'root', milestone: 'work' };
+    const dependencyEdge: import('configurable-tree-traversal/core').DagWaitEdge<'root'> = { waiter: milestone, prerequisite: milestone, reason: 'workDependency' };
+    const subpathEdge: import('configurable-tree-traversal/traversals/dag-traversal').DagWaitEdge<'root'> = dependencyEdge;
+    const edgeId: 'root' = subpathEdge.prerequisite.vertexId;
     void [typedStall, edgeId];
     type Node = { $d: string; $c: (Node | null)[] };
     type Tree = VertexTypes<string, Node | null>;
@@ -365,7 +365,7 @@ try {
     const bfs = new BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
     for (const { vertex } of bfs.iterateEvents()) { const key: string | number | symbol = vertex.getData().key; void key; }
     const graph: DagDiscoverySource<Tree> = {
-      resolveRoot: () => ({ vertexId: 'root', dependsOnComplete: [] as readonly VertexId[], vertexContent: abstractRoot }),
+      resolveRoot: () => ({ vertexId: 'root', dependsOnSubgraphCompletion: [] as readonly VertexId[], vertexContent: abstractRoot }),
       resolveChild: hint => ({ vertexId: hint, vertexContent: hint }),
       getVertexIdFromHint: hint => ({ vertexId: hint }),
       resolvePrerequisite: id => id === undefined ? undefined : { vertexId: id, vertexContent: abstractRoot },
@@ -383,9 +383,9 @@ try {
     const summary: DagSummary = progressRunner.summary();
     const subpathSummary: SubpathSummary = asyncDag.summary();
     const entry: DagVertexProgress | undefined = summary.vertices.get('root');
-    const completeGates: readonly VertexId[] | undefined = entry?.unmetCompletePrerequisiteIds;
-    const completeDeclaration: readonly VertexId[] | undefined = dag.getResolvedGraph().get(dag.getResolvedGraph().getRoot()!)?.dependsOnComplete;
-    const legacyProgress: DagVertexProgress = { id: 'old', work: 'pending', subtreeComplete: false, unmetPrerequisiteIds: [] };
+    const completeGates: readonly VertexId[] | undefined = entry?.unmetSubgraphPrerequisiteIds;
+    const completeDeclaration: readonly VertexId[] | undefined = dag.getResolvedGraph().get(dag.getResolvedGraph().getRoot()!)?.dependsOnSubgraphCompletion;
+    const legacyProgress: DagVertexProgress = { vertexId: 'old', work: 'pending', subgraphComplete: false, unmetPrerequisiteIds: [] };
     void [completeGates, completeDeclaration, legacyProgress];
     const state: DagWorkState | undefined = entry?.work;
     const generation: DagSettlementGeneration = Symbol();
@@ -431,7 +431,7 @@ try {
     const fragmentConstructor: typeof DagFragmentValidationError = dagCjs.DagFragmentValidationError;
     const stallConstructor: typeof DagTraversalStallError = cjs.core.DagTraversalStallError;
     const esmStallError: dagCjs.DagTraversalStallError<'root'> = new DagTraversalStallError<'root'>({
-      dependencies: [], unknownPrerequisiteIds: [], dependencyCycles: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
+      dependencies: [], unknownPrerequisiteIds: [], dependencyCycleComponents: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
     });
     const cjsStallError: DagTraversalStallError<'root'> = new dagCjs.DagTraversalStallError<'root'>(esmStallError.diagnostics);
     void [esmFragmentError, cjsFragmentError, fragmentConstructor, stallConstructor, esmStallError, cjsStallError];
@@ -440,7 +440,7 @@ try {
     const subpath: typeof dagCjs.DEFER_READY = subpathSentinel;
     const defaultSentinel: typeof DEFER_READY = namespace.DEFER_READY;
     const graph: DagDiscoverySource<Tree> = {
-      resolveRoot: () => ({ vertexId: 'app', dependsOnComplete: ['build'] as readonly VertexId[], vertexContent: { $d: 'app', $c: [] } }),
+      resolveRoot: () => ({ vertexId: 'app', dependsOnSubgraphCompletion: ['build'] as readonly VertexId[], vertexContent: { $d: 'app', $c: [] } }),
       resolveChild: id => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
       resolvePrerequisite: id => ({ vertexId: id, vertexContent: { $d: String(id), $c: [] } }),
     };

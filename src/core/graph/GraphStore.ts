@@ -18,8 +18,8 @@ import type {
 type Entry<T extends VertexTypes> = {
   ref: Ref<T>;
   id: VertexId;
-  dependsOn: VertexId[];
-  dependsOnComplete: VertexId[];
+  dependsOnWork: VertexId[];
+  dependsOnSubgraphCompletion: VertexId[];
   depth: number;
   status: GraphVertexStatus;
   incoming: GraphEdge<T>[];
@@ -84,15 +84,15 @@ export class GraphStore<T extends VertexTypes>
   }
 
   getDeclaredDependencies(ref: Ref<T>): VertexId[] {
-    return this.getEntry(ref).dependsOn.slice();
+    return this.getEntry(ref).dependsOnWork.slice();
   }
 
   getDeclaredCompleteDependencies(ref: Ref<T>): VertexId[] {
-    return this.getEntry(ref).dependsOnComplete.slice();
+    return this.getEntry(ref).dependsOnSubgraphCompletion.slice();
   }
 
   hasCompleteDependencies(ref: Ref<T>): boolean {
-    return this.getEntry(ref).dependsOnComplete.length > 0;
+    return this.getEntry(ref).dependsOnSubgraphCompletion.length > 0;
   }
 
   getTopologyVersion(): number {
@@ -102,8 +102,8 @@ export class GraphStore<T extends VertexTypes>
   insertVertex(input: {
     ref: Ref<T>;
     id: VertexId;
-    dependsOn: readonly VertexId[];
-    dependsOnComplete?: readonly VertexId[];
+    dependsOnWork: readonly VertexId[];
+    dependsOnSubgraphCompletion?: readonly VertexId[];
     depth: number;
   }): void {
     if (this.ids.has(input.id)) throw new Error('Vertex id is already indexed');
@@ -113,8 +113,8 @@ export class GraphStore<T extends VertexTypes>
     this.entries.set(input.ref, {
       ref: input.ref,
       id: input.id,
-      dependsOn: input.dependsOn.slice(),
-      dependsOnComplete: input.dependsOnComplete?.slice() ?? [],
+      dependsOnWork: input.dependsOnWork.slice(),
+      dependsOnSubgraphCompletion: input.dependsOnSubgraphCompletion?.slice() ?? [],
       depth: input.depth,
       status: 'DISCOVERED',
       incoming: [],
@@ -274,8 +274,8 @@ export class GraphStore<T extends VertexTypes>
       this.entries.set(ref, {
         ref,
         id,
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
         depth: context?.depth ?? 0,
         status: 'DISCOVERED',
         incoming: [],
@@ -323,9 +323,9 @@ export class GraphStore<T extends VertexTypes>
       vertex: ref.unref(),
       vertexId: entry.id,
       discoveryDepth: this.getDiscoveryDepth(ref),
-      dependsOn: entry.dependsOn.slice(),
-      ...(entry.dependsOnComplete.length > 0
-        ? { dependsOnComplete: entry.dependsOnComplete.slice() }
+      dependsOnWork: entry.dependsOnWork.slice(),
+      ...(entry.dependsOnSubgraphCompletion.length > 0
+        ? { dependsOnSubgraphCompletion: entry.dependsOnSubgraphCompletion.slice() }
         : {}),
       status: entry.status,
       incoming,
@@ -430,10 +430,14 @@ export class GraphStore<T extends VertexTypes>
       let index = 0;
       while (first[index] === second[index]) index += 1;
       if (index === 0) {
-        return vertexOrder.indexOf(first[0]!) - vertexOrder.indexOf(second[0]!);
+        return (
+          vertexOrder.indexOf(first[0]!) - vertexOrder.indexOf(second[0]!)
+        );
       }
       const children = this.getChildren(first[index - 1]!)!;
-      return children.indexOf(first[index]!) - children.indexOf(second[index]!);
+      return (
+        children.indexOf(first[index]!) - children.indexOf(second[index]!)
+      );
     });
     return paths.map((path) => {
       let filtered = path;

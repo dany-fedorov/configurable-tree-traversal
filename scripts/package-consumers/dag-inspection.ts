@@ -18,7 +18,7 @@ const records: { id: ID; work: ID[] }[] = [
 ];
 const source = materializeDagSourceFromRecords(records, {
   id: (v) => v.id,
-  dependsOn: (v) => v.work,
+  dependsOnWork: (v) => v.work,
 });
 const inspections: DagMilestoneSnapshot<ID>[] = [
   inspectDagMilestones(new DagTraversal(source).createRunner()),
@@ -37,9 +37,9 @@ if (result.kind === 'known') {
   // @ts-expect-error A captured collection is readonly.
   result.blockers.pop();
   if (blocker?.kind === 'constraint') {
-    const status: dag.DagMilestoneStatus = blocker.toStatus;
+    const status: dag.DagMilestoneStatus = blocker.prerequisiteStatus;
     const sameStatus: DagMilestoneStatus = status;
-    const id: ID = blocker.to.vertexId;
+    const id: ID = blocker.prerequisite.vertexId;
     void [sameStatus, id];
   }
 }
@@ -53,7 +53,7 @@ const typedStall: dag.DagTraversalStallError<ID> =
   new DagTraversalStallError<ID>({
     dependencies: [{ id: 'review', unmet: ['build'] }],
     unknownPrerequisiteIds: [],
-    dependencyCycles: [],
+    dependencyCycleComponents: [],
     dependencyBlockedIds: ['review'],
     structurallyIncompleteIds: [],
   });
@@ -75,7 +75,7 @@ void [stalledId, unknownId, wrongStall, asyncSnapshot];
 const heterogeneousStall = new DagTraversalStallError({
   dependencies: [{ id: { task: 'root' }, unmet: [undefined, null, NaN] }],
   unknownPrerequisiteIds: [undefined, null, NaN],
-  dependencyCycles: [],
+  dependencyCycleComponents: [],
   dependencyBlockedIds: [],
   structurallyIncompleteIds: [],
 });

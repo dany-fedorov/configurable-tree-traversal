@@ -767,7 +767,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       ok: true,
       value: {
         vertexId: 'a',
-        dependsOn: ['root'],
+        dependsOnWork: ['root'],
         vertexContent: { $d: 'a', $c: [] },
       },
     },
@@ -783,7 +783,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       ok: true,
       value: {
         vertexId: 'b',
-        dependsOn: ['a'],
+        dependsOnWork: ['a'],
         vertexContent: { $d: 'b', $c: [] },
       },
     },

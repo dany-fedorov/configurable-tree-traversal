@@ -105,11 +105,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = traversal.createRunner();
     await runner.run();
     expect(after).toEqual(['group']);
-    expect(runner.summary().deferredIds).toEqual(['task']);
+    expect(runner.summary().deferredWorkIds).toEqual(['task']);
     runner.settle(
       'task',
       { ok: true },
-      runner.summary().deferredFrontier[0]!.generation,
+      runner.summary().awaitingSettlement[0]!.generation,
     );
     await runner.run();
     expect(runner.summary().completedWorkIds).toEqual(['group', 'task']);
@@ -189,11 +189,11 @@ test('async filtering preserves deferral after awaited host work', async () => {
   );
   const runner = traversal.createRunner();
   await runner.run();
-  expect(runner.summary().deferredIds).toEqual(['task']);
+  expect(runner.summary().deferredWorkIds).toEqual(['task']);
   runner.settle(
     'task',
     { ok: true },
-    runner.summary().deferredFrontier[0]!.generation,
+    runner.summary().awaitingSettlement[0]!.generation,
   );
   await runner.run();
   expect(runner.summary().completedWorkIds).toEqual(['group', 'task']);

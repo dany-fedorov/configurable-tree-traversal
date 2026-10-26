@@ -290,12 +290,12 @@ function haltedSeed() {
 function acceptDetached(
   seed: ReturnType<typeof haltedSeed>,
   id: string,
-  dependsOn: string[],
+  dependsOnWork: string[],
 ) {
   const vertexRef = new CTTRef(
     new Vertex<TestGraph>({ $d: id, $c: [] }),
   );
-  seed.container.acceptVertex(vertexRef, id, dependsOn, {
+  seed.container.acceptVertex(vertexRef, id, dependsOnWork, {
     depth: 1,
     parentVertex: seed.root.unref(),
     parentVertexRef: seed.root,

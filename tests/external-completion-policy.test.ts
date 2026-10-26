@@ -12,7 +12,7 @@ const catalog = {
   resolveRoot: () => ({ vertexContent: { $data: '', $childHints: ['A', 'B'] } }),
   resolveChild: (id: string) => ({
     vertexId: id,
-    dependsOn: id === 'B' ? ['A'] : [],
+    dependsOnWork: id === 'B' ? ['A'] : [],
     vertexContent: { $data: id, $childHints: [] },
   }),
 };
@@ -30,7 +30,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       }).createRunner();
       await runner.run();
       expect(runner.summary().completedWorkIds).toEqual([]);
-      expect(runner.summary().deferredIds).toEqual(['A']);
+      expect(runner.summary().deferredWorkIds).toEqual(['A']);
       expect(runner.getStopReason()).toBe('awaitingSettlement');
       expect(runner.summary().vertices.get('B')!.work).toBe('pending');
       const generation = runner.summary().vertices.get('A')!.generation!;
@@ -41,14 +41,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       expect(runner.getStopReason()).toBe('awaitingSettlement');
       await runner.run();
       expect(runner.summary().completedWorkIds).toEqual(['A']);
-      expect(runner.summary().deferredIds).toEqual(['B']);
+      expect(runner.summary().deferredWorkIds).toEqual(['B']);
       runner.settle(
         'B',
         { kind: 'workCompleted' },
         runner.summary().vertices.get('B')!.generation!,
       );
       await runner.run();
-      expect(runner.summary().completedSubtreeIds).toEqual(['A', 'B']);
+      expect(runner.summary().completedSubgraphIds).toEqual(['A', 'B']);
     },
   );
 
@@ -62,8 +62,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }).createRunner();
     await runner.run();
     expect(runner.summary().completedWorkIds).toEqual([]);
-    expect(runner.summary().deferredIds).toHaveLength(1);
-    const first = runner.summary().deferredIds[0];
+    expect(runner.summary().deferredWorkIds).toHaveLength(1);
+    const first = runner.summary().deferredWorkIds[0];
     runner.settle(
       first,
       { kind: 'workCompleted' },
@@ -71,7 +71,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     );
     await runner.run();
     expect(runner.summary().completedWorkIds).toEqual([first]);
-    expect(runner.summary().deferredIds).toHaveLength(1);
+    expect(runner.summary().deferredWorkIds).toHaveLength(1);
   });
 
   test(`${Constructor.name} external completion commits callbacks and commands before deferral`, async () => {
@@ -101,7 +101,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await runner.run();
     expect(seen).toEqual(['A']);
     expect(runner.summary().completedWorkIds).toEqual([]);
-    const id = runner.summary().deferredIds[0];
+    const id = runner.summary().deferredWorkIds[0];
     runner.settle(
       id,
       { kind: 'workCompleted' },
@@ -128,7 +128,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = traversal.createRunner();
     await runner.run({ visitorPhases: { include: [] } });
     expect(runner.summary().completedWorkIds).toEqual(['A']);
-    expect(runner.summary().deferredIds).toEqual(['B']);
+    expect(runner.summary().deferredWorkIds).toEqual(['B']);
   });
 
   test(`${Constructor.name} rejects invalid completion policies before execution and preserves configure state`, () => {
@@ -168,7 +168,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     );
     traversal.addVisitorFor(
       Order.ON_WORK_READY,
-      () => ({ commands: [{ commandName: Command.DEFER_READY }] }),
+      () => ({ commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] }),
       { commandCommitMode: 'afterGroup' },
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, () => {
@@ -184,7 +184,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     for await (const event of runner.iterateEvents())
       events.push(`${event.kind}:${event.vertex.getData()}`);
     expect(events).toEqual(['workCompleted:A', 'subgraphCompleted:A']);
-    expect(runner.summary().deferredIds).toEqual(['B']);
+    expect(runner.summary().deferredWorkIds).toEqual(['B']);
     expect(runner.settle('A', { kind: 'workCompleted' }, generation)).toBe(
       false,
     );
@@ -201,8 +201,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: id === 'W' ? ['A'] : [],
-          dependsOnComplete: id === 'C' ? ['A'] : [],
+          dependsOnWork: id === 'W' ? ['A'] : [],
+          dependsOnSubgraphCompletion: id === 'C' ? ['A'] : [],
           vertexContent: {
             $data: id,
             $childHints: id === 'A' ? ['child'] : [],
@@ -218,16 +218,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         runner.summary().vertices.get(id)!.generation!,
       );
     await runner.run();
-    expect(runner.summary().deferredIds).toEqual(['A', 'child']);
+    expect(runner.summary().deferredWorkIds).toEqual(['A', 'child']);
     settle('A');
     await runner.run();
-    expect(runner.summary().deferredIds).toEqual(['W', 'child']);
+    expect(runner.summary().deferredWorkIds).toEqual(['W', 'child']);
     expect(runner.summary().vertices.get('C')!.work).toBe('pending');
-    expect(runner.summary().vertices.get('A')!.subtreeComplete).toBe(false);
+    expect(runner.summary().vertices.get('A')!.subgraphComplete).toBe(false);
     settle('child');
     await runner.run();
-    expect(runner.summary().vertices.get('A')!.subtreeComplete).toBe(true);
-    expect(runner.summary().deferredIds).toEqual(['W', 'C']);
+    expect(runner.summary().vertices.get('A')!.subgraphComplete).toBe(true);
+    expect(runner.summary().deferredWorkIds).toEqual(['W', 'C']);
     settle('W');
     settle('C');
     await runner.run();
@@ -256,11 +256,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = traversal.createRunner();
     await runner.run();
     expect(runner.getStopReason()).toBe('paused');
-    expect(runner.summary().deferredIds).toEqual([]);
+    expect(runner.summary().deferredWorkIds).toEqual([]);
     expect(runner.summary().completedWorkIds).toEqual([]);
     await runner.run();
     expect(seen).toEqual(['A!']);
-    expect(runner.summary().deferredIds).toEqual(['A']);
+    expect(runner.summary().deferredWorkIds).toEqual(['A']);
     expect(runner.getStopReason()).toBe('awaitingSettlement');
   });
 
@@ -275,7 +275,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }));
     const runner = traversal.createRunner();
     await runner.run();
-    expect(runner.summary().deferredIds).toEqual([]);
+    expect(runner.summary().deferredWorkIds).toEqual([]);
     expect(runner.summary().vertices.size).toBe(0);
     expect(runner.getStopReason()).toBe('finished');
   });
@@ -338,7 +338,7 @@ test('async external settlement frees logical chain capacity while a physical ca
   expect(runner.getStopReason()).toBeNull();
   release.resolve();
   await running;
-  expect(runner.summary().deferredIds).toEqual(['busy', 'B']);
+  expect(runner.summary().deferredWorkIds).toEqual(['busy', 'B']);
   expect(runner.getStopReason()).toBe('awaitingSettlement');
 });
 
@@ -376,7 +376,7 @@ test('external async close drains callbacks before recording pause and retains g
   runner.settle('A', { kind: 'workCompleted' }, generation);
   expect(runner.getStopReason()).toBe('paused');
   await runner.run();
-  expect(runner.summary().deferredIds).toEqual(['busy', 'B']);
+  expect(runner.summary().deferredWorkIds).toEqual(['busy', 'B']);
   expect(runner.getStopReason()).toBe('awaitingSettlement');
 });
 

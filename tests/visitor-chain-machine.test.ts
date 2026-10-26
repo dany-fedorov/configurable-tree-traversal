@@ -240,7 +240,7 @@ test('tree visitor chains reject canonical deferral before exposing a command ba
   expect(() =>
     chain.submit({
       ok: true,
-      value: { commands: [{ commandName: Command.DEFER_READY }] },
+      value: { commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] },
     }),
   ).toThrow(/ON_WORK_READY/);
 });

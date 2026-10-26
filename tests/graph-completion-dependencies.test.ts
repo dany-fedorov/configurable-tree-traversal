@@ -45,14 +45,14 @@ const result = (
   complete: readonly unknown[] = [],
 ): MakeVertexResult<TestGraph> => ({
   vertexId: id,
-  dependsOn: [],
-  dependsOnComplete: complete,
+  dependsOnWork: [],
+  dependsOnSubgraphCompletion: complete,
   vertexContent: { $d: String(id), $c: [] },
 });
 
 test('omission releases W and C while a later omitted gate is immediately satisfied', () => {
   const { accept, scheduling } = setup();
-  const join = accept(0, { ...result('join', ['gate']), dependsOn: ['gate'] });
+  const join = accept(0, { ...result('join', ['gate']), dependsOnWork: ['gate'] });
   expect(scheduling.takeReady()).toBeNull();
   accept(1, { vertexId: 'gate', vertexContent: null });
   expect(scheduling.takeReady()).toBe(join);
@@ -103,7 +103,7 @@ test('C prerequisite arrays and inspected work detach from caller and snapshots'
   expect(
     scheduling.inspectWork().find(({ ref }) => ref === join)!.unmetComplete,
   ).toEqual(new Set(['gate']));
-  expect(container.resolvedGraph.get(join)!.dependsOnComplete).toEqual([
+  expect(container.resolvedGraph.get(join)!.dependsOnSubgraphCompletion).toEqual([
     'gate',
   ]);
 });
@@ -115,21 +115,21 @@ test('GraphStore copies completion inputs and keeps empty public vertex shapes u
   store.insertVertex({
     ref,
     id: 'join',
-    dependsOn: [],
-    dependsOnComplete: declared,
+    dependsOnWork: [],
+    dependsOnSubgraphCompletion: declared,
     depth: 0,
   });
   declared.length = 0;
-  expect(store.graph.get(ref)!.dependsOnComplete).toEqual(['gate']);
+  expect(store.graph.get(ref)!.dependsOnSubgraphCompletion).toEqual(['gate']);
   const empty = new CTTRef(ref.unref());
   store.insertVertex({
     ref: empty,
     id: 'empty',
-    dependsOn: [],
-    dependsOnComplete: [],
+    dependsOnWork: [],
+    dependsOnSubgraphCompletion: [],
     depth: 0,
   });
-  expect(store.graph.get(empty)).not.toHaveProperty('dependsOnComplete');
+  expect(store.graph.get(empty)).not.toHaveProperty('dependsOnSubgraphCompletion');
 });
 
 test.each([

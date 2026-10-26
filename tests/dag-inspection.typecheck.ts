@@ -23,7 +23,7 @@ const records: Array<{ id: ID; work: ID[] }> = [
 ];
 const source = materializeDagSourceFromRecords(records, {
   id: (item) => item.id,
-  dependsOn: (item) => item.work,
+  dependsOnWork: (item) => item.work,
 });
 const sync = new DagTraversal(source).createRunner();
 const asyncRunner = new AsyncDagTraversal(source).createRunner();
@@ -32,9 +32,9 @@ const waits: readonly ID[] | undefined =
   summaries[0]!.vertices.get('review')!.unmetWorkPrerequisiteIds;
 // Manually constructed records remain source compatible without the new field.
 const manual: DagVertexProgress<ID> = {
-  id: 'review',
+  vertexId: 'review',
   work: 'pending',
-  subtreeComplete: false,
+  subgraphComplete: false,
   unmetPrerequisiteIds: ['work'],
 };
 const wrong: DagVertexProgress<ID> = {
@@ -69,7 +69,7 @@ const navigation: DagMilestoneQueryResult<ID> = inspections[0]!.prerequisitesOf(
 );
 const options: DagMilestoneQueryOptions = { transitive: false };
 const milestoneId: ID = navigation.milestones[0]!.vertexId;
-const edgeId: ID = navigation.edges[0]!.to.vertexId;
+const edgeId: ID = navigation.edges[0]!.prerequisite.vertexId;
 // @ts-expect-error Navigation retains the declared source ID domain.
 inspections[0]!.dependentsOf({ vertexId: 'other', milestone: 'work' }, options);
 // @ts-expect-error Milestone kinds are qualified, not arbitrary strings.
@@ -125,7 +125,7 @@ if (explanation.kind === 'known') {
   // @ts-expect-error Blocker collections are readonly.
   explanation.blockers.pop();
   if (blocker?.kind === 'unfinishedWork') {
-    const work: 'pending' | 'ready' | 'running' | 'deferred' = blocker.work;
+    const work: 'pending' | 'ready' | 'visiting' | 'deferred' = blocker.work;
     const milestone: 'work' = blocker.target.milestone;
     void [work, milestone];
   }
@@ -133,12 +133,12 @@ if (explanation.kind === 'known') {
     blocker?.kind === 'discoveryOpen' ||
     blocker?.kind === 'completionPending'
   ) {
-    const milestone: 'completion' = blocker.target.milestone;
+    const milestone: 'subgraphCompletion' = blocker.target.milestone;
     void milestone;
   }
   if (blocker?.kind === 'constraint') {
-    const status: import('../src').DagMilestoneStatus = blocker.toStatus;
-    const id: ID = blocker.to.vertexId;
+    const status: import('../src').DagMilestoneStatus = blocker.prerequisiteStatus;
+    const id: ID = blocker.prerequisite.vertexId;
     void [status, id];
   }
   void progress;
@@ -149,14 +149,14 @@ const typedStall: dag.DagTraversalStallError<ID> =
   new core.DagTraversalStallError<ID>({
     dependencies: [{ id: 'review', unmet: ['work'] }],
     unknownPrerequisiteIds: [],
-    dependencyCycles: [],
+    dependencyCycleComponents: [],
     dependencyBlockedIds: ['review'],
     structurallyIncompleteIds: [],
   });
 const stallId: ID = typedStall.diagnostics.dependencies[0]!.id;
 const stallWait: ID = typedStall.diagnostics.dependencies[0]!.unmet[0]!;
 const stallEdgeId: ID | undefined =
-  typedStall.diagnostics.dependencyEdges[0]?.to.vertexId;
+  typedStall.diagnostics.dependencyEdges[0]?.prerequisite.vertexId;
 const defaultStall: DagTraversalStallError = typedStall;
 // @ts-expect-error Defaults preserve unknown instead of allowing an unchecked ID.
 const unknownId: ID = defaultStall.diagnostics.dependencies[0]!.id;
@@ -166,7 +166,7 @@ const invalidStall = new DagTraversalStallError<ID>({
   // @ts-expect-error Constructor diagnostics retain the chosen ID domain.
   dependencies: [{ id: 'other', unmet: [] }],
   unknownPrerequisiteIds: [],
-  dependencyCycles: [],
+  dependencyCycleComponents: [],
   dependencyBlockedIds: [],
   structurallyIncompleteIds: [],
 });
@@ -188,7 +188,7 @@ void [
 const heterogeneousStall = new DagTraversalStallError({
   dependencies: [{ id: { task: 'root' }, unmet: [undefined, null, NaN] }],
   unknownPrerequisiteIds: [undefined, null, NaN],
-  dependencyCycles: [],
+  dependencyCycleComponents: [],
   dependencyBlockedIds: [],
   structurallyIncompleteIds: [],
 });

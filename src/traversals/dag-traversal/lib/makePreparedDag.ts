@@ -47,8 +47,8 @@ export function makePreparedDag<T extends VertexTypes, ID>(
             slot.kind === 'vertex' ? [slot.vertexId] : [],
           ),
         ),
-        dependsOn: vertex.dependsOn,
-        dependsOnComplete: vertex.dependsOnComplete,
+        dependsOnWork: vertex.dependsOnWork,
+        dependsOnSubgraphCompletion: vertex.dependsOnSubgraphCompletion,
       }),
     ),
   );

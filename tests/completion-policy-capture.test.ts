@@ -15,7 +15,7 @@ const graph = {
   }),
   resolveChild: () => ({
     vertexId: 'B',
-    dependsOn: ['A'],
+    dependsOnWork: ['A'],
     vertexContent: { $data: 'B', $childHints: [] },
   }),
 };
@@ -41,7 +41,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         const runner = traversal.createRunner();
         await runner.run();
         expect(runner.summary().completedWorkIds).toEqual([]);
-        expect(runner.summary().deferredIds).toEqual(['A']);
+        expect(runner.summary().deferredWorkIds).toEqual(['A']);
         expect(runner.summary().vertices.get('B')!.work).toBe('pending');
         expect(traversal.icfg.workCompletion).toBe('externalSettlement');
         expect(reads).toBe(1);
@@ -113,7 +113,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const external = traversal.createRunner();
     await external.run();
     expect(external.summary().completedWorkIds).toEqual([]);
-    expect(external.summary().deferredIds).toEqual(['A']);
+    expect(external.summary().deferredWorkIds).toEqual(['A']);
     // JavaScript can explicitly supply undefined despite exact optional types.
     traversal.configure({ workCompletion: undefined } as unknown as {
       workCompletion: Policy;
@@ -137,7 +137,7 @@ for (const Runner of [DagTraversalRunner, AsyncDagTraversalRunner]) {
     const runner = new Runner<G>(input);
     await runner.run();
     expect(runner.summary().completedWorkIds).toEqual([]);
-    expect(runner.summary().deferredIds).toEqual(['A']);
+    expect(runner.summary().deferredWorkIds).toEqual(['A']);
     expect(runner.icfg.workCompletion).toBe('externalSettlement');
     expect(reads).toBe(1);
   });

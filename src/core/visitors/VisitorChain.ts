@@ -85,7 +85,7 @@ export class VisitorChain<
       outcome.value === DEFER_READY
         ? {
             commands: [
-              { commandName: TraversalVisitorCommandName.DEFER_READY as const },
+              { commandName: TraversalVisitorCommandName.DEFER_WORK_COMPLETION as const },
             ],
           }
         : outcome.value;
@@ -93,14 +93,14 @@ export class VisitorChain<
     if (
       commands.some(
         (command) =>
-          command.commandName === TraversalVisitorCommandName.DEFER_READY,
+          command.commandName === TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
       )
     ) {
       if (commands.length !== 1)
-        throw new TypeError('DEFER_READY must be the sole command');
+        throw new TypeError('DEFER_WORK_COMPLETION must be the sole command');
       if (!this.canDeferReady)
         throw new TypeError(
-          'DEFER_READY is only valid for DAG ON_WORK_READY visitors',
+          'DEFER_WORK_COMPLETION is only valid for DAG ON_WORK_READY visitors',
         );
       this.bufferedCommands.length = 0;
       this.pendingCommands = commands.slice();

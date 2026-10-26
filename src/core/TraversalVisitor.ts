@@ -7,7 +7,7 @@ import { deepFreeze } from '@utils/deepFreeze';
 
 export enum TraversalVisitorCommandName {
   NOOP = 'NOOP',
-  DEFER_READY = 'DEFER_READY',
+  DEFER_WORK_COMPLETION = 'DEFER_WORK_COMPLETION',
   REWRITE_CHILD_HINTS = 'REWRITE_CHILD_HINTS',
   PAUSE_TRAVERSAL = 'PAUSE_TRAVERSAL',
   DELETE_VERTEX = 'DELETE_VERTEX',
@@ -22,7 +22,7 @@ export type TraversalVisitorCommandArguments<
   RW_TTP extends VertexTypes,
 > = {
   [TraversalVisitorCommandName.NOOP]: never;
-  [TraversalVisitorCommandName.DEFER_READY]: never;
+  [TraversalVisitorCommandName.DEFER_WORK_COMPLETION]: never;
   [TraversalVisitorCommandName.REWRITE_CHILD_HINTS]: {
     newHints: RW_TTP['VertexHint'][];
   };
@@ -59,7 +59,7 @@ type HintCommand =
   | TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER;
 type CommonCommand = Exclude<
   TraversalVisitorCommandName,
-  HintCommand | TraversalVisitorCommandName.DEFER_READY
+  HintCommand | TraversalVisitorCommandName.DEFER_WORK_COMPLETION
 >;
 
 export type TraversalVisitorResult<
@@ -80,7 +80,7 @@ export type TraversalVisitorResult<
           commands: [
             TraversalVisitorCommand<
               RW_TTP,
-              TraversalVisitorCommandName.DEFER_READY
+              TraversalVisitorCommandName.DEFER_WORK_COMPLETION
             >,
           ];
         }

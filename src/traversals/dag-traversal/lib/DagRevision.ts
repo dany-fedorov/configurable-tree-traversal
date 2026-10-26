@@ -35,7 +35,7 @@ export type DagDefinitionChangeAspect =
   | 'data'
   | 'slots'
   | 'workDependencies'
-  | 'completionDependencies';
+  | 'subgraphCompletionDependencies';
 
 export type DagDefinitionVertexChange<ID = unknown> = {
   readonly vertexId: ID;

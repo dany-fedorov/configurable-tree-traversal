@@ -136,7 +136,7 @@ for (const [api, other] of [
     // The ordinary root's W applies even without seeds, eager discovery or lookup.
     const blocked = new TreeTraversal({
       traversableGraph: {
-        resolveRoot: () => found('root', [], { dependsOn: ['absent'] }),
+        resolveRoot: () => found('root', [], { dependsOnWork: ['absent'] }),
         resolveChild: (id) => found(id),
       },
     }).createRunner();
@@ -146,7 +146,7 @@ for (const [api, other] of [
     const ignored = new TreeTraversal({
       rootDependencies: 'ignore',
       traversableGraph: {
-        resolveRoot: () => found('root', [], { dependsOn: ['absent'] }),
+        resolveRoot: () => found('root', [], { dependsOnWork: ['absent'] }),
         resolveChild: (id) => found(id),
       },
     }).createRunner();
@@ -160,13 +160,13 @@ for (const [api, other] of [
       });
       traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
         commands: [
-          { commandName: other.TraversalVisitorCommandName.DEFER_READY },
+          { commandName: other.TraversalVisitorCommandName.DEFER_WORK_COMPLETION },
         ],
       }));
       const runner = traversal.createRunner();
       await runner.run();
       assert.deepEqual(
-        runner.summary().readyIds,
+        runner.summary().readyOrDeferredIds,
         inherit ? ['root'] : ['root', 'leaf'],
       );
       const generation = runner.summary().vertices.get('root').generation;
@@ -213,7 +213,7 @@ for (const [api, other] of [
           : traversal.createRunner();
       await runner.run();
       assert.deepEqual(runner.summary().completedWorkIds, []);
-      assert.deepEqual(runner.summary().deferredIds, ['owned']);
+      assert.deepEqual(runner.summary().deferredWorkIds, ['owned']);
       assert.equal(runner.getStopReason(), 'awaitingSettlement');
       assert.equal(reads, 1);
     }
@@ -373,8 +373,8 @@ for (const [api, other] of [
       traversableGraph: {
         resolveRoot: () =>
           found('app', [], {
-            dependsOn: ['optional'],
-            dependsOnComplete: ['optional'],
+            dependsOnWork: ['optional'],
+            dependsOnSubgraphCompletion: ['optional'],
           }),
         resolveChild: (id) => found(id),
         resolvePrerequisite: () => ({
@@ -418,8 +418,8 @@ for (const [api, other] of [
   );
   for (const field of [
     'vertexId',
-    'dependsOn',
-    'dependsOnComplete',
+    'dependsOnWork',
+    'dependsOnSubgraphCompletion',
     'satisfiesDependencies',
   ]) {
     assert.throws(

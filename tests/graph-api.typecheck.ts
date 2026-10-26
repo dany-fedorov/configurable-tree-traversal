@@ -29,7 +29,7 @@ const graph: DagDiscoverySource<Input, Output> = {
   resolveRoot: () => ({
     vertexContent: { $d: { input: 'root' }, $c: ['child'] },
     vertexId: undefined,
-    dependsOn: [null, NaN],
+    dependsOnWork: [null, NaN],
   }),
   resolveChild: (hint, options) => {
     const resolved: ResolvedGraph<Input | Output> = options.resolvedGraph;
@@ -44,7 +44,7 @@ const graph: DagDiscoverySource<Input, Output> = {
     typeof id === 'string'
       ? {
           vertexId: id,
-          dependsOnComplete: [null],
+          dependsOnSubgraphCompletion: [null],
           vertexContent: { $d: { input: id }, $c: [] },
         }
       : undefined,

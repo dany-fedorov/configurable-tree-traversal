@@ -22,8 +22,8 @@ const vertex: DagDefinitionVertex<Data, ID> = {
   vertexId: 'a',
   data: { label: 'A' },
   slots: [slot],
-  dependsOn: [],
-  dependsOnComplete: [],
+  dependsOnWork: [],
+  dependsOnSubgraphCompletion: [],
 };
 const definition: DagDefinition<Data, ID> = defineDag({
   vertices: [vertex],

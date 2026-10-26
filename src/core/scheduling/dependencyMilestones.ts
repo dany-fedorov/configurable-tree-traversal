@@ -1,6 +1,6 @@
 import type {
-  DagDependencyEdge,
-  DagDependencyMilestone,
+  DagWaitEdge,
+  DagMilestone,
 } from '@core/errors/DagTraversalStallError';
 import type { VertexId } from '@core/graph/types';
 import { stronglyConnectedComponents } from './stronglyConnectedComponents';
@@ -12,13 +12,13 @@ type Declaration = {
   children: readonly VertexId[];
 };
 type Milestones = {
-  work: DagDependencyMilestone;
-  completion: DagDependencyMilestone;
+  work: DagMilestone;
+  completion: DagMilestone;
 };
 
 /** One labelled model of original constraints, independent of accepted work seeds. */
 export function dependencyMilestones(declarations: readonly Declaration[]): {
-  edges: DagDependencyEdge[];
+  edges: DagWaitEdge[];
   cycles: VertexId[][];
 } {
   const tokens = new Map<VertexId, Milestones>();
@@ -28,7 +28,7 @@ export function dependencyMilestones(declarations: readonly Declaration[]): {
     if (pair === undefined) {
       pair = {
         work: { vertexId, milestone: 'work' },
-        completion: { vertexId, milestone: 'completion' },
+        completion: { vertexId, milestone: 'subgraphCompletion' },
       };
       tokens.set(vertexId, pair);
     }
@@ -39,44 +39,44 @@ export function dependencyMilestones(declarations: readonly Declaration[]): {
     positions.set(id, index);
   }
   const ids = Array.from(tokens.keys());
-  const edges: DagDependencyEdge[] = [];
+  const edges: DagWaitEdge[] = [];
   for (const declaration of declarations) {
     const own = milestones(declaration.id);
     for (const id of declaration.work) {
       edges.push({
-        from: own.work,
-        to: milestones(id).work,
+        waiter: own.work,
+        prerequisite: milestones(id).work,
         reason: 'workDependency',
       });
     }
     for (const id of declaration.complete) {
       edges.push({
-        from: own.work,
-        to: milestones(id).completion,
-        reason: 'completionDependency',
+        waiter: own.work,
+        prerequisite: milestones(id).completion,
+        reason: 'subgraphCompletionDependency',
       });
     }
-    edges.push({ from: own.completion, to: own.work, reason: 'ownWork' });
+    edges.push({ waiter: own.completion, prerequisite: own.work, reason: 'ownWork' });
     for (const id of declaration.children) {
       edges.push({
-        from: own.completion,
-        to: milestones(id).completion,
+        waiter: own.completion,
+        prerequisite: milestones(id).completion,
         reason: 'structuralChild',
       });
     }
   }
   // Missing endpoints are graph sinks: retain them for diagnostics and SCC analysis.
-  const graph = new Map<DagDependencyMilestone, DagDependencyMilestone[]>();
+  const graph = new Map<DagMilestone, DagMilestone[]>();
   for (const pair of tokens.values()) {
     graph.set(pair.work, []);
     graph.set(pair.completion, []);
   }
-  for (const edge of edges) graph.get(edge.from)!.push(edge.to);
+  for (const edge of edges) graph.get(edge.waiter)!.push(edge.prerequisite);
   const projections = new Set<string>();
   const cycles: Array<{ ids: VertexId[]; positions: number[] }> = [];
   for (const component of stronglyConnectedComponents(
     graph,
-  ) as DagDependencyMilestone[][]) {
+  ) as DagMilestone[][]) {
     if (
       component.length === 1 &&
       !graph.get(component[0]!)!.includes(component[0]!)

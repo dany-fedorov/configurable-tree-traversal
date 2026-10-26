@@ -47,7 +47,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
         () =>
           form === 'symbol'
             ? DEFER_READY
-            : { commands: [{ commandName: Command.DEFER_READY }] },
+            : { commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] },
         { commandCommitMode: 'afterGroup' },
       );
       traversal.addVisitorFor(DagOrder.ON_WORK_READY, () => {
@@ -55,7 +55,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       });
       const runner = traversal.createRunner();
       await runner.run();
-      expect(runner.summary().deferredIds).toEqual(['root']);
+      expect(runner.summary().deferredWorkIds).toEqual(['root']);
       expect(runner.summary().completedWorkIds).toEqual([]);
       runner.settle(
         'root',
@@ -81,7 +81,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
               commandName: Command.REWRITE_VERTEX_DATA,
               commandArguments: { newData: 'wrong' },
             },
-            { commandName: Command.DEFER_READY },
+            { commandName: Command.DEFER_WORK_COMPLETION },
           ],
         } as never),
     );
@@ -268,7 +268,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       ],
     }));
     traversal.addVisitorFor(DagOrder.ON_WORK_READY, () => ({
-      commands: [{ commandName: Command.DEFER_READY }],
+      commands: [{ commandName: Command.DEFER_WORK_COMPLETION }],
     }));
     const runner = traversal.createRunner();
     await runner.run();
@@ -315,7 +315,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     const traversal = new Constructor({ traversableGraph: source });
     traversal.addVisitorFor(
       DagOrder.ON_SUBGRAPH_READY,
-      () => ({ commands: [{ commandName: Command.DEFER_READY }] } as never),
+      () => ({ commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] } as never),
     );
     await expect(async () => {
       await traversal.createRunner().run();
@@ -334,19 +334,19 @@ test('async command deferral releases callback capacity while work prerequisites
       }),
       resolveChild: (id) => ({
         ...source.resolveChild(id),
-        dependsOn: id === 'c' ? ['a'] : [],
+        dependsOnWork: id === 'c' ? ['a'] : [],
       }),
     },
   });
   const seen: string[] = [];
   traversal.addVisitorFor(DagOrder.ON_WORK_READY, async (vertex) => {
     seen.push(vertex.$data);
-    return { commands: [{ commandName: Command.DEFER_READY }] };
+    return { commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] };
   });
   const runner = traversal.createRunner();
   await runner.run();
   expect(seen).toEqual(['a', 'b']);
-  expect(runner.summary().inFlightIds).toEqual([]);
+  expect(runner.summary().activeVisitorVertexIds).toEqual([]);
   expect(runner.summary().completedWorkIds).toEqual([]);
   runner.settle(
     'a',

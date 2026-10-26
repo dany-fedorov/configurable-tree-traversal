@@ -71,7 +71,7 @@ function createLifecycleInspection(library, fixture, completed, options) {
         counters.vertex++;
         return {
           vertexId: id,
-          dependsOn: fixture.prerequisites[indexes.get(id)],
+          dependsOnWork: fixture.prerequisites[indexes.get(id)],
           vertexContent: { $d: id, $c: [] },
         };
       },
@@ -149,16 +149,16 @@ function assertBoundary(inspection, snapshot, fixture, completed) {
   // The flat catalog resolves all declarations even while lazy expansion remains open.
   assert.equal(snapshot.counts.discovered, fixture.ids.length);
   assert.equal(snapshot.diagnostics, null);
-  assert.equal(snapshot.counts.inFlight, 0);
+  assert.equal(snapshot.counts.activeVisitorVertices, 0);
   assert.equal(snapshot.counts.workCompleted, completed.size);
   assert.deepEqual(new Set(snapshot.completedWorkIds), completed);
   assert.deepEqual(snapshot.unusedCompletedWorkIds, []);
   const ready = kahnFrontier(fixture, completed).readyIds.filter((id) =>
     snapshot.vertices.has(id),
   );
-  assert.deepEqual(new Set(snapshot.readyIds), new Set(ready));
-  assert.deepEqual(new Set(snapshot.deferredIds), new Set(ready));
-  assert.equal(snapshot.counts.deferred, ready.length);
+  assert.deepEqual(new Set(snapshot.readyOrDeferredIds), new Set(ready));
+  assert.deepEqual(new Set(snapshot.deferredWorkIds), new Set(ready));
+  assert.equal(snapshot.counts.deferredWork, ready.length);
   assert.equal(inspection.counters.root, 1);
   assert.equal(inspection.counters.vertex, fixture.ids.length);
   return ready; // Fixture order supplies a deterministic rank outside timing.
@@ -167,16 +167,16 @@ function assertBoundary(inspection, snapshot, fixture, completed) {
 function assertReconstructed(retained, reconstructed) {
   assert.deepEqual(reconstructed.counts, retained.counts);
   for (const key of [
-    'readyIds',
-    'deferredIds',
+    'readyOrDeferredIds',
+    'deferredWorkIds',
     'completedWorkIds',
-    'completedSubtreeIds',
+    'completedSubgraphIds',
   ])
     assert.deepEqual(new Set(reconstructed[key]), new Set(retained[key]));
   for (const [id, progress] of retained.vertices) {
     const rebuilt = reconstructed.vertices.get(id);
     assert.equal(rebuilt.work, progress.work);
-    assert.equal(rebuilt.subtreeComplete, progress.subtreeComplete);
+    assert.equal(rebuilt.subgraphComplete, progress.subgraphComplete);
     assert.deepEqual(
       rebuilt.unmetPrerequisiteIds,
       progress.unmetPrerequisiteIds,

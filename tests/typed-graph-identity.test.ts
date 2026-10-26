@@ -28,7 +28,7 @@ for (const TreeTraversal of [
         kind: 'found',
         vertex: {
           vertexId: id,
-          dependsOn: [prerequisite],
+          dependsOnWork: [prerequisite],
           vertexContent: { $data: 'child', $childHints: [] },
         },
       }),
@@ -92,7 +92,7 @@ for (const asynchronous of [false, true]) {
               ? result()
               : {
                   vertexId: 1,
-                  dependsOn: callback === 'prerequisite' ? [42] : [],
+                  dependsOnWork: callback === 'prerequisite' ? [42] : [],
                   vertexContent: {
                     $data: 'root',
                     $childHints: callback === 'hint' ? [42] : [],

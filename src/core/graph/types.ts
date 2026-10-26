@@ -60,8 +60,8 @@ export type GraphVertex<T extends VertexTypes, ID = unknown> = Readonly<{
   vertex: Vertex<T>;
   vertexId: ID;
   discoveryDepth: number;
-  dependsOn: readonly ID[];
-  dependsOnComplete?: readonly ID[];
+  dependsOnWork: readonly ID[];
+  dependsOnSubgraphCompletion?: readonly ID[];
   status: GraphVertexStatus;
   incoming: readonly GraphEdge<T>[];
   slots: readonly ChildSlot<T, ID>[];
@@ -118,8 +118,8 @@ export interface GraphStoreContract<
   insertVertex(input: {
     ref: Ref<T>;
     id: ID;
-    dependsOn: readonly ID[];
-    dependsOnComplete?: readonly ID[];
+    dependsOnWork: readonly ID[];
+    dependsOnSubgraphCompletion?: readonly ID[];
     depth: number;
   }): void;
   setRoot(ref: Ref<T> | null): void;

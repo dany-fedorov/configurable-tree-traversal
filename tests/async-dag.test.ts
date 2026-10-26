@@ -102,7 +102,7 @@ test('fails a hostile object-id stall without coercion, rejection, or hanging', 
         resolveChild: () => ({
           vertexContent: { $d: 'blocked', $c: [] },
           vertexId: 'blocked',
-          dependsOn: [hostileId],
+          dependsOnWork: [hostileId],
         }),
       },
     }).createRunner();
@@ -132,7 +132,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
         expect(options.notMutatedResolvedGraph).not.toBeNull();
         return {
           vertexId: hint,
-          dependsOn: ['root'],
+          dependsOnWork: ['root'],
           vertexContent: { $d: hint, $c: [] },
         };
       },

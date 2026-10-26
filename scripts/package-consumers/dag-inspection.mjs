@@ -31,17 +31,17 @@ for (const Constructor of [esm.DagTraversal, cjs.AsyncDagTraversal]) {
   assert.deepEqual(snapshot.explain(target).blockers, [
     { kind: 'unfinishedWork', target, work: 'deferred' },
   ]);
-  const ticket = runner.summary().deferredFrontier[0];
+  const ticket = runner.summary().awaitingSettlement[0];
   runner.settle(task, { kind: 'workCompleted' }, ticket.generation);
   await runner.run();
   assert.equal(snapshot.explain(target).satisfied, false);
   assert.equal(dag.inspectDagMilestones(runner).explain(target).satisfied, true);
   assert.equal(runner.inspectMilestones().explain(target).satisfied, true);
   assert.deepEqual(snapshot.dependentsOf(target).milestones, [
-    { vertexId: task, milestone: 'completion' },
+    { vertexId: task, milestone: 'subgraphCompletion' },
   ]);
   assert.equal(
-    snapshot.prerequisitesOf({ vertexId: task, milestone: 'completion' })
+    snapshot.prerequisitesOf({ vertexId: task, milestone: 'subgraphCompletion' })
       .edges[0].reason,
     'ownWork',
   );

@@ -121,7 +121,7 @@ export class GraphScheduling<
     const diagnostics = this.diagnoseStall({ dependencies, incomplete: [] });
     if (
       diagnostics.unknownPrerequisiteIds.length > 0 ||
-      diagnostics.dependencyCycles.length > 0
+      diagnostics.dependencyCycleComponents.length > 0
     ) {
       throw new DagTraversalStallError(diagnostics);
     }
@@ -175,13 +175,13 @@ export class GraphScheduling<
       const slots = this.container.store.getTraversalSlots(ref);
       const unmet = this.registerDependencies(
         ref,
-        vertex.dependsOn,
+        vertex.dependsOnWork,
         restoredDependencies,
         false,
       );
       const unmetComplete = this.registerDependencies(
         ref,
-        vertex.dependsOnComplete ?? [],
+        vertex.dependsOnSubgraphCompletion ?? [],
         restoredCompleteDependencies,
         true,
       );
@@ -322,7 +322,7 @@ export class GraphScheduling<
       this.container.sourceMode === 'graph' &&
       this.rootDependencies === 'honor' &&
       !this.container.syntheticRoot
-        ? Array.from(new Set(result.dependsOn))
+        ? Array.from(new Set(result.dependsOnWork))
         : [];
     const completeDependencies = this.container.syntheticRoot
       ? []
@@ -505,7 +505,7 @@ export class GraphScheduling<
       this.acceptOmission(id);
       return null;
     }
-    const dependencies = Array.from(new Set(result.dependsOn));
+    const dependencies = Array.from(new Set(result.dependsOnWork));
     const completeDependencies = this.getCompleteDependencies(result);
     if (
       [...dependencies, ...completeDependencies].some(
@@ -812,21 +812,21 @@ export class GraphScheduling<
     // Analyze the full internal topology, then hide only synthetic bookkeeping.
     const dependencyEdges = edges
       .filter(
-        ({ from, to }) =>
+        ({ waiter, prerequisite }) =>
           syntheticId === null ||
-          (!sameVertexId(from.vertexId, syntheticId) &&
-            !sameVertexId(to.vertexId, syntheticId)),
+          (!sameVertexId(waiter.vertexId, syntheticId) &&
+            !sameVertexId(prerequisite.vertexId, syntheticId)),
       )
-      .map(({ from, to, reason }) => ({
-        from: { ...from },
-        to: { ...to },
+      .map(({ waiter, prerequisite, reason }) => ({
+        waiter: { ...waiter },
+        prerequisite: { ...prerequisite },
         reason,
       }));
     const cycleMembers = new Set(cycles.flat());
     return {
       dependencies,
       unknownPrerequisiteIds: Array.from(unknown),
-      dependencyCycles: cycles,
+      dependencyCycleComponents: cycles,
       dependencyEdges,
       dependencyBlockedIds: dependencies
         .filter(({ id }) => !cycleMembers.has(id))
@@ -879,7 +879,7 @@ export class GraphScheduling<
     context: VertexResolutionContext<T | R>,
     result: MakeVertexResult<T>,
   ): VertexId[] {
-    const declared = result.dependsOn;
+    const declared = result.dependsOnWork;
     if (declared !== undefined) return Array.from(new Set(declared));
     return (this.container.sourceMode === 'graph' &&
       !this.implicitParentDependency) ||
@@ -927,9 +927,9 @@ export class GraphScheduling<
 
   private getCompleteDependencies(result: MakeVertexResult<T>): VertexId[] {
     if (this.container.sourceMode === 'tree') return [];
-    if (result.dependsOnComplete !== undefined)
+    if (result.dependsOnSubgraphCompletion !== undefined)
       this.completionValidation = true;
-    return Array.from(new Set(result.dependsOnComplete));
+    return Array.from(new Set(result.dependsOnSubgraphCompletion));
   }
 
   private registerDependencies(

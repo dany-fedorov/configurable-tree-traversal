@@ -1,6 +1,6 @@
 import type {
-  DagDependencyEdge,
-  DagDependencyMilestone,
+  DagWaitEdge,
+  DagMilestone,
 } from '@core/errors/DagTraversalStallError';
 import type { DagInspectionState } from '@core/graph/types';
 import { makeMilestoneQuery } from '@core/graph/queryMilestones';
@@ -13,8 +13,8 @@ import type {
 export type DagMilestoneQueryOptions = { readonly transitive?: boolean };
 
 export type DagMilestoneQueryResult<ID = unknown> = Readonly<{
-  milestones: readonly DagDependencyMilestone<ID>[];
-  edges: readonly DagDependencyEdge<ID>[];
+  milestones: readonly DagMilestone<ID>[];
+  edges: readonly DagWaitEdge<ID>[];
   discoveryComplete: boolean;
 }>;
 
@@ -24,14 +24,14 @@ export type DagMilestoneStatus =
   | { kind: 'omitted' | 'deleted' | 'unresolved' };
 
 type WorkTarget<ID> = { vertexId: ID; milestone: 'work' };
-type CompletionTarget<ID> = { vertexId: ID; milestone: 'completion' };
+type CompletionTarget<ID> = { vertexId: ID; milestone: 'subgraphCompletion' };
 
 /** Original unmet constraints followed by terminal scheduler facts in BFS order. */
 export type DagBlocker<ID = unknown> =
-  | (DagDependencyEdge<ID> & {
+  | (DagWaitEdge<ID> & {
       kind: 'constraint';
-      fromStatus: DagMilestoneStatus;
-      toStatus: DagMilestoneStatus;
+      waiterStatus: DagMilestoneStatus;
+      prerequisiteStatus: DagMilestoneStatus;
     })
   | {
       kind: 'unfinishedWork';
@@ -46,12 +46,12 @@ export type DagBlocker<ID = unknown> =
 export type DagExplanation<ID = unknown> =
   | Readonly<{
       kind: 'unknown' | 'deleted';
-      target: DagDependencyMilestone<ID>;
+      target: DagMilestone<ID>;
       discoveryComplete: boolean;
     }>
   | Readonly<{
       kind: 'known';
-      target: DagDependencyMilestone<ID>;
+      target: DagMilestone<ID>;
       satisfied: boolean;
       progress: DagVertexProgress<ID> | null;
       blockers: readonly DagBlocker<ID>[];
@@ -60,13 +60,13 @@ export type DagExplanation<ID = unknown> =
 
 /** Detached original constraints, independent of subsequent runner progress. */
 export interface DagMilestoneSnapshot<ID = unknown> {
-  explain(target: DagDependencyMilestone<ID>): DagExplanation<ID>;
+  explain(target: DagMilestone<ID>): DagExplanation<ID>;
   prerequisitesOf(
-    target: DagDependencyMilestone<ID>,
+    target: DagMilestone<ID>,
     options?: DagMilestoneQueryOptions,
   ): DagMilestoneQueryResult<ID>;
   dependentsOf(
-    target: DagDependencyMilestone<ID>,
+    target: DagMilestone<ID>,
     options?: DagMilestoneQueryOptions,
   ): DagMilestoneQueryResult<ID>;
 }
@@ -75,7 +75,7 @@ export interface DagMilestoneSnapshot<ID = unknown> {
 export type DagInspectionSnapshot<ID> = {
   state: DagInspectionState<ID>;
   summary: DagSummary<ID>;
-  edges: readonly DagDependencyEdge<ID>[];
+  edges: readonly DagWaitEdge<ID>[];
 };
 
 /** @internal No caller receives the captured state or adjacency records. */
@@ -88,7 +88,7 @@ export function makeDagInspection<ID>(
   const scheduling = new Map(
     snapshot.state.schedulingStates.map((item) => [item.vertexId, item]),
   );
-  const status = (target: DagDependencyMilestone<ID>): DagMilestoneStatus => {
+  const status = (target: DagMilestone<ID>): DagMilestoneStatus => {
     const kind = identities.get(target.vertexId);
     if (kind !== 'live') return { kind: kind ?? 'unresolved' };
     const state = scheduling.get(target.vertexId)!;
@@ -101,7 +101,7 @@ export function makeDagInspection<ID>(
           : state.completionCommitted,
     };
   };
-  const satisfied = (target: DagDependencyMilestone<ID>) => {
+  const satisfied = (target: DagMilestone<ID>) => {
     const endpoint = status(target);
     return (
       endpoint.kind === 'omitted' ||
@@ -114,16 +114,16 @@ export function makeDagInspection<ID>(
       ...progress,
       unmetPrerequisiteIds: progress.unmetPrerequisiteIds.slice(),
       unmetWorkPrerequisiteIds: progress.unmetWorkPrerequisiteIds!.slice(),
-      ...(progress.unmetCompletePrerequisiteIds === undefined
+      ...(progress.unmetSubgraphPrerequisiteIds === undefined
         ? {}
         : {
-            unmetCompletePrerequisiteIds:
-              progress.unmetCompletePrerequisiteIds.slice(),
+            unmetSubgraphPrerequisiteIds:
+              progress.unmetSubgraphPrerequisiteIds.slice(),
           }),
     };
   };
   const walk = makeMilestoneQuery(snapshot.edges);
-  const explain = (input: DagDependencyMilestone<ID>): DagExplanation<ID> => {
+  const explain = (input: DagMilestone<ID>): DagExplanation<ID> => {
     const target = { vertexId: input.vertexId, milestone: input.milestone };
     const discoveryComplete = snapshot.state.discoveryComplete;
     const kind = identities.get(target.vertexId);
@@ -141,17 +141,17 @@ export function makeDagInspection<ID>(
         target,
         'prerequisites',
         true,
-        (edge) => !satisfied(edge.to),
+        (edge) => !satisfied(edge.prerequisite),
       );
       const blockedWork = new Set<ID>();
       for (const edge of reachable.edges) {
         blockers.push({
           ...edge,
           kind: 'constraint',
-          fromStatus: status(edge.from),
-          toStatus: status(edge.to),
+          waiterStatus: status(edge.waiter),
+          prerequisiteStatus: status(edge.prerequisite),
         });
-        if (edge.from.milestone === 'work') blockedWork.add(edge.from.vertexId);
+        if (edge.waiter.milestone === 'work') blockedWork.add(edge.waiter.vertexId);
       }
       for (const current of [target, ...reachable.milestones]) {
         const endpoint = status(current);
@@ -169,12 +169,12 @@ export function makeDagInspection<ID>(
           if (state.expansion !== 'closed')
             blockers.push({
               kind: 'discoveryOpen',
-              target: { vertexId: current.vertexId, milestone: 'completion' },
+              target: { vertexId: current.vertexId, milestone: 'subgraphCompletion' },
             });
           else if (state.initialCommitted && state.remainingChildren === 0)
             blockers.push({
               kind: 'completionPending',
-              target: { vertexId: current.vertexId, milestone: 'completion' },
+              target: { vertexId: current.vertexId, milestone: 'subgraphCompletion' },
             });
         }
       }
@@ -189,7 +189,7 @@ export function makeDagInspection<ID>(
     };
   };
   const query = (
-    input: DagDependencyMilestone<ID>,
+    input: DagMilestone<ID>,
     direction: 'prerequisites' | 'dependents',
     options: DagMilestoneQueryOptions = {},
   ): DagMilestoneQueryResult<ID> => {

@@ -125,7 +125,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: id === 'A' ? ['B'] : id === 'C' ? ['A', 'B'] : [],
+          dependsOnWork: id === 'A' ? ['B'] : id === 'C' ? ['A', 'B'] : [],
           vertexContent: { $d: id, $c: id === 'C' ? ['D'] : [] },
         }),
       },

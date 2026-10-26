@@ -20,7 +20,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           resolved.push(hint);
           return {
             vertexId: hint,
-            dependsOn: hint === 'a' ? ['c'] : [],
+            dependsOnWork: hint === 'a' ? ['c'] : [],
             vertexContent: { $d: hint, $c: hint === 'b' ? ['c'] : [] },
           };
         },
@@ -50,12 +50,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: {
           resolveRoot: () => ({
             vertexId: 'root',
-            dependsOn: invalid === 'cycle' ? ['a'] : [],
+            dependsOnWork: invalid === 'cycle' ? ['a'] : [],
             vertexContent: { $d: 'root', $c: ['a'] },
           }),
           resolveChild: () => ({
             vertexId: 'a',
-            dependsOn:
+            dependsOnWork:
               invalid === 'cycle'
                 ? ['root']
                 : invalid === 'missing'
@@ -137,12 +137,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['a'],
+          dependsOnWork: ['a'],
           vertexContent: { $d: 'root', $c: ['a'] },
         }),
         resolveChild: () => ({
           vertexId: 'a',
-          dependsOn: ['root'],
+          dependsOnWork: ['root'],
           vertexContent: { $d: 'a', $c: [] },
         }),
       },
@@ -150,7 +150,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await expect(async () => {
       await runner.run();
     }).rejects.toMatchObject({
-      diagnostics: { dependencyCycles: [['root', 'a']] },
+      diagnostics: { dependencyCycleComponents: [['root', 'a']] },
     });
   });
 
@@ -161,12 +161,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['a'],
+          dependsOnWork: ['a'],
           vertexContent: { $d: 'root', $c: ['a'] },
         }),
         resolveChild: () => ({
           vertexId: 'a',
-          dependsOn: [],
+          dependsOnWork: [],
           vertexContent: { $d: 'a', $c: [] },
         }),
       },
@@ -329,12 +329,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['a'],
+          dependsOnWork: ['a'],
           vertexContent: { $d: 'root', $c: ['a'] },
         }),
         resolveChild: () => ({
           vertexId: 'a',
-          dependsOn: ['root'],
+          dependsOnWork: ['root'],
           vertexContent: { $d: 'a', $c: [] },
         }),
       },
@@ -345,7 +345,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await expect(async () => {
       await traversal.createRunner().run();
     }).rejects.toMatchObject({
-      diagnostics: { dependencyCycles: [['root', 'a']] },
+      diagnostics: { dependencyCycleComponents: [['root', 'a']] },
     });
     expect(completed).toEqual([]);
   });
@@ -359,12 +359,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableTree: {
         resolveRoot: () => ({
           priority: 1,
-          dependsOnComplete: ['unused'],
+          dependsOnSubgraphCompletion: ['unused'],
           vertexContent: { $d: 'root', $c: ['child'] },
         }),
         resolveChild: () => ({
           priority: 2,
-          dependsOnComplete: ['also ignored'],
+          dependsOnSubgraphCompletion: ['also ignored'],
           vertexContent: { $d: 'child', $c: [] },
         }),
       },

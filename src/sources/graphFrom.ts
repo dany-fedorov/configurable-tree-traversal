@@ -26,8 +26,8 @@ export function materializeDagSourceFromRecords<Item, ID>(
       item,
       id,
       children: [...(selectors.children?.(item) ?? [])],
-      dependsOn: [...(selectors.dependsOn?.(item) ?? [])],
-      dependsOnComplete: [...(selectors.dependsOnComplete?.(item) ?? [])],
+      dependsOnWork: [...(selectors.dependsOnWork?.(item) ?? [])],
+      dependsOnSubgraphCompletion: [...(selectors.dependsOnSubgraphCompletion?.(item) ?? [])],
     });
   }
   validateChildren(records);
@@ -48,9 +48,9 @@ export async function materializeDagSourceFromRecordsAsync<Item, ID>(
       item,
       id,
       children: await collect(selectors.children?.(item) ?? []),
-      dependsOn: await collect(selectors.dependsOn?.(item) ?? []),
-      dependsOnComplete: await collect(
-        selectors.dependsOnComplete?.(item) ?? [],
+      dependsOnWork: await collect(selectors.dependsOnWork?.(item) ?? []),
+      dependsOnSubgraphCompletion: await collect(
+        selectors.dependsOnSubgraphCompletion?.(item) ?? [],
       ),
     });
   }

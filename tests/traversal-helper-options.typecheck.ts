@@ -92,7 +92,7 @@ const dag: DagTraversalRunner<T, T> = traverseDag({
     [D.ON_WORK_READY]: (_vertex, options) => {
       const phase: D.ON_WORK_READY = options.phase;
       void phase;
-      return { commands: [{ commandName: C.DEFER_READY }] };
+      return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
     },
     [D.ON_SUBGRAPH_READY]: dagCommon,
   },
@@ -212,7 +212,7 @@ traverseDag<T>({
   traversableGraph: graph,
   visitors: {
     // @ts-expect-error ON_SUBGRAPH_READY cannot defer.
-    [D.ON_SUBGRAPH_READY]: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
+    [D.ON_SUBGRAPH_READY]: () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
   },
 });
 traverseDagAsync<T>({
@@ -220,7 +220,7 @@ traverseDagAsync<T>({
   visitors: {
     // @ts-expect-error Async ON_SUBGRAPH_READY cannot defer.
     [D.ON_SUBGRAPH_READY]: async () => ({
-      commands: [{ commandName: C.DEFER_READY }],
+      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
     }),
   },
 });
@@ -228,7 +228,7 @@ traverseTreeBreadthFirst<T>({
   traversableTree: tree,
   visitors: {
     // @ts-expect-error BFS cannot defer work.
-    [B.LEVEL_ORDER]: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
+    [B.LEVEL_ORDER]: () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
   },
 });
 traverseTreeBreadthFirstAsync<T>({
@@ -236,7 +236,7 @@ traverseTreeBreadthFirstAsync<T>({
   visitors: {
     // @ts-expect-error Async BFS cannot defer work.
     [B.LEVEL_ORDER]: async () => ({
-      commands: [{ commandName: C.DEFER_READY }],
+      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
     }),
   },
 });

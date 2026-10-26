@@ -86,8 +86,8 @@ export function instantiateDagFragment<Data, ID, Port extends string, MappedID>(
       vertexId: remap(vertex.vertexId),
       data: vertex.data,
       slots: vertex.slots.map(slot),
-      dependsOn: vertex.dependsOn.map(remap),
-      dependsOnComplete: vertex.dependsOnComplete.map(remap),
+      dependsOnWork: vertex.dependsOnWork.map(remap),
+      dependsOnSubgraphCompletion: vertex.dependsOnSubgraphCompletion.map(remap),
     })),
     omittedIds: local.definition.omittedIds.map(remap),
     entry:
@@ -130,8 +130,8 @@ export function composeDag<Data, ID>(
     definition.vertices.map((vertex) => ({
       ...vertex,
       slots: [...vertex.slots],
-      dependsOn: [...vertex.dependsOn],
-      dependsOnComplete: [...vertex.dependsOnComplete],
+      dependsOnWork: [...vertex.dependsOnWork],
+      dependsOnSubgraphCompletion: [...vertex.dependsOnSubgraphCompletion],
     })),
   );
   const omittedIds = definitions.flatMap((definition) => [
@@ -177,9 +177,9 @@ export function composeDag<Data, ID>(
     const { vertexId, milestone } = prerequisite;
     if (!all.has(vertexId))
       throw new TypeError('Unknown DAG wire prerequisite');
-    if (milestone === 'work') dependent.dependsOn.push(vertexId);
-    else if (milestone === 'completion')
-      dependent.dependsOnComplete.push(vertexId);
+    if (milestone === 'work') dependent.dependsOnWork.push(vertexId);
+    else if (milestone === 'subgraphCompletion')
+      dependent.dependsOnSubgraphCompletion.push(vertexId);
     else throw new TypeError('Unknown DAG wire milestone');
   }
   return prepareDagDefinition({

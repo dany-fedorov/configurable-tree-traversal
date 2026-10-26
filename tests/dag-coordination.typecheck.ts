@@ -31,9 +31,9 @@ const pending: Promise<DagWorkBoundary<TaskId>> =
 const summary: DagSummary<TaskId> = coordinator.summary();
 const requested: boolean = coordinator.requestPause();
 if (boundary.kind === 'awaitingSettlement') {
-  const ticket: DagWorkTicket<TaskId> = boundary.frontier[0]!;
+  const ticket: DagWorkTicket<TaskId> = boundary.workTickets[0]!;
   const id: TaskId = ticket.vertexId;
-  const accepted: DagSettlementReceipt = coordinator.complete(ticket);
+  const accepted: DagSettlementReceipt = coordinator.completeWork(ticket);
   const failed: DagSettlementReceipt = asyncCoordinator.failTraversal(
     ticket,
     undefined,
@@ -45,9 +45,9 @@ if (boundary.kind === 'awaitingSettlement') {
   // @ts-expect-error Tickets expose a readonly identity.
   ticket.vertexId = { task: 'changed' };
   // @ts-expect-error Frontier observations are readonly.
-  boundary.frontier.push(ticket);
+  boundary.workTickets.push(ticket);
   // @ts-expect-error A vertex ID alone is not a settlement capability.
-  coordinator.complete(id);
+  coordinator.completeWork(id);
   // @ts-expect-error Ticket identity cannot change generic families.
   const wrongId: DagWorkTicket<number> = ticket;
   void [id, accepted, failed, wrongId];

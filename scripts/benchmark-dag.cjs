@@ -82,7 +82,7 @@ function createInspection(
         counters.vertex++;
         return {
           vertexId: id,
-          dependsOn: fixture.prerequisites[indexes.get(id)],
+          dependsOnWork: fixture.prerequisites[indexes.get(id)],
           vertexContent: { $d: id, $c: [] },
         };
       },
@@ -119,7 +119,7 @@ function sample(library, shape, count, seedCount, summaryIterations) {
   const runToQuiescenceMs = performance.now() - runStart;
   // All correctness checks are outside measured regions. Summaries allocate detached snapshots.
   const before = runner.summary();
-  assert.deepEqual(before.readyIds, baseline.readyIds);
+  assert.deepEqual(before.readyOrDeferredIds, baseline.readyIds);
   assert.deepEqual(before.completedWorkIds, [...completed]);
   assert.equal(before.discovery.complete, true);
   assert.equal(before.diagnostics, null);
@@ -127,7 +127,7 @@ function sample(library, shape, count, seedCount, summaryIterations) {
   assert.equal(counters.root, 1);
   assert.equal(counters.vertex, count);
   assert.equal(counters.ready, baseline.readyIds.length);
-  assert.equal(before.counts.deferred, baseline.readyIds.length);
+  assert.equal(before.counts.deferredWork, baseline.readyIds.length);
   const calls = { ...counters };
   const status = runner.getStatus();
   let last;

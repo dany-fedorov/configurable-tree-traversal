@@ -16,7 +16,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
     traversableGraph: {
       resolveRoot: () => ({
         vertexId: 'root',
-        dependsOn: ['external'],
+        dependsOnWork: ['external'],
         vertexContent: { $d: 'root', $c: [] },
       }),
       resolveChild: () => ({ vertexContent: null }),
@@ -61,7 +61,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
   expect(runner.summary()).toEqual(before);
   await runner.run();
   expect(calls).toEqual(['external']);
-  expect(runner.summary().counts.subtreeCompleted).toBe(2);
+  expect(runner.summary().counts.subgraphCompleted).toBe(2);
 });
 
 for (const removeAll of [false, true]) {
@@ -81,7 +81,7 @@ for (const removeAll of [false, true]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: ['external'],
+          dependsOnWork: ['external'],
           vertexContent: { $d: id, $c: [] },
         }),
         resolvePrerequisite: (id) => {
@@ -115,7 +115,7 @@ for (const removeAll of [false, true]) {
     expect(runner.getResolvedGraph().getVertexById('external') === null).toBe(
       removeAll,
     );
-    expect(runner.summary().counts.subtreeCompleted).toBe(removeAll ? 1 : 3);
+    expect(runner.summary().counts.subgraphCompleted).toBe(removeAll ? 1 : 3);
   });
 }
 
@@ -129,7 +129,7 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
     traversableGraph: {
       resolveRoot: () => ({
         vertexId: 'root',
-        dependsOn: ['external'],
+        dependsOnWork: ['external'],
         vertexContent: { $d: 'root', $c: [] },
       }),
       resolveChild: () => ({ vertexContent: null }),
@@ -165,7 +165,7 @@ for (const hinted of [false, true]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['loader', 'external'],
+          dependsOnWork: ['loader', 'external'],
           vertexContent: { $d: 'root', $c: [] },
         }),
         ...(hinted
@@ -175,7 +175,7 @@ for (const hinted of [false, true]) {
           calls.push(id);
           return {
             vertexId: id,
-            dependsOn: [],
+            dependsOnWork: [],
             vertexContent: { $d: 'ordinary', $c: [] },
           };
         },
@@ -217,7 +217,7 @@ test('resolver calls share the finite callback concurrency ceiling', async () =>
     traversableGraph: {
       resolveRoot: () => ({
         vertexId: 'root',
-        dependsOn: [0, 1, 2],
+        dependsOnWork: [0, 1, 2],
         vertexContent: { $d: 'root', $c: [] },
       }),
       resolveChild: () => ({ vertexContent: null }),
@@ -237,7 +237,7 @@ test('resolver calls share the finite callback concurrency ceiling', async () =>
   gates[1]!.resolve(found);
   gates[2]!.resolve(found);
   await running;
-  expect(runner.summary().counts.subtreeCompleted).toBe(4);
+  expect(runner.summary().counts.subgraphCompleted).toBe(4);
 });
 
 for (const error of [undefined, null, { rejected: true }]) {
@@ -249,7 +249,7 @@ for (const error of [undefined, null, { rejected: true }]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['external'],
+          dependsOnWork: ['external'],
           vertexContent: { $d: 'root', $c: [] },
         }),
         resolveChild: () => ({ vertexContent: null }),
@@ -278,7 +278,7 @@ test('fatal lookup failure invalidates queued and started sibling lookups', asyn
     traversableGraph: {
       resolveRoot: () => ({
         vertexId: 'root',
-        dependsOn: ['a', 'b', 'c'],
+        dependsOnWork: ['a', 'b', 'c'],
         vertexContent: { $d: 'root', $c: [] },
       }),
       resolveChild: () => ({ vertexContent: null }),
@@ -320,7 +320,7 @@ for (const lookupSource of [false, true]) {
               ? acceptance.promise
               : {
                   vertexId: id,
-                  dependsOn: id === 'consumer' ? ['external'] : [],
+                  dependsOnWork: id === 'consumer' ? ['external'] : [],
                   vertexContent: { $d: id, $c: [] },
                 },
           ...(lookupSource
@@ -342,7 +342,7 @@ for (const lookupSource of [false, true]) {
       await consumerEntered.promise;
       acceptance.resolve({
         vertexId: 'external',
-        dependsOn: ['dead'],
+        dependsOnWork: ['dead'],
         vertexContent: { $d: 'external', $c: [] },
       });
       await eventLoopTurn();
@@ -355,7 +355,7 @@ for (const lookupSource of [false, true]) {
           .getVertexRefs()
           .map((ref) => ref.unref().getData()),
       ).toEqual(['root']);
-      expect(runner.summary().counts.subtreeCompleted).toBe(1);
+      expect(runner.summary().counts.subgraphCompleted).toBe(1);
     });
   }
 }
@@ -369,12 +369,12 @@ for (const omittedFirst of [false, true]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['loader', 'external'],
+          dependsOnWork: ['loader', 'external'],
           vertexContent: { $d: 'root', $c: [] },
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: [],
+          dependsOnWork: [],
           vertexContent: omittedFirst ? null : { $d: 'ordinary', $c: [] },
         }),
         resolvePrerequisite: (id) =>
@@ -396,7 +396,7 @@ for (const omittedFirst of [false, true]) {
       expect(
         runner.getResolvedGraph().getVertexById('external')!.unref().getData(),
       ).toBe('ordinary');
-      expect(runner.summary().counts.subtreeCompleted).toBe(3);
+      expect(runner.summary().counts.subgraphCompleted).toBe(3);
     }
   });
 }

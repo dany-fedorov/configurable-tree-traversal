@@ -91,11 +91,11 @@ test('tree binding reuses the legacy facade and passes real tree options', () =>
   ).toEqual([savedChild]);
 });
 
-test.each(['vertexId', 'dependsOn'] as const)(
+test.each(['vertexId', 'dependsOnWork'] as const)(
   'tree binding rejects the %s graph metadata field',
   async (field) => {
     const metadata =
-      field === 'vertexId' ? { vertexId: 'id' } : { dependsOn: [] };
+      field === 'vertexId' ? { vertexId: 'id' } : { dependsOnWork: [] };
     const adapter: AsyncTreeSource<InputTTP> = {
       // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
       resolveRoot: async () => ({ vertexContent: null, ...metadata }),
@@ -121,14 +121,14 @@ test.each(['vertexId', 'dependsOn'] as const)(
 
 test.each([
   ['resolveRoot', 'vertexId'],
-  ['resolveRoot', 'dependsOn'],
+  ['resolveRoot', 'dependsOnWork'],
   ['resolveChild', 'vertexId'],
-  ['resolveChild', 'dependsOn'],
+  ['resolveChild', 'dependsOnWork'],
 ] as const)(
   'tree binding rejects synchronous %s %s metadata',
   (method, field) => {
     const metadata =
-      field === 'vertexId' ? { vertexId: 'id' } : { dependsOn: [] };
+      field === 'vertexId' ? { vertexId: 'id' } : { dependsOnWork: [] };
     const treeContainer = new DepthFirstTreeTraversal<InputTTP, RewriteTTP>({
       traversableTree: {
         resolveRoot: () => ({ vertexContent: null }),

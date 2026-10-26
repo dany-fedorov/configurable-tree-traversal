@@ -26,7 +26,7 @@ function check(error: unknown) {
       { id: 'D', unmet: ['D'] },
     ],
     unknownPrerequisiteIds: ['unknown'],
-    dependencyCycles: [['A', 'B'], ['D']],
+    dependencyCycleComponents: [['A', 'B'], ['D']],
     dependencyBlockedIds: ['C'],
     structurallyIncompleteIds: ['root'],
     dependencyEdges: expect.any(Array),
@@ -68,7 +68,7 @@ test('reports a missing prerequisite separately from its blocked vertex', () => 
     expect((error as DagTraversalStallError).diagnostics).toEqual({
       dependencies: [{ id: 'task', unmet: ['absent'] }],
       unknownPrerequisiteIds: ['absent'],
-      dependencyCycles: [],
+      dependencyCycleComponents: [],
       dependencyBlockedIds: ['task'],
       structurallyIncompleteIds: ['root'],
       dependencyEdges: expect.any(Array),
@@ -85,14 +85,14 @@ test('detaches reports and retains hostile and SameValueZero IDs without coercio
   const diagnostics = {
     dependencies: [{ id: hostile, unmet: [undefined, null, NaN, -0] }],
     unknownPrerequisiteIds: [undefined, null, NaN, -0],
-    dependencyCycles: [[hostile]],
+    dependencyCycleComponents: [[hostile]],
     dependencyBlockedIds: [hostile],
     structurallyIncompleteIds: [hostile],
   };
   const error = new DagTraversalStallError(diagnostics);
   diagnostics.dependencies[0]!.unmet.length = 0;
   diagnostics.unknownPrerequisiteIds.length = 0;
-  diagnostics.dependencyCycles[0]!.length = 0;
+  diagnostics.dependencyCycleComponents[0]!.length = 0;
   diagnostics.dependencyBlockedIds.length = 0;
   diagnostics.structurallyIncompleteIds.length = 0;
   expect(error.diagnostics.dependencies).toEqual([
@@ -104,14 +104,14 @@ test('detaches reports and retains hostile and SameValueZero IDs without coercio
     NaN,
     -0,
   ]);
-  expect(error.diagnostics.dependencyCycles).toEqual([[hostile]]);
+  expect(error.diagnostics.dependencyCycleComponents).toEqual([[hostile]]);
   expect(error.diagnostics.dependencyBlockedIds[0]).toBe(hostile);
   expect(error.diagnostics.structurallyIncompleteIds[0]).toBe(hostile);
   expect(
     new DagTraversalStallError({
       dependencies: [],
       unknownPrerequisiteIds: [],
-      dependencyCycles: [],
+      dependencyCycleComponents: [],
       dependencyBlockedIds: [],
       structurallyIncompleteIds: ['root'],
     }).message,
@@ -135,7 +135,7 @@ test('diagnoses a deep dependency chain without using the call stack', () => {
       }),
       resolveChild: (id: number) => ({
         vertexId: id,
-        dependsOn: [id === count - 1 ? id : id + 1],
+        dependsOnWork: [id === count - 1 ? id : id + 1],
         vertexContent: { $d: 'task', $c: [] as number[] },
       }),
     },
@@ -145,7 +145,7 @@ test('diagnoses a deep dependency chain without using the call stack', () => {
     throw new Error('Expected stall');
   } catch (error) {
     const diagnostics = (error as DagTraversalStallError).diagnostics;
-    expect(diagnostics.dependencyCycles).toEqual([[count - 1]]);
+    expect(diagnostics.dependencyCycleComponents).toEqual([[count - 1]]);
     expect(diagnostics.dependencyBlockedIds).toHaveLength(count - 1);
     expect(diagnostics.unknownPrerequisiteIds).toEqual([]);
   }
@@ -162,7 +162,7 @@ test('scheduler diagnostics preserve arbitrary missing and cyclic IDs', () => {
       }),
       resolveChild: (id: unknown) => ({
         vertexId: id,
-        dependsOn: [id, 'missing'],
+        dependsOnWork: [id, 'missing'],
         vertexContent: { $d: 'task', $c: [] as unknown[] },
       }),
     },
@@ -172,7 +172,7 @@ test('scheduler diagnostics preserve arbitrary missing and cyclic IDs', () => {
     throw new Error('Expected stall');
   } catch (error) {
     const diagnostics = (error as DagTraversalStallError).diagnostics;
-    expect(diagnostics.dependencyCycles).toEqual([
+    expect(diagnostics.dependencyCycleComponents).toEqual([
       [hostile],
       [undefined],
       [null],
@@ -193,7 +193,7 @@ test('keeps undefined first when its cycle was discovered first', () => {
       }),
       resolveChild: (id: unknown) => ({
         vertexId: id,
-        dependsOn: [id === undefined ? 'b' : undefined],
+        dependsOnWork: [id === undefined ? 'b' : undefined],
         vertexContent: { $d: 'task', $c: [] as unknown[] },
       }),
     },
@@ -203,7 +203,7 @@ test('keeps undefined first when its cycle was discovered first', () => {
     throw new Error('Expected stall');
   } catch (error) {
     expect(
-      (error as DagTraversalStallError).diagnostics.dependencyCycles,
+      (error as DagTraversalStallError).diagnostics.dependencyCycleComponents,
     ).toEqual([[undefined, 'b']]);
   }
 });

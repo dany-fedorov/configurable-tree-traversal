@@ -32,7 +32,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               kind: 'found',
               vertex: {
                 vertexId: id,
-                dependsOn: ['a'],
+                dependsOnWork: ['a'],
                 vertexContent: { $data: id, $childHints: [] },
               },
             };
@@ -48,8 +48,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       expect(runner.summary()).toMatchObject({
         discovery: { mode: 'eager', complete: true },
         completedWorkIds: [],
-        completedSubtreeIds: [],
-        deferredFrontier: [],
+        completedSubgraphIds: [],
+        awaitingSettlement: [],
       });
       expect(visits).toEqual([]);
       expect(calls).toEqual(['a', 'b']);
@@ -103,7 +103,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         expect(runner.summary().counts).toMatchObject({
           discovered: empty ? 0 : 2,
           workCompleted: 0,
-          subtreeCompleted: 0,
+          subgraphCompleted: 0,
         });
         expect(calls).toEqual(empty ? ['root'] : ['root', 'child']);
         await runner.run();
@@ -133,8 +133,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       expect(runner.summary()).toMatchObject({
         counts: { discovered: empty ? 0 : 1 },
         completedWorkIds: [],
-        completedSubtreeIds: [],
-        deferredFrontier: [],
+        completedSubgraphIds: [],
+        awaitingSettlement: [],
       });
       await runner.run();
       expect(runner.getStopReason()).toBe('finished');
@@ -149,7 +149,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOnComplete: ['lookup'],
+          dependsOnSubgraphCompletion: ['lookup'],
           vertexContent: { $data: 'root', $childHints: [] },
         }),
         resolveChild: (id) => ({
@@ -174,8 +174,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(visits).toEqual([]);
     expect(runner.summary()).toMatchObject({
       completedWorkIds: ['lookup'],
-      completedSubtreeIds: [],
-      deferredFrontier: [],
+      completedSubgraphIds: [],
+      awaitingSettlement: [],
       counts: { discovered: 3 },
     });
     const events = [];
@@ -186,7 +186,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           event.vertex.getData(),
         );
       else
-        expect(runner.summary().completedSubtreeIds).toContain(
+        expect(runner.summary().completedSubgraphIds).toContain(
           event.vertex.getData(),
         );
     }
@@ -219,7 +219,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: {
           resolveRoot: () => ({
             vertexId: 'root',
-            dependsOn: issue === 'unknownSeed' ? [] : ['lookup'],
+            dependsOnWork: issue === 'unknownSeed' ? [] : ['lookup'],
             vertexContent: { $data: 'root', $childHints: [] },
           }),
           resolveChild: () => ({ vertexContent: null }),
@@ -229,8 +229,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               : {
                   vertexId: 'lookup',
                   ...(issue === 'completionCycle'
-                    ? { dependsOnComplete: ['root'] }
-                    : { dependsOn: ['root'] }),
+                    ? { dependsOnSubgraphCompletion: ['root'] }
+                    : { dependsOnWork: ['root'] }),
                   vertexContent: { $data: 'lookup', $childHints: [] },
                 },
         },
@@ -242,7 +242,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       await expect(async () => runner.prepare()).rejects.toThrow();
       expect(visits).toBe(0);
       expect(runner.getStatus()).toBe(Status.FAILED);
-      expect(runner.summary().deferredFrontier).toEqual([]);
+      expect(runner.summary().awaitingSettlement).toEqual([]);
     });
   }
 
@@ -259,7 +259,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               if (stage === 'root') throw error;
               return {
                 vertexId: 'root',
-                dependsOn: stage === 'lookup' ? ['lookup'] : [],
+                dependsOnWork: stage === 'lookup' ? ['lookup'] : [],
                 vertexContent: {
                   $data: 'root',
                   $childHints: stage === 'child' ? ['child'] : [],

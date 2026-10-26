@@ -108,8 +108,8 @@ test.each([
 
 test.each([
   'vertexId',
-  'dependsOn',
-  'dependsOnComplete',
+  'dependsOnWork',
+  'dependsOnSubgraphCompletion',
   'satisfiesDependencies',
 ])('rejects hook %s before omission/default discards it', (field) => {
   for (const result of [
@@ -211,8 +211,8 @@ test.each([undefined, null, false, Symbol('hook failure')])(
 
 test.each([
   'vertexId',
-  'dependsOn',
-  'dependsOnComplete',
+  'dependsOnWork',
+  'dependsOnSubgraphCompletion',
   'satisfiesDependencies',
 ])('legacy hook cannot discard %s metadata before default/pruning', (field) => {
   for (const returnMe of [undefined, null]) {

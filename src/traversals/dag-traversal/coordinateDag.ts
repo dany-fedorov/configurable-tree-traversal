@@ -21,7 +21,7 @@ export type DagWorkTicket<ID = unknown> = Readonly<{
 export type DagWorkBoundary<ID = unknown> =
   | Readonly<{
       kind: 'awaitingSettlement';
-      frontier: readonly DagWorkTicket<ID>[];
+      workTickets: readonly DagWorkTicket<ID>[];
     }>
   | Readonly<{ kind: 'paused' }>
   | Readonly<{ kind: 'finished' }>;
@@ -31,7 +31,7 @@ export type DagSettlementReceipt =
   | Readonly<{ kind: 'alreadyAccepted' }>;
 
 interface DagCoordinationControl<ID> extends TraversalExecutionState {
-  complete(ticket: DagWorkTicket<ID>): DagSettlementReceipt;
+  completeWork(ticket: DagWorkTicket<ID>): DagSettlementReceipt;
   /** Fatal for the whole traversal; keep retryable work deferred instead. */
   failTraversal(
     ticket: DagWorkTicket<ID>,
@@ -93,7 +93,7 @@ function makeCoordination<ID>(
   const failTraversal = (ticket: DagWorkTicket<ID>, error: unknown) =>
     settle(ticket, { kind: 'traversalFailed', error });
   return {
-    complete: (ticket: DagWorkTicket<ID>) =>
+    completeWork: (ticket: DagWorkTicket<ID>) =>
       settle(ticket, { kind: 'workCompleted' }),
     failTraversal,
     getStatus: () => runner.getStatus(),
@@ -109,7 +109,7 @@ function makeCoordination<ID>(
       if (reason === 'paused') return { kind: 'paused' };
       return {
         kind: 'awaitingSettlement',
-        frontier: runner.summary().deferredFrontier.map((work) => {
+        workTickets: runner.summary().awaitingSettlement.map((work) => {
           // The private WeakMap, not a copyable field, proves ticket ownership.
           const ticket = Object.freeze({
             vertexId: work.vertexId,

@@ -31,7 +31,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const before = [];
       for await (const event of runner.iterateEvents()) before.push(event);
       expect(before).toEqual([]);
-      const record = runner.summary().deferredFrontier[0]!;
+      const record = runner.summary().awaitingSettlement[0]!;
       runner.settle(id, { ok: true }, record.generation);
       const events = [];
       for await (const event of runner.iterateEvents()) {

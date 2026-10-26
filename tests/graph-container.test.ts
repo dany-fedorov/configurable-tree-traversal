@@ -137,7 +137,7 @@ test('tree acceptance uses supplied graph ids and dependencies', () => {
   expect(container.resolvedGraph.getVertexById('accepted-root')).toBe(root);
   expect(container.resolvedGraph.getIdOf(child)).toBe('accepted-child');
   expect(container.resolvedGraph.getVertexById('accepted-child')).toBe(child);
-  expect(container.resolvedGraph.get(child)?.dependsOn).toEqual([
+  expect(container.resolvedGraph.get(child)?.dependsOnWork).toEqual([
     'accepted-root',
   ]);
   expect(snapshot.getIdOf(savedRoot)).toBe('accepted-root');

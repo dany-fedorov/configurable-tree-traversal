@@ -42,13 +42,13 @@ for (const mode of ['sync', 'async']) {
               shape === 'independent' ||
               step >= frontiers.length - 2,
           );
-          assert.deepEqual(snapshot.readyIds, frontiers[step]);
+          assert.deepEqual(snapshot.readyOrDeferredIds, frontiers[step]);
           assert.deepEqual(
             [...snapshot.completedWorkIds].sort(),
             [...completed].sort(),
           );
           const old = structuredClone({
-            readyIds: snapshot.readyIds,
+            readyOrDeferredIds: snapshot.readyOrDeferredIds,
             counts: snapshot.counts,
           });
           const calls = { ...inspection.counters };
@@ -64,7 +64,7 @@ for (const mode of ['sync', 'async']) {
           );
           await rebuilt.runner.run();
           const reconstructed = rebuilt.runner.summary();
-          assert.deepEqual(reconstructed.readyIds, snapshot.readyIds);
+          assert.deepEqual(reconstructed.readyOrDeferredIds, snapshot.readyOrDeferredIds);
           assert.deepEqual(reconstructed.counts, snapshot.counts);
           assert.deepEqual(
             [...reconstructed.completedWorkIds].sort(),
@@ -83,7 +83,7 @@ for (const mode of ['sync', 'async']) {
             completed.add(id);
             await inspection.runner.run();
             assert.deepEqual(
-              { readyIds: snapshot.readyIds, counts: snapshot.counts },
+              { readyOrDeferredIds: snapshot.readyOrDeferredIds, counts: snapshot.counts },
               old,
             );
           }

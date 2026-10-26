@@ -107,7 +107,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: id === 'a' ? ['c'] : id === 'b' ? ['root'] : [],
+          dependsOnWork: id === 'a' ? ['c'] : id === 'b' ? ['root'] : [],
           vertexContent: { $d: id, $c: id === 'b' ? ['c'] : [] },
         }),
       },
@@ -126,7 +126,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       runner.summary().vertices.get('root')!.generation!,
     );
     await runner.run();
-    expect(runner.summary().deferredIds).toEqual(['b', 'c']);
+    expect(runner.summary().deferredWorkIds).toEqual(['b', 'c']);
     runner.settle(
       'c',
       { ok: true },
@@ -134,7 +134,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     );
     await runner.run();
     expect(runner.summary().discovery.complete).toBe(true);
-    expect(runner.summary().readyIds).toEqual(['a', 'b']);
+    expect(runner.summary().readyOrDeferredIds).toEqual(['a', 'b']);
   });
 }
 
@@ -163,7 +163,7 @@ test('settlement wakes an active async consumer while another physical callback 
       resolveRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b', 'c'] } }),
       resolveChild: (id) => ({
         vertexId: id,
-        dependsOn: id === 'c' ? ['a'] : [],
+        dependsOnWork: id === 'c' ? ['a'] : [],
         vertexContent: { $d: id, $c: [] },
       }),
     },
@@ -176,8 +176,8 @@ test('settlement wakes an active async consumer while another physical callback 
   const runner = traversal.createRunner();
   const running = runner.run();
   await eventLoopTurn();
-  expect(runner.summary().inFlightIds).toEqual(['b']);
-  expect(runner.summary().vertices.get('b')!.work).toBe('running');
+  expect(runner.summary().activeVisitorVertexIds).toEqual(['b']);
+  expect(runner.summary().vertices.get('b')!.work).toBe('visiting');
   runner.settle(
     'a',
     { ok: true },
@@ -203,7 +203,7 @@ test('deleted orphan refuses a previously issued deferred generation', async () 
       }),
       resolveChild: (id) => ({
         vertexId: id,
-        dependsOn: [],
+        dependsOnWork: [],
         vertexContent: { $d: id, $c: id === 'p' ? ['a'] : [] },
       }),
     },
@@ -261,7 +261,7 @@ test('halt waits for a physical callback and retains deferred handles across res
   runner.settle('a', { ok: true }, token);
   await runner.run();
   expect(runner.summary().completedWorkIds).toEqual(['a']);
-  expect(runner.summary().readyIds).toEqual(['b']);
+  expect(runner.summary().readyOrDeferredIds).toEqual(['b']);
 });
 
 test('failure settlement cannot free a still-running callback permit or accept another deferred result', async () => {
@@ -319,7 +319,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             }),
             resolveChild: (id) => ({
               vertexId: id,
-              dependsOn:
+              dependsOnWork:
                 id === 'design'
                   ? []
                   : id === 'verify'
@@ -342,14 +342,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         completed.add(id);
         const rebuilt = make(completed);
         await rebuilt.run();
-        expect(rebuilt.summary().readyIds).toEqual(retained.summary().readyIds);
+        expect(rebuilt.summary().readyOrDeferredIds).toEqual(retained.summary().readyOrDeferredIds);
         expect(rebuilt.summary().completedWorkIds).toEqual(
           retained.summary().completedWorkIds,
         );
         expect(rebuilt.summary().counts).toEqual(retained.summary().counts);
         expect(() => rebuilt.settle(id, { ok: true }, token)).toThrow();
       }
-      expect(retained.summary().readyIds).toEqual(['verify']);
+      expect(retained.summary().readyOrDeferredIds).toEqual(['verify']);
     },
   );
 }

@@ -22,7 +22,7 @@ export function graphAdapter(nodes: GraphFixture = diamond) {
     if (entry === undefined) throw new Error(`Unknown fixture id: ${id}`);
     return {
       vertexId: id,
-      dependsOn: entry.dependencies.slice(),
+      dependsOnWork: entry.dependencies.slice(),
       vertexContent: { $d: id, $c: entry.children.slice() },
     };
   }

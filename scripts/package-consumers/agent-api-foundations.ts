@@ -49,7 +49,7 @@ type T = VertexTypes<Item, ID>;
 declare const items: readonly Item[];
 const source = materializeDagSourceFromRecords(items, {
   id: (item) => item.id,
-  dependsOn: (item) => item.requires,
+  dependsOnWork: (item) => item.requires,
 });
 const sourceIdentity: MaterializedDagSource<Item, ID> = source;
 const subpathIdentity: SubpathSource<Item, ID> = sourceIdentity;
@@ -62,7 +62,7 @@ const forest: MaterializedDagSource<Item, ID> = materializeDagSourceFromRoots(it
 });
 const asyncSource: Promise<MaterializedDagSource<Item, ID>> = materializeDagSourceFromRecordsAsync(items, {
   id: async (item) => item.id,
-  dependsOn: async (item) => item.requires,
+  dependsOnWork: async (item) => item.requires,
 });
 const asyncForest: Promise<MaterializedDagSource<Item, ID>> = materializeDagSourceFromRootsAsync(
   items,
@@ -80,11 +80,11 @@ if (prepared.kind === 'valid') {
   const session: DagWorkSession<ID> = required.createWorkSession();
   const boundary = session.advance();
   if (boundary.kind === 'awaitingSettlement') {
-    const ticket: DagWorkTicket<ID> = boundary.frontier[0]!;
+    const ticket: DagWorkTicket<ID> = boundary.workTickets[0]!;
     const subpathTicket: SubpathTicket<ID> = ticket;
     const requiredTicket: dagCjs.DagWorkTicket<ID> = subpathTicket;
     const id: ID = requiredTicket.vertexId;
-    session.complete(requiredTicket);
+    session.completeWork(requiredTicket);
     // @ts-expect-error Fatal settlement exposes only the canonical method.
     session.fail(requiredTicket, undefined);
     // @ts-expect-error Tickets retain their exact ID domain.

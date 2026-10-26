@@ -322,7 +322,7 @@ test('shared DAG objects retain one runner owner through halt and release at fin
 test('close does not await a pending resolver and reuses its result on resume', async () => {
   const child = deferred<{
     vertexId: string;
-    dependsOn: string[];
+    dependsOnWork: string[];
     vertexContent: { $d: string; $c: string[] };
   }>();
   let resolutions = 0;
@@ -352,7 +352,7 @@ test('close does not await a pending resolver and reuses its result on resume', 
   expect(runner.getStatus()).toBe(Status.HALTED);
   child.resolve({
     vertexId: 'child',
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     vertexContent: { $d: 'child', $c: [] },
   });
   await eventLoopTurn();

@@ -290,7 +290,7 @@ it.each([
   { commands: [{}] },
   { commands: [{ commandName: C.NOOP, commandArguments: {} }] },
   { commands: [{ commandName: C.PAUSE_TRAVERSAL, commandArguments: {} }] },
-  { commands: [{ commandName: C.DEFER_READY }] },
+  { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] },
 ])('rejects malformed visitor results and unsupported commands %#', (value) => {
   const t = new GraphWalk({
     source: idGraph(['A'], [['A', []]]),

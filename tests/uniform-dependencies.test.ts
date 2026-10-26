@@ -18,7 +18,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: {
           resolveRoot: () => ({
             vertexId: 'root',
-            dependsOn: ['missing'],
+            dependsOnWork: ['missing'],
             vertexContent: { $data: 'root', $childHints: [] },
           }),
           resolveChild: () => ({ vertexContent: null }),
@@ -76,7 +76,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: {
           resolveRoot: () => ({
             vertexId: 'root',
-            dependsOn: ['missing'],
+            dependsOnWork: ['missing'],
             vertexContent: { $data: 'root', $childHints: [] },
           }),
           resolveChild: () => ({ vertexContent: null }),
@@ -101,8 +101,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         kind: 'found',
         vertex: {
           vertexId: objectId,
-          dependsOn: ['external'],
-          dependsOnComplete: ['external'],
+          dependsOnWork: ['external'],
+          dependsOnSubgraphCompletion: ['external'],
           vertexContent: { $data: 'child', $childHints: [] },
         },
       }),
@@ -124,7 +124,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const source: DagDiscoverySource<G> = {
       resolveRoot: () => ({
         vertexId: 'root',
-        dependsOn: ['missing'],
+        dependsOnWork: ['missing'],
         vertexContent: { $data: 'root', $childHints: [] },
       }),
       resolveChild: () => ({ vertexContent: null }),
@@ -150,8 +150,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['ignored'],
-          dependsOnComplete: ['missing'],
+          dependsOnWork: ['ignored'],
+          dependsOnSubgraphCompletion: ['missing'],
           vertexContent: { $data: 'root', $childHints: [] },
         }),
         resolveChild: () => ({ vertexContent: null }),
@@ -235,7 +235,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: () => ({
           vertexId: 'child',
-          dependsOn: [],
+          dependsOnWork: [],
           vertexContent: { $data: 'child', $childHints: [] },
         }),
       },
@@ -289,8 +289,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             : {
                 kind: 'found',
                 vertex: {
-                  dependsOn: ['omitted'],
-                  dependsOnComplete: ['omitted'],
+                  dependsOnWork: ['omitted'],
+                  dependsOnSubgraphCompletion: ['omitted'],
                   vertexContent: { $data: id, $childHints: [] },
                 },
               },
@@ -298,7 +298,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }).createRunner();
     await runner.run();
     expect(runner.summary().completedWorkIds).toEqual(['root', 'join']);
-    expect(runner.summary().vertices.get('join')!.subtreeComplete).toBe(true);
+    expect(runner.summary().vertices.get('join')!.subgraphComplete).toBe(true);
   });
 
   test(`${Constructor.name} synthetic catalog roots never gate explicit parent inheritance`, async () => {
@@ -310,7 +310,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexContent: { $data: 'catalog', $childHints: ['child'] },
-          dependsOn: ['ignored'],
+          dependsOnWork: ['ignored'],
         }),
         resolveChild: () => ({
           vertexId: 'child',
@@ -335,7 +335,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['missing'],
+          dependsOnWork: ['missing'],
           vertexContent: { $data: 'root', $childHints: [] },
         }),
         resolveChild: () => ({ vertexContent: null }),
@@ -363,7 +363,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
         traversableGraph: {
           resolveRoot: () => ({
             vertexId: 'root',
-            dependsOn: ['optional'],
+            dependsOnWork: ['optional'],
             vertexContent: { $data: 'root', $childHints: [] },
           }),
           resolveChild: () => ({ vertexContent: null }),

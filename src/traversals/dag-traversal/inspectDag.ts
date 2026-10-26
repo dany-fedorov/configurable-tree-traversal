@@ -1,5 +1,5 @@
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { DagDependencyEdge } from '@core/errors/DagTraversalStallError';
+import type { DagWaitEdge } from '@core/errors/DagTraversalStallError';
 import { dependencyMilestones } from '@core/scheduling/dependencyMilestones';
 import type { DagTraversalRunner } from './lib/DagTraversalRunner';
 import type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
@@ -20,8 +20,8 @@ export function inspectDagMilestones<
     const vertex = graph.get(ref)!;
     return {
       id: vertex.vertexId,
-      work: vertex.dependsOn.slice(),
-      complete: vertex.dependsOnComplete?.slice() ?? [],
+      work: vertex.dependsOnWork.slice(),
+      complete: vertex.dependsOnSubgraphCompletion?.slice() ?? [],
       children: graph
         .getChildrenOf(ref)!
         .map((child) => graph.getVertexId(child)),
@@ -32,6 +32,6 @@ export function inspectDagMilestones<
   return makeDagInspection({
     state,
     summary,
-    edges: edges as DagDependencyEdge<ID>[],
+    edges: edges as DagWaitEdge<ID>[],
   });
 }

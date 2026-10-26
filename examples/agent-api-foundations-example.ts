@@ -20,13 +20,13 @@ function work(
 ): readonly DagWorkTicket<TaskId>[] {
   assert.equal(boundary.kind, 'awaitingSettlement');
   if (boundary.kind !== 'awaitingSettlement') throw new Error('Expected work');
-  return boundary.frontier;
+  return boundary.workTickets;
 }
 
 async function main(): Promise<void> {
   const source = materializeDagSourceFromRecords(tasks, {
     id: (task) => task.id,
-    dependsOn: (task) => task.requires,
+    dependsOnWork: (task) => task.requires,
   });
   let sourceCalls = 0;
   const prepared = prepareDag({
@@ -68,25 +68,25 @@ async function main(): Promise<void> {
   );
   const research = work(fresh.advance())[0]!;
   assert.equal(research.vertexId, 'research');
-  assert.throws(() => session.complete(research), TypeError);
+  assert.throws(() => session.completeWork(research), TypeError);
 
   // Dispatch only these frontier tickets through host claims/capacity.
   // ON_WORK_READY workCompleted events observe accepted work after settlement.
   // Validate results before reporting them to the session.
   for (const ticket of candidates) {
     accepted.add(ticket.vertexId); // Persist acceptance before completing locally.
-    assert.deepEqual(session.complete(ticket), { kind: 'accepted' });
-    assert.deepEqual(session.complete(ticket), { kind: 'alreadyAccepted' });
+    assert.deepEqual(session.completeWork(ticket), { kind: 'accepted' });
+    assert.deepEqual(session.completeWork(ticket), { kind: 'alreadyAccepted' });
   }
   const review = work(session.advance())[0]!;
   assert.equal(review.vertexId, 'review');
   accepted.add(review.vertexId);
-  session.complete(review);
+  session.completeWork(review);
   assert.deepEqual(session.advance(), { kind: 'finished' });
 
   // Independent sessions own their progress and local ticket generations.
   assert.deepEqual(fresh.summary().completedWorkIds, []);
-  fresh.complete(research);
+  fresh.completeWork(research);
   assert.deepEqual(
     work(fresh.advance()).map((ticket) => ticket.vertexId),
     ['implement', 'testPlan'],

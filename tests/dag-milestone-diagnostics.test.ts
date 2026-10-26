@@ -3,20 +3,20 @@ import {
   DagTraversal,
   DagTraversalStallError,
   type VertexTypes,
-  type DagDependencyEdge,
+  type DagWaitEdge,
 } from '../src';
 
 type G = VertexTypes<string, string>;
 function edge(
-  from: unknown,
-  fromPhase: 'work' | 'completion',
-  to: unknown,
-  toPhase: 'work' | 'completion',
-  reason: DagDependencyEdge['reason'],
+  waiter: unknown,
+  fromPhase: 'work' | 'subgraphCompletion',
+  prerequisite: unknown,
+  toPhase: 'work' | 'subgraphCompletion',
+  reason: DagWaitEdge['reason'],
 ) {
   return {
-    from: { vertexId: from, milestone: fromPhase },
-    to: { vertexId: to, milestone: toPhase },
+    waiter: { vertexId: waiter, milestone: fromPhase },
+    prerequisite: { vertexId: prerequisite, milestone: toPhase },
     reason,
   };
 }
@@ -41,14 +41,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             traversableGraph: {
               resolveRoot: () => ({
                 vertexId: 'root',
-                dependsOn: completion ? [] : ['child'],
+                dependsOnWork: completion ? [] : ['child'],
                 vertexContent: { $data: 'root', $childHints: ['child'] },
               }),
               resolveChild: () => ({
                 vertexId: 'child',
                 ...(completion
-                  ? { dependsOnComplete: ['root'] }
-                  : { dependsOn: ['root'] }),
+                  ? { dependsOnSubgraphCompletion: ['root'] }
+                  : { dependsOnWork: ['root'] }),
                 vertexContent: { $data: 'child', $childHints: [] },
               }),
             },
@@ -58,25 +58,25 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             ...(completion
               ? []
               : [edge('root', 'work', 'child', 'work', 'workDependency')]),
-            edge('root', 'completion', 'root', 'work', 'ownWork'),
+            edge('root', 'subgraphCompletion', 'root', 'work', 'ownWork'),
             edge(
               'root',
-              'completion',
+              'subgraphCompletion',
               'child',
-              'completion',
+              'subgraphCompletion',
               'structuralChild',
             ),
             edge(
               'child',
               'work',
               'root',
-              completion ? 'completion' : 'work',
-              completion ? 'completionDependency' : 'workDependency',
+              completion ? 'subgraphCompletion' : 'work',
+              completion ? 'subgraphCompletionDependency' : 'workDependency',
             ),
-            edge('child', 'completion', 'child', 'work', 'ownWork'),
+            edge('child', 'subgraphCompletion', 'child', 'work', 'ownWork'),
           ];
           expect(error.diagnostics).toMatchObject({
-            dependencyCycles: [['root', 'child']],
+            dependencyCycleComponents: [['root', 'child']],
             dependencyEdges: expected,
           });
           const first = runner.summary().diagnostics!;
@@ -94,14 +94,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['missing-work'],
-          dependsOnComplete: ['missing-completion'],
+          dependsOnWork: ['missing-work'],
+          dependsOnSubgraphCompletion: ['missing-completion'],
           vertexContent: { $data: 'root', $childHints: ['a', 'b', 'c'] },
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: id === 'a' ? ['b', 'b'] : id === 'b' ? ['a'] : [],
-          dependsOnComplete: id === 'c' ? ['c'] : [],
+          dependsOnWork: id === 'a' ? ['b', 'b'] : id === 'b' ? ['a'] : [],
+          dependsOnSubgraphCompletion: id === 'c' ? ['c'] : [],
           vertexContent: { $data: id, $childHints: [] },
         }),
       },
@@ -109,26 +109,26 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const error = await failure(() => runner.run());
     expect(error.diagnostics).toMatchObject({
       unknownPrerequisiteIds: ['missing-work', 'missing-completion'],
-      dependencyCycles: [['a', 'b'], ['c']],
+      dependencyCycleComponents: [['a', 'b'], ['c']],
       dependencyEdges: [
         edge('root', 'work', 'missing-work', 'work', 'workDependency'),
         edge(
           'root',
           'work',
           'missing-completion',
-          'completion',
-          'completionDependency',
+          'subgraphCompletion',
+          'subgraphCompletionDependency',
         ),
-        edge('root', 'completion', 'root', 'work', 'ownWork'),
-        edge('root', 'completion', 'a', 'completion', 'structuralChild'),
-        edge('root', 'completion', 'b', 'completion', 'structuralChild'),
-        edge('root', 'completion', 'c', 'completion', 'structuralChild'),
+        edge('root', 'subgraphCompletion', 'root', 'work', 'ownWork'),
+        edge('root', 'subgraphCompletion', 'a', 'subgraphCompletion', 'structuralChild'),
+        edge('root', 'subgraphCompletion', 'b', 'subgraphCompletion', 'structuralChild'),
+        edge('root', 'subgraphCompletion', 'c', 'subgraphCompletion', 'structuralChild'),
         edge('a', 'work', 'b', 'work', 'workDependency'),
-        edge('a', 'completion', 'a', 'work', 'ownWork'),
+        edge('a', 'subgraphCompletion', 'a', 'work', 'ownWork'),
         edge('b', 'work', 'a', 'work', 'workDependency'),
-        edge('b', 'completion', 'b', 'work', 'ownWork'),
-        edge('c', 'work', 'c', 'completion', 'completionDependency'),
-        edge('c', 'completion', 'c', 'work', 'ownWork'),
+        edge('b', 'subgraphCompletion', 'b', 'work', 'ownWork'),
+        edge('c', 'work', 'c', 'subgraphCompletion', 'subgraphCompletionDependency'),
+        edge('c', 'subgraphCompletion', 'c', 'work', 'ownWork'),
       ],
     });
   });
@@ -142,7 +142,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: [id === 'a' ? 'b' : 'a'],
+          dependsOnWork: [id === 'a' ? 'b' : 'a'],
           vertexContent: { $data: id, $childHints: [] },
         }),
       },
@@ -150,9 +150,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const error = await failure(() => runner.prepare());
     const dependencyEdges = [
       edge('a', 'work', 'b', 'work', 'workDependency'),
-      edge('a', 'completion', 'a', 'work', 'ownWork'),
+      edge('a', 'subgraphCompletion', 'a', 'work', 'ownWork'),
       edge('b', 'work', 'a', 'work', 'workDependency'),
-      edge('b', 'completion', 'b', 'work', 'ownWork'),
+      edge('b', 'subgraphCompletion', 'b', 'work', 'ownWork'),
     ];
     expect(error.diagnostics).toMatchObject({ dependencyEdges });
     expect(runner.summary().diagnostics).toMatchObject({ dependencyEdges });
@@ -164,7 +164,7 @@ test('manual historical diagnostics default to an empty detached edge list', () 
   const error = new DagTraversalStallError({
     dependencies: [],
     unknownPrerequisiteIds: [],
-    dependencyCycles: [],
+    dependencyCycleComponents: [],
     dependencyBlockedIds: [],
     structurallyIncompleteIds: [],
   });
@@ -190,12 +190,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: root,
-          dependsOn: [root],
+          dependsOnWork: [root],
           vertexContent: { $data: '', $childHints: ids },
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: [id, id],
+          dependsOnWork: [id, id],
           vertexContent: { $data: '', $childHints: [] },
         }),
       },
@@ -203,18 +203,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const error = await failure(() => runner.run());
     const expected = [
       edge(root, 'work', root, 'work', 'workDependency'),
-      edge(root, 'completion', root, 'work', 'ownWork'),
+      edge(root, 'subgraphCompletion', root, 'work', 'ownWork'),
       ...ids.map((id) =>
-        edge(root, 'completion', id, 'completion', 'structuralChild'),
+        edge(root, 'subgraphCompletion', id, 'subgraphCompletion', 'structuralChild'),
       ),
       ...ids.flatMap((id) => [
         edge(id, 'work', id, 'work', 'workDependency'),
-        edge(id, 'completion', id, 'work', 'ownWork'),
+        edge(id, 'subgraphCompletion', id, 'work', 'ownWork'),
       ]),
     ];
     expect(error.diagnostics).toMatchObject({
       dependencyEdges: expected,
-      dependencyCycles: [[root], [twin], [symbol], [undefined], [NaN], [0]],
+      dependencyCycleComponents: [[root], [twin], [symbol], [undefined], [NaN], [0]],
     });
     const first = runner.summary().diagnostics!;
     const second = runner.summary().diagnostics!;
@@ -225,18 +225,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(firstEdges).not.toBe(secondEdges);
     firstEdges.forEach((item, index) => {
       expect(item).not.toBe(secondEdges[index]);
-      expect(item.from).not.toBe(secondEdges[index]!.from);
-      expect(item.to).not.toBe(secondEdges[index]!.to);
-      expect(item.from).not.toBe(item.to);
+      expect(item.waiter).not.toBe(secondEdges[index]!.waiter);
+      expect(item.prerequisite).not.toBe(secondEdges[index]!.prerequisite);
+      expect(item.waiter).not.toBe(item.prerequisite);
     });
-    expect(firstEdges[0]!.from.vertexId).toBe(root);
-    expect(firstEdges[0]!.to.vertexId).toBe(root);
-    expect(firstEdges[2]!.to.vertexId).toBe(twin);
-    errorEdges[0]!.from.vertexId = 'changed error';
-    errorEdges[0]!.to.milestone = 'completion';
+    expect(firstEdges[0]!.waiter.vertexId).toBe(root);
+    expect(firstEdges[0]!.prerequisite.vertexId).toBe(root);
+    expect(firstEdges[2]!.prerequisite.vertexId).toBe(twin);
+    errorEdges[0]!.waiter.vertexId = 'changed error';
+    errorEdges[0]!.prerequisite.milestone = 'subgraphCompletion';
     errorEdges.length = 0;
-    firstEdges[0]!.from.vertexId = 'changed summary';
-    firstEdges[0]!.to.milestone = 'completion';
+    firstEdges[0]!.waiter.vertexId = 'changed summary';
+    firstEdges[0]!.prerequisite.milestone = 'subgraphCompletion';
     firstEdges.push(
       edge('injected', 'work', 'injected', 'work', 'workDependency'),
     );
@@ -247,7 +247,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(Object.isFrozen(root)).toBe(false);
     expect(Object.isFrozen(twin)).toBe(false);
     root.value = 2;
-    expect(secondEdges[0]!.from.vertexId).toBe(root);
+    expect(secondEdges[0]!.waiter.vertexId).toBe(root);
   });
 }
 
@@ -256,7 +256,7 @@ test('manual labelled diagnostics copy arrays, edges and both milestone records'
   const input = {
     dependencies: [],
     unknownPrerequisiteIds: [],
-    dependencyCycles: [],
+    dependencyCycleComponents: [],
     dependencyBlockedIds: [],
     structurallyIncompleteIds: [],
     dependencyEdges: [
@@ -270,15 +270,15 @@ test('manual labelled diagnostics copy arrays, edges and both milestone records'
   const edges = error.diagnostics.dependencyEdges;
   expect(edges).not.toBe(input.dependencyEdges);
   expect(edges[0]).not.toBe(input.dependencyEdges[0]);
-  expect(edges[0]!.from).not.toBe(input.dependencyEdges[0]!.from);
-  expect(edges[0]!.to).not.toBe(input.dependencyEdges[0]!.to);
-  input.dependencyEdges[0]!.from.vertexId = 'changed';
-  input.dependencyEdges[0]!.to.milestone = 'completion';
+  expect(edges[0]!.waiter).not.toBe(input.dependencyEdges[0]!.waiter);
+  expect(edges[0]!.prerequisite).not.toBe(input.dependencyEdges[0]!.prerequisite);
+  input.dependencyEdges[0]!.waiter.vertexId = 'changed';
+  input.dependencyEdges[0]!.prerequisite.milestone = 'subgraphCompletion';
   input.dependencyEdges.length = 0;
   expect(edges).toEqual([
     edge(vertexId, 'work', vertexId, 'work', 'workDependency'),
   ]);
-  expect(edges[0]!.from.vertexId).toBe(vertexId);
+  expect(edges[0]!.waiter.vertexId).toBe(vertexId);
   expect(Object.isFrozen(vertexId)).toBe(false);
 });
 
@@ -288,19 +288,19 @@ test('public preparation diagnoses a 10k-node dependency chain without recursion
     traversableGraph: {
       resolveRoot: () => ({
         vertexId: 0,
-        dependsOn: [1],
+        dependsOnWork: [1],
         vertexContent: { $data: 0, $childHints: [1] },
       }),
       resolveChild: (id) => ({
         vertexId: id,
-        dependsOn: [id + 1],
+        dependsOnWork: [id + 1],
         vertexContent: { $data: id, $childHints: id < 9999 ? [id + 1] : [] },
       }),
     },
   }).createRunner();
   const error = await failure(() => runner.prepare());
   expect(error.diagnostics).toMatchObject({
-    dependencyCycles: [],
+    dependencyCycleComponents: [],
     unknownPrerequisiteIds: [10000],
     dependencyEdges: expect.any(Array),
   });
@@ -308,11 +308,11 @@ test('public preparation diagnoses a 10k-node dependency chain without recursion
   expect(edges).toHaveLength(29999);
   expect(edges.slice(0, 3)).toEqual([
     edge(0, 'work', 1, 'work', 'workDependency'),
-    edge(0, 'completion', 0, 'work', 'ownWork'),
-    edge(0, 'completion', 1, 'completion', 'structuralChild'),
+    edge(0, 'subgraphCompletion', 0, 'work', 'ownWork'),
+    edge(0, 'subgraphCompletion', 1, 'subgraphCompletion', 'structuralChild'),
   ]);
   expect(edges.slice(-2)).toEqual([
     edge(9999, 'work', 10000, 'work', 'workDependency'),
-    edge(9999, 'completion', 9999, 'work', 'ownWork'),
+    edge(9999, 'subgraphCompletion', 9999, 'work', 'ownWork'),
   ]);
 });

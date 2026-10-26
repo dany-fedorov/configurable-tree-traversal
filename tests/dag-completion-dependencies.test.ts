@@ -16,7 +16,7 @@ function bundleGraph() {
     resolveChild: (hint: string) => ({
       vertexId: hint,
       ...(hint === 'join'
-        ? { dependsOn: ['bundle'], dependsOnComplete: ['bundle', 'bundle'] }
+        ? { dependsOnWork: ['bundle'], dependsOnSubgraphCompletion: ['bundle', 'bundle'] }
         : {}),
       vertexContent: { $d: hint, $c: hint === 'bundle' ? ['a', 'b', 'a'] : [] },
     }),
@@ -47,13 +47,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       expect(events.filter((event) => event === 'C:a')).toHaveLength(1);
       expect(runner.summary().vertices.get('join')).toMatchObject({
         unmetPrerequisiteIds: [],
-        unmetCompletePrerequisiteIds: [],
-        subtreeComplete: true,
+        unmetSubgraphPrerequisiteIds: [],
+        subgraphComplete: true,
       });
       expect(
         runner
           .getResolvedGraph()
-          .get(runner.getResolvedGraph().getVertexById('join')!)!.dependsOn,
+          .get(runner.getResolvedGraph().getVertexById('join')!)!.dependsOnWork,
       ).toEqual(['bundle']);
     });
   }
@@ -75,9 +75,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           resolveChild: (id) => ({
             vertexId: id,
             ...(['mixed', 'parent-child'].includes(kind)
-              ? { dependsOn: id === 'b' ? ['a'] : [] }
+              ? { dependsOnWork: id === 'b' ? ['a'] : [] }
               : {}),
-            dependsOnComplete:
+            dependsOnSubgraphCompletion:
               kind === 'child-ancestor'
                 ? ['root']
                 : kind === 'self'
@@ -99,7 +99,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         await traversal.createRunner().run();
       }).rejects.toMatchObject({
         name: 'DagTraversalStallError',
-        diagnostics: { dependencyCycles: expect.any(Array) },
+        diagnostics: { dependencyCycleComponents: expect.any(Array) },
       });
       expect(events).toEqual([]);
     },
@@ -115,7 +115,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: () => ({
           vertexId: 'a',
-          dependsOnComplete: ['root'],
+          dependsOnSubgraphCompletion: ['root'],
           vertexContent: { $d: 'a', $c: [] },
         }),
       },
@@ -123,7 +123,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await expect(async () => {
       await runner.run();
     }).rejects.toMatchObject({
-      diagnostics: { dependencyCycles: [['root', 'a']] },
+      diagnostics: { dependencyCycleComponents: [['root', 'a']] },
     });
   });
 
@@ -134,10 +134,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: {
           resolveRoot: () => ({
             vertexId: 'root',
-            dependsOn: ['missing'],
+            dependsOnWork: ['missing'],
             ...(mode === 'absent'
               ? {}
-              : Object.defineProperty({}, 'dependsOnComplete', {
+              : Object.defineProperty({}, 'dependsOnSubgraphCompletion', {
                   value: mode === 'empty' ? [] : undefined,
                   enumerable: true,
                 })),
@@ -187,7 +187,7 @@ test('async completion admission and callback settlement do not release C until 
   expect(runner.summary().vertices.get('join')).toMatchObject({
     work: 'pending',
     unmetPrerequisiteIds: ['bundle'],
-    unmetCompletePrerequisiteIds: ['bundle'],
+    unmetSubgraphPrerequisiteIds: ['bundle'],
   });
   gate.resolve();
   await running;
@@ -222,12 +222,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOnComplete: ['child'],
+          dependsOnSubgraphCompletion: ['child'],
           vertexContent: { $d: 'root', $c: ['child'] },
         }),
         resolveChild: () => ({
           vertexId: 'child',
-          dependsOn: [],
+          dependsOnWork: [],
           vertexContent: { $d: 'child', $c: [] },
         }),
       },
@@ -251,7 +251,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: () => ({
           vertexId: 'child',
-          dependsOnComplete: ['root'],
+          dependsOnSubgraphCompletion: ['root'],
           vertexContent: { $d: 'child', $c: [] },
         }),
       },
@@ -260,7 +260,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       await runner.run();
     }).rejects.toMatchObject({
       diagnostics: {
-        dependencyCycles: [['root', 'child']],
+        dependencyCycleComponents: [['root', 'child']],
         dependencies: [{ id: 'child', unmet: ['root'] }],
         structurallyIncompleteIds: ['root'],
       },
@@ -277,12 +277,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       traversableGraph: {
         resolveRoot: () => ({
-          dependsOnComplete: ['ignored'],
+          dependsOnSubgraphCompletion: ['ignored'],
           vertexContent: { $d: '', $c: ['join', ...ids] },
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          ...(id === 'join' ? { dependsOnComplete: completion } : {}),
+          ...(id === 'join' ? { dependsOnSubgraphCompletion: completion } : {}),
           vertexContent: { $d: id, $c: [] },
         }),
       },
@@ -298,30 +298,30 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(join).toMatchObject({
       work: 'pending',
       unmetPrerequisiteIds: [undefined, NaN, reference, fn, null, 0],
-      unmetCompletePrerequisiteIds: [undefined, NaN, reference, fn, null, 0],
+      unmetSubgraphPrerequisiteIds: [undefined, NaN, reference, fn, null, 0],
     });
-    (join.unmetCompletePrerequisiteIds as unknown[]).length = 0;
+    (join.unmetSubgraphPrerequisiteIds as unknown[]).length = 0;
     (join.unmetPrerequisiteIds as unknown[]).length = 0;
     completion.length = 0;
     const graph = runner.getResolvedGraph();
     const stored = graph.get(graph.getVertexById('join')!)!;
-    expect(stored.dependsOnComplete).toHaveLength(6);
-    (stored.dependsOnComplete as unknown[]).length = 0;
+    expect(stored.dependsOnSubgraphCompletion).toHaveLength(6);
+    (stored.dependsOnSubgraphCompletion as unknown[]).length = 0;
     expect(
-      graph.get(graph.getVertexById('join')!)!.dependsOnComplete,
+      graph.get(graph.getVertexById('join')!)!.dependsOnSubgraphCompletion,
     ).toHaveLength(6);
     expect(
-      runner.summary().vertices.get('join')!.unmetCompletePrerequisiteIds,
+      runner.summary().vertices.get('join')!.unmetSubgraphPrerequisiteIds,
     ).toHaveLength(6);
     expect(runner.summary().vertices.get(reference)).not.toHaveProperty(
-      'unmetCompletePrerequisiteIds',
+      'unmetSubgraphPrerequisiteIds',
     );
     for (const id of ids)
       runner.settle(id, { ok: true }, before.vertices.get(id)!.generation!);
     await runner.run();
     expect(runner.summary().vertices.get('join')).toMatchObject({
-      subtreeComplete: true,
-      unmetCompletePrerequisiteIds: [],
+      subgraphComplete: true,
+      unmetSubgraphPrerequisiteIds: [],
     });
   });
 
@@ -335,8 +335,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn: [],
-          ...(id === 'join' ? { dependsOnComplete: ['a', 'b'] } : {}),
+          dependsOnWork: [],
+          ...(id === 'join' ? { dependsOnSubgraphCompletion: ['a', 'b'] } : {}),
           vertexContent: {
             $d: id,
             $c: id === 'a' || id === 'b' ? ['shared'] : [],
@@ -376,11 +376,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(events.indexOf('W:join')).toBeGreaterThan(
       events.indexOf('C:bundle'),
     );
-    expect(runner.summary().counts.subtreeCompleted).toBe(3);
+    expect(runner.summary().counts.subgraphCompleted).toBe(3);
   });
 
   test(`${Constructor.name} a failed C visitor preserves the exact error and never admits its dependent`, async () => {
-    for (const error of [undefined, null, { failure: 'completion' }]) {
+    for (const error of [undefined, null, { failure: 'subgraphCompletion' }]) {
       const seen: string[] = [];
       const traversal = new Constructor<G>({ traversableGraph: bundleGraph() });
       traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
@@ -426,7 +426,7 @@ test('halt during held async C preserves pending completion and releases only af
   expect(seen).not.toContain('join');
   await runner.run();
   expect(seen).toContain('join');
-  expect(runner.summary().vertices.get('join')!.subtreeComplete).toBe(true);
+  expect(runner.summary().vertices.get('join')!.subgraphComplete).toBe(true);
 });
 
 test('validated summaries read completion presence without copying original declarations', () => {
@@ -442,7 +442,7 @@ test('validated summaries read completion presence without copying original decl
   );
   try {
     const summary = runner.summary();
-    expect(summary.vertices.get('join')!.unmetCompletePrerequisiteIds).toEqual(
+    expect(summary.vertices.get('join')!.unmetSubgraphPrerequisiteIds).toEqual(
       [],
     );
     expect(declarations).not.toHaveBeenCalled();

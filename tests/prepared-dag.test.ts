@@ -32,7 +32,7 @@ function source(calls: string[] = []): DagDiscoverySource<T, T, string> {
         kind: 'found',
         vertex: {
           vertexId: id,
-          dependsOn: ['a'],
+          dependsOnWork: ['a'],
           vertexContent: { $data: { name: id }, $childHints: [] },
         },
       };
@@ -95,10 +95,10 @@ test('async preparation supports both sync and async independent sessions', asyn
   const other = await second.advance();
   if (work.kind !== 'awaitingSettlement' || other.kind !== 'awaitingSettlement')
     throw new Error('Expected frontier');
-  expect(work.frontier.map((ticket) => ticket.vertexId)).toEqual(['a']);
-  expect(other.frontier.map((ticket) => ticket.vertexId)).toEqual(['b']);
-  expect(() => first.complete(other.frontier[0]!)).toThrow();
-  second.complete(other.frontier[0]!);
+  expect(work.workTickets.map((ticket) => ticket.vertexId)).toEqual(['a']);
+  expect(other.workTickets.map((ticket) => ticket.vertexId)).toEqual(['b']);
+  expect(() => first.completeWork(other.workTickets[0]!)).toThrow();
+  second.completeWork(other.workTickets[0]!);
   expect(await second.advance()).toEqual({ kind: 'finished' });
   expect(first.summary().completedWorkIds).toEqual([]);
   expect(calls).toEqual(['root', 'b']);
@@ -109,7 +109,7 @@ test('dependency invalidity is structured while adapter errors keep exact identi
   const root = adapter.resolveRoot();
   if (!('kind' in root) || root.kind !== 'found')
     throw new Error('Expected found');
-  root.vertex.dependsOn = ['missing'];
+  root.vertex.dependsOnWork = ['missing'];
   const invalid = prepareDag({
     traversableGraph: { ...adapter, resolveRoot: () => root },
   });
@@ -126,7 +126,7 @@ test('dependency invalidity is structured while adapter errors keep exact identi
   const error = new DagTraversalStallError({
     dependencies: [],
     unknownPrerequisiteIds: [],
-    dependencyCycles: [],
+    dependencyCycleComponents: [],
     dependencyBlockedIds: [],
     structurallyIncompleteIds: [],
   });
@@ -162,7 +162,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     new DagTraversalStallError({
       dependencies: [],
       unknownPrerequisiteIds: [],
-      dependencyCycles: [],
+      dependencyCycleComponents: [],
       dependencyBlockedIds: [],
       structurallyIncompleteIds: [],
     }),
@@ -196,8 +196,8 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
               kind: 'found',
               vertex: {
                 vertexId: id,
-                dependsOn: ['skip', 'external'],
-                dependsOnComplete: ['skip'],
+                dependsOnWork: ['skip', 'external'],
+                dependsOnSubgraphCompletion: ['skip'],
                 vertexContent: { $data: { name: id }, $childHints: [] },
               },
             },
@@ -250,7 +250,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
 
   test(`${prepare.name} returns missing prerequisites as milestone issues`, async () => {
     const missing = await prepare<VertexTypes<string, string>, string>(
-      materializeDagSourceFromRecords(['a'], { id: (id) => id, dependsOn: () => ['absent'] }),
+      materializeDagSourceFromRecords(['a'], { id: (id) => id, dependsOnWork: () => ['absent'] }),
     );
     expect(missing).toMatchObject({
       kind: 'invalid',
@@ -268,7 +268,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     const cycle = await prepare<VertexTypes<string, string>, string>(
       materializeDagSourceFromRecords(['a', 'b'], {
         id: (id) => id,
-        dependsOn: (id) => [id === 'a' ? 'b' : 'a'],
+        dependsOnWork: (id) => [id === 'a' ? 'b' : 'a'],
       }),
     );
     expect(cycle).toMatchObject({
@@ -277,7 +277,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         {
           kind: 'milestone',
           diagnostics: {
-            dependencyCycles: [expect.arrayContaining(['a', 'b'])],
+            dependencyCycleComponents: [expect.arrayContaining(['a', 'b'])],
           },
         },
       ],
@@ -305,7 +305,7 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
             kind: 'found',
             vertex: {
               vertexId: id,
-              dependsOn: [undefined, 'remote'],
+              dependsOnWork: [undefined, 'remote'],
               vertexContent: { $data: id, $childHints: [] },
             },
           },
@@ -313,7 +313,7 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
       kind: 'found',
       vertex: {
         vertexId: id,
-        dependsOn: id === 'remote' ? ['earlier'] : [],
+        dependsOnWork: id === 'remote' ? ['earlier'] : [],
         vertexContent: { $data: id, $childHints: [] },
       },
     }),
@@ -374,13 +374,13 @@ test('prepared definitions preserve effective implicit work dependencies and roo
     implicitParentDependency: true,
   });
   if (implicit.kind !== 'valid') throw new Error('Expected valid');
-  expect(implicit.dag.vertices[1]!.dependsOn).toEqual(['a']);
+  expect(implicit.dag.vertices[1]!.dependsOnWork).toEqual(['a']);
   const session = implicit.dag.createWorkSession();
   const boundary = session.advance();
   if (boundary.kind !== 'awaitingSettlement') throw new Error('Expected work');
-  expect(boundary.frontier.map((ticket) => ticket.vertexId)).toEqual(['a']);
-  session.complete(boundary.frontier[0]!);
-  expect(session.advance()).toMatchObject({ frontier: [{ vertexId: 'b' }] });
+  expect(boundary.workTickets.map((ticket) => ticket.vertexId)).toEqual(['a']);
+  session.completeWork(boundary.workTickets[0]!);
+  expect(session.advance()).toMatchObject({ workTickets: [{ vertexId: 'b' }] });
 
   const ignored = prepareDag({
     rootDependencies: 'ignore',
@@ -391,7 +391,7 @@ test('prepared definitions preserve effective implicit work dependencies and roo
         kind: 'found',
         vertex: {
           vertexId: 'a',
-          dependsOn: ['b'],
+          dependsOnWork: ['b'],
           vertexContent: { $data: { name: 'a' }, $childHints: ['b'] },
         },
       }),
@@ -418,7 +418,7 @@ test('prepared forest completion joins retain structural sharing and order', () 
     materializeDagSourceFromRoots(roots, {
       id: (item) => item.id,
       children: (item) => item.children,
-      dependsOnComplete: (item) => item.after ?? [],
+      dependsOnSubgraphCompletion: (item) => item.after ?? [],
     }),
   );
   if (result.kind !== 'valid') throw new Error('Expected valid');
@@ -542,7 +542,7 @@ test('source callback failures are never mistaken for validation results', async
   const error = new DagTraversalStallError({
     dependencies: [],
     unknownPrerequisiteIds: [],
-    dependencyCycles: [],
+    dependencyCycleComponents: [],
     dependencyBlockedIds: [],
     structurallyIncompleteIds: [],
   });
@@ -568,7 +568,7 @@ test('source callback failures are never mistaken for validation results', async
             kind: 'found' as const,
             vertex: {
               vertexId: 'a',
-              dependsOn: ['external'],
+              dependsOnWork: ['external'],
               vertexContent: { $data: { name: 'a' }, $childHints: [] },
             },
           }),
@@ -593,9 +593,9 @@ test('hint identity may be unknown and default async sessions remain independent
   const second = await result.dag.createAsyncWorkSession();
   expect(await first.advance()).toMatchObject({
     kind: 'awaitingSettlement',
-    frontier: [{ vertexId: 'a' }],
+    workTickets: [{ vertexId: 'a' }],
   });
-  expect(second.summary().deferredFrontier).toEqual([]);
+  expect(second.summary().awaitingSettlement).toEqual([]);
 });
 
 for (const prepare of [prepareDag, prepareDagAsync]) {
@@ -611,10 +611,10 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
           $childHints: this.vertexId === 'a' ? ['b'] : [],
         };
       }
-      get dependsOn() {
+      get dependsOnWork() {
         return this.vertexId === 'b' ? ['a'] : [];
       }
-      get dependsOnComplete() {
+      get dependsOnSubgraphCompletion() {
         return [];
       }
     }
@@ -626,7 +626,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     });
     if (result.kind !== 'valid') throw new Error('Expected valid');
     expect(
-      result.dag.vertices.map((vertex) => [vertex.vertexId, vertex.dependsOn]),
+      result.dag.vertices.map((vertex) => [vertex.vertexId, vertex.dependsOnWork]),
     ).toEqual([
       ['a', []],
       ['b', ['a']],
@@ -666,7 +666,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
                 kind: 'found',
                 vertex: {
                   vertexId: id,
-                  dependsOn: id === 'b' ? ['skip'] : [],
+                  dependsOnWork: id === 'b' ? ['skip'] : [],
                   vertexContent: { $data: { name: id }, $childHints: [] },
                 },
               },

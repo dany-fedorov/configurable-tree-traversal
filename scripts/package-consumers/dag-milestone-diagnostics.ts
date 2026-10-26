@@ -3,26 +3,26 @@ import {
   DagTraversal,
   AsyncDagTraversal,
   DagTraversalStallError,
-  type DagDependencyMilestone,
-  type DagDependencyEdge,
+  type DagMilestone,
+  type DagWaitEdge,
   type DagSummary,
   type DagTraversalStallDiagnostics,
   type VertexTypes,
   type DagDiscoverySource,
 } from 'configurable-tree-traversal';
-import type { DagDependencyEdge as CoreEdge } from 'configurable-tree-traversal/core';
-import type { DagDependencyMilestone as DagMilestone } from 'configurable-tree-traversal/traversals/dag-traversal';
+import type { DagWaitEdge as CoreEdge } from 'configurable-tree-traversal/core';
+import type { DagMilestone as SubpathMilestone } from 'configurable-tree-traversal/traversals/dag-traversal';
 type ID = 'root' | 'child';
 type G = VertexTypes<string, ID>;
-const milestone: DagDependencyMilestone<ID> = {
+const milestone: DagMilestone<ID> = {
   vertexId: 'root',
   milestone: 'work',
 };
-const sameMilestone: DagMilestone<ID> = milestone;
-const edge: DagDependencyEdge<ID> = {
-  from: milestone,
-  to: { vertexId: 'child', milestone: 'completion' },
-  reason: 'completionDependency',
+const sameMilestone: SubpathMilestone<ID> = milestone;
+const edge: DagWaitEdge<ID> = {
+  waiter: milestone,
+  prerequisite: { vertexId: 'child', milestone: 'subgraphCompletion' },
+  reason: 'subgraphCompletionDependency',
 };
 const sameEdge: CoreEdge<ID> = edge;
 const source: DagDiscoverySource<G, G, ID> = {
@@ -44,8 +44,8 @@ for (const Constructor of [
   const diagnostics: DagTraversalStallDiagnostics<ID> | null =
     summary.diagnostics;
   if (diagnostics) {
-    const edges: DagDependencyEdge<ID>[] = diagnostics.dependencyEdges;
-    const vertexId: ID = edges[0]!.to.vertexId;
+    const edges: DagWaitEdge<ID>[] = diagnostics.dependencyEdges;
+    const vertexId: ID = edges[0]!.prerequisite.vertexId;
     // @ts-expect-error Edges preserve the selected ID domain.
     const other: 'other' = vertexId;
     void other;
@@ -55,25 +55,25 @@ for (const Constructor of [
 const incomplete: DagTraversalStallDiagnostics<ID> = {
   dependencies: [],
   unknownPrerequisiteIds: [],
-  dependencyCycles: [],
+  dependencyCycleComponents: [],
   dependencyBlockedIds: [],
   structurallyIncompleteIds: [],
 };
-const wrongPhase: DagDependencyMilestone<ID> = {
+const wrongPhase: DagMilestone<ID> = {
   vertexId: 'root',
   // @ts-expect-error Milestone names are restricted.
   milestone: 'ready',
 };
-const wrongReason: DagDependencyEdge<ID> = {
-  from: milestone,
-  to: milestone,
+const wrongReason: DagWaitEdge<ID> = {
+  waiter: milestone,
+  prerequisite: milestone,
   // @ts-expect-error Edge reasons are restricted.
   reason: 'child',
 };
 const legacy = new DagTraversalStallError({
   dependencies: [],
   unknownPrerequisiteIds: [],
-  dependencyCycles: [],
+  dependencyCycleComponents: [],
   dependencyBlockedIds: [],
   structurallyIncompleteIds: [],
 });

@@ -12,7 +12,7 @@ const runner = new DagTraversal({
     {
       id: (item) => item.id,
       children: (item) => item.children,
-      dependsOnComplete: (item) => item.complete,
+      dependsOnSubgraphCompletion: (item) => item.complete,
     },
   ),
   completedWork: new Set(['bundle']),
@@ -40,12 +40,12 @@ assert.deepEqual(
 );
 console.log('Captured blockers:', before.blockers);
 
-const child = runner.summary().deferredFrontier[0]!;
+const child = runner.summary().awaitingSettlement[0]!;
 runner.settle(child.vertexId, { kind: 'workCompleted' }, child.generation);
 runner.run();
 const after = runner.inspectMilestones().explain({
   vertexId: 'bundle',
-  milestone: 'completion',
+  milestone: 'subgraphCompletion',
 });
 assert.equal(after.kind === 'known' && after.satisfied, true);
 assert.deepEqual(
@@ -58,6 +58,6 @@ assert.equal(
     .edges.length,
   1,
 );
-const review = runner.summary().deferredFrontier[0]!;
+const review = runner.summary().awaitingSettlement[0]!;
 runner.settle(review.vertexId, { kind: 'workCompleted' }, review.generation);
 runner.run();

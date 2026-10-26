@@ -38,7 +38,7 @@ function omissionSource(anonymous = false): DagDiscoverySource<G, G, string> {
             kind: 'found',
             vertex: {
               vertexId: id,
-              dependsOn: id === 'b' ? ['skip'] : [],
+              dependsOnWork: id === 'b' ? ['skip'] : [],
               vertexContent: { $data: id, $childHints: [] },
             },
           },
@@ -78,8 +78,8 @@ test('defineDag owns wrappers while retaining arbitrary data and ID references',
         vertexId: id,
         data,
         slots: [{ kind: 'omitted', identity: { vertexId: undefined } }],
-        dependsOn: [undefined, undefined, NaN, NaN],
-        dependsOnComplete: [null],
+        dependsOnWork: [undefined, undefined, NaN, NaN],
+        dependsOnSubgraphCompletion: [null],
       },
     ],
     omittedIds: [undefined],
@@ -89,17 +89,17 @@ test('defineDag owns wrappers while retaining arbitrary data and ID references',
   expect(definition).not.toBe(input);
   expect(definition.vertices[0]!.data).toBe(data);
   expect(definition.vertices[0]!.vertexId).toBe(id);
-  expect(definition.vertices[0]!.dependsOn).toEqual([undefined, NaN]);
+  expect(definition.vertices[0]!.dependsOnWork).toEqual([undefined, NaN]);
   expect(definition.vertices[0]!.slots[0]).not.toBe(
     input.vertices[0]!.slots[0],
   );
   expect(() => (definition.vertices as unknown[]).pop()).toThrow();
   expect(() => (definition.vertices[0]!.slots as unknown[]).pop()).toThrow();
   expect(() =>
-    (definition.vertices[0]!.dependsOn as unknown[]).pop(),
+    (definition.vertices[0]!.dependsOnWork as unknown[]).pop(),
   ).toThrow();
   expect(() =>
-    (definition.vertices[0]!.dependsOnComplete as unknown[]).pop(),
+    (definition.vertices[0]!.dependsOnSubgraphCompletion as unknown[]).pop(),
   ).toThrow();
   expect(() => (definition.omittedIds as unknown[]).pop()).toThrow();
   expect(Object.isFrozen(definition)).toBe(true);
@@ -126,13 +126,13 @@ test.each([
   { vertices: [], omittedIds: [], entry: { kind: 'root' } },
   { vertices: [null], omittedIds: [], entry: { kind: 'empty' } },
   {
-    vertices: [{ data: 0, slots: [], dependsOn: [], dependsOnComplete: [] }],
+    vertices: [{ data: 0, slots: [], dependsOnWork: [], dependsOnSubgraphCompletion: [] }],
     omittedIds: [],
     entry: { kind: 'empty' },
   },
   {
     vertices: [
-      { vertexId: 0, slots: [], dependsOn: [], dependsOnComplete: [] },
+      { vertexId: 0, slots: [], dependsOnWork: [], dependsOnSubgraphCompletion: [] },
     ],
     omittedIds: [],
     entry: { kind: 'empty' },
@@ -169,8 +169,8 @@ test.each(['vertices', 'omittedIds', 'mixed'] as const)(
       vertexId: NaN,
       data: 0,
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     };
     expect(() =>
       defineDag({
@@ -357,7 +357,7 @@ test('definition replay retains structural sharing and detached prerequisites wi
             kind: 'found',
             vertex: {
               vertexId: sharedId,
-              dependsOn: [undefined, remoteId],
+              dependsOnWork: [undefined, remoteId],
               vertexContent: { $data: sharedId, $childHints: [] },
             },
           };
@@ -408,14 +408,14 @@ test('defineDag accepts graph-invalid source facts without executing or validati
         vertexId: 'a',
         data: 1,
         slots: [{ kind: 'vertex', vertexId: 'missing' }],
-        dependsOn: ['a'],
-        dependsOnComplete: ['unknown'],
+        dependsOnWork: ['a'],
+        dependsOnSubgraphCompletion: ['unknown'],
       },
     ],
     omittedIds: ['unreachable'],
     entry: { kind: 'forest', slots: [{ kind: 'omitted', identity: null }] },
   });
-  expect(definition.vertices[0]!.dependsOn).toEqual(['a']);
+  expect(definition.vertices[0]!.dependsOnWork).toEqual(['a']);
   expect(definition.entry).toEqual({
     kind: 'forest',
     slots: [{ kind: 'omitted', identity: null }],
@@ -483,8 +483,8 @@ test('definition copies remain independent of later caller edits to arrays and w
     vertexId: 'a',
     data: 1,
     slots: [slot],
-    dependsOn: ['skip'],
-    dependsOnComplete: ['skip'],
+    dependsOnWork: ['skip'],
+    dependsOnSubgraphCompletion: ['skip'],
   };
   const entry: { kind: 'forest'; slots: DagDefinitionSlot<string>[] } = {
     kind: 'forest',
@@ -495,8 +495,8 @@ test('definition copies remain independent of later caller edits to arrays and w
   slot.identity.vertexId = 'changed';
   vertex.vertexId = 'changed';
   vertex.slots.length = 0;
-  vertex.dependsOn.length = 0;
-  vertex.dependsOnComplete.length = 0;
+  vertex.dependsOnWork.length = 0;
+  vertex.dependsOnSubgraphCompletion.length = 0;
   input.vertices.length = 0;
   input.omittedIds.length = 0;
   entry.slots.length = 0;
@@ -506,8 +506,8 @@ test('definition copies remain independent of later caller edits to arrays and w
         vertexId: 'a',
         data: 1,
         slots: [{ kind: 'omitted', identity: { vertexId: 'skip' } }],
-        dependsOn: ['skip'],
-        dependsOnComplete: ['skip'],
+        dependsOnWork: ['skip'],
+        dependsOnSubgraphCompletion: ['skip'],
       },
     ],
     omittedIds: ['skip'],

@@ -33,7 +33,7 @@ function reconstruct() {
         kind: 'found' as const,
         vertex: {
           vertexId: id,
-          dependsOn: dependencies[id]!,
+          dependsOnWork: dependencies[id]!,
           vertexContent: { $data: id, $childHints: [] },
         },
       }),
@@ -45,10 +45,10 @@ function reconstruct() {
 const retained = reconstruct();
 assert.equal(retained.getStatus(), TraversalRunnerStatus.HALTED);
 assert.equal(retained.getStopReason(), 'awaitingSettlement');
-assert.deepEqual(retained.summary().readyIds, ['backend', 'frontend']);
+assert.deepEqual(retained.summary().readyOrDeferredIds, ['backend', 'frontend']);
 const backend = retained
   .summary()
-  .deferredFrontier.find(({ vertexId }) => vertexId === 'backend')!;
+  .awaitingSettlement.find(({ vertexId }) => vertexId === 'backend')!;
 
 // The host claims/runs the activity, validates its attempt identity and durably
 // accepts success before reporting it. Readiness alone is not host admission.
@@ -59,7 +59,7 @@ retained.settle(
   backend.generation,
 );
 retained.run();
-assert.deepEqual(retained.summary().readyIds, ['frontend']);
+assert.deepEqual(retained.summary().readyOrDeferredIds, ['frontend']);
 assert.equal(
   retained.settle(
     backend.vertexId,
@@ -72,8 +72,8 @@ assert.equal(
 // Restart/revision changes rebuild from durable facts. Never persist generation
 // symbols or send a generation from the discarded runner to its replacement.
 const rebuilt = reconstruct();
-assert.deepEqual(rebuilt.summary().readyIds, retained.summary().readyIds);
+assert.deepEqual(rebuilt.summary().readyOrDeferredIds, retained.summary().readyOrDeferredIds);
 acceptedCompletedWork.add('frontend');
 const nextTick = reconstruct();
-assert.deepEqual(nextTick.summary().readyIds, ['verify']);
+assert.deepEqual(nextTick.summary().readyOrDeferredIds, ['verify']);
 console.log('Reconciliation frontier: backend + frontend → frontend → verify');

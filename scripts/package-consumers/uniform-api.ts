@@ -116,17 +116,17 @@ const dag = new DagTraversal({
 dag.addVisitorFor(D.ON_WORK_READY, (_v, options) => {
   const phase: D.ON_WORK_READY = options.phase;
   void phase;
-  return { commands: [{ commandName: C.DEFER_READY }] };
+  return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
 });
 dag.addVisitorFor(D.ON_WORK_READY, () => DEFER_READY);
 dag.addVisitorFor(D.ON_SUBGRAPH_READY, dagCommon);
 dag.addVisitorFor(D.ON_SUBGRAPH_READY, () => ({
   // @ts-expect-error completion visitors cannot defer
-  commands: [{ commandName: C.DEFER_READY }],
+  commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
 }));
 dag.addVisitorFor(D.ON_WORK_READY, () => ({
   // @ts-expect-error deferral must be the only command
-  commands: [{ commandName: C.NOOP }, { commandName: C.DEFER_READY }],
+  commands: [{ commandName: C.NOOP }, { commandName: C.DEFER_WORK_COMPLETION }],
 }));
 const outcome: DagSettlementOutcome = {
   kind: 'traversalFailed',
@@ -176,12 +176,12 @@ traverseDag({
   traversableGraph: graph,
   visitors: {
     // @ts-expect-error helper phase prevents completion deferral
-    [D.ON_SUBGRAPH_READY]: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
+    [D.ON_SUBGRAPH_READY]: () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
   },
 });
 const asyncDag = new AsyncDagTraversal({ traversableGraph: graph });
 asyncDag.addVisitorFor(D.ON_WORK_READY, async () => ({
-  commands: [{ commandName: C.DEFER_READY }],
+  commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
 }));
 void [
   data,

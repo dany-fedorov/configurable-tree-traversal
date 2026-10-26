@@ -53,7 +53,7 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
       ok: true,
       value: {
         vertexId: 'root',
-        dependsOn: ['loader', 'shared'],
+        dependsOnWork: ['loader', 'shared'],
         vertexContent: { $d: 'root', $c: [] },
       },
     },
@@ -80,7 +80,7 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
       ok: true,
       value: {
         vertexId: 'shared',
-        dependsOn: [],
+        dependsOnWork: [],
         vertexContent: { $d: 'natural', $c: [] },
       },
     },
@@ -105,7 +105,7 @@ test('lookup reply validation rejects malformed and duplicate transport replies'
       ok: true,
       value: {
         vertexId: 'root',
-        dependsOn: ['external'],
+        dependsOnWork: ['external'],
         vertexContent: { $d: 'root', $c: [] },
       },
     },

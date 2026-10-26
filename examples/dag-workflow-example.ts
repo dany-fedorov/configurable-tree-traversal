@@ -9,15 +9,15 @@ import {
 type Workflow = VertexTypes<string, string>;
 type Task = {
   children: string[];
-  dependsOn: string[];
+  dependsOnWork: string[];
 };
 
 const tasks: Record<string, Task> = {
-  root: { children: ['build', 'test', 'publish'], dependsOn: [] },
-  build: { children: ['compile-module'], dependsOn: ['root'] },
-  'compile-module': { children: ['publish'], dependsOn: ['build'] },
-  test: { children: ['publish'], dependsOn: ['root'] },
-  publish: { children: [], dependsOn: ['compile-module', 'test'] },
+  root: { children: ['build', 'test', 'publish'], dependsOnWork: [] },
+  build: { children: ['compile-module'], dependsOnWork: ['root'] },
+  'compile-module': { children: ['publish'], dependsOnWork: ['build'] },
+  test: { children: ['publish'], dependsOnWork: ['root'] },
+  publish: { children: [], dependsOnWork: ['compile-module', 'test'] },
 };
 
 function resolveTask(id: string) {
@@ -27,7 +27,7 @@ function resolveTask(id: string) {
     kind: 'found' as const,
     vertex: {
       vertexId: id,
-      dependsOn: task.dependsOn,
+      dependsOnWork: task.dependsOnWork,
       vertexContent: { $data: id, $childHints: task.children },
     },
   };

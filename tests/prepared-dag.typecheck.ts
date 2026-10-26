@@ -12,7 +12,7 @@ const source = materializeDagSourceFromRecords<Task, ID>(
   [{ id: 'research', title: 'Read', requires: [] }],
   {
     id: (item) => item.id,
-    dependsOn: (item) => item.requires,
+    dependsOnWork: (item) => item.requires,
   },
 );
 const prepared = prepareDag(source);
@@ -64,8 +64,8 @@ async function checkAsync() {
   const session = await result.dag.createAsyncWorkSession({ concurrency: 2 });
   const boundary = await session.advance();
   if (boundary.kind === 'awaitingSettlement') {
-    const id: ID = boundary.frontier[0]!.vertexId;
-    session.complete(boundary.frontier[0]!);
+    const id: ID = boundary.workTickets[0]!.vertexId;
+    session.completeWork(boundary.workTickets[0]!);
     void id;
   }
 }

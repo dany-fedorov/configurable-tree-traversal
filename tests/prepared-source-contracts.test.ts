@@ -52,7 +52,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     }).rejects.toThrow(/priority metadata is not supported/);
   });
 
-  test.each(['vertexId', 'dependsOn', 'dependsOnComplete'])(
+  test.each(['vertexId', 'dependsOnWork', 'dependsOnSubgraphCompletion'])(
     `${prepare.name} preserves exact non-enumerable %s getter errors`,
     async (field) => {
       const error = { field };
@@ -89,10 +89,10 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
           $childHints: this.vertexId === 'root' ? ['a', 'b', 'c'] : [],
         };
       }
-      get dependsOn() {
+      get dependsOnWork() {
         return this.vertexId === 'b' ? ['a'] : [];
       }
-      get dependsOnComplete() {
+      get dependsOnSubgraphCompletion() {
         return this.vertexId === 'c' ? ['b'] : [];
       }
     }
@@ -103,10 +103,10 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     const result = await prepare<G, string>({ traversableGraph: source });
     if (result.kind !== 'valid') throw new Error('Expected valid DAG');
     expect(
-      result.dag.vertices.map(({ vertexId, dependsOn, dependsOnComplete }) => [
+      result.dag.vertices.map(({ vertexId, dependsOnWork, dependsOnSubgraphCompletion }) => [
         vertexId,
-        dependsOn,
-        dependsOnComplete,
+        dependsOnWork,
+        dependsOnSubgraphCompletion,
       ]),
     ).toEqual([
       ['root', [], []],
@@ -189,7 +189,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
                   kind: 'found',
                   vertex: {
                     vertexId: 'b',
-                    dependsOn: [id],
+                    dependsOnWork: [id],
                     vertexContent: { $data: 'b', $childHints: [] },
                   },
                 },
@@ -197,9 +197,9 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       });
       if (result.kind !== 'valid') throw new Error('Expected valid DAG');
       expect(
-        result.dag.vertices.map(({ vertexId, dependsOn }) => [
+        result.dag.vertices.map(({ vertexId, dependsOnWork }) => [
           vertexId,
-          dependsOn,
+          dependsOnWork,
         ]),
       ).toEqual([
         ['root', []],

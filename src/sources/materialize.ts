@@ -7,8 +7,8 @@ export type MaterializedRecord<Item, ID> = {
   item: Item;
   id: ID;
   children: ID[];
-  dependsOn: ID[];
-  dependsOnComplete: ID[];
+  dependsOnWork: ID[];
+  dependsOnSubgraphCompletion: ID[];
 };
 
 export async function collect<Item>(
@@ -32,8 +32,8 @@ export function materializedSource<Item, ID>(
     vertex: {
       vertexId: record.id,
       vertexContent: { $data: record.item, $childHints: [...record.children] },
-      dependsOn: [...record.dependsOn],
-      dependsOnComplete: [...record.dependsOnComplete],
+      dependsOnWork: [...record.dependsOnWork],
+      dependsOnSubgraphCompletion: [...record.dependsOnSubgraphCompletion],
     },
   });
   // The traversal replaces the holder identity and hides its data in public views.
@@ -46,8 +46,8 @@ export function materializedSource<Item, ID>(
           item: undefined as Item,
           id: holder,
           children: roots,
-          dependsOn: [],
-          dependsOnComplete: [],
+          dependsOnWork: [],
+          dependsOnSubgraphCompletion: [],
         }),
       resolveChild: (id) => {
         const record = records.get(id);
@@ -79,6 +79,6 @@ export function validateChildren<Item, ID>(
 export function validateCollectionSelectors(selectors: object): void {
   for (const key of ['dependencies', 'completionDependencies']) {
     if (key in selectors)
-      throw new TypeError('Use dependsOn and dependsOnComplete selectors');
+      throw new TypeError('Use dependsOnWork and dependsOnSubgraphCompletion selectors');
   }
 }

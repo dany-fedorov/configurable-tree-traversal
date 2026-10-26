@@ -42,10 +42,10 @@ test('narrow graph reads detach records and preserve depth, ID and declaration i
   store.insertVertex({
     ref: root,
     id: undefined,
-    dependsOn: [dependency],
+    dependsOnWork: [dependency],
     depth: 4,
   });
-  store.insertVertex({ ref: child, id: NaN, dependsOn: [], depth: 5 });
+  store.insertVertex({ ref: child, id: NaN, dependsOnWork: [], depth: 5 });
   expect(store.getTraversalSlot(root, 0)).toBeUndefined();
   store.prepareSlots(root, ['a']);
   const slot = store.getTraversalSlot(root, 0)!;
@@ -85,7 +85,7 @@ test('discovery accounting survives duplicates, omissions, deleted arrivals and 
   scheduling.prepareSlots(root, root.unref().getChildrenHints());
   const a = scheduling.acceptVertex(context(0), {
     vertexId: 'a',
-    dependsOn: [],
+    dependsOnWork: [],
     vertexContent: { $d: 'a', $c: [] },
   })!;
   expect(
@@ -146,7 +146,7 @@ test('topology validation is reused through progress but invalidated by later de
   expect(scheduling.diagnoseTopology([root])).toBeNull();
   const bad = scheduling.acceptVertex(context(0), {
     vertexId: 'bad',
-    dependsOn: ['missing'],
+    dependsOnWork: ['missing'],
     vertexContent: { $d: 'bad', $c: [] },
   })!;
   expect(
@@ -160,7 +160,7 @@ test('topology validation is reused through progress but invalidated by later de
   scheduling.validateDiscoveredGraph();
   expect(scheduling.diagnoseTopology([root, bad])).toBeNull();
   scheduling.deleteVertex(bad);
-  expect(scheduling.diagnoseTopology([root])!.dependencyCycles).toEqual([]);
+  expect(scheduling.diagnoseTopology([root])!.dependencyCycleComponents).toEqual([]);
   scheduling.validateDiscoveredGraph();
   container.store.markOmitted('unused');
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
@@ -205,7 +205,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
-          dependsOn: ['a'],
+          dependsOnWork: ['a'],
           vertexContent: { $d: 'root', $c: ['a'] },
         }),
         resolveChild: (id) => {
@@ -214,7 +214,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             ? { vertexContent: null }
             : {
                 vertexId: 'a',
-                dependsOn: ['root'],
+                dependsOnWork: ['root'],
                 vertexContent: { $d: 'a', $c: ['probe'] },
               };
         },
@@ -224,10 +224,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await expect(async () => {
       await runner.run();
     }).rejects.toMatchObject({
-      diagnostics: { dependencyCycles: [['root', 'a']] },
+      diagnostics: { dependencyCycleComponents: [['root', 'a']] },
     });
     expect(snapshots[0]!.discovery.complete).toBe(false);
-    expect(snapshots[0]!.diagnostics!.dependencyCycles).toEqual([
+    expect(snapshots[0]!.diagnostics!.dependencyCycleComponents).toEqual([
       ['root', 'a'],
     ]);
   });
@@ -246,7 +246,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (id) => ({
           vertexId: id,
-          dependsOn:
+          dependsOnWork:
             id === 'gate'
               ? ['seed']
               : id === 'remove'
@@ -267,7 +267,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await runner.run();
     const before = runner.summary();
     const gate = before.vertices.get('gate')!.generation!;
-    expect(before.readyIds).toEqual(['gate']);
+    expect(before.readyOrDeferredIds).toEqual(['gate']);
     expect(runner.settle('gate', { ok: true }, gate)).toBe(true);
     await runner.run();
     const after = runner.summary();
@@ -275,7 +275,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(after.counts.discovered).toBe(2);
     expect(after.diagnostics).toBeNull();
     expect(before.completedWorkIds).toEqual(['seed']);
-    expect(before.readyIds).toEqual(['gate']);
+    expect(before.readyOrDeferredIds).toEqual(['gate']);
     expect(before.vertices.get('dependent')!.unmetPrerequisiteIds).toEqual([
       'remove',
     ]);

@@ -18,7 +18,7 @@ type ID = { task: string } | undefined;
 const id: ID = { task: 'review' };
 const before = defineDag<number, ID>({
   vertices: [
-    { vertexId: id, data: 1, slots: [], dependsOn: [], dependsOnComplete: [] },
+    { vertexId: id, data: 1, slots: [], dependsOnWork: [], dependsOnSubgraphCompletion: [] },
   ],
   omittedIds: [],
   entry: { kind: 'root', vertexId: id },
@@ -29,8 +29,8 @@ const after = defineDag<string, ID>({
       vertexId: id,
       data: 'new data type',
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     },
   ],
   omittedIds: [],
@@ -65,8 +65,8 @@ const operations: readonly DagRevisionOperation<number, ID>[] = [
       vertexId: id,
       data: 2,
       slots: [],
-      dependsOn: [undefined],
-      dependsOnComplete: [],
+      dependsOnWork: [undefined],
+      dependsOnSubgraphCompletion: [],
     },
   },
   { kind: 'removeVertex', vertexId: undefined },
@@ -109,7 +109,7 @@ if (prepared.kind === 'valid') {
     {
       kind: 'replaceVertex',
       // @ts-expect-error Dependencies cannot widen the ID domain.
-      vertex: { ...before.vertices[0]!, dependsOn: ['wrong'] },
+      vertex: { ...before.vertices[0]!, dependsOnWork: ['wrong'] },
     },
   ]);
   reviseDag(prepared.dag, [

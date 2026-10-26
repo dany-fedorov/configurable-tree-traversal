@@ -698,12 +698,12 @@ export class TraversalKernel<
       Array.from(this.chains.values(), ({ state }) => state.ref),
     );
     const vertices = new Map<VertexId, DagVertexProgress>();
-    const readyIds: VertexId[] = [];
-    const deferredIds: VertexId[] = [];
-    const deferredFrontier: DagDeferredWork[] = [];
-    const inFlightIds: VertexId[] = [];
+    const readyOrDeferredIds: VertexId[] = [];
+    const deferredWorkIds: VertexId[] = [];
+    const awaitingSettlement: DagDeferredWork[] = [];
+    const activeVisitorVertexIds: VertexId[] = [];
     const completedWorkIds: VertexId[] = [];
-    const completedSubtreeIds: VertexId[] = [];
+    const completedSubgraphIds: VertexId[] = [];
     let pending = 0;
     for (const item of work) {
       const id = graph.getIdOf(item.ref);
@@ -712,36 +712,36 @@ export class TraversalKernel<
       const state = item.initialCommitted
         ? 'completed'
         : running
-        ? 'running'
+        ? 'visiting'
         : deferred !== undefined
         ? 'deferred'
         : item.unmet.size === 0 && item.unmetComplete.size === 0
         ? 'ready'
         : 'pending';
       if (state === 'pending') pending += 1;
-      if (state === 'ready' || state === 'deferred') readyIds.push(id);
+      if (state === 'ready' || state === 'deferred') readyOrDeferredIds.push(id);
       if (state === 'deferred') {
-        deferredIds.push(id);
+        deferredWorkIds.push(id);
         if (deferred!.outcome === undefined) {
-          deferredFrontier.push({
+          awaitingSettlement.push({
             vertexId: id,
             generation: deferred!.generation,
           });
         }
       }
-      if (running) inFlightIds.push(id);
+      if (running) activeVisitorVertexIds.push(id);
       if (item.initialCommitted) completedWorkIds.push(id);
-      if (item.completionCommitted) completedSubtreeIds.push(id);
+      if (item.completionCommitted) completedSubgraphIds.push(id);
       vertices.set(id, {
-        id,
+        vertexId: id,
         work: state,
-        subtreeComplete: item.completionCommitted,
+        subgraphComplete: item.completionCommitted,
         unmetWorkPrerequisiteIds: Array.from(item.unmet),
         unmetPrerequisiteIds: Array.from(
           new Set([...item.unmet, ...item.unmetComplete]),
         ),
         ...(this.options.container.store.hasCompleteDependencies(item.ref)
-          ? { unmetCompletePrerequisiteIds: Array.from(item.unmetComplete) }
+          ? { unmetSubgraphPrerequisiteIds: Array.from(item.unmetComplete) }
           : {}),
         ...(state === 'deferred' ? { generation: deferred!.generation } : {}),
       });
@@ -772,23 +772,23 @@ export class TraversalKernel<
       counts: {
         discovered: work.length,
         pending,
-        ready: readyIds.length,
-        deferred: deferredIds.length,
-        inFlight: inFlightIds.length,
+        readyOrDeferred: readyOrDeferredIds.length,
+        deferredWork: deferredWorkIds.length,
+        activeVisitorVertices: activeVisitorVertexIds.length,
         workCompleted: completedWorkIds.length,
-        subtreeCompleted: completedSubtreeIds.length,
+        subgraphCompleted: completedSubgraphIds.length,
       },
       vertices,
-      readyIds,
-      deferredIds,
-      deferredFrontier,
-      inFlightIds,
+      readyOrDeferredIds,
+      deferredWorkIds,
+      awaitingSettlement,
+      activeVisitorVertexIds,
       completedWorkIds,
-      completedSubtreeIds,
+      completedSubgraphIds,
       unusedCompletedWorkIds: this.scheduling.getUnusedCompletedWorkIds(),
       diagnostics:
         diagnostics !== null &&
-        (diagnostics.dependencyCycles.length > 0 ||
+        (diagnostics.dependencyCycleComponents.length > 0 ||
           (complete && diagnostics.unknownPrerequisiteIds.length > 0))
           ? diagnostics
           : null,
@@ -1190,7 +1190,7 @@ export class TraversalKernel<
         );
       }
       switch (command.commandName) {
-        case TraversalVisitorCommandName.DEFER_READY:
+        case TraversalVisitorCommandName.DEFER_WORK_COMPLETION:
           return { halt: false, deleted: false, deferred: true };
         case TraversalVisitorCommandName.NOOP:
           break;

@@ -153,7 +153,7 @@ const mixedSelectors: GraphWalkOptions<string, number, undefined> = {
 };
 const defer: GraphWalkVisitorResult = {
   // @ts-expect-error Walking has no settlement command.
-  commands: [{ commandName: Command.DEFER_READY }],
+  commands: [{ commandName: Command.DEFER_WORK_COMPLETION }],
 };
 const argumentsCommand: GraphWalkVisitorResult = {
   // @ts-expect-error The shared halt command forbids arguments.

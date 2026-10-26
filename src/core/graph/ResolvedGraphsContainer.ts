@@ -90,25 +90,25 @@ export class ResolvedGraphsContainer<
   acceptRoot(
     ref: Ref<T | R>,
     id: ID,
-    dependsOn: readonly ID[] = [],
-    dependsOnComplete: readonly ID[] = [],
+    dependsOnWork: readonly ID[] = [],
+    dependsOnSubgraphCompletion: readonly ID[] = [],
   ): void {
     if (this.syntheticRoot) {
       this.syntheticRootRef = ref;
-      this.store.insertVertex({ ref, id, dependsOn: [], depth: 0 });
+      this.store.insertVertex({ ref, id, dependsOnWork: [], depth: 0 });
       this.store.setRoot(ref);
       return;
     }
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
-      this.store.insertVertex({ ref, id, dependsOn: [], depth: 0 });
+      this.store.insertVertex({ ref, id, dependsOnWork: [], depth: 0 });
       this.treeContainer.setRoot(ref);
     } else {
       this.store.insertVertex({
         ref,
         id,
-        dependsOn,
-        dependsOnComplete,
+        dependsOnWork,
+        dependsOnSubgraphCompletion,
         depth: 0,
       });
       this.store.setRoot(ref);
@@ -120,21 +120,21 @@ export class ResolvedGraphsContainer<
   acceptVertex(
     ref: Ref<T | R>,
     id: ID,
-    dependsOn: readonly ID[],
+    dependsOnWork: readonly ID[],
     context: VertexResolutionContext<T | R>,
-    dependsOnComplete: readonly ID[] = [],
+    dependsOnSubgraphCompletion: readonly ID[] = [],
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
       this.treeContainer.validateSavedResolutionContext(context);
-      this.store.insertVertex({ ref, id, dependsOn, depth: context.depth });
+      this.store.insertVertex({ ref, id, dependsOnWork, depth: context.depth });
       this.treeContainer.setWithResolutionContext(ref, context);
     } else {
       this.store.insertVertex({
         ref,
         id,
-        dependsOn,
-        dependsOnComplete,
+        dependsOnWork,
+        dependsOnSubgraphCompletion,
         depth: context.depth,
       });
     }
@@ -144,15 +144,15 @@ export class ResolvedGraphsContainer<
   acceptDetachedVertex(
     ref: Ref<T | R>,
     id: ID,
-    dependsOn: readonly ID[],
-    dependsOnComplete: readonly ID[],
+    dependsOnWork: readonly ID[],
+    dependsOnSubgraphCompletion: readonly ID[],
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     this.store.insertVertex({
       ref,
       id,
-      dependsOn,
-      dependsOnComplete,
+      dependsOnWork,
+      dependsOnSubgraphCompletion,
       depth: this.syntheticRoot ? 1 : 0,
     });
     this.commitSnapshotVertex(staged);

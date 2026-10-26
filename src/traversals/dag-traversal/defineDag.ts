@@ -67,11 +67,11 @@ export function defineDag<Data, ID = unknown>(
         vertexId: declare(own(vertex, 'vertexId')),
         data: own(vertex, 'data') as Data,
         slots: slots<ID>(own(vertex, 'slots')),
-        dependsOn: Object.freeze([
-          ...new Set(array(own(vertex, 'dependsOn')) as ID[]),
+        dependsOnWork: Object.freeze([
+          ...new Set(array(own(vertex, 'dependsOnWork')) as ID[]),
         ]),
-        dependsOnComplete: Object.freeze([
-          ...new Set(array(own(vertex, 'dependsOnComplete')) as ID[]),
+        dependsOnSubgraphCompletion: Object.freeze([
+          ...new Set(array(own(vertex, 'dependsOnSubgraphCompletion')) as ID[]),
         ]),
       });
     }),

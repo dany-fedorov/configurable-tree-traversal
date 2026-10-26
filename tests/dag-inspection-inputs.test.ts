@@ -2,7 +2,7 @@ import {
   DagTraversal,
   materializeDagSourceFromRecords,
   inspectDagMilestones,
-  type DagDependencyMilestone,
+  type DagMilestone,
 } from '../src';
 
 const id = { name: 'leaf' };
@@ -24,7 +24,7 @@ for (const representation of ['prototype getters', 'non-enumerable fields']) {
       const captured = inspection();
       let idReads = 0;
       let milestoneReads = 0;
-      const milestone = method === 'dependentsOf' ? 'work' : 'completion';
+      const milestone = method === 'dependentsOf' ? 'work' : 'subgraphCompletion';
       class Target {
         get vertexId() {
           idReads++;
@@ -35,7 +35,7 @@ for (const representation of ['prototype getters', 'non-enumerable fields']) {
           return milestone;
         }
       }
-      const target: DagDependencyMilestone<typeof id> =
+      const target: DagMilestone<typeof id> =
         representation === 'prototype getters'
           ? new Target()
           : (Object.defineProperties(
@@ -54,13 +54,13 @@ for (const representation of ['prototype getters', 'non-enumerable fields']) {
                   },
                 },
               },
-            ) as DagDependencyMilestone<typeof id>);
+            ) as DagMilestone<typeof id>);
       if (method === 'explain') {
         const result = captured.explain(target);
         expect(result).toMatchObject({
           kind: 'known',
           satisfied: false,
-          target: { vertexId: id, milestone: 'completion' },
+          target: { vertexId: id, milestone: 'subgraphCompletion' },
         });
         expect(result.target.vertexId).toBe(id);
         result.target.vertexId = { name: 'changed' };
@@ -73,13 +73,13 @@ for (const representation of ['prototype getters', 'non-enumerable fields']) {
         expect(result.milestones).toEqual([
           {
             vertexId: id,
-            milestone: method === 'dependentsOf' ? 'completion' : 'work',
+            milestone: method === 'dependentsOf' ? 'subgraphCompletion' : 'work',
           },
         ]);
         expect(result.edges).toEqual([
           {
-            from: { vertexId: id, milestone: 'completion' },
-            to: { vertexId: id, milestone: 'work' },
+            waiter: { vertexId: id, milestone: 'subgraphCompletion' },
+            prerequisite: { vertexId: id, milestone: 'work' },
             reason: 'ownWork',
           },
         ]);

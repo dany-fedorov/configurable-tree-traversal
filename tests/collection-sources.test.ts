@@ -17,7 +17,7 @@ test('a flat diamond discovers all records and releases dependencies after settl
       { id: 'c', requires: ['a'] },
       { id: 'd', requires: ['b', 'c'] },
     ],
-    { id: (task) => task.id, dependsOn: (task) => task.requires },
+    { id: (task) => task.id, dependsOnWork: (task) => task.requires },
   );
   const runner = new DagTraversal({
     ...source,
@@ -25,7 +25,7 @@ test('a flat diamond discovers all records and releases dependencies after settl
   }).createRunner();
   runner.run();
   expect(
-    runner.summary().deferredFrontier.map((work) => work.vertexId),
+    runner.summary().awaitingSettlement.map((work) => work.vertexId),
   ).toEqual(['a']);
   runner.settle(
     'a',
@@ -34,7 +34,7 @@ test('a flat diamond discovers all records and releases dependencies after settl
   );
   runner.run();
   expect(
-    runner.summary().deferredFrontier.map((work) => work.vertexId),
+    runner.summary().awaitingSettlement.map((work) => work.vertexId),
   ).toEqual(['b', 'c']);
   runner.settle(
     'b',
@@ -48,7 +48,7 @@ test('a flat diamond discovers all records and releases dependencies after settl
   );
   runner.run();
   expect(
-    runner.summary().deferredFrontier.map((work) => work.vertexId),
+    runner.summary().awaitingSettlement.map((work) => work.vertexId),
   ).toEqual(['d']);
 });
 
@@ -98,8 +98,8 @@ test('materialization copies membership, children, and both milestone edges', as
         return item.id;
       },
       children: (item: typeof items[number]) => item.children,
-      dependsOn: (item: typeof items[number]) => item.dependencies,
-      dependsOnComplete: (item: typeof items[number]) => item.completion,
+      dependsOnWork: (item: typeof items[number]) => item.dependencies,
+      dependsOnSubgraphCompletion: (item: typeof items[number]) => item.completion,
     };
     const source = asyncSource
       ? await materializeDagSourceFromRecordsAsync(items, selectors)
@@ -116,7 +116,7 @@ test('materialization copies membership, children, and both milestone edges', as
       }).createRunner();
       runner.run();
       expect(
-        runner.summary().deferredFrontier.map((work) => work.vertexId),
+        runner.summary().awaitingSettlement.map((work) => work.vertexId),
       ).toEqual(['a']);
       const graph = runner.getResolvedGraph();
       expect(graph.getVertexRefs()).toHaveLength(3);
@@ -131,7 +131,7 @@ test('materialization copies membership, children, and both milestone edges', as
       );
       runner.run();
       expect(
-        runner.summary().deferredFrontier.map((work) => work.vertexId),
+        runner.summary().awaitingSettlement.map((work) => work.vertexId),
       ).toEqual(['b']);
       runner.settle(
         'b',
@@ -140,7 +140,7 @@ test('materialization copies membership, children, and both milestone edges', as
       );
       runner.run();
       expect(
-        runner.summary().deferredFrontier.map((work) => work.vertexId),
+        runner.summary().awaitingSettlement.map((work) => work.vertexId),
       ).toEqual(['c']);
     }
     expect(calls).toBe(3);
@@ -188,7 +188,7 @@ test('missing structural children reject during catalog materialization', async 
 test('unknown prerequisites remain engine validation errors while known lookup is tagged found', () => {
   const source = materializeDagSourceFromRecords(['a'], {
     id: (item) => item,
-    dependsOn: () => ['missing'],
+    dependsOnWork: () => ['missing'],
   });
   expect(source.traversableGraph.resolvePrerequisite!('a')).toMatchObject({
     kind: 'found',
@@ -224,8 +224,8 @@ test('async catalogs and promised iterable selectors preserve completion and str
   const source = await materializeDagSourceFromRecordsAsync(catalog(), {
     id: async (item) => item.id,
     children: (item) => children(item.id),
-    dependsOn: async () => [],
-    dependsOnComplete: async () => [],
+    dependsOnWork: async () => [],
+    dependsOnSubgraphCompletion: async () => [],
   });
   const runner = new AsyncDagTraversal(source).createRunner();
   await runner.run();
@@ -247,8 +247,9 @@ test('forest async selectors and input materialize once, preserving milestone de
   const selectors = {
     id: (item: typeof root) => item.id,
     children,
-    dependsOn: async (item: typeof root) => (item === leaf ? ['root'] : []),
-    dependsOnComplete: async () => [],
+    dependsOnWork: async (item: typeof root) =>
+      item === leaf ? ['root'] : [],
+    dependsOnSubgraphCompletion: async () => [],
   };
   const source = await materializeDagSourceFromRootsAsync(roots(), selectors);
   const runner = new DagTraversal({
@@ -257,7 +258,7 @@ test('forest async selectors and input materialize once, preserving milestone de
   }).createRunner();
   runner.run();
   expect(
-    runner.summary().deferredFrontier.map((work) => work.vertexId),
+    runner.summary().awaitingSettlement.map((work) => work.vertexId),
   ).toEqual(['root']);
 });
 
@@ -271,8 +272,8 @@ test('forest copies child records and completion constraints before caller mutat
     const selectors = {
       id: (item: Item) => item.id,
       children: (item: Item) => item.children,
-      dependsOn: () => [],
-      dependsOnComplete: (item: Item) => item.after,
+      dependsOnWork: () => [],
+      dependsOnSubgraphCompletion: (item: Item) => item.after,
     };
     const source = asyncSource
       ? await materializeDagSourceFromRootsAsync(roots, selectors)
@@ -286,7 +287,7 @@ test('forest copies child records and completion constraints before caller mutat
     }).createRunner();
     runner.run();
     expect(
-      runner.summary().deferredFrontier.map((work) => work.vertexId),
+      runner.summary().awaitingSettlement.map((work) => work.vertexId),
     ).toEqual(['root', 'child']);
     runner.settle(
       'root',
@@ -295,7 +296,7 @@ test('forest copies child records and completion constraints before caller mutat
     );
     runner.run();
     expect(
-      runner.summary().deferredFrontier.map((work) => work.vertexId),
+      runner.summary().awaitingSettlement.map((work) => work.vertexId),
     ).toEqual(['child']);
     runner.settle(
       'child',
@@ -304,7 +305,7 @@ test('forest copies child records and completion constraints before caller mutat
     );
     runner.run();
     expect(
-      runner.summary().deferredFrontier.map((work) => work.vertexId),
+      runner.summary().awaitingSettlement.map((work) => work.vertexId),
     ).toEqual(['after']);
   }
 });
@@ -327,8 +328,8 @@ test('forest materialization is iterative for deep input and leaves cycle valida
   const selectors = {
     id: (item: Item) => item.id,
     children: (item: Item) => item.children,
-    dependsOn: () => [],
-    dependsOnComplete: () => [],
+    dependsOnWork: () => [],
+    dependsOnSubgraphCompletion: () => [],
   };
   expect(() => materializeDagSourceFromRoots([root], selectors)).not.toThrow();
   const cycle: Item = { id: 0, children: [] };
@@ -419,8 +420,8 @@ type MilestoneItem = {
 };
 type MilestoneSelectors = {
   id(item: MilestoneItem): string;
-  dependsOn(item: MilestoneItem): string[];
-  dependsOnComplete(item: MilestoneItem): string[];
+  dependsOnWork(item: MilestoneItem): string[];
+  dependsOnSubgraphCompletion(item: MilestoneItem): string[];
 };
 
 test.each([
@@ -497,8 +498,8 @@ test.each([
     ];
     const source = await make([...items, child], {
       id: (item) => item.id,
-      dependsOn: (item) => item.dependencies,
-      dependsOnComplete: (item) => item.completionDependencies,
+      dependsOnWork: (item) => item.dependencies,
+      dependsOnSubgraphCompletion: (item) => item.completionDependencies,
     });
     const runner = new DagTraversal({
       ...source,
@@ -508,7 +509,7 @@ test.each([
     expect(
       runner
         .summary()
-        .deferredFrontier.map((work) => work.vertexId)
+        .awaitingSettlement.map((work) => work.vertexId)
         .sort(),
     ).toEqual(['child', 'group']);
     runner.settle(
@@ -520,7 +521,7 @@ test.each([
     expect(
       runner
         .summary()
-        .deferredFrontier.map((work) => work.vertexId)
+        .awaitingSettlement.map((work) => work.vertexId)
         .sort(),
     ).toEqual(['afterWork', 'child']);
     runner.settle(
@@ -532,7 +533,7 @@ test.each([
     expect(
       runner
         .summary()
-        .deferredFrontier.map((work) => work.vertexId)
+        .awaitingSettlement.map((work) => work.vertexId)
         .sort(),
     ).toEqual(['afterComplete', 'afterWork']);
   },
@@ -572,12 +573,12 @@ for (const [name, make] of [
                   calls.push('children');
                   return [];
                 },
-                dependsOn: () => {
-                  calls.push('dependsOn');
+                dependsOnWork: () => {
+                  calls.push('dependsOnWork');
                   return [];
                 },
-                dependsOnComplete: () => {
-                  calls.push('dependsOnComplete');
+                dependsOnSubgraphCompletion: () => {
+                  calls.push('dependsOnSubgraphCompletion');
                   return [];
                 },
               },

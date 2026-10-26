@@ -27,7 +27,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         expect(options.isGraphRoot).toBe(false);
         expect(options.isTraversalRoot).toBe(false);
         expect(options.resolvedGraph.getRoot()).toBeNull();
-        expect(options.resolvedGraph.get(options.vertexRef)!.dependsOn).toEqual(
+        expect(options.resolvedGraph.get(options.vertexRef)!.dependsOnWork).toEqual(
           [],
         );
         expect(options.resolvedGraph.get(options.vertexRef)!.incoming).toEqual(
@@ -112,7 +112,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             resolved.push(hint);
             return {
               vertexId: hint,
-              dependsOn: [],
+              dependsOnWork: [],
               vertexContent: {
                 $d: hint,
                 $c: hint === 'shared' ? [] : ['shared'],
@@ -190,7 +190,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
         resolveChild: (hint) => ({
           vertexId: hint,
-          dependsOn: hint === 'source' ? [] : [hint === 'a' ? 'b' : 'a'],
+          dependsOnWork: hint === 'source' ? [] : [hint === 'a' ? 'b' : 'a'],
           vertexContent: { $d: hint, $c: [] },
         }),
       },
@@ -201,7 +201,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await expect(async () => {
       await traversal.createRunner().run();
     }).rejects.toMatchObject({
-      diagnostics: { dependencyCycles: [['a', 'b']] },
+      diagnostics: { dependencyCycleComponents: [['a', 'b']] },
     });
     expect(visited).toBe(false);
   });

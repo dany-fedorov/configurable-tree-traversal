@@ -1,4 +1,4 @@
-import type { DagDependencyMilestone } from '@core/errors/DagTraversalStallError';
+import type { DagMilestone } from '@core/errors/DagTraversalStallError';
 import type { DagDefinition } from './DagDefinition';
 
 /** Closed local topology with string-named live-vertex ports. */
@@ -20,7 +20,7 @@ export type DagFragmentInstance<
 export type DagCompositionOptions<ID = unknown> = {
   readonly dependencies?: readonly {
     readonly dependent: ID;
-    readonly prerequisite: DagDependencyMilestone<ID>;
+    readonly prerequisite: DagMilestone<ID>;
   }[];
   readonly children?: readonly { readonly parent: ID; readonly child: ID }[];
 };

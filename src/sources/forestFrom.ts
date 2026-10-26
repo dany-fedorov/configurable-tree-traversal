@@ -39,8 +39,8 @@ export function materializeDagSourceFromRoots<Item, ID>(
       item,
       id,
       children: Array.from(selectors.children?.(item) ?? [], discover),
-      dependsOn: [...(selectors.dependsOn?.(item) ?? [])],
-      dependsOnComplete: [...(selectors.dependsOnComplete?.(item) ?? [])],
+      dependsOnWork: [...(selectors.dependsOnWork?.(item) ?? [])],
+      dependsOnSubgraphCompletion: [...(selectors.dependsOnSubgraphCompletion?.(item) ?? [])],
     });
   }
   return materializedSource(records, [...new Set(rootIds)]);
@@ -78,9 +78,9 @@ export async function materializeDagSourceFromRootsAsync<Item, ID>(
       item,
       id,
       children,
-      dependsOn: await collect(selectors.dependsOn?.(item) ?? []),
-      dependsOnComplete: await collect(
-        selectors.dependsOnComplete?.(item) ?? [],
+      dependsOnWork: await collect(selectors.dependsOnWork?.(item) ?? []),
+      dependsOnSubgraphCompletion: await collect(
+        selectors.dependsOnSubgraphCompletion?.(item) ?? [],
       ),
     });
   }

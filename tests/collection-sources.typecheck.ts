@@ -13,7 +13,7 @@ type Item = { id: number; children: Item[]; dependencies: number[] };
 const items: Item[] = [];
 const source = materializeDagSourceFromRecords(items, {
   id: (item) => item.id,
-  dependsOn: (item) => item.dependencies,
+  dependsOnWork: (item) => item.dependencies,
   children: (item) => item.children.map((child) => child.id),
 });
 const typedSource: MaterializedDagSource<Item, number> = source;
@@ -65,7 +65,7 @@ void exactAsyncEvents;
 materializeDagSourceFromRecords(items, {
   id: (item) => item.id,
   // @ts-expect-error Synchronous selectors cannot return promises.
-  dependsOn: async (item) => item.dependencies,
+  dependsOnWork: async (item) => item.dependencies,
 });
 // @ts-expect-error Graph children are IDs, not records.
 materializeDagSourceFromRecords(items, { id: (item) => item.id, children: (item) => item.children });
@@ -75,18 +75,18 @@ materializeDagSourceFromRoots(items, {
   children: (item) => item.dependencies,
 });
 // @ts-expect-error IDs and prerequisites must agree.
-materializeDagSourceFromRecords(items, { id: (item) => item.id, dependsOn: () => ['bad'] });
+materializeDagSourceFromRecords(items, { id: (item) => item.id, dependsOnWork: () => ['bad'] });
 materializeDagSourceFromRecordsAsync(items, {
   // @ts-expect-error Async IDs and prerequisites must agree.
   id: async (item) => item.id,
-  dependsOn: async () => ['bad'],
+  dependsOnWork: async () => ['bad'],
 });
 void [typedSource, forest, asyncSource, asyncForest];
 
 const canonicalSelectors = {
   id: (item: Item) => item.id,
-  dependsOn: (item: Item) => item.dependencies,
-  dependsOnComplete: (item: Item) => item.dependencies,
+  dependsOnWork: (item: Item) => item.dependencies,
+  dependsOnSubgraphCompletion: (item: Item) => item.dependencies,
 };
 materializeDagSourceFromRecords(items, canonicalSelectors);
 materializeDagSourceFromRoots(items, canonicalSelectors);

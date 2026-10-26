@@ -53,11 +53,11 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
     const copied: MakeVertexResult<T> & { priority?: unknown } = {
       vertexContent: normalized.vertexContent,
     };
-    const dependsOn = normalized.dependsOn;
-    const dependsOnComplete = normalized.dependsOnComplete;
-    if (dependsOn !== undefined) copied.dependsOn = dependsOn;
-    if (dependsOnComplete !== undefined)
-      copied.dependsOnComplete = dependsOnComplete;
+    const dependsOnWork = normalized.dependsOnWork;
+    const dependsOnSubgraphCompletion = normalized.dependsOnSubgraphCompletion;
+    if (dependsOnWork !== undefined) copied.dependsOnWork = dependsOnWork;
+    if (dependsOnSubgraphCompletion !== undefined)
+      copied.dependsOnSubgraphCompletion = dependsOnSubgraphCompletion;
     if (Object.prototype.hasOwnProperty.call(normalized, 'vertexId')) {
       copied.vertexId = normalized.vertexId;
       candidates.add(copied.vertexId as ID);

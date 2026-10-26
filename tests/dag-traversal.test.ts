@@ -10,7 +10,7 @@ import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree/TraversableObjectTree';
 
-type Node = { id: string; children: string[]; dependsOn?: string[] };
+type Node = { id: string; children: string[]; dependsOnWork?: string[] };
 type TestGraph = VertexTypes<string, string>;
 
 function graphAdapter(
@@ -18,7 +18,7 @@ function graphAdapter(
     root: { id: 'root', children: ['A', 'B', 'join'] },
     A: { id: 'A', children: ['join'] },
     B: { id: 'B', children: ['join'] },
-    join: { id: 'join', children: [], dependsOn: ['A', 'B'] },
+    join: { id: 'join', children: [], dependsOnWork: ['A', 'B'] },
   },
 ): DagDiscoverySource<TestGraph> {
   const make = (id: string) => {
@@ -26,7 +26,7 @@ function graphAdapter(
     return {
       vertexContent: { $d: node.id, $c: node.children },
       vertexId: node.id,
-      ...(node.dependsOn === undefined ? {} : { dependsOn: node.dependsOn }),
+      ...(node.dependsOnWork === undefined ? {} : { dependsOnWork: node.dependsOnWork }),
     };
   };
   return {
@@ -106,11 +106,11 @@ test('finishes an empty graph', () => {
 test.each([
   ['missing dependency', ['absent']],
   ['dependency cycle', ['child']],
-] as const)('fails a synchronous %s as a stall', (_name, dependsOn) => {
+] as const)('fails a synchronous %s as a stall', (_name, dependsOnWork) => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter({
       root: { id: 'root', children: ['child'] },
-      child: { id: 'child', children: [], dependsOn: [...dependsOn] },
+      child: { id: 'child', children: [], dependsOnWork: [...dependsOnWork] },
     }),
   }).createRunner();
 
@@ -135,7 +135,7 @@ test('reports hostile object dependency ids without coercing them', () => {
       resolveChild: () => ({
         vertexContent: { $d: 'blocked', $c: [] },
         vertexId: 'blocked',
-        dependsOn: [hostileId],
+        dependsOnWork: [hostileId],
       }),
     },
   }).createRunner();
@@ -179,7 +179,7 @@ test('omission satisfies dependents without retaining the omitted vertex', () =>
         : {
             vertexContent: { $d: 'dependent', $c: [] },
             vertexId: 'dependent',
-            dependsOn: ['missing'],
+            dependsOnWork: ['missing'],
           },
   };
   const runner = new DagTraversal<TestGraph>({ traversableGraph: adapter })

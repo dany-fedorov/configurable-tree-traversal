@@ -148,7 +148,8 @@ it('rejects unknown roots and targets even in unreachable records', () => {
   expect(() =>
     materializeWalkSourceFromRecords(['a', 'b'], {
       id: (item) => item,
-      outgoing: (item) => (item === 'b' ? [{ to: 'missing', data: 1 }] : []),
+      outgoing: (item) =>
+        item === 'b' ? [{ to: 'missing', data: 1 }] : [],
       roots: ['a'],
     }),
   ).toThrow(TypeError);
@@ -281,8 +282,8 @@ function dagVertex<ID>(
     vertexId,
     data: vertexId,
     slots: [],
-    dependsOn: [],
-    dependsOnComplete: [],
+    dependsOnWork: [],
+    dependsOnSubgraphCompletion: [],
     ...overrides,
   };
 }
@@ -290,7 +291,7 @@ function dagVertex<ID>(
 it('walks cyclic definitions without DAG preparation or callback execution', () => {
   const a = dagVertex('a', {
     slots: [{ kind: 'vertex', vertexId: 'b' }],
-    dependsOn: ['missing'],
+    dependsOnWork: ['missing'],
   });
   const b = dagVertex('b', { slots: [{ kind: 'vertex', vertexId: 'a' }] });
   const definition = defineDag({
@@ -325,8 +326,8 @@ it('projects selected DAG relations in canonical order with parallel slots and d
           { kind: 'vertex', vertexId: 'b' },
           { kind: 'omitted', identity: { vertexId: 'skip' } },
         ],
-        dependsOn: ['c', 'b', 'skip'],
-        dependsOnComplete: ['b', 'a', 'skip'],
+        dependsOnWork: ['c', 'b', 'skip'],
+        dependsOnSubgraphCompletion: ['b', 'a', 'skip'],
       }),
       dagVertex('b'),
       dagVertex('c'),
@@ -335,7 +336,7 @@ it('projects selected DAG relations in canonical order with parallel slots and d
     entry: { kind: 'root', vertexId: 'a' },
   });
   const source = materializeWalkSourceFromDagDefinition(definition, {
-    relations: ['completionDependencies', 'workDependencies', 'children'],
+    relations: ['subgraphCompletionDependencies', 'workDependencies', 'children'],
   });
   const edges = [
     ...new GraphWalk({ source })
@@ -356,13 +357,13 @@ it('projects selected DAG relations in canonical order with parallel slots and d
     ['a', 'c', { kind: 'workDependency' }, 'found'],
     ['a', 'b', { kind: 'workDependency' }, 'found'],
     ['a', 'skip', { kind: 'workDependency' }, 'omitted'],
-    ['a', 'b', { kind: 'completionDependency' }, 'found'],
-    ['a', 'a', { kind: 'completionDependency' }, 'found'],
-    ['a', 'skip', { kind: 'completionDependency' }, 'omitted'],
+    ['a', 'b', { kind: 'subgraphCompletionDependency' }, 'found'],
+    ['a', 'a', { kind: 'subgraphCompletionDependency' }, 'found'],
+    ['a', 'skip', { kind: 'subgraphCompletionDependency' }, 'omitted'],
   ]);
 });
 
-it.each(['workDependencies', 'completionDependencies'] as const)(
+it.each(['workDependencies', 'subgraphCompletionDependencies'] as const)(
   'allows cyclic %s and ignores unselected missing relationships',
   (relation) => {
     const source = materializeWalkSourceFromDagDefinition(
@@ -370,11 +371,11 @@ it.each(['workDependencies', 'completionDependencies'] as const)(
         vertices: [
           dagVertex('a', {
             slots: [{ kind: 'vertex', vertexId: 'unknown' }],
-            dependsOn: relation === 'workDependencies' ? ['b'] : ['missing'],
-            dependsOnComplete:
-              relation === 'completionDependencies' ? ['b'] : ['missing'],
+            dependsOnWork: relation === 'workDependencies' ? ['b'] : ['missing'],
+            dependsOnSubgraphCompletion:
+              relation === 'subgraphCompletionDependencies' ? ['b'] : ['missing'],
           }),
-          dagVertex('b', { dependsOn: ['a'], dependsOnComplete: ['a'] }),
+          dagVertex('b', { dependsOnWork: ['a'], dependsOnSubgraphCompletion: ['a'] }),
         ],
         omittedIds: [],
         entry: { kind: 'root', vertexId: 'a' },
@@ -398,14 +399,14 @@ it.each(['workDependencies', 'completionDependencies'] as const)(
         'b',
         relation === 'workDependencies'
           ? 'workDependency'
-          : 'completionDependency',
+          : 'subgraphCompletionDependency',
       ],
       [
         'b',
         'a',
         relation === 'workDependencies'
           ? 'workDependency'
-          : 'completionDependency',
+          : 'subgraphCompletionDependency',
       ],
     ]);
   },
@@ -416,17 +417,17 @@ it('copies mutable definitions and separates generated relationship wrappers acr
     other = {};
   const data = { label: 'shared' };
   const slots = [{ kind: 'vertex' as const, vertexId: other }];
-  const dependsOn = [other],
-    dependsOnComplete = [other];
+  const dependsOnWork = [other],
+    dependsOnSubgraphCompletion = [other];
   const entry = { kind: 'root' as const, vertexId: id };
   const vertices = [
-    { vertexId: id, data, slots, dependsOn, dependsOnComplete },
-    { vertexId: other, data, slots: [], dependsOn: [], dependsOnComplete: [] },
+    { vertexId: id, data, slots, dependsOnWork, dependsOnSubgraphCompletion },
+    { vertexId: other, data, slots: [], dependsOnWork: [], dependsOnSubgraphCompletion: [] },
   ];
   const relations = [
     'children',
     'workDependencies',
-    'completionDependencies',
+    'subgraphCompletionDependencies',
   ] as const;
   const source = materializeWalkSourceFromDagDefinition(
     { vertices, omittedIds: [], entry },
@@ -434,8 +435,8 @@ it('copies mutable definitions and separates generated relationship wrappers acr
   );
   slots[0]!.vertexId = {};
   slots.length = 0;
-  dependsOn.length = 0;
-  dependsOnComplete.length = 0;
+  dependsOnWork.length = 0;
+  dependsOnSubgraphCompletion.length = 0;
   entry.vertexId = {};
   vertices.length = 0;
   const roots = [...source.roots()];
@@ -454,7 +455,7 @@ it('copies mutable definitions and separates generated relationship wrappers acr
     expect(events.map((event) => [event.edge.to, event.edge.data])).toEqual([
       [other, { kind: 'child', slotIndex: 0 }],
       [other, { kind: 'workDependency' }],
-      [other, { kind: 'completionDependency' }],
+      [other, { kind: 'subgraphCompletionDependency' }],
     ]);
     expect(events[0]!.source.data).toBe(data);
     (events[0]!.edge.data as any).kind = 'mutated';
@@ -593,14 +594,14 @@ it.each([
   },
 );
 
-it.each(['workDependencies', 'completionDependencies'] as const)(
+it.each(['workDependencies', 'subgraphCompletionDependencies'] as const)(
   'validates missing selected %s endpoints in unreachable records',
   (relation) => {
     const definition = defineDag({
       vertices: [
         dagVertex('a', {
-          dependsOn: ['missing'],
-          dependsOnComplete: ['missing'],
+          dependsOnWork: ['missing'],
+          dependsOnSubgraphCompletion: ['missing'],
         }),
       ],
       omittedIds: [],
@@ -647,8 +648,8 @@ it('keeps DAG task callbacks opaque through sync and async walking', async () =>
         vertexId: 'task',
         data: task,
         slots: [],
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
       },
     ],
     omittedIds: [],

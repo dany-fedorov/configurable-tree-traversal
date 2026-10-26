@@ -13,8 +13,8 @@ export function assertNoTreeMetadata(
 ): void {
   if (
     Object.prototype.hasOwnProperty.call(result, 'vertexId') ||
-    Object.prototype.hasOwnProperty.call(result, 'dependsOn') ||
-    Object.prototype.hasOwnProperty.call(result, 'dependsOnComplete') ||
+    Object.prototype.hasOwnProperty.call(result, 'dependsOnWork') ||
+    Object.prototype.hasOwnProperty.call(result, 'dependsOnSubgraphCompletion') ||
     Object.prototype.hasOwnProperty.call(result, 'satisfiesDependencies')
   ) {
     throw new TypeError(`${sourceName} results cannot include graph metadata`);

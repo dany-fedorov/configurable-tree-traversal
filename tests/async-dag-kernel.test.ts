@@ -80,17 +80,17 @@ function makeKernel(
 test('delivers an unrelated DAG chain while another frame resolver is pending', async () => {
   const a = deferred<{
     vertexId: string;
-    dependsOn: string[];
+    dependsOnWork: string[];
     vertexContent: { $d: string; $c: string[] };
   }>();
   const b = deferred<{
     vertexId: string;
-    dependsOn: string[];
+    dependsOnWork: string[];
     vertexContent: { $d: string; $c: string[] };
   }>();
   const slow = deferred<{
     vertexId: string;
-    dependsOn: string[];
+    dependsOnWork: string[];
     vertexContent: { $d: string; $c: string[] };
   }>();
   const bVisit = deferred<void>();
@@ -137,12 +137,12 @@ test('delivers an unrelated DAG chain while another frame resolver is pending', 
 
   a.resolve({
     vertexId: 'A',
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     vertexContent: { $d: 'A', $c: ['slow'] },
   });
   b.resolve({
     vertexId: 'B',
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     vertexContent: { $d: 'B', $c: [] },
   });
   await expect(aEvent).resolves.toMatchObject({
@@ -165,7 +165,7 @@ test('delivers an unrelated DAG chain while another frame resolver is pending', 
   await iterator.return(undefined);
   slow.resolve({
     vertexId: 'slow',
-    dependsOn: ['A'],
+    dependsOnWork: ['A'],
     vertexContent: { $d: 'slow', $c: [] },
   });
 });
@@ -192,7 +192,7 @@ test('limits admitted DAG chains separately from physical callbacks', async () =
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
+              dependsOnWork: ['root'],
               vertexContent: { $d: id, $c: [] },
             },
           };
@@ -229,12 +229,12 @@ test('limits admitted DAG chains separately from physical callbacks', async () =
 test('accepts duplicate identities in resolver settlement order', async () => {
   const first = deferred<{
     vertexId: string;
-    dependsOn: string[];
+    dependsOnWork: string[];
     vertexContent: { $d: string; $c: string[] };
   }>();
   const second = deferred<{
     vertexId: string;
-    dependsOn: string[];
+    dependsOnWork: string[];
     vertexContent: { $d: string; $c: string[] };
   }>();
   const container = new ResolvedGraphsContainer<TestGraph>({
@@ -282,7 +282,7 @@ test('accepts duplicate identities in resolver settlement order', async () => {
 
   second.resolve({
     vertexId: 'duplicate',
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     vertexContent: { $d: 'second-won', $c: [] },
   });
   await eventLoopTurn();
@@ -295,7 +295,7 @@ test('accepts duplicate identities in resolver settlement order', async () => {
 
   first.resolve({
     vertexId: 'duplicate',
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     vertexContent: { $d: 'first-lost', $c: [] },
   });
   await eventLoopTurn();
@@ -311,17 +311,17 @@ test('accepts duplicate identities in resolver settlement order', async () => {
 test('preserves resolver settlement order across a halt and resume', async () => {
   const blocker = deferred<{
     vertexId: string;
-    dependsOn: string[];
+    dependsOnWork: string[];
     vertexContent: { $d: string; $c: string[] };
   }>();
   const first = deferred<{
     vertexId: string;
-    dependsOn: string[];
+    dependsOnWork: string[];
     vertexContent: { $d: string; $c: string[] };
   }>();
   const second = deferred<{
     vertexId: string;
-    dependsOn: string[];
+    dependsOnWork: string[];
     vertexContent: { $d: string; $c: string[] };
   }>();
   const blockerVisit = deferred<void>();
@@ -381,7 +381,7 @@ test('preserves resolver settlement order across a halt and resume', async () =>
 
   blocker.resolve({
     vertexId: 'blocker',
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     vertexContent: { $d: 'blocker', $c: [] },
   });
   await eventLoopTurn();
@@ -390,14 +390,14 @@ test('preserves resolver settlement order across a halt and resume', async () =>
 
   second.resolve({
     vertexId: 'duplicate',
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     vertexContent: { $d: 'second-won', $c: [] },
   });
   await eventLoopTurn();
   expect(driver.advance('drain')).toEqual({ kind: 'WAIT' });
   first.resolve({
     vertexId: 'duplicate',
-    dependsOn: ['root'],
+    dependsOnWork: ['root'],
     vertexContent: { $d: 'first-lost', $c: [] },
   });
   await eventLoopTurn();
@@ -535,7 +535,7 @@ test('reserves initial metadata at admission while completion visits interleave'
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
+              dependsOnWork: ['root'],
               vertexContent: { $d: id, $c: [] },
             },
           };
@@ -611,7 +611,7 @@ test('admits an independent join once after all dependencies commit', async () =
               kind: call.kind,
               value: {
                 vertexId: hint,
-                dependsOn: ['root'],
+                dependsOnWork: ['root'],
                 vertexContent: { $d: hint, $c: [`join-from-${hint}`] },
               },
             };
@@ -620,7 +620,7 @@ test('admits an independent join once after all dependencies commit', async () =
             kind: call.kind,
             value: {
               vertexId: 'join',
-              dependsOn: ['A', 'B'],
+              dependsOnWork: ['A', 'B'],
               vertexContent: { $d: 'join', $c: [] },
             },
           };
@@ -694,7 +694,7 @@ test('finishes after deletion without awaiting an invalidated running callback',
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: id === 'B' ? ['A'] : ['root'],
+              dependsOnWork: id === 'B' ? ['A'] : ['root'],
               vertexContent: { $d: id, $c: [] },
             },
           };
@@ -768,7 +768,7 @@ test('retains the first live failure and discards a later chain mutation', async
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
+              dependsOnWork: ['root'],
               vertexContent: { $d: id, $c: [] },
             },
           };
@@ -909,7 +909,7 @@ test('retains a halted chain while another started DAG chain completes', async (
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
+              dependsOnWork: ['root'],
               vertexContent: { $d: id, $c: [] },
             },
           };
@@ -974,7 +974,7 @@ test('progresses resolver and visitor jobs without nesting a single permit', asy
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
+              dependsOnWork: ['root'],
               vertexContent: { $d: id, $c: [] },
             },
           };

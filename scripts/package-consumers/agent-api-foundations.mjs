@@ -40,11 +40,11 @@ const drain = async (coordinator) => {
     const boundary = await coordinator.advance();
     if (boundary.kind === 'finished') return ids;
     assert.equal(boundary.kind, 'awaitingSettlement');
-    assert(boundary.frontier.length > 0);
-    for (const ticket of boundary.frontier) {
+    assert(boundary.workTickets.length > 0);
+    for (const ticket of boundary.workTickets) {
       ids.push(ticket.vertexId);
-      assert.deepEqual(coordinator.complete(ticket), { kind: 'accepted' });
-      assert.deepEqual(coordinator.complete(ticket), {
+      assert.deepEqual(coordinator.completeWork(ticket), { kind: 'accepted' });
+      assert.deepEqual(coordinator.completeWork(ticket), {
         kind: 'alreadyAccepted',
       });
     }
@@ -64,7 +64,7 @@ for (const api of [cjs, esm]) {
       selections++;
       return item.id;
     },
-    dependsOn: (item) => item.requires,
+    dependsOnWork: (item) => item.requires,
   });
   let lookups = 0;
   const countedSource = {
@@ -98,15 +98,15 @@ for (const api of [cjs, esm]) {
   assert.equal(initial.kind, 'awaitingSettlement');
   assert.equal(resumed.kind, 'awaitingSettlement');
   assert.deepEqual(
-    initial.frontier.map((ticket) => ticket.vertexId),
+    initial.workTickets.map((ticket) => ticket.vertexId),
     [ids[0]],
   );
   assert.deepEqual(
-    resumed.frontier.map((ticket) => ticket.vertexId),
+    resumed.workTickets.map((ticket) => ticket.vertexId),
     ids.slice(1),
   );
-  assert.throws(() => seeded.complete(initial.frontier[0]), TypeError);
-  assert.throws(() => first.complete({ vertexId: ids[0] }), TypeError);
+  assert.throws(() => seeded.completeWork(initial.workTickets[0]), TypeError);
+  assert.throws(() => first.completeWork({ vertexId: ids[0] }), TypeError);
   assert.deepEqual(await drain(first), ids);
   assert.deepEqual(await drain(seeded), ids.slice(1));
   assert.equal(
@@ -268,7 +268,7 @@ for (const api of [esm, cjs]) {
     const invalid = await prepare(
       api.materializeDagSourceFromRecords([{ id: 'b', deps: ['missing'] }], {
         id: (item) => item.id,
-        dependsOn: (item) => item.deps,
+        dependsOnWork: (item) => item.deps,
       }),
     );
     assert.equal(invalid.kind, 'invalid');
@@ -297,7 +297,7 @@ for (const api of [esm, cjs]) {
     const boundary = await session.advance();
     assert.equal('fail' in session, false);
     const error = { fatal: true };
-    session.failTraversal(boundary.frontier[0], error);
+    session.failTraversal(boundary.workTickets[0], error);
     await assert.rejects(
       async () => session.advance(),
       (value) => value === error,

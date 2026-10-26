@@ -37,8 +37,8 @@ const graph: DagDiscoverySource<T> = {
     vertex: {
       vertexContent: content,
       vertexId: undefined,
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     },
   }),
   resolveChild: () => ({
@@ -92,9 +92,9 @@ const asyncBadvertexIdomitted: AsyncTreeSource<T> = {
   resolveChild: () => omitted,
 };
 void [badvertexIdomitted, asyncBadvertexIdomitted];
-const dependsOnlegacy = () => ({ vertexContent: content, dependsOn: [] });
+const dependsOnlegacy = () => ({ vertexContent: content, dependsOnWork: [] });
 const baddependsOnlegacy: TreeSource<T> = {
-  // @ts-expect-error dependsOn is not a tree legacy capability, even on pretyped functions.
+  // @ts-expect-error dependsOnWork is not a tree legacy capability, even on pretyped functions.
   resolveRoot: dependsOnlegacy,
   resolveChild: () => omitted,
 };
@@ -106,10 +106,10 @@ const asyncBaddependsOnlegacy: AsyncTreeSource<T> = {
 void [baddependsOnlegacy, asyncBaddependsOnlegacy];
 const dependsOnfound = () => ({
   kind: 'found' as const,
-  vertex: { vertexContent: content, dependsOn: [] },
+  vertex: { vertexContent: content, dependsOnWork: [] },
 });
 const baddependsOnfound: TreeSource<T> = {
-  // @ts-expect-error dependsOn is not a tree found capability, even on pretyped functions.
+  // @ts-expect-error dependsOnWork is not a tree found capability, even on pretyped functions.
   resolveRoot: dependsOnfound,
   resolveChild: () => omitted,
 };
@@ -121,10 +121,10 @@ const asyncBaddependsOnfound: AsyncTreeSource<T> = {
 void [baddependsOnfound, asyncBaddependsOnfound];
 const dependsOnomitted = () => ({
   kind: 'omitted' as const,
-  dependsOn: [],
+  dependsOnWork: [],
 });
 const baddependsOnomitted: TreeSource<T> = {
-  // @ts-expect-error dependsOn is not a tree omitted capability, even on pretyped functions.
+  // @ts-expect-error dependsOnWork is not a tree omitted capability, even on pretyped functions.
   resolveRoot: dependsOnomitted,
   resolveChild: () => omitted,
 };
@@ -136,10 +136,10 @@ const asyncBaddependsOnomitted: AsyncTreeSource<T> = {
 void [baddependsOnomitted, asyncBaddependsOnomitted];
 const dependsOnCompletelegacy = () => ({
   vertexContent: content,
-  dependsOnComplete: [],
+  dependsOnSubgraphCompletion: [],
 });
 const baddependsOnCompletelegacy: TreeSource<T> = {
-  // @ts-expect-error dependsOnComplete is not a tree legacy capability, even on pretyped functions.
+  // @ts-expect-error dependsOnSubgraphCompletion is not a tree legacy capability, even on pretyped functions.
   resolveRoot: dependsOnCompletelegacy,
   resolveChild: () => omitted,
 };
@@ -151,10 +151,10 @@ const asyncBaddependsOnCompletelegacy: AsyncTreeSource<T> = {
 void [baddependsOnCompletelegacy, asyncBaddependsOnCompletelegacy];
 const dependsOnCompletefound = () => ({
   kind: 'found' as const,
-  vertex: { vertexContent: content, dependsOnComplete: [] },
+  vertex: { vertexContent: content, dependsOnSubgraphCompletion: [] },
 });
 const baddependsOnCompletefound: TreeSource<T> = {
-  // @ts-expect-error dependsOnComplete is not a tree found capability, even on pretyped functions.
+  // @ts-expect-error dependsOnSubgraphCompletion is not a tree found capability, even on pretyped functions.
   resolveRoot: dependsOnCompletefound,
   resolveChild: () => omitted,
 };
@@ -166,10 +166,10 @@ const asyncBaddependsOnCompletefound: AsyncTreeSource<T> = {
 void [baddependsOnCompletefound, asyncBaddependsOnCompletefound];
 const dependsOnCompleteomitted = () => ({
   kind: 'omitted' as const,
-  dependsOnComplete: [],
+  dependsOnSubgraphCompletion: [],
 });
 const baddependsOnCompleteomitted: TreeSource<T> = {
-  // @ts-expect-error dependsOnComplete is not a tree omitted capability, even on pretyped functions.
+  // @ts-expect-error dependsOnSubgraphCompletion is not a tree omitted capability, even on pretyped functions.
   resolveRoot: dependsOnCompleteomitted,
   resolveChild: () => omitted,
 };

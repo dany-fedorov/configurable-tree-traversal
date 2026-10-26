@@ -20,9 +20,9 @@ const traversal = new DagTraversal<Build>({
       kind: 'found' as const,
       vertex: {
         vertexId: id,
-        dependsOn: [id === 'package' || id === 'compile' ? 'build' : 'compile'],
+        dependsOnWork: [id === 'package' || id === 'compile' ? 'build' : 'compile'],
         // Packaging needs the compiled bundle, including both retained children.
-        ...(id === 'package' ? { dependsOnComplete: ['compile'] } : {}),
+        ...(id === 'package' ? { dependsOnSubgraphCompletion: ['compile'] } : {}),
         vertexContent: {
           $data: id,
           $childHints:
@@ -49,7 +49,7 @@ assert(
     events.indexOf('complete:compile-server'),
 );
 assert.deepEqual(
-  runner.summary().vertices.get('package')!.unmetCompletePrerequisiteIds,
+  runner.summary().vertices.get('package')!.unmetSubgraphPrerequisiteIds,
   [],
 );
 console.log(events.join('\n'));

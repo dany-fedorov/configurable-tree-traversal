@@ -15,8 +15,8 @@ export type MaterializedDagSource<Item, ID> = {
 export type DagRecordSelectors<Item, ID> = {
   id(item: Item): ID;
   children?(item: Item): Iterable<ID>;
-  dependsOn?(item: Item): Iterable<ID>;
-  dependsOnComplete?(item: Item): Iterable<ID>;
+  dependsOnWork?(item: Item): Iterable<ID>;
+  dependsOnSubgraphCompletion?(item: Item): Iterable<ID>;
 };
 
 export type DagRootSelectors<Item, ID> = Omit<
@@ -31,8 +31,8 @@ export type AsyncCollection<Item> = Iterable<Item> | AsyncIterable<Item>;
 export type AsyncDagRecordSelectors<Item, ID> = {
   id(item: Item): MaybePromise<ID>;
   children?(item: Item): MaybePromise<AsyncCollection<ID>>;
-  dependsOn?(item: Item): MaybePromise<AsyncCollection<ID>>;
-  dependsOnComplete?(item: Item): MaybePromise<AsyncCollection<ID>>;
+  dependsOnWork?(item: Item): MaybePromise<AsyncCollection<ID>>;
+  dependsOnSubgraphCompletion?(item: Item): MaybePromise<AsyncCollection<ID>>;
 };
 
 export type AsyncDagRootSelectors<Item, ID> = Omit<

@@ -59,20 +59,20 @@ const definition = defineDag({
       vertexId: undefined,
       data: items[0]!,
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     },
   ],
   omittedIds: [],
   entry: { kind: 'root', vertexId: undefined },
 });
 const dag = materializeWalkSourceFromDagDefinition(definition, {
-  relations: ['children', 'workDependencies', 'completionDependencies'],
+  relations: ['children', 'workDependencies', 'subgraphCompletionDependencies'],
 });
 const dagTyped: GraphWalkSource<Item, GraphWalkDagRelation, undefined> = dag;
 const child: FamilyRelation = { kind: 'child', slotIndex: 0 };
 const work: GraphWalkDagRelation = { kind: 'workDependency' };
-const completion: GraphWalkDagRelation = { kind: 'completionDependency' };
+const completion: GraphWalkDagRelation = { kind: 'subgraphCompletionDependency' };
 new GraphWalk({ source: dag }).addVisitorFor(GraphWalkPhase.EDGE, (event) => {
   const vertexId: undefined = event.edge.to;
   const item: Item = event.source.data;
@@ -105,7 +105,7 @@ materializeWalkSourceFromDagDefinition(definition);
 // @ts-expect-error DAG relation selection cannot be empty.
 materializeWalkSourceFromDagDefinition(definition, { relations: [] });
 // @ts-expect-error DAG relation names are closed.
-materializeWalkSourceFromDagDefinition(definition, { relations: ['dependsOn'] });
+materializeWalkSourceFromDagDefinition(definition, { relations: ['dependsOnWork'] });
 // @ts-expect-error Child relation metadata includes its authored slot index.
 const missingIndex: GraphWalkDagRelation = { kind: 'child' };
 

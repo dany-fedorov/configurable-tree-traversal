@@ -18,15 +18,15 @@ const definition = defineDag<number, Local>({
       vertexId: 'start',
       data: 1,
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     },
     {
       vertexId: 'finish',
       data: 2,
       slots: [],
-      dependsOn: ['start'],
-      dependsOnComplete: [],
+      dependsOnWork: ['start'],
+      dependsOnSubgraphCompletion: [],
     },
   ],
   omittedIds: [],
@@ -69,7 +69,7 @@ composeDag(instances, {
       dependent: instance.ports.start,
       prerequisite: {
         vertexId: instance.ports.finish,
-        milestone: 'completion',
+        milestone: 'subgraphCompletion',
       },
     },
   ],
@@ -88,7 +88,7 @@ composeDag([fragment], {
     {
       dependent: 'start',
       // @ts-expect-error Foreign prerequisite cannot widen ID from options.
-      prerequisite: { vertexId: 'foreign', milestone: 'completion' },
+      prerequisite: { vertexId: 'foreign', milestone: 'subgraphCompletion' },
     },
   ],
 });
@@ -112,8 +112,8 @@ const second = defineDagFragment(
         vertexId: 3,
         data: 'text',
         slots: [],
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
       },
     ],
     omittedIds: [],
@@ -149,7 +149,7 @@ const invalidFragmentError = new DagFragmentValidationError<Local>([
 ]);
 const fragmentIssue = fragmentError.issues[0]!;
 if (fragmentIssue.kind === 'milestone') {
-  const id: Local = fragmentIssue.diagnostics.dependencyEdges[0]!.to.vertexId;
+  const id: Local = fragmentIssue.diagnostics.dependencyEdges[0]!.prerequisite.vertexId;
   // @ts-expect-error Typed diagnostic IDs are not foreign IDs.
   const wrong: 'other' = id;
   void wrong;

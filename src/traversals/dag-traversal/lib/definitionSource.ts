@@ -42,8 +42,8 @@ export function captureDagDefinition<T extends VertexTypes, ID>(
         vertexId: vertex.vertexId,
         data: vertex.vertex.getData(),
         slots: captureSlots(ref),
-        dependsOn: vertex.dependsOn,
-        dependsOnComplete: vertex.dependsOnComplete ?? [],
+        dependsOnWork: vertex.dependsOnWork,
+        dependsOnSubgraphCompletion: vertex.dependsOnSubgraphCompletion ?? [],
       };
     }),
     omittedIds,
@@ -89,8 +89,8 @@ export function definitionSource<Data, ID>(
       kind: 'found',
       vertex: {
         vertexId: vertex.vertexId,
-        dependsOn: vertex.dependsOn.slice(),
-        dependsOnComplete: vertex.dependsOnComplete.slice(),
+        dependsOnWork: vertex.dependsOnWork.slice(),
+        dependsOnSubgraphCompletion: vertex.dependsOnSubgraphCompletion.slice(),
         vertexContent: { $data: vertex.data, $childHints: hints(vertex.slots) },
       },
     };

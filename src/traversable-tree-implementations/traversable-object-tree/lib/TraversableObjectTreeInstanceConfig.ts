@@ -13,8 +13,8 @@ export type ObjectVertexHookResult<T extends VertexTypes> =
   | {
       kind: 'useDefault';
       vertexId?: never;
-      dependsOn?: never;
-      dependsOnComplete?: never;
+      dependsOnWork?: never;
+      dependsOnSubgraphCompletion?: never;
       satisfiesDependencies?: never;
     }
   | TreeVertexFound<T>

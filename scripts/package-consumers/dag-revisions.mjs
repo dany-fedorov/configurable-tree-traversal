@@ -16,8 +16,8 @@ for (const entry of entries) {
           vertexId: 'task',
           data: 1,
           slots: [],
-          dependsOn: [],
-          dependsOnComplete: [],
+          dependsOnWork: [],
+          dependsOnSubgraphCompletion: [],
         },
       ],
       omittedIds: [],
@@ -26,7 +26,7 @@ for (const entry of entries) {
   );
   assert.equal(result.kind, 'valid');
   const old = result.dag.createWorkSession();
-  const oldTicket = old.advance().frontier[0];
+  const oldTicket = old.advance().workTickets[0];
   const revision = entry.reviseDag(result.dag, [
     {
       kind: 'replaceVertex',
@@ -46,12 +46,12 @@ for (const entry of entries) {
     await revision.dag.createAsyncWorkSession(),
   ]) {
     assert.deepEqual(fresh.summary().completedWorkIds, []);
-    const ticket = (await fresh.advance()).frontier[0];
-    assert.throws(() => fresh.complete(oldTicket), TypeError);
-    assert.equal(fresh.complete(ticket).kind, 'accepted');
+    const ticket = (await fresh.advance()).workTickets[0];
+    assert.throws(() => fresh.completeWork(oldTicket), TypeError);
+    assert.equal(fresh.completeWork(ticket).kind, 'accepted');
     assert.equal((await fresh.advance()).kind, 'finished');
   }
-  assert.equal(old.complete(oldTicket).kind, 'accepted');
+  assert.equal(old.completeWork(oldTicket).kind, 'accepted');
   assert.equal(old.advance().kind, 'finished');
   assert.equal(
     entry.reviseDag(result.dag, [{ kind: 'removeVertex', vertexId: 'task' }])

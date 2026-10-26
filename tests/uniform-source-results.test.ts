@@ -117,7 +117,7 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
                   ? badResult
                   : {
                       vertexId: 'root',
-                      dependsOn:
+                      dependsOnWork:
                         callback === 'prerequisite' ? ['external'] : [],
                       vertexContent: {
                         $data: 'root',

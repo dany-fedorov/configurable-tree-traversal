@@ -266,7 +266,7 @@ walkGraph({
   source,
   visitors: {
     // @ts-expect-error Walking does not support work settlement commands.
-    [Phase.EDGE]: () => ({ commands: [{ commandName: Command.DEFER_READY }] }),
+    [Phase.EDGE]: () => ({ commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] }),
   },
 });
 walkGraphAsync({
@@ -321,8 +321,8 @@ const definition = defineDag<Data, ID>({
       vertexId: objectId,
       data: { label: 'task' },
       slots: [{ kind: 'omitted', identity: { vertexId: undefined } }],
-      dependsOn: [objectId],
-      dependsOnComplete: [],
+      dependsOnWork: [objectId],
+      dependsOnSubgraphCompletion: [],
     },
   ],
   omittedIds: [undefined],

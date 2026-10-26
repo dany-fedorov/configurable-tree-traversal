@@ -109,7 +109,7 @@ test('structural graph snapshots order independent roots and shared paths', () =
 test('graph traversal slots retain the unprepared/prepared distinction', () => {
   const store = new GraphStore<TestGraph>('dag');
   const root = ref('root');
-  store.insertVertex({ ref: root, id: 'root', dependsOn: [], depth: 0 });
+  store.insertVertex({ ref: root, id: 'root', dependsOnWork: [], depth: 0 });
   expect(store.getTraversalSlots(root)).toBeNull();
   store.prepareSlots(root, []);
   expect(store.getTraversalSlots(root)).toEqual([]);

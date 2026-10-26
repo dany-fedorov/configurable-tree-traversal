@@ -19,8 +19,8 @@ const vertex = <ID>(
   vertexId,
   data: undefined,
   slots: [],
-  dependsOn: [],
-  dependsOnComplete: [],
+  dependsOnWork: [],
+  dependsOnSubgraphCompletion: [],
   ...patch,
 });
 
@@ -94,16 +94,16 @@ describe('diffDagDefinitions', () => {
       vertex('task', {
         data: { version: 1 },
         slots: [{ kind: 'vertex', vertexId: 'old' }],
-        dependsOn: ['a', 'b'],
-        dependsOnComplete: ['a', 'b'],
+        dependsOnWork: ['a', 'b'],
+        dependsOnSubgraphCompletion: ['a', 'b'],
       }),
     ]);
     const after = definition([
       vertex('task', {
         data: { version: 1 },
         slots: [{ kind: 'vertex', vertexId: 'new' }],
-        dependsOn: ['b', 'a'],
-        dependsOnComplete: ['b', 'a'],
+        dependsOnWork: ['b', 'a'],
+        dependsOnSubgraphCompletion: ['b', 'a'],
       }),
     ]);
     expect(diffDagDefinitions(before, after).changedVertices).toEqual([
@@ -113,19 +113,19 @@ describe('diffDagDefinitions', () => {
           'data',
           'slots',
           'workDependencies',
-          'completionDependencies',
+          'subgraphCompletionDependencies',
         ],
       },
     ]);
     expect(
       diffDagDefinitions(
-        definition([vertex('task', { dependsOn: ['a'] })]),
-        definition([vertex('task', { dependsOnComplete: ['a'] })]),
+        definition([vertex('task', { dependsOnWork: ['a'] })]),
+        definition([vertex('task', { dependsOnSubgraphCompletion: ['a'] })]),
       ).changedVertices,
     ).toEqual([
       {
         vertexId: 'task',
-        aspects: ['workDependencies', 'completionDependencies'],
+        aspects: ['workDependencies', 'subgraphCompletionDependencies'],
       },
     ]);
   });
@@ -141,8 +141,8 @@ describe('diffDagDefinitions', () => {
             { kind: 'omitted', identity: { vertexId: undefined } },
             { kind: 'omitted', identity: null },
           ],
-          dependsOn: [NaN, -0, id, slot],
-          dependsOnComplete: [undefined],
+          dependsOnWork: [NaN, -0, id, slot],
+          dependsOnSubgraphCompletion: [undefined],
         }),
       ],
       { omittedIds: [undefined, -0], entry: { kind: 'root', vertexId: NaN } },
@@ -155,8 +155,8 @@ describe('diffDagDefinitions', () => {
             { kind: 'omitted', identity: { vertexId: undefined } },
             { kind: 'omitted', identity: null },
           ],
-          dependsOn: [NaN, +0, id, slot],
-          dependsOnComplete: [undefined],
+          dependsOnWork: [NaN, +0, id, slot],
+          dependsOnSubgraphCompletion: [undefined],
         }),
       ],
       { omittedIds: [undefined, +0], entry: { kind: 'root', vertexId: NaN } },
@@ -360,7 +360,7 @@ describe('reviseDag', () => {
   test('rejects a dangling prerequisite without touching the original session', () => {
     const result = prepareDagDefinition(
       definition(
-        [vertex('review', { dependsOn: ['research'] }), vertex('research')],
+        [vertex('review', { dependsOnWork: ['research'] }), vertex('research')],
         { entry: { kind: 'root', vertexId: 'review' } },
       ),
     );
@@ -376,7 +376,7 @@ describe('reviseDag', () => {
     ]);
     expect(before.advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'research' }],
+      workTickets: [{ vertexId: 'research' }],
     });
   });
 });
@@ -406,8 +406,8 @@ describe('ordered atomic revisions', () => {
     const original = prepared(
       [
         vertex('review', {
-          dependsOn: ['research'],
-          dependsOnComplete: ['research'],
+          dependsOnWork: ['research'],
+          dependsOnSubgraphCompletion: ['research'],
         }),
         vertex('research'),
       ],
@@ -426,18 +426,18 @@ describe('ordered atomic revisions', () => {
       changedVertices: [
         {
           vertexId: 'review',
-          aspects: ['workDependencies', 'completionDependencies'],
+          aspects: ['workDependencies', 'subgraphCompletionDependencies'],
         },
       ],
       vertexOrderChanged: true,
     });
     expect(result.dag.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'review' }],
+      workTickets: [{ vertexId: 'review' }],
     });
     expect(original.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'research' }],
+      workTickets: [{ vertexId: 'research' }],
     });
   });
 
@@ -504,7 +504,7 @@ describe('ordered atomic revisions', () => {
     });
     expect(original.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'root' }, { vertexId: 'child' }],
+      workTickets: [{ vertexId: 'root' }, { vertexId: 'child' }],
     });
   });
 
@@ -573,7 +573,7 @@ describe('ordered atomic revisions', () => {
     expect(result.changes).toEqual(unchanged);
     expect(result.dag.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'task' }],
+      workTickets: [{ vertexId: 'task' }],
     });
     expect(old.advance().kind).toBe('finished');
   });
@@ -613,7 +613,7 @@ describe('ordered atomic revisions', () => {
       operations: [
         {
           kind: 'replaceVertex',
-          vertex: vertex('root', { dependsOn: ['root'] }),
+          vertex: vertex('root', { dependsOnWork: ['root'] }),
         },
       ],
       issue: 'milestone',
@@ -623,7 +623,7 @@ describe('ordered atomic revisions', () => {
       operations: [
         {
           kind: 'replaceVertex',
-          vertex: vertex('root', { dependsOnComplete: ['root'] }),
+          vertex: vertex('root', { dependsOnSubgraphCompletion: ['root'] }),
         },
       ],
       issue: 'milestone',
@@ -658,7 +658,7 @@ describe('ordered atomic revisions', () => {
       expect(original.definition.vertices).toEqual([vertex('root')]);
       expect(session.advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: 'root' }],
+        workTickets: [{ vertexId: 'root' }],
       });
     },
   );
@@ -689,7 +689,7 @@ describe('ordered atomic revisions', () => {
       expect(original.definition.vertices[0]!.data).toBeUndefined();
       expect(session.advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: 'root' }],
+        workTickets: [{ vertexId: 'root' }],
       });
     },
   );
@@ -778,8 +778,8 @@ describe('ordered atomic revisions', () => {
         vertex: {
           data: undefined,
           slots: [],
-          dependsOn: [],
-          dependsOnComplete: [],
+          dependsOnWork: [],
+          dependsOnSubgraphCompletion: [],
         },
       },
     ],
@@ -796,7 +796,7 @@ describe('ordered atomic revisions', () => {
       );
       expect(original.createWorkSession().advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: undefined }],
+        workTickets: [{ vertexId: undefined }],
       });
     },
   );
@@ -807,7 +807,7 @@ describe('ordered atomic revisions', () => {
     const original = prepared<unknown>([vertex(id)]);
     const reads: string[] = [];
     const slots: DagDefinitionSlot<unknown>[] = [];
-    const dependsOn: unknown[] = [];
+    const dependsOnWork: unknown[] = [];
     const replacement = {
       get vertexId() {
         reads.push('vertexId');
@@ -821,12 +821,12 @@ describe('ordered atomic revisions', () => {
         reads.push('slots');
         return slots;
       },
-      get dependsOn() {
-        reads.push('dependsOn');
-        return dependsOn;
+      get dependsOnWork() {
+        reads.push('dependsOnWork');
+        return dependsOnWork;
       },
-      get dependsOnComplete() {
-        reads.push('dependsOnComplete');
+      get dependsOnSubgraphCompletion() {
+        reads.push('dependsOnSubgraphCompletion');
         return [];
       },
     };
@@ -849,19 +849,19 @@ describe('ordered atomic revisions', () => {
       'vertexId',
       'data',
       'slots',
-      'dependsOn',
-      'dependsOnComplete',
+      'dependsOnWork',
+      'dependsOnSubgraphCompletion',
     ]);
     slots.push({ kind: 'vertex', vertexId: 'late' });
-    dependsOn.push('late');
+    dependsOnWork.push('late');
     data.version = 2;
     id.task = 'changed';
     expect(result.dag.definition.vertices[0]).toEqual({
       vertexId: id,
       data,
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     });
     expect(result.dag.definition.vertices[0]!.data).toBe(data);
     expect(result.dag.definition.vertices[0]!.vertexId).toBe(id);
@@ -877,8 +877,8 @@ describe('ordered atomic revisions', () => {
     'vertexId',
     'data',
     'slots',
-    'dependsOn',
-    'dependsOnComplete',
+    'dependsOnWork',
+    'dependsOnSubgraphCompletion',
     'entry',
     'omittedIds',
   ])('propagates exact caller getter errors at %s', (field) => {
@@ -892,7 +892,7 @@ describe('ordered atomic revisions', () => {
         ? { kind: 'replaceOmissions' }
         : { kind: 'replaceVertex', vertex: replacement };
     Object.defineProperty(
-      ['vertexId', 'data', 'slots', 'dependsOn', 'dependsOnComplete'].includes(
+      ['vertexId', 'data', 'slots', 'dependsOnWork', 'dependsOnSubgraphCompletion'].includes(
         field,
       )
         ? replacement
@@ -913,7 +913,7 @@ describe('ordered atomic revisions', () => {
     expect(caught).toBe(error);
     expect(original.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'root' }],
+      workTickets: [{ vertexId: 'root' }],
     });
   });
 });
@@ -928,7 +928,7 @@ test('adds a new reachable vertex with explicit parent and prerequisite edits', 
       kind: 'replaceVertex',
       vertex: vertex('root', {
         slots: [{ kind: 'vertex', vertexId: 'new' }],
-        dependsOn: ['new'],
+        dependsOnWork: ['new'],
       }),
     },
   ]);
@@ -943,11 +943,11 @@ test('adds a new reachable vertex with explicit parent and prerequisite edits', 
   });
   expect(result.dag.createWorkSession().advance()).toMatchObject({
     kind: 'awaitingSettlement',
-    frontier: [{ vertexId: 'new' }],
+    workTickets: [{ vertexId: 'new' }],
   });
   expect(original.createWorkSession().advance()).toMatchObject({
     kind: 'awaitingSettlement',
-    frontier: [{ vertexId: 'root' }],
+    workTickets: [{ vertexId: 'root' }],
   });
 });
 
@@ -957,7 +957,7 @@ describe('revision session isolation', () => {
     async (async) => {
       const original = prepared([
         vertex('build'),
-        vertex('review', { dependsOn: ['build'] }),
+        vertex('review', { dependsOnWork: ['build'] }),
       ]);
       const old = async
         ? await original.createAsyncWorkSession()
@@ -965,18 +965,18 @@ describe('revision session isolation', () => {
       const first = await old.advance();
       if (first.kind !== 'awaitingSettlement')
         throw new Error('Expected old frontier');
-      const build = first.frontier[0]!;
-      expect(old.complete(build)).toEqual({ kind: 'accepted' });
+      const build = first.workTickets[0]!;
+      expect(old.completeWork(build)).toEqual({ kind: 'accepted' });
       const waiting = await old.advance();
       if (waiting.kind !== 'awaitingSettlement')
         throw new Error('Expected review frontier');
-      const oldReview = waiting.frontier[0]!;
+      const oldReview = waiting.workTickets[0]!;
       const revision = reviseDag(original, [
         {
           kind: 'replaceVertex',
           vertex: vertex('review', {
             data: { instructions: 'revised' },
-            dependsOn: ['build'],
+            dependsOnWork: ['build'],
           }),
         },
       ]);
@@ -987,10 +987,10 @@ describe('revision session isolation', () => {
       expect(fresh.summary().completedWorkIds).toEqual([]);
       expect(await fresh.advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: 'build' }],
+        workTickets: [{ vertexId: 'build' }],
       });
-      expect(() => fresh.complete(oldReview)).toThrow(TypeError);
-      expect(old.complete(oldReview)).toEqual({ kind: 'accepted' });
+      expect(() => fresh.completeWork(oldReview)).toThrow(TypeError);
+      expect(old.completeWork(oldReview)).toEqual({ kind: 'accepted' });
       expect(await old.advance()).toEqual({ kind: 'finished' });
       expect(fresh.summary().completedWorkIds).toEqual([]);
       // The host has independently accepted build's unchanged artifact for this revision.
@@ -1002,10 +1002,10 @@ describe('revision session isolation', () => {
         : revision.dag.createWorkSession({ completedWork: selectedFacts });
       expect(await seeded.advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: 'review' }],
+        workTickets: [{ vertexId: 'review' }],
       });
       expect(seeded.summary().completedWorkIds).toEqual(['build']);
-      expect(() => seeded.complete(oldReview)).toThrow(TypeError);
+      expect(() => seeded.completeWork(oldReview)).toThrow(TypeError);
     },
   );
 
@@ -1028,8 +1028,8 @@ describe('revision session isolation', () => {
     const boundary = await old.advance();
     if (boundary.kind !== 'awaitingSettlement')
       throw new Error('Expected ticket');
-    const oldTicket = boundary.frontier[0]!;
-    old.complete(oldTicket);
+    const oldTicket = boundary.workTickets[0]!;
+    old.completeWork(oldTicket);
     let drained = false;
     const advancing = old.advance().then((value) => {
       drained = true;
@@ -1044,9 +1044,9 @@ describe('revision session isolation', () => {
     const freshBoundary = await fresh.advance();
     if (freshBoundary.kind !== 'awaitingSettlement')
       throw new Error('Expected fresh ticket');
-    expect(() => fresh.complete(oldTicket)).toThrow(TypeError);
+    expect(() => fresh.completeWork(oldTicket)).toThrow(TypeError);
     expect(fresh.summary().completedWorkIds).toEqual([]);
-    fresh.complete(freshBoundary.frontier[0]!);
+    fresh.completeWork(freshBoundary.workTickets[0]!);
     expect(await fresh.advance()).toEqual({ kind: 'finished' });
     await eventLoopTurn();
     expect(drained).toBe(false);
@@ -1054,6 +1054,6 @@ describe('revision session isolation', () => {
     release.resolve();
     expect(await advancing).toEqual({ kind: 'finished' });
     expect(completed).toEqual(['original']);
-    expect(old.complete(oldTicket)).toEqual({ kind: 'alreadyAccepted' });
+    expect(old.completeWork(oldTicket)).toEqual({ kind: 'alreadyAccepted' });
   });
 });

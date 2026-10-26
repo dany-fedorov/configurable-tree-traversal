@@ -78,7 +78,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         }).createRunner();
         const captured = inspectDagMilestones(restored);
-        for (const milestone of ['work', 'completion'] as const) {
+        for (const milestone of ['work', 'subgraphCompletion'] as const) {
           const result = captured.explain({ vertexId: 'a', milestone });
           expect(result).toEqual(
             original.explain({ vertexId: 'a', milestone }),
@@ -147,7 +147,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const captured = inspectDagMilestones(restored);
     const graph = runner.getResolvedGraph();
     for (const ref of graph.getVertexRefs()) {
-      for (const milestone of ['work', 'completion'] as const) {
+      for (const milestone of ['work', 'subgraphCompletion'] as const) {
         expect(
           captured.explain({ vertexId: graph.getVertexId(ref), milestone }),
         ).toMatchObject({
@@ -171,7 +171,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ],
       {
         id: (item) => item.id,
-        dependsOnComplete: (item) => item.complete,
+        dependsOnSubgraphCompletion: (item) => item.complete,
       },
     );
     const runner = new Constructor(source).createRunner();
@@ -190,7 +190,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(before).toEqual(expected);
     const original = inspectDagMilestones(runner).explain({
       vertexId: first,
-      milestone: 'completion',
+      milestone: 'subgraphCompletion',
     });
     expect(original).toMatchObject({
       kind: 'known',
@@ -200,23 +200,23 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(
       inspectDagMilestones(restored).explain({
         vertexId: first,
-        milestone: 'completion',
+        milestone: 'subgraphCompletion',
       }),
     ).toEqual(original);
-    expect(before.vertices.get(first)!.id).toBe(first);
+    expect(before.vertices.get(first)!.vertexId).toBe(first);
     const progress = before.vertices.get(first)!;
     (progress.unmetPrerequisiteIds as unknown[]).pop();
     (progress.unmetWorkPrerequisiteIds as unknown[]).push('changed');
-    (progress.unmetCompletePrerequisiteIds as unknown[]).pop();
+    (progress.unmetSubgraphPrerequisiteIds as unknown[]).pop();
     (progress as { work: string }).work = 'completed';
     (before.discovery as { complete: boolean }).complete = false;
     (before.counts as { discovered: number }).discovered = 99;
     for (const values of [
-      before.readyIds,
-      before.deferredIds,
-      before.inFlightIds,
+      before.readyOrDeferredIds,
+      before.deferredWorkIds,
+      before.activeVisitorVertexIds,
       before.completedWorkIds,
-      before.completedSubtreeIds,
+      before.completedSubgraphIds,
       before.unusedCompletedWorkIds,
     ])
       (values as unknown[]).push('changed');
@@ -224,9 +224,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     diagnostics.dependencies[0]!.unmet.pop();
     diagnostics.dependencies[0]!.id = 'changed' as unknown as typeof first;
     diagnostics.unknownPrerequisiteIds.push({ name: 'changed' });
-    diagnostics.dependencyCycles[0]!.pop();
-    diagnostics.dependencyEdges[0]!.from.vertexId = { name: 'changed' };
-    diagnostics.dependencyEdges[0]!.to.vertexId = { name: 'changed' };
+    diagnostics.dependencyCycleComponents[0]!.pop();
+    diagnostics.dependencyEdges[0]!.waiter.vertexId = { name: 'changed' };
+    diagnostics.dependencyEdges[0]!.prerequisite.vertexId = { name: 'changed' };
     diagnostics.dependencyBlockedIds.pop();
     diagnostics.structurallyIncompleteIds.push({ name: 'changed' });
     const facts = restored.inspectDagState();
@@ -239,7 +239,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(
       inspectDagMilestones(restored).explain({
         vertexId: first,
-        milestone: 'completion',
+        milestone: 'subgraphCompletion',
       }),
     ).toEqual(original);
     expect(Object.isFrozen(first)).toBe(false);
@@ -285,7 +285,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       inspectDagMilestones(restored).explain({ vertexId: 'failed', milestone: 'work' }),
     ).toMatchObject({ kind: 'known', satisfied: false });
     const summary = restored.summary();
-    (summary.deferredFrontier[0] as { vertexId: string }).vertexId = 'changed';
+    (summary.awaitingSettlement[0] as { vertexId: string }).vertexId = 'changed';
     expect(restored.summary()).toEqual(runner.summary());
   });
 }
@@ -485,7 +485,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               resolvedGraphsContainer: runner.resolvedGraphsContainer,
             },
           }).createRunner();
-          for (const milestone of ['work', 'completion'] as const) {
+          for (const milestone of ['work', 'subgraphCompletion'] as const) {
             expect(
               inspectDagMilestones(restored).explain({ vertexId: 'a', milestone }),
             ).toMatchObject({
@@ -534,6 +534,6 @@ test('retaining a terminal observation again preserves an immutable metadata des
     },
   }).createRunner();
   expect(
-    inspectDagMilestones(restored).explain({ vertexId: 'a', milestone: 'completion' }),
+    inspectDagMilestones(restored).explain({ vertexId: 'a', milestone: 'subgraphCompletion' }),
   ).toMatchObject({ kind: 'known', satisfied: true });
 });

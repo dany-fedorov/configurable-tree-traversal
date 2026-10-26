@@ -8,12 +8,12 @@ import type { TestGraph } from './helpers/graph-fixtures';
 function result(
   id: string,
   hints: string[] = [],
-  dependsOn: readonly unknown[] = [],
+  dependsOnWork: readonly unknown[] = [],
 ): MakeVertexResult<TestGraph> {
   return {
     vertexContent: { $d: id, $c: hints },
     vertexId: id,
-    dependsOn,
+    dependsOnWork,
   };
 }
 

@@ -30,8 +30,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         {
           id: (v) => v.id,
           children: (v) => v.children,
-          dependsOn: (v) => v.work,
-          dependsOnComplete: (v) => v.complete,
+          dependsOnWork: (v) => v.work,
+          dependsOnSubgraphCompletion: (v) => v.complete,
         },
       ),
       completedWork: new Set(['bundle']),
@@ -51,21 +51,21 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       blockers: [
         {
           kind: 'constraint',
-          from: { vertexId: 'review', milestone: 'work' },
-          to: { vertexId: 'bundle', milestone: 'completion' },
-          reason: 'completionDependency',
-          toStatus: { kind: 'live', work: 'completed', satisfied: false },
+          waiter: { vertexId: 'review', milestone: 'work' },
+          prerequisite: { vertexId: 'bundle', milestone: 'subgraphCompletion' },
+          reason: 'subgraphCompletionDependency',
+          prerequisiteStatus: { kind: 'live', work: 'completed', satisfied: false },
         },
         {
           kind: 'constraint',
-          from: { vertexId: 'bundle', milestone: 'completion' },
-          to: { vertexId: 'child', milestone: 'completion' },
+          waiter: { vertexId: 'bundle', milestone: 'subgraphCompletion' },
+          prerequisite: { vertexId: 'child', milestone: 'subgraphCompletion' },
           reason: 'structuralChild',
         },
         {
           kind: 'constraint',
-          from: { vertexId: 'child', milestone: 'completion' },
-          to: { vertexId: 'child', milestone: 'work' },
+          waiter: { vertexId: 'child', milestone: 'subgraphCompletion' },
+          prerequisite: { vertexId: 'child', milestone: 'work' },
           reason: 'ownWork',
         },
         {
@@ -75,13 +75,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       ],
     });
-    const child = runner.summary().deferredFrontier[0]!;
+    const child = runner.summary().awaitingSettlement[0]!;
     runner.settle(child.vertexId, { kind: 'workCompleted' }, child.generation);
     await runner.run();
     expect(
       inspectDagMilestones(runner).explain({
         vertexId: 'bundle',
-        milestone: 'completion',
+        milestone: 'subgraphCompletion',
       }),
     ).toMatchObject({ kind: 'known', satisfied: true, blockers: [] });
     expect(snapshot.explain({ vertexId: 'review', milestone: 'work' })).toEqual(
@@ -92,10 +92,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     (result.progress.unmetPrerequisiteIds as string[]).push('changed');
     result.target.vertexId = 'changed';
     const edge = result.blockers[0]!;
-    if (edge.kind !== 'constraint' || edge.toStatus.kind !== 'live')
+    if (edge.kind !== 'constraint' || edge.prerequisiteStatus.kind !== 'live')
       throw new Error('Expected constraint');
-    edge.to.vertexId = 'changed';
-    edge.toStatus.work = 'pending';
+    edge.prerequisite.vertexId = 'changed';
+    edge.prerequisiteStatus.work = 'pending';
     (result.blockers as unknown[]).pop();
     expect(
       snapshot.explain({ vertexId: 'review', milestone: 'work' }),
@@ -103,7 +103,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       target: { vertexId: 'review' },
       progress: { unmetPrerequisiteIds: ['bundle'] },
       blockers: [
-        { to: { vertexId: 'bundle' }, toStatus: { work: 'completed' } },
+        { prerequisite: { vertexId: 'bundle' }, prerequisiteStatus: { work: 'completed' } },
         {},
         {},
         { kind: 'unfinishedWork' },
@@ -119,7 +119,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, () => {
       pending = inspectDagMilestones(runner).explain({
         vertexId: 'leaf',
-        milestone: 'completion',
+        milestone: 'subgraphCompletion',
       });
     });
     const runner = traversal.createRunner();
@@ -138,12 +138,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       blockers: [
         {
           kind: 'completionPending',
-          target: { vertexId: 'leaf', milestone: 'completion' },
+          target: { vertexId: 'leaf', milestone: 'subgraphCompletion' },
         },
       ],
     });
     expect(
-      inspectDagMilestones(runner).explain({ vertexId: 'leaf', milestone: 'completion' }),
+      inspectDagMilestones(runner).explain({ vertexId: 'leaf', milestone: 'subgraphCompletion' }),
     ).toMatchObject({ kind: 'known', satisfied: true, blockers: [] });
   });
 
@@ -162,11 +162,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(
       inspectDagMilestones(omitted).explain({
         vertexId: undefined,
-        milestone: 'completion',
+        milestone: 'subgraphCompletion',
       }),
     ).toEqual({
       kind: 'known',
-      target: { vertexId: undefined, milestone: 'completion' },
+      target: { vertexId: undefined, milestone: 'subgraphCompletion' },
       satisfied: true,
       progress: null,
       blockers: [],
@@ -221,16 +221,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = traversal.createRunner();
     const initial = inspectDagMilestones(runner);
     expect(
-      initial.explain({ vertexId: 'root', milestone: 'completion' }),
+      initial.explain({ vertexId: 'root', milestone: 'subgraphCompletion' }),
     ).toEqual({
       kind: 'unknown',
-      target: { vertexId: 'root', milestone: 'completion' },
+      target: { vertexId: 'root', milestone: 'subgraphCompletion' },
       discoveryComplete: false,
     });
     await runner.run();
     const snapshot = inspectDagMilestones(runner);
     expect(
-      snapshot.explain({ vertexId: 'root', milestone: 'completion' }),
+      snapshot.explain({ vertexId: 'root', milestone: 'subgraphCompletion' }),
     ).toMatchObject({
       kind: 'known',
       satisfied: false,
@@ -239,9 +239,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         { kind: 'constraint', reason: 'ownWork' },
         {
           kind: 'discoveryOpen',
-          target: { vertexId: 'root', milestone: 'completion' },
+          target: { vertexId: 'root', milestone: 'subgraphCompletion' },
         },
-        { kind: 'unfinishedWork', work: 'running' },
+        { kind: 'unfinishedWork', work: 'visiting' },
       ],
     });
     expect(
@@ -249,7 +249,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     ).toMatchObject({
       kind: 'known',
       satisfied: false,
-      blockers: [{ kind: 'unfinishedWork', work: 'running' }],
+      blockers: [{ kind: 'unfinishedWork', work: 'visiting' }],
     });
     expect(calls).toBe(0);
   });
@@ -260,7 +260,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveRoot: () => ({
           vertexId: 'root',
           vertexContent: { $data: 'root', $childHints: [] },
-          dependsOn: ['omitted', 'unresolved'],
+          dependsOnWork: ['omitted', 'unresolved'],
         }),
         resolveChild: () => ({ vertexContent: null }),
         resolvePrerequisite: (id: unknown) =>
@@ -283,11 +283,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       blockers: [
         {
           kind: 'constraint',
-          from: { vertexId: 'root', milestone: 'work' },
-          to: { vertexId: 'unresolved', milestone: 'work' },
+          waiter: { vertexId: 'root', milestone: 'work' },
+          prerequisite: { vertexId: 'unresolved', milestone: 'work' },
           reason: 'workDependency',
-          fromStatus: { kind: 'live', work: 'pending', satisfied: false },
-          toStatus: { kind: 'unresolved' },
+          waiterStatus: { kind: 'live', work: 'pending', satisfied: false },
+          prerequisiteStatus: { kind: 'unresolved' },
         },
       ],
     });
@@ -311,7 +311,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           { id: 'a', work: ['b'] },
           { id: 'b', work: ['a'] },
         ],
-        { id: (v) => v.id, dependsOn: (v) => v.work },
+        { id: (v) => v.id, dependsOnWork: (v) => v.work },
       ),
     ).createRunner();
     await expect((async () => cyclic.prepare())()).rejects.toBeDefined();
@@ -321,8 +321,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       kind: 'known',
       satisfied: false,
       blockers: [
-        { kind: 'constraint', from: { vertexId: 'a' }, to: { vertexId: 'b' } },
-        { kind: 'constraint', from: { vertexId: 'b' }, to: { vertexId: 'a' } },
+        { kind: 'constraint', waiter: { vertexId: 'a' }, prerequisite: { vertexId: 'b' } },
+        { kind: 'constraint', waiter: { vertexId: 'b' }, prerequisite: { vertexId: 'a' } },
       ],
     });
   });
@@ -334,7 +334,7 @@ test('explanations walk deep unfinished work chains iteratively', () => {
     work: id === 11999 ? [] : [id + 1],
   }));
   const runner = new DagTraversal({
-    ...materializeDagSourceFromRecords(records, { id: (v) => v.id, dependsOn: (v) => v.work }),
+    ...materializeDagSourceFromRecords(records, { id: (v) => v.id, dependsOnWork: (v) => v.work }),
     workCompletion: 'externalSettlement',
   }).createRunner();
   runner.prepare();
@@ -365,8 +365,8 @@ test('captured deleted endpoints remain explicit unsatisfied constraints', () =>
     summary: runner.summary(),
     edges: [
       {
-        from: { vertexId: 'a', milestone: 'work' },
-        to: { vertexId: 'b', milestone: 'work' },
+        waiter: { vertexId: 'a', milestone: 'work' },
+        prerequisite: { vertexId: 'b', milestone: 'work' },
         reason: 'workDependency',
       },
     ],
@@ -376,7 +376,7 @@ test('captured deleted endpoints remain explicit unsatisfied constraints', () =>
   ).toMatchObject({
     kind: 'known',
     satisfied: false,
-    blockers: [{ kind: 'constraint', toStatus: { kind: 'deleted' } }],
+    blockers: [{ kind: 'constraint', prerequisiteStatus: { kind: 'deleted' } }],
   });
 });
 
@@ -413,7 +413,7 @@ test('a closed vertex does not inherit global discovery incompleteness from anot
   await admitted;
   const inspection = inspectDagMilestones(runner);
   expect(
-    inspection.explain({ vertexId: 'leaf', milestone: 'completion' }),
+    inspection.explain({ vertexId: 'leaf', milestone: 'subgraphCompletion' }),
   ).toMatchObject({
     kind: 'known',
     satisfied: false,
@@ -429,7 +429,7 @@ test('a closed vertex does not inherit global discovery incompleteness from anot
   release();
   await running;
   expect(
-    inspection.explain({ vertexId: 'leaf', milestone: 'completion' })
+    inspection.explain({ vertexId: 'leaf', milestone: 'subgraphCompletion' })
       .discoveryComplete,
   ).toBe(false);
 });

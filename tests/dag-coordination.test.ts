@@ -23,7 +23,7 @@ const source = {
   }),
   resolveChild: (id: string) => ({
     vertexId: id,
-    dependsOn: id === 'b' ? ['a'] : [],
+    dependsOnWork: id === 'b' ? ['a'] : [],
     vertexContent: { $data: id, $childHints: [] },
   }),
 };
@@ -34,7 +34,7 @@ const options = {
 };
 function frontier<ID>(boundary: DagWorkBoundary<ID>) {
   if (boundary.kind !== 'awaitingSettlement') throw Error('Expected work');
-  return boundary.frontier;
+  return boundary.workTickets;
 }
 
 for (const async of [false, true]) {
@@ -52,15 +52,15 @@ for (const async of [false, true]) {
     const ticket = frontier(await coordinator.advance())[0]!;
     expect(ticket.vertexId).toBe('a');
     const repeated = frontier(await coordinator.advance())[0]!;
-    expect(coordinator.complete(ticket)).toEqual({ kind: 'accepted' });
-    expect(coordinator.complete(repeated)).toEqual({ kind: 'alreadyAccepted' });
-    expect(coordinator.summary().deferredIds).toEqual([]);
+    expect(coordinator.completeWork(ticket)).toEqual({ kind: 'accepted' });
+    expect(coordinator.completeWork(repeated)).toEqual({ kind: 'alreadyAccepted' });
+    expect(coordinator.summary().deferredWorkIds).toEqual([]);
     const second = frontier(await coordinator.advance())[0]!;
     expect(second.vertexId).toBe('b');
-    expect(coordinator.complete(second)).toEqual({ kind: 'accepted' });
+    expect(coordinator.completeWork(second)).toEqual({ kind: 'accepted' });
     expect(await coordinator.advance()).toEqual({ kind: 'finished' });
     expect(await coordinator.advance()).toEqual({ kind: 'finished' });
-    expect(coordinator.complete(ticket)).toEqual({ kind: 'alreadyAccepted' });
+    expect(coordinator.completeWork(ticket)).toEqual({ kind: 'alreadyAccepted' });
   });
 
   test(`${label} rejects foreign and forged tickets without consuming work`, async () => {
@@ -69,15 +69,15 @@ for (const async of [false, true]) {
     const ticket = frontier(await first.advance())[0]!;
     await second.advance();
     for (const forged of [ticket, { ...ticket }, null, 0]) {
-      expect(() => second.complete(forged as DagWorkTicket<string>)).toThrow(
+      expect(() => second.completeWork(forged as DagWorkTicket<string>)).toThrow(
         TypeError,
       );
       expect(() =>
         second.failTraversal(forged as DagWorkTicket<string>, null),
       ).toThrow(TypeError);
     }
-    expect(second.summary().deferredIds).toEqual(['a']);
-    expect(first.complete(ticket)).toEqual({ kind: 'accepted' });
+    expect(second.summary().deferredWorkIds).toEqual(['a']);
+    expect(first.completeWork(ticket)).toEqual({ kind: 'accepted' });
     expect(() => first.failTraversal(ticket, null)).toThrow(/Conflicting/);
   });
 
@@ -92,7 +92,7 @@ for (const async of [false, true]) {
       expect(coordinator.failTraversal(ticket, error)).toEqual({
         kind: 'alreadyAccepted',
       });
-      expect(() => coordinator.complete(ticket)).toThrow(/Conflicting/);
+      expect(() => coordinator.completeWork(ticket)).toThrow(/Conflicting/);
       expect(() => coordinator.failTraversal(ticket, {})).toThrow(
         /Conflicting/,
       );
@@ -105,11 +105,11 @@ for (const async of [false, true]) {
     const coordinator = create();
     const before = coordinator.summary();
     await coordinator.advance();
-    expect(before.deferredIds).toEqual([]);
+    expect(before.deferredWorkIds).toEqual([]);
     const observed = coordinator.summary();
-    (observed.deferredIds as string[]).push('forged');
+    (observed.deferredWorkIds as string[]).push('forged');
     (observed.vertices as Map<string, unknown>).clear();
-    expect(coordinator.summary().deferredIds).toEqual(['a']);
+    expect(coordinator.summary().deferredWorkIds).toEqual(['a']);
     expect(coordinator.summary().vertices.size).toBe(2);
     const empty = create({
       ...options,
@@ -147,10 +147,10 @@ test('wrapping requires external settlement and does not claim or run the runner
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.INITIAL);
   runner.prepare();
   const ticket = frontier(first.advance())[0]!;
-  expect(() => second.complete(ticket)).toThrow(TypeError);
+  expect(() => second.completeWork(ticket)).toThrow(TypeError);
   const other = frontier(second.advance())[0]!;
-  expect(second.complete(other)).toEqual({ kind: 'accepted' });
-  expect(first.complete(ticket)).toEqual({ kind: 'alreadyAccepted' });
+  expect(second.completeWork(other)).toEqual({ kind: 'accepted' });
+  expect(first.completeWork(ticket)).toEqual({ kind: 'alreadyAccepted' });
 });
 
 test('sync cooperative pause preserves callback continuation', () => {
@@ -201,7 +201,7 @@ test('deleted work rejects previously issued tickets as stale', () => {
       }),
       resolveChild: (id) => ({
         vertexId: id,
-        dependsOn: id === 'parent' ? ['gate'] : [],
+        dependsOnWork: id === 'parent' ? ['gate'] : [],
         vertexContent: {
           $data: id,
           $childHints: id === 'parent' ? ['child'] : [],
@@ -218,14 +218,16 @@ test('deleted work rejects previously issued tickets as stale', () => {
   const coordinator = createDagWorkSession(traversal.createRunner());
   const tickets = frontier(coordinator.advance());
   const child = tickets.find((ticket) => ticket.vertexId === 'child')!;
-  coordinator.complete(tickets.find((ticket) => ticket.vertexId === 'gate')!);
+  coordinator.completeWork(tickets.find((ticket) => ticket.vertexId === 'gate')!);
   expect(coordinator.advance()).toEqual({ kind: 'finished' });
-  expect(() => coordinator.complete(child)).toThrow(/stale/);
+  expect(() => coordinator.completeWork(child)).toThrow(/stale/);
 });
 
 for (const async of [false, true]) {
   test.each([undefined, null, NaN, Symbol('id'), { id: 'object' }])(
-    `${async ? 'async' : 'sync'} tickets preserve arbitrary ID identity: %p`,
+    `${
+      async ? 'async' : 'sync'
+    } tickets preserve arbitrary ID identity: %p`,
     async (id) => {
       const input = {
         workCompletion: 'externalSettlement' as const,
@@ -245,8 +247,8 @@ for (const async of [false, true]) {
       expect(Object.isFrozen(ticket)).toBe(true);
       if (typeof id === 'object' && id !== null)
         expect(Object.isFrozen(id)).toBe(false);
-      expect(() => coordinator.complete({ ...ticket })).toThrow(TypeError);
-      expect(coordinator.complete(ticket)).toEqual({ kind: 'accepted' });
+      expect(() => coordinator.completeWork({ ...ticket })).toThrow(TypeError);
+      expect(coordinator.completeWork(ticket)).toEqual({ kind: 'accepted' });
       expect(await coordinator.advance()).toEqual({ kind: 'finished' });
     },
   );
@@ -291,7 +293,7 @@ for (const async of [false, true]) {
           { id: 'a', dependencies: [] as string[] },
           { id: 'b', dependencies: ['a'] },
         ],
-        { id: (item) => item.id, dependsOn: (item) => item.dependencies },
+        { id: (item) => item.id, dependsOnWork: (item) => item.dependencies },
       ),
     );
     if (result.kind !== 'valid') throw Error('Expected prepared DAG');
@@ -314,7 +316,7 @@ for (const async of [false, true]) {
     expect(
       session.inspectMilestones().explain({ vertexId: 'b', milestone: 'work' }),
     ).toMatchObject({ kind: 'known', satisfied: false });
-    session.complete(ticket);
+    session.completeWork(ticket);
     expect(
       session.inspectMilestones().explain({ vertexId: 'a', milestone: 'work' }),
     ).toMatchObject({ kind: 'known', satisfied: true });

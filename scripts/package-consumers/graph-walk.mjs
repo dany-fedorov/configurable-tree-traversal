@@ -242,14 +242,14 @@ const projected = walking.materializeWalkSourceFromDagDefinition(
           { kind: 'vertex', vertexId: objectId },
           { kind: 'omitted', identity: { vertexId: symbolId } },
         ],
-        dependsOn: [objectId],
-        dependsOnComplete: [symbolId],
+        dependsOnWork: [objectId],
+        dependsOnSubgraphCompletion: [symbolId],
       },
     ],
     omittedIds: [symbolId],
     entry: { kind: 'root', vertexId: objectId },
   }),
-  { relations: ['completionDependencies', 'children', 'workDependencies'] },
+  { relations: ['subgraphCompletionDependencies', 'children', 'workDependencies'] },
 );
 const relations = [];
 const dagWalk = await walking.walkGraphAsync({
@@ -264,7 +264,7 @@ assert.deepEqual(relations, [
   [{ kind: 'child', slotIndex: 0 }, 'found'],
   [{ kind: 'child', slotIndex: 1 }, 'omitted'],
   [{ kind: 'workDependency' }, 'found'],
-  [{ kind: 'completionDependency' }, 'omitted'],
+  [{ kind: 'subgraphCompletionDependency' }, 'omitted'],
 ]);
 assert.equal(dagWalk.summary().outcome.kind, 'exhausted');
 const syncDagWalk = cjsWalking.walkGraph({ source: projected });

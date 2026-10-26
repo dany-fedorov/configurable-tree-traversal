@@ -13,8 +13,8 @@ export type DagDefinitionVertex<Data, ID> = {
   readonly vertexId: ID;
   readonly data: Data;
   readonly slots: readonly DagDefinitionSlot<ID>[];
-  readonly dependsOn: readonly ID[];
-  readonly dependsOnComplete: readonly ID[];
+  readonly dependsOnWork: readonly ID[];
+  readonly dependsOnSubgraphCompletion: readonly ID[];
 };
 
 /** Immutable in-memory topology; opaque caller data and IDs remain shallow. */

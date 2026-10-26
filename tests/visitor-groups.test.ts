@@ -249,7 +249,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             ],
           };
         },
-        () => ({ commands: [{ commandName: C.DEFER_READY }] }),
+        () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
       ],
     });
     t.addVisitorGroupFor(D.ON_WORK_READY, {

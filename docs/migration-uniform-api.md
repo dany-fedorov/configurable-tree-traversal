@@ -12,13 +12,13 @@ These additions compose with existing DAG constructors and runners; custom adapt
 
 | Existing integration | Optional simpler surface |
 | --- | --- |
-| Hand-built synthetic catalog holder with `resolveRoot` / `resolveChild` | `materializeDagSourceFromRecords(items, { id, dependsOn?, children?, dependsOnComplete? })`; use `materializeDagSourceFromRoots` when children are records |
+| Hand-built synthetic catalog holder with `resolveRoot` / `resolveChild` | `materializeDagSourceFromRecords(items, { id, dependsOnWork?, children?, dependsOnSubgraphCompletion? })`; use `materializeDagSourceFromRoots` when children are records |
 | Re-discovering the same source for each runner | `prepareDag(source)` / `await prepareDagAsync(source)` once, then independent `dag.createRunner()` or `await dag.createAsyncRunner()` |
 | External runner plus captured `{ vertexId, generation }` | `createDagWorkSession(runner)` / `createAsyncDagWorkSession(runner)`, or prepared `createWorkSession()` / `await createAsyncWorkSession()` |
-| `run()` → summary frontier → `settle()` → `run()` | `advance()` → frontier ticket → `complete(ticket)` → `advance()` |
+| `run()` → summary frontier → `settle()` → `run()` | `advance()` → frontier ticket → `completeWork(ticket)` → `advance()` |
 | Callback-local data filtering | `filterDagVisitor(guard, (data, context) => ...)` or `filterAsyncDagVisitor`; the callback receives narrowed data |
 
-The former collection selector names `dependencies` and `completionDependencies` are replaced by `dependsOn` and `dependsOnComplete`. All four adapters throw `TypeError` for the retired keys before input/selector callbacks, including inherited keys and keys present with `undefined`, to prevent silently dropping dependency edges. Task-data properties, diagnostic fields, walking relation selections and definition-diff aspects retain their names.
+The former collection selector names `dependencies` and `completionDependencies` are replaced by `dependsOnWork` and `dependsOnSubgraphCompletion`. All four adapters throw `TypeError` for the retired keys before input/selector callbacks, including inherited keys and keys present with `undefined`, to prevent silently dropping dependency edges. Task-data properties remain opaque. Walking relation selections and definition-diff aspects use `subgraphCompletionDependencies`; diagnostic constraints use `DagWaitEdge` with `waiter` and `prerequisite` milestones, and `dependencyCycleComponents` reports SCC membership.
 
 Collection adapters copy membership and edge lists while retaining shallow item/ID identity. Async source helpers materialize iterable/async-iterable inputs and selectors into ordinary synchronous sources. `materializeDagSourceFromRecords` children are catalog IDs; `materializeDagSourceFromRoots` children are records, with shared references allowed. Missing child IDs and conflicting record identities reject.
 
@@ -56,7 +56,7 @@ Built-in object adapter methods retain published untagged `{ vertexContent, ... 
 
 ## Typed DAG event identities
 
-`DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_WORK_READY`, and `subgraphCompleted` means `ON_SUBGRAPH_READY`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged. Dispatch from `advance().frontier` tickets or an enabled pre-work `ON_WORK_READY` visitor; emitted `workCompleted` events are committed observations, including when deferred work settles.
+`DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_WORK_READY`, and `subgraphCompleted` means `ON_SUBGRAPH_READY`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged. Dispatch from `advance().workTickets` tickets or an enabled pre-work `ON_WORK_READY` visitor; emitted `workCompleted` events are committed observations, including when deferred work settles.
 
 ## Root dependencies
 
@@ -65,12 +65,12 @@ Ordinary graph roots now honor both work and completion prerequisites, consisten
 ```ts
 const traversal = new DagTraversal({
   traversableGraph: graph,
-  rootDependencies: 'honor', // New default: root dependsOn applies.
+  rootDependencies: 'honor', // New default: root dependsOnWork applies.
 });
 // To preserve ignoring the root's W declarations:
 const legacyRootPolicy = new DagTraversal({
   traversableGraph: graph,
-  rootDependencies: 'ignore', // Root dependsOnComplete still applies.
+  rootDependencies: 'ignore', // Root dependsOnSubgraphCompletion still applies.
 });
 ```
 
@@ -78,15 +78,15 @@ Synthetic catalog roots remain bookkeeping with no work dependencies. Tree trave
 
 ## Structural parent dependencies
 
-Graph sources default to `implicitParentDependency: false`. Omitting `dependsOn` means no W prerequisites. Previously, an ordinary discovered child inherited its discovery parent's W when the list was omitted.
+Graph sources default to `implicitParentDependency: false`. Omitting `dependsOnWork` means no W prerequisites. Previously, an ordinary discovered child inherited its discovery parent's W when the list was omitted.
 
 Choose explicitly:
 
-- Declare `dependsOn: [parentId]` for a parent W requirement, or another explicit ID list for independent workflow relationships.
-- Declare `dependsOn: []` for no work prerequisites under either policy.
-- Set `implicitParentDependency: true` to restore inheritance when `dependsOn` is omitted.
+- Declare `dependsOnWork: [parentId]` for a parent W requirement, or another explicit ID list for independent workflow relationships.
+- Declare `dependsOnWork: []` for no work prerequisites under either policy.
+- Set `implicitParentDependency: true` to restore inheritance when `dependsOnWork` is omitted.
 
-Explicit lists always win. `dependsOnComplete` adds C gates independently; it does not replace W declarations. Roots and detached prerequisites have no discovery parent, and synthetic catalog parents never gate work. Tree sources retain their structural execution order and parent dependencies. Structural child edges still govern paths and subtree completion, independently of work edges.
+Explicit lists always win. `dependsOnSubgraphCompletion` adds C gates independently; it does not replace W declarations. Roots and detached prerequisites have no discovery parent, and synthetic catalog parents never gate work. Tree sources retain their structural execution order and parent dependencies. Structural child edges still govern paths and subtree completion, independently of work edges.
 
 ## Exclusive deferral command
 
@@ -96,7 +96,7 @@ Replace the deprecated exported symbol with a command result:
 // Before: import { DEFER_READY } ...; return DEFER_READY;
 import { TraversalVisitorCommandName as Command } from 'configurable-tree-traversal';
 traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => ({
-  commands: [{ commandName: Command.DEFER_READY }],
+  commands: [{ commandName: Command.DEFER_WORK_COMPLETION }],
 }));
 ```
 
@@ -175,7 +175,7 @@ The table below applies to graph sources and prerequisite lookup. Tree sources u
 
 | Deprecated source result                                       | Canonical source result                                                                   |
 | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `{ vertexContent, vertexId?, dependsOn?, dependsOnComplete? }` | `{ kind: 'found', vertex: { vertexContent, vertexId?, dependsOn?, dependsOnComplete? } }` |
+| `{ vertexContent, vertexId?, dependsOnWork?, dependsOnSubgraphCompletion? }` | `{ kind: 'found', vertex: { vertexContent, vertexId?, dependsOnWork?, dependsOnSubgraphCompletion? } }` |
 | `{ vertexContent: null, vertexId? }`                           | `{ kind: 'omitted', vertexId?, satisfiesDependencies: true }`                             |
 | Lookup `undefined`                                             | `{ kind: 'missing' }`                                                                     |
 
@@ -195,14 +195,14 @@ function resolvePrerequisite(id: unknown): DagPrerequisiteResolution<Tasks> {
     kind: 'found',
     vertex: {
       vertexId: id,
-      dependsOn: [],
+      dependsOnWork: [],
       vertexContent: { $data: id, $childHints: [] },
     },
   };
 }
 ```
 
-Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Graph roots/hints accept `DagVertexResolution`; prerequisite lookup accepts `DagPrerequisiteResolution`, including `PrerequisiteMissing`. Tree adapters instead use `MakeTreeVertexResult<T>`, `TreeVertexFound<T>`, `TreeVertexOmitted`, and `TreeVertexResolution<T>`. Remove tree annotations using graph-capable result types (or infer them). Tree callbacks reject `vertexId`, `dependsOn`, `dependsOnComplete`, and `satisfiesDependencies`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Async adapters accept value-or-promise equivalents.
+Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Graph roots/hints accept `DagVertexResolution`; prerequisite lookup accepts `DagPrerequisiteResolution`, including `PrerequisiteMissing`. Tree adapters instead use `MakeTreeVertexResult<T>`, `TreeVertexFound<T>`, `TreeVertexOmitted`, and `TreeVertexResolution<T>`. Remove tree annotations using graph-capable result types (or infer them). Tree callbacks reject `vertexId`, `dependsOnWork`, `dependsOnSubgraphCompletion`, and `satisfiesDependencies`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Async adapters accept value-or-promise equivalents.
 
 ## Child hint command
 
@@ -287,7 +287,7 @@ Public graph views/snapshots/summaries hide the synthetic holder and expose ID. 
 
 Call sync `runner.prepare()` or await async `runner.prepare()` to preview the fully discovered and validated closure exposed by roots, hints and prerequisite lookup with no visitors, execution events, new real W/C or deferred generations. Seeds remain accepted W. Fresh tree/graph runners without injected state/containers are required; even empty injected objects reject recoverably. Preparation forces effective eager discovery/topology freezing, stops `HALTED` / `prepared` even for empty/omitted roots, and is idempotent until execution starts. Run adopts discovery without replay. Concurrent/post-execution preparation rejects. Failed preparation retains the exact error. Paused async preparation waits for admitted discovery callbacks; another prepare continues, or run adopts it.
 
-After `run()`, replace `deferredIds` plus optional generation lookups with `summary().deferredFrontier`: detached readonly `{ vertexId, generation }` records guarantee atomic live generations. Claim/dispatch in the host, retain the record with the attempt, validate and durably accept the result, then `settle(record.vertexId, outcome, record.generation)` and run again. The frontier is observational; `readyIds` continues to mean dependency eligibility.
+After `run()`, replace `deferredWorkIds` plus optional generation lookups with `summary().awaitingSettlement`: detached readonly `{ vertexId, generation }` records guarantee atomic live generations. Claim/dispatch in the host, retain the record with the attempt, validate and durably accept the result, then `settle(record.vertexId, outcome, record.generation)` and run again. The frontier is observational; `readyOrDeferredIds` includes ready and deferred work, excluding visiting and completed work. `deferredWorkIds` retains accepted outcomes only while W remains uncommitted; `awaitingSettlement` excludes every accepted outcome. Counts overlap. `activeVisitorVertexIds` tracks visitor chains, including completion chains, and the work state is `visiting`.
 
 DAG events add committed `kind: 'workCompleted'` / `'subgraphCompleted'` with no callback phase metadata. Select emitted kinds with `emitEvents` and readiness callbacks with `visitorPhases`; event ordering and commit timing are unchanged. ON_WORK_READY visitors remain pre-work; deferred ON_WORK_READY events follow settlement. Seeds emit no synthetic work event. Dispatch from the frontier rather than completion events.
 
@@ -307,7 +307,7 @@ Remove `traversableTree` from helper options: the helper owns its source. Inline
 
 ## Labelled dependency diagnostics
 
-`dependencyEdges` contains original milestone constraints, independent of completed seeds and including missing endpoints. `from` waits for `to`; reasons are workDependency (W→W), completionDependency (W→C), ownWork (C→own W), and structuralChild (parent C→child C). Stable discovery order is followed by work dependencies, completion dependencies, own work and structural children. `dependencyCycles` is SCC membership, not an ordered witness. Detached edge/endpoint wrappers preserve opaque ID identity and do not freeze caller objects. Historical manual error constructor input may omit edges and gets []; engine output always includes them.
+`dependencyEdges` contains original milestone constraints, independent of completed seeds and including missing endpoints. `waiter` waits for `prerequisite`; reasons are workDependency (W→W), subgraphCompletionDependency (W→C), ownWork (C→own W), and structuralChild (parent C→child C). Stable discovery order is followed by work dependencies, completion dependencies, own work and structural children. `dependencyCycleComponents` is SCC membership, not an ordered witness. Detached edge/endpoint wrappers preserve opaque ID identity and do not freeze caller objects. Historical manual error constructor input may omit edges and gets []; engine output always includes them.
 
 ## Visitor query ownership
 
