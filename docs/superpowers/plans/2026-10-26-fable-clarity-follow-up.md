@@ -42,12 +42,12 @@ export class DagFragmentValidationError<ID = unknown> extends TypeError {
 
 **Files:** Modify `src/traversals/graph-walk/GraphWalkOptions.ts`, `src/traversals/graph-walk/lib/normalizeWalkOptions.ts`, `src/traversals/dag-traversal/DagTraversal.ts`, `AsyncDagTraversal.ts`, both DAG instance-config modules; create a small shared source-patch helper in DAG lib if it avoids duplicated capture logic. Tests: `tests/graph-walk-options.test.ts`, `tests/graph-walk-types.typecheck.ts`, walking sync/async behavior tests, DAG configure/graph-source runtime and type tests discovered from AGENTS map.
 
-**Interfaces:** Consumes existing builder configure methods. Produces nullable optional walking predicate inputs; normalized predicates remain function | undefined. DAG source patches consume only own defined source values, preserving existing source on ignored keys.
+**Interfaces:** Consumes existing builder configure methods. Produces optional walking predicate inputs admitting callback, null and explicit undefined under exactOptionalPropertyTypes; normalized predicates remain function | undefined. DAG source patches consume only own defined source values, preserving existing source on ignored keys.
 
 - [ ] Add failing sync/async public tests: initial null predicates, reset each false predicate to null then make a fresh runner and observe previously filtered nodes/edges; undefined retains filtering; invalid combined patch leaves prior configuration usable. Add nullable-input type assertions and invalid nonfunction negatives.
 - [ ] Add failing sync/async tree/graph source tests: own undefined active/opposite keys retain active source; inherited active/opposite source keys are ignored; own defined same-family source replaces; own defined opposite-family rejects atomically. Getter-backed source should be captured once, and no source callbacks run on configuration.
 - [ ] Run focused tests and typecheck to record red evidence.
-- [ ] Add null to public predicate fields in initial/configure options. Normalize with the explicit shape:
+- [ ] Add null and explicit undefined to public predicate fields in initial/configure options. Admit explicit undefined in DAG optional source fields (including opposite-mode placeholders); keep constructor active source required, real dual sources rejected and typed-ID tree restrictions intact. Add positive/negative source and packed type assertions. Normalize with the explicit shape:
 
 ```ts
 const followEdge = snapshot['followEdge'] === undefined
