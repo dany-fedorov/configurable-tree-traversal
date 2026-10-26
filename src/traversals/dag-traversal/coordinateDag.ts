@@ -37,8 +37,6 @@ interface DagCoordinationControl<ID> extends TraversalExecutionState {
     ticket: DagWorkTicket<ID>,
     error: unknown,
   ): DagCoordinationResult;
-  /** @deprecated Use failTraversal; this aborts the whole traversal, not one task. */
-  fail(ticket: DagWorkTicket<ID>, error: unknown): DagCoordinationResult;
   /** Capture dependency explanations without advancing the coordinated runner. */
   inspectDag(): DagInspection<ID>;
   summary(): DagSummary<ID>;
@@ -98,7 +96,6 @@ function makeCoordination<ID>(
     complete: (ticket: DagWorkTicket<ID>) =>
       settle(ticket, { kind: 'workCompleted' }),
     failTraversal,
-    fail: failTraversal,
     getStatus: () => runner.getStatus(),
     getStopReason: () => runner.getStopReason(),
     isHalted: () => runner.isHalted(),

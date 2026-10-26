@@ -326,7 +326,7 @@ for (const async of [false, true]) {
   test.each([null, undefined, { fatal: true }])(
     `${
       async ? 'async' : 'sync'
-    } failTraversal names fatal settlement and retains legacy alias: %p`,
+    } failTraversal is the sole fatal settlement method: %p`,
     async (error) => {
       const session = async
         ? coordinateDagAsync(
@@ -334,11 +334,13 @@ for (const async of [false, true]) {
           )
         : coordinateDag(new DagTraversal<G, G, string>(options).makeRunner());
       const ticket = frontier(await session.advance())[0]!;
-      expect(session.fail).toBe(session.failTraversal);
+      expect('fail' in session).toBe(false);
       expect(session.failTraversal(ticket, error)).toEqual({
         kind: 'accepted',
       });
-      expect(session.fail(ticket, error)).toEqual({ kind: 'alreadyAccepted' });
+      expect(session.failTraversal(ticket, error)).toEqual({
+        kind: 'alreadyAccepted',
+      });
       await expect(async () => session.advance()).rejects.toBe(error);
       expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
       expect(session.inspect().status).toBe(TraversalRunnerStatus.FAILED);

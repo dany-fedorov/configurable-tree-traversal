@@ -1,6 +1,5 @@
-import type { DagDefinition } from './DagDefinition';
+import type { DagDefinition, DagDefinitionResult } from './DagDefinition';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalConfigureInput } from './DagTraversalInstanceConfig';
 import type { AsyncDagTraversalConfigureInput } from './AsyncDagTraversalInstanceConfig';
 import type { DagTraversalRunner } from './DagTraversalRunner';
@@ -91,6 +90,7 @@ export interface PreparedDag<Data, ID = unknown> {
   ): Promise<AsyncDagCoordinator<ID>>;
 }
 
-export type PrepareDagResult<Data, ID = unknown> =
-  | { kind: 'valid'; dag: PreparedDag<Data, ID> }
-  | { kind: 'invalid'; diagnostics: DagTraversalStallDiagnostics<ID> };
+export type PrepareDagResult<Data, ID = unknown> = DagDefinitionResult<
+  Data,
+  ID
+>;

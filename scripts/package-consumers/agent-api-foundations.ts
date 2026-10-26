@@ -85,6 +85,8 @@ if (prepared.kind === 'valid') {
     const requiredTicket: dagCjs.DagWorkTicket<ID> = subpathTicket;
     const id: ID = requiredTicket.vertexId;
     session.complete(requiredTicket);
+    // @ts-expect-error Fatal settlement exposes only the canonical method.
+    session.fail(requiredTicket, undefined);
     // @ts-expect-error Tickets retain their exact ID domain.
     const wrong: DagWorkTicket<string> = ticket;
     // @ts-expect-error Tickets cannot be constructed from public fields.
@@ -107,8 +109,14 @@ if (prepared.kind === 'valid') {
   vertex.children.push(vertex.vertexId);
   void [coordinator, data, children];
 } else {
-  const missing: readonly ID[] = prepared.diagnostics.unknownPrerequisiteIds;
-  void missing;
+  for (const issue of prepared.issues) {
+    if (issue.kind === 'milestone') {
+      const missing: readonly ID[] = issue.diagnostics.unknownPrerequisiteIds;
+      void missing;
+    }
+  }
+  // @ts-expect-error Preparation invalidity has no top-level diagnostics alias.
+  prepared.diagnostics;
 }
 
 function inspect(event: DagEvent<T, ID>) {

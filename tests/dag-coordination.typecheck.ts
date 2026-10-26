@@ -38,6 +38,10 @@ if (boundary.kind === 'awaitingSettlement') {
     ticket,
     undefined,
   );
+  // @ts-expect-error Fatal settlement has only the canonical method.
+  coordinator.fail(ticket, undefined);
+  // @ts-expect-error Async fatal settlement has only the canonical method.
+  asyncCoordinator.fail(ticket, undefined);
   // @ts-expect-error Tickets expose a readonly identity.
   ticket.vertexId = { task: 'changed' };
   // @ts-expect-error Frontier observations are readonly.

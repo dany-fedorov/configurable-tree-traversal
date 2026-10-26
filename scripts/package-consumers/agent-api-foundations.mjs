@@ -268,6 +268,21 @@ for (const api of [esm, cjs]) {
       error instanceof esm.DagDiscoveryCycleError &&
       error.vertexIds.join(',') === 'a,a',
   );
+  for (const prepare of [api.prepareDag, api.prepareDagAsync]) {
+    const invalid = await prepare(
+      api.graphFrom([{ id: 'b', deps: ['missing'] }], {
+        id: (item) => item.id,
+        dependencies: (item) => item.deps,
+      }),
+    );
+    assert.equal(invalid.kind, 'invalid');
+    assert.equal('diagnostics' in invalid, false);
+    assert.equal(invalid.issues.length, 1);
+    assert.equal(invalid.issues[0].kind, 'milestone');
+    assert.deepEqual(invalid.issues[0].diagnostics.unknownPrerequisiteIds, [
+      'missing',
+    ]);
+  }
   const prepared = api.prepareDag(
     api.graphFrom([{ id: 'a' }], { id: (item) => item.id }),
   );
@@ -284,7 +299,7 @@ for (const api of [esm, cjs]) {
       false,
     );
     const boundary = await session.advance();
-    assert.equal(session.fail, session.failTraversal);
+    assert.equal('fail' in session, false);
     const error = { fatal: true };
     session.failTraversal(boundary.frontier[0], error);
     await assert.rejects(

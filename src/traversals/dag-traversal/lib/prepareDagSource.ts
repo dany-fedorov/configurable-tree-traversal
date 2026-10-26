@@ -38,7 +38,12 @@ export function prepareDagSource<T extends TreeTypeParameters, ID>(
       throw error;
     return {
       kind: 'invalid',
-      diagnostics: error.diagnostics as DagTraversalStallDiagnostics<ID>,
+      issues: [
+        {
+          kind: 'milestone',
+          diagnostics: error.diagnostics as DagTraversalStallDiagnostics<ID>,
+        },
+      ],
     };
   }
   return {

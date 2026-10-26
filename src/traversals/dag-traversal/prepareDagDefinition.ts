@@ -11,7 +11,7 @@ export function prepareDagDefinition<Data, ID = unknown>(
   const definition = defineDag(input);
   const issues = validateDefinition(definition);
   if (issues.length > 0) return { kind: 'invalid', issues };
-  const result = prepareDagSource(
+  return prepareDagSource(
     {
       ...definitionSource(definition),
       rootDependencies: 'honor',
@@ -19,10 +19,4 @@ export function prepareDagDefinition<Data, ID = unknown>(
     },
     definition,
   );
-  return result.kind === 'valid'
-    ? result
-    : {
-        kind: 'invalid',
-        issues: [{ kind: 'milestone', diagnostics: result.diagnostics }],
-      };
 }
