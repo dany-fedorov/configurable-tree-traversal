@@ -10,7 +10,7 @@ import { createAsyncDriver } from '../src/core/drivers/runAsync';
 import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
-import type { Ref } from '../src/core/graph/types';
+import type { VertexRef } from '../src/core/graph/types';
 
 function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
   return new TraversalKernel<TestGraph>({
@@ -34,10 +34,10 @@ function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: {
-      visitParentAfterChildren: 0,
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: 0,
-      visitUpOneChildParents: true,
-      considerVisitAfterNullContentVertices: true,
+      afterChildIndices: 0,
+      fallbackChildIndices: 0,
+      visitSingleChildParent: true,
+      visitAfterOmittedChildren: true,
     },
     hasSorter: false,
     hasHintIds: false,
@@ -192,9 +192,11 @@ test('deletion cancels queued callbacks while an invalid running permit drains',
   expect(driver.inspect().inFlightCallbackCount).toBe(1);
 
   const internals = kernel as unknown as {
-    scheduling: { deleteVertex(ref: Ref<TestGraph>): Set<Ref<TestGraph>> };
+    scheduling: {
+      deleteVertex(ref: VertexRef<TestGraph>): Set<VertexRef<TestGraph>>;
+    };
     invalidateRefs(
-      refs: ReadonlySet<Ref<TestGraph>>,
+      refs: ReadonlySet<VertexRef<TestGraph>>,
       except: {
         kind: 'chain';
         id: number;

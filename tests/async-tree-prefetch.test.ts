@@ -9,7 +9,7 @@ import {
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src/core/TraversalVisitor';
 import type { TestGraph } from './helpers/graph-fixtures';
-import type { Ref } from '../src/core/graph/types';
+import type { VertexRef } from '../src/core/graph/types';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
 function setup(options: {
@@ -53,10 +53,10 @@ function setup(options: {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: {
-      visitParentAfterChildren: 0,
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: 0,
-      visitUpOneChildParents: true,
-      considerVisitAfterNullContentVertices: true,
+      afterChildIndices: 0,
+      fallbackChildIndices: 0,
+      visitSingleChildParent: true,
+      visitAfterOmittedChildren: true,
     },
     hasSorter: options.hasSorter ?? false,
     hasHintIds: options.hasHintIds ?? false,
@@ -140,7 +140,7 @@ test('settle stores a child outcome without admitting its visitor chain', async 
           return { kind: call.kind, value: child.promise };
         }
         if (call.kind === 'VISIT') {
-          visits.push(call.ref.unref().getData());
+          visits.push(call.ref.getValue().getData());
           return { kind: call.kind, value: undefined };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -306,11 +306,7 @@ test('runs promised hint identity hooks through the shared limit before resolver
 
   firstId.resolve({ vertexId: 'A' });
   await eventLoopTurn();
-  expect(calls.slice(0, 3)).toEqual([
-    'MAKE_ROOT:',
-    'HINT_ID:A',
-    'HINT_ID:B',
-  ]);
+  expect(calls.slice(0, 3)).toEqual(['MAKE_ROOT:', 'HINT_ID:A', 'HINT_ID:B']);
   await expect(childEvent).resolves.toMatchObject({
     done: false,
     value: { vertex: { $d: 'A' } },
@@ -333,7 +329,10 @@ test('known async hint identities are consumed without invoking a resolver', asy
           };
         }
         if (call.kind === 'HINT_ID') {
-          return { kind: call.kind, value: Promise.resolve({ vertexId: 'root' }) };
+          return {
+            kind: call.kind,
+            value: Promise.resolve({ vertexId: 'root' }),
+          };
         }
         if (call.kind === 'MAKE_VERTEX') {
           resolverCalls += 1;
@@ -414,7 +413,7 @@ test('uses rewritten hints when admitting child prefetch', async () => {
           };
         }
         if (call.kind === 'VISIT') {
-          return call.ref.unref().getData() === 'root'
+          return call.ref.getValue().getData() === 'root'
             ? {
                 kind: call.kind,
                 value: {
@@ -489,7 +488,7 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -575,7 +574,7 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -618,7 +617,7 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
           return { kind: call.kind, value: child.promise };
         }
         if (call.kind === 'VISIT') {
-          visits.push(call.ref.unref().getData());
+          visits.push(call.ref.getValue().getData());
           return { kind: call.kind, value: undefined };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -649,7 +648,7 @@ test('breadth-first closes an unsorted empty async frame', async () => {
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -698,7 +697,7 @@ test('breadth-first surfaces a prefetched resolver rejection', async () => {
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,

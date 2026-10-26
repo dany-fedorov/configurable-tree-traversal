@@ -42,12 +42,12 @@ for (const TreeTraversal of [
       traversableGraph: source,
       workCompletion: 'externalSettlement',
       discovery: 'eager',
-      saveNotMutatedResolvedGraph: true,
+      retainOriginalGraphStructure: true,
     }).createRunner();
     await runner.run();
     expect(lookups).toEqual([prerequisite]);
     const graph = runner.getResolvedGraph();
-    const snapshot = runner.notMutatedResolvedGraph!;
+    const snapshot = runner.originalGraphView!;
     for (const id of [root, undefined, NaN]) {
       const ref = graph.getVertexRefById(id)!;
       expect(graph.getVertexId(ref)).toBe(id);
@@ -211,6 +211,6 @@ for (const TreeTraversal of [
     expect(reads).toBe(1);
     expect(runner.summary().completedWorkIds).toEqual([7]);
     const graph = runner.getResolvedGraph();
-    expect(graph.getVertexRefById(7)!.unref().getData()).toBe('own');
+    expect(graph.getVertexRefById(7)!.getValue().getData()).toBe('own');
   });
 }

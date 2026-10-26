@@ -3,7 +3,7 @@ import { TraversalKernel } from '../src/core/TraversalKernel';
 import type { CallbackReply, VisitOrder } from '../src/core/effects/types';
 import type { Outcome } from '../src/core/effects/types';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
-import type { Ref } from '../src/core/graph/types';
+import type { VertexRef } from '../src/core/graph/types';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import {
   TraversalVisitorCommandName as Command,
@@ -11,7 +11,7 @@ import {
 } from '../src/core/TraversalVisitor';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { TestGraph } from './helpers/graph-fixtures';
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 
 function makeKernel(
@@ -25,7 +25,7 @@ function makeKernel(
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
     visitorsState: {},
   };
   const kernel = new TraversalKernel<TestGraph>({
@@ -73,7 +73,7 @@ function makeBreadthKernel() {
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -121,10 +121,10 @@ function makeDepthKernel() {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: {
-      visitParentAfterChildren: 0,
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: 0,
-      visitUpOneChildParents: true,
-      considerVisitAfterNullContentVertices: true,
+      afterChildIndices: 0,
+      fallbackChildIndices: 0,
+      visitSingleChildParent: true,
+      visitAfterOmittedChildren: true,
     },
     hasSorter: false,
     hasHintIds: false,
@@ -246,33 +246,32 @@ test('resume copies every optional filter shape without retaining caller arrays'
   });
 });
 
-test.each([
-  'advanceChains',
-  'admitEligibleVisit',
-  'admitExpansion',
-] as const)('converts a thrown %s transition to FAILED', (method) => {
-  const { kernel } = makeKernel();
-  if (method === 'admitExpansion') {
-    setPrivate(kernel, 'admitEligibleVisit', () => false);
-  }
-  setPrivate(kernel, method, () => {
-    throw new Error(`${method} failed`);
-  });
-  expect(kernel.poll('drive')).toMatchObject({
-    kind: 'FAILED',
-    error: expect.objectContaining({ message: `${method} failed` }),
-  });
-});
+test.each(['advanceChains', 'admitEligibleVisit', 'admitExpansion'] as const)(
+  'converts a thrown %s transition to FAILED',
+  (method) => {
+    const { kernel } = makeKernel();
+    if (method === 'admitExpansion') {
+      setPrivate(kernel, 'admitEligibleVisit', () => false);
+    }
+    setPrivate(kernel, method, () => {
+      throw new Error(`${method} failed`);
+    });
+    expect(kernel.poll('drive')).toMatchObject({
+      kind: 'FAILED',
+      error: expect.objectContaining({ message: `${method} failed` }),
+    });
+  },
+);
 
 test('private invalidation removes frames and boundaries and is idempotent', () => {
   const { kernel } = makeKernel();
-  const vertexRef = new CTTRef(
+  const vertexRef = new MutableRef(
     new Vertex<TestGraph>({ $d: 'removed', $c: [] }),
   );
   const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
   const fields = kernel as unknown as {
-    boundaries: Array<{ event: { vertexRef: Ref<TestGraph> } }>;
-    frames: Map<number, { owner: typeof owner; ref: Ref<TestGraph> }>;
+    boundaries: Array<{ event: { vertexRef: VertexRef<TestGraph> } }>;
+    frames: Map<number, { owner: typeof owner; ref: VertexRef<TestGraph> }>;
     pendingRequests: Map<
       number,
       { call: { owner: typeof owner }; submitted: boolean }
@@ -280,12 +279,11 @@ test('private invalidation removes frames and boundaries and is idempotent', () 
   };
   fields.frames.set(owner.id, { owner, ref: vertexRef });
   fields.boundaries.push({ event: { vertexRef } });
-  invokePrivate<void>(
-    kernel,
-    'invalidateRefs',
-    new Set([vertexRef]),
-    { kind: 'chain', id: 99, epoch: 0 },
-  );
+  invokePrivate<void>(kernel, 'invalidateRefs', new Set([vertexRef]), {
+    kind: 'chain',
+    id: 99,
+    epoch: 0,
+  });
   expect(fields.frames.size).toBe(0);
   expect(fields.boundaries).toEqual([]);
 
@@ -313,14 +311,14 @@ test('detects a running chain when deciding whether a halt can settle', () => {
 
 test('kernel inspection maps breadth-first policy frames', () => {
   const kernel = makeBreadthKernel();
-  const vertexRef = new CTTRef(
+  const vertexRef = new MutableRef(
     new Vertex<TestGraph>({ $d: 'parent', $c: [] }),
   );
   const fields = kernel as unknown as {
     breadthFirstPolicy: {
       enqueueExpansion(
         owner: { kind: 'frame'; id: number; epoch: number },
-        ref: Ref<TestGraph>,
+        ref: VertexRef<TestGraph>,
         depth: number,
       ): void;
     };
@@ -331,12 +329,17 @@ test('kernel inspection maps breadth-first policy frames', () => {
     0,
   );
   expect(kernel.inspect().frames).toEqual([
-    expect.objectContaining({ vertexRefId: vertexRef.getId(), stage: 'resolve' }),
+    expect.objectContaining({
+      vertexRefId: vertexRef.getId(),
+      stage: 'resolve',
+    }),
   ]);
 
   const scheduling = (
     kernel as unknown as {
-      scheduling: { eligible: Array<{ ref: Ref<TestGraph>; order: string }> };
+      scheduling: {
+        eligible: Array<{ ref: VertexRef<TestGraph>; order: string }>;
+      };
     }
   ).scheduling;
   scheduling.eligible.push({ ref: vertexRef, order: 'ON_SUBGRAPH_READY' });
@@ -347,7 +350,7 @@ test('kernel inspection maps breadth-first policy frames', () => {
 
 test('kernel inspection reports a depth-first child-wait frame index', () => {
   const kernel = makeDepthKernel();
-  const vertexRef = new CTTRef(
+  const vertexRef = new MutableRef(
     new Vertex<TestGraph>({ $d: 'parent', $c: ['child'] }),
   );
   const policy = (
@@ -355,7 +358,7 @@ test('kernel inspection reports a depth-first child-wait frame index', () => {
       depthFirstPolicy: {
         push(
           owner: { kind: 'frame'; id: number; epoch: number },
-          ref: Ref<TestGraph>,
+          ref: VertexRef<TestGraph>,
           depth: number,
         ): void;
         getFrames(): Array<{ stage: string; nextChild: number }>;
@@ -383,7 +386,7 @@ test.each(['identify', 'resolve'] as const)(
   (stage) => {
     const { kernel } = makeKernel();
     const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
-    const vertexRef = new CTTRef(
+    const vertexRef = new MutableRef(
       new Vertex<TestGraph>({ $d: 'parent', $c: ['child'] }),
     );
     const fields = kernel as unknown as {
@@ -471,9 +474,7 @@ test('validates request ids and reply kinds exactly once', () => {
     ),
   ).toThrow(/already submitted/i);
   expect(() =>
-    kernel.submit(
-      rootReply(999, { ok: true, value: { vertexContent: null } }),
-    ),
+    kernel.submit(rootReply(999, { ok: true, value: { vertexContent: null } })),
   ).toThrow(/request/i);
 });
 
@@ -481,7 +482,9 @@ test('retains a thrown undefined value in terminal failure state', () => {
   const { kernel } = makeKernel();
   const root = kernel.poll('drive');
   if (root.kind !== 'CALL') throw new Error('Expected root call');
-  kernel.submit(rootReply(root.call.requestId, { ok: false, error: undefined }));
+  kernel.submit(
+    rootReply(root.call.requestId, { ok: false, error: undefined }),
+  );
 
   expect(kernel.poll('drive')).toEqual({ kind: 'FAILED', error: undefined });
   expect(kernel.getFailure()).toEqual({ error: undefined });

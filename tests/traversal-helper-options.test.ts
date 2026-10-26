@@ -11,11 +11,7 @@ import {
   traverseDag,
   traverseDagAsync,
 } from '../src';
-import type {
-  DagDiscoverySource,
-  TreeSource,
-  VertexTypes,
-} from '../src';
+import type { DagDiscoverySource, TreeSource, VertexTypes } from '../src';
 
 type T = VertexTypes<string, string>;
 function source(root = 'root'): DagDiscoverySource<T> & TreeSource<T> {
@@ -323,9 +319,9 @@ test('legacy calls retain arity interpretation, null visitors, and source preced
   const config = { traversableTree: source('config') };
   const root = (runner: {
     getResolvedGraph(): {
-      getRoot(): { unref(): { getData(): unknown } } | null;
+      getRoot(): { getValue(): { getData(): unknown } } | null;
     };
-  }) => runner.getResolvedGraph().getRoot()?.unref().getData();
+  }) => runner.getResolvedGraph().getRoot()?.getValue().getData();
   expect(root(traverseTreeDepthFirst(legacy, null, config))).toBe('config');
   expect(root(traverseTreeBreadthFirst(legacy, null, config))).toBe('config');
   expect(root(await traverseTreeDepthFirstAsync(legacy, null, config))).toBe(
@@ -368,12 +364,12 @@ test('canonical helpers preserve exact source failures', async () => {
     }
     return undefined;
   };
-  expect(capture(() => traverseTreeDepthFirst({ traversableTree: broken }))).toBe(
-    failure,
-  );
-  expect(capture(() => traverseTreeBreadthFirst({ traversableTree: broken }))).toBe(
-    failure,
-  );
+  expect(
+    capture(() => traverseTreeDepthFirst({ traversableTree: broken })),
+  ).toBe(failure);
+  expect(
+    capture(() => traverseTreeBreadthFirst({ traversableTree: broken })),
+  ).toBe(failure);
   expect(capture(() => traverseDag({ traversableGraph: broken }))).toBe(
     failure,
   );
@@ -393,7 +389,10 @@ test('canonical async options retain constructor configuration validation', () =
     traverseTreeDepthFirstAsync({ traversableTree: source(), concurrency: 0 }),
   ).toThrow(TypeError);
   expect(() =>
-    traverseTreeBreadthFirstAsync({ traversableTree: source(), concurrency: 0 }),
+    traverseTreeBreadthFirstAsync({
+      traversableTree: source(),
+      concurrency: 0,
+    }),
   ).toThrow(TypeError);
   expect(() =>
     traverseDagAsync({ traversableGraph: source(), concurrency: 0 }),

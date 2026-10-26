@@ -27,7 +27,7 @@ type AsyncFilteredVisitor<
   : never;
 
 /** Filter current vertex data; a guard narrows data, never the live graph context. */
-export function filterDagVisitor<
+export function filterDagDataVisitor<
   DATA,
   NARROWED extends DATA,
   T extends VertexTypes<DATA> = VertexTypes<DATA>,
@@ -38,7 +38,7 @@ export function filterDagVisitor<
   predicate: (data: DATA) => data is NARROWED,
   visitor: FilteredVisitor<NARROWED, T, R, ORDER, ID>,
 ): DagVisitor<T, R, ORDER, ID>;
-export function filterDagVisitor<
+export function filterDagDataVisitor<
   DATA,
   T extends VertexTypes<DATA> = VertexTypes<DATA>,
   R extends VertexTypes<DATA> = T,
@@ -48,7 +48,7 @@ export function filterDagVisitor<
   predicate: (data: DATA) => boolean,
   visitor: FilteredVisitor<DATA, T, R, ORDER, ID>,
 ): DagVisitor<T, R, ORDER, ID>;
-export function filterDagVisitor<
+export function filterDagDataVisitor<
   DATA,
   NARROWED extends DATA,
   T extends VertexTypes<DATA>,
@@ -67,7 +67,7 @@ export function filterDagVisitor<
 }
 
 /** Async callbacks retain their original promise and exact rejection value. */
-export function filterAsyncDagVisitor<
+export function filterAsyncDagDataVisitor<
   DATA,
   NARROWED extends DATA,
   T extends VertexTypes<DATA> = VertexTypes<DATA>,
@@ -78,7 +78,7 @@ export function filterAsyncDagVisitor<
   predicate: (data: DATA) => data is NARROWED,
   visitor: AsyncFilteredVisitor<NARROWED, T, R, ORDER, ID>,
 ): AsyncDagVisitor<T, R, ORDER, ID>;
-export function filterAsyncDagVisitor<
+export function filterAsyncDagDataVisitor<
   DATA,
   T extends VertexTypes<DATA> = VertexTypes<DATA>,
   R extends VertexTypes<DATA> = T,
@@ -88,7 +88,7 @@ export function filterAsyncDagVisitor<
   predicate: (data: DATA) => boolean,
   visitor: AsyncFilteredVisitor<DATA, T, R, ORDER, ID>,
 ): AsyncDagVisitor<T, R, ORDER, ID>;
-export function filterAsyncDagVisitor<
+export function filterAsyncDagDataVisitor<
   DATA,
   NARROWED extends DATA,
   T extends VertexTypes<DATA>,

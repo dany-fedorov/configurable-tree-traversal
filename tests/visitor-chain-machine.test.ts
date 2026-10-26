@@ -1,4 +1,4 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 import {
   TraversalVisitorCommandName as Command,
@@ -9,7 +9,7 @@ import { VisitorChain } from '../src/core/visitors/VisitorChain';
 
 type Tree = VertexTypes<string, string>;
 
-const ref = () => new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+const ref = () => new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
 const metadata = () => ({
   phaseVisitIndex: 4,
   visitorIndex: 99,
@@ -224,7 +224,7 @@ test('rejects every unknown style at admission and rethrows callback errors', ()
 
 test('tree visitor chains reject canonical deferral before exposing a command batch', () => {
   const chain = new VisitorChain<Tree>({
-    ref: new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] })),
+    ref: new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] })),
     family: 'tree',
     records: [
       { addedIndex: 0, priority: 1, commandCommitMode: 'afterEachVisitor' },

@@ -3,12 +3,12 @@ import {
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   dagTraversal,
-  hasSingleSink,
+  hasSingleStructuralSink,
   traverseDag,
 } from '../src';
 import { traverseDagAsync } from '../src/traversals/dag-traversal';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
-import type { ResolvedGraphSnapshot } from '../src/core/ResolvedGraph';
+import type { OriginalGraphView } from '../src/core/ResolvedGraph';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
 type TestGraph = VertexTypes<string, string>;
@@ -59,7 +59,9 @@ test('async DAG helper accepts a null visitor set and returns a finished runner'
   } as never);
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-  expect(runner.getResolvedGraph().getRoot()?.unref().getData()).toBe('root');
+  expect(runner.getResolvedGraph().getRoot()?.getValue().getData()).toBe(
+    'root',
+  );
 });
 
 test('async DAG helper registers its completion visitor', async () => {
@@ -82,16 +84,18 @@ test('async DAG helper returns a halted runner when its visitor requests halt', 
     { traversableGraph: graph('root', { root: ['leaf'], leaf: [] }) },
     {
       onReadyVisitor: async () => ({
-        commands: [{ commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL }],
+        commands: [
+          { commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL },
+        ],
       }),
     },
   );
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.HALTED);
-  expect(hasSingleSink(runner.getResolvedGraph())).toBe(true);
+  expect(hasSingleStructuralSink(runner.getResolvedGraph())).toBe(true);
 });
 
-test('hasSingleSink counts the currently resolved discovery graph', () => {
+test('hasSingleStructuralSink counts the currently resolved discovery graph', () => {
   const empty = traverseDag({ traversableGraph: graph(null, {}) }, null);
   const fork = traverseDag(
     {
@@ -110,13 +114,13 @@ test('hasSingleSink counts the currently resolved discovery graph', () => {
     null,
   );
 
-  expect(hasSingleSink(empty.getResolvedGraph())).toBe(false);
-  expect(hasSingleSink(fork.getResolvedGraph())).toBe(false);
-  expect(hasSingleSink(chain.getResolvedGraph())).toBe(true);
+  expect(hasSingleStructuralSink(empty.getResolvedGraph())).toBe(false);
+  expect(hasSingleStructuralSink(fork.getResolvedGraph())).toBe(false);
+  expect(hasSingleStructuralSink(chain.getResolvedGraph())).toBe(true);
   expect(
-    hasSingleSink({
+    hasSingleStructuralSink({
       getVertexRefs: () => [null as never],
       getChildrenOf: () => null,
-    } as unknown as ResolvedGraphSnapshot<TestGraph>),
+    } as unknown as OriginalGraphView<TestGraph>),
   ).toBe(true);
 });

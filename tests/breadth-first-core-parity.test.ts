@@ -43,7 +43,7 @@ test('BFS shared core resolves one queued child per event advancement', () => {
     runner
       .getResolvedGraph()
       .getVertexRefs()
-      .map((ref) => ref.unref().getData()),
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'A']);
   expect(runner.state.queue).toHaveLength(2);
   expect(runner.state.queueIndex).toBe(1);
@@ -56,7 +56,7 @@ test('BFS shared core resolves one queued child per event advancement', () => {
     runner
       .getResolvedGraph()
       .getVertexRefs()
-      .map((ref) => ref.unref().getData()),
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'A']);
 
   expect(iterator.next().value?.vertex.getData()).toBe('B');
@@ -92,13 +92,16 @@ test('BFS can traverse a completed injected resolved-tree container again', () =
     traversableTree: adapter,
   }).createRunner();
   first.run();
-  const root = first.getResolvedTree().getRoot();
+  const root = first.getResolvedTreeStore().getRoot();
   if (root === null) throw new Error('Expected a resolved root');
-  const rootRecord = first.getResolvedTree().get(root);
-  const originalChildren = first.getResolvedTree().get(root)?.getChildren();
+  const rootRecord = first.getResolvedTreeStore().get(root);
+  const originalChildren = first
+    .getResolvedTreeStore()
+    .get(root)
+    ?.getChildren();
   const originalChild = originalChildren?.[0];
   if (originalChild === undefined) throw new Error('Expected a resolved child');
-  const childRecord = first.getResolvedTree().get(originalChild);
+  const childRecord = first.getResolvedTreeStore().get(originalChild);
 
   const second = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
@@ -118,12 +121,18 @@ test('BFS can traverse a completed injected resolved-tree container again', () =
     'child',
   ]);
   expect(events[1]?.vertexRef).toBe(originalChild);
-  expect(second.getResolvedTree().getRoot()).toBe(root);
-  expect(second.getResolvedTree().get(root)).toBe(rootRecord);
-  expect(second.getResolvedTree().get(root)?.getChildren()).toBe(originalChildren);
-  expect(second.getResolvedTree().getChildrenOf(root)).not.toBe(originalChildren);
-  expect(second.getResolvedTree().getChildrenOf(root)).toEqual([originalChild]);
-  expect(second.getResolvedTree().get(originalChild)).toBe(childRecord);
+  expect(second.getResolvedTreeStore().getRoot()).toBe(root);
+  expect(second.getResolvedTreeStore().get(root)).toBe(rootRecord);
+  expect(second.getResolvedTreeStore().get(root)?.getChildren()).toBe(
+    originalChildren,
+  );
+  expect(second.getResolvedTreeStore().getChildrenOf(root)).not.toBe(
+    originalChildren,
+  );
+  expect(second.getResolvedTreeStore().getChildrenOf(root)).toEqual([
+    originalChild,
+  ]);
+  expect(second.getResolvedTreeStore().get(originalChild)).toBe(childRecord);
   expect(second.getResolvedGraph().getVertexRefs()).toEqual([
     root,
     originalChild,
@@ -138,24 +147,27 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
     },
   }).createRunner();
   seed.run();
-  const root = seed.getResolvedTree().getRoot();
+  const root = seed.getResolvedTreeStore().getRoot();
   if (root === null) throw new Error('Expected seeded root');
-  const parent = seed.getResolvedTree().getChildrenOf(root)?.[0];
+  const parent = seed.getResolvedTreeStore().getChildrenOf(root)?.[0];
   if (parent == null) throw new Error('Expected seeded parent');
-  root.setPointsTo(root.unref().clone({ $c: [] }));
-  parent.setPointsTo(parent.unref().clone({ $c: ['child'] }));
-  const store = seed.getResolvedTree().getGraphStore();
+  root.setValue(root.getValue().clone({ $c: [] }));
+  parent.setValue(parent.getValue().clone({ $c: ['child'] }));
+  const store = seed.getResolvedTreeStore().getGraphStore();
   store.resetTraversal(parent);
   store.prepareSlots(parent, ['child']);
   store.setStatus(parent, 'COMPLETE');
   const validContext = {
     depth: 2,
-    parentVertex: parent.unref(),
+    parentVertex: parent.getValue(),
     parentVertexRef: parent,
     hintIndex: 0,
     vertexHint: 'child',
   };
-  const queue = [{ ...validContext, vertexHint: 'already-skipped' }, validContext];
+  const queue = [
+    { ...validContext, vertexHint: 'already-skipped' },
+    validContext,
+  ];
   const state = new BreadthFirstTraversalRunnerState<TestGraph, TestGraph>({
     queue,
     queueIndex: 1,
@@ -203,14 +215,14 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
   expect(firstIterator.next().value?.vertex.getData()).toBe('A');
   firstIterator.return(undefined);
 
-  const root = first.getResolvedTree().getRoot();
+  const root = first.getResolvedTreeStore().getRoot();
   if (root === null) throw new Error('Expected a resolved root');
-  const consumedChild = first.getResolvedTree().getChildrenOf(root)?.[0];
+  const consumedChild = first.getResolvedTreeStore().getChildrenOf(root)?.[0];
   if (consumedChild === undefined) throw new Error('Expected consumed child');
   const queue = first.state.queue;
   expect(queue.map((context) => context.vertexHint)).toEqual(['A', 'B']);
   expect(first.state.queueIndex).toBe(1);
-  expect(root.unref().getChildrenHints()).toEqual(['A', 'B']);
+  expect(root.getValue().getChildrenHints()).toEqual(['A', 'B']);
 
   const calls: string[] = [];
   let queueAtResolution: string[] = [];
@@ -231,16 +243,13 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
       state: first.state,
     },
   });
-  traversal.addVisitorFor(
-    BreadthFirstPhase.LEVEL_ORDER,
-    (vertex, options) => {
-      visits.push([
-        vertex.getData(),
-        options.phaseVisitIndex,
-        options.previousPhaseVertexRef?.unref().getData(),
-      ]);
-    },
-  );
+  traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, (vertex, options) => {
+    visits.push([
+      vertex.getData(),
+      options.phaseVisitIndex,
+      options.previousPhaseVertexRef?.getValue().getData(),
+    ]);
+  });
 
   const runner = traversal.createRunner();
   expect(runner.state.queue).toBe(queue);
@@ -253,10 +262,10 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
     ['root', 2, 'A'],
     ['B', 3, 'root'],
   ]);
-  const children = runner.getResolvedTree().getChildrenOf(root);
+  const children = runner.getResolvedTreeStore().getChildrenOf(root);
   expect(children).toHaveLength(2);
   expect(children?.[0]).toBe(consumedChild);
-  expect(children?.[1]?.unref().getData()).toBe('B');
+  expect(children?.[1]?.getValue().getData()).toBe('B');
   expect(
     runner.getResolvedGraph().get(root)?.slots.map((slot) => slot.kind),
   ).toEqual(['linked', 'linked']);
@@ -274,7 +283,7 @@ function completedParentSeed() {
     },
   }).createRunner();
   runner.run();
-  const root = runner.getResolvedTree().getRoot();
+  const root = runner.getResolvedTreeStore().getRoot();
   if (root === null) throw new Error('Expected root');
   return { root, runner };
 }
@@ -283,7 +292,7 @@ test('BFS closes an injected frontier whose contexts were all consumed', () => {
   const seed = completedParentSeed();
   const context = {
     depth: 1,
-    parentVertex: seed.root.unref(),
+    parentVertex: seed.root.getValue(),
     parentVertexRef: seed.root,
     hintIndex: 0,
     vertexHint: 'child',
@@ -306,9 +315,9 @@ test('BFS closes an injected frontier whose contexts were all consumed', () => {
       state,
     },
   }).createRunner();
-  expect([...runner.iterateEvents()].map((event) => event.vertex.getData())).toEqual([
-    'root',
-  ]);
+  expect(
+    [...runner.iterateEvents()].map((event) => event.vertex.getData()),
+  ).toEqual(['root']);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });
 
@@ -318,7 +327,7 @@ test('BFS rejects an injected frontier with non-contiguous hint indices', () => 
     queue: [
       {
         depth: 1,
-        parentVertex: seed.root.unref(),
+        parentVertex: seed.root.getValue(),
         parentVertexRef: seed.root,
         hintIndex: 1,
         vertexHint: 'child',
@@ -337,7 +346,9 @@ test('BFS rejects an injected frontier with non-contiguous hint indices', () => 
       state,
     },
   }).createRunner();
-  expect(() => runner.run()).toThrow(/invalid injected breadth-first frontier/i);
+  expect(() => runner.run()).toThrow(
+    /invalid injected breadth-first frontier/i,
+  );
 });
 
 test('BFS does not search newly appended children for legacy reuse', () => {
@@ -354,7 +365,7 @@ test('BFS does not search newly appended children for legacy reuse', () => {
     },
   }).createRunner();
   const lookup = jest.spyOn(
-    runner.getResolvedTree(),
+    runner.getResolvedTreeStore(),
     'getResolutionContextOf',
   );
 

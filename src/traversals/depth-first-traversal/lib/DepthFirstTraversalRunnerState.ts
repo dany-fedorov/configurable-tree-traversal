@@ -1,6 +1,6 @@
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { CTTRef } from '@core/CTTRef';
+import type { MutableRef } from '@core/CTTRef';
 import type { Vertex } from '@core/Vertex';
 import type { DepthFirstTraversalVisitorsState } from '@depth-first-traversal/lib/DepthFirstTraversalVisitorsState';
 import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
@@ -24,10 +24,7 @@ export function initDepthFirstVisitorsState<
   };
 }
 
-type PopStackResult<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
-> =
+type PopStackResult<TTP extends VertexTypes, RW_TTP extends VertexTypes> =
   | { stackIsEmpty: true; vertexContext: null }
   | {
       stackIsEmpty: false;
@@ -40,15 +37,15 @@ export class DepthFirstTraversalRunnerState<
 > {
   STACK: Array<VertexResolutionContext<TTP | RW_TTP>>;
   postOrderNotVisitedChildrenCountMap: Map<
-    CTTRef<Vertex<TTP | RW_TTP>>,
+    MutableRef<Vertex<TTP | RW_TTP>>,
     number
   >;
   visitorsState: DepthFirstTraversalVisitorsState<TTP, RW_TTP>;
-  traversalRootVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
+  traversalRootVertexRef: MutableRef<Vertex<TTP | RW_TTP>> | null;
   status: TraversalRunnerStatus;
-  subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<TTP | RW_TTP>>>;
+  subtreeTraversalDisabledRefs: Set<MutableRef<Vertex<TTP | RW_TTP>>>;
   vertexRefStackChildrenHintsRanges: Map<
-    CTTRef<Vertex<TTP | RW_TTP>>,
+    MutableRef<Vertex<TTP | RW_TTP>>,
     [number, number]
   >;
 
@@ -63,7 +60,7 @@ export class DepthFirstTraversalRunnerState<
     this.postOrderNotVisitedChildrenCountMap =
       from?.postOrderNotVisitedChildrenCountMap != null
         ? from?.postOrderNotVisitedChildrenCountMap
-        : new Map<CTTRef<Vertex<TTP | RW_TTP>>, number>();
+        : new Map<MutableRef<Vertex<TTP | RW_TTP>>, number>();
     this.visitorsState =
       from?.visitorsState != null
         ? from?.visitorsState
@@ -81,7 +78,7 @@ export class DepthFirstTraversalRunnerState<
   }
 
   countVisitedOnPostOrderAChildOf(
-    parentVertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
+    parentVertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
   ): number {
     const postOrderNotVisitedChildrenCount =
       this.postOrderNotVisitedChildrenCountMap.get(parentVertexRef);
@@ -110,7 +107,7 @@ export class DepthFirstTraversalRunnerState<
   }
 
   pushToStack(
-    parentVertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
+    parentVertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
     newEntries: VertexResolutionContext<TTP | RW_TTP>[],
   ): void {
     const i0 = this.STACK.length;

@@ -107,7 +107,9 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
       },
       { priority: 9999 },
     );
-    t.configure({ visitors: { [D.ON_WORK_READY]: t.listVisitorsFor(D.ON_WORK_READY) } });
+    t.configure({
+      visitors: { [D.ON_WORK_READY]: t.listVisitorsFor(D.ON_WORK_READY) },
+    });
     await t.createRunner().run();
     expect(seen).toEqual([
       ['high', 'committed'],
@@ -262,7 +264,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = t.createRunner();
     await runner.run();
     expect(seen).toEqual(['committed']);
-    expect(runner.getResolvedGraph().getRoot()!.unref().getData()).toBe(
+    expect(runner.getResolvedGraph().getRoot()!.getValue().getData()).toBe(
       'committed',
     );
     const generation = runner.summary().vertices.get('root')!.generation!;
@@ -450,14 +452,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       expect(t.icfg.workCompletion).toBeUndefined();
     }
     expect(() =>
-      t.addVisitorGroupFor(D.ON_WORK_READY, { visitors: [original[0]!] } as never),
+      t.addVisitorGroupFor(D.ON_WORK_READY, {
+        visitors: [original[0]!],
+      } as never),
     ).toThrow(/own/);
     const changed = original.map((record) => ({
       ...record,
       commandCommitMode: 'afterEachVisitor' as const,
       resolutionStyle: undefined,
     }));
-    expect(() => t.setVisitorsFor(D.ON_WORK_READY, changed)).toThrow(/conflicting/);
+    expect(() => t.setVisitorsFor(D.ON_WORK_READY, changed)).toThrow(
+      /conflicting/,
+    );
     expect(Object.isFrozen(original[0]!.visitorGroup)).toBe(true);
     await t.createRunner().run();
     expect(seen).toEqual(['original']);

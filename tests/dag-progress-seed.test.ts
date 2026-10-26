@@ -148,7 +148,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     });
     const events: string[] = [];
     for await (const event of traversal.createRunner().iterateEvents()) {
-      events.push(`${event.kind}:${event.vertexRef.unref().getData()}`);
+      events.push(`${event.kind}:${event.vertexRef.getValue().getData()}`);
     }
     expect(events).toEqual([
       'workCompleted:child',
@@ -158,7 +158,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   });
 
   test(`${Constructor.name} rejects seeds with injected state or container`, () => {
-    const runner = new Constructor<G>({ traversableGraph: graph }).createRunner();
+    const runner = new Constructor<G>({
+      traversableGraph: graph,
+    }).createRunner();
     for (const injected of [
       { state: runner.state },
       { resolvedGraphsContainer: runner.resolvedGraphsContainer },

@@ -30,7 +30,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const traversal = new Constructor<G>({
         traversableGraph: source,
         discovery,
-        saveNotMutatedResolvedGraph: true,
+        retainOriginalGraphStructure: true,
       });
       traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
         events.push(v.getData());
@@ -173,7 +173,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const events: string[] = [];
     const traversal = new Constructor<G>({
       syntheticRoot: true,
-      saveNotMutatedResolvedGraph: true,
+      retainOriginalGraphStructure: true,
       traversableGraph: {
         resolveRoot: () => ({ vertexContent: { $d: 'catalog', $c: ['app'] } }),
         resolveChild: (id) => ({
@@ -201,7 +201,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(graph.getRoot()).toBeNull();
     expect(events).toContain('generated');
     expect(runner.summary().counts.subgraphCompleted).toBe(3);
-    const saved = runner.resolvedGraphsContainer.notMutatedResolvedGraph!;
+    const saved = runner.resolvedGraphsContainer.originalGraphView!;
     const originalParser = saved.getVertexById('parser')!;
     expect(saved.getParentsOf(originalParser)).toEqual([]);
     expect(saved.getPathsTo(originalParser)).toEqual([[originalParser]]);

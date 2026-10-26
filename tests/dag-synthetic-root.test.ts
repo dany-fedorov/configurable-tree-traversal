@@ -8,7 +8,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} hides synthetic roots from visits, events and graph paths`, async () => {
     const traversal = new Constructor<G>({
       ...{ discovery: 'eager' as const, syntheticRoot: true },
-      saveNotMutatedResolvedGraph: true,
+      retainOriginalGraphStructure: true,
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'a',
@@ -27,9 +27,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         expect(options.isGraphRoot).toBe(false);
         expect(options.isTraversalRoot).toBe(false);
         expect(options.resolvedGraph.getRoot()).toBeNull();
-        expect(options.resolvedGraph.get(options.vertexRef)!.dependsOnWork).toEqual(
-          [],
-        );
+        expect(
+          options.resolvedGraph.get(options.vertexRef)!.dependsOnWork,
+        ).toEqual([]);
         expect(options.resolvedGraph.get(options.vertexRef)!.incoming).toEqual(
           [],
         );
@@ -42,7 +42,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(seen.sort()).toEqual(events);
     for (const graph of [
       runner.getResolvedGraph(),
-      runner.notMutatedResolvedGraph!,
+      runner.originalGraphView!,
     ]) {
       expect(graph.getRoot()).toBeNull();
       expect(graph.getVertexRefs().map((ref) => graph.getIdOf(ref))).toEqual([
@@ -101,7 +101,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const traversal = new Constructor<G>({
         syntheticRoot: true,
         discovery: 'eager',
-        saveNotMutatedResolvedGraph: true,
+        retainOriginalGraphStructure: true,
         sortChildrenHints: (hints) => hints.slice(),
         traversableGraph: {
           resolveRoot: () => ({
@@ -131,7 +131,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       );
       for (const graph of [
         runner.getResolvedGraph(),
-        runner.notMutatedResolvedGraph!,
+        runner.originalGraphView!,
       ]) {
         const shared = graph.getVertexById('shared')!;
         const a = graph.getVertexById('a')!;
@@ -164,7 +164,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       discovery: 'eager',
       traversableGraph: {
-        resolveRoot: () => ({ vertexContent: { $d: 'catalog', $c: ['a', 'a'] } }),
+        resolveRoot: () => ({
+          vertexContent: { $d: 'catalog', $c: ['a', 'a'] },
+        }),
         getVertexIdFromHint: (hint) => ({ vertexId: hint }),
         resolveChild: () => ({ vertexContent: { $d: 'a', $c: [] } }),
       },
@@ -285,7 +287,9 @@ test.each([undefined, null, NaN])(
       syntheticRoot: true,
       discovery: 'eager',
       traversableGraph: {
-        resolveRoot: () => ({ vertexContent: { $d: 'catalog', $c: ['a', 'b'] } }),
+        resolveRoot: () => ({
+          vertexContent: { $d: 'catalog', $c: ['a', 'b'] },
+        }),
         getVertexIdFromHint: () => ({ vertexId: id }),
         resolveChild: () => ({ vertexContent: null }),
       },

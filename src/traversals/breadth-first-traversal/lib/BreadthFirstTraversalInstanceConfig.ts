@@ -18,7 +18,7 @@ export type BreadthFirstTraversalInstanceConfig<
   traversableTree: TreeSource<TTP, RW_TTP>;
   sortChildrenHints: BreadthFirstSortChildrenHintsFn<TTP> | null;
   visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
-  saveNotMutatedResolvedTree: boolean;
+  retainOriginalTreeStructure: boolean;
   traversalRunnerInternalObjects: {
     resolvedTreesContainer:
       | BreadthFirstTraversalRunnerInternalObjects<
@@ -58,7 +58,7 @@ export const BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   visitors: {
     [BreadthFirstPhase.LEVEL_ORDER]: [],
   },
-  saveNotMutatedResolvedTree: false,
+  retainOriginalTreeStructure: false,
   traversalRunnerInternalObjects: {
     resolvedTreesContainer: null,
     state: null,

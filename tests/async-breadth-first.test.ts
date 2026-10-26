@@ -69,7 +69,7 @@ test('projects level-order events and asynchronous visitor metadata', async () =
     metadata.push([
       vertex.getData(),
       options.phaseVisitIndex,
-      options.previousPhaseVertexRef?.unref().getData(),
+      options.previousPhaseVertexRef?.getValue().getData(),
     ]);
   });
   const events = [];
@@ -136,7 +136,7 @@ test('deleting the root skips prefetched children and clears the tree root', asy
   }
   expect(yielded).toEqual([]);
   expect(calls).toEqual([]);
-  expect(runner.getResolvedTree().getRoot()).toBeNull();
+  expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
 });
 
 test('preserves paused visitor outcomes through repeated resumptions', async () => {
@@ -328,8 +328,8 @@ test('snapshots builder configuration and reuses injected tree storage and state
   );
   await runner.run({ iterateOver: [] });
   expect(visitors).toEqual(['root', 'child']);
-  expect(runner.getResolvedTree().getRoot()).toBe(
-    first.getResolvedTree().getRoot(),
+  expect(runner.getResolvedTreeStore().getRoot()).toBe(
+    first.getResolvedTreeStore().getRoot(),
   );
   expect(runner.getResolvedGraph().getRoot()).toBe(
     first.getResolvedGraph().getRoot(),

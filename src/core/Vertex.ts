@@ -10,10 +10,14 @@ export type VertexContent<TTP extends VertexTypes> = {
 export type LegacyVertexContent<TTP extends VertexTypes> =
   CTTAbstractParent<TTP['VertexData'], TTP['VertexHint']>;
 
-type CanonicalContentInput<TTP extends VertexTypes> =
-  VertexContent<TTP> & { $d?: never; $c?: never };
-type LegacyContentInput<TTP extends VertexTypes> =
-  LegacyVertexContent<TTP> & { $data?: never; $childHints?: never };
+type CanonicalContentInput<TTP extends VertexTypes> = VertexContent<TTP> & {
+  $d?: never;
+  $c?: never;
+};
+type LegacyContentInput<TTP extends VertexTypes> = LegacyVertexContent<TTP> & {
+  $data?: never;
+  $childHints?: never;
+};
 
 /** Input accepts either spelling, but never a mixture of the two. */
 export type VertexContentInput<TTP extends VertexTypes> =
@@ -80,7 +84,7 @@ export class Vertex<TTP extends VertexTypes>
     return this.$childHints;
   }
 
-  isLeafVertex(): boolean {
+  hasNoChildHints(): boolean {
     return this.getChildrenHints().length === 0;
   }
 

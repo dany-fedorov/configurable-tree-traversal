@@ -1,4 +1,4 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import {
@@ -59,7 +59,9 @@ test('depth-first convenience traversal accepts no visitors or config', () => {
   const runner = traverseTreeDepthFirst(adapter(node('root')), null);
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-  expect(runner.getResolvedTree().getRoot()?.unref().getData()).toBe('root');
+  expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
+    'root',
+  );
 });
 
 test('breadth-first convenience visitor receives sorted level-order vertices', () => {
@@ -92,23 +94,20 @@ test('breadth-first set/list visitors preserve priority order when executed', ()
     visits.push('higher');
   };
 
-  const returned = traversal.setVisitorsFor(
-    BreadthFirstPhase.LEVEL_ORDER,
-    [
-      {
-        addedIndex: 0,
-        priority: 10,
-        resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
-        visitor: lowerPriority,
-      },
-      {
-        addedIndex: 1,
-        priority: 20,
-        resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
-        visitor: higherPriority,
-      },
-    ],
-  );
+  const returned = traversal.setVisitorsFor(BreadthFirstPhase.LEVEL_ORDER, [
+    {
+      addedIndex: 0,
+      priority: 10,
+      resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+      visitor: lowerPriority,
+    },
+    {
+      addedIndex: 1,
+      priority: 20,
+      resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+      visitor: higherPriority,
+    },
+  ]);
 
   expect(returned).toBe(traversal);
   expect(
@@ -194,7 +193,7 @@ test.each(['depth-first', 'breadth-first'] as const)(
             },
           });
     const runner = traversal.createRunner();
-    const root = new CTTRef(new Vertex<Tree>(node('late-root')));
+    const root = new MutableRef(new Vertex<Tree>(node('late-root')));
     runner.resolvedTreesContainer.setRoot(root);
     expect(
       [...runner.iterateEvents()].map((event) => event.vertex.getData()),
@@ -256,9 +255,9 @@ test('an enable list runs only named depth-first visitors while iteration filter
 test('object-form fallback ranges control depth-first in-order boundaries', () => {
   const traversal = new DepthFirstTreeTraversal<Tree>({
     traversableTree: adapter(node('root', node('first'), node('second'))),
-    inOrderTraversalConfig: {
-      visitParentAfterChildren: { ranges: [99] },
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: { ranges: [0] },
+    inOrder: {
+      afterChildIndices: { ranges: [99] },
+      fallbackChildIndices: { ranges: [0] },
     },
   });
 
@@ -277,9 +276,9 @@ test('the historical yield helper defaults to yielding for omitted JavaScript in
     disableVisitorFunctionsFor: null,
   } as unknown as DepthFirstTraversalRunnerIterableConfig;
 
-  expect(
-    shouldYieldForOrder(javascriptConfig, DepthFirstPhase.PRE_ORDER),
-  ).toBe(true);
+  expect(shouldYieldForOrder(javascriptConfig, DepthFirstPhase.PRE_ORDER)).toBe(
+    true,
+  );
 });
 
 test.each(['depth-first', 'breadth-first'] as const)(
@@ -304,8 +303,8 @@ test.each(['depth-first', 'breadth-first'] as const)(
       });
     }
     const runner = traversal.createRunner();
-    const unregisteredRoot = new CTTRef(new Vertex<Tree>(node('detached')));
-    runner.getResolvedTree().setRoot(unregisteredRoot);
+    const unregisteredRoot = new MutableRef(new Vertex<Tree>(node('detached')));
+    runner.getResolvedTreeStore().setRoot(unregisteredRoot);
 
     expect([...runner.iterateEvents()]).toEqual([]);
     expect(visitorCalls).toBe(0);
@@ -321,15 +320,15 @@ test.each(['missing', 'disabled'] as const)(
     })
       .createRunner()
       .run();
-    const rootRef = seedRunner.getResolvedTree().getRoot()!;
-    const missingParentRef = new CTTRef(new Vertex<Tree>(node('removed')));
+    const rootRef = seedRunner.getResolvedTreeStore().getRoot()!;
+    const missingParentRef = new MutableRef(new Vertex<Tree>(node('removed')));
     const parentRef = mode === 'missing' ? missingParentRef : rootRef;
     const state = new BreadthFirstTraversalRunnerState<Tree, Tree>({
       queue: [
         {
           depth: 1,
           hintIndex: 0,
-          parentVertex: parentRef.unref(),
+          parentVertex: parentRef.getValue(),
           parentVertexRef: parentRef,
           vertexHint: node('queued'),
         },
@@ -359,6 +358,6 @@ test.each(['missing', 'disabled'] as const)(
     const runner = traversal.createRunner().run();
     expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
     expect(childResolutionCalls).toBe(0);
-    expect(runner.getResolvedTree().getRoot()).toBe(rootRef);
+    expect(runner.getResolvedTreeStore().getRoot()).toBe(rootRef);
   },
 );

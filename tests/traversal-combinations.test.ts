@@ -149,7 +149,9 @@ test.each(Object.values(DepthOrder))(
     let resumes = 0;
     while (runner.getStatus() !== Status.FINISHED) {
       if (++resumes > 30)
-        throw new Error('TreeTraversal did not finish after bounded resumptions');
+        throw new Error(
+          'TreeTraversal did not finish after bounded resumptions',
+        );
       for (const event of runner.iterateEvents())
         actual.push([event.phase, event.vertex.getData()]);
     }
@@ -166,7 +168,7 @@ test.each(Object.values(DepthOrder))(
     const root = fixture();
     const traversal = new DepthFirstTreeTraversal<Tree>({
       traversableTree: adapter(root),
-      saveNotMutatedResolvedTree: true,
+      retainOriginalTreeStructure: true,
     });
     traversal.addVisitorFor(order, (vertex) =>
       vertex.getData() === 1
@@ -174,19 +176,19 @@ test.each(Object.values(DepthOrder))(
         : undefined,
     );
     const runner = traversal.createRunner().run();
-    const tree = runner.getResolvedTree();
+    const tree = runner.getResolvedTreeStore();
     const rootRef = tree.getRoot()!;
     expect(
-      tree.getChildrenOf(rootRef)?.map((ref) => ref.unref().getData()),
+      tree.getChildrenOf(rootRef)?.map((ref) => ref.getValue().getData()),
     ).toEqual([4]);
     const surviving = tree.getChildrenOf(rootRef)![0]!;
     expect(
-      tree.getChildrenOf(surviving)?.map((ref) => ref.unref().getData()),
+      tree.getChildrenOf(surviving)?.map((ref) => ref.getValue().getData()),
     ).toEqual([5]);
     expect(
       tree
         .getPathTo(tree.getChildrenOf(surviving)![0]!)
-        .map((ref) => ref.unref().getData()),
+        .map((ref) => ref.getValue().getData()),
     ).toEqual([0, 4, 5]);
   },
 );
@@ -208,9 +210,9 @@ test('disabling a subtree in-order stops unresolved children but retains complet
   ).toEqual([1, 0]);
   expect(
     runner
-      .getResolvedTree()
-      .getChildrenOf(runner.getResolvedTree().getRoot()!)
-      ?.map((ref) => ref.unref().getData()),
+      .getResolvedTreeStore()
+      .getChildrenOf(runner.getResolvedTreeStore().getRoot()!)
+      ?.map((ref) => ref.getValue().getData()),
   ).toEqual([1]);
 });
 
@@ -219,7 +221,9 @@ describe.each(['depth', 'breadth'] as const)(
   (strategy) => {
     const make = (tree: TreeSource<Tree>) =>
       strategy === 'depth'
-        ? new DepthFirstTreeTraversal<Tree>({ traversableTree: tree }).createRunner()
+        ? new DepthFirstTreeTraversal<Tree>({
+            traversableTree: tree,
+          }).createRunner()
         : new BreadthFirstTreeTraversal<Tree>({
             traversableTree: tree,
           }).createRunner();
@@ -330,7 +334,9 @@ describe.each(['depth', 'breadth'] as const)(
       const runner = traversal().createRunner();
       const iterator = runner.iterateEvents();
       expect(iterator.next().value?.vertex.getData()).toBe(0);
-      expect(() => runner.iterateEvents().next()).toThrow(/one active iterator/);
+      expect(() => runner.iterateEvents().next()).toThrow(
+        /one active iterator/,
+      );
       const remaining = [...iterator].map((event) => event.vertex.getData());
       expect(remaining).toContain(1);
       expect(runner.getStatus()).toBe(Status.FINISHED);

@@ -1,4 +1,4 @@
-import type { CTTRef } from '@core/CTTRef';
+import type { MutableRef } from '@core/CTTRef';
 import type {
   TraversalVisitorFunctionOptions,
   VisitorGroupMetadata,
@@ -7,22 +7,22 @@ import type { TraversalVisitorResult } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
-import type { VertexResolved } from '@core/ResolvedTree';
+import type { TreeVertexRecord } from '@core/ResolvedTree';
 
 export type VertexId = unknown;
 
 export type MaybePromise<T> = T | PromiseLike<T>;
 
-export type Ref<T extends VertexTypes> = CTTRef<Vertex<T>>;
+export type VertexRef<T extends VertexTypes> = MutableRef<Vertex<T>>;
 
-export type VisitResult<
-  R extends VertexTypes,
-  ORDER extends string = never,
-> = TraversalVisitorResult<R, ORDER> | undefined | void;
+export type VisitResult<R extends VertexTypes, ORDER extends string = never> =
+  | TraversalVisitorResult<R, ORDER>
+  | undefined
+  | void;
 
 export type HintVertexId<ID = unknown> = { vertexId: ID };
 
-export type GraphVertexStatus =
+export type ResolvedVertexStatus =
   | 'DISCOVERED'
   | 'READY'
   | 'PRE_VISITING'
@@ -30,9 +30,9 @@ export type GraphVertexStatus =
   | 'COMPLETING'
   | 'COMPLETE';
 
-export type GraphEdge<T extends VertexTypes> = Readonly<{
-  parentRef: Ref<T>;
-  childRef: Ref<T>;
+export type StructuralChildEdge<T extends VertexTypes> = Readonly<{
+  parentRef: VertexRef<T>;
+  childRef: VertexRef<T>;
   hintIndex: number;
   hint: T['VertexHint'];
 }>;
@@ -42,7 +42,7 @@ export type ChildSlot<T extends VertexTypes, ID = unknown> =
   | Readonly<{
       kind: 'linked';
       hint: T['VertexHint'];
-      childRef: Ref<T>;
+      childRef: VertexRef<T>;
     }>
   | Readonly<{
       kind: 'omitted';
@@ -55,15 +55,18 @@ export type ChildSlot<T extends VertexTypes, ID = unknown> =
       hint: T['VertexHint'];
     }>;
 
-export type GraphVertex<T extends VertexTypes, ID = unknown> = Readonly<{
-  vertexRef: Ref<T>;
+export type ResolvedGraphVertex<
+  T extends VertexTypes,
+  ID = unknown,
+> = Readonly<{
+  vertexRef: VertexRef<T>;
   vertex: Vertex<T>;
   vertexId: ID;
   discoveryDepth: number;
   dependsOnWork: readonly ID[];
   dependsOnSubgraphCompletion?: readonly ID[];
-  status: GraphVertexStatus;
-  incoming: readonly GraphEdge<T>[];
+  status: ResolvedVertexStatus;
+  incoming: readonly StructuralChildEdge<T>[];
   slots: readonly ChildSlot<T, ID>[];
 }>;
 
@@ -74,7 +77,7 @@ export type VisitorRecord<F> = {
 } & TraversalVisitorFunctionOptions;
 
 export type IdState<T extends VertexTypes> =
-  | { kind: 'live'; ref: Ref<T> }
+  | { kind: 'live'; ref: VertexRef<T> }
   | { kind: 'omitted' }
   | { kind: 'deleted' };
 
@@ -100,47 +103,47 @@ export type DagInspectionState<ID = unknown> = Readonly<{
   discoveryComplete: boolean;
 }>;
 
-export interface GraphStoreContract<
-  T extends VertexTypes,
-  ID = unknown,
-> {
+export interface GraphStoreContract<T extends VertexTypes, ID = unknown> {
   readonly mode: 'tree' | 'dag';
   readonly graph: ResolvedGraph<T, ID>;
   getIdState(id: ID): IdState<T> | undefined;
   inspectIdentityStates(): readonly GraphIdentityState<ID>[];
-  getTraversalSlots(ref: Ref<T>): readonly ChildSlot<T, ID>[] | null;
-  getTraversalSlot(ref: Ref<T>, index: number): ChildSlot<T, ID> | undefined;
-  getDiscoveryDepth(ref: Ref<T>): number;
-  getDeclaredDependencies(ref: Ref<T>): ID[];
-  getDeclaredCompleteDependencies(ref: Ref<T>): ID[];
-  hasCompleteDependencies(ref: Ref<T>): boolean;
+  getTraversalSlots(ref: VertexRef<T>): readonly ChildSlot<T, ID>[] | null;
+  getTraversalSlot(
+    ref: VertexRef<T>,
+    index: number,
+  ): ChildSlot<T, ID> | undefined;
+  getDiscoveryDepth(ref: VertexRef<T>): number;
+  getDeclaredDependencies(ref: VertexRef<T>): ID[];
+  getDeclaredCompleteDependencies(ref: VertexRef<T>): ID[];
+  hasCompleteDependencies(ref: VertexRef<T>): boolean;
   getTopologyVersion(): number;
   insertVertex(input: {
-    ref: Ref<T>;
+    ref: VertexRef<T>;
     id: ID;
     dependsOnWork: readonly ID[];
     dependsOnSubgraphCompletion?: readonly ID[];
     depth: number;
   }): void;
-  setRoot(ref: Ref<T> | null): void;
-  setStatus(ref: Ref<T>, status: GraphVertexStatus): void;
-  resetTraversal(ref: Ref<T>): void;
-  prepareSlots(ref: Ref<T>, hints: readonly T['VertexHint'][]): void;
+  setRoot(ref: VertexRef<T> | null): void;
+  setStatus(ref: VertexRef<T>, status: ResolvedVertexStatus): void;
+  resetTraversal(ref: VertexRef<T>): void;
+  prepareSlots(ref: VertexRef<T>, hints: readonly T['VertexHint'][]): void;
   linkSlot(
-    parent: Ref<T>,
+    parent: VertexRef<T>,
     index: number,
-    child: Ref<T>,
+    child: VertexRef<T>,
     legacyTopologyAlreadyLinked?: boolean,
   ): void;
   closeSlot(
-    parent: Ref<T>,
+    parent: VertexRef<T>,
     index: number,
     reason: 'omitted' | 'deleted' | 'disabled',
     omittedIdentity?: HintVertexId<ID>,
   ): void;
   markOmitted(id: ID): void;
   markDeleted(id: ID): void;
-  removeVertices(refs: ReadonlySet<Ref<T>>): void;
-  getTreeRecord(ref: Ref<T>): VertexResolved<T> | null;
-  setTreeRecord(ref: Ref<T>, record: VertexResolved<T>): void;
+  removeVertices(refs: ReadonlySet<VertexRef<T>>): void;
+  getTreeRecord(ref: VertexRef<T>): TreeVertexRecord<T> | null;
+  setTreeRecord(ref: VertexRef<T>, record: TreeVertexRecord<T>): void;
 }

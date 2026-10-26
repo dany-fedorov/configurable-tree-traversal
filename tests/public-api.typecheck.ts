@@ -18,9 +18,9 @@ import {
   type AsyncCoreExecution,
   type ChildSlot,
   type CoreInspection,
-  type GraphEdge,
-  type GraphVertex,
-  type GraphVertexStatus,
+  type StructuralChildEdge,
+  type ResolvedGraphVertex,
+  type ResolvedVertexStatus,
   type HintVertexId,
   type KernelInspection,
   type MaybePromise,
@@ -33,15 +33,15 @@ import {
 } from '../src';
 import type {
   ChildSlot as CoreChildSlot,
-  GraphEdge as CoreGraphEdge,
-  GraphVertex as CoreGraphVertex,
-  GraphVertexStatus as CoreGraphVertexStatus,
+  StructuralChildEdge as CoreGraphEdge,
+  ResolvedGraphVertex as CoreGraphVertex,
+  ResolvedVertexStatus as CoreGraphVertexStatus,
   HintVertexId as CoreHintVertexId,
   MaybePromise as CoreMaybePromise,
   VertexId as CoreVertexId,
 } from '../src/core';
 import {
-  hasSingleSink as hasSingleSinkFromDagSubpath,
+  hasSingleStructuralSink as hasSingleSinkFromDagSubpath,
   traverseDagAsync as traverseDagAsyncFromDagSubpath,
 } from '../src/traversals/dag-traversal';
 
@@ -87,9 +87,9 @@ const convenienceRunner = traverseTreeDepthFirst(tree, {
   },
 });
 const convenienceData: string = convenienceRunner
-  .getResolvedTree()
+  .getResolvedTreeStore()
   .getRoot()!
-  .unref()
+  .getValue()
   .getData();
 
 const objectTree = new ObjectTreeSource({ answer: 42 });
@@ -128,10 +128,10 @@ const publicTypes: [
   VertexId,
   HintVertexId,
   MaybePromise<string>,
-  GraphVertexStatus,
-  GraphEdge<Tree> | null,
+  ResolvedVertexStatus,
+  StructuralChildEdge<Tree> | null,
   ChildSlot<Tree> | null,
-  GraphVertex<Tree> | null,
+  ResolvedGraphVertex<Tree> | null,
   CoreVertexId,
   CoreHintVertexId,
   CoreMaybePromise<string>,
@@ -200,9 +200,10 @@ canonicalVertex.clone({ $data: 'changed', $childHints: [] });
 canonicalVertex.clone({ $d: 'changed', $c: [] });
 const cloneFromVertex: Vertex<Tree> = canonicalVertex.clone(copiedVertex);
 void cloneFromVertex;
-const optionalDataVertex = new Vertex<
-  VertexTypes<string | undefined, string>
->({ $data: 'root', $childHints: [] });
+const optionalDataVertex = new Vertex<VertexTypes<string | undefined, string>>({
+  $data: 'root',
+  $childHints: [],
+});
 optionalDataVertex.clone({ $data: undefined });
 // @ts-expect-error Clone updates cannot mix canonical data and legacy hints.
 canonicalVertex.clone({ $data: 'changed', $c: [] });

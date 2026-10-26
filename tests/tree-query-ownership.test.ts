@@ -1,5 +1,5 @@
 import {
-  CTTRef,
+  MutableRef,
   AsyncDepthFirstTreeTraversal,
   AsyncBreadthFirstTreeTraversal,
   BreadthFirstTreeTraversal,
@@ -17,7 +17,9 @@ type T = VertexTypes<Data, Hint>;
 const hint = { label: 'child' };
 const rootData = { label: 'root', nested: { count: 1 } };
 const source = {
-  resolveRoot: () => ({ vertexContent: { $data: rootData, $childHints: [hint] } }),
+  resolveRoot: () => ({
+    vertexContent: { $data: rootData, $childHints: [hint] },
+  }),
   resolveChild: (child: Hint) => ({
     vertexContent: {
       $data: { label: child.label, nested: { count: 1 } },
@@ -31,7 +33,7 @@ test('mutating child query arrays cannot corrupt forward/reverse topology or pat
     traversableTree: source,
   }).createRunner();
   runner.run();
-  const tree = runner.getResolvedTree();
+  const tree = runner.getResolvedTreeStore();
   const root = tree.getRoot()!;
   const child = tree.getChildrenOf(root)![0]!;
   const children = tree.getChildrenOf(root)!;
@@ -49,14 +51,14 @@ test('mutating query contexts cannot reparent a child or overwrite discovery met
     traversableTree: source,
   }).createRunner();
   runner.run();
-  const tree = runner.getResolvedTree();
+  const tree = runner.getResolvedTreeStore();
   const root = tree.getRoot()!;
   const child = tree.getChildrenOf(root)![0]!;
   const context = tree.getResolutionContextOf(child)!;
-  const unknown = new CTTRef(
+  const unknown = new MutableRef(
     new Vertex<T>({ $data: rootData, $childHints: [] }),
   );
-  expect(context.parentVertex).toBe(root.unref());
+  expect(context.parentVertex).toBe(root.getValue());
   expect(context.vertexHint).toBe(hint);
   context.parentVertexRef = unknown;
   context.depth = 99;
@@ -64,7 +66,7 @@ test('mutating query contexts cannot reparent a child or overwrite discovery met
   context.vertexHint = { label: 'foreign' };
 
   expect(tree.getResolutionContextOf(child)).toEqual({
-    parentVertex: root.unref(),
+    parentVertex: root.getValue(),
     parentVertexRef: root,
     depth: 1,
     hintIndex: 0,
@@ -95,19 +97,19 @@ for (const Constructor of [
     expect(view.getParentOf(child)).toBe(root);
     expect(view.getPathTo(child)).toEqual([root, child]);
     expect(view.getPathTo(child, { noRoot: true, noSelf: true })).toEqual([]);
-    expect(root.unref().getData()).toBe(rootData);
+    expect(root.getValue().getData()).toBe(rootData);
     const context = view.getResolutionContextOf(child)!;
-    expect(context.parentVertex).toBe(root.unref());
+    expect(context.parentVertex).toBe(root.getValue());
     expect(context.vertexHint).toBe(hint);
-    (view.getChildrenOf(root)! as CTTRef<Vertex<T>>[]).length = 0;
-    (view.getPathTo(child) as CTTRef<Vertex<T>>[]).length = 0;
+    (view.getChildrenOf(root)! as MutableRef<Vertex<T>>[]).length = 0;
+    (view.getPathTo(child) as MutableRef<Vertex<T>>[]).length = 0;
     (context as VertexResolutionContext<T>).parentVertexRef = child;
     expect(view.getChildrenOf(root)).toEqual([child]);
     expect(view.getParentOf(child)).toBe(root);
     expect(view.getPathTo(child)).toEqual([root, child]);
     expect(view.getResolutionContextOf(child)!.parentVertexRef).toBe(root);
     expect(view.getResolutionContextOf(root)).toBeNull();
-    const unknown = new CTTRef(
+    const unknown = new MutableRef(
       new Vertex<T>({ $data: rootData, $childHints: [] }),
     );
     expect(view.has(unknown)).toBe(false);
@@ -150,20 +152,20 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
 test('safe queries preserve saved topology while explicit active edits stay live', () => {
   const runner = new DepthFirstTreeTraversal<T>({
     traversableTree: source,
-    saveNotMutatedResolvedTree: true,
+    retainOriginalTreeStructure: true,
   })
     .createRunner()
     .run();
-  const tree = runner.getResolvedTree();
+  const tree = runner.getResolvedTreeStore();
   const view = tree.asReadOnly();
-  const saved = runner.resolvedTreesContainer.notMutatedResolvedTree!;
+  const saved = runner.resolvedTreesContainer.originalTreeView!;
   const savedView = saved.asReadOnly();
   const root = view.getRoot()!;
   const child = view.getChildrenOf(root)![0]!;
   const savedRoot = savedView.getRoot()!;
   const savedChild = savedView.getChildrenOf(savedRoot)![0]!;
   expect(savedRoot).not.toBe(root);
-  expect(savedRoot.unref().getData()).toBe(rootData);
+  expect(savedRoot.getValue().getData()).toBe(rootData);
   expect(savedView.getResolutionContextOf(savedChild)!.vertexHint).toBe(hint);
   saved.getChildrenOf(savedRoot)!.length = 0;
   saved.getResolutionContextOf(savedChild)!.parentVertexRef = child;

@@ -12,7 +12,7 @@ const main = () => {
     g: [{ g1: 123, g11: { g22: [1, 2, 3, 4, 3, 2, 1] } }],
   };
   console.log(jsonStringifySafe(host, 8));
-  const { outputObject } = rewriteObject(host, {
+  const { outputAtReturn } = rewriteObject(host, {
     assembleCompositesBeforeRewrite: true,
     rewrite: ({ key, value }, options) => {
       const depth =
@@ -20,7 +20,7 @@ const main = () => {
           ?.depth ?? 0;
       console.log(
         depth,
-        // p.map((ps) => ps.unref().getData().key),
+        // p.map((ps) => ps.getValue().getData().key),
         options.getKeyPath({ noRoot: true }),
         // '=====>',
         // value,
@@ -46,7 +46,7 @@ const main = () => {
       return;
     },
   });
-  console.log(jsonStringifySafe(outputObject, 8));
+  console.log(jsonStringifySafe(outputAtReturn, 8));
 };
 
 main();

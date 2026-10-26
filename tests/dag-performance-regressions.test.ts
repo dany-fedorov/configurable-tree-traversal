@@ -1,9 +1,9 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
-import type { Ref } from '../src/core/graph/types';
+import type { VertexRef } from '../src/core/graph/types';
 import type { TestGraph } from './helpers/graph-fixtures';
 import {
   AsyncDagTraversal,
@@ -24,20 +24,20 @@ function setup() {
     vertexId: 'root',
     vertexContent: { $d: 'root', $c: ['a', 'duplicate', 'omit', 'deleted'] },
   })!;
-  const context = (index: number, parent: Ref<TestGraph> = root) => ({
+  const context = (index: number, parent: VertexRef<TestGraph> = root) => ({
     parentVertexRef: parent,
-    parentVertex: parent.unref(),
+    parentVertex: parent.getValue(),
     depth: 1,
     hintIndex: index,
-    vertexHint: parent.unref().getChildrenHints()[index]!,
+    vertexHint: parent.getValue().getChildrenHints()[index]!,
   });
   return { container, scheduling, root, context };
 }
 
 test('narrow graph reads detach records and preserve depth, ID and declaration identity', () => {
   const store = new GraphStore<TestGraph>('dag');
-  const root = new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: ['a'] }));
-  const child = new CTTRef(new Vertex<TestGraph>({ $d: 'a', $c: [] }));
+  const root = new MutableRef(new Vertex<TestGraph>({ $d: 'root', $c: ['a'] }));
+  const child = new MutableRef(new Vertex<TestGraph>({ $d: 'a', $c: [] }));
   const dependency = {};
   store.insertVertex({
     ref: root,
@@ -82,7 +82,7 @@ test('narrow graph reads detach records and preserve depth, ID and declaration i
 test('discovery accounting survives duplicates, omissions, deleted arrivals and reconstruction', () => {
   const { container, scheduling, root, context } = setup();
   expect(scheduling.isDiscoveryComplete()).toBe(false);
-  scheduling.prepareSlots(root, root.unref().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
   const a = scheduling.acceptVertex(context(0), {
     vertexId: 'a',
     dependsOnWork: [],
@@ -138,11 +138,11 @@ test('reconstructed unprepared discovery stays open until its resumed expansion 
 
 test('topology validation is reused through progress but invalidated by later declarations and deletion', () => {
   const { container, scheduling, root, context } = setup();
-  scheduling.prepareSlots(root, root.unref().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
   scheduling.validateDiscoveredGraph();
   expect(scheduling.diagnoseTopology([root])).toBeNull();
   scheduling.markPreVisited(root);
-  root.setPointsTo(root.unref().clone({ $d: 'rewritten' }));
+  root.setValue(root.getValue().clone({ $d: 'rewritten' }));
   expect(scheduling.diagnoseTopology([root])).toBeNull();
   const bad = scheduling.acceptVertex(context(0), {
     vertexId: 'bad',
@@ -160,7 +160,9 @@ test('topology validation is reused through progress but invalidated by later de
   scheduling.validateDiscoveredGraph();
   expect(scheduling.diagnoseTopology([root, bad])).toBeNull();
   scheduling.deleteVertex(bad);
-  expect(scheduling.diagnoseTopology([root])!.dependencyCycleComponents).toEqual([]);
+  expect(
+    scheduling.diagnoseTopology([root])!.dependencyCycleComponents,
+  ).toEqual([]);
   scheduling.validateDiscoveredGraph();
   container.store.markOmitted('unused');
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
@@ -171,9 +173,9 @@ test('topology reads do not certify validation and structural edits invalidate s
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
   scheduling.validateDiscoveredGraph();
-  scheduling.prepareSlots(root, root.unref().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
-  const child = new CTTRef(new Vertex<TestGraph>({ $d: 'child', $c: [] }));
+  const child = new MutableRef(new Vertex<TestGraph>({ $d: 'child', $c: [] }));
   container.acceptVertex(child, 'child', [], context(0));
   scheduling.validateDiscoveredGraph();
   container.acceptEdge(root, 0, child);

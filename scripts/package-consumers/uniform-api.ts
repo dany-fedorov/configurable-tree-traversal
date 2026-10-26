@@ -176,7 +176,9 @@ traverseDag({
   traversableGraph: graph,
   visitors: {
     // @ts-expect-error helper phase prevents completion deferral
-    [D.ON_SUBGRAPH_READY]: () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
+    [D.ON_SUBGRAPH_READY]: () => ({
+      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+    }),
   },
 });
 const asyncDag = new AsyncDagTraversal({ traversableGraph: graph });
@@ -209,13 +211,10 @@ import type {
   ResolvedTreeView,
   ObjectVertexHookResult,
   TraversableObjectTTP,
-  MakeMutationCommandFunction,
-  TO_MutationPropertyPatch,
+  MutationCommandBuilder,
+  ObjectMutationPatch,
 } from 'configurable-tree-traversal';
-import {
-  ObjectTreeSource,
-  rewriteObject,
-} from 'configurable-tree-traversal';
+import { ObjectTreeSource, rewriteObject } from 'configurable-tree-traversal';
 const treeFound: TreeVertexFound<T> = {
   kind: 'found',
   vertex: { vertexContent: canonical },
@@ -291,16 +290,10 @@ if (vertexRef) {
 const hookResult: ObjectVertexHookResult<TraversableObjectTTP<string, number>> =
   { kind: 'useDefault' };
 new ObjectTreeSource({ a: 1 }, { resolveVertexHook: () => hookResult });
-new ObjectTreeSource(
-  { a: 1 },
-  { makeVertexHook: () => ({ returnMe: null }) },
-);
+new ObjectTreeSource({ a: 1 }, { makeVertexHook: () => ({ returnMe: null }) });
 type Prop = TraversableObjectTTP<string, number | undefined>;
-const objectPatch: TO_MutationPropertyPatch<Prop> = { value: undefined };
-const objectFactory = ObjectTreeSource.makeMutationCommandFactory<
-  Prop,
-  Prop
->();
+const objectPatch: ObjectMutationPatch<Prop> = { value: undefined };
+const objectFactory = ObjectTreeSource.createObjectMutationBinder<Prop, Prop>();
 const objectVisitor: TraversalVisitor<F.POST_ORDER, Prop, Prop> = (
   v,
   options,
@@ -311,11 +304,11 @@ const objectVisitor: TraversalVisitor<F.POST_ORDER, Prop, Prop> = (
   // @ts-expect-error typed object helper rejects wrong value types
   makeMutationCommand({ rewrite: { value: 'wrong' } });
 };
-declare const replace: MakeMutationCommandFunction<Prop>;
+declare const replace: MutationCommandBuilder<Prop>;
 replace({ rewrite: { key: 'new', value: 1 } });
 // @ts-expect-error generic builder requires complete data by default
 replace({ rewrite: { key: 'incomplete' } });
-rewriteObject.rewriteObject(
+rewriteObject(
   { a: 1 },
   { resolveVertexHook: () => ({ kind: 'useDefault' }) },
 );

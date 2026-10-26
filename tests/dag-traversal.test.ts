@@ -40,9 +40,9 @@ test('visits a shared join once after both prerequisites', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   }).createRunner();
-  const values = [...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] })].map(
-    ({ vertex }) => vertex.getData(),
-  );
+  const values = [
+    ...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] }),
+  ].map(({ vertex }) => vertex.getData());
   expect(values).toEqual(['root', 'A', 'B', 'join']);
   const graph = runner.getResolvedGraph();
   const join = graph.getVertexById('join')!;
@@ -73,7 +73,9 @@ test('distinguishes graph root from the retained traversal root', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   }).createRunner();
-  const events = [...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] })];
+  const events = [
+    ...runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] }),
+  ];
   expect(events.map(({ isGraphRoot }) => isGraphRoot)).toEqual([
     true,
     false,
@@ -188,7 +190,7 @@ test('omission satisfies dependents without retaining the omitted vertex', () =>
 
   expect(runner.getResolvedGraph().getVertexById('missing')).toBeNull();
   expect(
-    runner.getResolvedGraph().getVertexById('dependent')!.unref().getData(),
+    runner.getResolvedGraph().getVertexById('dependent')!.getValue().getData(),
   ).toBe('dependent');
 });
 
@@ -225,7 +227,9 @@ test('applies rewrite, disable, and delete commands with tombstones', () => {
   const runner = traversal.createRunner().run();
   const graph = runner.getResolvedGraph();
 
-  expect(graph.getVertexById('rewrite')!.unref().getData()).toBe('rewritten');
+  expect(graph.getVertexById('rewrite')!.getValue().getData()).toBe(
+    'rewritten',
+  );
   expect(graph.getVertexById('hidden')).toBeNull();
   expect(graph.getVertexById('deleted')).toBeNull();
   expect(graph.getVertexById('late')).toBeNull();
@@ -270,7 +274,9 @@ test('rewrites hints at ON_WORK_READY and rejects the same command at ON_SUBGRAP
         ],
       } as never),
   );
-  expect(() => invalid.createRunner().run()).toThrow(/only.*ON_WORK_READY|pre-order/i);
+  expect(() => invalid.createRunner().run()).toThrow(
+    /only.*ON_WORK_READY|pre-order/i,
+  );
 });
 
 test('captures a structural graph snapshot before rewrite and delete', () => {
@@ -279,7 +285,7 @@ test('captures a structural graph snapshot before rewrite and delete', () => {
       root: { id: 'root', children: ['child'] },
       child: { id: 'child', children: [] },
     }),
-    saveNotMutatedResolvedGraph: true,
+    retainOriginalGraphStructure: true,
   });
   traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'child'
@@ -295,11 +301,11 @@ test('captures a structural graph snapshot before rewrite and delete', () => {
       : undefined,
   );
   const runner = traversal.createRunner().run();
-  const snapshot = runner.notMutatedResolvedGraph;
+  const snapshot = runner.originalGraphView;
 
   expect(runner.getResolvedGraph().getVertexById('child')).toBeNull();
   const child = snapshot!.getVertexById('child')!;
-  expect(child.unref().getData()).toBe('child');
+  expect(child.getValue().getData()).toBe('child');
   expect(snapshot!.getParentsOf(child)).toHaveLength(1);
   expect('getStatusOf' in snapshot!).toBe(false);
 });
@@ -449,7 +455,7 @@ test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
       vertex.getData(),
       options.phaseVisitIndex,
       options.visitorIndex,
-      options.previousPhaseVertexRef?.unref().getData() ?? null,
+      options.previousPhaseVertexRef?.getValue().getData() ?? null,
       options.visitorChainState,
     ]);
   });

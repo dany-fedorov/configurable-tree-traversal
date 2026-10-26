@@ -353,7 +353,7 @@ for (const lookupSource of [false, true]) {
         runner
           .getResolvedGraph()
           .getVertexRefs()
-          .map((ref) => ref.unref().getData()),
+          .map((ref) => ref.getValue().getData()),
       ).toEqual(['root']);
       expect(runner.summary().counts.subgraphCompleted).toBe(1);
     });
@@ -394,7 +394,11 @@ for (const omittedFirst of [false, true]) {
     } else {
       await running;
       expect(
-        runner.getResolvedGraph().getVertexById('external')!.unref().getData(),
+        runner
+          .getResolvedGraph()
+          .getVertexById('external')!
+          .getValue()
+          .getData(),
       ).toBe('ordinary');
       expect(runner.summary().counts.subgraphCompleted).toBe(3);
     }

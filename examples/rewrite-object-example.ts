@@ -1,7 +1,7 @@
 import { rewriteObject } from '../src/tools/rewrite-object/rewriteObject';
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
 import type { TraversableObjectProp } from '../src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectProp';
-import type { MakeMutationCommandFunctionInput } from '../src/core/MakeMutationCommandFunctionFactory';
+import type { MutationRequest } from '../src/core/MakeMutationCommandFunctionFactory';
 import type { TraversableObjectPropKey } from '../src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectPropKey';
 import type { TraversableObject } from '../src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObject';
 
@@ -41,7 +41,7 @@ const result = rewriteObject(obj, {
       '; value:',
       jsonStringifySafe(value),
     );
-    const rewriteCmd: MakeMutationCommandFunctionInput<
+    const rewriteCmd: MutationRequest<
       Partial<
         TraversableObjectProp<
           TraversableObjectPropKey,

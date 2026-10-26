@@ -7,7 +7,7 @@ export type DepthFirstTraversalRunnerInstanceConfig<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
-  saveNotMutatedResolvedTree: boolean;
+  retainOriginalTreeStructure: boolean;
   visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
   internalObjects: {
     state: DepthFirstTraversalRunnerState<TTP, RW_TTP>;

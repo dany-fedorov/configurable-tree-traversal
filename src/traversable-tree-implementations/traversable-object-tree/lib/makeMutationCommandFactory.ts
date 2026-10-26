@@ -1,18 +1,18 @@
 import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 import type { TraversalVisitor } from '@core/TraversalVisitor';
-import type { TO_IsCompositeAssertionsMixin } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
-import type { CTTRef } from '@core/CTTRef';
+import type { ObjectCompositeClassification } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
+import type { MutableRef } from '@core/CTTRef';
 import type { Vertex } from '@core/Vertex';
 import type {
-  MakeMutationCommandFunction,
-  MakeMutationCommandFunctionInput,
-  MakeMutationCommandFunctionResult,
+  MutationCommandBuilder,
+  MutationRequest,
+  MutationCommand,
 } from '@core/MakeMutationCommandFunctionFactory';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
-export type TO_MakeMutationCommandFunctionFactoryConfiguration<
+export type ObjectMutationOptions<
   IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
 > = {
@@ -24,7 +24,7 @@ export type TO_MakeMutationCommandFunctionFactoryConfiguration<
     visitorArguments: Parameters<
       TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
     >,
-    isCompositeAssertions: TO_IsCompositeAssertionsMixin,
+    isCompositeAssertions: ObjectCompositeClassification,
   ) => OUT_TO_TTP['VertexData']['value'];
   assembleObject?: (
     processedChildren: OUT_TO_TTP['VertexData'][],
@@ -32,58 +32,52 @@ export type TO_MakeMutationCommandFunctionFactoryConfiguration<
     visitorArguments: Parameters<
       TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
     >,
-    isCompositeAssertions: TO_IsCompositeAssertionsMixin,
+    isCompositeAssertions: ObjectCompositeClassification,
   ) => OUT_TO_TTP['VertexData']['value'];
   assembledMap?: Map<
-    CTTRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
+    MutableRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
     OUT_TO_TTP['VertexData']['value']
   >;
 };
 
 /** Object helpers merge only the supplied output property fields. */
-export type TO_MutationPropertyPatch<
+export type ObjectMutationPatch<
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
 > = Partial<OUT_TO_TTP['VertexData']>;
 
-export type TO_MakeMutationCommandFactoryResult<
+export type ObjectMutationCommands<
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-> = TO_IsCompositeAssertionsMixin & {
-  makeMutationCommand: MakeMutationCommandFunction<
+> = ObjectCompositeClassification & {
+  makeMutationCommand: MutationCommandBuilder<
     OUT_TO_TTP,
-    TO_MutationPropertyPatch<OUT_TO_TTP>
+    ObjectMutationPatch<OUT_TO_TTP>
   >;
   assembleComposite: (saveToMap?: boolean) => OUT_TO_TTP['VertexData']['value'];
 };
 
-export type TO_MakeMutationCommandFunctionFactory_2<
+export type ObjectMutationBinder<
   IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
 > = (
   ...visitorArguments: Parameters<
     TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
   >
-) => TO_MakeMutationCommandFactoryResult<OUT_TO_TTP>;
+) => ObjectMutationCommands<OUT_TO_TTP>;
 
-export type TO_MakeMutationCommandFunctionFactory = <
+export type ObjectMutationBinderFactory = <
   IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
   OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
 >(
-  input_0?: TO_MakeMutationCommandFunctionFactoryConfiguration<
-    IN_TO_TTP,
-    OUT_TO_TTP
-  >,
-) => TO_MakeMutationCommandFunctionFactory_2<IN_TO_TTP, OUT_TO_TTP>;
+  options?: ObjectMutationOptions<IN_TO_TTP, OUT_TO_TTP>,
+) => ObjectMutationBinder<IN_TO_TTP, OUT_TO_TTP>;
 
-export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
-  function TraversableObjectTree_makeMutationCommandFactory_0<
+export const createObjectMutationBinder: ObjectMutationBinderFactory =
+  function configureObjectMutation<
     IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
     OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
   >(
-    input_0?: TO_MakeMutationCommandFunctionFactoryConfiguration<
-      IN_TO_TTP,
-      OUT_TO_TTP
-    >,
-  ): TO_MakeMutationCommandFunctionFactory_2<IN_TO_TTP, OUT_TO_TTP> {
+    options?: ObjectMutationOptions<IN_TO_TTP, OUT_TO_TTP>,
+  ): ObjectMutationBinder<IN_TO_TTP, OUT_TO_TTP> {
     const {
       isObject,
       isArray,
@@ -91,16 +85,16 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
       assembleArray,
       assembledMap: assembledMapInput,
     } = {
-      ...MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT,
-      ...input_0,
+      ...OBJECT_MUTATION_DEFAULTS,
+      ...options,
     };
     const assembledMap = assembledMapInput ?? new Map();
 
-    return function TraversableObjectTree_makeMutationCommandFactory_1(
+    return function bindObjectMutation(
       ...visitorArguments: Parameters<
         TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
       >
-    ): TO_MakeMutationCommandFactoryResult<OUT_TO_TTP> {
+    ): ObjectMutationCommands<OUT_TO_TTP> {
       const [vertex, options] = visitorArguments;
       const vertexData = vertex.getData();
       const { resolvedTree, vertexRef } = options;
@@ -110,10 +104,10 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
       const isThisComposite = isThisAnArray || isThisAnObject;
 
       function TraversableObjectTree_getChildrenObjectPropertiesOf(
-        vertexRef: CTTRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
+        vertexRef: MutableRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
       ): OUT_TO_TTP['VertexData'][] {
         return (resolvedTree.getChildrenOf(vertexRef) ?? []).map((ch) =>
-          ch.unref().getData(),
+          ch.getValue().getData(),
         );
       }
 
@@ -157,19 +151,17 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
         }
       }
 
-      function TraversableObjectTree_makeMutationCommand_2(
-        input_2?: MakeMutationCommandFunctionInput<
-          TO_MutationPropertyPatch<OUT_TO_TTP>
-        >,
-      ): MakeMutationCommandFunctionResult<OUT_TO_TTP> {
-        const inputOk = input_2 && typeof input_2 === 'object';
+      function buildMutationCommand(
+        request?: MutationRequest<ObjectMutationPatch<OUT_TO_TTP>>,
+      ): MutationCommand<OUT_TO_TTP> {
+        const inputOk = request && typeof request === 'object';
         const toDelete =
           inputOk &&
-          Object.prototype.hasOwnProperty.call(input_2, 'delete') &&
-          input_2?.delete === true;
+          Object.prototype.hasOwnProperty.call(request, 'delete') &&
+          request?.delete === true;
         const hasRewrite =
-          inputOk && Object.prototype.hasOwnProperty.call(input_2, 'rewrite');
-        const rewrite = hasRewrite ? input_2.rewrite : undefined;
+          inputOk && Object.prototype.hasOwnProperty.call(request, 'rewrite');
+        const rewrite = hasRewrite ? request.rewrite : undefined;
         if (hasRewrite && (rewrite === null || typeof rewrite !== 'object')) {
           throw new TypeError(
             'rewrite must be a non-null object property patch',
@@ -236,12 +228,12 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
         isArray: isThisAnArray,
         isObject: isThisAnObject,
         assembleComposite: TraversableObjectTree_assembleComposite,
-        makeMutationCommand: TraversableObjectTree_makeMutationCommand_2,
+        makeMutationCommand: buildMutationCommand,
       };
     };
   };
 
-export const MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT = {
+export const OBJECT_MUTATION_DEFAULTS = {
   isArray: (
     d: TraversableObjectProp<TraversableObjectPropKey, unknown>,
   ): boolean => Array.isArray(d.value),

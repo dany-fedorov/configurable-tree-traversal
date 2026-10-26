@@ -47,7 +47,7 @@ for (const api of [cjs, esm]) {
     resolveChild: () => ({ kind: 'omitted' }),
   };
   // Both helpers reject presence before any source/rewrite/conversion callback.
-  for (const helper of [api.rewriteObject.rewriteObject, api.rewriteObjectAs]) {
+  for (const helper of [api.rewriteObject, api.rewriteObjectAs]) {
     for (const traversableTree of [undefined, tree]) {
       let calls = 0;
       assert.throws(
@@ -75,7 +75,7 @@ for (const api of [cjs, esm]) {
   assert.equal(api.rewriteObjectAs(3).getOutput(), 3); // No schema validation.
   let paused = false;
   let conversions = 0;
-  const result = api.rewriteObject.rewriteObject(
+  const result = api.rewriteObject(
     { count: 1 },
     {
       visitors: {
@@ -98,7 +98,7 @@ for (const api of [cjs, esm]) {
       },
     },
   );
-  assert.deepEqual(result.outputObject, { value: { count: 1 } });
+  assert.deepEqual(result.outputAtReturn, { value: { count: 1 } });
   assert.throws(() => result.getOutput(), /not complete/i);
   result.traversalRunner.run();
   await exactThrow(() => result.getOutput(), undefined);
@@ -106,9 +106,9 @@ for (const api of [cjs, esm]) {
   assert.deepEqual(final, { value: { renamed: 1 } });
   assert.equal(result.getOutput(), final);
   assert.equal(conversions, 3);
-  assert.deepEqual(result.outputObject, { value: { count: 1 } });
+  assert.deepEqual(result.outputAtReturn, { value: { count: 1 } });
   const finished = api.rewriteObjectAs(null);
-  assert.equal(finished.getOutput(), finished.outputObject);
+  assert.equal(finished.getOutput(), finished.outputAtReturn);
 
   // All six builders detach arrays and wrappers, sharing closure/group identity.
   for (const [TreeTraversal, phase, graphMode] of [

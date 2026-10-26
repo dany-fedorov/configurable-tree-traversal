@@ -1,4 +1,4 @@
-import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
+import type { ResolvedGraph, OriginalGraphView } from '@core/ResolvedGraph';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type {
   DagVertexResolution,
@@ -14,7 +14,7 @@ export type DagChildResolutionContext<
 > = {
   resolutionContext: VertexResolutionContext<T | R>;
   resolvedGraph: ResolvedGraph<T | R, ID>;
-  notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
+  originalGraphView: OriginalGraphView<T, ID> | null;
 };
 
 export interface DagDiscoverySource<
@@ -36,9 +36,7 @@ export interface AsyncDagDiscoverySource<
   R extends VertexTypes = T,
   ID = unknown,
 > {
-  resolvePrerequisite?(
-    id: ID,
-  ): MaybePromise<DagPrerequisiteResolution<T, ID>>;
+  resolvePrerequisite?(id: ID): MaybePromise<DagPrerequisiteResolution<T, ID>>;
   resolveRoot(): MaybePromise<DagVertexResolution<T, ID>>;
   resolveChild(
     hint: T['VertexHint'],

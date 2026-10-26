@@ -1,6 +1,6 @@
 import { orderVisitorRecords } from './visitors/normalizeVisitorDefinitions';
 import { normalizeVisitorOptions } from './visitors/normalizeVisitorOptions';
-import type { CTTRef } from './CTTRef';
+import type { MutableRef } from './CTTRef';
 import type { Vertex } from './Vertex';
 import type { VertexTypes } from './TreeTypeParameters';
 import type {
@@ -19,7 +19,7 @@ type SynchronousVisitorChainAction<
 export type VisitorExecutionState<TTP extends VertexTypes> = {
   phaseVisitIndex: number;
   visitorIndex: number;
-  previousPhaseVertexRef: CTTRef<Vertex<TTP>> | null;
+  previousPhaseVertexRef: MutableRef<Vertex<TTP>> | null;
 };
 
 export type VisitorCommandResult = { visitorChainState?: unknown };
@@ -30,7 +30,7 @@ export function* executeVisitors<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 >(input: {
-  vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
+  vertexRef: MutableRef<Vertex<TTP | RW_TTP>>;
   records: TraversalVisitorRecord<ORDER, TTP, RW_TTP>[];
   state: VisitorExecutionState<TTP | RW_TTP>;
   getOptions: (
@@ -81,7 +81,7 @@ export function* executeVisitors<
         state.visitorIndex =
           action.metadata.visitorIndex;
         const result = record.visitor(
-          action.ref.unref(),
+          action.ref.getValue(),
           input.getOptions(record, action.metadata.visitorChainState),
         );
         chain.submit({
@@ -97,10 +97,7 @@ export function* executeVisitors<
         chain.commitBatch({
           halt: halted,
           deleted: input.isDeleted(),
-          ...(Object.prototype.hasOwnProperty.call(
-            result,
-            'visitorChainState',
-          )
+          ...(Object.prototype.hasOwnProperty.call(result, 'visitorChainState')
             ? {
                 visitorChainState: result.visitorChainState,
               }

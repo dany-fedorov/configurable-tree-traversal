@@ -21,12 +21,13 @@ export * from './ResolvedGraph';
 export * from './TraversableGraph';
 export type {
   ChildSlot,
-  GraphEdge,
-  GraphVertex,
-  GraphVertexStatus,
+  StructuralChildEdge,
+  ResolvedGraphVertex,
+  ResolvedVertexStatus,
   HintVertexId,
   MaybePromise,
   VertexId,
+  VertexRef,
 } from './graph/types';
 export * from './errors/DagTraversalStallError';
 

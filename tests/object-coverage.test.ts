@@ -1,14 +1,14 @@
 import {
-  CTTRef,
+  MutableRef,
   DepthFirstTreeTraversal,
   DepthFirstPhase,
-  ResolvedTree,
+  ResolvedTreeStore,
   TraversalVisitorCommandName,
   TraversalVisitorFunctionResolutionStyle,
   Vertex,
-  VertexResolved,
+  TreeVertexRecord,
   ObjectTreeSource,
-  rewriteObject as rewriteObjectApi,
+  objectRewrite as rewriteObjectApi,
   type TraversableObjectTTP,
   type TreeVisitorContext,
 } from '../src';
@@ -22,7 +22,7 @@ describe('rewrite object option integration', () => {
     const assembled = new Map();
     const leafPaths: PropertyKey[][] = [];
 
-    const { outputObject } = rewriteObject(
+    const { outputAtReturn } = rewriteObject(
       { nested: [1] },
       {
         assembledMap: assembled,
@@ -37,7 +37,7 @@ describe('rewrite object option integration', () => {
       },
     );
 
-    expect(outputObject).toEqual({ nested: [2] });
+    expect(outputAtReturn).toEqual({ nested: [2] });
     expect(leafPaths).toEqual([['nested', 0]]);
     expect([...assembled.values()]).toEqual([[2], { nested: [2] }]);
   });
@@ -45,12 +45,12 @@ describe('rewrite object option integration', () => {
   test('custom isArray classification reconstructs a numeric-key object as an array', () => {
     const input = { 0: 1, 1: 2 };
 
-    const { outputObject } = rewriteObject(input, {
+    const { outputAtReturn } = rewriteObject(input, {
       isArray: ({ value }) => value === input,
     });
 
-    expect(Array.isArray(outputObject)).toBe(true);
-    expect(outputObject).toEqual([1, 2]);
+    expect(Array.isArray(outputAtReturn)).toBe(true);
+    expect(outputAtReturn).toEqual([1, 2]);
     expect(Array.isArray(input)).toBe(false);
   });
 
@@ -60,7 +60,7 @@ describe('rewrite object option integration', () => {
     rewriteObject(
       { a: 1, b: 2, c: 3 },
       {
-        inOrderTraversalConfig: { visitParentAfterChildren: 2 },
+        inOrder: { afterChildIndices: 2 },
         visitors: {
           [DepthFirstPhase.IN_ORDER]: [
             {
@@ -251,16 +251,16 @@ describe('object identity bookkeeping', () => {
     const originalBranch: Record<string, unknown> = {};
     originalBranch['self'] = originalBranch;
     const rootVertex = makeObjectVertex('global', { branch: originalBranch });
-    const rootRef = new CTTRef(rootVertex);
+    const rootRef = new MutableRef(rootVertex);
     const parentVertex = makeObjectVertex('branch', { replacement: true });
-    const parentRef = new CTTRef(parentVertex);
-    const resolvedTree = new ResolvedTree<ObjectTree>();
+    const parentRef = new MutableRef(parentVertex);
+    const resolvedTree = new ResolvedTreeStore<ObjectTree>();
     resolvedTree.setRoot(rootRef);
     resolvedTree.set(
       rootRef,
-      new VertexResolved({
-        $d: { resolutionContext: null },
-        $c: [parentRef],
+      new TreeVertexRecord({
+        metadata: { resolutionContext: null },
+        children: [parentRef],
       }),
     );
     const parentContext = {
@@ -272,9 +272,9 @@ describe('object identity bookkeeping', () => {
     };
     resolvedTree.set(
       parentRef,
-      new VertexResolved({
-        $d: { resolutionContext: parentContext },
-        $c: [],
+      new TreeVertexRecord({
+        metadata: { resolutionContext: parentContext },
+        children: [],
       }),
     );
     const childHint = { key: 'self', value: originalBranch };
@@ -287,7 +287,7 @@ describe('object identity bookkeeping', () => {
     expect(() =>
       adapter.resolveChild(childHint, {
         resolvedTree,
-        notMutatedResolvedTree: null,
+        originalTreeView: null,
         resolutionContext: {
           depth: 2,
           hintIndex: 0,
@@ -301,24 +301,24 @@ describe('object identity bookkeeping', () => {
 
   test('formats a detached null-context traversal root from its vertex data', () => {
     const globalRoot = makeObjectVertex('global', {});
-    const globalRootRef = new CTTRef(globalRoot);
+    const globalRootRef = new MutableRef(globalRoot);
     const detachedValue = {};
     const detachedVertex = makeObjectVertex('detached', detachedValue);
-    const detachedRef = new CTTRef(detachedVertex);
-    const resolvedTree = new ResolvedTree<ObjectTree>();
+    const detachedRef = new MutableRef(detachedVertex);
+    const resolvedTree = new ResolvedTreeStore<ObjectTree>();
     resolvedTree.setRoot(globalRootRef);
     resolvedTree.set(
       globalRootRef,
-      new VertexResolved({
-        $d: { resolutionContext: null },
-        $c: [],
+      new TreeVertexRecord({
+        metadata: { resolutionContext: null },
+        children: [],
       }),
     );
     resolvedTree.set(
       detachedRef,
-      new VertexResolved({
-        $d: { resolutionContext: null },
-        $c: [],
+      new TreeVertexRecord({
+        metadata: { resolutionContext: null },
+        children: [],
       }),
     );
     const childHint = { key: 'child', value: detachedValue };
@@ -331,7 +331,7 @@ describe('object identity bookkeeping', () => {
     expect(() =>
       adapter.resolveChild(childHint, {
         resolvedTree,
-        notMutatedResolvedTree: null,
+        originalTreeView: null,
         resolutionContext: {
           depth: 1,
           hintIndex: 0,
@@ -386,31 +386,28 @@ describe('public mutation command factory', () => {
       $d: { key: 'root', value },
       $c: [],
     });
-    const vertexRef = new CTTRef(vertex);
-    const resolvedTree = new ResolvedTree<ObjectTree>();
+    const vertexRef = new MutableRef(vertex);
+    const resolvedTree = new ResolvedTreeStore<ObjectTree>();
     const registration = {
       addedIndex: 0,
       priority: 100,
       resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
       visitor: () => undefined,
     };
-    const options: TreeVisitorContext<
-      DepthFirstPhase,
-      ObjectTree,
-      ObjectTree
-    > = {
-      resolvedTree,
-      notMutatedResolvedTree: null,
-      phaseVisitIndex: 0,
-      visitorIndex: 0,
-      previousPhaseVertexRef: null,
-      isTreeRoot: true,
-      isTraversalRoot: true,
-      vertexRef,
-      visitorChainState: null,
-      registration,
-      phase: DepthFirstPhase.POST_ORDER,
-    };
+    const options: TreeVisitorContext<DepthFirstPhase, ObjectTree, ObjectTree> =
+      {
+        resolvedTree,
+        originalTreeView: null,
+        phaseVisitIndex: 0,
+        visitorIndex: 0,
+        previousPhaseVertexRef: null,
+        isTreeRoot: true,
+        isTraversalRoot: true,
+        vertexRef,
+        visitorChainState: null,
+        registration,
+        phase: DepthFirstPhase.POST_ORDER,
+      };
     return { vertex, options };
   };
 
@@ -420,7 +417,7 @@ describe('public mutation command factory', () => {
       const { vertex, options } = makeArguments({ child: 1 });
       const assembledMap = new Map();
       let assemblyCount = 0;
-      const mutation = ObjectTreeSource.makeMutationCommandFactory<
+      const mutation = ObjectTreeSource.createObjectMutationBinder<
         ObjectTree,
         ObjectTree
       >({
@@ -454,10 +451,7 @@ describe('public mutation command factory', () => {
       let assemblyCount = 0;
       let reads = 0;
       const { makeMutationCommand } =
-        ObjectTreeSource.makeMutationCommandFactory<
-          ObjectTree,
-          ObjectTree
-        >({
+        ObjectTreeSource.createObjectMutationBinder<ObjectTree, ObjectTree>({
           assembledMap,
           assembleObject: () => {
             assemblyCount += 1;
@@ -510,10 +504,7 @@ describe('public mutation command factory', () => {
       let assemblyCount = 0;
       let reads = 0;
       const { makeMutationCommand } =
-        ObjectTreeSource.makeMutationCommandFactory<
-          ObjectTree,
-          ObjectTree
-        >({
+        ObjectTreeSource.createObjectMutationBinder<ObjectTree, ObjectTree>({
           assembledMap,
           assembleObject: () => {
             assemblyCount += 1;
@@ -546,10 +537,7 @@ describe('public mutation command factory', () => {
       let assemblyCount = 0;
       let reads = 0;
       const { makeMutationCommand } =
-        ObjectTreeSource.makeMutationCommandFactory<
-          ObjectTree,
-          ObjectTree
-        >({
+        ObjectTreeSource.createObjectMutationBinder<ObjectTree, ObjectTree>({
           assembledMap,
           assembleObject: () => {
             assemblyCount += 1;
@@ -578,11 +566,10 @@ describe('public mutation command factory', () => {
 
   test('honors own undefined values and key-only patches on primitives', () => {
     const { vertex, options } = makeArguments(1);
-    const { makeMutationCommand } =
-      ObjectTreeSource.makeMutationCommandFactory<
-        ObjectTree,
-        ObjectTree
-      >()(vertex, options);
+    const { makeMutationCommand } = ObjectTreeSource.createObjectMutationBinder<
+      ObjectTree,
+      ObjectTree
+    >()(vertex, options);
     expect(makeMutationCommand({ rewrite: { value: undefined } })).toEqual({
       commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
       commandArguments: { newData: { key: 'root', value: undefined } },
@@ -606,13 +593,10 @@ describe('public mutation command factory', () => {
         throw error;
       };
       const { makeMutationCommand } =
-        ObjectTreeSource.makeMutationCommandFactory<
-          ObjectTree,
-          ObjectTree
-        >({ assembleArray: failAssembly, assembleObject: failAssembly })(
-          vertex,
-          options,
-        );
+        ObjectTreeSource.createObjectMutationBinder<ObjectTree, ObjectTree>({
+          assembleArray: failAssembly,
+          assembleObject: failAssembly,
+        })(vertex, options);
       try {
         makeMutationCommand();
         throw new Error('Expected assembler to throw');
@@ -623,11 +607,10 @@ describe('public mutation command factory', () => {
   );
 
   test('default array assembly handles a ref with no resolved child entry', () => {
-    const makeMutationCommand =
-      ObjectTreeSource.makeMutationCommandFactory<
-        ObjectTree,
-        ObjectTree
-      >();
+    const makeMutationCommand = ObjectTreeSource.createObjectMutationBinder<
+      ObjectTree,
+      ObjectTree
+    >();
     const { vertex, options } = makeArguments([]);
     const mutation = makeMutationCommand(vertex, options);
 
@@ -641,11 +624,10 @@ describe('public mutation command factory', () => {
   });
 
   test('assembling a primitive reports that it is not a composite', () => {
-    const makeMutationCommand =
-      ObjectTreeSource.makeMutationCommandFactory<
-        ObjectTree,
-        ObjectTree
-      >();
+    const makeMutationCommand = ObjectTreeSource.createObjectMutationBinder<
+      ObjectTree,
+      ObjectTree
+    >();
     const { vertex, options } = makeArguments(1);
     const mutation = makeMutationCommand(vertex, options);
 

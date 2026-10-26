@@ -1,6 +1,6 @@
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type { CTTRef } from '@core/CTTRef';
+import type { MutableRef } from '@core/CTTRef';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { SyncTraversalExecution } from '@core/TraversalExecution';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
@@ -11,7 +11,7 @@ export type TreeTraversalEvent<
   RW_TTP extends VertexTypes,
 > = {
   vertex: Vertex<TTP | RW_TTP>;
-  vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
+  vertexRef: MutableRef<Vertex<TTP | RW_TTP>>;
   phase: ORDER;
   isTreeRoot: boolean;
   isTraversalRoot: boolean;

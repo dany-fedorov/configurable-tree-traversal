@@ -82,7 +82,7 @@ describe('breadth-first traversal', () => {
     expect([...runner.iterateEvents()]).toEqual([]);
     expect(calls).toEqual(['root']);
     expect(runner.getStatus()).toBe(Status.FINISHED);
-    expect(runner.getResolvedTree().getRoot()).toBeNull();
+    expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
   });
 
   test('sorts a copy of each hint list and skips null results', () => {
@@ -165,13 +165,13 @@ describe('breadth-first traversal', () => {
           ? ['root', 'sibling']
           : ['root', 'branch', 'sibling'],
       );
-      const rootRef = runner.getResolvedTree().getRoot();
+      const rootRef = runner.getResolvedTreeStore().getRoot();
       expect(
         rootRef &&
           runner
-            .getResolvedTree()
+            .getResolvedTreeStore()
             .getChildrenOf(rootRef)
-            ?.map((ref) => ref.unref().getData()),
+            ?.map((ref) => ref.getValue().getData()),
       ).toEqual(
         commandName === Command.DELETE_VERTEX
           ? ['sibling']
@@ -188,7 +188,7 @@ describe('breadth-first traversal', () => {
     const runner = traversal.createRunner();
     expect([...runner.iterateEvents()]).toEqual([]);
     expect(calls).toEqual(['root']);
-    expect(runner.getResolvedTree().getRoot()).toBeNull();
+    expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
   });
 
   test('halts with no yielded orders and resumes the remaining visitor chain', () => {
@@ -305,7 +305,7 @@ describe('breadth-first traversal', () => {
   test('keeps an original resolved tree after data rewrite and deletion', () => {
     const { traversal } = setup(node('root', node('deleted'), node('kept')));
     let savedLabels: string[] = [];
-    traversal.configure({ saveNotMutatedResolvedTree: true });
+    traversal.configure({ retainOriginalTreeStructure: true });
     traversal.addVisitorFor(Order.LEVEL_ORDER, (vertex, options) => {
       if (vertex.getData() === 'root') {
         return {
@@ -320,18 +320,18 @@ describe('breadth-first traversal', () => {
       if (vertex.getData() === 'deleted') {
         return { commands: [{ commandName: Command.DELETE_VERTEX }] };
       }
-      const saved = options.notMutatedResolvedTree;
+      const saved = options.originalTreeView;
       const savedRoot = saved?.getRoot();
       savedLabels = savedRoot
         ? [savedRoot, ...(saved?.getChildrenOf(savedRoot) ?? [])].map((ref) =>
-            ref.unref().getData(),
+            ref.getValue().getData(),
           )
         : [];
       return undefined;
     });
     const runner = traversal.createRunner().run();
     expect(savedLabels).toEqual(['root', 'deleted', 'kept']);
-    expect(runner.getResolvedTree().getRoot()?.unref().getData()).toBe(
+    expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
       'changed-root',
     );
   });
@@ -357,7 +357,9 @@ describe('breadth-first traversal', () => {
     const { tree } = setup(node('root', node('child')));
     const runner = traverseTreeBreadthFirst(tree, null);
     expect(runner.getStatus()).toBe(Status.FINISHED);
-    expect(runner.getResolvedTree().getRoot()?.unref().getData()).toBe('root');
+    expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
+      'root',
+    );
     runner.run();
     expect(runner.getStatus()).toBe(Status.FINISHED);
   });

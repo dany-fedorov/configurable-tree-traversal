@@ -1,7 +1,7 @@
-import type { CTTRef } from '@core/CTTRef';
+import type { MutableRef } from '@core/CTTRef';
 import type { VisitOrder } from '@core/effects/types';
 import type { VisitorExecutionState } from '@core/executeVisitors';
-import type { Ref } from '@core/graph/types';
+import type { VertexRef } from '@core/graph/types';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -34,11 +34,11 @@ export class DagTraversalRunnerState<
   R extends VertexTypes = T,
 > {
   status: TraversalRunnerStatus;
-  traversalRootVertexRef: CTTRef<Vertex<T | R>> | null;
-  subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<T | R>>>;
+  traversalRootVertexRef: MutableRef<Vertex<T | R>> | null;
+  subtreeTraversalDisabledRefs: Set<MutableRef<Vertex<T | R>>>;
   visitorsState: Partial<Record<VisitOrder, VisitorExecutionState<T | R>>>;
-  readyVisits: Array<{ vertexRef: Ref<T | R>; order: DagVisitorPhase }>;
-  expansionQueue: Ref<T | R>[];
+  readyVisits: Array<{ vertexRef: VertexRef<T | R>; order: DagVisitorPhase }>;
+  expansionQueue: VertexRef<T | R>[];
   failure: { error: unknown } | null;
 
   constructor(from?: Partial<DagTraversalRunnerState<T, R>> | null) {

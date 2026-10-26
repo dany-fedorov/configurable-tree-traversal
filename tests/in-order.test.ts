@@ -1,6 +1,6 @@
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import { DepthFirstPhase as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import type { DepthFirstTraversalInOrderTraversalConfig as Config } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
+import type { InOrderOptions as Config } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
 type Node = { $d: string; $c: (Node | null)[] };
@@ -18,11 +18,11 @@ function walk(
       resolveRoot: () => ({ vertexContent: root }),
       resolveChild: (hint) => ({ vertexContent: hint }),
     },
-    inOrderTraversalConfig: config,
+    inOrder: config,
   });
-  return [...t.createRunner().iterateEvents({ iterateOver: [Order.IN_ORDER] })].map(
-    (v) => v.vertex.getData(),
-  );
+  return [
+    ...t.createRunner().iterateEvents({ iterateOver: [Order.IN_ORDER] }),
+  ].map((v) => v.vertex.getData());
 }
 
 test('default n-ary in-order visits between each pair of children', () => {
@@ -39,20 +39,20 @@ test('default n-ary in-order visits between each pair of children', () => {
 test('multiple explicit child positions are independent of ranges', () => {
   expect(
     walk(['a', 'b', 'c', 'd'], {
-      visitParentAfterChildren: { ranges: [0, 2] },
+      afterChildIndices: { ranges: [0, 2] },
     }),
   ).toEqual(['a', 'root', 'b', 'c', 'root', 'd']);
 });
 test('out-of-bounds primary ranges use the fallback', () => {
   expect(
     walk(['a', 'b', 'c'], {
-      visitParentAfterChildren: 99,
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: -1,
+      afterChildIndices: 99,
+      fallbackChildIndices: -1,
     }),
   ).toEqual(['a', 'b', 'c', 'root']);
 });
 test('negative positions are relative to the end', () => {
-  expect(walk(['a', 'b', 'c'], { visitParentAfterChildren: -2 })).toEqual([
+  expect(walk(['a', 'b', 'c'], { afterChildIndices: -2 })).toEqual([
     'a',
     'b',
     'root',
@@ -60,13 +60,13 @@ test('negative positions are relative to the end', () => {
   ]);
 });
 test('one-child parent visits can be disabled', () => {
-  expect(walk(['a'], { visitUpOneChildParents: false })).toEqual(['a']);
+  expect(walk(['a'], { visitSingleChildParent: false })).toEqual(['a']);
 });
 test('null positions can count for in-order boundaries', () => {
   expect(walk([null, 'a'])).toEqual(['root', 'a']);
-  expect(
-    walk([null, 'a'], { considerVisitAfterNullContentVertices: false }),
-  ).toEqual(['a']);
+  expect(walk([null, 'a'], { visitAfterOmittedChildren: false })).toEqual([
+    'a',
+  ]);
 });
 test('all null positions still finish traversal', () => {
   expect(walk([null, null])).toEqual(['root']);

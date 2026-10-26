@@ -1,12 +1,12 @@
 import {
   BreadthFirstTreeTraversal,
-  CTTRef,
+  MutableRef,
   DepthFirstTreeTraversal,
   DepthFirstPhase,
-  ResolvedTree,
+  ResolvedTreeStore,
   TraversalVisitorCommandName,
   Vertex,
-  VertexResolved,
+  TreeVertexRecord,
 } from '../src';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -41,9 +41,11 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
         const root = resolvedTree.getRoot();
         const resolved = root === null ? [] : resolvedTree.getChildrenOf(root);
         trace.push(
-          `adapter:${hint}:parent=${resolutionContext.parentVertex.getData()}:depth=${resolutionContext.depth}:index=${resolutionContext.hintIndex}:resolved=${[
-            root?.unref().getData(),
-            ...(resolved?.map((ref) => ref.unref().getData()) ?? []),
+          `adapter:${hint}:parent=${resolutionContext.parentVertex.getData()}:depth=${
+            resolutionContext.depth
+          }:index=${resolutionContext.hintIndex}:resolved=${[
+            root?.getValue().getData(),
+            ...(resolved?.map((ref) => ref.getValue().getData()) ?? []),
           ].join(',')}`,
         );
         return { vertexContent: { $d: hint, $c: [] } };
@@ -76,13 +78,13 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
     trace.push(`iterator:${event.phase}:${event.vertex.getData()}`);
   }
 
-  const resolvedTree = runner.getResolvedTree();
+  const resolvedTree = runner.getResolvedTreeStore();
   const rootRef = resolvedTree.getRoot();
   if (rootRef === null) throw new Error('Expected a resolved root');
   trace.push(
-    `tree:${rootRef.unref().getData()}:${resolvedTree
+    `tree:${rootRef.getValue().getData()}:${resolvedTree
       .getChildrenOf(rootRef)
-      ?.map((ref) => ref.unref().getData())
+      ?.map((ref) => ref.getValue().getData())
       .join(',')}`,
   );
 
@@ -112,18 +114,18 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
   ]);
 });
 
-test('ResolvedTree retains supplied records and their child arrays', () => {
-  const tree = new ResolvedTree<TestGraph>();
-  const rootRef = new CTTRef(
+test('ResolvedTreeStore retains supplied records and their child arrays', () => {
+  const tree = new ResolvedTreeStore<TestGraph>();
+  const rootRef = new MutableRef(
     new Vertex<TestGraph>({ $d: 'root', $c: ['child'] }),
   );
-  const childRef = new CTTRef(
+  const childRef = new MutableRef(
     new Vertex<TestGraph>({ $d: 'child', $c: [] }),
   );
   const children = [childRef];
-  const suppliedRecord = new VertexResolved<TestGraph>({
-    $d: { resolutionContext: null },
-    $c: children,
+  const suppliedRecord = new TreeVertexRecord<TestGraph>({
+    metadata: { resolutionContext: null },
+    children: children,
   });
 
   tree.setRoot(rootRef);

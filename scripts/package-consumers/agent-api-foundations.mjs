@@ -26,8 +26,8 @@ for (const name of [
   'prepareDagAsync',
   'createDagWorkSession',
   'createAsyncDagWorkSession',
-  'filterDagVisitor',
-  'filterAsyncDagVisitor',
+  'filterDagDataVisitor',
+  'filterAsyncDagDataVisitor',
 ]) {
   assert.equal(esm[name], cjs[name]);
   assert.equal(dag[name], cjs[name]);
@@ -215,11 +215,11 @@ for (const api of [cjs, esm]) {
     traversal.addVisitorFor(
       api.DagVisitorPhase.ON_WORK_READY,
       asyncMode
-        ? api.filterAsyncDagVisitor(
+        ? api.filterAsyncDagDataVisitor(
             (data) => data.kind === 'task',
             async (data, options) => callback(data, options),
           )
-        : api.filterDagVisitor((data) => data.kind === 'task', callback),
+        : api.filterDagDataVisitor((data) => data.kind === 'task', callback),
     );
     const runner = traversal.createRunner();
     const events = [];
@@ -236,12 +236,12 @@ for (const api of [cjs, esm]) {
       2,
     );
     assert.equal(
-      runner.getResolvedGraph().getVertexRefById(taskId).unref().getData()
+      runner.getResolvedGraph().getVertexRefById(taskId).getValue().getData()
         .label,
       'built',
     );
     assert.equal(
-      runner.getResolvedGraph().getVertexRefById(groupId).unref().getData()
+      runner.getResolvedGraph().getVertexRefById(groupId).getValue().getData()
         .label,
       'bundle',
     );

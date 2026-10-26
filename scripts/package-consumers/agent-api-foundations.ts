@@ -7,8 +7,8 @@ import {
   prepareDagAsync,
   createDagWorkSession,
   createAsyncDagWorkSession,
-  filterDagVisitor,
-  filterAsyncDagVisitor,
+  filterDagDataVisitor,
+  filterAsyncDagDataVisitor,
   DagTraversal,
   AsyncDagTraversal,
   DagVisitorPhase,
@@ -54,23 +54,27 @@ const source = materializeDagSourceFromRecords(items, {
 const sourceIdentity: MaterializedDagSource<Item, ID> = source;
 const subpathIdentity: SubpathSource<Item, ID> = sourceIdentity;
 const cjsIdentity: cjs.MaterializedDagSource<Item, ID> = subpathIdentity;
-const factoryIdentity: typeof materializeDagSourceFromRecords = sourceSubpath.materializeDagSourceFromRecords;
-const explicitIdentity: typeof cjs.materializeDagSourceFromRecords = explicitGraphFrom;
-const forest: MaterializedDagSource<Item, ID> = materializeDagSourceFromRoots(items, {
-  id: (item) => item.id,
-  children: (item) => (item.kind === 'group' ? item.children : []),
-});
-const asyncSource: Promise<MaterializedDagSource<Item, ID>> = materializeDagSourceFromRecordsAsync(items, {
-  id: async (item) => item.id,
-  dependsOnWork: async (item) => item.requires,
-});
-const asyncForest: Promise<MaterializedDagSource<Item, ID>> = materializeDagSourceFromRootsAsync(
+const factoryIdentity: typeof materializeDagSourceFromRecords =
+  sourceSubpath.materializeDagSourceFromRecords;
+const explicitIdentity: typeof cjs.materializeDagSourceFromRecords =
+  explicitGraphFrom;
+const forest: MaterializedDagSource<Item, ID> = materializeDagSourceFromRoots(
   items,
   {
-    id: async (item) => item.id,
-    children: async (item) => (item.kind === 'group' ? item.children : []),
+    id: (item) => item.id,
+    children: (item) => (item.kind === 'group' ? item.children : []),
   },
 );
+const asyncSource: Promise<MaterializedDagSource<Item, ID>> =
+  materializeDagSourceFromRecordsAsync(items, {
+    id: async (item) => item.id,
+    dependsOnWork: async (item) => item.requires,
+  });
+const asyncForest: Promise<MaterializedDagSource<Item, ID>> =
+  materializeDagSourceFromRootsAsync(items, {
+    id: async (item) => item.id,
+    children: async (item) => (item.kind === 'group' ? item.children : []),
+  });
 
 const prepared: PrepareDagResult<Item, ID> = prepareDag(source);
 if (prepared.kind === 'valid') {
@@ -140,12 +144,12 @@ const isTask = (data: Item): data is Task => data.kind === 'task';
 const traversal = new DagTraversal(source);
 traversal.addVisitorFor(
   DagVisitorPhase.ON_WORK_READY,
-  filterDagVisitor(isTask, (data, options) => {
+  filterDagDataVisitor(isTask, (data, options) => {
     const narrowed: Task = data;
     const context: DagVisitorContext<T, T, DagVisitorPhase.ON_WORK_READY, ID> =
       options;
     // @ts-expect-error A type guard narrows data, not the heterogeneous graph.
-    const invalid: Task = options.vertexRef.unref().getData();
+    const invalid: Task = options.vertexRef.getValue().getData();
     void [narrowed, context, invalid];
     return DEFER_READY;
   }),
@@ -153,7 +157,7 @@ traversal.addVisitorFor(
 traversal.addVisitorFor(
   DagVisitorPhase.ON_SUBGRAPH_READY,
   // @ts-expect-error Completion phase cannot defer work through a filter.
-  filterDagVisitor(isTask, () => DEFER_READY),
+  filterDagDataVisitor(isTask, () => DEFER_READY),
 );
 for (const event of traversal.createRunner().iterateEvents()) inspect(event);
 
@@ -175,7 +179,7 @@ async function checkAsync() {
   const asyncTraversal = new AsyncDagTraversal(await asyncForest);
   asyncTraversal.addVisitorFor(
     DagVisitorPhase.ON_WORK_READY,
-    filterAsyncDagVisitor(isTask, async (data, options) => {
+    filterAsyncDagDataVisitor(isTask, async (data, options) => {
       const task: Task = data;
       const context: DagVisitorContext<T, T, DagVisitorPhase.ON_WORK_READY, ID> =
         options;

@@ -45,7 +45,7 @@ describe('depth-first traversal', () => {
     const runner = traversal(null).createRunner();
     expect([...runner.iterateEvents()]).toEqual([]);
     expect(runner.getStatus()).toBe(Status.FINISHED);
-    expect(runner.getResolvedTree().getRoot()).toBeNull();
+    expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
   });
 
   test('sorts copied hints before resolving children', () => {
@@ -53,7 +53,11 @@ describe('depth-first traversal', () => {
     const t = traversal(root).configure({
       sortChildrenHints: (hints) => hints.reverse(),
     });
-    expect(values(t.createRunner(), Order.PRE_ORDER)).toEqual(['root', 'a', 'b']);
+    expect(values(t.createRunner(), Order.PRE_ORDER)).toEqual([
+      'root',
+      'a',
+      'b',
+    ]);
     expect(root.$c.map((child) => child?.$d)).toEqual(['b', 'a']);
   });
 
@@ -71,9 +75,12 @@ describe('depth-first traversal', () => {
 
   test('null hints do not require in-order visitors or count tracking', () => {
     const t = traversal(node('root', null, node('leaf'))).configure({
-      inOrderTraversalConfig: { considerVisitAfterNullContentVertices: false },
+      inOrder: { visitAfterOmittedChildren: false },
     });
-    expect(values(t.createRunner(), Order.POST_ORDER)).toEqual(['leaf', 'root']);
+    expect(values(t.createRunner(), Order.POST_ORDER)).toEqual([
+      'leaf',
+      'root',
+    ]);
   });
 
   test('disables only the listed visitors', () => {
@@ -179,7 +186,7 @@ describe('depth-first traversal', () => {
         seen.push([
           o.phaseVisitIndex,
           o.visitorIndex,
-          o.previousPhaseVertexRef?.unref().getData() ?? null,
+          o.previousPhaseVertexRef?.getValue().getData() ?? null,
         ]);
       });
     t.createRunner().run();
@@ -259,9 +266,11 @@ describe('depth-first traversal', () => {
         : undefined,
     );
     const runner = t.createRunner().run();
-    const tree = runner.getResolvedTree();
+    const tree = runner.getResolvedTreeStore();
     expect(
-      tree.getChildrenOf(tree.getRoot()!)?.map((ref) => ref.unref().getData()),
+      tree
+        .getChildrenOf(tree.getRoot()!)
+        ?.map((ref) => ref.getValue().getData()),
     ).toEqual(['sibling']);
   });
 
@@ -324,10 +333,10 @@ test('a resolved tree can be traversed again as an adapter', () => {
   const resolvedTree = traversal(node('root', node('a'), node('b')))
     .createRunner()
     .run()
-    .getResolvedTree();
+    .getResolvedTreeStore();
   const again = new DepthFirstTreeTraversal({ traversableTree: resolvedTree });
   const data = [
     ...again.createRunner().iterateEvents({ iterateOver: [Order.POST_ORDER] }),
-  ].map((event) => event.vertex.getData().unref().getData());
+  ].map((event) => event.vertex.getData().getValue().getData());
   expect(data).toEqual(['a', 'b', 'root']);
 });

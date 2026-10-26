@@ -46,7 +46,7 @@ type AsyncDagTraversalOptions<
   completedWork?: ReadonlySet<ID>;
   sortChildrenHints: AsyncDagSortChildrenHintsFn<T> | null;
   visitors: AsyncDagTraversalVisitors<T, R, ID>;
-  saveNotMutatedResolvedGraph: boolean;
+  retainOriginalGraphStructure: boolean;
   concurrency: number;
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer:
@@ -108,7 +108,7 @@ export const ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG = deepFreeze({
     [DagVisitorPhase.ON_WORK_READY]: [],
     [DagVisitorPhase.ON_SUBGRAPH_READY]: [],
   },
-  saveNotMutatedResolvedGraph: false,
+  retainOriginalGraphStructure: false,
   concurrency: Infinity,
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer: null,

@@ -34,7 +34,7 @@ export type PreparedDagRunnerOptions<Data, ID> = Pick<
   | 'visitors'
   | 'completedWork'
   | 'workCompletion'
-  | 'saveNotMutatedResolvedGraph'
+  | 'retainOriginalGraphStructure'
 > &
   OwnedOptions;
 
@@ -47,7 +47,7 @@ export type PreparedAsyncDagRunnerOptions<Data, ID> = Pick<
   | 'visitors'
   | 'completedWork'
   | 'workCompletion'
-  | 'saveNotMutatedResolvedGraph'
+  | 'retainOriginalGraphStructure'
   | 'concurrency'
 > &
   OwnedOptions;
@@ -56,7 +56,7 @@ export type DagWorkSessionOptions<ID> = OwnedOptions & {
   completedWork?: ReadonlySet<ID>;
   visitors?: never;
   workCompletion?: never;
-  saveNotMutatedResolvedGraph?: never;
+  retainOriginalGraphStructure?: never;
 };
 
 export type AsyncDagWorkSessionOptions<ID> =

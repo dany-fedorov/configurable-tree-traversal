@@ -1,26 +1,26 @@
 import {
-  CTTRef,
+  MutableRef,
   DepthFirstTreeTraversal,
-  ResolvedTree,
+  ResolvedTreeStore,
   type VertexTypes,
   Vertex,
-  VertexResolved,
+  TreeVertexRecord,
 } from '../src';
 
 type TestGraph = VertexTypes<string, string>;
 
 test('the advanced tree API retains supplied mutable records with detached child queries', () => {
-  const tree = new ResolvedTree<TestGraph>();
-  const ref = new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: [] }));
-  const record = new VertexResolved<TestGraph>({
-    $d: { resolutionContext: null },
-    $c: [],
+  const tree = new ResolvedTreeStore<TestGraph>();
+  const ref = new MutableRef(new Vertex<TestGraph>({ $d: 'root', $c: [] }));
+  const record = new TreeVertexRecord<TestGraph>({
+    metadata: { resolutionContext: null },
+    children: [],
   });
   tree.set(ref, record);
   expect(tree.get(ref)).toBe(record);
   expect(tree.getChildrenOf(ref)).toEqual(record.getChildren());
   expect(tree.getChildrenOf(ref)).not.toBe(record.getChildren());
-  const child = new CTTRef(
+  const child = new MutableRef(
     new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
   );
   record.getChildren().push(child);
@@ -29,8 +29,8 @@ test('the advanced tree API retains supplied mutable records with detached child
 });
 
 test('deleting an unresolved root clears the legacy root', () => {
-  const tree = new ResolvedTree<TestGraph>();
-  const ref = new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: [] }));
+  const tree = new ResolvedTreeStore<TestGraph>();
+  const ref = new MutableRef(new Vertex<TestGraph>({ $d: 'root', $c: [] }));
   tree.setRoot(ref);
 
   tree.delete(ref);
@@ -39,28 +39,28 @@ test('deleting an unresolved root clears the legacy root', () => {
 });
 
 test('legacy deletion detaches by clone and permits manually re-setting a ref', () => {
-  const tree = new ResolvedTree<TestGraph>();
-  const rootRef = new CTTRef(
+  const tree = new ResolvedTreeStore<TestGraph>();
+  const rootRef = new MutableRef(
     new Vertex<TestGraph>({ $d: 'root', $c: ['child', 'child'] }),
   );
-  const childRef = new CTTRef(
+  const childRef = new MutableRef(
     new Vertex<TestGraph>({ $d: 'child', $c: [] }),
   );
-  const rootRecord = new VertexResolved<TestGraph>({
-    $d: { resolutionContext: null },
-    $c: [childRef, childRef],
+  const rootRecord = new TreeVertexRecord<TestGraph>({
+    metadata: { resolutionContext: null },
+    children: [childRef, childRef],
   });
-  const childRecord = new VertexResolved<TestGraph>({
-    $d: {
+  const childRecord = new TreeVertexRecord<TestGraph>({
+    metadata: {
       resolutionContext: {
         depth: 1,
-        parentVertex: rootRef.unref(),
+        parentVertex: rootRef.getValue(),
         parentVertexRef: rootRef,
         hintIndex: 0,
         vertexHint: 'child',
       },
     },
-    $c: [],
+    children: [],
   });
   tree.setRoot(rootRef);
   tree.set(rootRef, rootRecord);
@@ -75,7 +75,9 @@ test('legacy deletion detaches by clone and permits manually re-setting a ref', 
 
   tree.set(childRef, childRecord);
   expect(tree.get(childRef)).toBe(childRecord);
-  expect(tree.getResolvedGraph().getVertexById(childRef.getId())).toBe(childRef);
+  expect(tree.getResolvedGraph().getVertexById(childRef.getId())).toBe(
+    childRef,
+  );
 });
 
 test('an injected tree container retains its graph facade and store', () => {
@@ -83,8 +85,9 @@ test('an injected tree container retains its graph facade and store', () => {
     resolveRoot: () => ({ vertexContent: null }),
     resolveChild: () => ({ vertexContent: null }),
   };
-  const source = new DepthFirstTreeTraversal<TestGraph>({ traversableTree })
-    .createRunner().resolvedTreesContainer;
+  const source = new DepthFirstTreeTraversal<TestGraph>({
+    traversableTree,
+  }).createRunner().resolvedTreesContainer;
   const injected = new DepthFirstTreeTraversal<TestGraph>({ traversableTree })
     .configure({
       traversalRunnerInternalObjects: { resolvedTreesContainer: source },

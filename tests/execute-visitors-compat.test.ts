@@ -1,4 +1,4 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import {
   executeVisitors,
   sortVisitorRecords,
@@ -16,7 +16,7 @@ type Tree = VertexTypes<string, string>;
 type Record = TraversalVisitorRecord<'ORDER', Tree, Tree>;
 
 test('yields for an external halt after the first callback batch', () => {
-  const vertexRef = new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+  const vertexRef = new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
   const calls: string[] = [];
   let halted = false;
   let firstBatch = true;
@@ -56,7 +56,7 @@ test('yields for an external halt after the first callback batch', () => {
 });
 
 test('synchronously drives grouped callbacks while retaining halt metadata', () => {
-  const vertexRef = new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+  const vertexRef = new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
   const calls: unknown[] = [];
   const commandBatches: TraversalVisitorCommand<Tree>[][] = [];
   let halted = false;
@@ -98,7 +98,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     state,
     getOptions: (registration, visitorChainState) => ({
       resolvedTree: null as never,
-      notMutatedResolvedTree: null,
+      originalTreeView: null,
       phaseVisitIndex: state.phaseVisitIndex,
       visitorIndex: state.visitorIndex,
       previousPhaseVertexRef: state.previousPhaseVertexRef,
@@ -154,7 +154,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
 });
 
 test('validates all styles before invoking a compatibility callback', () => {
-  const vertexRef = new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+  const vertexRef = new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
   const calls: string[] = [];
   const records: Record[] = [
     {

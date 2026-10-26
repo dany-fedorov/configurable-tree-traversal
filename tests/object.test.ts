@@ -16,14 +16,14 @@ describe('object rewriting', () => {
       sibling: ['x', 'y'],
     };
 
-    const { outputObject } = rewriteObject(input, {
+    const { outputAtReturn } = rewriteObject(input, {
       rewrite: ({ value }) =>
         typeof value === 'number'
           ? { rewrite: { value: value + 10 } }
           : undefined,
     });
 
-    expect(outputObject).toEqual({
+    expect(outputAtReturn).toEqual({
       branch: { keep: 11, change: 12 },
       sibling: ['x', 'y'],
     });
@@ -37,15 +37,15 @@ describe('object rewriting', () => {
     const secret = Symbol('secret');
     const input = { visible: 1, [secret]: 2 };
 
-    const { outputObject } = rewriteObject(input, {
+    const { outputAtReturn } = rewriteObject(input, {
       rewrite: ({ value }) =>
         typeof value === 'number'
           ? { rewrite: { value: value * 10 } }
           : undefined,
     });
 
-    expect(outputObject).toEqual({ visible: 10, [secret]: 20 });
-    expect(Reflect.ownKeys(outputObject as object)).toEqual([
+    expect(outputAtReturn).toEqual({ visible: 10, [secret]: 20 });
+    expect(Reflect.ownKeys(outputAtReturn as object)).toEqual([
       'visible',
       secret,
     ]);
@@ -63,24 +63,24 @@ describe('object rewriting', () => {
     input.label = 'array';
     input[metadata] = 'symbol';
 
-    const { outputObject } = rewriteObjectAs<typeof input>(input, {
+    const { outputAtReturn } = rewriteObjectAs<typeof input>(input, {
       rewrite: ({ value }) =>
         typeof value === 'string'
           ? { rewrite: { value: value.toUpperCase() } }
           : undefined,
     });
 
-    expect(outputObject).toHaveLength(2);
-    expect(Array.from(outputObject!)).toEqual(['ONE', 'THREE']);
-    expect(outputObject!.label).toBe('ARRAY');
-    expect(outputObject![metadata]).toBe('SYMBOL');
+    expect(outputAtReturn).toHaveLength(2);
+    expect(Array.from(outputAtReturn!)).toEqual(['ONE', 'THREE']);
+    expect(outputAtReturn!.label).toBe('ARRAY');
+    expect(outputAtReturn![metadata]).toBe('SYMBOL');
   });
 
   test('compacts numeric array children after deletion', () => {
     expect(
       rewriteObject([1, 2, 3], {
         rewrite: ({ value }) => (value === 2 ? { delete: true } : undefined),
-      }).outputObject,
+      }).outputAtReturn,
     ).toEqual([1, 3]);
   });
 
@@ -90,7 +90,7 @@ describe('object rewriting', () => {
     ['number', 42],
     ['string', 'root'],
   ])('returns an unchanged %s root', (_name, input) => {
-    expect(rewriteObject(input).outputObject).toBe(input);
+    expect(rewriteObject(input).outputAtReturn).toBe(input);
   });
 
   test('rewrites a primitive root', () => {
@@ -98,14 +98,14 @@ describe('object rewriting', () => {
       rewriteObject(3, {
         rewrite: ({ value }) =>
           value === 3 ? { rewrite: { value: 4 } } : undefined,
-      }).outputObject,
+      }).outputAtReturn,
     ).toBe(4);
   });
 
   test('returns null when the root is deleted', () => {
     expect(
       rewriteObject({ value: 1 }, { rewrite: () => ({ delete: true }) })
-        .outputObject,
+        .outputAtReturn,
     ).toBeNull();
   });
 
@@ -118,7 +118,7 @@ describe('object rewriting', () => {
           getOutputObjectFromRootValue: (value) =>
             value === null ? 'deleted' : 'present',
         },
-      ).outputObject,
+      ).outputAtReturn,
     ).toBe('deleted');
   });
 
@@ -201,7 +201,9 @@ describe('object rewriting', () => {
     const input: { self?: unknown } = {};
     input.self = input;
     const tree = new ObjectTreeSource(input);
-    const firstTraversal = new DepthFirstTreeTraversal({ traversableTree: tree });
+    const firstTraversal = new DepthFirstTreeTraversal({
+      traversableTree: tree,
+    });
     let visits = 0;
     firstTraversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => {
       visits += 1;
@@ -212,7 +214,9 @@ describe('object rewriting', () => {
     const firstIterator = firstTraversal.createRunner().iterateEvents();
     expect(firstIterator.next().done).toBe(false);
 
-    const secondIterator = new DepthFirstTreeTraversal({ traversableTree: tree })
+    const secondIterator = new DepthFirstTreeTraversal({
+      traversableTree: tree,
+    })
       .createRunner()
       .iterateEvents();
     expect(secondIterator.next().done).toBe(false);
@@ -229,12 +233,12 @@ describe('object rewriting', () => {
   test('allows one object in separate branches', () => {
     const shared = { leaf: 1 };
 
-    expect(rewriteObject({ left: shared, right: shared }).outputObject).toEqual(
-      {
-        left: { leaf: 1 },
-        right: { leaf: 1 },
-      },
-    );
+    expect(
+      rewriteObject({ left: shared, right: shared }).outputAtReturn,
+    ).toEqual({
+      left: { leaf: 1 },
+      right: { leaf: 1 },
+    });
   });
 
   test('allows a traversable object adapter to be reused', () => {

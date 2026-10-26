@@ -16,7 +16,7 @@ import type {
   DagVertexOmitted,
   HintVertexId,
   ResolvedGraph,
-  ResolvedGraphSnapshot,
+  OriginalGraphView,
   DagSummary,
   DagVertexProgress,
   DagTraversalStallDiagnostics,
@@ -36,8 +36,8 @@ const source: DagDiscoverySource<W, W, string> = {
   }),
   resolveChild: (id, options) => {
     const graph: ResolvedGraph<W, string> = options.resolvedGraph;
-    const snapshot: ResolvedGraphSnapshot<W, string> | null =
-      options.notMutatedResolvedGraph;
+    const snapshot: OriginalGraphView<W, string> | null =
+      options.originalGraphView;
     graph.getVertexRefById(id);
     // @ts-expect-error Selected ID domain applies to source graph views.
     graph.getVertexRefById(1);
@@ -221,8 +221,8 @@ const rewriteSource: DagDiscoverySource<W, R, string> = {
   resolveRoot: source.resolveRoot,
   resolveChild: (hint, options) => {
     const rewrittenGraph: ResolvedGraph<W | R, string> = options.resolvedGraph;
-    const original: ResolvedGraphSnapshot<W, string> | null =
-      options.notMutatedResolvedGraph;
+    const original: OriginalGraphView<W, string> | null =
+      options.originalGraphView;
     const data: string = hint;
     void [rewrittenGraph, original];
     return { vertexId: hint, vertexContent: { $data: data, $childHints: [] } };
@@ -256,8 +256,8 @@ void [
 
 const containerGraph: ResolvedGraph<W, string | symbol> =
   runner.resolvedGraphsContainer.resolvedGraph;
-const containerSnapshot: ResolvedGraphSnapshot<W, string> | null =
-  runner.resolvedGraphsContainer.notMutatedResolvedGraph;
+const containerSnapshot: OriginalGraphView<W, string> | null =
+  runner.resolvedGraphsContainer.originalGraphView;
 // @ts-expect-error Exposed container graph lookups retain the ID domain.
 runner.resolvedGraphsContainer.publicResolvedGraph.getVertexRefById(42);
 // @ts-expect-error The exposed store lookup retains the ID domain.
@@ -265,7 +265,7 @@ runner.resolvedGraphsContainer.store.getIdState(42);
 // @ts-expect-error The exposed snapshot alias retains the ID domain.
 containerSnapshot?.getVertexById(42);
 // @ts-expect-error The runner snapshot retains the ID domain.
-runner.notMutatedResolvedGraph?.getVertexRefById(42);
+runner.originalGraphView?.getVertexRefById(42);
 // @ts-expect-error Inferred constructors cannot seed wrong-domain completed work.
 new DagTraversal({ traversableGraph: source, completedWork: new Set([42]) });
 // @ts-expect-error Inferred new helpers cannot seed wrong-domain completed work.
@@ -299,7 +299,9 @@ const missingRoot: DagDiscoverySource<W, W, string> = {
 const missingChild: AsyncDagDiscoverySource<W, W, string> = {
   resolveRoot: source.resolveRoot,
   // @ts-expect-error Async legacy source child callbacks require an explicit live identity.
-  resolveChild: async () => ({ vertexContent: { $data: 'a', $childHints: [] } }),
+  resolveChild: async () => ({
+    vertexContent: { $data: 'a', $childHints: [] },
+  }),
 };
 const wrongSourceDependency: DagDiscoverySource<W, W, string> = {
   // prettier-ignore
@@ -318,11 +320,14 @@ const rewriting = new DagTraversal({ traversableGraph: rewriteSource });
 const rewritingIds: readonly string[] = rewriting
   .createRunner()
   .summary().readyOrDeferredIds;
-rewriting.addVisitorFor(DagVisitorPhase.ON_SUBGRAPH_READY, (_vertex, options) => {
-  const view: ResolvedGraph<W | R, string> = options.resolvedGraph;
-  // @ts-expect-error Rewriting does not broaden the ID domain.
-  view.getVertexById({});
-});
+rewriting.addVisitorFor(
+  DagVisitorPhase.ON_SUBGRAPH_READY,
+  (_vertex, options) => {
+    const view: ResolvedGraph<W | R, string> = options.resolvedGraph;
+    // @ts-expect-error Rewriting does not broaden the ID domain.
+    view.getVertexById({});
+  },
+);
 void [
   containerGraph,
   missingRoot,

@@ -26,7 +26,7 @@ function rewriteWithHook(
   input: unknown,
   resolveVertexHook: (hint: { key: string; value: unknown }) => unknown,
 ) {
-  return rewriteObject(input, { resolveVertexHook } as Options).outputObject;
+  return rewriteObject(input, { resolveVertexHook } as Options).outputAtReturn;
 }
 
 test('canonical hook replaces and omits properties in reconstructed output and delegates defaults', () => {
@@ -141,7 +141,7 @@ test('active canonical and legacy hooks conflict; disabled legacy hooks remain c
       rewriteObject({ a: 1 }, {
         resolveVertexHook: canonical,
         makeVertexHook,
-      } as Options).outputObject,
+      } as Options).outputAtReturn,
     ).toEqual({ a: 1 });
   }
 });
@@ -155,7 +155,7 @@ test('legacy returnMe and canonical results reconstruct equivalent output', () =
         returnMe: hint.key === 'skip' ? null : content,
       }),
     },
-  ).outputObject;
+  ).outputAtReturn;
   const canonical = rewriteWithHook({ a: 1, skip: 2 }, (hint) =>
     hint.key === 'skip'
       ? { kind: 'omitted' }
@@ -178,7 +178,7 @@ test.each(['resolveVertexHook', 'makeVertexHook'] as const)(
           : () => ({ returnMe: null });
       },
     });
-    expect(rewriteObject({ a: 1 }, options).outputObject).toEqual({});
+    expect(rewriteObject({ a: 1 }, options).outputAtReturn).toEqual({});
     expect(reads).toBe(1);
   },
 );

@@ -16,7 +16,7 @@ These additions compose with existing DAG constructors and runners; custom adapt
 | Re-discovering the same source for each runner | `prepareDag(source)` / `await prepareDagAsync(source)` once, then independent `dag.createRunner()` or `await dag.createAsyncRunner()` |
 | External runner plus captured `{ vertexId, generation }` | `createDagWorkSession(runner)` / `createAsyncDagWorkSession(runner)`, or prepared `createWorkSession()` / `await createAsyncWorkSession()` |
 | `run()` → summary frontier → `settle()` → `run()` | `advance()` → frontier ticket → `completeWork(ticket)` → `advance()` |
-| Callback-local data filtering | `filterDagVisitor(guard, (data, context) => ...)` or `filterAsyncDagVisitor`; the callback receives narrowed data |
+| Callback-local data filtering | `filterDagDataVisitor(guard, (data, context) => ...)` or `filterAsyncDagDataVisitor`; the callback receives narrowed data |
 
 The former collection selector names `dependencies` and `completionDependencies` are replaced by `dependsOnWork` and `dependsOnSubgraphCompletion`. All four adapters throw `TypeError` for the retired keys before input/selector callbacks, including inherited keys and keys present with `undefined`, to prevent silently dropping dependency edges. Task-data properties remain opaque. Walking relation selections and definition-diff aspects use `subgraphCompletionDependencies`; diagnostic constraints use `DagWaitEdge` with `waiter` and `prerequisite` milestones, and `dependencyCycleComponents` reports SCC membership.
 
@@ -265,15 +265,15 @@ Statuses remain compatible. `getStopReason()` and inspection `stopReason` return
 
 ## Typed mutation inputs and object hooks
 
-Generic `MakeMutationCommandFunction<Output, RewriteInput = Output['VertexData']>` requires full replacement by default; name an explicit rewrite-input parameter for custom adapters. Object helpers use `TO_MutationPropertyPatch<Output>` (`Partial<Output['VertexData']>`), supporting typed key-only/value-only patches. Incorrect key/value types and incomplete generic replacements now fail compilation. Omit `rewrite` for no patch; present null/undefined/primitive rewrites throw TypeError. `{ rewrite: { value: undefined } }` sets undefined when allowed by the output type. Assembler errors retain exact identity.
+Generic `MutationCommandBuilder<Output, RewriteInput = Output['VertexData']>` requires full replacement by default; name an explicit rewrite-input parameter for custom adapters. Object helpers use `ObjectMutationPatch<Output>` (`Partial<Output['VertexData']>`), supporting typed key-only/value-only patches. Incorrect key/value types and incomplete generic replacements now fail compilation. Omit `rewrite` for no patch; present null/undefined/primitive rewrites throw TypeError. `{ rewrite: { value: undefined } }` sets undefined when allowed by the output type. Assembler errors retain exact identity.
 
 Use `resolveVertexHook` in object adapters and `rewriteObject`: return `{ kind: 'useDefault' }`, tagged tree `found` replacement content, or `{ kind: 'omitted' }`. Null/undefined canonical results and graph metadata reject. The hook applies to child/hint resolution. Deprecated `makeVertexHook`/`returnMe` normalize to the same behavior; two active hooks reject. Undefined hooks and the old null-disabled hook do not conflict. Cycle checks and shallow identities remain unchanged.
 
 ## Safe queries and identity names
 
-Use `runner.getResolvedTreeView()` or `ResolvedTree.asReadOnly()` for a stable live shallow `ResolvedTreeView<T>` facade. Its root/has/children/parent/path/context queries have readonly collection/context types; no mutators or raw records are exposed. Tree children arrays and context objects are now detached copies. Refs, hints and data keep shallow identity. Mutating a query result no longer edits topology. DAG tree-source mode returns its internal tree view; graph-source mode returns null. `getResolvedTree()` and raw records remain advanced editing APIs with caller-owned consistency; no durable/deep snapshot is added.
+Use `runner.getResolvedTreeView()` or `ResolvedTreeStore.asReadOnly()` for a stable live shallow `ResolvedTreeView<T>` facade. Its root/has/children/parent/path/context queries have readonly collection/context types; no mutators or raw records are exposed. Tree children arrays and context objects are now detached copies. Refs, hints and data keep shallow identity. Mutating a query result no longer edits topology. DAG tree-source mode returns its internal tree view; graph-source mode returns null. `getResolvedTreeStore()` and raw records remain advanced editing APIs with caller-owned consistency; no durable/deep snapshot is added.
 
-Use `CTTRef.getRefId()` for the generated reference UUID, `ResolvedGraph.getVertexId(ref)` for the arbitrary host ID, and `getVertexRefById(id)` for the reference lookup. These names also exist on graph snapshots/facades. Deprecated `getId`/`getIdOf`/`getVertexById` preserve identity as aliases. Host IDs, including explicit undefined, symbols and object references, are not coerced.
+Use `MutableRef.getRefId()` for the generated reference UUID, `ResolvedGraph.getVertexId(ref)` for the arbitrary host ID, and `getVertexRefById(id)` for the reference lookup. These names also exist on graph snapshots/facades. Deprecated `getId`/`getIdOf`/`getVertexById` preserve identity as aliases. Host IDs, including explicit undefined, symbols and object references, are not coerced.
 
 ## Caller-specified graph identity types
 
@@ -299,9 +299,9 @@ All six runners have `requestPause(): boolean`: true records a new request only 
 
 ## Truthful rewrite output and final results
 
-`rewriteObject` retains six generic positions but defaults Out to unknown, including when no rewrite is supplied. Remove assumptions that reconstructed output preserves the input shape or prototype. Converter return types still infer. Use `rewriteObjectAs<Out>(input, options?)` as an explicit assertion through the named root, rewrite namespace or subpath export; it validates no schema and does not narrow option property values from unknown.
+`rewriteObject` retains six generic positions but defaults Out to unknown, including when no rewrite is supplied. Remove assumptions that reconstructed output preserves the input shape or prototype. Converter return types still infer. Use `rewriteObjectAs<Out>(input, options?)` as an explicit assertion through the named root, `objectRewrite` namespace or subpath export; it validates no schema and does not narrow option property values from unknown.
 
-`outputObject` remains the initial converted compatibility snapshot. After a halt, resume `result.traversalRunner.run()` and call `result.getOutput()`: it requires FINISHED, converts the final root with the original hook, and caches the first successful result. Initially finished results reuse the snapshot. Exact conversion throws are not cached as successful results and may be retried. Null/deleted roots remain supported. `getOutput` does not resume or make output deeply immutable.
+Rename result `outputObject` to `outputAtReturn`, the converted output captured at helper return; it can be partial and does not update after resumption. After a halt, resume `result.traversalRunner.run()` and call `result.getOutput()`: it requires FINISHED, converts the final root with the original hook, and caches the first successful result. Initially finished results reuse the snapshot. Exact conversion throws are not cached as successful results and may be retried. Null/deleted roots remain supported. `getOutput` does not resume or make output deeply immutable.
 
 Remove `traversableTree` from helper options: the helper owns its source. Inline/pretyped options reject statically, and JavaScript presence (including undefined) rejects before all callbacks. Use a traversal directly for a custom source.
 
@@ -330,3 +330,20 @@ Walking options use `shouldFollowEdge` / `shouldExpandVertex`, typed as `GraphWa
 Walking limits now use `maxCandidateReadAttempts` and `maxAdmittedTargets`; limited outcomes use the same reason literals. Route enumeration requires `maxDepth` or `maxCandidateReadAttempts`. Summary counts are `candidateReadAttempts`, `admittedTargets`, `uniqueFoundVertices`, `uniqueOmittedVertices`, `discoveredLinks`, and the per-phase record `processedObservations`. Charging is unchanged: attempted reads include exhaustion and cached replay, admissions include omitted and returning targets, and fresh links count before filtering. Observation acknowledgements count independently of delivery/callback filters.
 
 Visitor context uses `admissionIndex` and `phaseObservationIndex`. Walking edges use `outgoingIndex`, including cached replay; their `from`/`to` direction is unchanged. DAG child relation data still uses its separate original `slotIndex`. Walking inspection exposes `executionOptions` and `activeVisitor.visitorIndex`.
+
+
+## Values, original structure, object mutation, and tree positions
+
+Use `MutableRef<T>.getValue()` / `.setValue(value)` in place of `CTTRef.unref()` / `.setPointsTo(value)`. `VertexRef<T>` is the exported vertex handle alias. `getRefId()` remains a reference UUID, distinct from arbitrary caller vertex IDs; deprecated `getId()` still forwards to it. `GraphVertex`, `GraphVertexStatus`, and `GraphEdge` become `ResolvedGraphVertex`, `ResolvedVertexStatus`, and `StructuralChildEdge`.
+
+`VertexResolved` becomes `TreeVertexRecord` with `metadata` and `children`. These fields describe records and structural references; Vertex's canonical `$data` / `$childHints` and deprecated input/access aliases are unchanged. `ResolvedTree` / `getResolvedTree()` become `ResolvedTreeStore` / `getResolvedTreeStore()`. Continue using `getResolvedTreeView()` for shallow detached queries.
+
+Replace `saveNotMutatedResolvedTree` / `saveNotMutatedResolvedGraph` with `retainOriginalTreeStructure` / `retainOriginalGraphStructure`, and context fields `notMutatedResolvedTree` / `notMutatedResolvedGraph` with `originalTreeView` / `originalGraphView`. The graph type is `OriginalGraphView`. Original-tree contexts expose `ResolvedTreeView` without storage mutators. Retention grows during discovery and shares payloads; it does not capture frozen deep data or a complete snapshot before discovery.
+
+Replace `makeMutationCommandFactory` with `createObjectMutationBinder`. Its configured stage is `ObjectMutationBinder`, its bound stage `ObjectMutationCommands`, its patch `ObjectMutationPatch`, and configuration `ObjectMutationOptions`. Classifier flags use `ObjectCompositeClassification`. Generic stages use `MutationCommandBinderFactory`, `MutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`. Classifiers, custom assemblers, reference-keyed `assembledMap`, falsy values, symbol property keys, and patch-presence semantics are preserved.
+
+The root `rewriteObject` export is now directly callable; use `objectRewrite` for the module namespace. Root/subpath callables retain identity under both CJS and ESM. `rewriteObjectAs` remains an assertion, and default output remains unknown.
+
+Replace `DepthFirstTraversalInOrderTraversalConfig` / `inOrderTraversalConfig` with `InOrderOptions` / `inOrder`, and `IndexRange` with `ChildIndexSelection`. Fields become `afterChildIndices`, `fallbackChildIndices`, `visitSingleChildParent`, and `visitAfterOmittedChildren`. Index zero means after child slot zero; negative indices, range normalization, all-out-of-bounds fallback, and omitted-slot handling retain their behavior.
+
+Use `Vertex.hasNoChildHints()`, runner `isTraversalLeaf(ref)`, and `hasSingleStructuralSink(graph)` for their separate hint, traversal, and structural-edge criteria. `filterDagDataVisitor` and `filterAsyncDagDataVisitor` predicate and visit payload data, retaining type-guard narrowing and async results.

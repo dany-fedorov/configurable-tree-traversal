@@ -1,10 +1,10 @@
 import {
-  CTTRef,
+  MutableRef,
   core,
-  ResolvedTree,
+  ResolvedTreeStore,
   type ResolvedTreeView,
   type ResolvedGraph,
-  type ResolvedGraphSnapshot,
+  type OriginalGraphView,
   type VertexTypes,
   type Vertex,
   type DepthFirstTreeRunner,
@@ -14,19 +14,23 @@ import {
   type DagTraversalRunner,
   type AsyncDagTraversalRunner,
 } from '../src';
-import { CTTRef as CoreRef } from '../src/core';
+import { MutableRef as CoreRef } from '../src/core';
 import type { ResolvedTreeView as CoreView } from '../src/core';
 
 type T = VertexTypes<{ label: string }, { label: string }>;
-declare const ref: CTTRef<Vertex<T>>;
-const constructors: [typeof CTTRef, typeof CTTRef] = [core.CTTRef, CoreRef];
+declare const ref: MutableRef<Vertex<T>>;
+const constructors: [typeof MutableRef, typeof MutableRef] = [
+  core.MutableRef,
+  CoreRef,
+];
 const id: string = ref.getRefId();
 const oldId: string = ref.getId();
-const tree = new ResolvedTree<T>();
+const tree = new ResolvedTreeStore<T>();
 const view: ResolvedTreeView<T> = tree.asReadOnly();
 const coreView: CoreView<T> = view;
-const children: readonly CTTRef<Vertex<T>>[] | null = view.getChildrenOf(ref);
-const path: readonly CTTRef<Vertex<T>>[] = view.getPathTo(ref);
+const children: readonly MutableRef<Vertex<T>>[] | null =
+  view.getChildrenOf(ref);
+const path: readonly MutableRef<Vertex<T>>[] = view.getPathTo(ref);
 // @ts-expect-error Query facade exposes no deletion operation.
 view.delete(ref);
 // @ts-expect-error Query facade exposes no mutable records.
@@ -42,17 +46,17 @@ view.getResolutionContextOf(ref)!.depth = 2;
 // Opaque data, hints, refs, and vertices remain shallow identities.
 view.getResolutionContextOf(ref)!.vertexHint.label = 'edited';
 view.getResolutionContextOf(ref)!.parentVertex.getData().label = 'edited';
-view.getRoot()?.setPointsTo(ref.unref());
+view.getRoot()?.setValue(ref.getValue());
 // Advanced container queries retain mutable detached return types.
 tree.getChildrenOf(ref)!.push(ref);
 tree.getResolutionContextOf(ref)!.depth = 2;
 declare const graph: ResolvedGraph<T>;
-declare const snapshot: ResolvedGraphSnapshot<T>;
+declare const snapshot: OriginalGraphView<T>;
 for (const facade of [graph, snapshot]) {
   const vertexId: unknown = facade.getVertexId(ref);
   const oldVertexId: unknown = facade.getIdOf(ref);
-  const byId: CTTRef<Vertex<T>> | null = facade.getVertexRefById(undefined);
-  const oldById: CTTRef<Vertex<T>> | null = facade.getVertexById(Symbol());
+  const byId: MutableRef<Vertex<T>> | null = facade.getVertexRefById(undefined);
+  const oldById: MutableRef<Vertex<T>> | null = facade.getVertexById(Symbol());
   void [vertexId, oldVertexId, byId, oldById];
 }
 declare const dfs: DepthFirstTreeRunner<T, T>;

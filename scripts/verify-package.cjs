@@ -60,6 +60,9 @@ try {
     const depthRunner = require('configurable-tree-traversal/traversals/depth-first-traversal/lib/DepthFirstTraversalRunner');
     const dagRunner = require('configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner');
     assert.equal(core.Vertex, lib.core.Vertex);
+    assert.equal(core.MutableRef, lib.MutableRef);
+    assert.equal(core.TreeVertexRecord, lib.TreeVertexRecord);
+    assert.equal(rewrite.rewriteObject, lib.objectRewrite.rewriteObject);
     assert.equal(depth.DepthFirstTreeTraversal, lib.DepthFirstTreeTraversal);
     assert.equal(breadth.BreadthFirstTreeTraversal, lib.BreadthFirstTreeTraversal);
     assert.equal(depth.AsyncDepthFirstTreeTraversal, lib.AsyncDepthFirstTreeTraversal);
@@ -71,7 +74,7 @@ try {
     assert.equal(dag.DagTraversal, lib.DagTraversal);
     assert.equal(dag.AsyncDagTraversal, lib.AsyncDagTraversal);
     assert.equal(objectTree.ObjectTreeSource, lib.ObjectTreeSource);
-    assert.equal(rewrite.rewriteObject, lib.rewriteObject.rewriteObject);
+    assert.equal(rewrite.rewriteObject, lib.rewriteObject);
     assert.equal(vertex.Vertex, lib.core.Vertex);
     assert.equal(explicitVertex.Vertex, lib.core.Vertex);
     assert.equal(depthRunner.DepthFirstTreeRunner, depth.DepthFirstTreeRunner);
@@ -83,13 +86,13 @@ try {
     assert.equal(dag.traverseDag, lib.traverseDag);
     assert.equal(dag.traverseDagAsync, lib.traverseDagAsync);
     assert.equal(lib.TraversalRunnerStatus.FAILED, 'FAILED');
-    const reference = new core.CTTRef('first');
+    const reference = new core.MutableRef('first');
     const referenceId = reference.getId();
     assert.match(referenceId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
-    reference.setPointsTo('replacement');
+    reference.setValue('replacement');
     assert.equal(reference.getId(), referenceId);
-    assert.equal(reference.unref(), 'replacement');
-    assert.notEqual(new core.CTTRef('other').getId(), referenceId);
+    assert.equal(reference.getValue(), 'replacement');
+    assert.notEqual(new core.MutableRef('other').getId(), referenceId);
 
 
     const progress = new dag.DagTraversal({
@@ -140,8 +143,8 @@ try {
     const breadthVisits = [...new lib.BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner().iterateEvents()]
       .map(event => event.vertex.getData().key).slice(1);
     assert.deepEqual(breadthVisits, ['a', 'c', 'b']);
-    assert.deepEqual(lib.rewriteObject.rewriteObject({ a: 1 }).outputObject, { a: 1 });
-    assert.equal(lib.rewriteObject.rewriteObject(null).outputObject, null);
+    assert.deepEqual(lib.rewriteObject({ a: 1 }).outputAtReturn, { a: 1 });
+    assert.equal(lib.rewriteObject(null).outputAtReturn, null);
   `,
   );
   execFileSync(process.execPath, ['consumer.cjs'], {
@@ -202,13 +205,18 @@ try {
     assert.equal(DagTraversal, lib.DagTraversal);
     assert.equal(AsyncDagTraversal, lib.AsyncDagTraversal);
     assert.equal(ObjectTreeSource, lib.ObjectTreeSource);
-    assert.equal(rewriteObject, lib.rewriteObject.rewriteObject);
+    assert.equal(rewriteObject, lib.rewriteObject);
     assert.equal(Vertex, lib.core.Vertex);
     assert.equal(ExplicitVertex, lib.core.Vertex);
 
     assert.equal(lib, cjs);
     assert.equal(lib.core, cjs.core);
     assert.equal(lib.rewriteObject, cjs.rewriteObject);
+    assert.equal(lib.objectRewrite, cjs.objectRewrite);
+    assert.equal(esm.MutableRef, cjs.MutableRef);
+    assert.equal(esm.TreeVertexRecord, cjs.TreeVertexRecord);
+    assert(new esm.MutableRef(1) instanceof cjs.MutableRef);
+    assert.equal(lib.rewriteObject, lib.objectRewrite.rewriteObject);
     const treeInstance = new ObjectTreeSource({ value: 1 });
     assert(treeInstance instanceof cjs.ObjectTreeSource);
     assert(new DepthFirstTreeTraversal({ traversableTree: treeInstance }) instanceof cjs.DepthFirstTreeTraversal);
@@ -307,9 +315,9 @@ try {
   fs.writeFileSync(
     path.join(consumer, 'consumer.ts'),
     `
-    import { AsyncBreadthFirstTreeTraversal, AsyncDagTraversal, AsyncDepthFirstTreeTraversal, DepthFirstTreeTraversal, DepthFirstPhase, BreadthFirstTreeTraversal, DagTraversal, DagVisitorPhase, ObjectTreeSource, TraversalRunnerStatus, TraversalVisitorCommandName, core, rewriteObject, traverseTreeBreadthFirstAsync, traverseDag, traverseDagAsync, traverseTreeDepthFirst, traverseTreeDepthFirstAsync } from 'configurable-tree-traversal';
-    import type { AsyncDagDiscoverySource, ChildSlot, CoreInspection, GraphEdge, GraphVertex, GraphVertexStatus, HintVertexId, MaybePromise, ResolvedGraph, TreeTraversalRunner, DagDiscoverySource, TreeSource, VertexTypes, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
-    import type { ChildSlot as CoreChildSlot, GraphEdge as CoreGraphEdge, GraphVertex as CoreGraphVertex, GraphVertexStatus as CoreGraphVertexStatus, HintVertexId as CoreHintVertexId, MaybePromise as CoreMaybePromise, VertexId as CoreVertexId } from 'configurable-tree-traversal/core';
+    import { AsyncBreadthFirstTreeTraversal, AsyncDagTraversal, AsyncDepthFirstTreeTraversal, DepthFirstTreeTraversal, DepthFirstPhase, BreadthFirstTreeTraversal, DagTraversal, DagVisitorPhase, ObjectTreeSource, TraversalRunnerStatus, TraversalVisitorCommandName, core, objectRewrite, rewriteObject, traverseTreeBreadthFirstAsync, traverseDag, traverseDagAsync, traverseTreeDepthFirst, traverseTreeDepthFirstAsync } from 'configurable-tree-traversal';
+    import type { AsyncDagDiscoverySource, ChildSlot, CoreInspection, StructuralChildEdge, ResolvedGraphVertex, ResolvedVertexStatus, HintVertexId, MaybePromise, ResolvedGraph, TreeTraversalRunner, DagDiscoverySource, TreeSource, VertexTypes, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
+    import type { ChildSlot as CoreChildSlot, StructuralChildEdge as CoreGraphEdge, ResolvedGraphVertex as CoreGraphVertex, ResolvedVertexStatus as CoreGraphVertexStatus, HintVertexId as CoreHintVertexId, MaybePromise as CoreMaybePromise, VertexId as CoreVertexId } from 'configurable-tree-traversal/core';
     import type { DepthFirstTraversalRunnerIterableConfigInput } from 'configurable-tree-traversal/traversals/depth-first-traversal';
     import { DEFER_READY } from 'configurable-tree-traversal';
     import type { DagSummary, DagSettlementGeneration, DagSettlementOutcome, DagVertexProgress, DagWorkState } from 'configurable-tree-traversal';
@@ -361,7 +369,7 @@ try {
     const runner = new DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().run(config);
     const status: TraversalRunnerStatus = runner.getStatus();
     const failedStatus: TraversalRunnerStatus = TraversalRunnerStatus.FAILED;
-    const value: number | null = rewriteObject.rewriteObjectAs<number>(1).outputObject;
+    const value: number | null = objectRewrite.rewriteObjectAs<number>(1).outputAtReturn;
     const bfs = new BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
     for (const { vertex } of bfs.iterateEvents()) { const key: string | number | symbol = vertex.getData().key; void key; }
     const graph: DagDiscoverySource<Tree> = {
@@ -396,7 +404,7 @@ try {
     abstractTraversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => DEFER_READY);
     void [subpathSummary, state, settlement, asyncSettlement];
     const inspection: CoreInspection = asyncDag.inspect();
-    const publicTypes: [VertexId, HintVertexId, MaybePromise<string>, GraphVertexStatus, GraphEdge<Tree> | null, ChildSlot<Tree> | null, GraphVertex<Tree> | null, CoreVertexId, CoreHintVertexId, CoreMaybePromise<string>, CoreGraphVertexStatus, CoreGraphEdge<Tree> | null, CoreChildSlot<Tree> | null, CoreGraphVertex<Tree> | null] = ['id', { vertexId: 'id' }, 'value', 'READY', null, null, null, 'core-id', { vertexId: 'core-id' }, Promise.resolve('value'), 'COMPLETE', null, null, null];
+    const publicTypes: [VertexId, HintVertexId, MaybePromise<string>, ResolvedVertexStatus, StructuralChildEdge<Tree> | null, ChildSlot<Tree> | null, ResolvedGraphVertex<Tree> | null, CoreVertexId, CoreHintVertexId, CoreMaybePromise<string>, CoreGraphVertexStatus, CoreGraphEdge<Tree> | null, CoreChildSlot<Tree> | null, CoreGraphVertex<Tree> | null] = ['id', { vertexId: 'id' }, 'value', 'READY', null, null, null, 'core-id', { vertexId: 'core-id' }, Promise.resolve('value'), 'COMPLETE', null, null, null];
     const asyncRuns: Promise<unknown>[] = [
       asyncDepth.run(), asyncBreadth.run(), asyncDag.run(),
       traverseTreeDepthFirstAsync(abstractTree, null),

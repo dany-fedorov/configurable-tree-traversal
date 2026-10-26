@@ -1,13 +1,11 @@
 import type { AsyncTraversalVisitor } from '../src/core/AsyncTraversalVisitor';
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import type {
   AsyncDagDiscoverySource,
   DagDiscoverySource,
 } from '../src/core/TraversableGraph';
 import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
-import type {
-  TreeVisitorContext,
-} from '../src/core/TraversalVisitor';
+import type { TreeVisitorContext } from '../src/core/TraversalVisitor';
 import type { ResolvedGraph } from '../src/core/ResolvedGraph';
 import type { TreeSource } from '../src/core/TraversableTree';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
@@ -34,7 +32,7 @@ const graph: DagDiscoverySource<Input, Output> = {
   resolveChild: (hint, options) => {
     const resolved: ResolvedGraph<Input | Output> = options.resolvedGraph;
     const input: string = hint;
-    void [resolved, input, options.notMutatedResolvedGraph];
+    void [resolved, input, options.originalGraphView];
     // @ts-expect-error Graph callbacks do not receive the tree facade.
     options.resolvedTree;
     return { vertexContent: null, vertexId: hint };
@@ -130,12 +128,7 @@ asyncGraphTraversal.addVisitorFor(
     const data: { input: string } | { output: number } = vertex.getData();
     const metadata: import('../src').VisitorRegistrationMetadata =
       options.registration;
-    void [
-      data,
-      metadata,
-      options.resolvedGraph,
-      options.notMutatedResolvedGraph,
-    ];
+    void [data, metadata, options.resolvedGraph, options.originalGraphView];
     return {
       commands: [
         {
@@ -173,7 +166,9 @@ new AsyncDagTraversal<Input, Output>({
   traversableTree: asyncTree,
 });
 
-const ref = new CTTRef(new Vertex<Input>({ $d: { input: 'vertex' }, $c: [] }));
+const ref = new MutableRef(
+  new Vertex<Input>({ $d: { input: 'vertex' }, $c: [] }),
+);
 void [
   asyncGraph,
   asyncTree,

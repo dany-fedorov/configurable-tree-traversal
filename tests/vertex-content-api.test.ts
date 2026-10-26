@@ -39,7 +39,7 @@ describe('canonical vertex content', () => {
     expect(vertex.getChildrenHints()).toBe(hints);
     expect(vertex.$childHints).toBe(hints);
     expect(vertex.$c).toBe(hints);
-    expect(vertex.isLeafVertex()).toBe(false);
+    expect(vertex.hasNoChildHints()).toBe(false);
   });
 
   test('normalizes legacy construction and copies an existing Vertex', () => {
@@ -76,7 +76,7 @@ describe('canonical vertex content', () => {
     expect(vertex.clone({ $data: undefined }).getChildrenHints()).toEqual([
       'child',
     ]);
-    expect(vertex.clone({ $childHints: [] }).isLeafVertex()).toBe(true);
+    expect(vertex.clone({ $childHints: [] }).hasNoChildHints()).toBe(true);
     expect(vertex.clone({}).getData()).toBe('root');
     expect(vertex.clone().getChildrenHints()).toBe(vertex.$childHints);
     expect(vertex.getData()).toBe('root');
@@ -85,7 +85,7 @@ describe('canonical vertex content', () => {
   test('keeps legacy clone updates including explicitly undefined data', () => {
     const vertex = new Vertex<T>({ $d: 'root', $c: ['child'] });
     expect(vertex.clone({ $d: undefined }).getData()).toBeUndefined();
-    expect(vertex.clone({ $c: [] }).isLeafVertex()).toBe(true);
+    expect(vertex.clone({ $c: [] }).hasNoChildHints()).toBe(true);
     expect(vertex.clone({ $d: 'new', $c: ['next'] }).$data).toBe('new');
   });
 
@@ -121,7 +121,9 @@ describe('canonical vertex content', () => {
     ['BFS', BreadthFirstTreeTraversal<T>],
     ['DAG tree source', DagTraversal<T>],
   ] as const)('follows canonical hints through %s', (_name, TreeTraversal) => {
-    const runner = new TreeTraversal({ traversableTree: source }).createRunner();
+    const runner = new TreeTraversal({
+      traversableTree: source,
+    }).createRunner();
     const data = [...runner.iterateEvents()].map(({ vertex }) =>
       vertex.getData(),
     );
@@ -130,13 +132,15 @@ describe('canonical vertex content', () => {
     const tree = runner.getResolvedGraph();
     const root = tree.getRoot()!;
     const child = tree.getChildrenOf(root)![0]!;
-    expect(child.unref().getData()).toBe('child');
+    expect(child.getValue().getData()).toBe('child');
     expect(tree.getParentsOf(child)).toEqual([root]);
     // Resolved metadata stores child refs, whereas vertices retain source hints.
-    if ('getResolvedTree' in runner) {
-      expect(runner.getResolvedTree().get(root)!.$c).toEqual([child]);
+    if ('getResolvedTreeStore' in runner) {
+      expect(runner.getResolvedTreeStore().get(root)!.children).toEqual([
+        child,
+      ]);
     }
-    expect(root.unref().$childHints).toEqual(['child']);
+    expect(root.getValue().$childHints).toEqual(['child']);
   });
 
   test.each([
@@ -146,7 +150,9 @@ describe('canonical vertex content', () => {
   ] as const)(
     'follows canonical hints through %s',
     async (_name, TreeTraversal) => {
-      const runner = new TreeTraversal({ traversableTree: source }).createRunner();
+      const runner = new TreeTraversal({
+        traversableTree: source,
+      }).createRunner();
       const data: Array<string | undefined> = [];
       for await (const { vertex } of runner.iterateEvents())
         data.push(vertex.getData());
@@ -174,8 +180,8 @@ describe('canonical vertex content', () => {
       }).createRunner();
       await runner.run();
       const graph = runner.getResolvedGraph();
-      expect(graph.getVertexById(rootId)?.unref().getData()).toBe('root');
-      expect(graph.getVertexById(childId)?.unref().getData()).toBe('child');
+      expect(graph.getVertexById(rootId)?.getValue().getData()).toBe('root');
+      expect(graph.getVertexById(childId)?.getValue().getData()).toBe('child');
     },
   );
 

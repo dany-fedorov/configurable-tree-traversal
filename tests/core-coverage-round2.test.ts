@@ -1,4 +1,4 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { StructuralGraphSnapshot } from '../src/core/graph/snapshot';
@@ -12,7 +12,7 @@ import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { TestGraph } from './helpers/graph-fixtures';
 
 function ref(data: string, hints: string[] = []) {
-  return new CTTRef(new Vertex<TestGraph>({ $d: data, $c: hints }));
+  return new MutableRef(new Vertex<TestGraph>({ $d: data, $c: hints }));
 }
 
 function context(
@@ -21,7 +21,7 @@ function context(
 ): VertexResolutionContext<TestGraph> {
   return {
     depth: 1,
-    parentVertex: parentVertexRef.unref(),
+    parentVertex: parentVertexRef.getValue(),
     parentVertexRef,
     hintIndex,
     vertexHint: `child-${hintIndex}`,
@@ -95,7 +95,7 @@ test('structural graph snapshots order independent roots and shared paths', () =
   const right = ref('right', ['join']);
   const join = ref('join');
   const staged = [left, right, join].map((vertexRef) =>
-    snapshot.stageVertex(vertexRef, vertexRef.unref().getData()),
+    snapshot.stageVertex(vertexRef, vertexRef.getValue().getData()),
   );
   staged.forEach((vertex) => snapshot.commitVertex(vertex));
   snapshot.commitEdge(snapshot.stageEdge(right, 0, join));
@@ -118,8 +118,8 @@ test('graph traversal slots retain the unprepared/prepared distinction', () => {
 });
 
 test('small vertex and identity helpers report their remaining cases', () => {
-  expect(ref('leaf').unref().isLeafVertex()).toBe(true);
-  expect(ref('branch', ['leaf']).unref().isLeafVertex()).toBe(false);
+  expect(ref('leaf').getValue().hasNoChildHints()).toBe(true);
+  expect(ref('branch', ['leaf']).getValue().hasNoChildHints()).toBe(false);
   expect(createVertexIdLabeler()(1n)).toBe('1n');
   expect(
     shouldYieldForOrder(
@@ -142,10 +142,10 @@ test('depth runner leaf checks include explicit subtree disabling', () => {
   }).createRunner();
   const leaf = ref('leaf');
   const branch = ref('branch', ['child']);
-  expect(runner.isLeafVertexRef(leaf)).toBe(true);
-  expect(runner.isLeafVertexRef(branch)).toBe(false);
+  expect(runner.isTraversalLeaf(leaf)).toBe(true);
+  expect(runner.isTraversalLeaf(branch)).toBe(false);
   runner.state.subtreeTraversalDisabledRefs.add(branch);
-  expect(runner.isLeafVertexRef(branch)).toBe(true);
+  expect(runner.isTraversalLeaf(branch)).toBe(true);
 });
 
 test('breadth-first policy validates every owned transition', () => {
@@ -165,9 +165,17 @@ test('breadth-first policy validates every owned transition', () => {
   const missing = ref('missing');
   policy.enqueueExpansion({ kind: 'frame', id: 1, epoch: 0 }, missing, 0);
   policy.enqueueExpansion({ kind: 'frame', id: 2, epoch: 0 }, parent, 0);
-  const sort = policy.next((candidate) => candidate !== missing, () => false);
+  const sort = policy.next(
+    (candidate) => candidate !== missing,
+    () => false,
+  );
   expect(sort?.kind).toBe('SORT_HINTS');
-  expect(policy.next(() => true, () => false)).toBeNull();
+  expect(
+    policy.next(
+      () => true,
+      () => false,
+    ),
+  ).toBeNull();
   if (sort?.kind !== 'SORT_HINTS') throw new Error('Expected sort work');
   expect(() =>
     policy.setHints(
@@ -183,12 +191,20 @@ test('breadth-first policy validates every owned transition', () => {
     empty: false,
   });
 
-  const work = policy.next(() => true, () => false);
+  const work = policy.next(
+    () => true,
+    () => false,
+  );
   expect(work?.kind).toBe('MAKE_VERTEX');
   if (work?.kind !== 'MAKE_VERTEX') throw new Error('Expected resolution work');
   const owner = { kind: 'frame' as const, id: 3, epoch: 0 };
   policy.startResolution(owner, work.context);
-  expect(policy.next(() => true, () => false)).toBeNull();
+  expect(
+    policy.next(
+      () => true,
+      () => false,
+    ),
+  ).toBeNull();
   const frames = policy.getFrames();
   expect(frames[frames.length - 1]?.pendingIndices).toEqual([0]);
   expect(() => policy.startResolution(owner, work.context)).toThrow(/pending/i);
@@ -199,7 +215,12 @@ test('breadth-first policy validates every owned transition', () => {
     context: work.context,
     closeParent: true,
   });
-  expect(policy.next(() => false, () => false)?.kind).toBe('CLEAR_QUEUE');
+  expect(
+    policy.next(
+      () => false,
+      () => false,
+    )?.kind,
+  ).toBe('CLEAR_QUEUE');
   policy.clearQueue();
   expect(policy.isIdle()).toBe(true);
 });
@@ -212,7 +233,10 @@ test('breadth-first policy handles disabled expansion and invalid progress', () 
   );
   expect(policy.activateInjectedFrontier(parent)).toBe(true);
   policy.enqueueExpansion({ kind: 'frame', id: 1, epoch: 0 }, parent, 0);
-  const work = policy.next(() => true, () => true);
+  const work = policy.next(
+    () => true,
+    () => true,
+  );
   expect(work).toMatchObject({ kind: 'PREPARE_HINTS', hints: [] });
   if (work?.kind !== 'PREPARE_HINTS') throw new Error('Expected hints');
   expect(policy.setHints(work.expansion, [])).toBe(true);
@@ -240,10 +264,10 @@ test('policy inspections expose unresolved BFS and waiting DFS frames', () => {
 
   const depth = new DepthFirstPolicy<TestGraph>(
     {
-      visitParentAfterChildren: 0,
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: 0,
-      visitUpOneChildParents: true,
-      considerVisitAfterNullContentVertices: true,
+      afterChildIndices: 0,
+      fallbackChildIndices: 0,
+      visitSingleChildParent: true,
+      visitAfterOmittedChildren: true,
     },
     false,
   );
@@ -257,6 +281,11 @@ test('policy inspections expose unresolved BFS and waiting DFS frames', () => {
     'post-visit',
   ] as const) {
     frame.stage = stage;
-    expect(depth.next(() => true, () => false)).toBeNull();
+    expect(
+      depth.next(
+        () => true,
+        () => false,
+      ),
+    ).toBeNull();
   }
 });

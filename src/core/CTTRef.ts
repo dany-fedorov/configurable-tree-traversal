@@ -1,6 +1,6 @@
 import * as uuid from 'uuid';
 
-export class CTTRef<T> {
+export class MutableRef<T> {
   private _ref: T;
   private readonly _id: string;
 
@@ -9,11 +9,11 @@ export class CTTRef<T> {
     this._id = uuid.v4();
   }
 
-  unref(): T {
+  getValue(): T {
     return this._ref;
   }
 
-  setPointsTo(ref: T): void {
+  setValue(ref: T): void {
     this._ref = ref;
   }
 

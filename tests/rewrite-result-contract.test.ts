@@ -2,12 +2,11 @@ import {
   DepthFirstPhase,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
-  rewriteObject as rewriteApi,
+  objectRewrite as rewriteApi,
+  rewriteObject,
   rewriteObjectAs,
 } from '../src';
 import type { RewriteObjectOptions } from '../src/tools/rewrite-object';
-
-const { rewriteObject } = rewriteApi;
 
 function pauseBeforeRootRewrite() {
   let didHalt = false;
@@ -46,7 +45,7 @@ describe('rewrite result contracts', () => {
     expect(result.traversalRunner.getStatus()).toBe(
       TraversalRunnerStatus.HALTED,
     );
-    expect(result.outputObject).toEqual({ converted: { count: 1 } });
+    expect(result.outputAtReturn).toEqual({ converted: { count: 1 } });
     expect(() => result.getOutput()).toThrow(/output.*not complete/i);
     expect(convertedValues).toEqual([input]);
     result.traversalRunner.run();
@@ -54,7 +53,7 @@ describe('rewrite result contracts', () => {
     expect(final).toEqual({ converted: { renamed: 1 } });
     expect(result.getOutput()).toBe(final);
     expect(convertedValues).toEqual([input, { renamed: 1 }]);
-    expect(result.outputObject).toEqual({ converted: { count: 1 } });
+    expect(result.outputAtReturn).toEqual({ converted: { count: 1 } });
   });
 
   test('reuses the initial successful conversion when the run already finished', () => {
@@ -68,7 +67,7 @@ describe('rewrite result contracts', () => {
         }),
       },
     );
-    expect(result.getOutput()).toBe(result.outputObject);
+    expect(result.getOutput()).toBe(result.outputAtReturn);
     expect(result.getOutput()).toEqual({ value: { count: 1 }, conversion: 1 });
     expect(conversions).toBe(1);
   });

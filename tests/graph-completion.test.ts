@@ -1,7 +1,7 @@
 import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { Ref } from '../src/core/graph/types';
+import type { VertexRef } from '../src/core/graph/types';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -18,15 +18,15 @@ function result(
 }
 
 function context(
-  parentRef: Ref<TestGraph>,
+  parentRef: VertexRef<TestGraph>,
   hintIndex: number,
 ): VertexResolutionContext<TestGraph> {
   return {
     depth: 1,
-    parentVertex: parentRef.unref(),
+    parentVertex: parentRef.getValue(),
     parentVertexRef: parentRef,
     hintIndex,
-    vertexHint: parentRef.unref().getChildrenHints()[hintIndex]!,
+    vertexHint: parentRef.getValue().getChildrenHints()[hintIndex]!,
   };
 }
 
@@ -103,7 +103,10 @@ test('completion entries append behind existing initial visits in one FIFO', () 
   scheduling.closeExpansion(aRef);
 
   expect(scheduling.takeCompleting()).toBeNull();
-  expect(scheduling.takeEligible()).toEqual({ ref: bRef, order: 'ON_WORK_READY' });
+  expect(scheduling.takeEligible()).toEqual({
+    ref: bRef,
+    order: 'ON_WORK_READY',
+  });
   expect(scheduling.takeEligible()).toEqual({
     ref: aRef,
     order: 'ON_SUBGRAPH_READY',

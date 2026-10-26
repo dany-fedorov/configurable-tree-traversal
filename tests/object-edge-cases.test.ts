@@ -5,7 +5,7 @@ import {
   TraversalVisitorCommandName,
   TraversalVisitorFunctionResolutionStyle,
   ObjectTreeSource,
-  rewriteObject as rewriteObjectApi,
+  objectRewrite as rewriteObjectApi,
 } from '../src';
 
 const { rewriteObject, rewriteObjectAs } = rewriteObjectApi;
@@ -18,7 +18,7 @@ describe('object traversal and rewriting edge cases', () => {
     }> = [];
     let branchCompositeSeenByRewrite: unknown;
 
-    const { outputObject } = rewriteObject(
+    const { outputAtReturn } = rewriteObject(
       { branch: { old: 1, keep: 2 } },
       {
         assembleCompositesBeforeRewrite: true,
@@ -45,7 +45,7 @@ describe('object traversal and rewriting edge cases', () => {
     );
 
     expect(branchCompositeSeenByRewrite).toEqual({ renamed: 10, keep: 20 });
-    expect(outputObject).toEqual({ branch: { renamed: 10, keep: 20 } });
+    expect(outputAtReturn).toEqual({ branch: { renamed: 10, keep: 20 } });
     expect(assembled).toEqual([
       {
         key: 'branch',
@@ -65,7 +65,7 @@ describe('object traversal and rewriting edge cases', () => {
     const assemblyInputs: Array<Array<{ key: PropertyKey; value: unknown }>> =
       [];
 
-    const { outputObject } = rewriteObjectAs<
+    const { outputAtReturn } = rewriteObjectAs<
       number[] & { name: string; [tag]: string }
     >(input, {
       assembleArray: (children) => {
@@ -98,9 +98,9 @@ describe('object traversal and rewriting edge cases', () => {
         { key: tag, value: 'metadata' },
       ],
     ]);
-    expect(Array.from(outputObject!)).toEqual([1, 3]);
-    expect(outputObject!.name).toBe('numbers');
-    expect(outputObject![tag]).toBe('metadata');
+    expect(Array.from(outputAtReturn!)).toEqual([1, 3]);
+    expect(outputAtReturn!.name).toBe('numbers');
+    expect(outputAtReturn![tag]).toBe('metadata');
   });
 
   test('custom classification and assembly reconstruct a specialized composite type', () => {
@@ -109,7 +109,7 @@ describe('object traversal and rewriting edge cases', () => {
     }
     const input = { boxed: new Box({ first: 1, second: 2 }) };
 
-    const { outputObject } = rewriteObjectAs<typeof input>(input, {
+    const { outputAtReturn } = rewriteObjectAs<typeof input>(input, {
       getChildrenOfProperty: (property) =>
         property.value instanceof Box
           ? Object.entries(property.value.entries).map(([key, value]) => ({
@@ -131,17 +131,17 @@ describe('object traversal and rewriting edge cases', () => {
           : undefined,
     });
 
-    expect(outputObject).toEqual({
+    expect(outputAtReturn).toEqual({
       boxed: new Box({ first: 10, second: 20 }),
     });
-    expect(outputObject!.boxed).toBeInstanceOf(Box);
+    expect(outputAtReturn!.boxed).toBeInstanceOf(Box);
     expect(input.boxed.entries).toEqual({ first: 1, second: 2 });
   });
 
   test('makeVertexHook can prune one property and replace another subtree', () => {
     const visited: PropertyKey[] = [];
 
-    const { outputObject } = rewriteObject(
+    const { outputAtReturn } = rewriteObject(
       {
         keep: 1,
         prune: { hidden: 2 },
@@ -167,7 +167,7 @@ describe('object traversal and rewriting edge cases', () => {
       },
     );
 
-    expect(outputObject).toEqual({ keep: 1, replacement: { visible: 4 } });
+    expect(outputAtReturn).toEqual({ keep: 1, replacement: { visible: 4 } });
     expect(visited).toEqual(['keep', 'visible', 'replacement']);
   });
 
@@ -181,25 +181,25 @@ describe('object traversal and rewriting edge cases', () => {
         }
       | undefined;
 
-    const { outputObject } = rewriteObject(
+    const { outputAtReturn } = rewriteObject(
       { change: 1, remove: 2 },
       {
-        saveNotMutatedResolvedTree: true,
+        retainOriginalTreeStructure: true,
         rewrite: ({ key }, options) => {
           if (key === 'change') return { rewrite: { value: 10 } };
           if (key === 'remove') return { delete: true };
           if (options.isTreeRoot) {
-            const originalTree = options.notMutatedResolvedTree!;
+            const originalTree = options.originalTreeView!;
             const originalRoot = originalTree.getRoot()!;
             const currentRoot = options.resolvedTree.getRoot()!;
             const originalChildren = originalTree.getChildrenOf(originalRoot)!;
             snapshot = {
               rootIsIndependent: originalRoot !== currentRoot,
               childKeys: originalChildren.map(
-                (ref) => ref.unref().getData().key,
+                (ref) => ref.getValue().getData().key,
               ),
               childValues: originalChildren.map(
-                (ref) => ref.unref().getData().value,
+                (ref) => ref.getValue().getData().value,
               ),
               parentsPointToSnapshotRoot: originalChildren.every(
                 (ref) => originalTree.getParentOf(ref) === originalRoot,
@@ -211,7 +211,7 @@ describe('object traversal and rewriting edge cases', () => {
       },
     );
 
-    expect(outputObject).toEqual({ change: 10 });
+    expect(outputAtReturn).toEqual({ change: 10 });
     expect(snapshot).toEqual({
       rootIsIndependent: true,
       childKeys: ['change', 'remove'],
@@ -220,7 +220,7 @@ describe('object traversal and rewriting edge cases', () => {
     });
   });
 
-  test('outputObject remains the return-time snapshot when its halted runner resumes', () => {
+  test('outputAtReturn remains the return-time snapshot when its halted runner resumes', () => {
     const input = { value: 1 };
     let haltedAtRoot = false;
 
@@ -254,22 +254,22 @@ describe('object traversal and rewriting edge cases', () => {
     expect(result.traversalRunner.getStatus()).toBe(
       TraversalRunnerStatus.HALTED,
     );
-    expect(result.outputObject).toBe(input);
-    expect(result.outputObject).toEqual({ value: 1 });
+    expect(result.outputAtReturn).toBe(input);
+    expect(result.outputAtReturn).toEqual({ value: 1 });
 
     result.traversalRunner.run();
-    const finalRoot = result.traversalRunner.getResolvedTree().getRoot()!;
+    const finalRoot = result.traversalRunner.getResolvedTreeStore().getRoot()!;
 
     expect(result.traversalRunner.getStatus()).toBe(
       TraversalRunnerStatus.FINISHED,
     );
-    expect(finalRoot.unref().getData().value).toEqual({ value: 2 });
-    expect(result.outputObject).toBe(input);
-    expect(result.outputObject).toEqual({ value: 1 });
+    expect(finalRoot.getValue().getData().value).toEqual({ value: 2 });
+    expect(result.outputAtReturn).toBe(input);
+    expect(result.outputAtReturn).toEqual({ value: 1 });
   });
 
   test('retains nested null and undefined values and can explicitly rewrite to them', () => {
-    const { outputObject } = rewriteObject(
+    const { outputAtReturn } = rewriteObject(
       {
         nullValue: null,
         undefinedValue: undefined,
@@ -284,12 +284,12 @@ describe('object traversal and rewriting edge cases', () => {
       },
     );
 
-    expect(outputObject).toEqual({
+    expect(outputAtReturn).toEqual({
       nullValue: null,
       undefinedValue: undefined,
       nested: [null, undefined, undefined, null],
     });
-    expect(Object.keys(outputObject!)).toEqual([
+    expect(Object.keys(outputAtReturn!)).toEqual([
       'nullValue',
       'undefinedValue',
       'nested',
@@ -309,21 +309,21 @@ describe('object traversal and rewriting edge cases', () => {
     });
     input[symbolKey] = 4;
 
-    const { outputObject } = rewriteObject(input, {
+    const { outputAtReturn } = rewriteObject(input, {
       rewrite: ({ value }) =>
         typeof value === 'number'
           ? { rewrite: { value: value * 10 } }
           : undefined,
     });
 
-    expect(Object.getPrototypeOf(outputObject)).toBe(Object.prototype);
-    expect(Reflect.ownKeys(outputObject!)).toEqual([
+    expect(Object.getPrototypeOf(outputAtReturn)).toBe(Object.prototype);
+    expect(Reflect.ownKeys(outputAtReturn!)).toEqual([
       '__proto__',
       'constructor',
       'prototype',
       symbolKey,
     ]);
-    expect(outputObject).toEqual({
+    expect(outputAtReturn).toEqual({
       ['__proto__']: 10,
       constructor: 20,
       prototype: 30,
@@ -352,24 +352,26 @@ describe('object traversal and rewriting edge cases', () => {
       value: 3,
     });
 
-    const { outputObject } = rewriteObject(input);
+    const { outputAtReturn } = rewriteObject(input);
 
-    expect(outputObject).toEqual({ computed: 2 });
+    expect(outputAtReturn).toEqual({ computed: 2 });
     expect(getterReads).toBe(1);
-    expect(Object.getOwnPropertyDescriptor(outputObject, 'computed')).toEqual({
-      configurable: true,
-      enumerable: true,
-      value: 2,
-      writable: true,
-    });
+    expect(Object.getOwnPropertyDescriptor(outputAtReturn, 'computed')).toEqual(
+      {
+        configurable: true,
+        enumerable: true,
+        value: 2,
+        writable: true,
+      },
+    );
     expect(
-      Object.prototype.hasOwnProperty.call(outputObject, 'inherited'),
+      Object.prototype.hasOwnProperty.call(outputAtReturn, 'inherited'),
     ).toBe(false);
-    expect(Object.prototype.hasOwnProperty.call(outputObject, 'hidden')).toBe(
+    expect(Object.prototype.hasOwnProperty.call(outputAtReturn, 'hidden')).toBe(
       false,
     );
     expect(
-      Object.prototype.hasOwnProperty.call(outputObject, inheritedSymbol),
+      Object.prototype.hasOwnProperty.call(outputAtReturn, inheritedSymbol),
     ).toBe(false);
   });
 
@@ -382,12 +384,12 @@ describe('object traversal and rewriting edge cases', () => {
       cursor = parent;
     }
 
-    const { outputObject } = rewriteObject(cursor, {
+    const { outputAtReturn } = rewriteObject(cursor, {
       rewrite: ({ key, value }) =>
         key === 'leaf' && value === 1 ? { rewrite: { value: 2 } } : undefined,
     });
 
-    let outputCursor: unknown = outputObject;
+    let outputCursor: unknown = outputAtReturn;
     for (let index = 0; index < depth; index += 1) {
       outputCursor = (outputCursor as { child: unknown }).child;
     }

@@ -1,33 +1,33 @@
-import type { CTTRef } from '@core/CTTRef';
+import type { MutableRef } from '@core/CTTRef';
 import type { GetPathToOptions } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type { GraphVertex, GraphVertexStatus } from '@core/graph/types';
+import type {
+  ResolvedGraphVertex,
+  ResolvedVertexStatus,
+} from '@core/graph/types';
 
 export interface ResolvedGraph<T extends VertexTypes, ID = unknown> {
-  get(ref: CTTRef<Vertex<T>>): GraphVertex<T, ID> | null;
-  has(ref: CTTRef<Vertex<T>>): boolean;
-  getRoot(): CTTRef<Vertex<T>> | null;
-  getVertexRefs(): CTTRef<Vertex<T>>[];
-  getVertexRefById(id: ID): CTTRef<Vertex<T>> | null;
-  getVertexId(ref: CTTRef<Vertex<T>>): ID;
+  get(ref: MutableRef<Vertex<T>>): ResolvedGraphVertex<T, ID> | null;
+  has(ref: MutableRef<Vertex<T>>): boolean;
+  getRoot(): MutableRef<Vertex<T>> | null;
+  getVertexRefs(): MutableRef<Vertex<T>>[];
+  getVertexRefById(id: ID): MutableRef<Vertex<T>> | null;
+  getVertexId(ref: MutableRef<Vertex<T>>): ID;
   /** @deprecated Use getVertexRefById. */
-  getVertexById(id: ID): CTTRef<Vertex<T>> | null;
+  getVertexById(id: ID): MutableRef<Vertex<T>> | null;
   /** @deprecated Use getVertexId. */
-  getIdOf(ref: CTTRef<Vertex<T>>): ID;
-  getStatusOf(ref: CTTRef<Vertex<T>>): GraphVertexStatus | null;
-  getParentsOf(ref: CTTRef<Vertex<T>>): CTTRef<Vertex<T>>[] | null;
-  getChildrenOf(ref: CTTRef<Vertex<T>>): CTTRef<Vertex<T>>[] | null;
+  getIdOf(ref: MutableRef<Vertex<T>>): ID;
+  getStatusOf(ref: MutableRef<Vertex<T>>): ResolvedVertexStatus | null;
+  getParentsOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
+  getChildrenOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
   getPathsTo(
-    ref: CTTRef<Vertex<T>>,
+    ref: MutableRef<Vertex<T>>,
     options?: GetPathToOptions,
-  ): CTTRef<Vertex<T>>[][];
+  ): MutableRef<Vertex<T>>[][];
 }
 
-export type ResolvedGraphSnapshot<
-  T extends VertexTypes,
-  ID = unknown,
-> = Pick<
+export type OriginalGraphView<T extends VertexTypes, ID = unknown> = Pick<
   ResolvedGraph<T, ID>,
   | 'has'
   | 'getRoot'

@@ -1,4 +1,4 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import {
   createVertexIdLabeler,
   hasVertexId,
@@ -21,8 +21,8 @@ test('distinguishes an absent vertex id from an explicit undefined id', () => {
 });
 
 test('new references generate independent UUID ids', () => {
-  const first = new CTTRef({});
-  const second = new CTTRef({});
+  const first = new MutableRef({});
+  const second = new MutableRef({});
 
   expect(first.getId()).not.toBe(second.getId());
 });

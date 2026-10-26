@@ -1,16 +1,21 @@
 // Packed public contracts; exercise actual calls under both declaration loaders.
 import {
   ObjectTreeSource,
-  rewriteObject as rewriteApi,
+  objectRewrite as rewriteApi,
+  rewriteObject,
+  MutableRef,
+  type VertexRef,
+  type VertexTypes,
+  type Vertex,
   rewriteObjectAs,
 } from 'configurable-tree-traversal';
 import {
-  rewriteObject,
+  rewriteObject as subpathRewriteObject,
   rewriteObjectAs as subpathRewriteObjectAs,
 } from 'configurable-tree-traversal/tools/rewrite-object';
 
 // @ts-expect-error Reconstruction alone does not preserve arbitrary input shape.
-rewriteObject({ count: 1 }).outputObject!.count;
+rewriteObject({ count: 1 }).outputAtReturn!.count;
 const changed = rewriteObject(
   { count: 1 },
   {
@@ -19,7 +24,7 @@ const changed = rewriteObject(
   },
 );
 // @ts-expect-error Arbitrary rewrites do not preserve the input shape.
-changed.outputObject!.count;
+changed.outputAtReturn!.count;
 // @ts-expect-error The final output default is conservative too.
 changed.getOutput()!.count;
 const typed = rewriteObjectAs<{ renamed: number }>(
@@ -38,7 +43,7 @@ const inferred = rewriteObject(1, {
   getOutputObjectFromRootValue: () => ({ converted: true }),
 });
 const converted: boolean = inferred.getOutput()!.converted;
-const snapshotConverted: boolean = inferred.outputObject!.converted;
+const snapshotConverted: boolean = inferred.outputAtReturn!.converted;
 const explicit = rewriteObject<
   Record<string, never>,
   PropertyKey,
@@ -85,3 +90,8 @@ void [
   snapshotConverted,
   explicitValue,
 ];
+
+const rootAndSubpath: typeof subpathRewriteObject = rewriteObject;
+declare const vertexRef: VertexRef<VertexTypes>;
+const genericRef: MutableRef<Vertex<VertexTypes>> = vertexRef;
+void [rootAndSubpath, genericRef];

@@ -3,7 +3,7 @@ import type { VertexTypes } from '../src/core';
 import {
   DagTraversal,
   DagVisitorPhase,
-  hasSingleSink,
+  hasSingleStructuralSink,
 } from '../src/traversals/dag-traversal';
 
 type Workflow = VertexTypes<string, string>;
@@ -64,4 +64,4 @@ assert(readyTasks.indexOf('publish') > readyTasks.indexOf('test'));
 assert.equal(new Set(readyTasks).size, 5);
 assert.equal(completedSubtrees[0], 'publish');
 assert.equal(completedSubtrees.at(-1), 'root');
-assert.equal(hasSingleSink(runner.getResolvedGraph()), true);
+assert.equal(hasSingleStructuralSink(runner.getResolvedGraph()), true);

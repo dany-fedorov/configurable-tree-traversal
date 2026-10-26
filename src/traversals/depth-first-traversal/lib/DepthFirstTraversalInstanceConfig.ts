@@ -1,10 +1,10 @@
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import type { IndexRange } from '../in-order-helpers/IndexRange';
+import type { ChildIndexSelection } from '../in-order-helpers/IndexRange';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TreeSource } from '@core/TraversableTree';
 import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
-import type { DepthFirstTraversalInOrderTraversalConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
+import type { InOrderOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import type { DepthFirstTraversalRunnerInternalObjects } from '@depth-first-traversal/lib/DepthFirstTraversalRunnerInternalObjects';
 import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { OrNullAllFields } from '@depth-first-traversal/type-helpers/OrNullAllFields';
@@ -22,8 +22,8 @@ export type DepthFirstTraversalInstanceConfig<
   traversableTree: TreeSource<TTP, RW_TTP>;
   sortChildrenHints: SortChildrenHintsFn<TTP> | null;
   visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
-  inOrderTraversalConfig: DepthFirstTraversalInOrderTraversalConfig;
-  saveNotMutatedResolvedTree: boolean;
+  inOrder: InOrderOptions;
+  retainOriginalTreeStructure: boolean;
   traversalRunnerInternalObjects: Partial<
     OrNullAllFields<DepthFirstTraversalRunnerInternalObjects<TTP, RW_TTP>>
   >;
@@ -34,18 +34,18 @@ export const DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   'traversableTree'
 > = deepFreeze({
   sortChildrenHints: null,
-  inOrderTraversalConfig: {
-    visitParentAfterChildren: [0, -2],
-    visitParentAfterChildrenAllRangesOutOfBoundsFallback: -2,
-    visitUpOneChildParents: true,
-    considerVisitAfterNullContentVertices: true,
+  inOrder: {
+    afterChildIndices: [0, -2],
+    fallbackChildIndices: -2,
+    visitSingleChildParent: true,
+    visitAfterOmittedChildren: true,
   },
   visitors: {
     [DepthFirstPhase.PRE_ORDER]: [],
     [DepthFirstPhase.IN_ORDER]: [],
     [DepthFirstPhase.POST_ORDER]: [],
   },
-  saveNotMutatedResolvedTree: false,
+  retainOriginalTreeStructure: false,
   traversalRunnerInternalObjects: {
     resolvedTreesContainer: null,
     state: null,
@@ -58,10 +58,7 @@ export type DepthFirstTraversalInstanceConfigInput<
 > = Omit<
   DepthFirstTraversalInstanceConfigDeepPartial<
     DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-    | keyof DepthFirstTraversalInstanceConfig<
-        TTP,
-        RW_TTP
-      >['inOrderTraversalConfig']
+    | keyof DepthFirstTraversalInstanceConfig<TTP, RW_TTP>['inOrder']
     | keyof DepthFirstTraversalInstanceConfig<
         TTP,
         RW_TTP
@@ -80,8 +77,8 @@ export function mergeInstanceConfigs<
   input: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
 ): DepthFirstTraversalInstanceConfig<TTP, RW_TTP> {
   const inOrder = {
-    ...base.inOrderTraversalConfig,
-    ...input.inOrderTraversalConfig,
+    ...base.inOrder,
+    ...input.inOrder,
   };
   const visitors = {
     ...base.visitors,
@@ -101,14 +98,10 @@ export function mergeInstanceConfigs<
         visitors[DepthFirstPhase.POST_ORDER],
       ),
     },
-    inOrderTraversalConfig: {
+    inOrder: {
       ...inOrder,
-      visitParentAfterChildren: clonePositions(
-        inOrder.visitParentAfterChildren,
-      ),
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: clonePositions(
-        inOrder.visitParentAfterChildrenAllRangesOutOfBoundsFallback,
-      ),
+      afterChildIndices: clonePositions(inOrder.afterChildIndices),
+      fallbackChildIndices: clonePositions(inOrder.fallbackChildIndices),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
@@ -117,13 +110,13 @@ export function mergeInstanceConfigs<
   };
 }
 
-function cloneRange(range: IndexRange): IndexRange {
+function cloneRange(range: ChildIndexSelection): ChildIndexSelection {
   return typeof range === 'number' ? range : [range[0], range[1]];
 }
 
 function clonePositions(
-  positions: DepthFirstTraversalInOrderTraversalConfig['visitParentAfterChildren'],
-): DepthFirstTraversalInOrderTraversalConfig['visitParentAfterChildren'] {
+  positions: InOrderOptions['afterChildIndices'],
+): InOrderOptions['afterChildIndices'] {
   return typeof positions === 'number' || Array.isArray(positions)
     ? cloneRange(positions)
     : { ranges: positions.ranges.map(cloneRange) };

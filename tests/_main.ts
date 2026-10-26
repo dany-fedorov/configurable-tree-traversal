@@ -32,7 +32,7 @@
           ?.depth ?? 0;
       // console.log(depth, vertex.getData());
       const makeMutationCommand =
-        ObjectTreeSource.makeMutationCommandFactory<TreeTTP, TreeTTP>()(vertex, options);
+        ObjectTreeSource.createObjectMutationBinder<TreeTTP, TreeTTP>()(vertex, options);
       // TraversableTreeParametersFromTraversableTree<typeof tree>,
       if (vertex.getData().value === 1) {
         return {
@@ -72,7 +72,7 @@
     },
   });
   console.log(
-    jsonStringifySafe(resolvedTree.getRoot()?.unref().getData().value, 8),
+    jsonStringifySafe(resolvedTree.getRoot()?.getValue().getData().value, 8),
   );
 }*/
 
@@ -87,7 +87,7 @@
     g: [{ g1: 123, g11: { g22: [1, 2, 3, 4, 3, 2, 1] } }],
   };
   // console.log(jsonStringifySafe(host, 8));
-  const { outputObject } = rewriteObject(host, {
+  const { outputAtReturn } = rewriteObject(host, {
     assembleCompositesBeforeRewrite: true,
     rewrite: ({ key, value }, options) => {
       const depth =
@@ -98,7 +98,7 @@
         // noSelf: true,
       });
       console.log(
-        // p.map((ps) => ps.unref().getData().key),
+        // p.map((ps) => ps.getValue().getData().key),
         options.getPath({ noRoot: true }),
         // '=====>',
         // value,
@@ -124,7 +124,7 @@
       return;
     },
   });
-  console.log(jsonStringifySafe(outputObject, 8));
+  console.log(jsonStringifySafe(outputAtReturn, 8));
 }*/
 
 /*const main = () => {
@@ -199,7 +199,7 @@
 //           // options.vertexRef,
 //           // '------------------------------\n',
 //           // options.vertexRef.getId(),
-//           p.map((ps) => ps.unref().getData().key),
+//           p.map((ps) => ps.getValue().getData().key),
 //           typeof vertex.getData().value === 'object'
 //             ? 'OBJECT'
 //             : vertex.getData().value,
@@ -213,16 +213,16 @@
 //           //       .getPathTo(options.previousPhaseVertexRef, {
 //           //         noRoot: true,
 //           //       })
-//           //       .map((ps) => ps.unref().getData().key),
-//           // typeof options.previousPhaseVertexRef?.unref().getData().value ===
+//           //       .map((ps) => ps.getValue().getData().key),
+//           // typeof options.previousPhaseVertexRef?.getValue().getData().value ===
 //           //   'object'
 //           //   ? 'OBJECT'
-//           //   : options.previousPhaseVertexRef?.unref().getData().value,
+//           //   : options.previousPhaseVertexRef?.getValue().getData().value,
 //         );
 //       },
 //     },
 //     {
-//       inOrderTraversalConfig: {
+//       inOrder: {
 //         visitParentAfter: [4, 3],
 //         // visitParentAfter: {
 //         //   // ranges: [
@@ -304,7 +304,7 @@
 //       return {};
 //     },
 //   });
-//   // console.log(jsonStringifySafe(resolvedTree.getRoot()?.unref().getData()));
+//   // console.log(jsonStringifySafe(resolvedTree.getRoot()?.getValue().getData()));
 //   // console.log(haltedOnContext);
 //   console.log('----------');
 //   const res1 = res.continue(

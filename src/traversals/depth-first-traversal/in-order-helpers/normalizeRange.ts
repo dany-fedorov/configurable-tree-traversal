@@ -1,7 +1,7 @@
-import type { IndexRange } from '@depth-first-traversal/in-order-helpers/IndexRange';
+import type { ChildIndexSelection } from '@depth-first-traversal/in-order-helpers/IndexRange';
 
 export function normalizeRange(
-  r: IndexRange,
+  r: ChildIndexSelection,
   arrLength: number,
 ): [number, number] | null {
   const rr = (Array.isArray(r) ? r : [r, r]).map((n, i) => {

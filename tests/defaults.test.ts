@@ -67,8 +67,7 @@ describe('exported traversal defaults', () => {
 
   test('mutating the exported DFS range cannot corrupt a future traversal', () => {
     const ranges =
-      DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.inOrderTraversalConfig
-        .visitParentAfterChildren;
+      DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.inOrder.afterChildIndices;
     if (!Array.isArray(ranges)) throw new Error('Expected default ranges');
     const original = ranges[0];
     let mutationError: unknown;
@@ -225,22 +224,20 @@ describe('exported traversal defaults', () => {
     expect(() => {
       depthIterable.iterateOver.length = 0;
       breadthIterable.iterateOver.length = 0;
-      depthTraversal.icfg.saveNotMutatedResolvedTree = true;
-      breadthTraversal.icfg.saveNotMutatedResolvedTree = true;
-      depthTraversal.icfg.visitors[DepthFirstPhase.PRE_ORDER].push(
-        depthRecord,
+      depthTraversal.icfg.retainOriginalTreeStructure = true;
+      breadthTraversal.icfg.retainOriginalTreeStructure = true;
+      depthTraversal.icfg.visitors[DepthFirstPhase.PRE_ORDER].push(depthRecord);
+      breadthTraversal.icfg.visitors[BreadthFirstPhase.LEVEL_ORDER].push(
+        breadthRecord,
       );
-      breadthTraversal.icfg.visitors[
-        BreadthFirstPhase.LEVEL_ORDER
-      ].push(breadthRecord);
     }).not.toThrow();
     expect(depthIterable.iterateOver).toEqual([]);
     expect(breadthIterable.iterateOver).toEqual([]);
-    expect(depthTraversal.icfg.saveNotMutatedResolvedTree).toBe(true);
-    expect(breadthTraversal.icfg.saveNotMutatedResolvedTree).toBe(true);
-    expect(
-      depthTraversal.icfg.visitors[DepthFirstPhase.PRE_ORDER],
-    ).toEqual([depthRecord]);
+    expect(depthTraversal.icfg.retainOriginalTreeStructure).toBe(true);
+    expect(breadthTraversal.icfg.retainOriginalTreeStructure).toBe(true);
+    expect(depthTraversal.icfg.visitors[DepthFirstPhase.PRE_ORDER]).toEqual([
+      depthRecord,
+    ]);
     expect(
       breadthTraversal.icfg.visitors[BreadthFirstPhase.LEVEL_ORDER],
     ).toEqual([breadthRecord]);

@@ -1,14 +1,11 @@
-import type {
-  CallbackBindings,
-  KernelPort,
-} from '../src/core/effects/types';
+import type { CallbackBindings, KernelPort } from '../src/core/effects/types';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { runSync, type SyncDriverState } from '../src/core/drivers/runSync';
 import { createCallbackBindings } from '../src/core/drivers/callbackBindings';
 import type { TestGraph } from './helpers/graph-fixtures';
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 
 function setup(iterateOver: Array<'ON_WORK_READY' | 'ON_SUBGRAPH_READY'> = []) {
@@ -107,7 +104,10 @@ test.each([
   ['promise', Promise.reject(new Error('rejected'))],
   [
     'custom thenable',
-    { then: (_resolve: unknown, reject: (error: unknown) => void) => reject('no') },
+    {
+      then: (_resolve: unknown, reject: (error: unknown) => void) =>
+        reject('no'),
+    },
   ],
   [
     'throwing then getter',
@@ -125,16 +125,19 @@ test.each([
       },
     },
   ],
-])('rejects a %s from a synchronous callback without leaking it', (_name, value) => {
-  const iterator = runSync<TestGraph>(
-    setup(),
-    {
-      invoke: () => ({ kind: 'MAKE_ROOT', value } as never),
-    },
-    { inFlightCallbackCount: 0 },
-  );
-  expect(() => iterator.next()).toThrow(/synchronous runner.*MAKE_ROOT/i);
-});
+])(
+  'rejects a %s from a synchronous callback without leaking it',
+  (_name, value) => {
+    const iterator = runSync<TestGraph>(
+      setup(),
+      {
+        invoke: () => ({ kind: 'MAKE_ROOT', value } as never),
+      },
+      { inFlightCallbackCount: 0 },
+    );
+    expect(() => iterator.next()).toThrow(/synchronous runner.*MAKE_ROOT/i);
+  },
+);
 
 test('rejects WAIT and mismatched callback transport results', () => {
   const waiting = {
@@ -195,7 +198,9 @@ test('callback bindings dispatch every request by its discriminant', () => {
     kind: 'MAKE_ROOT',
     value: { vertexContent: null },
   });
-  const ref = new CTTRef(new Vertex<TestGraph>({ $d: 'parent', $c: ['a'] }));
+  const ref = new MutableRef(
+    new Vertex<TestGraph>({ $d: 'parent', $c: ['a'] }),
+  );
   const owner = { kind: 'frame' as const, id: 2, epoch: 0 };
   expect(
     bindings.invoke({
@@ -221,7 +226,7 @@ test('callback bindings dispatch every request by its discriminant', () => {
       kind: 'MAKE_VERTEX',
       context: {
         depth: 1,
-        parentVertex: ref.unref(),
+        parentVertex: ref.getValue(),
         parentVertexRef: ref,
         hintIndex: 0,
         vertexHint: 'a',
@@ -269,7 +274,7 @@ test('callback bindings use sort fallback and reject missing visitors', () => {
       requestId: 2,
       owner: { kind: 'chain', id: 2, epoch: 0 },
       kind: 'VISIT',
-      ref: new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: [] })),
+      ref: new MutableRef(new Vertex<TestGraph>({ $d: 'root', $c: [] })),
       order: 'ON_WORK_READY',
       recordIndex: 0,
       metadata: {

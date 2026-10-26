@@ -65,7 +65,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       await runner.run();
       expect(runner.summary().completedWorkIds).toEqual(['root']);
       expect(
-        runner.getResolvedGraph().getVertexById('root')!.unref().$data,
+        runner.getResolvedGraph().getVertexById('root')!.getValue().$data,
       ).toBe('root');
     },
   );
@@ -89,9 +89,9 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     await expect(async () => {
       await runner.run();
     }).rejects.toThrow(/sole command/);
-    expect(runner.getResolvedGraph().getVertexById('root')!.unref().$data).toBe(
-      'root',
-    );
+    expect(
+      runner.getResolvedGraph().getVertexById('root')!.getValue().$data,
+    ).toBe('root');
   });
 }
 for (const [Constructor, order, sourceKey] of [
@@ -272,9 +272,9 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     }));
     const runner = traversal.createRunner();
     await runner.run();
-    expect(runner.getResolvedGraph().getVertexById('root')!.unref().$data).toBe(
-      'kept',
-    );
+    expect(
+      runner.getResolvedGraph().getVertexById('root')!.getValue().$data,
+    ).toBe('kept');
     const generation = runner.summary().vertices.get('root')!.generation!;
     expect(() => runner.settle('root', { ok: true }, Symbol())).toThrow();
     expect(runner.settle('root', { ok: true }, generation)).toBe(true);
@@ -315,7 +315,10 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     const traversal = new Constructor({ traversableGraph: source });
     traversal.addVisitorFor(
       DagOrder.ON_SUBGRAPH_READY,
-      () => ({ commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] } as never),
+      () =>
+        ({
+          commands: [{ commandName: Command.DEFER_WORK_COMPLETION }],
+        } as never),
     );
     await expect(async () => {
       await traversal.createRunner().run();

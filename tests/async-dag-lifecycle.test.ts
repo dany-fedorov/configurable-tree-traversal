@@ -232,7 +232,9 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   await expect(firstNext).resolves.toEqual({ done: true, value: undefined });
   expect(runner.getStatus()).toBe(Status.HALTED);
 
-  const closingIterator = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const closingIterator = runner.iterateEvents({
+    iterateOver: [Order.ON_WORK_READY],
+  });
   const rootEvent = await closingIterator.next();
   expect(rootEvent.done).toBe(false);
   events.push(rootEvent.value!.vertex.getData());
@@ -245,7 +247,9 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   });
   await eventLoopTurn();
   expect(closed).toBe(false);
-  const competing = runner.iterateEvents({ iterateOver: [Order.ON_WORK_READY] });
+  const competing = runner.iterateEvents({
+    iterateOver: [Order.ON_WORK_READY],
+  });
   await expect(competing.next()).rejects.toThrow('Another active iterator');
 
   childHalt.resolve();
@@ -408,7 +412,7 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
   const beforeLate = runner
     .getResolvedGraph()
     .getVertexRefs()
-    .map((ref) => ref.unref().getData());
+    .map((ref) => ref.getValue().getData());
   expect(beforeLate).toEqual(['root']);
   const eventsBeforeLate = events.slice();
   expect(eventsBeforeLate).not.toContain('workCompleted:B');
@@ -432,7 +436,7 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
     runner
       .getResolvedGraph()
       .getVertexRefs()
-      .map((ref) => ref.unref().getData()),
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(beforeLate);
 });
 
@@ -459,7 +463,7 @@ test('retains the first live failure and ignores later sibling settlement', asyn
   const beforeLate = runner
     .getResolvedGraph()
     .getVertexRefs()
-    .map((ref) => ref.unref().getData());
+    .map((ref) => ref.getValue().getData());
   bVisit.resolve({
     commands: [
       {
@@ -476,7 +480,7 @@ test('retains the first live failure and ignores later sibling settlement', asyn
     runner
       .getResolvedGraph()
       .getVertexRefs()
-      .map((ref) => ref.unref().getData()),
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(beforeLate);
 });
 

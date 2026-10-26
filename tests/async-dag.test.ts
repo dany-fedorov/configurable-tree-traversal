@@ -6,7 +6,7 @@ import {
   graphAdapter,
 } from './helpers/graph-fixtures';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import {
@@ -129,7 +129,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
       }),
       resolveChild: async (hint, options) => {
         expect(options.resolvedGraph.getRoot()).not.toBeNull();
-        expect(options.notMutatedResolvedGraph).not.toBeNull();
+        expect(options.originalGraphView).not.toBeNull();
         return {
           vertexId: hint,
           dependsOnWork: ['root'],
@@ -139,7 +139,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
       getVertexIdFromHint: async (hint) => ({ vertexId: hint }),
     },
     sortChildrenHints: async (hints) => hints.reverse(),
-    saveNotMutatedResolvedGraph: true,
+    retainOriginalGraphStructure: true,
     concurrency: 2,
   });
   traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) =>
@@ -168,11 +168,11 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
   expect(values).toEqual(['root', 'changed', 'b']);
   expect(originalHints).toEqual(['b', 'a']);
   expect(
-    runner.notMutatedResolvedGraph?.getVertexById('a')?.unref().getData(),
+    runner.originalGraphView?.getVertexById('a')?.getValue().getData(),
   ).toBe('a');
-  expect(runner.getResolvedGraph().getVertexById('a')?.unref().getData()).toBe(
-    'changed',
-  );
+  expect(
+    runner.getResolvedGraph().getVertexById('a')?.getValue().getData(),
+  ).toBe('changed');
 });
 
 test('supports an asynchronous tree source through the graph visitor facade', async () => {
@@ -321,7 +321,7 @@ test('accepts initial and empty quiescent state but rejects active injection', a
 
   const active = new DagTraversalRunnerState<TestGraph>({
     status: Status.RUNNING,
-    traversalRootVertexRef: new CTTRef(
+    traversalRootVertexRef: new MutableRef(
       new Vertex<TestGraph>({ $d: 'stale', $c: [] }),
     ),
   });
@@ -369,7 +369,7 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
     sourceMode: 'graph',
     saveOriginal: false,
   });
-  const root = new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: [] }));
+  const root = new MutableRef(new Vertex<TestGraph>({ $d: 'root', $c: [] }));
   container.acceptRoot(root, 'root');
   container.store.setStatus(root, 'READY');
   const state = new DagTraversalRunnerState<TestGraph>({

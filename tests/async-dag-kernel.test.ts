@@ -115,7 +115,7 @@ test('delivers an unrelated DAG chain while another frame resolver is pending', 
         return { kind: call.kind, value };
       }
       if (call.kind === 'VISIT') {
-        const data = call.ref.unref().getData();
+        const data = call.ref.getValue().getData();
         return {
           kind: call.kind,
           value: data === 'B' ? bVisit.promise : undefined,
@@ -200,7 +200,7 @@ test('limits admitted DAG chains separately from physical callbacks', async () =
         if (call.kind === 'VISIT') {
           return {
             kind: call.kind,
-            value: visits.get(call.ref.unref().getData())?.promise,
+            value: visits.get(call.ref.getValue().getData())?.promise,
           };
         }
         throw new Error('Unexpected callback');
@@ -290,7 +290,9 @@ test('accepts duplicate identities in resolver settlement order', async () => {
 
   expect(kernel.inspect().frames[0]?.pendingIndices).toEqual([0]);
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraph
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'second-won']);
 
   first.resolve({
@@ -359,7 +361,7 @@ test('preserves resolver settlement order across a halt and resume', async () =>
           return {
             kind: call.kind,
             value:
-              call.ref.unref().getData() === 'blocker'
+              call.ref.getValue().getData() === 'blocker'
                 ? blockerVisit.promise
                 : undefined,
           };
@@ -403,7 +405,9 @@ test('preserves resolver settlement order across a halt and resume', async () =>
   await eventLoopTurn();
   expect(driver.advance('drain')).toEqual({ kind: 'WAIT' });
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraph
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'blocker']);
 
   blockerVisit.resolve();
@@ -417,10 +421,14 @@ test('preserves resolver settlement order across a halt and resume', async () =>
   driver.resume();
   driver.advance('drive');
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraph
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).toContain('second-won');
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraph
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).not.toContain('first-lost');
 });
 
@@ -542,16 +550,18 @@ test('reserves initial metadata at admission while completion visits interleave'
         }
         if (call.kind === 'VISIT') {
           seen.push({
-            vertex: call.ref.unref().getData(),
+            vertex: call.ref.getValue().getData(),
             order: call.order,
             index: call.metadata.phaseVisitIndex,
             previous:
-              call.metadata.previousPhaseVertexRef?.unref().getData() ?? null,
+              call.metadata.previousPhaseVertexRef?.getValue().getData() ??
+              null,
           });
           return {
             kind: call.kind,
             value:
-              call.order === 'ON_WORK_READY' && call.ref.unref().getData() === 'A'
+              call.order === 'ON_WORK_READY' &&
+              call.ref.getValue().getData() === 'A'
                 ? aVisit.promise
                 : undefined,
           };
@@ -626,7 +636,7 @@ test('admits an independent join once after all dependencies commit', async () =
           };
         }
         if (call.kind === 'VISIT') {
-          const data = call.ref.unref().getData();
+          const data = call.ref.getValue().getData();
           visited.push(data);
           return {
             kind: call.kind,
@@ -700,7 +710,7 @@ test('finishes after deletion without awaiting an invalidated running callback',
           };
         }
         if (call.kind === 'VISIT') {
-          const data = call.ref.unref().getData();
+          const data = call.ref.getValue().getData();
           if (data === 'B' && call.order === 'ON_WORK_READY') {
             return { kind: call.kind, value: bVisit.promise };
           }
@@ -731,7 +741,9 @@ test('finishes after deletion without awaiting an invalidated running callback',
     pendingRequests: [{ valid: false }],
   });
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraph
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).not.toContain('B');
 
   bVisit.reject(new Error('late invalid failure'));
@@ -774,7 +786,7 @@ test('retains the first live failure and discards a later chain mutation', async
           };
         }
         if (call.kind === 'VISIT') {
-          const data = call.ref.unref().getData();
+          const data = call.ref.getValue().getData();
           return {
             kind: call.kind,
             value:
@@ -812,10 +824,14 @@ test('retains the first live failure and discards a later chain mutation', async
   expect(driver.advance('settle')).toEqual({ kind: 'FAILED', error: failure });
   expect(kernel.getFailure()).toEqual({ error: failure });
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraph
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).toContain('B');
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraph
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).not.toContain('mutated');
 });
 
@@ -915,7 +931,7 @@ test('retains a halted chain while another started DAG chain completes', async (
           };
         }
         if (call.kind === 'VISIT') {
-          const data = call.ref.unref().getData();
+          const data = call.ref.getValue().getData();
           calls.push(`${data}:${call.recordIndex}`);
           return {
             kind: call.kind,

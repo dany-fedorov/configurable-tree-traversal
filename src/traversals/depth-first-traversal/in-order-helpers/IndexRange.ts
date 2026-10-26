@@ -1,1 +1,1 @@
-export type IndexRange = number | [number, number];
+export type ChildIndexSelection = number | [number, number];

@@ -25,10 +25,7 @@ import type {
   VisitOrder,
 } from '@core/effects/types';
 
-export interface BoundSource<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> {
+export interface BoundSource<T extends VertexTypes, R extends VertexTypes = T> {
   resolvePrerequisite?(
     id: VertexId,
   ): MaybePromise<MakeVertexResult<T> | undefined>;
@@ -45,11 +42,9 @@ type AnyTreeSource<T extends VertexTypes, R extends VertexTypes> =
   | TreeSource<T, R>
   | AsyncTreeSource<T, R>;
 
-type GraphSource<
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ID,
-> = DagDiscoverySource<T, R, ID> | AsyncDagDiscoverySource<T, R, ID>;
+type GraphSource<T extends VertexTypes, R extends VertexTypes, ID> =
+  | DagDiscoverySource<T, R, ID>
+  | AsyncDagDiscoverySource<T, R, ID>;
 
 function normalizeVertexResult<T extends VertexTypes>(
   result: DagVertexResolution<T>,
@@ -72,10 +67,9 @@ function validateTreeResult<T extends VertexTypes>(
   );
 }
 
-function asInputHint<
-  T extends VertexTypes,
-  R extends VertexTypes,
->(hint: (T | R)['VertexHint']): T['VertexHint'] {
+function asInputHint<T extends VertexTypes, R extends VertexTypes>(
+  hint: (T | R)['VertexHint'],
+): T['VertexHint'] {
   return hint as T['VertexHint'];
 }
 
@@ -98,7 +92,8 @@ export function bindTreeSource<
         adapter.resolveChild(asInputHint<T, R>(context.vertexHint), {
           resolutionContext: context,
           resolvedTree: treeContainer.resolvedTree,
-          notMutatedResolvedTree: treeContainer.notMutatedResolvedTree,
+          originalTreeView:
+            treeContainer.originalTreeView?.asReadOnly() ?? null,
         }),
         runnerName,
       ),
@@ -123,7 +118,7 @@ export function bindGraphSource<
         adapter.resolveChild(asInputHint<T, R>(context.vertexHint), {
           resolutionContext: context,
           resolvedGraph: container.publicResolvedGraph,
-          notMutatedResolvedGraph: container.notMutatedResolvedGraph,
+          originalGraphView: container.originalGraphView,
         }),
         normalizeVertexResult,
       ),
@@ -143,10 +138,7 @@ export function bindGraphSource<
   return bound;
 }
 
-export type BoundVisit<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> = (
+export type BoundVisit<T extends VertexTypes, R extends VertexTypes = T> = (
   call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>,
 ) => MaybePromise<VisitResult<R> | typeof DEFER_READY>;
 

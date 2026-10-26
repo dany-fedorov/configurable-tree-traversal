@@ -37,13 +37,9 @@ describe.each(['depth-first', 'breadth-first'] as const)(
             resolutionStyle,
           });
         } else {
-          traversal.addVisitorFor(
-            BreadthFirstPhase.LEVEL_ORDER,
-            visitor,
-            {
-              resolutionStyle,
-            },
-          );
+          traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, visitor, {
+            resolutionStyle,
+          });
         }
       };
       return { traversal, add };
@@ -83,11 +79,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
         };
       }, Style.CONCURRENT);
       add((vertex, options) => {
-        calls.push([
-          'sequential',
-          vertex.getData(),
-          options.visitorChainState,
-        ]);
+        calls.push(['sequential', vertex.getData(), options.visitorChainState]);
       }, Style.SEQUENTIAL);
       const runner = traversal.createRunner().run();
 
@@ -96,9 +88,9 @@ describe.each(['depth-first', 'breadth-first'] as const)(
         ['halt', 'root'],
         ['rewrite', 'root'],
       ]);
-      expect(runner.getResolvedTree().getRoot()?.unref().getData()).toBe(
-        'rewritten',
-      );
+      expect(
+        runner.getResolvedTreeStore().getRoot()?.getValue().getData(),
+      ).toBe('rewritten');
 
       runner.run();
 
@@ -127,7 +119,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
 
       expect([...runner.iterateEvents()]).toEqual([]);
       expect(calls).toEqual(['delete', 'root']);
-      expect(runner.getResolvedTree().getRoot()).toBeNull();
+      expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
       expect(runner.getStatus()).toBe(Status.FINISHED);
     });
   },

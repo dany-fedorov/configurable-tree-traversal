@@ -1,5 +1,5 @@
 import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
-import type { CTTRef } from '@core/CTTRef';
+import type { MutableRef } from '@core/CTTRef';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
@@ -15,7 +15,7 @@ export type RegistrationMetadata = VisitorRegistrationMetadata;
 export type VisitorChainMetadata<T extends VertexTypes> = {
   phaseVisitIndex: number;
   visitorIndex: number;
-  previousPhaseVertexRef: CTTRef<Vertex<T>> | null;
+  previousPhaseVertexRef: MutableRef<Vertex<T>> | null;
   visitorChainState: unknown;
 };
 
@@ -25,7 +25,7 @@ export type VisitorChainPoll<
 > =
   | {
       kind: 'VISIT';
-      ref: CTTRef<Vertex<T | R>>;
+      ref: MutableRef<Vertex<T | R>>;
       recordIndex: number;
       metadata: VisitorChainMetadata<T | R>;
     }
@@ -43,7 +43,7 @@ export type VisitorChainInput<
   T extends VertexTypes,
   R extends VertexTypes = T,
 > = {
-  ref: CTTRef<Vertex<T | R>>;
+  ref: MutableRef<Vertex<T | R>>;
   records: readonly RegistrationMetadata[];
   metadata: VisitorChainMetadata<T | R>;
   family: 'tree' | 'dag';

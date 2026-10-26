@@ -1,6 +1,6 @@
 import {
-  filterDagVisitor,
-  filterAsyncDagVisitor,
+  filterDagDataVisitor,
+  filterAsyncDagDataVisitor,
 } from '../src/traversals/dag-traversal/filterDagVisitor';
 import {
   DagTraversal,
@@ -31,13 +31,13 @@ declare const asyncTraversal: AsyncDagTraversal<T, R, ID>;
 
 traversal.addVisitorFor(
   Order.ON_WORK_READY,
-  filterDagVisitor(isTask, (data, options) => {
+  filterDagDataVisitor(isTask, (data, options) => {
     const task: Task = data;
     const context: DagVisitorContext<T, R, Order.ON_WORK_READY, ID> = options;
     const graph: ResolvedGraph<T | R, ID> = options.resolvedGraph;
-    const current: Data = options.vertexRef.unref().getData();
+    const current: Data = options.vertexRef.getValue().getData();
     // @ts-expect-error The live graph remains heterogeneous.
-    const invalid: Task = options.vertexRef.unref().getData();
+    const invalid: Task = options.vertexRef.getValue().getData();
     void [task, context, graph, current, invalid];
     return {
       commands: [
@@ -56,25 +56,25 @@ traversal.addVisitorFor(
   }),
 );
 
-const ready: DagVisitor<T, R, Order.ON_WORK_READY, ID> = filterDagVisitor(
+const ready: DagVisitor<T, R, Order.ON_WORK_READY, ID> = filterDagDataVisitor(
   isTask,
   () => DEFER_READY,
 );
 const asyncReady: AsyncDagVisitor<T, R, Order.ON_WORK_READY, ID> =
-  filterAsyncDagVisitor(
+  filterAsyncDagDataVisitor(
     isTask,
     async (): Promise<typeof DEFER_READY> => DEFER_READY,
   );
 
 // Annotated predicates work without contextual registration or generic arguments.
-const standalone = filterDagVisitor(isTask, (data) => {
+const standalone = filterDagDataVisitor(isTask, (data) => {
   const label: string = data.label;
   void label;
 });
 
 traversal.addVisitorFor(
   Order.ON_WORK_READY,
-  filterDagVisitor(
+  filterDagDataVisitor(
     (data: Data): boolean => data.kind === 'task',
     (data) => {
       const union: Data = data;
@@ -88,7 +88,7 @@ traversal.addVisitorFor(
 traversal.addVisitorFor(
   Order.ON_SUBGRAPH_READY,
   // @ts-expect-error Narrowed input does not change the output rewrite type.
-  filterDagVisitor(isTask, (data, options) => {
+  filterDagDataVisitor(isTask, (data, options) => {
     const phase: Order.ON_SUBGRAPH_READY = options.phase;
     void [data.label, phase];
     return {
@@ -105,17 +105,17 @@ traversal.addVisitorFor(
 traversal.addVisitorFor(
   Order.ON_SUBGRAPH_READY,
   // @ts-expect-error Completion-phase visitors cannot defer ready work.
-  filterDagVisitor(isTask, () => DEFER_READY),
+  filterDagDataVisitor(isTask, () => DEFER_READY),
 );
 asyncTraversal.addVisitorFor(
   Order.ON_SUBGRAPH_READY,
-  filterAsyncDagVisitor(
+  filterAsyncDagDataVisitor(
     isTask,
     // @ts-expect-error Async completion-phase visitors cannot defer ready work.
     async (): Promise<typeof DEFER_READY> => DEFER_READY,
   ),
 );
-const mixed: DagVisitor<T, R, Order, ID> = filterDagVisitor(
+const mixed: DagVisitor<T, R, Order, ID> = filterDagDataVisitor(
   isTask,
   // @ts-expect-error Mixed phase visitors cannot defer ready work.
   () => DEFER_READY,
@@ -123,7 +123,7 @@ const mixed: DagVisitor<T, R, Order, ID> = filterDagVisitor(
 traversal.addVisitorFor(
   Order.ON_WORK_READY,
   // @ts-expect-error A predicate must accept rewritten output data too.
-  filterDagVisitor(
+  filterDagDataVisitor(
     (data: Input) => data.kind === 'task',
     () => undefined,
   ),
@@ -131,7 +131,7 @@ traversal.addVisitorFor(
 traversal.addVisitorFor(
   Order.ON_SUBGRAPH_READY,
   // @ts-expect-error Completion visitors cannot rewrite child hints.
-  filterDagVisitor(isTask, () => ({
+  filterDagDataVisitor(isTask, () => ({
     commands: [
       {
         commandName: Command.REWRITE_CHILD_HINTS,
@@ -143,7 +143,7 @@ traversal.addVisitorFor(
 
 asyncTraversal.addVisitorFor(
   Order.ON_WORK_READY,
-  filterAsyncDagVisitor(isTask, async (data, options) => {
+  filterAsyncDagDataVisitor(isTask, async (data, options) => {
     const context: DagVisitorContext<T, R, Order.ON_WORK_READY, ID> = options;
     void context;
     return {
@@ -161,6 +161,6 @@ asyncTraversal.addVisitorFor(
 traversal.addVisitorFor(
   Order.ON_WORK_READY,
   // @ts-expect-error Sync filtering cannot admit an async callback.
-  filterDagVisitor(isTask, async () => undefined),
+  filterDagDataVisitor(isTask, async () => undefined),
 );
 void [ready, asyncReady, standalone, mixed];

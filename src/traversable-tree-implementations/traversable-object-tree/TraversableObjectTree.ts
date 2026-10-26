@@ -18,7 +18,7 @@ import type {
 } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
 import { getChildrenOfPropertyDefault } from '@traversable-object-tree/lib/getChildrenOfPropertyDefault';
 import { getRootPropertyFromInputObjectDefault } from '@traversable-object-tree/lib/getRootPropertyFromInputObjectDefault';
-import { makeMutationCommandFactory } from '@traversable-object-tree/lib/makeMutationCommandFactory';
+import { createObjectMutationBinder } from '@traversable-object-tree/lib/makeMutationCommandFactory';
 
 type ObjectCycleState = {
   seenIdentities: WeakSet<object>;
@@ -98,7 +98,7 @@ export class ObjectTreeSource<
     };
   }
 
-  static makeMutationCommandFactory = makeMutationCommandFactory;
+  static createObjectMutationBinder = createObjectMutationBinder;
 
   /** Retains the published untagged direct result; custom sources should use tagged results. */
   resolveRoot(): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
@@ -243,7 +243,7 @@ export class ObjectTreeSource<
       return state.originalIdentityByVertexRef.get(vertexRef) ?? null;
     }
 
-    const vertexData = vertexRef.unref().getData();
+    const vertexData = vertexRef.getValue().getData();
     let identity = this.originalIdentityByVertexData.get(vertexData);
     if (identity === undefined) {
       // This cache tracks the identity of the accepted resolution context.
@@ -278,7 +278,7 @@ export class ObjectTreeSource<
       .getPathTo(vertexRef, { noRoot: true })
       .map((ref) => {
         const context = options.resolvedTree.getResolutionContextOf(ref);
-        return context?.vertexHint.key ?? ref.unref().getData().key;
+        return context?.vertexHint.key ?? ref.getValue().getData().key;
       });
     if (finalKey !== undefined) {
       keys.push(finalKey);

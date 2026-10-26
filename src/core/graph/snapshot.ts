@@ -1,20 +1,20 @@
-import { CTTRef } from '@core/CTTRef';
-import type { ResolvedGraphSnapshot } from '@core/ResolvedGraph';
+import { MutableRef } from '@core/CTTRef';
+import type { OriginalGraphView } from '@core/ResolvedGraph';
 import type { GetPathToOptions } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
-import type { Ref, VertexId } from '@core/graph/types';
+import type { VertexRef, VertexId } from '@core/graph/types';
 
 type SnapshotEntry<T extends VertexTypes> = {
-  ref: Ref<T>;
+  ref: VertexRef<T>;
   id: VertexId;
   incoming: SnapshotEdge<T>[];
   children: SnapshotEdge<T>[];
 };
 
 type SnapshotEdge<T extends VertexTypes> = {
-  parentRef: Ref<T>;
-  childRef: Ref<T>;
+  parentRef: VertexRef<T>;
+  childRef: VertexRef<T>;
   hintIndex: number;
 };
 
@@ -22,8 +22,8 @@ export type StagedSnapshotVertex<
   T extends VertexTypes,
   R extends VertexTypes,
 > = {
-  activeRef: Ref<T | R>;
-  snapshotRef: Ref<T>;
+  activeRef: VertexRef<T | R>;
+  snapshotRef: VertexRef<T>;
   id: VertexId;
 };
 
@@ -38,39 +38,39 @@ export class StructuralGraphSnapshot<
   T extends VertexTypes,
   R extends VertexTypes = T,
 > {
-  readonly graph: ResolvedGraphSnapshot<T>;
-  readonly refsMap = new Map<Ref<T | R>, Ref<T>>();
-  private readonly entries = new Map<Ref<T>, SnapshotEntry<T>>();
-  private readonly ids = new Map<VertexId, Ref<T>>();
-  private root: Ref<T> | null = null;
+  readonly graph: OriginalGraphView<T>;
+  readonly refsMap = new Map<VertexRef<T | R>, VertexRef<T>>();
+  private readonly entries = new Map<VertexRef<T>, SnapshotEntry<T>>();
+  private readonly ids = new Map<VertexId, VertexRef<T>>();
+  private root: VertexRef<T> | null = null;
 
   constructor() {
     const getVertexRefById = (id: VertexId) => this.ids.get(id) ?? null;
-    const getVertexId = (ref: Ref<T>) => this.getEntry(ref).id;
+    const getVertexId = (ref: VertexRef<T>) => this.getEntry(ref).id;
     this.graph = Object.freeze({
-      has: (ref: Ref<T>) => this.entries.has(ref),
+      has: (ref: VertexRef<T>) => this.entries.has(ref),
       getRoot: () => this.root,
       getVertexRefs: () => Array.from(this.entries.keys()),
       getVertexRefById,
       getVertexId,
       getVertexById: getVertexRefById,
       getIdOf: getVertexId,
-      getParentsOf: (ref: Ref<T>) => this.getParents(ref),
-      getChildrenOf: (ref: Ref<T>) => this.getChildren(ref),
-      getPathsTo: (ref: Ref<T>, options?: GetPathToOptions) =>
+      getParentsOf: (ref: VertexRef<T>) => this.getParents(ref),
+      getChildrenOf: (ref: VertexRef<T>) => this.getChildren(ref),
+      getPathsTo: (ref: VertexRef<T>, options?: GetPathToOptions) =>
         this.getPaths(ref, options),
     });
   }
 
-  stageVertex(ref: Ref<T | R>, id: VertexId): StagedSnapshotVertex<T, R> {
+  stageVertex(ref: VertexRef<T | R>, id: VertexId): StagedSnapshotVertex<T, R> {
     if (this.refsMap.has(ref)) {
       throw new Error('Vertex reference is already captured');
     }
     if (this.ids.has(id)) throw new Error('Vertex id is already captured');
-    const vertex = ref.unref();
+    const vertex = ref.getValue();
     return {
       activeRef: ref,
-      snapshotRef: new CTTRef(
+      snapshotRef: new MutableRef(
         new Vertex<T>({
           $data: vertex.getData() as T['VertexData'],
           $childHints: vertex.getChildrenHints().slice() as T['VertexHint'][],
@@ -92,7 +92,7 @@ export class StructuralGraphSnapshot<
     this.refsMap.set(staged.activeRef, staged.snapshotRef);
   }
 
-  setRoot(ref: Ref<T | R>): void {
+  setRoot(ref: VertexRef<T | R>): void {
     const snapshotRef = this.refsMap.get(ref);
     if (snapshotRef === undefined) {
       throw new Error('Could not find original root reference');
@@ -101,9 +101,9 @@ export class StructuralGraphSnapshot<
   }
 
   stageEdge(
-    parentRef: Ref<T | R>,
+    parentRef: VertexRef<T | R>,
     hintIndex: number,
-    childRef: Ref<T | R>,
+    childRef: VertexRef<T | R>,
   ): StagedSnapshotEdge<T> {
     if (!Number.isInteger(hintIndex) || hintIndex < 0) {
       throw new Error('Unknown vertex slot');
@@ -137,14 +137,14 @@ export class StructuralGraphSnapshot<
     staged.child.incoming.push(edge);
   }
 
-  private getEntry(ref: Ref<T>): SnapshotEntry<T> {
+  private getEntry(ref: VertexRef<T>): SnapshotEntry<T> {
     const entry = this.entries.get(ref);
     if (entry === undefined) throw new Error('Unknown vertex reference');
     return entry;
   }
 
   private getMappedEntry(
-    ref: Ref<T | R>,
+    ref: VertexRef<T | R>,
     role: 'parent' | 'child',
   ): SnapshotEntry<T> {
     const snapshotRef = this.refsMap.get(ref);
@@ -154,11 +154,11 @@ export class StructuralGraphSnapshot<
     return this.getEntry(snapshotRef);
   }
 
-  private getParents(ref: Ref<T>): Ref<T>[] | null {
+  private getParents(ref: VertexRef<T>): VertexRef<T>[] | null {
     const entry = this.entries.get(ref);
     if (entry === undefined) return null;
-    const seen = new Set<Ref<T>>();
-    const parents: Ref<T>[] = [];
+    const seen = new Set<VertexRef<T>>();
+    const parents: VertexRef<T>[] = [];
     for (const edge of entry.incoming) {
       if (!seen.has(edge.parentRef)) {
         seen.add(edge.parentRef);
@@ -168,7 +168,7 @@ export class StructuralGraphSnapshot<
     return parents;
   }
 
-  private getChildren(ref: Ref<T>): Ref<T>[] | null {
+  private getChildren(ref: VertexRef<T>): VertexRef<T>[] | null {
     const entry = this.entries.get(ref);
     if (entry === undefined) return null;
     return entry.children
@@ -177,11 +177,14 @@ export class StructuralGraphSnapshot<
       .map((edge) => edge.childRef);
   }
 
-  private getPaths(ref: Ref<T>, options?: GetPathToOptions): Ref<T>[][] {
+  private getPaths(
+    ref: VertexRef<T>,
+    options?: GetPathToOptions,
+  ): VertexRef<T>[][] {
     this.getEntry(ref);
-    const paths: Ref<T>[][] = [];
-    const reversedPath: Ref<T>[] = [ref];
-    const stack: Array<{ parents: Ref<T>[]; index: number }> = [
+    const paths: VertexRef<T>[][] = [];
+    const reversedPath: VertexRef<T>[] = [ref];
+    const stack: Array<{ parents: VertexRef<T>[]; index: number }> = [
       { parents: this.getParents(ref)!, index: 0 },
     ];
     while (stack.length > 0) {

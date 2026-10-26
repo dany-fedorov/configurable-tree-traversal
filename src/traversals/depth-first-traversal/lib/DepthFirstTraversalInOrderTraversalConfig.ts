@@ -1,11 +1,14 @@
-import type { IndexRange } from '@depth-first-traversal/in-order-helpers/IndexRange';
+import type { ChildIndexSelection } from '@depth-first-traversal/in-order-helpers/IndexRange';
 
-export type DepthFirstTraversalInOrderTraversalConfig = {
-  visitParentAfterChildren: IndexRange | number | { ranges: IndexRange[] };
-  visitParentAfterChildrenAllRangesOutOfBoundsFallback:
-    | IndexRange
+export type InOrderOptions = {
+  afterChildIndices:
+    | ChildIndexSelection
     | number
-    | { ranges: IndexRange[] };
-  visitUpOneChildParents: boolean;
-  considerVisitAfterNullContentVertices: boolean;
+    | { ranges: ChildIndexSelection[] };
+  fallbackChildIndices:
+    | ChildIndexSelection
+    | number
+    | { ranges: ChildIndexSelection[] };
+  visitSingleChildParent: boolean;
+  visitAfterOmittedChildren: boolean;
 };

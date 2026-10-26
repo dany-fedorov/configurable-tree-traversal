@@ -1,10 +1,10 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import { dependencyMilestoneCycles } from '../src/core/scheduling/dependencyMilestones';
-import type { Ref, GraphVertexStatus } from '../src/core/graph/types';
+import type { VertexRef, ResolvedVertexStatus } from '../src/core/graph/types';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -20,19 +20,19 @@ function setup() {
   })!;
   scheduling.takeReady();
   scheduling.markPreVisited(root);
-  scheduling.prepareSlots(root, root.unref().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
   const accept = (index: number, result: MakeVertexResult<TestGraph>) =>
     scheduling.acceptVertex(
       {
         parentVertexRef: root,
-        parentVertex: root.unref(),
+        parentVertex: root.getValue(),
         depth: 1,
         hintIndex: index,
-        vertexHint: root.unref().getChildrenHints()[index]!,
+        vertexHint: root.getValue().getChildrenHints()[index]!,
       },
       result,
     );
-  const finish = (ref: Ref<TestGraph>) => {
+  const finish = (ref: VertexRef<TestGraph>) => {
     scheduling.markPreVisited(ref);
     scheduling.prepareSlots(ref, []);
     scheduling.closeExpansion(ref);
@@ -52,7 +52,10 @@ const result = (
 
 test('omission releases W and C while a later omitted gate is immediately satisfied', () => {
   const { accept, scheduling } = setup();
-  const join = accept(0, { ...result('join', ['gate']), dependsOnWork: ['gate'] });
+  const join = accept(0, {
+    ...result('join', ['gate']),
+    dependsOnWork: ['gate'],
+  });
   expect(scheduling.takeReady()).toBeNull();
   accept(1, { vertexId: 'gate', vertexContent: null });
   expect(scheduling.takeReady()).toBe(join);
@@ -87,9 +90,7 @@ test('deleting a prerequisite cascades C dependents and tombstones later arrival
   expect(container.resolvedGraph.has(later)).toBe(false);
   expect(container.store.getIdState('future')).toEqual({ kind: 'deleted' });
   expect(container.resolvedGraph.getChildrenOf(root)).toEqual([]);
-  expect(
-    container.notMutatedResolvedGraph!.getVertexById('join'),
-  ).not.toBeNull();
+  expect(container.originalGraphView!.getVertexById('join')).not.toBeNull();
 });
 
 test('C prerequisite arrays and inspected work detach from caller and snapshots', () => {
@@ -103,14 +104,14 @@ test('C prerequisite arrays and inspected work detach from caller and snapshots'
   expect(
     scheduling.inspectWork().find(({ ref }) => ref === join)!.unmetComplete,
   ).toEqual(new Set(['gate']));
-  expect(container.resolvedGraph.get(join)!.dependsOnSubgraphCompletion).toEqual([
-    'gate',
-  ]);
+  expect(
+    container.resolvedGraph.get(join)!.dependsOnSubgraphCompletion,
+  ).toEqual(['gate']);
 });
 
 test('GraphStore copies completion inputs and keeps empty public vertex shapes unchanged', () => {
   const store = new GraphStore<TestGraph>('dag');
-  const ref = new CTTRef(new Vertex<TestGraph>({ $d: '', $c: [] }));
+  const ref = new MutableRef(new Vertex<TestGraph>({ $d: '', $c: [] }));
   const declared = ['gate'];
   store.insertVertex({
     ref,
@@ -121,7 +122,7 @@ test('GraphStore copies completion inputs and keeps empty public vertex shapes u
   });
   declared.length = 0;
   expect(store.graph.get(ref)!.dependsOnSubgraphCompletion).toEqual(['gate']);
-  const empty = new CTTRef(ref.unref());
+  const empty = new MutableRef(ref.getValue());
   store.insertVertex({
     ref: empty,
     id: 'empty',
@@ -129,7 +130,9 @@ test('GraphStore copies completion inputs and keeps empty public vertex shapes u
     dependsOnSubgraphCompletion: [],
     depth: 0,
   });
-  expect(store.graph.get(empty)).not.toHaveProperty('dependsOnSubgraphCompletion');
+  expect(store.graph.get(empty)).not.toHaveProperty(
+    'dependsOnSubgraphCompletion',
+  );
 });
 
 test.each([
@@ -140,7 +143,7 @@ test.each([
   'COMPLETE',
 ] as const)(
   'continuation validates %s against unsatisfied C gates',
-  (status: GraphVertexStatus) => {
+  (status: ResolvedVertexStatus) => {
     const { container, scheduling, accept, root } = setup();
     const join = accept(0, result('join', ['gate']))!;
     const gate = accept(1, result('gate'))!;
@@ -205,5 +208,5 @@ test('an ordinary root gated on a deleted prerequisite is tombstoned before admi
   expect(scheduling.takeReady()).toBeNull();
   expect(container.store.getIdState('root')).toEqual({ kind: 'deleted' });
   expect(container.resolvedGraph.getRoot()).toBeNull();
-  expect(container.notMutatedResolvedGraph!.getVertexRefs()).toEqual([]);
+  expect(container.originalGraphView!.getVertexRefs()).toEqual([]);
 });

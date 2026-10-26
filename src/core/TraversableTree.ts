@@ -1,15 +1,16 @@
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { VertexContentInput } from '@core/Vertex';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { ResolvedTree } from '@core/ResolvedTree';
+import type { ResolvedTreeStore } from '@core/ResolvedTree';
 
 export type TreeChildResolutionContext<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
   resolutionContext: VertexResolutionContext<TTP | RW_TTP>;
-  resolvedTree: ResolvedTree<TTP | RW_TTP>;
-  notMutatedResolvedTree: ResolvedTree<TTP> | null;
+  resolvedTree: ResolvedTreeStore<TTP | RW_TTP>;
+  originalTreeView: ResolvedTreeView<TTP> | null;
 };
 
 /** Explicit ID domains cannot use the generated-reference identity fallback. */
@@ -56,10 +57,10 @@ export type DagVertexResolution<T extends VertexTypes, ID = unknown> =
   /** @deprecated Return a tagged found or omitted result. */
   | MakeVertexResult<T, ID>;
 
-export type DagPrerequisiteResolution<
-  T extends VertexTypes,
-  ID = unknown,
-> = DagVertexResolution<T, ID> | PrerequisiteMissing | undefined;
+export type DagPrerequisiteResolution<T extends VertexTypes, ID = unknown> =
+  | DagVertexResolution<T, ID>
+  | PrerequisiteMissing
+  | undefined;
 
 /** Graph identity and prerequisites are unsupported by tree sources. */
 type TreeMetadataRestrictions = {

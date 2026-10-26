@@ -1,7 +1,7 @@
-import { CTTRef } from '@core/CTTRef';
+import { MutableRef } from '@core/CTTRef';
 import {
-  ResolvedTree,
-  VertexResolved,
+  ResolvedTreeStore,
+  TreeVertexRecord,
   type VertexResolutionContext,
 } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -15,8 +15,8 @@ type NullableDataTTP = VertexTypes<string | null | undefined, string>;
 function makeRef(
   label: string,
   children: string[] = [],
-): CTTRef<Vertex<TestTTP>> {
-  return new CTTRef(
+): MutableRef<Vertex<TestTTP>> {
+  return new MutableRef(
     new Vertex<TestTTP>({
       $d: { label },
       $c: children,
@@ -25,14 +25,14 @@ function makeRef(
 }
 
 function makeContext(
-  parentVertexRef: CTTRef<Vertex<TestTTP>>,
+  parentVertexRef: MutableRef<Vertex<TestTTP>>,
   vertexHint: string,
   depth: number,
   hintIndex = 0,
 ): VertexResolutionContext<TestTTP> {
   return {
     depth,
-    parentVertex: parentVertexRef.unref(),
+    parentVertex: parentVertexRef.getValue(),
     parentVertexRef,
     hintIndex,
     vertexHint,
@@ -40,16 +40,16 @@ function makeContext(
 }
 
 function setResolved(
-  tree: ResolvedTree<TestTTP>,
-  ref: CTTRef<Vertex<TestTTP>>,
+  tree: ResolvedTreeStore<TestTTP>,
+  ref: MutableRef<Vertex<TestTTP>>,
   resolutionContext: VertexResolutionContext<TestTTP> | null,
-  children: CTTRef<Vertex<TestTTP>>[] = [],
+  children: MutableRef<Vertex<TestTTP>>[] = [],
 ): void {
   tree.set(
     ref,
-    new VertexResolved<TestTTP>({
-      $d: { resolutionContext },
-      $c: children,
+    new TreeVertexRecord<TestTTP>({
+      metadata: { resolutionContext },
+      children: children,
     }),
   );
 }
@@ -67,14 +67,14 @@ describe('Vertex', () => {
   });
 });
 
-describe('VertexResolved', () => {
+describe('TreeVertexRecord', () => {
   test('clone owns its resolution context and child-reference array', () => {
     const parentRef = makeRef('parent');
     const firstChildRef = makeRef('first');
     const secondChildRef = makeRef('second');
-    const original = new VertexResolved<TestTTP>({
-      $d: { resolutionContext: makeContext(parentRef, 'first', 1) },
-      $c: [firstChildRef],
+    const original = new TreeVertexRecord<TestTTP>({
+      metadata: { resolutionContext: makeContext(parentRef, 'first', 1) },
+      children: [firstChildRef],
     });
 
     const clone = original.clone();
@@ -89,9 +89,9 @@ describe('VertexResolved', () => {
 
   test('clone owns the nested resolution context object', () => {
     const parentRef = makeRef('parent');
-    const original = new VertexResolved<TestTTP>({
-      $d: { resolutionContext: makeContext(parentRef, 'child', 1) },
-      $c: [],
+    const original = new TreeVertexRecord<TestTTP>({
+      metadata: { resolutionContext: makeContext(parentRef, 'child', 1) },
+      children: [],
     });
 
     const clone = original.clone();
@@ -106,14 +106,14 @@ describe('VertexResolved', () => {
   });
 
   test('accepts more children than the JavaScript argument limit', () => {
-    const resolved = new VertexResolved<TestTTP>({
-      $d: { resolutionContext: null },
-      $c: [],
+    const resolved = new TreeVertexRecord<TestTTP>({
+      metadata: { resolutionContext: null },
+      children: [],
     });
     const lastRef = makeRef('last');
     const children = Array.from(
       { length: 150_000 },
-      () => ({} as CTTRef<Vertex<TestTTP>>),
+      () => ({} as MutableRef<Vertex<TestTTP>>),
     );
     children[children.length - 1] = lastRef;
 
@@ -124,9 +124,9 @@ describe('VertexResolved', () => {
   });
 });
 
-describe('ResolvedTree', () => {
+describe('ResolvedTreeStore', () => {
   test('deleting a vertex removes its entire resolved subtree', () => {
-    const tree = new ResolvedTree<TestTTP>();
+    const tree = new ResolvedTreeStore<TestTTP>();
     const rootRef = makeRef('root');
     const deletedRef = makeRef('deleted');
     const grandchildRef = makeRef('grandchild');
@@ -148,7 +148,7 @@ describe('ResolvedTree', () => {
   });
 
   test('deleting the root clears the root and every descendant', () => {
-    const tree = new ResolvedTree<TestTTP>();
+    const tree = new ResolvedTreeStore<TestTTP>();
     const rootRef = makeRef('root');
     const childRef = makeRef('child');
     tree.setRoot(rootRef);
@@ -164,12 +164,12 @@ describe('ResolvedTree', () => {
   });
 
   test('deleting a wide root subtree does not exceed argument limits', () => {
-    const tree = new ResolvedTree<TestTTP>();
+    const tree = new ResolvedTreeStore<TestTTP>();
     const rootRef = makeRef('root');
     const lastChildRef = makeRef('last');
     const children = Array.from(
       { length: 150_000 },
-      () => ({} as CTTRef<Vertex<TestTTP>>),
+      () => ({} as MutableRef<Vertex<TestTTP>>),
     );
     children[children.length - 1] = lastChildRef;
     tree.setRoot(rootRef);
@@ -183,7 +183,7 @@ describe('ResolvedTree', () => {
   });
 
   test('noRoot excludes only the configured root', () => {
-    const tree = new ResolvedTree<TestTTP>();
+    const tree = new ResolvedTreeStore<TestTTP>();
     const rootRef = makeRef('root');
     const detachedRef = makeRef('detached');
     tree.setRoot(rootRef);
@@ -204,7 +204,7 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
       TestTTP,
       TestTTP
     >({
-      saveNotMutatedResolvedTree: false,
+      retainOriginalTreeStructure: false,
       traversalRunnerInternalObjects: {
         resolvedTreesContainer: null,
         state: null,
@@ -219,7 +219,7 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
     );
     container.pushChildrenTo(rootRef, [childRef]);
     expect(container.resolvedTree.getChildrenOf(rootRef)).toEqual([childRef]);
-    expect(container.notMutatedResolvedTree).toBeNull();
+    expect(container.originalTreeView).toBeNull();
   });
 
   test('saved tree owns references, contexts, topology, and its root', () => {
@@ -227,7 +227,7 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
       TestTTP,
       TestTTP
     >({
-      saveNotMutatedResolvedTree: true,
+      retainOriginalTreeStructure: true,
       traversalRunnerInternalObjects: {
         resolvedTreesContainer: null,
         state: null,
@@ -243,8 +243,8 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
     );
     container.pushChildrenTo(rootRef, [childRef]);
 
-    const savedTree = container.notMutatedResolvedTree;
-    const refsMap = container.notMutatedResolvedTreeRefsMap;
+    const savedTree = container.originalTreeView;
+    const refsMap = container.originalTreeRefsMap;
     expect(savedTree).not.toBeNull();
     expect(refsMap).not.toBeNull();
     if (savedTree === null || refsMap === null) {
@@ -261,8 +261,10 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
     expect(savedTree.getRoot()).toBe(savedRootRef);
     expect(savedRootRef).not.toBe(rootRef);
     expect(savedChildRef).not.toBe(childRef);
-    expect(savedRootRef.unref()).not.toBe(rootRef.unref());
-    expect(savedRootRef.unref().getData()).toBe(rootRef.unref().getData());
+    expect(savedRootRef.getValue()).not.toBe(rootRef.getValue());
+    expect(savedRootRef.getValue().getData()).toBe(
+      rootRef.getValue().getData(),
+    );
     expect(container.resolvedTree.getChildrenOf(rootRef)).toEqual([childRef]);
     expect(savedTree.getChildrenOf(savedRootRef)).toEqual([savedChildRef]);
     expect(
@@ -272,11 +274,11 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
       savedTree.getResolutionContextOf(savedChildRef)?.parentVertexRef,
     ).toBe(savedRootRef);
     expect(savedTree.getResolutionContextOf(savedChildRef)?.parentVertex).toBe(
-      savedRootRef.unref(),
+      savedRootRef.getValue(),
     );
 
-    rootRef.unref().getChildrenHints().push('later-active-hint');
-    expect(savedRootRef.unref().getChildrenHints()).toEqual(['child']);
+    rootRef.getValue().getChildrenHints().push('later-active-hint');
+    expect(savedRootRef.getValue().getChildrenHints()).toEqual(['child']);
 
     container.delete(rootRef);
 

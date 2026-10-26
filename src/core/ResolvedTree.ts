@@ -1,7 +1,6 @@
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type { CTTRef } from '@core/CTTRef';
-import type { CTTAbstractParent } from '@core/CTTAbstractParent';
+import type { MutableRef } from '@core/CTTRef';
 import {
   AbstractTreeSource,
   MakeTreeVertexResult,
@@ -15,72 +14,76 @@ import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 export type VertexResolutionContext<TTP extends VertexTypes> = {
   depth: number;
   parentVertex: Vertex<TTP>;
-  parentVertexRef: CTTRef<Vertex<TTP>>;
+  parentVertexRef: MutableRef<Vertex<TTP>>;
   hintIndex: number;
   vertexHint: TTP['VertexHint'];
 };
 
-export type VertexResolvedData<TTP extends VertexTypes> = {
+export type TreeVertexMetadata<TTP extends VertexTypes> = {
   resolutionContext: VertexResolutionContext<TTP> | null;
 };
 
-export type VertexResolvedContent<TTP extends VertexTypes> =
-  CTTAbstractParent<VertexResolvedData<TTP>, CTTRef<Vertex<TTP>>>;
+export type TreeVertexRecordContent<TTP extends VertexTypes> = {
+  metadata: TreeVertexMetadata<TTP>;
+  children: MutableRef<Vertex<TTP>>[];
+};
 
-export class VertexResolved<TTP extends VertexTypes>
-  implements VertexResolvedContent<TTP>
+export class TreeVertexRecord<TTP extends VertexTypes>
+  implements TreeVertexRecordContent<TTP>
 {
-  readonly $d: VertexResolvedData<TTP>;
-  readonly $c: CTTRef<Vertex<TTP>>[];
+  readonly metadata: TreeVertexMetadata<TTP>;
+  readonly children: MutableRef<Vertex<TTP>>[];
 
-  constructor(vertexContent: VertexResolvedContent<TTP>) {
-    this.$d = vertexContent.$d;
-    this.$c = vertexContent.$c;
+  constructor(vertexContent: TreeVertexRecordContent<TTP>) {
+    this.metadata = vertexContent.metadata;
+    this.children = vertexContent.children;
   }
 
-  pushChildren(children: Array<CTTRef<Vertex<TTP>>>): void {
+  pushChildren(children: Array<MutableRef<Vertex<TTP>>>): void {
     for (const child of children) {
-      this.$c.push(child);
+      this.children.push(child);
     }
   }
 
   getResolutionContext(): VertexResolutionContext<TTP> | null {
-    return this.$d.resolutionContext;
+    return this.metadata.resolutionContext;
   }
 
   setResolutionContext(
     resolutionContext: VertexResolutionContext<TTP> | null,
   ): void {
-    this.$d.resolutionContext = resolutionContext;
+    this.metadata.resolutionContext = resolutionContext;
   }
 
-  getChildren(): CTTRef<Vertex<TTP>>[] {
-    return this.$c;
+  getChildren(): MutableRef<Vertex<TTP>>[] {
+    return this.children;
   }
 
-  getParent(): CTTRef<Vertex<TTP>> | null {
-    return this.$d.resolutionContext?.parentVertexRef ?? null;
+  getParent(): MutableRef<Vertex<TTP>> | null {
+    return this.metadata.resolutionContext?.parentVertexRef ?? null;
   }
 
-  clone(content?: Partial<VertexResolvedContent<TTP>>): VertexResolved<TTP> {
-    const data = content?.$d ?? this.$d;
-    const children = content?.$c ?? this.$c;
-    return new VertexResolved<TTP>({
-      $d: {
+  clone(
+    content?: Partial<TreeVertexRecordContent<TTP>>,
+  ): TreeVertexRecord<TTP> {
+    const data = content?.metadata ?? this.metadata;
+    const children = content?.children ?? this.children;
+    return new TreeVertexRecord<TTP>({
+      metadata: {
         ...data,
         resolutionContext:
           data.resolutionContext === null
             ? null
             : { ...data.resolutionContext },
       },
-      $c: children.slice(),
+      children: children.slice(),
     });
   }
 }
 
 export type ResolvedTreeMap<TTP extends VertexTypes> = Map<
-  CTTRef<Vertex<TTP>>,
-  VertexResolved<TTP>
+  MutableRef<Vertex<TTP>>,
+  TreeVertexRecord<TTP>
 >;
 
 export type GetPathToOptions = {
@@ -88,7 +91,7 @@ export type GetPathToOptions = {
   noSelf?: boolean;
 };
 
-export class ResolvedTree<
+export class ResolvedTreeStore<
   TTP extends VertexTypes,
 > extends AbstractTreeSource<ResolvedTreeTypeParameters<TTP>> {
   private readonly store: GraphStore<TTP>;
@@ -99,12 +102,12 @@ export class ResolvedTree<
     this.store = new GraphStore<TTP>('tree');
     this.readOnly = Object.freeze({
       getRoot: () => this.getRoot(),
-      has: (ref: CTTRef<Vertex<TTP>>) => this.has(ref),
-      getChildrenOf: (ref: CTTRef<Vertex<TTP>>) => this.getChildrenOf(ref),
-      getParentOf: (ref: CTTRef<Vertex<TTP>>) => this.getParentOf(ref),
-      getPathTo: (ref: CTTRef<Vertex<TTP>>, options?: GetPathToOptions) =>
+      has: (ref: MutableRef<Vertex<TTP>>) => this.has(ref),
+      getChildrenOf: (ref: MutableRef<Vertex<TTP>>) => this.getChildrenOf(ref),
+      getParentOf: (ref: MutableRef<Vertex<TTP>>) => this.getParentOf(ref),
+      getPathTo: (ref: MutableRef<Vertex<TTP>>, options?: GetPathToOptions) =>
         this.getPathTo(ref, options),
-      getResolutionContextOf: (ref: CTTRef<Vertex<TTP>>) =>
+      getResolutionContextOf: (ref: MutableRef<Vertex<TTP>>) =>
         this.getResolutionContextOf(ref),
     });
   }
@@ -114,11 +117,11 @@ export class ResolvedTree<
     return this.readOnly;
   }
 
-  getRoot(): CTTRef<Vertex<TTP>> | null {
+  getRoot(): MutableRef<Vertex<TTP>> | null {
     return this.store.graph.getRoot();
   }
 
-  setRoot(root: CTTRef<Vertex<TTP>>): void {
+  setRoot(root: MutableRef<Vertex<TTP>>): void {
     this.store.setRoot(root);
   }
 
@@ -132,36 +135,38 @@ export class ResolvedTree<
   }
 
   getChildrenOf(
-    vertexRef: CTTRef<Vertex<TTP>>,
-  ): Array<CTTRef<Vertex<TTP>>> | null {
+    vertexRef: MutableRef<Vertex<TTP>>,
+  ): Array<MutableRef<Vertex<TTP>>> | null {
     return this.get(vertexRef)?.getChildren().slice() ?? null;
   }
 
-  getParentOf(vertexRef: CTTRef<Vertex<TTP>>): CTTRef<Vertex<TTP>> | null {
+  getParentOf(
+    vertexRef: MutableRef<Vertex<TTP>>,
+  ): MutableRef<Vertex<TTP>> | null {
     return this.get(vertexRef)?.getParent() ?? null;
   }
 
   private deleteChildOf(
-    parent: CTTRef<Vertex<TTP>>,
-    child: CTTRef<Vertex<TTP>>,
+    parent: MutableRef<Vertex<TTP>>,
+    child: MutableRef<Vertex<TTP>>,
   ): void {
     const resolved = this.get(parent);
     if (resolved !== null) {
       const newResolved = resolved.clone({
-        $c: resolved.getChildren().filter((c) => c !== child),
+        children: resolved.getChildren().filter((c) => c !== child),
       });
       this.set(parent, newResolved);
     }
   }
 
-  delete(vertexRef: CTTRef<Vertex<TTP>>): void {
+  delete(vertexRef: MutableRef<Vertex<TTP>>): void {
     const parent = this.getParentOf(vertexRef);
     if (parent !== null) {
       this.deleteChildOf(parent, vertexRef);
     }
 
     const refsToDelete = [vertexRef];
-    const visited = new Set<CTTRef<Vertex<TTP>>>();
+    const visited = new Set<MutableRef<Vertex<TTP>>>();
     while (refsToDelete.length > 0) {
       const currentRef = refsToDelete.pop();
       if (currentRef === undefined || visited.has(currentRef)) {
@@ -178,31 +183,31 @@ export class ResolvedTree<
     this.store.removeVertices(visited);
   }
 
-  has(vertexRef: CTTRef<Vertex<TTP>>): boolean {
+  has(vertexRef: MutableRef<Vertex<TTP>>): boolean {
     return this.store.graph.has(vertexRef);
   }
 
-  get(vertexRef: CTTRef<Vertex<TTP>>): VertexResolved<TTP> | null {
+  get(vertexRef: MutableRef<Vertex<TTP>>): TreeVertexRecord<TTP> | null {
     return this.store.getTreeRecord(vertexRef);
   }
 
   set(
-    vertexRef: CTTRef<Vertex<TTP>>,
-    vertexResolved: VertexResolved<TTP>,
+    vertexRef: MutableRef<Vertex<TTP>>,
+    vertexResolved: TreeVertexRecord<TTP>,
   ): void {
     this.store.setTreeRecord(vertexRef, vertexResolved);
   }
 
   getResolutionContextOf(
-    vertexRef: CTTRef<Vertex<TTP>>,
+    vertexRef: MutableRef<Vertex<TTP>>,
   ): VertexResolutionContext<TTP> | null {
     const context = this.get(vertexRef)?.getResolutionContext() ?? null;
     return context === null ? null : { ...context };
   }
 
   pushChildrenTo(
-    vertexRef: CTTRef<Vertex<TTP>>,
-    children: Array<CTTRef<Vertex<TTP>>>,
+    vertexRef: MutableRef<Vertex<TTP>>,
+    children: Array<MutableRef<Vertex<TTP>>>,
   ): void {
     const parentVertexResolved = this.get(vertexRef);
     if (parentVertexResolved == null) {
@@ -212,14 +217,14 @@ export class ResolvedTree<
   }
 
   getPathTo(
-    vertexRef: CTTRef<Vertex<TTP>>,
+    vertexRef: MutableRef<Vertex<TTP>>,
     options?: GetPathToOptions,
-  ): CTTRef<Vertex<TTP>>[] {
+  ): MutableRef<Vertex<TTP>>[] {
     if (!this.has(vertexRef)) {
       throw new Error(`Could not find ref - ${jsonStringifySafe(vertexRef)}`);
     }
     let curVertex = vertexRef;
-    const reversedPath: CTTRef<Vertex<TTP>>[] = [curVertex];
+    const reversedPath: MutableRef<Vertex<TTP>>[] = [curVertex];
     while (true) {
       const parent = this.getParentOf(curVertex);
       if (parent === null) {

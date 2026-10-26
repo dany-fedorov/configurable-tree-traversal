@@ -11,7 +11,7 @@ import {
 import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { DepthFirstPhase as Order } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { DepthFirstTraversalInstanceConfigDeepPartial } from '@depth-first-traversal/type-helpers/DepthFirstTraversalInstanceConfigDeepPartial';
-import type { IndexRange } from '@depth-first-traversal/in-order-helpers/IndexRange';
+import type { ChildIndexSelection } from '@depth-first-traversal/in-order-helpers/IndexRange';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type AsyncDepthFirstTraversalVisitors<
@@ -46,10 +46,7 @@ export type AsyncDepthFirstTraversalInstanceConfigInput<
 > = Omit<
   DepthFirstTraversalInstanceConfigDeepPartial<
     AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-    | keyof AsyncDepthFirstTraversalInstanceConfig<
-        TTP,
-        RW_TTP
-      >['inOrderTraversalConfig']
+    | keyof AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>['inOrder']
     | keyof AsyncDepthFirstTraversalInstanceConfig<
         TTP,
         RW_TTP
@@ -82,8 +79,8 @@ export function mergeAsyncDepthFirstTraversalInstanceConfigs<
   input: AsyncDepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
 ): AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP> {
   const inOrder = {
-    ...base.inOrderTraversalConfig,
-    ...input.inOrderTraversalConfig,
+    ...base.inOrder,
+    ...input.inOrder,
   };
   const visitors = { ...base.visitors, ...input.visitors };
   const merged: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP> = {
@@ -96,14 +93,10 @@ export function mergeAsyncDepthFirstTraversalInstanceConfigs<
         visitors[Order.POST_ORDER],
       ),
     },
-    inOrderTraversalConfig: {
+    inOrder: {
       ...inOrder,
-      visitParentAfterChildren: clonePositions(
-        inOrder.visitParentAfterChildren,
-      ),
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: clonePositions(
-        inOrder.visitParentAfterChildrenAllRangesOutOfBoundsFallback,
-      ),
+      afterChildIndices: clonePositions(inOrder.afterChildIndices),
+      fallbackChildIndices: clonePositions(inOrder.fallbackChildIndices),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
@@ -119,13 +112,13 @@ export function mergeAsyncDepthFirstTraversalInstanceConfigs<
   return merged;
 }
 
-function cloneRange(range: IndexRange): IndexRange {
+function cloneRange(range: ChildIndexSelection): ChildIndexSelection {
   return typeof range === 'number' ? range : [range[0], range[1]];
 }
 
 function clonePositions(
-  positions: AsyncDepthFirstTraversalInstanceConfig<VertexTypes>['inOrderTraversalConfig']['visitParentAfterChildren'],
-): AsyncDepthFirstTraversalInstanceConfig<VertexTypes>['inOrderTraversalConfig']['visitParentAfterChildren'] {
+  positions: AsyncDepthFirstTraversalInstanceConfig<VertexTypes>['inOrder']['afterChildIndices'],
+): AsyncDepthFirstTraversalInstanceConfig<VertexTypes>['inOrder']['afterChildIndices'] {
   return typeof positions === 'number' || Array.isArray(positions)
     ? cloneRange(positions)
     : { ranges: positions.ranges.map(cloneRange) };

@@ -5,8 +5,8 @@ import {
   DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
-  filterDagVisitor,
-  filterAsyncDagVisitor,
+  filterDagDataVisitor,
+  filterAsyncDagDataVisitor,
 } from '../src/traversals/dag-traversal/filterDagVisitor';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
@@ -44,8 +44,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const seen: unknown[] = [];
     traversal.addVisitorFor(
       Order.ON_WORK_READY,
-      filterDagVisitor(isTask, (data, options) => {
-        seen.push(data, options.phase, options.vertexRef.unref().getData());
+      filterDagDataVisitor(isTask, (data, options) => {
+        seen.push(data, options.phase, options.vertexRef.getValue().getData());
         expect(options.resolvedGraph.getVertexId(options.vertexRef)).toBe(
           'task',
         );
@@ -69,7 +69,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     );
     traversal.addVisitorFor(
       Order.ON_WORK_READY,
-      filterDagVisitor(
+      filterDagDataVisitor(
         (data: Data) => data.kind === 'task',
         (data, options) => {
           expect(data).toEqual({ kind: 'task', label: 'TASK' });
@@ -83,10 +83,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await runner.run();
     expect(seen).toEqual([task, Order.ON_WORK_READY, task, 'after']);
     expect(
-      runner.getResolvedGraph().getVertexRefById('group')!.unref().getData(),
+      runner.getResolvedGraph().getVertexRefById('group')!.getValue().getData(),
     ).toBe(group);
     expect(
-      runner.getResolvedGraph().getVertexRefById('task')!.unref().getData(),
+      runner.getResolvedGraph().getVertexRefById('task')!.getValue().getData(),
     ).toEqual({ kind: 'task', label: 'TASK' });
   });
 
@@ -97,7 +97,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const after: string[] = [];
     traversal.addVisitorFor(
       Order.ON_WORK_READY,
-      filterDagVisitor(isTask, () => DEFER_READY),
+      filterDagDataVisitor(isTask, () => DEFER_READY),
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, (_, options) => {
       after.push(options.resolvedGraph.getVertexId(options.vertexRef));
@@ -124,7 +124,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       });
       traversal.addVisitorFor(
         Order.ON_WORK_READY,
-        filterDagVisitor(
+        filterDagDataVisitor(
           (data: Data) => {
             if (where === 'predicate') throw error;
             return isTask(data);
@@ -148,7 +148,7 @@ test('async filtered callbacks await commands and preserve rejected values', asy
   });
   traversal.addVisitorFor(
     Order.ON_WORK_READY,
-    filterAsyncDagVisitor(isTask, async (data) => {
+    filterAsyncDagDataVisitor(isTask, async (data) => {
       await Promise.resolve();
       return {
         commands: [
@@ -165,11 +165,11 @@ test('async filtered callbacks await commands and preserve rejected values', asy
   const runner = traversal.createRunner();
   await runner.run();
   expect(
-    runner.getResolvedGraph().getVertexRefById('task')!.unref().getData(),
+    runner.getResolvedGraph().getVertexRefById('task')!.getValue().getData(),
   ).toEqual({ kind: 'task', label: 'task!' });
   traversal.addVisitorFor(
     Order.ON_SUBGRAPH_READY,
-    filterAsyncDagVisitor(isTask, async () => {
+    filterAsyncDagDataVisitor(isTask, async () => {
       throw undefined;
     }),
   );
@@ -182,7 +182,7 @@ test('async filtering preserves deferral after awaited host work', async () => {
   });
   traversal.addVisitorFor(
     Order.ON_WORK_READY,
-    filterAsyncDagVisitor(isTask, async (): Promise<typeof DEFER_READY> => {
+    filterAsyncDagDataVisitor(isTask, async (): Promise<typeof DEFER_READY> => {
       await Promise.resolve();
       return DEFER_READY;
     }),
@@ -208,7 +208,7 @@ test.each(['predicate', 'callback'] as const)(
     });
     traversal.addVisitorFor(
       Order.ON_WORK_READY,
-      filterAsyncDagVisitor(
+      filterAsyncDagDataVisitor(
         (data: Data) => {
           if (where === 'predicate') throw error;
           return isTask(data);

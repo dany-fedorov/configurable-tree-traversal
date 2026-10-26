@@ -442,7 +442,7 @@ test.each([false, true])(
     expect(runner.inspect()).toEqual(before);
     const competitor = make();
     await competitor.run({ emitEvents: [] });
-    expect(competitor.getResolvedGraph().getRoot()?.unref().getData()).toBe(
+    expect(competitor.getResolvedGraph().getRoot()?.getValue().getData()).toBe(
       'root',
     );
   },

@@ -1,11 +1,11 @@
-import type { ResolvedGraphSnapshot } from '@core/ResolvedGraph';
+import type { OriginalGraphView } from '@core/ResolvedGraph';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 
 /** True when exactly one resolved vertex has no structural children.
  * Empty graphs return false and a single leaf returns true; W/C edges are ignored.
  */
-export function hasSingleSink<T extends VertexTypes>(
-  graph: ResolvedGraphSnapshot<T>,
+export function hasSingleStructuralSink<T extends VertexTypes>(
+  graph: OriginalGraphView<T>,
 ): boolean {
   let count = 0;
   for (const ref of graph.getVertexRefs()) {

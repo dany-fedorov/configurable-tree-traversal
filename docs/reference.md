@@ -212,7 +212,7 @@ Stalled DAG runners throw `DagTraversalStallError<ID = unknown>` (available from
 
 The familiar `DAG traversal stalled:` message safely labels arbitrary IDs without coercing user objects. These diagnostics describe the terminal discovered graph; they do not fetch prerequisites or change scheduling.
 
-`runner.getResolvedGraph()` provides read-only vertex, status, parent, child, path, and id queries. Query arrays are shallow snapshots: changing an array cannot edit topology, while contained references and user vertex data remain live. With `saveNotMutatedResolvedGraph: true`, DAG runners also expose a structural `notMutatedResolvedGraph` snapshot containing first-accepted content and discovery edges. Rewrites and deletions do not alter it, but user data is still shallowly shared.
+`runner.getResolvedGraph()` provides read-only vertex, status, parent, child, path, and id queries. Query arrays are shallow snapshots: changing an array cannot edit topology, while contained references and user vertex data remain live. With `retainOriginalGraphStructure: true`, DAG runners also expose a structural `originalGraphView` snapshot containing first-accepted content and discovery edges. Rewrites and deletions do not alter it, but user data is still shallowly shared.
 
 Known omitted discovery slots retain an own `vertexId` in `ChildSlot<T, ID>`; presence distinguishes a known `undefined` identity from an unidentified omission. These slots remain omitted rather than structural children. Prepared definitions preserve their discovery positions when replaying the source.
 
@@ -257,7 +257,7 @@ Structural child cycles throw `DagDiscoveryCycleError<ID = unknown>`, exported f
 
 | Factory | Result | Options |
 | --- | --- | --- |
-| `dag.createRunner(options?)` | Prepared sync `DagTraversalRunner` | `visitors`, `completedWork`, `workCompletion`, `saveNotMutatedResolvedGraph` |
+| `dag.createRunner(options?)` | Prepared sync `DagTraversalRunner` | `visitors`, `completedWork`, `workCompletion`, `retainOriginalGraphStructure` |
 | `dag.createAsyncRunner(options?)` | Promise of a prepared async runner | Same options, plus `concurrency` |
 | `dag.createWorkSession(options?)` | `DagWorkSession<ID>` using external settlement | `completedWork` |
 | `dag.createAsyncWorkSession(options?)` | Promise of `AsyncDagWorkSession<ID>` using external settlement | `completedWork`, `concurrency` |
@@ -376,11 +376,11 @@ Tickets are local capabilities with no durable serialized representation. Persis
 
 ### Filtered DAG visitors
 
-`filterDagVisitor(predicate, callback)` and `filterAsyncDagVisitor(predicate, callback)` wrap ordinary DAG visitors. The synchronous predicate sees vertex **data**. A type guard narrows the callback's first argument; a boolean predicate filters without narrowing. The callback receives `(data, context)`, retaining the ordinary graph, reference, phase, group metadata, and command-result types. A false predicate invokes no callback and returns no commands. The async helper supports value-or-promise callbacks; predicate and callback errors preserve exact identity.
+`filterDagDataVisitor(predicate, callback)` and `filterAsyncDagDataVisitor(predicate, callback)` wrap ordinary DAG visitors. The synchronous predicate sees vertex **data**. A type guard narrows the callback's first argument; a boolean predicate filters without narrowing. The callback receives `(data, context)`, retaining the ordinary graph, reference, phase, group metadata, and command-result types. A false predicate invokes no callback and returns no commands. The async helper supports value-or-promise callbacks; predicate and callback errors preserve exact identity.
 
 ```ts
 traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY,
-  filterDagVisitor(
+  filterDagDataVisitor(
     (data: Task | Group): data is Task => data.kind === 'task',
     (task, context) => {
       console.log(task.prompt, context.phase);
@@ -560,7 +560,7 @@ validation; data rewrites and vertex deletion retain their existing behavior.
 
 ### Structural sinks
 
-`hasSingleSink(graph)` counts vertices with no **structural children** in a resolved graph snapshot. It returns true only when exactly one such vertex exists: an empty graph returns false, and a single isolated leaf returns true. Work and completion dependency arrows do not affect this count; use `inspectMilestones()` for milestone dependency questions.
+`hasSingleStructuralSink(graph)` counts vertices with no **structural children** in a resolved graph snapshot. It returns true only when exactly one such vertex exists: an empty graph returns false, and a single isolated leaf returns true. Work and completion dependency arrows do not affect this count; use `inspectMilestones()` for milestone dependency questions.
 
 ### DAG dependency queries and explanations
 
@@ -752,7 +752,7 @@ for (const { vertex, vertexRef } of runner.iterateEvents({
   const path = runner
     .getResolvedTreeView()
     .getPathTo(vertexRef, { noRoot: true })
-    .map((ref) => ref.unref().getData().key);
+    .map((ref) => ref.getValue().getData().key);
   console.log(path, vertex.getData().value);
 }
 // Paths: [], ['a'], ['a', 'b'], ['c']
@@ -826,11 +826,11 @@ In-order traversal defaults to visiting between children, and after the child of
 
 ```ts
 traversal.configure({
-  inOrderTraversalConfig: {
-    visitParentAfterChildren: 0,
-    visitParentAfterChildrenAllRangesOutOfBoundsFallback: -2,
-    visitUpOneChildParents: true,
-    considerVisitAfterNullContentVertices: true,
+  inOrder: {
+    afterChildIndices: 0,
+    fallbackChildIndices: -2,
+    visitSingleChildParent: true,
+    visitAfterOmittedChildren: true,
   },
 });
 ```
@@ -1051,7 +1051,7 @@ The [typed reference example](https://github.com/dany-fedorov/configurable-tree-
 
 ## Rewrite objects
 
-The `rewriteObject` namespace is retained for compatibility:
+`rewriteObject` is callable at the package root and the rewrite subpath. The `objectRewrite` namespace contains the same callable and `rewriteObjectAs`:
 
 <!-- standalone -->
 
@@ -1059,7 +1059,7 @@ The `rewriteObject` namespace is retained for compatibility:
 import { rewriteObject } from 'configurable-tree-traversal';
 
 const input = { keep: 1, remove: 2, nested: [3] };
-const result = rewriteObject.rewriteObject(input, {
+const result = rewriteObject(input, {
   rewrite: ({ key, value }) => {
     if (key === 'remove') return { delete: true };
     if (typeof value === 'number') return { rewrite: { value: value * 10 } };
@@ -1073,23 +1073,27 @@ Rewrites run in post-order. Return `{ rewrite: { key, value } }` to rename or re
 
 Set `assembleCompositesBeforeRewrite: true` to receive `assembledComposite` alongside the original property. Options include `isArray`, `isObject`, `isComposite`, and `getKeyPath({ noRoot: true })`. Custom `isArray`/`isObject` and `assembleArray`/`assembleObject` functions support specialized reconstruction. Default reconstruction is for plain objects and arrays; it does not preserve prototypes, descriptors, collection types, or identity shared between branches.
 
-`rewriteObject` retains its six generic positions, but default `Out` is now `unknown`: reconstruction and arbitrary rewrites cannot promise input shape/prototype preservation. A `getOutputObjectFromRootValue` converter can infer its return type. Use named root `rewriteObjectAs<Out>(input, options?)`, namespace `rewriteObject.rewriteObjectAs`, or the rewrite subpath helper for an explicit caller assertion; it performs no schema validation, and property values in its options remain unknown.
+`rewriteObject` retains its six generic positions, but default `Out` is now `unknown`: reconstruction and arbitrary rewrites cannot promise input shape/prototype preservation. A `getOutputObjectFromRootValue` converter can infer its return type. Use named root `rewriteObjectAs<Out>(input, options?)`, namespace `objectRewrite.rewriteObjectAs`, or the rewrite subpath helper for an explicit caller assertion; it performs no schema validation, and property values in its options remain unknown.
 
-`outputObject` is the historical initial converted snapshot, possibly captured while halted. It never updates on resume. Call `result.traversalRunner.run()` to resume, then `result.getOutput()` to read the final converted root. The getter throws before FINISHED, applies the original conversion after completion and caches its first successful result, reusing the initial snapshot if the first run already finished. Exact conversion failures propagate and are not cached as successes, so a later call can retry. Deleted/null roots remain supported; the getter neither resumes nor promises deep immutability.
+`outputAtReturn` is the converted output captured when the helper returns, possibly partial while halted. It never updates on resume. Call `result.traversalRunner.run()` to resume, then `result.getOutput()` to read the final converted root. The getter throws before FINISHED, applies the original conversion after completion and caches its first successful result, reusing the initial snapshot if the first run already finished. Exact conversion failures propagate and are not cached as successes, so a later call can retry. Deleted/null roots remain supported; the getter neither resumes nor promises deep immutability.
 
 The helper owns its source. `traversableTree` is forbidden in inline and pretyped options; JavaScript presence, including present `undefined`, rejects before source, rewrite or conversion callbacks. Remove that field, or use a traversal directly for a custom source.
 
-Generic `MakeMutationCommandFunction<Output, RewriteInput = Output['VertexData']>` requires complete replacement data by default. Object helpers explicitly accept `TO_MutationPropertyPatch<Output>` (`Partial<Output['VertexData']>`), so key-only and value-only patches remain typed. Omit `rewrite` for no patch; a present `rewrite: undefined`, null, or primitive throws TypeError before mutation. `{ rewrite: { value: undefined } }` sets an undefined value when the output type permits it. User assembler errors propagate exactly.
+`createObjectMutationBinder(options)` returns an `ObjectMutationBinder`; binding a vertex and context returns `ObjectMutationCommands`. Its `makeMutationCommand` builder consumes a `MutationRequest<ObjectMutationPatch<Output>>`. `ObjectMutationOptions` retains classifiers, assemblers, and `assembledMap`, keyed by reference identity. `ObjectCompositeClassification` names the bound array/object/composite flags. Generic stages are `MutationCommandBinderFactory`, `MutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`.
+
+Generic `MutationCommandBuilder<Output, RewriteInput = Output['VertexData']>` requires complete replacement data by default. Object helpers explicitly accept `ObjectMutationPatch<Output>` (`Partial<Output['VertexData']>`), so key-only and value-only patches remain typed. Omit `rewrite` for no patch; a present `rewrite: undefined`, null, or primitive throws TypeError before mutation. `{ rewrite: { value: undefined } }` sets an undefined value when the output type permits it. User assembler errors propagate exactly.
 
 `resolveVertexHook(hint, context)` returns `ObjectVertexHookResult<T>`: `{ kind: 'useDefault' }`, tagged tree `found` with replacement content, or `{ kind: 'omitted' }`. It applies to child/hint resolution, not the synthetic root. Null/undefined returns and graph metadata reject. Deprecated `makeVertexHook`/`returnMe` remain compatible; two active hooks reject. An undefined canonical/legacy hook or the legacy null-disabled hook does not conflict. Cycle checks and shallow identities remain.
 
-With `saveNotMutatedResolvedTree: true`, visitors can inspect a separate original resolved tree. Its vertex references, child lists, and resolution contexts are independent of command-driven changes. Vertex data is shallowly shared, so direct mutation of user data is not an immutable snapshot. The saved tree contains only vertices actually resolved during traversal. Runner configuration and visitor records are also copied when a runner is made; later builder configuration does not alter that runner.
+With `retainOriginalTreeStructure: true`, visitors and child-resolution callbacks receive `originalTreeView: ResolvedTreeView<T> | null`, a stable read-only query facade over the retained original structure. Its vertex references, child lists, and resolution contexts are independent of command-driven changes. Vertex data is shallowly shared, so direct mutation of user data is not an immutable snapshot. The retained tree grows as vertices are resolved. DAG retention uses `retainOriginalGraphStructure`, `originalGraphView`, and `OriginalGraphView` with the same progressive topology and shared-data semantics. Runner configuration and visitor records are also copied when a runner is made; later builder configuration does not alter that runner.
 
-Prefer `runner.getResolvedTreeView()` or `tree.asReadOnly()` for queries. `ResolvedTreeView<T>` has `getRoot`, `has`, `getChildrenOf`, `getParentOf`, `getPathTo`, and `getResolutionContextOf`, with readonly collection/context types and no mutators/raw records. The stable facade is live and shallow. Query arrays and context objects are detached copies, while refs, hints, and data retain identity. Mutating returned arrays/contexts cannot edit topology. DAG runners return this tree facade in tree-source mode and null in graph-source mode. `getResolvedTree()` and raw container/record getters remain advanced editing APIs; their owners must preserve structural consistency. No durable or deeply immutable snapshot is implied.
+Prefer `runner.getResolvedTreeView()` or `tree.asReadOnly()` for queries. `ResolvedTreeView<T>` has `getRoot`, `has`, `getChildrenOf`, `getParentOf`, `getPathTo`, and `getResolutionContextOf`, with readonly collection/context types and no mutators/raw records. The stable facade is live and shallow. Query arrays and context objects are detached copies, while refs, hints, and data retain identity. Mutating returned arrays/contexts cannot edit topology. DAG runners return this tree facade in tree-source mode and null in graph-source mode. `getResolvedTreeStore()` and raw container/record getters remain advanced editing APIs; their owners must preserve structural consistency. No durable or deeply immutable snapshot is implied.
 
-`CTTRef.getRefId()` is the generated reference UUID. `ResolvedGraph.getVertexId(ref)` returns the host's arbitrary vertex ID and `getVertexRefById(id)` returns its reference. Graph facades and snapshots use the same names. Deprecated `getId`, `getIdOf`, and `getVertexById` delegate to these methods. Do not substitute the reference UUID for a host ID or stringify object/symbol/undefined IDs.
+`MutableRef<T>` holds a replaceable value via `getValue()` and `setValue(value)`; `VertexRef<T>` specializes it to a `Vertex<T>`. A `TreeVertexRecord` stores `metadata` and structural `children`, separate from the Vertex payload/hint fields `$data` and `$childHints`. Graph wrappers use `ResolvedGraphVertex`, `ResolvedVertexStatus`, and `StructuralChildEdge`.
 
-`ResolvedTree.getPathTo(ref, { noRoot?, noSelf? })` returns the resolved ancestry in root-to-vertex order and throws if the reference is absent from that tree. Saved-tree paths use saved references from `notMutatedResolvedTreeRefsMap`. Deleting a resolved vertex removes its resolved descendants and detaches it from its parent; deleting the root clears the root pointer.
+`MutableRef.getRefId()` is the generated reference UUID. `ResolvedGraph.getVertexId(ref)` returns the host's arbitrary vertex ID and `getVertexRefById(id)` returns its reference. Graph facades and snapshots use the same names. Deprecated `getId`, `getIdOf`, and `getVertexById` delegate to these methods. Do not substitute the reference UUID for a host ID or stringify object/symbol/undefined IDs.
+
+`ResolvedTreeStore.getPathTo(ref, { noRoot?, noSelf? })` returns the resolved ancestry in root-to-vertex order and throws if the reference is absent from that tree. Saved-tree paths use saved references from `originalTreeRefsMap`. Deleting a resolved vertex removes its resolved descendants and detaches it from its parent; deleting the root clears the root pointer.
 
 ## API compatibility
 
@@ -1097,7 +1101,7 @@ The [uniform API migration guide](migration-uniform-api.md) lists all deprecated
 
 CTT 0.11.0 uses UUID 14 and requires Node 22.12.0+ for synchronous ESM dependency loading, or Bun 1.4.4. Public CJS/ESM entry points and TypeScript 4.7.4/4.9.5 consumer compatibility remain covered by packed checks.
 
-Namespace exports `core`, `depthFirstTraversal`, `breadthFirstTraversal`, `dagTraversal`, `traversableObjectTree`, and `rewriteObject` remain available, alongside named exports for all six traversal classes, helpers, and types. Public subpaths include `core` and each traversal family. Historical deep imports such as `configurable-tree-traversal/core/Vertex` and `configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner` also work.
+Namespace exports `core`, `depthFirstTraversal`, `breadthFirstTraversal`, `dagTraversal`, `traversableObjectTree`, and `objectRewrite` remain available, alongside named exports for all six traversal classes, helpers, and types. Public subpaths include `core` and each traversal family. Historical deep imports such as `configurable-tree-traversal/core/Vertex` and `configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner` also work.
 
 Corrected behavior includes independent iteration, reliable halt/resume, terminal error handling, sorting, subtree deletion, and zero-based visitor indices. Root deletion and rewriting null now return null instead of throwing; the rewrite result type accounts for that. See [CHANGELOG.md](../CHANGELOG.md) for the full list.
 

@@ -24,7 +24,7 @@ export type PrepareDagOptions = {
   workCompletion?: never;
   discovery?: never;
   sortChildrenHints?: never;
-  saveNotMutatedResolvedGraph?: never;
+  retainOriginalGraphStructure?: never;
 };
 export type PrepareDagInput<
   T extends VertexTypes,
@@ -61,10 +61,7 @@ export function prepareDagAsync<T extends VertexTypes, ID = unknown>(
 export function prepareDagAsync<T extends VertexTypes, ID = unknown>(
   input: PrepareAsyncDagInput<T, ID>,
 ): Promise<PrepareDagResult<T['VertexData'], ID>>;
-export async function prepareDagAsync<
-  T extends VertexTypes,
-  ID = unknown,
->(
+export async function prepareDagAsync<T extends VertexTypes, ID = unknown>(
   input: PrepareAsyncDagInput<T, ID>,
 ): Promise<PrepareDagResult<T['VertexData'], ID>> {
   assertPreparedOptions(input, [...preparationFields, 'concurrency']);

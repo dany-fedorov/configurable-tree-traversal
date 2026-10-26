@@ -210,7 +210,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveChild: () => ({ vertexContent: null }),
       };
       expect(() =>
-        new Constructor<G>({ traversableTree: graph, ...options }).createRunner(),
+        new Constructor<G>({
+          traversableTree: graph,
+          ...options,
+        }).createRunner(),
       ).toThrow(TypeError);
       const runner = new Constructor<G>({
         traversableGraph: graph,
@@ -246,7 +249,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} eager data rewrites and deletion retain original snapshots`, async () => {
     const traversal = new Constructor<G>({
       discovery: 'eager',
-      saveNotMutatedResolvedGraph: true,
+      retainOriginalGraphStructure: true,
       traversableGraph: {
         resolveRoot: () => ({
           vertexId: 'root',
@@ -272,10 +275,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await runner.run({ iterateOver: [] });
     expect(runner.getResolvedGraph().getVertexById('a')).toBeNull();
     expect(
-      runner.getResolvedGraph().getVertexById('b')!.unref().getData(),
+      runner.getResolvedGraph().getVertexById('b')!.getValue().getData(),
     ).toBe('rewritten');
     expect(
-      runner.notMutatedResolvedGraph!.getVertexById('b')!.unref().getData(),
+      runner.originalGraphView!.getVertexById('b')!.getValue().getData(),
     ).toBe('b');
   });
 }

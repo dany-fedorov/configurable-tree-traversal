@@ -19,12 +19,16 @@ function tree(root: string): AsyncTreeSource<TestTree> {
 }
 
 test('async tree helpers run nullable visitors and preserve tree source precedence', async () => {
-  const depthRunner = await traverseTreeDepthFirstAsync(tree('argument'), null, {
-    traversableTree: tree('config'),
-  });
+  const depthRunner = await traverseTreeDepthFirstAsync(
+    tree('argument'),
+    null,
+    {
+      traversableTree: tree('config'),
+    },
+  );
 
   expect(depthRunner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-  expect(depthRunner.getResolvedGraph().getRoot()?.unref().getData()).toBe(
+  expect(depthRunner.getResolvedGraph().getRoot()?.getValue().getData()).toBe(
     'config',
   );
 
@@ -39,7 +43,9 @@ test('async breadth-first helper registers its visitor and returns a halted runn
     async (vertex) => {
       visits.push(vertex.getData());
       return {
-        commands: [{ commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL }],
+        commands: [
+          { commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL },
+        ],
       };
     },
   );

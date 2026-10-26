@@ -1,6 +1,6 @@
 import {
   ObjectTreeSource,
-  rewriteObject as rewriteApi,
+  objectRewrite as rewriteApi,
   rewriteObjectAs,
 } from '../src';
 import {
@@ -9,7 +9,7 @@ import {
 } from '../src/tools/rewrite-object';
 
 // @ts-expect-error Reconstruction alone does not preserve arbitrary input shape.
-rewriteObject({ count: 1 }).outputObject!.count;
+rewriteObject({ count: 1 }).outputAtReturn!.count;
 const changed = rewriteObject(
   { count: 1 },
   {
@@ -18,7 +18,7 @@ const changed = rewriteObject(
   },
 );
 // @ts-expect-error Arbitrary rewrites do not preserve the input shape.
-changed.outputObject!.count;
+changed.outputAtReturn!.count;
 // @ts-expect-error The final output default is conservative too.
 changed.getOutput()!.count;
 const typed = rewriteObjectAs<{ renamed: number }>(
@@ -37,7 +37,7 @@ const inferred = rewriteObject(1, {
   getOutputObjectFromRootValue: () => ({ converted: true }),
 });
 const converted: boolean = inferred.getOutput()!.converted;
-const snapshotConverted: boolean = inferred.outputObject!.converted;
+const snapshotConverted: boolean = inferred.outputAtReturn!.converted;
 const explicit = rewriteObject<
   Record<string, never>,
   PropertyKey,

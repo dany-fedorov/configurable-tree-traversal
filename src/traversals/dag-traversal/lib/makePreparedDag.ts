@@ -4,7 +4,10 @@ import type { DagDefinition } from './DagDefinition';
 import { captureDagDefinition, definitionSource } from './definitionSource';
 import { DagTraversal } from '../DagTraversal';
 import { AsyncDagTraversal } from '../AsyncDagTraversal';
-import { createDagWorkSession, createAsyncDagWorkSession } from '../coordinateDag';
+import {
+  createDagWorkSession,
+  createAsyncDagWorkSession,
+} from '../coordinateDag';
 import type {
   PreparedDag,
   PreparedDagRunnerOptions,
@@ -56,7 +59,7 @@ export function makePreparedDag<T extends VertexTypes, ID>(
     'visitors',
     'completedWork',
     'workCompletion',
-    'saveNotMutatedResolvedGraph',
+    'retainOriginalGraphStructure',
   ];
   const createRunner = (options: PreparedDagRunnerOptions<Data, ID> = {}) => {
     assertPreparedOptions(options, runnerFields);

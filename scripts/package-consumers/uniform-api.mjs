@@ -220,7 +220,7 @@ for (const [api, other] of [
 
     const external = new TreeTraversal({
       workCompletion: 'externalSettlement',
-      saveNotMutatedResolvedGraph: true,
+      retainOriginalGraphStructure: true,
       traversableGraph: {
         resolveRoot: () => found(undefined),
         resolveChild: (id) => found(id),
@@ -240,7 +240,7 @@ for (const [api, other] of [
     const ref = graph.getVertexRefById(undefined);
     assert.equal(ref, graph.getVertexById(undefined));
     assert.equal(graph.getVertexId(ref), graph.getIdOf(ref));
-    const saved = external.notMutatedResolvedGraph;
+    const saved = external.originalGraphView;
     const savedRef = saved.getVertexRefById(undefined);
     assert.equal(saved.getVertexId(savedRef), undefined);
     assert.equal(savedRef, saved.getVertexById(undefined));
@@ -396,7 +396,7 @@ for (const [api, other] of [
       makeVertexHook: (hint) => (hint.key === 'skip' ? { returnMe: null } : {}),
     },
   ]) {
-    const result = api.rewriteObject.rewriteObject(
+    const result = api.rewriteObject(
       { keep: 1, skip: 2 },
       {
         ...hook,
@@ -404,11 +404,11 @@ for (const [api, other] of [
           key === 'keep' ? { rewrite: { value: undefined } } : undefined,
       },
     );
-    assert.deepEqual(result.outputObject, { keep: undefined });
+    assert.deepEqual(result.outputAtReturn, { keep: undefined });
   }
   assert.throws(
     () =>
-      api.rewriteObject.rewriteObject(
+      api.rewriteObject(
         { a: 1 },
         {
           rewrite: () => ({ rewrite: undefined }),

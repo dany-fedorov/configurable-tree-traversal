@@ -1,4 +1,4 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import {
@@ -16,17 +16,17 @@ type InputTTP = VertexTypes<string, string>;
 type RewriteTTP = VertexTypes<number, number>;
 
 function rootRef() {
-  return new CTTRef(
+  return new MutableRef(
     new Vertex<InputTTP | RewriteTTP>({ $d: 'root', $c: ['child'] }),
   );
 }
 
 function childContext(
-  parentVertexRef: CTTRef<Vertex<InputTTP | RewriteTTP>>,
+  parentVertexRef: MutableRef<Vertex<InputTTP | RewriteTTP>>,
 ): VertexResolutionContext<InputTTP | RewriteTTP> {
   return {
     depth: 1,
-    parentVertex: parentVertexRef.unref(),
+    parentVertex: parentVertexRef.getValue(),
     parentVertexRef,
     hintIndex: 0,
     vertexHint: 'child',
@@ -39,7 +39,7 @@ test('tree binding reuses the legacy facade and passes real tree options', () =>
       resolveRoot: () => ({ vertexContent: null }),
       resolveChild: () => ({ vertexContent: null }),
     },
-    saveNotMutatedResolvedTree: true,
+    retainOriginalTreeStructure: true,
   }).createRunner().resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
@@ -74,21 +74,21 @@ test('tree binding reuses the legacy facade and passes real tree options', () =>
     treeContainer.resolvedTree.getResolvedGraph(),
   );
 
-  const child = new CTTRef(
+  const child = new MutableRef(
     new Vertex<InputTTP | RewriteTTP>({ $d: 'child', $c: [] }),
   );
   container.acceptVertex(child, child.getId(), [], childContext(parent));
   container.store.prepareSlots(parent, ['child']);
   container.acceptEdge(parent, 0, child);
-  const savedParent = treeContainer.notMutatedResolvedTreeRefsMap!.get(parent)!;
-  const savedChild = treeContainer.notMutatedResolvedTreeRefsMap!.get(child)!;
+  const savedParent = treeContainer.originalTreeRefsMap!.get(parent)!;
+  const savedChild = treeContainer.originalTreeRefsMap!.get(child)!;
 
   expect(container.resolvedGraph.get(parent)?.slots).toEqual([
     { kind: 'linked', hint: 'child', childRef: child },
   ]);
-  expect(
-    treeContainer.notMutatedResolvedTree!.getChildrenOf(savedParent),
-  ).toEqual([savedChild]);
+  expect(treeContainer.originalTreeView!.getChildrenOf(savedParent)).toEqual([
+    savedChild,
+  ]);
 });
 
 test.each(['vertexId', 'dependsOnWork'] as const)(
@@ -115,7 +115,9 @@ test.each(['vertexId', 'dependsOnWork'] as const)(
     });
     const source = bindTreeSource(adapter, container);
 
-    await expect(source.resolveRoot()).rejects.toThrow(/tree source.*metadata/i);
+    await expect(source.resolveRoot()).rejects.toThrow(
+      /tree source.*metadata/i,
+    );
   },
 );
 
@@ -177,7 +179,7 @@ test('graph binding passes graph options and forwards hint identity', () => {
       expect(options).toEqual({
         resolutionContext: context,
         resolvedGraph: container.resolvedGraph,
-        notMutatedResolvedGraph: container.notMutatedResolvedGraph,
+        originalGraphView: container.originalGraphView,
       });
       return { vertexContent: { $d: hint, $c: [] } };
     },
@@ -246,15 +248,11 @@ test('tree binding preserves a throwing then accessor for sync diagnostics', () 
     saveOriginal: false,
     treeContainer,
   });
-  const result = Object.defineProperty(
-    { vertexContent: null },
-    'then',
-    {
-      get() {
-        throw new Error('then getter');
-      },
+  const result = Object.defineProperty({ vertexContent: null }, 'then', {
+    get() {
+      throw new Error('then getter');
     },
-  );
+  });
   const bound = bindTreeSource(
     {
       resolveRoot: () => result,

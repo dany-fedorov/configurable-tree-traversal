@@ -126,13 +126,25 @@ test.each([
   { vertices: [], omittedIds: [], entry: { kind: 'root' } },
   { vertices: [null], omittedIds: [], entry: { kind: 'empty' } },
   {
-    vertices: [{ data: 0, slots: [], dependsOnWork: [], dependsOnSubgraphCompletion: [] }],
+    vertices: [
+      {
+        data: 0,
+        slots: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
+      },
+    ],
     omittedIds: [],
     entry: { kind: 'empty' },
   },
   {
     vertices: [
-      { vertexId: 0, slots: [], dependsOnWork: [], dependsOnSubgraphCompletion: [] },
+      {
+        vertexId: 0,
+        slots: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
+      },
     ],
     omittedIds: [],
     entry: { kind: 'empty' },
@@ -253,7 +265,10 @@ for (const anonymous of [false, true]) {
       ['root', 'subgraphCompleted'],
     ];
     expect(
-      [...original.iterateEvents()].map((event) => [event.vertexId, event.kind]),
+      [...original.iterateEvents()].map((event) => [
+        event.vertexId,
+        event.kind,
+      ]),
     ).toEqual(expected);
     expect(
       [...replay.iterateEvents()].map((event) => [event.vertexId, event.kind]),
@@ -265,7 +280,7 @@ for (const anonymous of [false, true]) {
     expect(replay.summary().counts.discovered).toBe(3);
     expect(replay.summary().unusedCompletedWorkIds).toEqual([]);
     expect(
-      replay.getResolvedGraph().getRoot()!.unref().getChildrenHints(),
+      replay.getResolvedGraph().getRoot()!.getValue().getChildrenHints(),
     ).toEqual(['skip', 'b', 'c']);
   });
 }
@@ -296,7 +311,9 @@ test('definitions retain empty and omitted roots separately from forest catalogs
     expect([...replay.iterateEvents()]).toEqual([]);
     expect(replay.getStopReason()).toBe('finished');
   }
-  const forest = prepareDag(materializeDagSourceFromRecords(['a', 'b'], { id: (id) => id }));
+  const forest = prepareDag(
+    materializeDagSourceFromRecords(['a', 'b'], { id: (id) => id }),
+  );
   if (forest.kind !== 'valid') throw new Error('Expected valid');
   expect(forest.dag.definition.entry).toEqual({
     kind: 'forest',
@@ -305,7 +322,9 @@ test('definitions retain empty and omitted roots separately from forest catalogs
       { kind: 'vertex', vertexId: 'b' },
     ],
   });
-  const empty = prepareDag(materializeDagSourceFromRecords<string, string>([], { id: (id) => id }));
+  const empty = prepareDag(
+    materializeDagSourceFromRecords<string, string>([], { id: (id) => id }),
+  );
   if (empty.kind !== 'valid') throw new Error('Expected valid');
   expect(empty.dag.definition.entry).toEqual({ kind: 'forest', slots: [] });
   const omittedHolder = prepareDag<G, string>({
@@ -392,7 +411,7 @@ test('definition replay retains structural sharing and detached prerequisites wi
   const replay = roundtrip.dag.createRunner();
   const graph = replay.getResolvedGraph();
   expect(graph.getParentsOf(graph.getVertexRefById(remoteId)!)).toEqual([]);
-  expect(graph.getVertexRefById(sharedId)!.unref().getData()).toBe(sharedId);
+  expect(graph.getVertexRefById(sharedId)!.getValue().getData()).toBe(sharedId);
   expect(
     [...replay.iterateEvents()]
       .filter((event) => event.kind === 'workCompleted')

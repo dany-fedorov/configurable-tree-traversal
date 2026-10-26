@@ -31,7 +31,7 @@ import type {
   PumpMode,
   VisitOrder,
 } from '@core/effects/types';
-import type { Ref } from '@core/graph/types';
+import type { VertexRef } from '@core/graph/types';
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { ChainState, FrameState, KernelOptions } from '@core/kernelTypes';
 import { PrerequisiteResolution } from '@core/scheduling/PrerequisiteResolution';
@@ -82,20 +82,14 @@ function normalizeDagSettlementOutcome(
   throw new TypeError('Invalid DAG settlement outcome');
 }
 
-type PendingRequest<
-  T extends VertexTypes,
-  R extends VertexTypes,
-> = {
+type PendingRequest<T extends VertexTypes, R extends VertexTypes> = {
   call: CallSpec<T, R>;
   submitted: boolean;
   invoked?: boolean;
   storedReply?: CallbackReply<T, R>;
 };
 
-type ChainRuntime<
-  T extends VertexTypes,
-  R extends VertexTypes,
-> = {
+type ChainRuntime<T extends VertexTypes, R extends VertexTypes> = {
   state: ChainState<T, R>;
   machine: VisitorChain<T, R>;
 };
@@ -106,34 +100,32 @@ type Boundary<T extends VertexTypes> = {
   expandAfter: boolean;
 };
 
-type CallAction<
-  T extends VertexTypes,
-  R extends VertexTypes,
-> = Extract<KernelAction<T, R>, { kind: 'CALL' }>;
+type CallAction<T extends VertexTypes, R extends VertexTypes> = Extract<
+  KernelAction<T, R>,
+  { kind: 'CALL' }
+>;
 
 type PolicyOrders = {
   initial: VisitOrder;
   completion: VisitOrder | null;
 };
 
-type CallInput<
-  T extends VertexTypes,
-  R extends VertexTypes,
-> = CallSpec<T, R> extends infer C
+type CallInput<T extends VertexTypes, R extends VertexTypes> = CallSpec<
+  T,
+  R
+> extends infer C
   ? C extends { requestId: number }
     ? Omit<C, 'requestId'>
     : never
   : never;
 
-type FrameCall<
-  T extends VertexTypes,
-  R extends VertexTypes,
-> = Extract<CallSpec<T, R>, { kind: 'SORT_HINTS' | 'HINT_ID' | 'MAKE_VERTEX' }>;
+type FrameCall<T extends VertexTypes, R extends VertexTypes> = Extract<
+  CallSpec<T, R>,
+  { kind: 'SORT_HINTS' | 'HINT_ID' | 'MAKE_VERTEX' }
+>;
 
-export class TraversalKernel<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> implements KernelPort<T, R>
+export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
+  implements KernelPort<T, R>
 {
   private readonly prerequisites: PrerequisiteResolution | null;
   private readonly scheduling: GraphScheduling<T, R>;
@@ -146,9 +138,9 @@ export class TraversalKernel<
   private readonly readyCalls: CallAction<T, R>[] = [];
   private readonly frames = new Map<number, FrameState<T, R>>();
   private readonly chains = new Map<number, ChainRuntime<T, R>>();
-  private readonly startedExpansions = new Set<Ref<T | R>>();
+  private readonly startedExpansions = new Set<VertexRef<T | R>>();
   private readonly deferred = new Map<
-    Ref<T | R>,
+    VertexRef<T | R>,
     {
       state: ChainState<T, R>;
       generation: DagSettlementGeneration;
@@ -158,7 +150,7 @@ export class TraversalKernel<
   private discoveryValidated = false;
   private preparing = false;
   private executionStarted = false;
-  private readonly expansionQueue: Ref<T | R>[] = [];
+  private readonly expansionQueue: VertexRef<T | R>[] = [];
   private readonly orders: PolicyOrders;
   private readonly depthFirstPolicy: DepthFirstPolicy<T | R> | null;
   private readonly breadthFirstPolicy: BreadthFirstPolicy<T | R> | null;
@@ -187,13 +179,16 @@ export class TraversalKernel<
     assertDagWorkCompletion(options.workCompletion);
     this.phases = getTraversalExecutionPhases(options.kind);
     // Constructor compatibility fields may come from an already normalized family helper.
-    this.executionConfig = normalizeTraversalExecutionOptions<VisitOrder>(this.phases, {
-      iterateOver: options.iterableConfig.iterateOver,
-      enableVisitorFunctionsFor:
-        options.iterableConfig.enableVisitorFunctionsFor,
-      disableVisitorFunctionsFor:
-        options.iterableConfig.disableVisitorFunctionsFor,
-    });
+    this.executionConfig = normalizeTraversalExecutionOptions<VisitOrder>(
+      this.phases,
+      {
+        iterateOver: options.iterableConfig.iterateOver,
+        enableVisitorFunctionsFor:
+          options.iterableConfig.enableVisitorFunctionsFor,
+        disableVisitorFunctionsFor:
+          options.iterableConfig.disableVisitorFunctionsFor,
+      },
+    );
     this.scheduling = new GraphScheduling(
       options.container,
       options.completedWork,
@@ -241,7 +236,7 @@ export class TraversalKernel<
         );
       }
       this.scheduling.restoreDagSeed(options.dagSeed.readyVisits);
-      const expansionRefs = new Set<Ref<T | R>>();
+      const expansionRefs = new Set<VertexRef<T | R>>();
       for (const ref of options.dagSeed.expansionQueue) {
         if (
           expansionRefs.has(ref) ||
@@ -621,7 +616,7 @@ export class TraversalKernel<
       hasHintIds: this.options.hasHintIds,
       iterableConfig: this.copyConfig(this.executionConfig),
       readyVisits: this.scheduling.inspectEligible().map((visit) => ({
-        vertexRefId: visit.ref.getId(),
+        vertexRefId: visit.ref.getRefId(),
         order:
           visit.order === 'ON_WORK_READY'
             ? this.orders.initial
@@ -630,27 +625,27 @@ export class TraversalKernel<
       frames: [
         ...Array.from(this.frames.values(), (frame) => ({
           owner: { ...frame.owner },
-          vertexRefId: frame.ref.getId(),
+          vertexRefId: frame.ref.getRefId(),
           stage: frame.stage,
           pendingIndices: Array.from(frame.pendingIndices),
         })),
         ...(this.depthFirstPolicy?.getFrames().map((frame) => ({
           owner: { ...frame.owner },
-          vertexRefId: frame.vertexRef.getId(),
+          vertexRefId: frame.vertexRef.getRefId(),
           stage: frame.stage,
           pendingIndices:
             frame.stage === 'child-wait' ? [frame.nextChild - 1] : [],
         })) ?? []),
         ...(this.breadthFirstPolicy?.getFrames().map((frame) => ({
           owner: { ...frame.owner },
-          vertexRefId: frame.vertexRef.getId(),
+          vertexRefId: frame.vertexRef.getRefId(),
           stage: frame.stage,
           pendingIndices: frame.pendingIndices.slice(),
         })) ?? []),
       ],
       chains: Array.from(this.chains.values(), ({ state }) => ({
         owner: { ...state.owner },
-        vertexRefId: state.ref.getId(),
+        vertexRefId: state.ref.getRefId(),
         order: state.order,
         phase: state.phase,
         group: state.group,
@@ -1216,7 +1211,7 @@ export class TraversalKernel<
           ) {
             this.scheduling.prepareSlots(
               runtime.state.ref,
-              runtime.state.ref.unref().getChildrenHints().slice(),
+              runtime.state.ref.getValue().getChildrenHints().slice(),
             );
           }
           if (
@@ -1236,8 +1231,8 @@ export class TraversalKernel<
           chainState = command.commandArguments.vertexVisitorsChainState;
           break;
         case TraversalVisitorCommandName.REWRITE_VERTEX_DATA:
-          runtime.state.ref.setPointsTo(
-            runtime.state.ref.unref().clone({
+          runtime.state.ref.setValue(
+            runtime.state.ref.getValue().clone({
               $data: command.commandArguments.newData,
             }),
           );
@@ -1255,8 +1250,8 @@ export class TraversalKernel<
                 : 'Child hints can only be rewritten during pre-order',
             );
           }
-          runtime.state.ref.setPointsTo(
-            runtime.state.ref.unref().clone({
+          runtime.state.ref.setValue(
+            runtime.state.ref.getValue().clone({
               $childHints: command.commandArguments.newHints.slice(),
             }),
           );
@@ -1331,7 +1326,7 @@ export class TraversalKernel<
       this.boundaries.push({
         id: this.nextBoundaryId++,
         event: {
-          vertex: state.ref.unref(),
+          vertex: state.ref.getValue(),
           vertexRef: state.ref,
           order: state.order,
           isRoot: state.ref === this.options.container.resolvedGraph.getRoot(),
@@ -1365,7 +1360,7 @@ export class TraversalKernel<
           if (frame.stage === 'child-wait') {
             const index = frame.nextChild - 1;
             const context = transportFrame.contexts.get(index)!;
-            let child: Ref<T | R> | null;
+            let child: VertexRef<T | R> | null;
             let resolved: boolean;
             if (transportFrame.knownIndices.has(index)) {
               this.scheduling.acceptKnownHint(
@@ -1448,7 +1443,7 @@ export class TraversalKernel<
         }
         const context = {
           parentVertexRef: work.frame.vertexRef,
-          parentVertex: work.frame.vertexRef.unref(),
+          parentVertex: work.frame.vertexRef.getValue(),
           depth: work.frame.depth + 1,
           hintIndex: work.index,
           vertexHint: work.frame.hints[work.index]!,
@@ -1586,7 +1581,7 @@ export class TraversalKernel<
     }
   }
 
-  private enqueueBreadthFirstExpansion(ref: Ref<T | R>): void {
+  private enqueueBreadthFirstExpansion(ref: VertexRef<T | R>): void {
     const vertex = this.options.container.resolvedGraph.get(ref);
     if (vertex !== null) {
       const policy = this.breadthFirstPolicy!;
@@ -1663,7 +1658,7 @@ export class TraversalKernel<
         const index = frame.nextConsumeIndex;
         const context = {
           depth: this.options.container.store.getDiscoveryDepth(frame.ref) + 1,
-          parentVertex: frame.ref.unref(),
+          parentVertex: frame.ref.getValue(),
           parentVertexRef: frame.ref,
           hintIndex: index,
           vertexHint: frame.hints[index]!,
@@ -1727,7 +1722,7 @@ export class TraversalKernel<
         frame.nextAdmissionIndex += 1;
         const context = {
           depth: this.options.container.store.getDiscoveryDepth(frame.ref) + 1,
-          parentVertex: frame.ref.unref(),
+          parentVertex: frame.ref.getValue(),
           parentVertexRef: frame.ref,
           hintIndex: index,
           vertexHint: frame.hints[index]!,
@@ -1757,7 +1752,7 @@ export class TraversalKernel<
 
   private makeAsyncFrame(
     owner: OwnerToken,
-    ref: Ref<T | R>,
+    ref: VertexRef<T | R>,
     depth: number,
     hints: (T | R)['VertexHint'][],
     stage: FrameState<T, R>['stage'],
@@ -1792,7 +1787,7 @@ export class TraversalKernel<
     frame.nextIdentityIndex = 0;
     frame.nextAdmissionIndex = 0;
     frame.nextConsumeIndex = 0;
-    const parentVertex = frame.ref.unref();
+    const parentVertex = frame.ref.getValue();
     for (let index = 0; index < frame.hints.length; index += 1) {
       frame.contexts.set(index, {
         depth: frame.depth + 1,
@@ -1916,7 +1911,7 @@ export class TraversalKernel<
     return true;
   }
 
-  private admitChain(ref: Ref<T | R>, order: VisitOrder): OwnerToken {
+  private admitChain(ref: VertexRef<T | R>, order: VisitOrder): OwnerToken {
     const owner = this.newOwner('chain');
     const config = this.copyConfig(this.executionConfig);
     const records = this.visitorsEnabled(order)
@@ -1991,7 +1986,7 @@ export class TraversalKernel<
       return true;
     }
     const owner = this.newOwner('frame');
-    const hints = ref.unref().getChildrenHints().slice();
+    const hints = ref.getValue().getChildrenHints().slice();
     const frame: FrameState<T, R> = {
       owner,
       ref,
@@ -2101,7 +2096,7 @@ export class TraversalKernel<
   }
 
   private invalidateRefs(
-    refs: ReadonlySet<Ref<T | R>>,
+    refs: ReadonlySet<VertexRef<T | R>>,
     except: OwnerToken,
   ): void {
     for (const owner of this.prerequisites?.invalidateUnused((id) =>

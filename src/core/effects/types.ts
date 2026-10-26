@@ -11,7 +11,7 @@ import type { Vertex } from '@core/Vertex';
 import type {
   HintVertexId,
   MaybePromise,
-  Ref,
+  VertexRef,
   VertexId,
   VisitResult,
 } from '@core/graph/types';
@@ -38,14 +38,14 @@ export type OwnerToken = {
 export type VisitMetadata<T extends VertexTypes> = {
   phaseVisitIndex: number;
   visitorIndex: number;
-  previousPhaseVertexRef: Ref<T> | null;
+  previousPhaseVertexRef: VertexRef<T> | null;
   visitorChainState: unknown;
 };
 
-export type CallSpec<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> = { requestId: number; owner: OwnerToken } & (
+export type CallSpec<T extends VertexTypes, R extends VertexTypes = T> = {
+  requestId: number;
+  owner: OwnerToken;
+} & (
   | { kind: 'MAKE_ROOT' }
   | { kind: 'RESOLVE_PREREQUISITE'; vertexId: VertexId }
   | { kind: 'SORT_HINTS'; hints: (T | R)['VertexHint'][] }
@@ -53,17 +53,14 @@ export type CallSpec<
   | { kind: 'MAKE_VERTEX'; context: VertexResolutionContext<T | R> }
   | {
       kind: 'VISIT';
-      ref: Ref<T | R>;
+      ref: VertexRef<T | R>;
       order: VisitOrder;
       recordIndex: number;
       metadata: VisitMetadata<T | R>;
     }
 );
 
-export type CallbackValues<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> = {
+export type CallbackValues<T extends VertexTypes, R extends VertexTypes = T> = {
   MAKE_ROOT: MakeVertexResult<T>;
   RESOLVE_PREREQUISITE: MakeVertexResult<T> | undefined;
   MAKE_VERTEX: MakeVertexResult<T>;
@@ -72,10 +69,7 @@ export type CallbackValues<
   VISIT: VisitResult<R> | typeof DEFER_READY;
 };
 
-export type CallbackReply<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> = {
+export type CallbackReply<T extends VertexTypes, R extends VertexTypes = T> = {
   [K in keyof CallbackValues<T, R>]: {
     requestId: number;
     kind: K;
@@ -102,16 +96,13 @@ export interface CallbackBindings<
 
 export type KernelEvent<T extends VertexTypes> = {
   vertex: Vertex<T>;
-  vertexRef: Ref<T>;
+  vertexRef: VertexRef<T>;
   order: VisitOrder;
   isRoot: boolean;
   isTraversalRoot: boolean;
 };
 
-export type KernelAction<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> =
+export type KernelAction<T extends VertexTypes, R extends VertexTypes = T> =
   | { kind: 'CALL'; call: CallSpec<T, R> }
   | { kind: 'EVENT'; event: KernelEvent<T | R>; boundaryId: number }
   | { kind: 'WAIT' }
@@ -119,10 +110,7 @@ export type KernelAction<
   | { kind: 'FINISHED' }
   | { kind: 'FAILED'; error: unknown };
 
-export interface KernelPort<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> {
+export interface KernelPort<T extends VertexTypes, R extends VertexTypes = T> {
   poll(mode: PumpMode): KernelAction<T, R>;
   submit(reply: CallbackReply<T, R>): void;
   discardRequest(requestId: number): void;

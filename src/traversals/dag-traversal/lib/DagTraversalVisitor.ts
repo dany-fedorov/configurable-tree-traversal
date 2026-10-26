@@ -1,6 +1,6 @@
 import type { DEFER_READY } from './DagProgress';
-import type { CTTRef } from '@core/CTTRef';
-import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
+import type { MutableRef } from '@core/CTTRef';
+import type { ResolvedGraph, OriginalGraphView } from '@core/ResolvedGraph';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { MaybePromise, VisitResult } from '@core/graph/types';
@@ -14,14 +14,14 @@ export type DagVisitorContext<
   ID = unknown,
 > = {
   resolvedGraph: ResolvedGraph<T | R, ID>;
-  notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
-  vertexRef: CTTRef<Vertex<T | R>>;
+  originalGraphView: OriginalGraphView<T, ID> | null;
+  vertexRef: MutableRef<Vertex<T | R>>;
   phase: ORDER;
   isGraphRoot: boolean;
   isTraversalRoot: boolean;
   phaseVisitIndex: number;
   visitorIndex: number;
-  previousPhaseVertexRef: CTTRef<Vertex<T | R>> | null;
+  previousPhaseVertexRef: MutableRef<Vertex<T | R>> | null;
   visitorChainState: unknown;
   registration: VisitorRegistrationMetadata;
 };
@@ -66,7 +66,7 @@ export type AsyncDagVisitor<
 export type DagEvent<T extends VertexTypes, ID = unknown> = {
   vertexId: ID;
   vertex: Vertex<T>;
-  vertexRef: CTTRef<Vertex<T>>;
+  vertexRef: MutableRef<Vertex<T>>;
   isGraphRoot: boolean;
   isTraversalRoot: boolean;
 } & ({ kind: 'workCompleted' } | { kind: 'subgraphCompleted' });

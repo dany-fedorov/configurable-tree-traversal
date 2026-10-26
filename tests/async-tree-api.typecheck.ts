@@ -21,7 +21,7 @@ const tree: AsyncTreeSource<Input, Output> = {
   }),
   resolveChild: (hint, options) => {
     const input: string = hint;
-    void [input, options.resolvedTree, options.notMutatedResolvedTree];
+    void [input, options.resolvedTree, options.originalTreeView];
     return Promise.resolve({ vertexContent: null });
   },
 };
@@ -34,23 +34,22 @@ const config: AsyncDepthFirstTraversalInstanceConfig<Input, Output> = {
     [DepthFirstPhase.IN_ORDER]: [],
     [DepthFirstPhase.POST_ORDER]: [],
   },
-  inOrderTraversalConfig: {
-    visitParentAfterChildren: { ranges: [[0, 1], -1] },
-    visitParentAfterChildrenAllRangesOutOfBoundsFallback: -1,
-    visitUpOneChildParents: true,
-    considerVisitAfterNullContentVertices: true,
+  inOrder: {
+    afterChildIndices: { ranges: [[0, 1], -1] },
+    fallbackChildIndices: -1,
+    visitSingleChildParent: true,
+    visitAfterOmittedChildren: true,
   },
-  saveNotMutatedResolvedTree: false,
+  retainOriginalTreeStructure: false,
   traversalRunnerInternalObjects: {},
   concurrency: Infinity,
 };
 
 const traversal = new AsyncDepthFirstTreeTraversal<Input, Output>(config);
-const visitor: AsyncTraversalVisitor<
-  DepthFirstPhase,
-  Input,
-  Output
-> = async (_vertex, options) => {
+const visitor: AsyncTraversalVisitor<DepthFirstPhase, Input, Output> = async (
+  _vertex,
+  options,
+) => {
   const metadata: import('../src').VisitorRegistrationMetadata =
     options.registration;
   void metadata;
@@ -83,7 +82,7 @@ const breadthConfig: AsyncBreadthFirstTraversalInstanceConfig<Input, Output> = {
   traversableTree: tree,
   sortChildrenHints: async (hints) => hints,
   visitors: { [BreadthFirstPhase.LEVEL_ORDER]: [] },
-  saveNotMutatedResolvedTree: false,
+  retainOriginalTreeStructure: false,
   traversalRunnerInternalObjects: {
     resolvedTreesContainer: null,
     state: null,
@@ -105,10 +104,7 @@ const breadthVisitor: AsyncTraversalVisitor<
     },
   ],
 });
-breadthTraversal.addVisitorFor(
-  BreadthFirstPhase.LEVEL_ORDER,
-  breadthVisitor,
-);
+breadthTraversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, breadthVisitor);
 breadthTraversal.setVisitorsFor(
   BreadthFirstPhase.LEVEL_ORDER,
   breadthTraversal.listVisitorsFor(BreadthFirstPhase.LEVEL_ORDER),

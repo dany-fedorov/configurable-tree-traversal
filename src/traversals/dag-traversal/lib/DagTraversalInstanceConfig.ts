@@ -52,7 +52,7 @@ type DagTraversalOptions<
   completedWork?: ReadonlySet<ID>;
   sortChildrenHints: DagSortChildrenHintsFn<T> | null;
   visitors: DagTraversalVisitors<T, R, ID>;
-  saveNotMutatedResolvedGraph: boolean;
+  retainOriginalGraphStructure: boolean;
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer:
       | DagTraversalRunnerInternalObjects<T, R, ID>['resolvedGraphsContainer']
@@ -116,7 +116,7 @@ export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
     [DagVisitorPhase.ON_WORK_READY]: [],
     [DagVisitorPhase.ON_SUBGRAPH_READY]: [],
   },
-  saveNotMutatedResolvedGraph: false,
+  retainOriginalGraphStructure: false,
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer: null,
     state: null,

@@ -8,7 +8,10 @@ import { DagTraversalStallError } from '../src/core/errors/DagTraversalStallErro
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import { materializeDagSourceFromRecords, materializeDagSourceFromRoots } from '../src/sources';
+import {
+  materializeDagSourceFromRecords,
+  materializeDagSourceFromRoots,
+} from '../src/sources';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 
@@ -245,12 +248,17 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       materializeDagSourceFromRecords<string, string>([], { id: (id) => id }),
     );
     if (empty.kind !== 'valid') throw new Error('Expected valid');
-    expect(empty.dag.createWorkSession().advance()).toEqual({ kind: 'finished' });
+    expect(empty.dag.createWorkSession().advance()).toEqual({
+      kind: 'finished',
+    });
   });
 
   test(`${prepare.name} returns missing prerequisites as milestone issues`, async () => {
     const missing = await prepare<VertexTypes<string, string>, string>(
-      materializeDagSourceFromRecords(['a'], { id: (id) => id, dependsOnWork: () => ['absent'] }),
+      materializeDagSourceFromRecords(['a'], {
+        id: (id) => id,
+        dependsOnWork: () => ['absent'],
+      }),
     );
     expect(missing).toMatchObject({
       kind: 'invalid',
@@ -454,7 +462,9 @@ test('definition arrays are immutable while arbitrary IDs and data stay shallow'
   const symbol = Symbol('id');
   const ids: unknown[] = [undefined, null, NaN, objectId, symbol];
   const items = ids.map((id) => ({ id, label: 'original' }));
-  const result = prepareDag(materializeDagSourceFromRecords(items, { id: (item) => item.id }));
+  const result = prepareDag(
+    materializeDagSourceFromRecords(items, { id: (item) => item.id }),
+  );
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(() => (result.dag.vertices as unknown[]).pop()).toThrow();
   expect(() =>
@@ -463,7 +473,7 @@ test('definition arrays are immutable while arbitrary IDs and data stay shallow'
   expect(Object.isFrozen(objectId)).toBe(false);
   expect(Object.isFrozen(items[0])).toBe(false);
   items[0]!.label = 'updated';
-  const first = result.dag.createRunner({ saveNotMutatedResolvedGraph: true });
+  const first = result.dag.createRunner({ retainOriginalGraphStructure: true });
   const second = await result.dag.createAsyncRunner();
   expect(
     first
@@ -472,15 +482,15 @@ test('definition arrays are immutable while arbitrary IDs and data stay shallow'
       .map((ref) => first.getResolvedGraph().getVertexId(ref)),
   ).toEqual(ids);
   expect(
-    second.getResolvedGraph().getVertexRefById(undefined)!.unref().getData(),
+    second.getResolvedGraph().getVertexRefById(undefined)!.getValue().getData(),
   ).toBe(items[0]);
   expect(
-    second.getResolvedGraph().getVertexRefById(undefined)!.unref().getData()
+    second.getResolvedGraph().getVertexRefById(undefined)!.getValue().getData()
       .label,
   ).toBe('updated');
   first.run();
   await second.run();
-  expect(first.notMutatedResolvedGraph).not.toBeNull();
+  expect(first.originalGraphView).not.toBeNull();
 });
 
 test('prepared runners reject topology-changing visitor commands independently', () => {
@@ -626,7 +636,10 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     });
     if (result.kind !== 'valid') throw new Error('Expected valid');
     expect(
-      result.dag.vertices.map((vertex) => [vertex.vertexId, vertex.dependsOnWork]),
+      result.dag.vertices.map((vertex) => [
+        vertex.vertexId,
+        vertex.dependsOnWork,
+      ]),
     ).toEqual([
       ['a', []],
       ['b', ['a']],

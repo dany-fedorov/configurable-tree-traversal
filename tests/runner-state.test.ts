@@ -1,4 +1,4 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
@@ -15,15 +15,15 @@ const adapter = (root: Node): TreeSource<Tree> => ({
   resolveRoot: () => ({ vertexContent: root }),
   resolveChild: (hint) => ({ vertexContent: hint }),
 });
-const ref = (data: string) => new CTTRef(new Vertex<Tree>(node(data)));
+const ref = (data: string) => new MutableRef(new Vertex<Tree>(node(data)));
 const context = (
-  parentVertexRef: CTTRef<Vertex<Tree>>,
+  parentVertexRef: MutableRef<Vertex<Tree>>,
   data: string,
   hintIndex: number,
 ): VertexResolutionContext<Tree> => ({
   depth: 1,
   hintIndex,
-  parentVertex: parentVertexRef.unref(),
+  parentVertex: parentVertexRef.getValue(),
   parentVertexRef,
   vertexHint: node(data),
 });

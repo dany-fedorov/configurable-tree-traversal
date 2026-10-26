@@ -2,7 +2,7 @@ import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
 import type { CoreInspection } from '@core/CoreInspection';
-import type { CTTRef } from '@core/CTTRef';
+import type { MutableRef } from '@core/CTTRef';
 import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import {
   bindTreeSource,
@@ -13,7 +13,7 @@ import type { CallSpec, KernelEvent } from '@core/effects/types';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
-import type { ResolvedTree } from '@core/ResolvedTree';
+import type { ResolvedTreeStore } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TreeTraversalEvent } from '@core/TraversalRunner';
 import { TraversalKernel } from '@core/TraversalKernel';
@@ -71,7 +71,7 @@ export class AsyncBreadthFirstTreeRunner<
       this.icfg.traversalRunnerInternalObjects.state,
     );
     const resolvedTreeConfig = {
-      saveNotMutatedResolvedTree: this.icfg.saveNotMutatedResolvedTree,
+      retainOriginalTreeStructure: this.icfg.retainOriginalTreeStructure,
       traversalRunnerInternalObjects: {
         resolvedTreesContainer:
           this.icfg.traversalRunnerInternalObjects.resolvedTreesContainer,
@@ -106,11 +106,12 @@ export class AsyncBreadthFirstTreeRunner<
         ) => {
           const order = BreadthFirstPhase.LEVEL_ORDER;
           const registration = this.icfg.visitors[order][call.recordIndex]!;
-          return registration.visitor(call.ref.unref(), {
+          return registration.visitor(call.ref.getValue(), {
             ...call.metadata,
-            resolvedTree: this.getResolvedTree(),
-            notMutatedResolvedTree:
-              this.resolvedTreesContainer.notMutatedResolvedTree,
+            resolvedTree: this.getResolvedTreeStore(),
+            originalTreeView:
+              this.resolvedTreesContainer.originalTreeView?.asReadOnly() ??
+              null,
             isTreeRoot: this.isTreeRootVertex(call.ref),
             isTraversalRoot: this.isTraversalRootVertex(call.ref),
             vertexRef: call.ref,
@@ -176,24 +177,24 @@ export class AsyncBreadthFirstTreeRunner<
     return this.execution.inspect();
   }
 
-  getResolvedTree(): ResolvedTree<TTP | RW_TTP> {
+  getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP> {
     return this.resolvedTreesContainer.resolvedTree;
   }
 
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP> {
-    return this.getResolvedTree().asReadOnly();
+    return this.getResolvedTreeStore().asReadOnly();
   }
 
   getResolvedGraph(): ResolvedGraph<TTP | RW_TTP> {
-    return this.getResolvedTree().getResolvedGraph();
+    return this.getResolvedTreeStore().getResolvedGraph();
   }
 
-  isTraversalRootVertex(ref: CTTRef<Vertex<TTP | RW_TTP>>): boolean {
+  isTraversalRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean {
     return ref === this.state.traversalRootVertexRef;
   }
 
-  isTreeRootVertex(ref: CTTRef<Vertex<TTP | RW_TTP>>): boolean {
-    return ref === this.getResolvedTree().getRoot();
+  isTreeRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean {
+    return ref === this.getResolvedTreeStore().getRoot();
   }
 
   iterateEvents(

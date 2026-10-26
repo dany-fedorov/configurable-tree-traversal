@@ -1,19 +1,16 @@
 import {
   ObjectTreeSource,
   TraversalVisitorCommandName,
-  type MakeMutationCommandFunction,
-  type MakeMutationCommandFunctionFactory,
+  type MutationCommandBuilder,
+  type MutationCommandBinderFactory,
   type VertexTypes,
   type TraversableObjectTTP,
 } from '../src';
-import { makeMutationCommandFactory } from '../src/traversable-tree-implementations/traversable-object-tree';
+import { createObjectMutationBinder } from '../src/traversable-tree-implementations/traversable-object-tree';
 
 type Input = TraversableObjectTTP<string, unknown>;
 type Output = TraversableObjectTTP<string, number>;
-const factory = ObjectTreeSource.makeMutationCommandFactory<
-  Input,
-  Output
->();
+const factory = ObjectTreeSource.createObjectMutationBinder<Input, Output>();
 declare const args: Parameters<typeof factory>;
 const { makeMutationCommand } = factory(...args);
 makeMutationCommand();
@@ -38,7 +35,7 @@ makeMutationCommand({ rewrite: 3 });
 makeMutationCommand({ rewrite: undefined });
 // @ts-expect-error Undefined is not a numeric output value.
 makeMutationCommand({ rewrite: { value: undefined } });
-const optionalFactory = makeMutationCommandFactory<
+const optionalFactory = createObjectMutationBinder<
   Input,
   TraversableObjectTTP<string, number | undefined>
 >();
@@ -47,20 +44,20 @@ optionalFactory(...optionalArgs).makeMutationCommand({
   rewrite: { value: undefined },
 });
 // @ts-expect-error Object factories require object property data, not arbitrary vertex data.
-makeMutationCommandFactory<VertexTypes<number>, Output>();
-makeMutationCommandFactory<Input, Output>({
+createObjectMutationBinder<VertexTypes<number>, Output>();
+createObjectMutationBinder<Input, Output>({
   // @ts-expect-error Classifiers cannot narrow their accepted input data.
   isArray: (_data: { key: string; value: number }) => false,
 });
 
-declare const replace: MakeMutationCommandFunction<Output>;
+declare const replace: MutationCommandBuilder<Output>;
 replace({ rewrite: { key: 'replacement', value: 3 } });
 // @ts-expect-error Generic replacement requires complete output vertex data.
 replace({ rewrite: { value: 3 } });
 // @ts-expect-error Generic replacement must match the output value type.
 replace({ rewrite: { key: 'replacement', value: 'wrong' } });
 
-declare const genericFactory: MakeMutationCommandFunctionFactory;
+declare const genericFactory: MutationCommandBinderFactory;
 const genericVisitorFactory = genericFactory<'post', Input, Output>();
 declare const genericArgs: Parameters<typeof genericVisitorFactory>;
 const genericBuilder = genericVisitorFactory(

@@ -1,12 +1,8 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
-import {
-  TraversalRunnerStatus as Status,
-} from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
+import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorFunctionResolutionStyle as Style } from '../src/core/TraversalVisitor';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { Vertex } from '../src/core/Vertex';
@@ -105,9 +101,13 @@ test('sorts duplicate priorities stably and isolates builders and runners', () =
   traversal.addVisitorFor(Order.ON_WORK_READY, () => void calls.push('first'), {
     priority: 2,
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, () => void calls.push('second'), {
-    priority: 2,
-  });
+  traversal.addVisitorFor(
+    Order.ON_WORK_READY,
+    () => void calls.push('second'),
+    {
+      priority: 2,
+    },
+  );
   const listed = traversal.listVisitorsFor(Order.ON_WORK_READY);
   expect(listed.map(({ priority }) => priority)).toEqual([2, 2, 1]);
 
@@ -121,7 +121,10 @@ test('sorts duplicate priorities stably and isolates builders and runners', () =
 test('configure copies visitor arrays and preserves existing registrations', () => {
   const calls: string[] = [];
   const traversal = new DagTraversal<TestGraph>({ traversableGraph: source() });
-  traversal.addVisitorFor(Order.ON_WORK_READY, () => void calls.push('existing'));
+  traversal.addVisitorFor(
+    Order.ON_WORK_READY,
+    () => void calls.push('existing'),
+  );
   const visitors = [
     {
       addedIndex: 0,
@@ -140,7 +143,10 @@ test('filters visitor execution independently from event iteration', () => {
   const calls: string[] = [];
   const traversal = new DagTraversal<TestGraph>({ traversableGraph: source() });
   traversal.addVisitorFor(Order.ON_WORK_READY, () => void calls.push('ready'));
-  traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, () => void calls.push('complete'));
+  traversal.addVisitorFor(
+    Order.ON_SUBGRAPH_READY,
+    () => void calls.push('complete'),
+  );
   const events = [
     ...traversal.createRunner().iterateEvents({
       iterateOver: [Order.ON_SUBGRAPH_READY],
@@ -202,7 +208,7 @@ test('accepts an initial or empty quiescent halted injected state', () => {
 });
 
 test('rejects a stale traversal root for an empty halted seed atomically', () => {
-  const staleRoot = new CTTRef(
+  const staleRoot = new MutableRef(
     new Vertex<TestGraph>({ $d: 'stale-root', $c: [] }),
   );
   const state = new DagTraversalRunnerState<TestGraph>({
@@ -240,16 +246,16 @@ function haltedSeed() {
     sourceMode: 'graph',
     saveOriginal: false,
   });
-  const root = new CTTRef(
+  const root = new MutableRef(
     new Vertex<TestGraph>({ $d: 'root', $c: ['A', 'B'] }),
   );
-  const a = new CTTRef(new Vertex<TestGraph>({ $d: 'A', $c: ['C'] }));
-  const b = new CTTRef(new Vertex<TestGraph>({ $d: 'B', $c: [] }));
+  const a = new MutableRef(new Vertex<TestGraph>({ $d: 'A', $c: ['C'] }));
+  const b = new MutableRef(new Vertex<TestGraph>({ $d: 'B', $c: [] }));
   container.acceptRoot(root, 'root');
   container.store.prepareSlots(root, ['A', 'B']);
   container.acceptVertex(a, 'A', ['root'], {
     depth: 1,
-    parentVertex: root.unref(),
+    parentVertex: root.getValue(),
     parentVertexRef: root,
     hintIndex: 0,
     vertexHint: 'A',
@@ -257,7 +263,7 @@ function haltedSeed() {
   container.acceptEdge(root, 0, a);
   container.acceptVertex(b, 'B', ['root'], {
     depth: 1,
-    parentVertex: root.unref(),
+    parentVertex: root.getValue(),
     parentVertexRef: root,
     hintIndex: 1,
     vertexHint: 'B',
@@ -292,12 +298,10 @@ function acceptDetached(
   id: string,
   dependsOnWork: string[],
 ) {
-  const vertexRef = new CTTRef(
-    new Vertex<TestGraph>({ $d: id, $c: [] }),
-  );
+  const vertexRef = new MutableRef(new Vertex<TestGraph>({ $d: id, $c: [] }));
   seed.container.acceptVertex(vertexRef, id, dependsOnWork, {
     depth: 1,
-    parentVertex: seed.root.unref(),
+    parentVertex: seed.root.getValue(),
     parentVertexRef: seed.root,
     hintIndex: 0,
     vertexHint: id,
@@ -328,7 +332,10 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
   }).createRunner();
 
   expect(runner.inspect().readyVisits).toEqual([
-    { vertexRefId: state.readyVisits[0]!.vertexRef.getId(), order: Order.ON_WORK_READY },
+    {
+      vertexRefId: state.readyVisits[0]!.vertexRef.getId(),
+      order: Order.ON_WORK_READY,
+    },
   ]);
 
   const events = [...runner.iterateEvents()].map(
@@ -345,121 +352,207 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
   expect(resolutions).toEqual(['C']);
   const graph = runner.getResolvedGraph();
   expect(
-    graph.getChildrenOf(graph.getVertexById('root')!)!.map((ref) =>
-      ref.unref().getData(),
-    ),
+    graph
+      .getChildrenOf(graph.getVertexById('root')!)!
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(['A', 'B']);
   expect(
-    graph.getChildrenOf(graph.getVertexById('A')!)!.map((ref) =>
-      ref.unref().getData(),
-    ),
+    graph
+      .getChildrenOf(graph.getVertexById('A')!)!
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(['C']);
 });
 
 test.each([
-  ['missing ready ref', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.state.readyVisits[0]!.vertexRef = new CTTRef(
-      new Vertex<TestGraph>({ $d: 'missing', $c: [] }),
-    );
-  }],
-  ['wrong ready status', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.b, 'PRE_VISITED');
-  }],
-  ['prepared expansion', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.prepareSlots(seed.a, ['C']);
-  }],
-  ['duplicate ready visit', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.state.readyVisits.push(seed.state.readyVisits[0]!);
-  }],
-  ['invalid ready order', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.state.readyVisits[0]!.order = 'INVALID' as Order;
-  }],
-  ['active visit', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.root, 'PRE_VISITING');
-  }],
-  ['partial expansion', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.prepareSlots(seed.b, ['pending']);
-  }],
-  ['discovered work without dependencies', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.b, 'DISCOVERED');
-    seed.state.readyVisits = [];
-  }],
-  ['discovered work with prepared slots', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.b, 'DISCOVERED');
-    seed.container.store.prepareSlots(seed.b, []);
-    seed.state.readyVisits = [];
-  }],
-  ['discovered work in the ready queue', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.b, 'DISCOVERED');
-  }],
-  ['ready work with prepared slots', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.prepareSlots(seed.b, []);
-  }],
-  ['ready work with an unmet dependency', (seed: ReturnType<typeof haltedSeed>) => {
-    const vertexRef = acceptDetached(seed, 'D', ['missing']);
-    seed.container.store.setStatus(vertexRef, 'READY');
-    seed.state.readyVisits.push({ vertexRef, order: Order.ON_WORK_READY });
-  }],
-  ['ready visit omitted', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.state.readyVisits = [];
-  }],
-  ['ready visit attached to committed work', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.b, 'PRE_VISITED');
-    seed.state.expansionQueue.push(seed.b);
-  }],
-  ['pre-visited work with an unmet dependency', (seed: ReturnType<typeof haltedSeed>) => {
-    const vertexRef = acceptDetached(seed, 'D', ['missing']);
-    seed.container.store.setStatus(vertexRef, 'PRE_VISITED');
-    seed.state.expansionQueue.push(vertexRef);
-  }],
-  ['completing work without prepared slots', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.b, 'COMPLETING');
-    seed.state.readyVisits[0]!.order = Order.ON_SUBGRAPH_READY;
-  }],
-  ['completing work with remaining children', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.root, 'COMPLETING');
-    seed.state.readyVisits = [{ vertexRef: seed.root, order: Order.ON_SUBGRAPH_READY }];
-  }],
-  ['completing work with an unmet dependency', (seed: ReturnType<typeof haltedSeed>) => {
-    const vertexRef = acceptDetached(seed, 'D', ['missing']);
-    seed.container.store.prepareSlots(vertexRef, []);
-    seed.container.store.setStatus(vertexRef, 'COMPLETING');
-    seed.state.readyVisits.push({ vertexRef, order: Order.ON_SUBGRAPH_READY });
-  }],
-  ['completed work without prepared slots', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.b, 'COMPLETE');
-    seed.state.readyVisits = [];
-  }],
-  ['completed work with remaining children', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.setStatus(seed.root, 'COMPLETE');
-    seed.state.readyVisits = [];
-  }],
-  ['completed work in the ready queue', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.container.store.prepareSlots(seed.b, []);
-    seed.container.store.setStatus(seed.b, 'COMPLETE');
-  }],
-  ['completed work with an unmet dependency', (seed: ReturnType<typeof haltedSeed>) => {
-    const vertexRef = acceptDetached(seed, 'D', ['missing']);
-    seed.container.store.prepareSlots(vertexRef, []);
-    seed.container.store.setStatus(vertexRef, 'COMPLETE');
-  }],
-  ['duplicate expansion', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.state.expansionQueue.push(seed.a);
-  }],
-  ['unknown expansion', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.state.expansionQueue = [
-      new CTTRef(new Vertex<TestGraph>({ $d: 'missing', $c: [] })),
-    ];
-  }],
-  ['missing expansion', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.state.expansionQueue = [];
-  }],
-  ['wrong expansion status', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.state.expansionQueue.push(seed.b);
-  }],
-  ['traversal root mismatch', (seed: ReturnType<typeof haltedSeed>) => {
-    seed.state.traversalRootVertexRef = seed.a;
-  }],
+  [
+    'missing ready ref',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.state.readyVisits[0]!.vertexRef = new MutableRef(
+        new Vertex<TestGraph>({ $d: 'missing', $c: [] }),
+      );
+    },
+  ],
+  [
+    'wrong ready status',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.b, 'PRE_VISITED');
+    },
+  ],
+  [
+    'prepared expansion',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.prepareSlots(seed.a, ['C']);
+    },
+  ],
+  [
+    'duplicate ready visit',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.state.readyVisits.push(seed.state.readyVisits[0]!);
+    },
+  ],
+  [
+    'invalid ready order',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.state.readyVisits[0]!.order = 'INVALID' as Order;
+    },
+  ],
+  [
+    'active visit',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.root, 'PRE_VISITING');
+    },
+  ],
+  [
+    'partial expansion',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.prepareSlots(seed.b, ['pending']);
+    },
+  ],
+  [
+    'discovered work without dependencies',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.b, 'DISCOVERED');
+      seed.state.readyVisits = [];
+    },
+  ],
+  [
+    'discovered work with prepared slots',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.b, 'DISCOVERED');
+      seed.container.store.prepareSlots(seed.b, []);
+      seed.state.readyVisits = [];
+    },
+  ],
+  [
+    'discovered work in the ready queue',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.b, 'DISCOVERED');
+    },
+  ],
+  [
+    'ready work with prepared slots',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.prepareSlots(seed.b, []);
+    },
+  ],
+  [
+    'ready work with an unmet dependency',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      const vertexRef = acceptDetached(seed, 'D', ['missing']);
+      seed.container.store.setStatus(vertexRef, 'READY');
+      seed.state.readyVisits.push({ vertexRef, order: Order.ON_WORK_READY });
+    },
+  ],
+  [
+    'ready visit omitted',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.state.readyVisits = [];
+    },
+  ],
+  [
+    'ready visit attached to committed work',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.b, 'PRE_VISITED');
+      seed.state.expansionQueue.push(seed.b);
+    },
+  ],
+  [
+    'pre-visited work with an unmet dependency',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      const vertexRef = acceptDetached(seed, 'D', ['missing']);
+      seed.container.store.setStatus(vertexRef, 'PRE_VISITED');
+      seed.state.expansionQueue.push(vertexRef);
+    },
+  ],
+  [
+    'completing work without prepared slots',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.b, 'COMPLETING');
+      seed.state.readyVisits[0]!.order = Order.ON_SUBGRAPH_READY;
+    },
+  ],
+  [
+    'completing work with remaining children',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.root, 'COMPLETING');
+      seed.state.readyVisits = [
+        { vertexRef: seed.root, order: Order.ON_SUBGRAPH_READY },
+      ];
+    },
+  ],
+  [
+    'completing work with an unmet dependency',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      const vertexRef = acceptDetached(seed, 'D', ['missing']);
+      seed.container.store.prepareSlots(vertexRef, []);
+      seed.container.store.setStatus(vertexRef, 'COMPLETING');
+      seed.state.readyVisits.push({
+        vertexRef,
+        order: Order.ON_SUBGRAPH_READY,
+      });
+    },
+  ],
+  [
+    'completed work without prepared slots',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.b, 'COMPLETE');
+      seed.state.readyVisits = [];
+    },
+  ],
+  [
+    'completed work with remaining children',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.setStatus(seed.root, 'COMPLETE');
+      seed.state.readyVisits = [];
+    },
+  ],
+  [
+    'completed work in the ready queue',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.container.store.prepareSlots(seed.b, []);
+      seed.container.store.setStatus(seed.b, 'COMPLETE');
+    },
+  ],
+  [
+    'completed work with an unmet dependency',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      const vertexRef = acceptDetached(seed, 'D', ['missing']);
+      seed.container.store.prepareSlots(vertexRef, []);
+      seed.container.store.setStatus(vertexRef, 'COMPLETE');
+    },
+  ],
+  [
+    'duplicate expansion',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.state.expansionQueue.push(seed.a);
+    },
+  ],
+  [
+    'unknown expansion',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.state.expansionQueue = [
+        new MutableRef(new Vertex<TestGraph>({ $d: 'missing', $c: [] })),
+      ];
+    },
+  ],
+  [
+    'missing expansion',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.state.expansionQueue = [];
+    },
+  ],
+  [
+    'wrong expansion status',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.state.expansionQueue.push(seed.b);
+    },
+  ],
+  [
+    'traversal root mismatch',
+    (seed: ReturnType<typeof haltedSeed>) => {
+      seed.state.traversalRootVertexRef = seed.a;
+    },
+  ],
 ] as const)('rejects an inconsistent halted seed with %s', (_name, corrupt) => {
   const seed = haltedSeed();
   corrupt(seed);
@@ -492,7 +585,7 @@ test('rejects injected work for an empty graph', () => {
     status: Status.HALTED,
     readyVisits: [
       {
-        vertexRef: new CTTRef(new Vertex<TestGraph>({ $d: 'x', $c: [] })),
+        vertexRef: new MutableRef(new Vertex<TestGraph>({ $d: 'x', $c: [] })),
         order: Order.ON_WORK_READY,
       },
     ],
@@ -583,16 +676,18 @@ test.each(['omitted', 'completing', 'complete'] as const)(
     }
     const dependent = acceptDetached(seed, 'dependent', [dependencyId]);
     seed.container.store.setStatus(dependent, 'READY');
-    seed.state.readyVisits.push({ vertexRef: dependent, order: Order.ON_WORK_READY });
-    expect(
-      () =>
-        new DagTraversal<TestGraph>({
-          traversableGraph: source(),
-          traversalRunnerInternalObjects: {
-            state: seed.state,
-            resolvedGraphsContainer: seed.container,
-          },
-        }).createRunner(),
+    seed.state.readyVisits.push({
+      vertexRef: dependent,
+      order: Order.ON_WORK_READY,
+    });
+    expect(() =>
+      new DagTraversal<TestGraph>({
+        traversableGraph: source(),
+        traversalRunnerInternalObjects: {
+          state: seed.state,
+          resolvedGraphsContainer: seed.container,
+        },
+      }).createRunner(),
     ).not.toThrow();
   },
 );
@@ -730,8 +825,9 @@ test('rejects a deferred competing claim for shared DAG objects', () => {
 });
 
 test('inspection reports fixed synchronous DAG configuration', () => {
-  const runner = new DagTraversal<TestGraph>({ traversableGraph: source() })
-    .createRunner();
+  const runner = new DagTraversal<TestGraph>({
+    traversableGraph: source(),
+  }).createRunner();
   expect(runner.inspect()).toMatchObject({
     status: Status.INITIAL,
     kind: 'dag',

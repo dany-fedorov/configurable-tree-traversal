@@ -1,4 +1,4 @@
-import type { CTTRef } from '@core/CTTRef';
+import type { MutableRef } from '@core/CTTRef';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -26,9 +26,9 @@ export class BreadthFirstTraversalRunnerState<
   queue: VertexResolutionContext<TTP | RW_TTP>[];
   queueIndex: number;
   visitorsState: BreadthFirstTraversalVisitorsState<TTP, RW_TTP>;
-  traversalRootVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
+  traversalRootVertexRef: MutableRef<Vertex<TTP | RW_TTP>> | null;
   status: TraversalRunnerStatus;
-  subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<TTP | RW_TTP>>>;
+  subtreeTraversalDisabledRefs: Set<MutableRef<Vertex<TTP | RW_TTP>>>;
 
   constructor(
     from?: Partial<BreadthFirstTraversalRunnerState<TTP, RW_TTP>> | null,
