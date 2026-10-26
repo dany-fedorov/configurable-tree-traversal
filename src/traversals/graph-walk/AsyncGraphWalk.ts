@@ -87,7 +87,7 @@ export class AsyncGraphWalk<Data, Edge, ID> {
       AsyncGraphWalkVisitor<Data, Edge, Phase, ID>
     >[];
   }
-  makeRunner(): AsyncGraphWalkRunner<Data, Edge, ID> {
+  createRunner(): AsyncGraphWalkRunner<Data, Edge, ID> {
     return new AsyncGraphWalkRunner(normalizeWalkOptions({}, this.options));
   }
 }

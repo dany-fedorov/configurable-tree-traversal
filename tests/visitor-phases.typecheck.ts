@@ -2,27 +2,27 @@ import {
   DagTraversal,
   AsyncDagTraversal,
   DagTraversalOrder as D,
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
   DepthFirstTraversalOrder as F,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
   BreadthFirstTraversalOrder as B,
   TraversalVisitorCommandName as C,
   DEFER_READY,
-  traverseDepthFirst,
-  traverseDepthFirstAsync,
+  traverseTreeDepthFirst,
+  traverseTreeDepthFirstAsync,
   traverseDag,
   traverseDagAsync,
 } from '../src';
 import type {
-  TreeTypeParameters,
+  VertexTypes,
   DagVisitor,
   TraversalVisitorResult,
 } from '../src';
-type T = TreeTypeParameters<string, string>;
-declare const graph: { traversableGraph: import('../src').TraversableGraph<T> };
-declare const tree: { traversableTree: import('../src').TraversableTree<T> };
+type T = VertexTypes<string, string>;
+declare const graph: { traversableGraph: import('../src').DagDiscoverySource<T> };
+declare const tree: { traversableTree: import('../src').TreeSource<T> };
 declare const dagOrder: D;
 declare const dfsOrder: F;
 for (const traversal of [
@@ -105,8 +105,8 @@ new AsyncDagTraversal<T>(graph).configure({
   },
 });
 for (const traversal of [
-  new DepthFirstTraversal<T>(tree),
-  new AsyncDepthFirstTraversal<T>(tree),
+  new DepthFirstTreeTraversal<T>(tree),
+  new AsyncDepthFirstTreeTraversal<T>(tree),
 ]) {
   traversal.addVisitorFor(F.PRE_ORDER, (_v, o) => {
     const phase: F.PRE_ORDER = o.order;
@@ -178,8 +178,8 @@ for (const traversal of [
   ]);
 }
 for (const traversal of [
-  new BreadthFirstTraversal<T>(tree),
-  new AsyncBreadthFirstTraversal<T>(tree),
+  new BreadthFirstTreeTraversal<T>(tree),
+  new AsyncBreadthFirstTreeTraversal<T>(tree),
 ]) {
   traversal.addVisitorFor(B.LEVEL_ORDER, (_v, o) => {
     const phase: B.LEVEL_ORDER = o.order;
@@ -219,7 +219,7 @@ for (const traversal of [
   ]);
 }
 {
-  traverseDepthFirst<T>(tree.traversableTree!, {
+  traverseTreeDepthFirst<T>(tree.traversableTree!, {
     // @ts-expect-error Legacy helper map controls phase.
     postOrderVisitor: () => ({
       commands: [
@@ -232,7 +232,7 @@ for (const traversal of [
   });
 }
 {
-  traverseDepthFirstAsync<T>(tree.traversableTree!, {
+  traverseTreeDepthFirstAsync<T>(tree.traversableTree!, {
     // @ts-expect-error Legacy helper map controls phase.
     postOrderVisitor: () => ({
       commands: [
@@ -290,8 +290,8 @@ for (const traversal of [
   ]);
 }
 for (const traversal of [
-  new DepthFirstTraversal<T>(tree),
-  new AsyncDepthFirstTraversal<T>(tree),
+  new DepthFirstTreeTraversal<T>(tree),
+  new AsyncDepthFirstTreeTraversal<T>(tree),
 ]) {
   // @ts-expect-error The callback can rewrite hints while the registration can run post-order.
   traversal.addVisitorFor(dfsOrder, pre);
@@ -308,11 +308,11 @@ for (const traversal of [
 }
 {
   // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
-  traverseDepthFirst<T>(tree.traversableTree, { postOrderVisitor: pre });
+  traverseTreeDepthFirst<T>(tree.traversableTree, { postOrderVisitor: pre });
 }
 {
   // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
-  traverseDepthFirstAsync<T>(tree.traversableTree, { postOrderVisitor: pre });
+  traverseTreeDepthFirstAsync<T>(tree.traversableTree, { postOrderVisitor: pre });
 }
 {
   // @ts-expect-error A pre-typed narrow callback cannot evade helper map phase restrictions.
@@ -366,10 +366,10 @@ new AsyncDagTraversal<T>(graph).addVisitorFor(D.ON_READY, asyncCommon);
   }));
 }
 import {
-  traverseBreadthFirst as importedBreadth,
-  traverseBreadthFirstAsync as importedBreadthAsync,
+  traverseTreeBreadthFirst as importedBreadth,
+  traverseTreeBreadthFirstAsync as importedBreadthAsync,
 } from '../src';
-new DepthFirstTraversal<T>(tree).configure({
+new DepthFirstTreeTraversal<T>(tree).configure({
   visitors: {
     [F.PRE_ORDER]: [
       {
@@ -391,7 +391,7 @@ new DepthFirstTraversal<T>(tree).configure({
     ],
   },
 });
-new AsyncDepthFirstTraversal<T>(tree).configure({
+new AsyncDepthFirstTreeTraversal<T>(tree).configure({
   visitors: {
     [F.PRE_ORDER]: [
       {
@@ -413,7 +413,7 @@ new AsyncDepthFirstTraversal<T>(tree).configure({
     ],
   },
 });
-new DepthFirstTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
+new DepthFirstTreeTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
   {
     addedIndex: 0,
     priority: 1,
@@ -423,7 +423,7 @@ new DepthFirstTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
     },
   },
 ]);
-new AsyncDepthFirstTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
+new AsyncDepthFirstTreeTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
   {
     addedIndex: 0,
     priority: 1,
@@ -433,7 +433,7 @@ new AsyncDepthFirstTraversal<T>(tree).setVisitorsFor(F.PRE_ORDER, [
     },
   },
 ]);
-new BreadthFirstTraversal<T>(tree).configure({
+new BreadthFirstTreeTraversal<T>(tree).configure({
   visitors: {
     [B.LEVEL_ORDER]: [
       {
@@ -447,7 +447,7 @@ new BreadthFirstTraversal<T>(tree).configure({
     ],
   },
 });
-new AsyncBreadthFirstTraversal<T>(tree).configure({
+new AsyncBreadthFirstTreeTraversal<T>(tree).configure({
   visitors: {
     [B.LEVEL_ORDER]: [
       {
@@ -461,7 +461,7 @@ new AsyncBreadthFirstTraversal<T>(tree).configure({
     ],
   },
 });
-new BreadthFirstTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
+new BreadthFirstTreeTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
   {
     addedIndex: 0,
     priority: 1,
@@ -471,7 +471,7 @@ new BreadthFirstTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
     },
   },
 ]);
-new AsyncBreadthFirstTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
+new AsyncBreadthFirstTreeTraversal<T>(tree).setVisitorsFor(B.LEVEL_ORDER, [
   {
     addedIndex: 0,
     priority: 1,
@@ -513,7 +513,7 @@ declare const asyncPre: import('../src').AsyncTraversalVisitor<
   T
 >;
 const asyncDag = new AsyncDagTraversal<T>(graph);
-const asyncDfs = new AsyncDepthFirstTraversal<T>(tree);
+const asyncDfs = new AsyncDepthFirstTreeTraversal<T>(tree);
 asyncDag.addVisitorFor(D.ON_READY, asyncReady);
 asyncDfs.addVisitorFor(F.PRE_ORDER, asyncPre);
 // @ts-expect-error An async ON_READY callback cannot run at a union phase.
@@ -543,7 +543,7 @@ asyncDfs.setVisitorsFor(dfsOrder, [
 // @ts-expect-error Async helper maps preserve phases of pre-typed callbacks.
 traverseDagAsync(graph, { onCompleteVisitor: asyncReady });
 // @ts-expect-error Async helper maps preserve phases of pre-typed callbacks.
-traverseDepthFirstAsync(tree.traversableTree, { postOrderVisitor: asyncPre });
+traverseTreeDepthFirstAsync(tree.traversableTree, { postOrderVisitor: asyncPre });
 const defaultTreeVisitor: import('../src').TraversalVisitor = () => ({
   commands: [{ commandName: C.NOOP }],
 });

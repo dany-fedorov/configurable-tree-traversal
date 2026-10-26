@@ -1,15 +1,15 @@
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
 import { DepthFirstTraversalOrder as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import {
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
-import type { TraversableTree } from '../src/core/TraversableTree';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { TreeSource } from '../src/core/TraversableTree';
 
 type Node = { $d: string; $c: (Node | null)[] };
-type TTP = TreeTypeParameters<string, Node | null>;
+type TTP = VertexTypes<string, Node | null>;
 const node = ($d: string, ...$c: (Node | null)[]): Node => ({ $d, $c });
 function traversal(
   root: Node | null = node(
@@ -18,14 +18,14 @@ function traversal(
     node('G', null, node('I', node('H'))),
   ),
 ) {
-  const tree: TraversableTree<TTP> = {
-    makeRoot: () => ({ vertexContent: root }),
-    makeVertex: (hint) => ({ vertexContent: hint }),
+  const tree: TreeSource<TTP> = {
+    resolveRoot: () => ({ vertexContent: root }),
+    resolveChild: (hint) => ({ vertexContent: hint }),
   };
-  return new DepthFirstTraversal<TTP>({ traversableTree: tree });
+  return new DepthFirstTreeTraversal<TTP>({ traversableTree: tree });
 }
 const values = (
-  runner: ReturnType<ReturnType<typeof traversal>['makeRunner']>,
+  runner: ReturnType<ReturnType<typeof traversal>['createRunner']>,
   order: Order,
 ) =>
   [...runner.getIterable({ iterateOver: [order] })].map((event) =>
@@ -38,11 +38,11 @@ describe('depth-first traversal', () => {
     [Order.IN_ORDER, ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']],
     [Order.POST_ORDER, ['A', 'C', 'E', 'D', 'B', 'H', 'I', 'G', 'F']],
   ])('iterates %s without requiring visitor functions', (order, expected) => {
-    expect(values(traversal().makeRunner(), order)).toEqual(expected);
+    expect(values(traversal().createRunner(), order)).toEqual(expected);
   });
 
   test('finishes an empty tree', () => {
-    const runner = traversal(null).makeRunner();
+    const runner = traversal(null).createRunner();
     expect([...runner.getIterable()]).toEqual([]);
     expect(runner.getStatus()).toBe(Status.FINISHED);
     expect(runner.getResolvedTree().getRoot()).toBeNull();
@@ -53,7 +53,7 @@ describe('depth-first traversal', () => {
     const t = traversal(root).configure({
       sortChildrenHints: (hints) => hints.reverse(),
     });
-    expect(values(t.makeRunner(), Order.PRE_ORDER)).toEqual(['root', 'a', 'b']);
+    expect(values(t.createRunner(), Order.PRE_ORDER)).toEqual(['root', 'a', 'b']);
     expect(root.$c.map((child) => child?.$d)).toEqual(['b', 'a']);
   });
 
@@ -65,7 +65,7 @@ describe('depth-first traversal', () => {
     t.addVisitorFor(Order.POST_ORDER, (v) => {
       post.push(v.getData());
     });
-    t.makeRunner().run();
+    t.createRunner().run();
     expect(post).toEqual(['leaf', 'branch', 'last', 'root']);
   });
 
@@ -73,7 +73,7 @@ describe('depth-first traversal', () => {
     const t = traversal(node('root', null, node('leaf'))).configure({
       inOrderTraversalConfig: { considerVisitAfterNullContentVertices: false },
     });
-    expect(values(t.makeRunner(), Order.POST_ORDER)).toEqual(['leaf', 'root']);
+    expect(values(t.createRunner(), Order.POST_ORDER)).toEqual(['leaf', 'root']);
   });
 
   test('disables only the listed visitors', () => {
@@ -83,7 +83,7 @@ describe('depth-first traversal', () => {
       t.addVisitorFor(order, (_v, o) => {
         visits.push(o.order);
       });
-    t.makeRunner().run({ disableVisitorFunctionsFor: [Order.PRE_ORDER] });
+    t.createRunner().run({ disableVisitorFunctionsFor: [Order.PRE_ORDER] });
     expect(visits).toEqual([Order.IN_ORDER, Order.POST_ORDER]);
   });
 
@@ -99,7 +99,7 @@ describe('depth-first traversal', () => {
     t.addVisitorFor(Order.PRE_ORDER, (v) => {
       visits.push(`second:${v.getData()}`);
     });
-    const runner = t.makeRunner();
+    const runner = t.createRunner();
     runner.run({ iterateOver: [] });
     expect(runner.getStatus()).toBe(Status.HALTED);
     expect(visits).toEqual(['first:root']);
@@ -116,7 +116,7 @@ describe('depth-first traversal', () => {
   });
 
   test('changes iterator filters when resuming after a break', () => {
-    const runner = traversal(node('root', node('leaf'))).makeRunner();
+    const runner = traversal(node('root', node('leaf'))).createRunner();
     for (const event of runner.getIterable({
       iterateOver: [Order.PRE_ORDER],
     })) {
@@ -136,7 +136,7 @@ describe('depth-first traversal', () => {
         ? { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] }
         : undefined,
     );
-    expect(values(t.makeRunner(), Order.POST_ORDER)).toEqual([
+    expect(values(t.createRunner(), Order.POST_ORDER)).toEqual([
       'branch',
       'leaf',
       'root',
@@ -163,7 +163,7 @@ describe('depth-first traversal', () => {
           }
         : undefined,
     );
-    expect(values(t.makeRunner(), Order.PRE_ORDER)).toEqual([
+    expect(values(t.createRunner(), Order.PRE_ORDER)).toEqual([
       'root',
       'branch',
       'new',
@@ -182,7 +182,7 @@ describe('depth-first traversal', () => {
           o.previousVisitedVertexRef?.unref().getData() ?? null,
         ]);
       });
-    t.makeRunner().run();
+    t.createRunner().run();
     expect(seen).toEqual([
       [0, 0, null],
       [0, 1, null],
@@ -230,7 +230,7 @@ describe('depth-first traversal', () => {
     t.addVisitorFor(Order.PRE_ORDER, (_v, o) => {
       seen.push(o.vertexVisitorsChainState);
     });
-    t.makeRunner().run();
+    t.createRunner().run();
     expect(seen).toEqual(['root', 'root', 'changed', 42]);
   });
 
@@ -241,7 +241,7 @@ describe('depth-first traversal', () => {
       seen.push('first');
     });
     t.configure({ sortChildrenHints: null });
-    const runner = t.makeRunner();
+    const runner = t.createRunner();
     t.addVisitorFor(Order.PRE_ORDER, () => {
       seen.push('late');
     });
@@ -258,7 +258,7 @@ describe('depth-first traversal', () => {
         ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
         : undefined,
     );
-    const runner = t.makeRunner().run();
+    const runner = t.createRunner().run();
     const tree = runner.getResolvedTree();
     expect(
       tree.getChildrenOf(tree.getRoot()!)?.map((ref) => ref.unref().getData()),
@@ -273,7 +273,7 @@ describe('depth-first traversal', () => {
     t.addVisitorFor(Order.POST_ORDER, () => {
       count++;
     });
-    t.makeRunner().run({ iterateOver: [] });
+    t.createRunner().run({ iterateOver: [] });
     expect(count).toBe(20001);
   });
 });
@@ -296,7 +296,7 @@ test('passes chain state from concurrent commands to the first sequential visito
   t.addVisitorFor(Order.PRE_ORDER, (_vertex, options) => {
     seen = options.vertexVisitorsChainState;
   });
-  t.makeRunner().run();
+  t.createRunner().run();
   expect(seen).toBe(42);
 });
 
@@ -316,18 +316,18 @@ test('retains equal-priority registration order after replacing visitor records'
   t.addVisitorFor(Order.PRE_ORDER, () => {
     seen.push('new');
   });
-  t.makeRunner().run();
+  t.createRunner().run();
   expect(seen).toEqual(['existing', 'new']);
 });
 
 test('a resolved tree can be traversed again as an adapter', () => {
   const resolvedTree = traversal(node('root', node('a'), node('b')))
-    .makeRunner()
+    .createRunner()
     .run()
     .getResolvedTree();
-  const again = new DepthFirstTraversal({ traversableTree: resolvedTree });
+  const again = new DepthFirstTreeTraversal({ traversableTree: resolvedTree });
   const data = [
-    ...again.makeRunner().getIterable({ iterateOver: [Order.POST_ORDER] }),
+    ...again.createRunner().getIterable({ iterateOver: [Order.POST_ORDER] }),
   ].map((event) => event.vertex.getData().unref().getData());
   expect(data).toEqual(['a', 'b', 'root']);
 });

@@ -17,7 +17,7 @@ it.each([null, undefined, false, 0, '', Symbol('failure')])(
           throw error;
         },
       },
-    }).makeRunner();
+    }).createRunner();
     for (let attempt = 0; attempt < 2; attempt++) {
       let caught = false;
       try {
@@ -45,7 +45,7 @@ it('drains the admitted visitor chain on cooperative pause with emissions disabl
   t.addVisitorFor(Phase.VERTEX, (event) => {
     seen.push(`second:${event.vertex.vertexId}`);
   });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
   expect(runner.requestPause()).toBe(false);
   runner.run();
   expect(seen).toEqual(['first:A', 'second:A']);
@@ -69,7 +69,7 @@ it('keeps the admitted chain selection while applying a new delivery selector', 
   t.addVisitorFor(Phase.PATH, () => {
     seen.push('path');
   });
-  const runner = t.makeRunner().run();
+  const runner = t.createRunner().run();
   expect(seen).toEqual(['halt']);
   const resumed = [
     ...runner.getIterable({
@@ -89,7 +89,7 @@ it('keeps the admitted chain selection while applying a new delivery selector', 
 
 it('pauses between edge/vertex/path without replay and never expands on iterator return', () => {
   const fixture = contextFixture();
-  const runner = new GraphWalk({ source: fixture.source }).makeRunner();
+  const runner = new GraphWalk({ source: fixture.source }).createRunner();
   const edges = runner.getIterable({ emitPhases: [Phase.EDGE] });
   expect(edges.next().value).toMatchObject({
     kind: 'edge',
@@ -123,7 +123,7 @@ it('pauses between edge/vertex/path without replay and never expands on iterator
 
 it('closing a never-started iterator leaves source, status and current owner untouched', () => {
   const fixture = contextFixture();
-  const runner = new GraphWalk({ source: fixture.source }).makeRunner();
+  const runner = new GraphWalk({ source: fixture.source }).createRunner();
   runner.getIterable().return();
   expect(fixture.calls).toEqual([]);
   expect(runner.getStatus()).toBe(Status.INITIAL);
@@ -141,7 +141,7 @@ it('closing a never-started iterator leaves source, status and current owner unt
 it('rejects competing owners and reentrant run without corrupting the owning iterator', () => {
   const seen: string[] = [];
   const t = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
   t.addVisitorFor(Phase.VERTEX, () => undefined);
   const owner = runner.getIterable();
   expect(owner.next().value).toMatchObject({ kind: 'vertex' });
@@ -156,7 +156,7 @@ it('rejects competing owners and reentrant run without corrupting the owning ite
     expect(() => nested.run()).toThrow('execution owner');
     seen.push('continued');
   });
-  const nested = reentrant.makeRunner();
+  const nested = reentrant.createRunner();
   nested.run();
   expect(seen).toEqual(['continued']);
   expect(nested.getStatus()).toBe(Status.FINISHED);
@@ -177,7 +177,7 @@ it('consumer errors and iterator throw pause a resumable runner with completed c
         seen.push(event.vertex.vertexId);
       },
     },
-  }).makeRunner();
+  }).createRunner();
   const error = Symbol('consumer');
   let caught = false;
   try {
@@ -221,7 +221,7 @@ it('retains exact result getter failures before any command batch applies', () =
   const runner = new GraphWalk({
     source,
     visitors: { vertex: () => value },
-  }).makeRunner();
+  }).createRunner();
   let caught = false;
   try {
     runner.run();
@@ -253,7 +253,7 @@ it('emits the drained observation before acknowledging cooperative pause and pre
       },
     ],
   });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
   expect([...runner.getIterable()]).toMatchObject([{ kind: 'vertex' }]);
   expect(seen).toEqual(['first', 'second']);
   expect(runner.getStatus()).toBe(Status.HALTED);

@@ -1,25 +1,25 @@
 import {
   DEFAULT_VISITOR_FN_OPTIONS,
   TraversalVisitorFunctionResolutionStyle,
-  type TreeTypeParameters,
+  type VertexTypes,
 } from '../src/core';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
   makeEffectiveDepthFirstTraversalRunnerIterableConfig,
 } from '../src/traversals/depth-first-traversal';
 import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
-  BreadthFirstTraversal,
+  BreadthFirstTreeTraversal,
   BreadthFirstTraversalOrder,
   makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
 } from '../src/traversals/breadth-first-traversal';
 
 type Node = { $d: string; $c: Node[] };
-type Tree = TreeTypeParameters<string, Node>;
+type Tree = VertexTypes<string, Node>;
 
 const root: Node = {
   $d: 'root',
@@ -27,8 +27,8 @@ const root: Node = {
 };
 
 const tree = {
-  makeRoot: () => ({ vertexContent: root }),
-  makeVertex: (hint: Node) => ({ vertexContent: hint }),
+  resolveRoot: () => ({ vertexContent: root }),
+  resolveChild: (hint: Node) => ({ vertexContent: hint }),
 };
 
 function expectRecursivelyFrozen(value: unknown, seen = new Set<object>()) {
@@ -80,11 +80,11 @@ describe('exported traversal defaults', () => {
     }
 
     try {
-      const traversal = new DepthFirstTraversal<Tree>({
+      const traversal = new DepthFirstTreeTraversal<Tree>({
         traversableTree: tree,
       });
       const values = [
-        ...traversal.makeRunner().getIterable({
+        ...traversal.createRunner().getIterable({
           iterateOver: [DepthFirstTraversalOrder.IN_ORDER],
         }),
       ].map(({ vertex }) => vertex.getData());
@@ -159,8 +159,8 @@ describe('exported traversal defaults', () => {
     }
 
     try {
-      new BreadthFirstTraversal<Tree>({ traversableTree: tree })
-        .makeRunner()
+      new BreadthFirstTreeTraversal<Tree>({ traversableTree: tree })
+        .createRunner()
         .run();
       expect(unexpectedVisits).toBe(0);
       expect(mutationError).toBeInstanceOf(TypeError);
@@ -184,7 +184,7 @@ describe('exported traversal defaults', () => {
     }
 
     try {
-      const traversal = new DepthFirstTraversal<Tree>({
+      const traversal = new DepthFirstTreeTraversal<Tree>({
         traversableTree: tree,
       }).addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => undefined);
       expect(
@@ -203,10 +203,10 @@ describe('exported traversal defaults', () => {
       makeEffectiveDepthFirstTraversalRunnerIterableConfig();
     const breadthIterable =
       makeEffectiveBreadthFirstTraversalRunnerIterableConfig();
-    const depthTraversal = new DepthFirstTraversal<Tree>({
+    const depthTraversal = new DepthFirstTreeTraversal<Tree>({
       traversableTree: tree,
     });
-    const breadthTraversal = new BreadthFirstTraversal<Tree>({
+    const breadthTraversal = new BreadthFirstTreeTraversal<Tree>({
       traversableTree: tree,
     });
     const depthRecord = {

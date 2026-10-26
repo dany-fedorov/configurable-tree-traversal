@@ -1,7 +1,7 @@
-import type { FoundVertexResult } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { DagVertexFound } from '@core/TraversableTree';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
-import type { AsyncCollection, CollectionSource } from './types';
+import type { AsyncCollection, MaterializedDagSource } from './types';
 
 export type MaterializedRecord<Item, ID> = {
   item: Item;
@@ -23,11 +23,11 @@ export async function collect<Item>(
 export function materializedSource<Item, ID>(
   records: Map<ID, MaterializedRecord<Item, ID>>,
   roots: ID[],
-): CollectionSource<Item, ID> {
-  type T = TreeTypeParameters<Item, ID>;
+): MaterializedDagSource<Item, ID> {
+  type T = VertexTypes<Item, ID>;
   const found = (
     record: MaterializedRecord<Item, ID>,
-  ): FoundVertexResult<T, ID> => ({
+  ): DagVertexFound<T, ID> => ({
     kind: 'found',
     vertex: {
       vertexId: record.id,
@@ -41,7 +41,7 @@ export function materializedSource<Item, ID>(
   return {
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () =>
+      resolveRoot: () =>
         found({
           item: undefined as Item,
           id: holder,
@@ -49,7 +49,7 @@ export function materializedSource<Item, ID>(
           dependsOn: [],
           dependsOnComplete: [],
         }),
-      makeVertex: (id) => {
+      resolveChild: (id) => {
         const record = records.get(id);
         if (record === undefined)
           throw new TypeError('Structural child is absent from the collection');

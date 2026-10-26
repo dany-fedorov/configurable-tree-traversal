@@ -3,11 +3,11 @@ import {
   AsyncDagTraversal,
   DagTraversalOrder as Order,
 } from '../src';
-import type { TraversableGraph, TreeTypeParameters } from '../src';
+import type { DagDiscoverySource, VertexTypes } from '../src';
 import { mergeDagTraversalInstanceConfigs } from '../src/traversals/dag-traversal/lib/DagTraversalInstanceConfig';
 import { mergeAsyncDagTraversalInstanceConfigs } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig';
 
-type Data = TreeTypeParameters<string, string>;
+type Data = VertexTypes<string, string>;
 
 for (const Factory of [DagTraversal, AsyncDagTraversal]) {
   for (const sourceKey of ['traversableGraph', 'traversableTree'] as const) {
@@ -17,9 +17,9 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       const calls: string[] = [];
       const originalId = { name: 'original' };
       const replacementId = Symbol('replacement');
-      function source(data: string, vertexId: unknown): TraversableGraph<Data> {
+      function source(data: string, vertexId: unknown): DagDiscoverySource<Data> {
         return {
-          makeRoot() {
+          resolveRoot() {
             calls.push(data);
             return {
               kind: 'found',
@@ -29,7 +29,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
               },
             };
           },
-          makeVertex: () => ({ vertexContent: null }),
+          resolveChild: () => ({ vertexContent: null }),
         };
       }
       const original = source('original', originalId);
@@ -42,7 +42,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       );
       async function run(expected: string) {
         seen.length = 0;
-        const runner = traversal.makeRunner();
+        const runner = traversal.createRunner();
         await runner.run();
         expect(seen).toEqual([expected]);
         if (sourceKey === 'traversableGraph') {
@@ -114,7 +114,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         constructed.addVisitorFor(Order.ON_READY, (vertex) =>
           expect(vertex.getData()).toBe('replacement'),
         );
-        await constructed.makeRunner().run();
+        await constructed.createRunner().run();
       },
     );
 
@@ -155,7 +155,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         [sourceKey]: original,
         [oppositeKey]: undefined,
       } as never);
-      await constructed.makeRunner().run();
+      await constructed.createRunner().run();
     });
 
     if (sourceKey === 'traversableGraph') {
@@ -238,7 +238,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         [sourceKey]: original,
       });
       const constructed = new Factory<Data>(input as never);
-      await constructed.makeRunner().run();
+      await constructed.createRunner().run();
       await run('original');
       expect(
         () =>
@@ -282,9 +282,9 @@ for (const merge of [
   mergeAsyncDagTraversalInstanceConfigs,
 ]) {
   test(`${merge.name} retains a source for an ignored direct patch`, () => {
-    const source: TraversableGraph<Data> = {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
+    const source: DagDiscoverySource<Data> = {
+      resolveRoot: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     };
     const base = {
       ...new DagTraversal<Data>({ traversableGraph: source }).icfg,

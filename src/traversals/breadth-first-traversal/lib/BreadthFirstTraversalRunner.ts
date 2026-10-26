@@ -13,11 +13,11 @@ import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTree } from '@core/ResolvedTree';
 import { TraversalKernel } from '@core/TraversalKernel';
 import type {
-  TraversalRunner,
-  TraversalRunnerIteratorResultContent,
+  TreeTraversalRunner,
+  TreeTraversalEvent,
 } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -36,18 +36,18 @@ import {
 import { BreadthFirstTraversalRunnerState } from './BreadthFirstTraversalRunnerState';
 
 type Event<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> = TraversalRunnerIteratorResultContent<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
+> = TreeTraversalEvent<
   BreadthFirstTraversalOrder,
   TTP,
   RW_TTP
 >;
 
-export class BreadthFirstTraversalRunner<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
-> implements TraversalRunner<BreadthFirstTraversalOrder, TTP, RW_TTP>
+export class BreadthFirstTreeRunner<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> implements TreeTraversalRunner<BreadthFirstTraversalOrder, TTP, RW_TTP>
 {
   icfg: BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
   state: BreadthFirstTraversalRunnerState<TTP, RW_TTP>;
@@ -94,7 +94,7 @@ export class BreadthFirstTraversalRunner<
       source: bindTreeSource(
         this.icfg.traversableTree,
         graphContainer,
-        'BreadthFirstTraversalRunner',
+        'BreadthFirstTreeRunner',
       ),
       ...(this.icfg.sortChildrenHints === null
         ? {}
@@ -214,7 +214,7 @@ export class BreadthFirstTraversalRunner<
       this.kernel,
       this.bindings,
       this.runtimeState,
-      'BreadthFirstTraversalRunner',
+      'BreadthFirstTreeRunner',
     )) {
       if (event === null) yield null;
       else

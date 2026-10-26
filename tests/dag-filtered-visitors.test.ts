@@ -9,25 +9,25 @@ import {
   filterAsyncDagVisitor,
 } from '../src/traversals/dag-traversal/filterDagVisitor';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 
 type Task = { kind: 'task'; label: string };
 type Group = { kind: 'group'; title: string };
 type Data = Task | Group;
-type G = TreeTypeParameters<Data, string>;
+type G = VertexTypes<Data, string>;
 const group: Group = { kind: 'group', title: 'group' };
 const task: Task = { kind: 'task', label: 'task' };
 const isTask = (data: Data): data is Task => data.kind === 'task';
-const source: TraversableGraph<G, G, string> = {
-  makeRoot: () => ({
+const source: DagDiscoverySource<G, G, string> = {
+  resolveRoot: () => ({
     kind: 'found',
     vertex: {
       vertexId: 'group',
       vertexContent: { $data: group, $childHints: ['task'] },
     },
   }),
-  makeVertex: () => ({
+  resolveChild: () => ({
     kind: 'found',
     vertex: {
       vertexId: 'task',
@@ -79,7 +79,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ),
       { priority: 1 },
     );
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expect(seen).toEqual([task, Order.ON_READY, task, 'after']);
     expect(
@@ -102,7 +102,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, (_, options) => {
       after.push(options.resolvedGraph.getVertexId(options.vertexRef));
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expect(after).toEqual(['group']);
     expect(runner.summary().deferredIds).toEqual(['task']);
@@ -134,7 +134,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         ),
       );
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       await expect(async () => {
         await runner.run();
       }).rejects.toBe(error);
@@ -162,7 +162,7 @@ test('async filtered callbacks await commands and preserve rejected values', asy
       };
     }),
   );
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   await runner.run();
   expect(
     runner.getResolvedGraph().getVertexRefById('task')!.unref().getData(),
@@ -173,7 +173,7 @@ test('async filtered callbacks await commands and preserve rejected values', asy
       throw undefined;
     }),
   );
-  await expect(traversal.makeRunner().run()).rejects.toBeUndefined();
+  await expect(traversal.createRunner().run()).rejects.toBeUndefined();
 });
 
 test('async filtering preserves deferral after awaited host work', async () => {
@@ -187,7 +187,7 @@ test('async filtering preserves deferral after awaited host work', async () => {
       return DEFER_READY;
     }),
   );
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   await runner.run();
   expect(runner.summary().deferredIds).toEqual(['task']);
   runner.settle(
@@ -218,6 +218,6 @@ test.each(['predicate', 'callback'] as const)(
         },
       ),
     );
-    await expect(traversal.makeRunner().run()).rejects.toBe(error);
+    await expect(traversal.createRunner().run()).rejects.toBe(error);
   },
 );

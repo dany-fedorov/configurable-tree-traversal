@@ -165,11 +165,11 @@ test('callback bindings dispatch every request by its discriminant', () => {
   const calls: string[] = [];
   const bindings = createCallbackBindings<TestGraph>({
     source: {
-      makeRoot: () => {
+      resolveRoot: () => {
         calls.push('root');
         return { vertexContent: null };
       },
-      makeVertex: () => {
+      resolveChild: () => {
         calls.push('vertex');
         return { vertexContent: null };
       },
@@ -250,8 +250,8 @@ test('callback bindings dispatch every request by its discriminant', () => {
 test('callback bindings use sort fallback and reject missing visitors', () => {
   const bindings = createCallbackBindings<TestGraph>({
     source: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     },
     visit: {},
   });

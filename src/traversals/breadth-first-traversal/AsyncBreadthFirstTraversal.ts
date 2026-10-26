@@ -12,7 +12,7 @@ import type {
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import {
   ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -21,12 +21,12 @@ import {
   type AsyncBreadthFirstTraversalInstanceConfigInput,
   type AsyncBreadthFirstTraversalVisitors,
 } from './lib/AsyncBreadthFirstTraversalInstanceConfig';
-import { AsyncBreadthFirstTraversalRunner } from './lib/AsyncBreadthFirstTraversalRunner';
+import { AsyncBreadthFirstTreeRunner } from './lib/AsyncBreadthFirstTraversalRunner';
 import type { BreadthFirstTraversalOrder } from './lib/BreadthFirstTraversalOrder';
 
-export class AsyncBreadthFirstTraversal<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+export class AsyncBreadthFirstTreeTraversal<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > {
   icfg: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
   visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
@@ -120,8 +120,8 @@ export class AsyncBreadthFirstTraversal<
     return this;
   }
 
-  makeRunner(): AsyncBreadthFirstTraversalRunner<TTP, RW_TTP> {
-    return new AsyncBreadthFirstTraversalRunner({
+  createRunner(): AsyncBreadthFirstTreeRunner<TTP, RW_TTP> {
+    return new AsyncBreadthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,
     });

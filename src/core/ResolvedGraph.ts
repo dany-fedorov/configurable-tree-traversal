@@ -1,10 +1,10 @@
 import type { CTTRef } from '@core/CTTRef';
 import type { GetPathToOptions } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { GraphVertex, GraphVertexStatus } from '@core/graph/types';
 
-export interface ResolvedGraph<T extends TreeTypeParameters, ID = unknown> {
+export interface ResolvedGraph<T extends VertexTypes, ID = unknown> {
   get(ref: CTTRef<Vertex<T>>): GraphVertex<T, ID> | null;
   has(ref: CTTRef<Vertex<T>>): boolean;
   getRoot(): CTTRef<Vertex<T>> | null;
@@ -25,7 +25,7 @@ export interface ResolvedGraph<T extends TreeTypeParameters, ID = unknown> {
 }
 
 export type ResolvedGraphSnapshot<
-  T extends TreeTypeParameters,
+  T extends VertexTypes,
   ID = unknown,
 > = Pick<
   ResolvedGraph<T, ID>,

@@ -203,12 +203,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversal = new Constructor<TestGraph>({
       completedWork: new Set(['root', 'a']),
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           dependsOn: ['a'],
           vertexContent: { $d: 'root', $c: ['a'] },
         }),
-        makeVertex: (id) => {
+        resolveChild: (id) => {
           if (id === 'probe') snapshots.push(runner.summary());
           return id === 'probe'
             ? { vertexContent: null }
@@ -220,7 +220,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await expect(async () => {
       await runner.run();
     }).rejects.toMatchObject({
@@ -238,13 +238,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       completedWork: new Set(['seed']),
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexContent: {
             $d: '',
             $c: ['seed', 'gate', 'remove', 'dependent'],
           },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn:
             id === 'gate'
@@ -263,7 +263,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         ? DEFER_READY
         : { commands: [{ commandName: Command.DELETE_VERTEX }] },
     );
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     const before = runner.summary();
     const gate = before.vertices.get('gate')!.generation!;

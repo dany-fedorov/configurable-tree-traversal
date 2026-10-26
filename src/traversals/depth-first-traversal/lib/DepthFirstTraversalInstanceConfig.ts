@@ -1,8 +1,8 @@
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import type { IndexRange } from '../in-order-helpers/IndexRange';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { TraversableTree } from '@core/TraversableTree';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { TreeSource } from '@core/TraversableTree';
 import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
 import type { DepthFirstTraversalInOrderTraversalConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import type { DepthFirstTraversalRunnerInternalObjects } from '@depth-first-traversal/lib/DepthFirstTraversalRunnerInternalObjects';
@@ -11,15 +11,15 @@ import type { OrNullAllFields } from '@depth-first-traversal/type-helpers/OrNull
 import type { DepthFirstTraversalInstanceConfigDeepPartial } from '@depth-first-traversal/type-helpers/DepthFirstTraversalInstanceConfigDeepPartial';
 import { deepFreeze } from '@utils/deepFreeze';
 
-export type SortChildrenHintsFn<TTP extends TreeTypeParameters> = (
+export type SortChildrenHintsFn<TTP extends VertexTypes> = (
   childrenHints: TTP['VertexHint'][],
 ) => TTP['VertexHint'][];
 
 export type DepthFirstTraversalInstanceConfig<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = {
-  traversableTree: TraversableTree<TTP, RW_TTP>;
+  traversableTree: TreeSource<TTP, RW_TTP>;
   sortChildrenHints: SortChildrenHintsFn<TTP> | null;
   visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
   inOrderTraversalConfig: DepthFirstTraversalInOrderTraversalConfig;
@@ -30,7 +30,7 @@ export type DepthFirstTraversalInstanceConfig<
 };
 
 export const DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
-  DepthFirstTraversalInstanceConfig<TreeTypeParameters, TreeTypeParameters>,
+  DepthFirstTraversalInstanceConfig<VertexTypes, VertexTypes>,
   'traversableTree'
 > = deepFreeze({
   sortChildrenHints: null,
@@ -53,8 +53,8 @@ export const DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
 });
 
 export type DepthFirstTraversalInstanceConfigInput<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = Omit<
   DepthFirstTraversalInstanceConfigDeepPartial<
     DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
@@ -73,8 +73,8 @@ export type DepthFirstTraversalInstanceConfigInput<
 > & { visitors?: VisitorInputs<DepthFirstTraversalVisitors<TTP, RW_TTP>> };
 
 export function mergeInstanceConfigs<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 >(
   base: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
   input: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,

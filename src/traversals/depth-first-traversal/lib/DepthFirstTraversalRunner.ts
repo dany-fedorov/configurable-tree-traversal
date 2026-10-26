@@ -3,10 +3,10 @@ import type { TraversalStopReason } from '@core/TraversalRunner';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTree } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
-  TraversalRunner,
-  TraversalRunnerIteratorResultContent,
+  TreeTraversalRunner,
+  TreeTraversalEvent,
 } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { CTTRef } from '@core/CTTRef';
@@ -35,14 +35,14 @@ import {
 import { initVisitors } from '../init-helpers/initVisitors';
 
 type Event<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> = TraversalRunnerIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>;
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
+> = TreeTraversalEvent<DepthFirstTraversalOrder, TTP, RW_TTP>;
 
-export class DepthFirstTraversalRunner<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> implements TraversalRunner<DepthFirstTraversalOrder, TTP, RW_TTP>
+export class DepthFirstTreeRunner<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
+> implements TreeTraversalRunner<DepthFirstTraversalOrder, TTP, RW_TTP>
 {
   icfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
   state: DepthFirstTraversalRunnerState<TTP, RW_TTP>;
@@ -79,7 +79,7 @@ export class DepthFirstTraversalRunner<
       source: bindTreeSource(
         this.icfg.traversableTree,
         graphContainer,
-        'DepthFirstTraversalRunner',
+        'DepthFirstTreeRunner',
       ),
       ...(this.icfg.sortChildrenHints === null
         ? {}
@@ -213,7 +213,7 @@ export class DepthFirstTraversalRunner<
       this.kernel,
       this.bindings,
       this.runtimeState,
-      'DepthFirstTraversalRunner',
+      'DepthFirstTreeRunner',
     )) {
       if (event === null) yield null;
       else

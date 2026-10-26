@@ -7,16 +7,16 @@ import {
 import type { MaterializedRecord } from './materialize';
 import type {
   AsyncCollection,
-  AsyncGraphSelectors,
-  CollectionSource,
-  GraphSelectors,
+  AsyncDagRecordSelectors,
+  MaterializedDagSource,
+  DagRecordSelectors,
 } from './types';
 
 /** Copy a finite catalog's topology while retaining each item and ID by identity. */
-export function graphFrom<Item, ID>(
+export function materializeDagSourceFromRecords<Item, ID>(
   items: Iterable<Item>,
-  selectors: GraphSelectors<Item, ID>,
-): CollectionSource<Item, ID> {
+  selectors: DagRecordSelectors<Item, ID>,
+): MaterializedDagSource<Item, ID> {
   validateCollectionSelectors(selectors);
   const records = new Map<ID, MaterializedRecord<Item, ID>>();
   for (const item of items) {
@@ -35,10 +35,10 @@ export function graphFrom<Item, ID>(
 }
 
 /** Await finite catalogs/selectors once, returning an ordinary synchronous source. */
-export async function graphFromAsync<Item, ID>(
+export async function materializeDagSourceFromRecordsAsync<Item, ID>(
   items: AsyncCollection<Item>,
-  selectors: AsyncGraphSelectors<Item, ID>,
-): Promise<CollectionSource<Item, ID>> {
+  selectors: AsyncDagRecordSelectors<Item, ID>,
+): Promise<MaterializedDagSource<Item, ID>> {
   validateCollectionSelectors(selectors);
   const records = new Map<ID, MaterializedRecord<Item, ID>>();
   for await (const item of items) {

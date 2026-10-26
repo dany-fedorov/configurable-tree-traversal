@@ -14,8 +14,8 @@ import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { ResolvedTree } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { TraversalRunnerIteratorResultContent } from '@core/TraversalRunner';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { TreeTraversalEvent } from '@core/TraversalRunner';
 import { TraversalKernel } from '@core/TraversalKernel';
 import type { Vertex } from '@core/Vertex';
 import {
@@ -31,13 +31,13 @@ import {
 import { DepthFirstTraversalRunnerState } from './DepthFirstTraversalRunnerState';
 
 type Event<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> = TraversalRunnerIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>;
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
+> = TreeTraversalEvent<DepthFirstTraversalOrder, TTP, RW_TTP>;
 
-export class AsyncDepthFirstTraversalRunner<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+export class AsyncDepthFirstTreeRunner<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > {
   icfg: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
   state: DepthFirstTraversalRunnerState<TTP, RW_TTP>;
@@ -71,7 +71,7 @@ export class AsyncDepthFirstTraversalRunner<
       source: bindTreeSource(
         this.icfg.traversableTree,
         graphContainer,
-        'AsyncDepthFirstTraversalRunner',
+        'AsyncDepthFirstTreeRunner',
       ),
       ...(this.icfg.sortChildrenHints === null
         ? {}

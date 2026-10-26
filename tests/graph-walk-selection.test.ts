@@ -8,8 +8,8 @@ import { contextFixture } from './helpers/graph-walk-fixtures';
 it('selects observations independently of exploration and committed logical counts', () => {
   const left = contextFixture();
   const right = contextFixture();
-  const first = new GraphWalk({ source: left.source }).makeRunner();
-  const second = new GraphWalk({ source: right.source }).makeRunner();
+  const first = new GraphWalk({ source: left.source }).createRunner();
+  const second = new GraphWalk({ source: right.source }).createRunner();
   first.run({ emitPhases: [], visitorPhases: { include: [] } });
   second.run({ emitPhases: [Phase.VERTEX, Phase.EDGE] });
   expect(first.summary().counts).toEqual(second.summary().counts);
@@ -25,7 +25,7 @@ it('selects observations independently of exploration and committed logical coun
 it('enforces explicit delivery selectors on buffered observations across a pause', () => {
   const runner = new GraphWalk({
     source: contextFixture().source,
-  }).makeRunner();
+  }).createRunner();
   const first = runner.getIterable({ emitPhases: [Phase.EDGE] });
   expect(first.next().value).toMatchObject({ kind: 'edge' });
   first.return();
@@ -44,7 +44,7 @@ it('validates and detaches selector patches before activation without changing p
   const runner = new GraphWalk({
     source: contextFixture().source,
     emitPhases: [Phase.EDGE],
-  }).makeRunner();
+  }).createRunner();
   const original = runner.inspect().iterableConfig;
   expect(() =>
     runner.getIterable({
@@ -71,7 +71,7 @@ it('validates and detaches selector patches before activation without changing p
 it('preserves legacy alias behavior through field-wise patches', () => {
   const runner = new GraphWalk({
     source: contextFixture().source,
-  }).makeRunner();
+  }).createRunner();
   const iterator = runner.getIterable({ iterateOver: [Phase.EDGE] });
   expect(iterator.next().value).toMatchObject({ kind: 'edge' });
   iterator.return();

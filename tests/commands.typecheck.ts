@@ -2,9 +2,9 @@ import {
   TraversalVisitorCommandName as Command,
   type TraversalVisitorCommand,
 } from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type Tree = TreeTypeParameters<number, string>;
+type Tree = VertexTypes<number, string>;
 const halt: TraversalVisitorCommand<Tree> = {
   commandName: Command.HALT_TRAVERSAL,
 };

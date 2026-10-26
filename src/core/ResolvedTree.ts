@@ -1,9 +1,9 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { CTTRef } from '@core/CTTRef';
 import type { CTTAbstractParent } from '@core/CTTAbstractParent';
 import {
-  AbstractTraversableTree,
+  AbstractTreeSource,
   MakeTreeVertexResult,
 } from '@core/TraversableTree';
 import type { ResolvedTreeTypeParameters } from '@core/ResolvedTreeTypeParameters';
@@ -12,7 +12,7 @@ import type { ResolvedGraph } from '@core/ResolvedGraph';
 import { GraphStore } from '@core/graph/GraphStore';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
-export type VertexResolutionContext<TTP extends TreeTypeParameters> = {
+export type VertexResolutionContext<TTP extends VertexTypes> = {
   depth: number;
   parentVertex: Vertex<TTP>;
   parentVertexRef: CTTRef<Vertex<TTP>>;
@@ -20,14 +20,14 @@ export type VertexResolutionContext<TTP extends TreeTypeParameters> = {
   vertexHint: TTP['VertexHint'];
 };
 
-export type VertexResolvedData<TTP extends TreeTypeParameters> = {
+export type VertexResolvedData<TTP extends VertexTypes> = {
   resolutionContext: VertexResolutionContext<TTP> | null;
 };
 
-export type VertexResolvedContent<TTP extends TreeTypeParameters> =
+export type VertexResolvedContent<TTP extends VertexTypes> =
   CTTAbstractParent<VertexResolvedData<TTP>, CTTRef<Vertex<TTP>>>;
 
-export class VertexResolved<TTP extends TreeTypeParameters>
+export class VertexResolved<TTP extends VertexTypes>
   implements VertexResolvedContent<TTP>
 {
   readonly $d: VertexResolvedData<TTP>;
@@ -78,7 +78,7 @@ export class VertexResolved<TTP extends TreeTypeParameters>
   }
 }
 
-export type ResolvedTreeMap<TTP extends TreeTypeParameters> = Map<
+export type ResolvedTreeMap<TTP extends VertexTypes> = Map<
   CTTRef<Vertex<TTP>>,
   VertexResolved<TTP>
 >;
@@ -89,8 +89,8 @@ export type GetPathToOptions = {
 };
 
 export class ResolvedTree<
-  TTP extends TreeTypeParameters,
-> extends AbstractTraversableTree<ResolvedTreeTypeParameters<TTP>> {
+  TTP extends VertexTypes,
+> extends AbstractTreeSource<ResolvedTreeTypeParameters<TTP>> {
   private readonly store: GraphStore<TTP>;
   private readonly readOnly: ResolvedTreeView<TTP>;
 
@@ -242,7 +242,7 @@ export class ResolvedTree<
     return straightPath;
   }
 
-  makeRoot(): MakeTreeVertexResult<ResolvedTreeTypeParameters<TTP>> {
+  resolveRoot(): MakeTreeVertexResult<ResolvedTreeTypeParameters<TTP>> {
     const root = this.getRoot();
     if (root === null) {
       return { vertexContent: null };
@@ -255,7 +255,7 @@ export class ResolvedTree<
     };
   }
 
-  makeVertex(
+  resolveChild(
     vertexHint: ResolvedTreeTypeParameters<TTP>['VertexHint'],
   ): MakeTreeVertexResult<ResolvedTreeTypeParameters<TTP>> {
     return {

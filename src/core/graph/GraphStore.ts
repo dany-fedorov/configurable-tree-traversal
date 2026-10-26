@@ -1,6 +1,6 @@
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { GetPathToOptions, VertexResolved } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { DagDiscoveryCycleError } from '@core/errors/DagDiscoveryCycleError';
 import type {
   ChildSlot,
@@ -15,7 +15,7 @@ import type {
   VertexId,
 } from '@core/graph/types';
 
-type Entry<T extends TreeTypeParameters> = {
+type Entry<T extends VertexTypes> = {
   ref: Ref<T>;
   id: VertexId;
   dependsOn: VertexId[];
@@ -26,7 +26,7 @@ type Entry<T extends TreeTypeParameters> = {
   slots: ChildSlot<T>[] | null;
 };
 
-export class GraphStore<T extends TreeTypeParameters>
+export class GraphStore<T extends VertexTypes>
   implements GraphStoreContract<T>
 {
   readonly graph: ResolvedGraph<T>;
@@ -135,7 +135,7 @@ export class GraphStore<T extends TreeTypeParameters>
 
   resetTraversal(ref: Ref<T>): void {
     if (this.mode !== 'tree') {
-      throw new Error('Traversal reset requires tree mode');
+      throw new Error('TreeTraversal reset requires tree mode');
     }
     const entry = this.getEntry(ref);
     entry.status = 'DISCOVERED';

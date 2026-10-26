@@ -5,19 +5,19 @@ import {
   type ResolvedTreeView,
   type ResolvedGraph,
   type ResolvedGraphSnapshot,
-  type TreeTypeParameters,
+  type VertexTypes,
   type Vertex,
-  type DepthFirstTraversalRunner,
-  type AsyncDepthFirstTraversalRunner,
-  type BreadthFirstTraversalRunner,
-  type AsyncBreadthFirstTraversalRunner,
+  type DepthFirstTreeRunner,
+  type AsyncDepthFirstTreeRunner,
+  type BreadthFirstTreeRunner,
+  type AsyncBreadthFirstTreeRunner,
   type DagTraversalRunner,
   type AsyncDagTraversalRunner,
 } from '../src';
 import { CTTRef as CoreRef } from '../src/core';
 import type { ResolvedTreeView as CoreView } from '../src/core';
 
-type T = TreeTypeParameters<{ label: string }, { label: string }>;
+type T = VertexTypes<{ label: string }, { label: string }>;
 declare const ref: CTTRef<Vertex<T>>;
 const constructors: [typeof CTTRef, typeof CTTRef] = [core.CTTRef, CoreRef];
 const id: string = ref.getRefId();
@@ -55,10 +55,10 @@ for (const facade of [graph, snapshot]) {
   const oldById: CTTRef<Vertex<T>> | null = facade.getVertexById(Symbol());
   void [vertexId, oldVertexId, byId, oldById];
 }
-declare const dfs: DepthFirstTraversalRunner<T, T>;
-declare const asyncDfs: AsyncDepthFirstTraversalRunner<T, T>;
-declare const bfs: BreadthFirstTraversalRunner<T>;
-declare const asyncBfs: AsyncBreadthFirstTraversalRunner<T, T>;
+declare const dfs: DepthFirstTreeRunner<T, T>;
+declare const asyncDfs: AsyncDepthFirstTreeRunner<T, T>;
+declare const bfs: BreadthFirstTreeRunner<T>;
+declare const asyncBfs: AsyncBreadthFirstTreeRunner<T, T>;
 declare const dag: DagTraversalRunner<T>;
 declare const asyncDag: AsyncDagTraversalRunner<T>;
 const treeViews: ResolvedTreeView<T>[] = [

@@ -59,7 +59,7 @@ export type DagExplanation<ID = unknown> =
     }>;
 
 /** Detached original constraints, independent of subsequent runner progress. */
-export interface DagInspection<ID = unknown> {
+export interface DagMilestoneSnapshot<ID = unknown> {
   explain(target: DagDependencyMilestone<ID>): DagExplanation<ID>;
   prerequisitesOf(
     target: DagDependencyMilestone<ID>,
@@ -81,7 +81,7 @@ export type DagInspectionSnapshot<ID> = {
 /** @internal No caller receives the captured state or adjacency records. */
 export function makeDagInspection<ID>(
   snapshot: DagInspectionSnapshot<ID>,
-): DagInspection<ID> {
+): DagMilestoneSnapshot<ID> {
   const identities = new Map(
     snapshot.state.identityStates.map((item) => [item.vertexId, item.kind]),
   );

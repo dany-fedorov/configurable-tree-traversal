@@ -2,25 +2,25 @@ import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVis
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} exposes atomic readiness separately from committed events`, async () => {
     const runner = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'a',
           vertexContent: { $data: 'a', $childHints: ['b'] },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: ['a'],
           vertexContent: { $data: id, $childHints: [] },
         }),
       },
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     await runner.prepare();
     expect(runner.summary().deferredFrontier).toEqual([]);
     await runner.run({ emitPhases: [] });
@@ -72,19 +72,19 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         discovery,
         syntheticRoot: true,
         traversableGraph: {
-          makeRoot: () => ({
+          resolveRoot: () => ({
             vertexContent: {
               $data: 'hidden',
               $childHints: ['0', '1', '2', '3'],
             },
           }),
-          makeVertex: (index) => ({
+          resolveChild: (index) => ({
             vertexId: ids[Number(index)],
             vertexContent: { $data: index, $childHints: [] },
           }),
         },
         workCompletion: 'externalSettlement',
-      }).makeRunner();
+      }).createRunner();
       expect(runner.summary().deferredFrontier).toEqual([]);
       await runner.run({ emitPhases: [], visitorPhases: { include: [] } });
       const snapshot = runner.summary().deferredFrontier;
@@ -123,14 +123,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} rejected work is no longer in the unsettled frontier`, async () => {
     const runner = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'a',
           vertexContent: { $data: 'a', $childHints: [] },
         }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     const work = runner.summary().deferredFrontier[0]!;
     runner.settle(
@@ -156,11 +156,11 @@ test('async frontier excludes running and queued work until chains defer', async
     concurrency: 1,
     discovery: 'eager',
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'a',
         vertexContent: { $data: 'a', $childHints: ['b'] },
       }),
-      makeVertex: () => ({
+      resolveChild: () => ({
         vertexId: 'b',
         vertexContent: { $data: 'b', $childHints: [] },
       }),
@@ -171,7 +171,7 @@ test('async frontier excludes running and queued work until chains defer', async
       entered();
       await gate;
     })
-    .makeRunner();
+    .createRunner();
   const running = runner.run();
   await started;
   expect(runner.summary().inFlightIds).toEqual(['a']);
@@ -188,14 +188,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} explicit deferral emits committed events and excludes deletion`, async () => {
     const runner = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           vertexContent: {
             $data: 'root',
             $childHints: ['deleted', 'deferred'],
           },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           vertexContent: { $data: id, $childHints: [] },
         }),
@@ -208,7 +208,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           return { commands: [{ commandName: Command.DEFER_READY }] };
         return undefined;
       })
-      .makeRunner();
+      .createRunner();
     const events = [];
     for await (const event of runner.getIterable())
       events.push([event.vertex.getData(), event.kind]);

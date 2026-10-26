@@ -1,13 +1,13 @@
-import type { TraversableGraph } from '@core/TraversableGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { SourceVertexResult } from '@core/TraversableTree';
+import type { DagDiscoverySource } from '@core/TraversableGraph';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { DagVertexResolution } from '@core/TraversableTree';
 import type { Ref } from '@core/graph/types';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { defineDag } from '../defineDag';
 import type { DagDefinition, DagDefinitionSlot } from './DagDefinition';
 
 /** Capture every discovery slot, including anonymous omissions omitted by replay. */
-export function captureDagDefinition<T extends TreeTypeParameters, ID>(
+export function captureDagDefinition<T extends VertexTypes, ID>(
   container: ResolvedGraphsContainer<T, T, ID>,
   candidates: ReadonlySet<ID>,
 ): DagDefinition<T['VertexData'], ID> {
@@ -59,14 +59,14 @@ export function captureDagDefinition<T extends TreeTypeParameters, ID>(
 export function definitionSource<Data, ID>(
   definition: DagDefinition<Data, ID>,
 ): {
-  traversableGraph: TraversableGraph<
-    TreeTypeParameters<Data, ID>,
-    TreeTypeParameters<Data, ID>,
+  traversableGraph: DagDiscoverySource<
+    VertexTypes<Data, ID>,
+    VertexTypes<Data, ID>,
     ID
   >;
   syntheticRoot: boolean;
 } {
-  type Replay = TreeTypeParameters<Data, ID>;
+  type Replay = VertexTypes<Data, ID>;
   const byId = new Map(
     definition.vertices.map((vertex) => [vertex.vertexId, vertex]),
   );
@@ -81,7 +81,7 @@ export function definitionSource<Data, ID>(
     }
     return result;
   };
-  const resolve = (id: ID): SourceVertexResult<Replay, ID> => {
+  const resolve = (id: ID): DagVertexResolution<Replay, ID> => {
     if (omitted.has(id))
       return { kind: 'omitted', vertexId: id, satisfiesDependencies: true };
     const vertex = byId.get(id)!;
@@ -101,7 +101,7 @@ export function definitionSource<Data, ID>(
   return {
     syntheticRoot,
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         const entry = definition.entry;
         if (syntheticRoot)
           return {
@@ -121,7 +121,7 @@ export function definitionSource<Data, ID>(
           ? resolve(entry.vertexId)
           : { kind: 'omitted', satisfiesDependencies: true };
       },
-      makeVertex: resolve,
+      resolveChild: resolve,
       resolvePrerequisite: (id) =>
         byId.has(id) || omitted.has(id) ? resolve(id) : { kind: 'missing' },
       getVertexIdFromHint: (vertexId) => ({ vertexId }),

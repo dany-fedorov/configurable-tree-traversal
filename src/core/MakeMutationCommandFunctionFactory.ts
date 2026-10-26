@@ -1,4 +1,4 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitor,
   TraversalVisitorCommand,
@@ -10,7 +10,7 @@ export type MakeMutationCommandFunctionInput<RW_V> = {
   delete?: boolean;
 };
 
-export type MakeMutationCommandFunctionResult<TTP extends TreeTypeParameters> =
+export type MakeMutationCommandFunctionResult<TTP extends VertexTypes> =
   TraversalVisitorCommand<
     TTP,
     | TraversalVisitorCommandName.DELETE_VERTEX
@@ -19,7 +19,7 @@ export type MakeMutationCommandFunctionResult<TTP extends TreeTypeParameters> =
   >;
 
 export type MakeMutationCommandFactoryResult<
-  OUT_TTP extends TreeTypeParameters,
+  OUT_TTP extends VertexTypes,
   RewriteInput = OUT_TTP['VertexData'],
 > = {
   makeMutationCommand: MakeMutationCommandFunction<OUT_TTP, RewriteInput>;
@@ -27,7 +27,7 @@ export type MakeMutationCommandFactoryResult<
 
 /** Generic builders replace complete output data; adapters can name another input. */
 export type MakeMutationCommandFunction<
-  OUT_TTP extends TreeTypeParameters,
+  OUT_TTP extends VertexTypes,
   RewriteInput = OUT_TTP['VertexData'],
 > = (
   input_2?: MakeMutationCommandFunctionInput<RewriteInput>,
@@ -35,8 +35,8 @@ export type MakeMutationCommandFunction<
 
 export type MakeMutationCommandFunctionFactory_2<
   ORDER extends string,
-  IN_TTP extends TreeTypeParameters,
-  OUT_TTP extends TreeTypeParameters,
+  IN_TTP extends VertexTypes,
+  OUT_TTP extends VertexTypes,
   RewriteInput = OUT_TTP['VertexData'],
 > = (
   ...visitorArguments: Parameters<TraversalVisitor<ORDER, IN_TTP, OUT_TTP>>
@@ -44,8 +44,8 @@ export type MakeMutationCommandFunctionFactory_2<
 
 export type MakeMutationCommandFunctionFactory<Configuration = unknown> = <
   ORDER extends string,
-  IN_TTP extends TreeTypeParameters,
-  OUT_TTP extends TreeTypeParameters,
+  IN_TTP extends VertexTypes,
+  OUT_TTP extends VertexTypes,
   RewriteInput = OUT_TTP['VertexData'],
 >(
   input_0?: Configuration,

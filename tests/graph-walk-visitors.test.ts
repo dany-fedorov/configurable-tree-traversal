@@ -20,7 +20,7 @@ it('runs mixed callbacks with emissions suppressed and unchanged source discover
       `e:${event.source.vertexId}:${event.edge.index}:${event.target.kind}`,
     );
   });
-  expect([...traversal.makeRunner().getIterable({ emitPhases: [] })]).toEqual(
+  expect([...traversal.createRunner().getIterable({ emitPhases: [] })]).toEqual(
     [],
   );
   expect(seen).toEqual([
@@ -75,7 +75,7 @@ it('halts after its group and resumes only the remaining callbacks', () => {
   traversal.addVisitorFor(Phase.VERTEX, () => {
     seen.push('third');
   });
-  const runner = traversal.makeRunner().run();
+  const runner = traversal.createRunner().run();
   expect(seen).toEqual(['first', 'second']);
   expect(runner.getStopReason()).toBe('paused');
   expect(runner.inspect().activeVisitor).toEqual({
@@ -104,7 +104,7 @@ it('commits flat afterGroup batches at sorted mode boundaries and halts once per
       },
       { priority, commandCommitMode: mode },
     );
-  const runner = traversal.makeRunner().run();
+  const runner = traversal.createRunner().run();
   expect(seen).toEqual(['high', 'middle']);
   runner.run();
   expect(seen).toEqual(['high', 'middle', 'each']);
@@ -141,8 +141,8 @@ it('detaches list and context wrappers while preserving callback and group metad
       seen.push('wrong');
     },
   });
-  t.makeRunner().run();
-  t.makeRunner().run();
+  t.createRunner().run();
+  t.createRunner().run();
   expect(seen).toEqual(['first', 'first']);
   expect(t.listVisitorsFor(Phase.VERTEX)[0]!.priority).toBe(100);
   expect(contexts[0]!.visitorRecord.visitorGroup).toBe(group);
@@ -183,7 +183,7 @@ it('supplies logical phase and occurrence indices independently of emission and 
       context.observationIndex,
     ]);
   });
-  t.makeRunner().run({ visitorPhases: { exclude: [Phase.VERTEX] } });
+  t.createRunner().run({ visitorPhases: { exclude: [Phase.VERTEX] } });
   expect(seen).toEqual([
     ['path', ['A'], 0, 0],
     ['edge', 1, 0, 0],
@@ -230,7 +230,7 @@ it('keeps previous configuration after invalid phase/group/merged-bound patches'
   expect(() => t.setVisitorsFor(Phase.VERTEX, null as never)).toThrow(
     TypeError,
   );
-  t.makeRunner().run();
+  t.createRunner().run();
   expect(seen).toEqual(['original']);
 });
 
@@ -240,7 +240,7 @@ it('snapshots registrations, source identities and factory configuration per run
   t.addVisitorFor(Phase.VERTEX, () => {
     seen.push('first');
   });
-  const old = t.makeRunner();
+  const old = t.createRunner();
   t.configure({
     source: idGraph(['B'], [['B', []]]),
     emitPhases: [Phase.PATH],
@@ -251,7 +251,7 @@ it('snapshots registrations, source identities and factory configuration per run
   expect([...old.getIterable()]).toMatchObject([
     { kind: 'vertex', vertex: { vertexId: 'A' } },
   ]);
-  expect([...t.makeRunner().getIterable()]).toMatchObject([
+  expect([...t.createRunner().getIterable()]).toMatchObject([
     { kind: 'path', vertices: [{ vertexId: 'B' }] },
   ]);
   expect(seen).toEqual(['first', 'first', 'second']);
@@ -270,7 +270,7 @@ it('validates the whole command batch before applying HALT', () => {
       },
     ],
   });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(seen).toEqual(['invalid']);
   expect(runner.getStatus()).toBe(Status.FAILED);
@@ -296,7 +296,7 @@ it.each([
     source: idGraph(['A'], [['A', []]]),
     visitors: { vertex: () => value as never },
   });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(runner.getStatus()).toBe(Status.FAILED);
 });
@@ -313,7 +313,7 @@ it('accepts void, empty results, empty commands and NOOP without control changes
       ],
     },
   });
-  expect(t.makeRunner().run().getStatus()).toBe(Status.FINISHED);
+  expect(t.createRunner().run().getStatus()).toBe(Status.FINISHED);
 });
 
 it('defensively rejects thenables returned from synchronous visitors', async () => {
@@ -321,7 +321,7 @@ it('defensively rejects thenables returned from synchronous visitors', async () 
     source: idGraph(['A'], [['A', []]]),
     visitors: { vertex: () => Promise.reject('async visitor') as never },
   });
-  expect(() => t.makeRunner().run()).toThrow(TypeError);
+  expect(() => t.createRunner().run()).toThrow(TypeError);
   await Promise.resolve();
 });
 
@@ -344,7 +344,7 @@ it('captures buffered command names before a later group callback mutates caller
   t.addVisitorFor(Phase.VERTEX, () => {
     seen.push('next group');
   });
-  const runner = t.makeRunner().run();
+  const runner = t.createRunner().run();
   expect(seen).toEqual(['same group']);
   expect(runner.getStatus()).toBe(Status.HALTED);
   runner.run();
@@ -368,7 +368,7 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
     traversal.addVisitorFor(Phase.VERTEX, () => {
       seen.push('resumed');
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expect(runner.isHalted()).toBe(true);
     await runner.run();

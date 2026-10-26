@@ -42,7 +42,7 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
     if (data === 'A') await aVisit.promise;
     if (data === 'B') await bVisit.promise;
   });
-  const iterator = traversal.makeRunner().getIterable({
+  const iterator = traversal.createRunner().getIterable({
     iterateOver: [Order.ON_READY],
   });
 
@@ -95,17 +95,17 @@ test('fails a hostile object-id stall without coercion, rejection, or hanging', 
   try {
     const runner = new AsyncDagTraversal<TestGraph>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexContent: { $d: 'root', $c: ['blocked'] },
           vertexId: 'root',
         }),
-        makeVertex: () => ({
+        resolveChild: () => ({
           vertexContent: { $d: 'blocked', $c: [] },
           vertexId: 'blocked',
           dependsOn: [hostileId],
         }),
       },
-    }).makeRunner();
+    }).createRunner();
 
     await expect(
       Promise.race([runner.run(), rejectAfter(100)]),
@@ -123,11 +123,11 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
   const originalHints = ['b', 'a'];
   const traversal = new AsyncDagTraversal<TestGraph>({
     traversableGraph: {
-      makeRoot: async () => ({
+      resolveRoot: async () => ({
         vertexId: 'root',
         vertexContent: { $d: 'root', $c: originalHints },
       }),
-      makeVertex: async (hint, options) => {
+      resolveChild: async (hint, options) => {
         expect(options.resolvedGraph.getRoot()).not.toBeNull();
         expect(options.notMutatedResolvedGraph).not.toBeNull();
         return {
@@ -154,7 +154,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
         }
       : undefined,
   );
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const values: string[] = [];
   for await (const event of runner.getIterable({
     iterateOver: [Order.ON_READY],
@@ -178,10 +178,10 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
 test('supports an asynchronous tree source through the graph visitor facade', async () => {
   const traversal = new AsyncDagTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: async () => ({
+      resolveRoot: async () => ({
         vertexContent: { $d: 'root', $c: ['child'] },
       }),
-      makeVertex: async (hint, options) => {
+      resolveChild: async (hint, options) => {
         expect(options.resolvedTree.getRoot()).not.toBeNull();
         return { vertexContent: { $d: hint, $c: [] } };
       },
@@ -194,7 +194,7 @@ test('supports an asynchronous tree source through the graph visitor facade', as
     expect(options).not.toHaveProperty('resolvedTree');
   });
 
-  await expect(traversal.makeRunner().run()).resolves.toBeDefined();
+  await expect(traversal.createRunner().run()).resolves.toBeDefined();
   expect(optionsSeen).toEqual(['root', 'child']);
 });
 
@@ -230,7 +230,7 @@ test('requires one fixed source mode and validates concurrency', () => {
       traversableTree: graphAdapter(),
     } as unknown as Parameters<typeof traversal.configure>[0]),
   ).toThrow(/source mode/i);
-  expect(traversal.makeRunner().inspect()).toMatchObject({
+  expect(traversal.createRunner().inspect()).toMatchObject({
     execution: 'async',
     kind: 'dag',
     sourceMode: 'graph',
@@ -248,15 +248,15 @@ test('requires one fixed source mode and validates concurrency', () => {
 
   const treeTraversal = new AsyncDagTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     },
   });
   expect(
     treeTraversal.configure({
       traversableTree: {
-        makeRoot: () => ({ vertexContent: null }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
     }),
   ).toBe(treeTraversal);
@@ -290,7 +290,7 @@ test('isolates visitor configuration when making a runner', async () => {
     },
   );
   expect(traversal.listVisitorsFor(Order.ON_READY)).toHaveLength(2);
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   traversal.setVisitorsFor(Order.ON_READY, []);
 
   await runner.run({ iterateOver: [] });
@@ -312,7 +312,7 @@ test('accepts initial and empty quiescent state but rejects active injection', a
         state,
         resolvedGraphsContainer: container,
       },
-    }).makeRunner();
+    }).createRunner();
     expect(runner.state).toBe(state);
     expect(runner.resolvedGraphsContainer).toBe(container);
     await runner.run();
@@ -329,7 +329,7 @@ test('accepts initial and empty quiescent state but rejects active injection', a
     new AsyncDagTraversal<TestGraph>({
       traversableGraph: graphAdapter(),
       traversalRunnerInternalObjects: { state: active },
-    }).makeRunner(),
+    }).createRunner(),
   ).toThrow(/quiescent|running/i);
 });
 
@@ -341,13 +341,13 @@ test('validates injected container mode and snapshot compatibility', () => {
   expect(() =>
     new AsyncDagTraversal<TestGraph>({
       traversableTree: {
-        makeRoot: () => ({ vertexContent: null }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
       traversalRunnerInternalObjects: {
         resolvedGraphsContainer: graphContainer,
       },
-    }).makeRunner(),
+    }).createRunner(),
   ).toThrow(/source mode/i);
 
   const snapshotContainer = new ResolvedGraphsContainer<TestGraph>({
@@ -360,7 +360,7 @@ test('validates injected container mode and snapshot compatibility', () => {
       traversalRunnerInternalObjects: {
         resolvedGraphsContainer: snapshotContainer,
       },
-    }).makeRunner(),
+    }).createRunner(),
   ).toThrow(/snapshot mode/i);
 });
 
@@ -380,17 +380,17 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
   let sourceCalls = 0;
   const runner = new AsyncDagTraversal<TestGraph>({
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         sourceCalls++;
         return { vertexContent: null };
       },
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     },
     traversalRunnerInternalObjects: {
       state,
       resolvedGraphsContainer: container,
     },
-  }).makeRunner();
+  }).createRunner();
 
   expect(runner.isHalted()).toBe(true);
   expect(sourceCalls).toBe(0);
@@ -409,14 +409,14 @@ test.each([new Error('injected failure'), undefined])(
     let sourceCalls = 0;
     const runner = new AsyncDagTraversal<TestGraph>({
       traversableGraph: {
-        makeRoot: () => {
+        resolveRoot: () => {
           sourceCalls++;
           return { vertexContent: null };
         },
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
       traversalRunnerInternalObjects: { state },
-    }).makeRunner();
+    }).createRunner();
 
     for (const attempt of [
       () => runner.run(),
@@ -447,8 +447,8 @@ test.each([new Error('live failure'), undefined])(
       saveOriginal: false,
     });
     const source = {
-      makeRoot: () => root.promise,
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => root.promise,
+      resolveChild: () => ({ vertexContent: null }),
     };
     const runner = new AsyncDagTraversal<TestGraph>({
       traversableGraph: source,
@@ -456,7 +456,7 @@ test.each([new Error('live failure'), undefined])(
         state,
         resolvedGraphsContainer: container,
       },
-    }).makeRunner();
+    }).createRunner();
     const running = runner.run();
     await eventLoopTurn();
     root.reject(failure);
@@ -472,16 +472,16 @@ test.each([new Error('live failure'), undefined])(
 
     const reconstructed = new AsyncDagTraversal<TestGraph>({
       traversableGraph: {
-        makeRoot: () => {
+        resolveRoot: () => {
           throw new Error('terminal reconstruction must not resolve source');
         },
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
       traversalRunnerInternalObjects: {
         state,
         resolvedGraphsContainer: container,
       },
-    }).makeRunner();
+    }).createRunner();
     caught = false;
     try {
       await reconstructed.run();

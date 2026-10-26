@@ -36,7 +36,7 @@ test('halts the requester between visitors without repeating the first visitor',
   traversal.addVisitorFor(Order.ON_READY, async () => {
     calls.push('second');
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const first = runner.getIterable({ iterateOver: [Order.ON_READY] });
   const halted = first.next();
   await eventLoopTurn();
@@ -78,7 +78,7 @@ test('delivers another started chain once while the requester halts', async () =
   traversal.addVisitorFor(Order.ON_READY, async (vertex) => {
     calls.push(`${vertex.getData()}:second`);
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const iterator = runner.getIterable({ iterateOver: [Order.ON_READY] });
 
   expect((await iterator.next()).value?.vertex.getData()).toBe('root');
@@ -131,7 +131,7 @@ test('loop close waits for a pending visitor and preserves its buffered event', 
       await childVisit.promise;
     }
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const iterator = runner.getIterable({ iterateOver: [Order.ON_READY] });
   expect((await iterator.next()).value?.vertex.getData()).toBe('root');
   const pending = iterator.next();
@@ -176,7 +176,7 @@ test('a committed buffered event retains its original filter eligibility', async
       await childVisit.promise;
     }
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const first = runner.getIterable({ iterateOver: [Order.ON_READY] });
   await first.next();
   const pending = first.next();
@@ -221,7 +221,7 @@ test('repeated halts across iterators do not duplicate visitors or events', asyn
   traversal.addVisitorFor(Order.ON_READY, async (vertex) => {
     calls.push(`${vertex.getData()}:after`);
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const events: string[] = [];
 
   const first = runner.getIterable({ iterateOver: [Order.ON_READY] });
@@ -295,8 +295,8 @@ test('shared DAG objects retain one runner owner through halt and release at fin
     await halt.promise;
     return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
   });
-  const owner = ownerTraversal.makeRunner();
-  const competitor = makeTraversal().makeRunner();
+  const owner = ownerTraversal.createRunner();
+  const competitor = makeTraversal().createRunner();
   const ownerIterator = owner.getIterable();
   const ownerNext = ownerIterator.next();
   await eventLoopTurn();
@@ -316,7 +316,7 @@ test('shared DAG objects retain one runner owner through halt and release at fin
 
   await owner.run();
   expect(owner.getStatus()).toBe(Status.FINISHED);
-  await expect(makeTraversal().makeRunner().run()).resolves.toBeDefined();
+  await expect(makeTraversal().createRunner().run()).resolves.toBeDefined();
 });
 
 test('close does not await a pending resolver and reuses its result on resume', async () => {
@@ -328,16 +328,16 @@ test('close does not await a pending resolver and reuses its result on resume', 
   let resolutions = 0;
   const runner = new AsyncDagTraversal<TestGraph>({
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'root',
         vertexContent: { $d: 'root', $c: ['child'] },
       }),
-      makeVertex: () => {
+      resolveChild: () => {
         resolutions++;
         return child.promise;
       },
     },
-  }).makeRunner();
+  }).createRunner();
   const iterator = runner.getIterable({ iterateOver: [Order.ON_READY] });
   await iterator.next();
   const pending = iterator.next();
@@ -392,7 +392,7 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
     await deleteA.promise;
     return { commands: [{ commandName: Command.DELETE_VERTEX }] };
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const events: string[] = [];
   const running = (async () => {
     for await (const event of runner.getIterable()) {
@@ -449,7 +449,7 @@ test('retains the first live failure and ignores later sibling settlement', asyn
     if (vertex.getData() === 'B') return bVisit.promise;
     return undefined;
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const running = runner.run({ iterateOver: [] });
   await eventLoopTurn();
   await eventLoopTurn();
@@ -497,7 +497,7 @@ test('consumer error escapes while a draining traversal failure is retained', as
       await bVisit.promise;
     }
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   let caught: unknown;
   const consuming = (async () => {
     try {
@@ -529,14 +529,14 @@ test('inspection is detached and inert during pending, halting, and failed work'
   let sourceCalls = 0;
   const traversal = new AsyncDagTraversal<TestGraph>({
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         sourceCalls++;
         return {
           vertexId: 'root',
           vertexContent: { $d: 'root', $c: [] },
         };
       },
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     },
   });
   traversal.addVisitorFor(Order.ON_READY, async () => {
@@ -544,7 +544,7 @@ test('inspection is detached and inert during pending, halting, and failed work'
     await pendingVisit.promise;
     throw failure;
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const initial = runner.inspect();
   expect(sourceCalls).toBe(0);
   expect(Object.isFrozen(initial)).toBe(true);
@@ -574,10 +574,10 @@ test('retains undefined as the exact traversal failure sentinel', async () => {
   const root = deferred<{ vertexContent: null }>();
   const runner = new AsyncDagTraversal<TestGraph>({
     traversableGraph: {
-      makeRoot: () => root.promise,
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => root.promise,
+      resolveChild: () => ({ vertexContent: null }),
     },
-  }).makeRunner();
+  }).createRunner();
   const running = runner.run();
   await eventLoopTurn();
   root.reject(undefined);

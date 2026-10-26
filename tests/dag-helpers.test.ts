@@ -7,23 +7,23 @@ import {
   traverseDag,
 } from '../src';
 import { traverseDagAsync } from '../src/traversals/dag-traversal';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 import type { ResolvedGraphSnapshot } from '../src/core/ResolvedGraph';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type TestGraph = TreeTypeParameters<string, string>;
+type TestGraph = VertexTypes<string, string>;
 
 function graph(
   root: string | null,
   children: Record<string, string[]>,
-): TraversableGraph<TestGraph> {
+): DagDiscoverySource<TestGraph> {
   const result = (id: string) => ({
     vertexId: id,
     vertexContent: { $d: id, $c: children[id] ?? [] },
   });
   return {
-    makeRoot: () => (root === null ? { vertexContent: null } : result(root)),
-    makeVertex: (hint) => result(hint),
+    resolveRoot: () => (root === null ? { vertexContent: null } : result(root)),
+    resolveChild: (hint) => result(hint),
     getVertexIdFromHint: (hint) => ({ vertexId: hint }),
   };
 }

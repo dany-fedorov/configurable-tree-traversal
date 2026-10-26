@@ -1,15 +1,15 @@
 import {
   CTTRef,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   ResolvedTree,
-  type TreeTypeParameters,
+  type VertexTypes,
   Vertex,
   VertexResolved,
   type VertexResolutionContext,
 } from '../src';
 
 type Node = { $d: string; $c: Node[] };
-type TestTTP = TreeTypeParameters<string, Node>;
+type TestTTP = VertexTypes<string, Node>;
 
 const node = ($d: string, ...$c: Node[]): Node => ({ $d, $c });
 
@@ -40,13 +40,13 @@ function makeContext(
 }
 
 function makeSavingContainer() {
-  return new DepthFirstTraversal<TestTTP>({
+  return new DepthFirstTreeTraversal<TestTTP>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => ({ vertexContent: null }),
+      resolveChild: (hint) => ({ vertexContent: hint }),
     },
     saveNotMutatedResolvedTree: true,
-  }).makeRunner().resolvedTreesContainer;
+  }).createRunner().resolvedTreesContainer;
 }
 
 describe('resolved-tree public fallbacks', () => {
@@ -56,12 +56,12 @@ describe('resolved-tree public fallbacks', () => {
 
     expect(tree.getChildrenOf(unresolvedRef)).toBeNull();
     expect(tree.getResolutionContextOf(unresolvedRef)).toBeNull();
-    expect(tree.makeVertex(unresolvedRef)).toEqual({
+    expect(tree.resolveChild(unresolvedRef)).toEqual({
       vertexContent: { $data: unresolvedRef, $childHints: [] },
     });
 
     tree.setRoot(unresolvedRef);
-    expect(tree.makeRoot()).toEqual({
+    expect(tree.resolveRoot()).toEqual({
       vertexContent: { $data: unresolvedRef, $childHints: [] },
     });
   });

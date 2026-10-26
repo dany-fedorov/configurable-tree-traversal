@@ -12,17 +12,17 @@ These additions compose with existing DAG constructors and runners; custom adapt
 
 | Existing integration | Optional simpler surface |
 | --- | --- |
-| Hand-built synthetic catalog holder with `makeRoot` / `makeVertex` | `graphFrom(items, { id, dependsOn?, children?, dependsOnComplete? })`; use `forestFrom` when children are records |
+| Hand-built synthetic catalog holder with `resolveRoot` / `resolveChild` | `materializeDagSourceFromRecords(items, { id, dependsOn?, children?, dependsOnComplete? })`; use `materializeDagSourceFromRoots` when children are records |
 | Re-discovering the same source for each runner | `prepareDag(source)` / `await prepareDagAsync(source)` once, then independent `dag.createRunner()` or `await dag.createAsyncRunner()` |
-| External runner plus captured `{ vertexId, generation }` | `coordinateDag(runner)` / `coordinateDagAsync(runner)`, or prepared `createSession()` / `await createAsyncSession()` |
+| External runner plus captured `{ vertexId, generation }` | `createDagWorkSession(runner)` / `createAsyncDagWorkSession(runner)`, or prepared `createWorkSession()` / `await createAsyncWorkSession()` |
 | `run()` → summary frontier → `settle()` → `run()` | `advance()` → frontier ticket → `complete(ticket)` → `advance()` |
 | Callback-local data filtering | `filterDagVisitor(guard, (data, context) => ...)` or `filterAsyncDagVisitor`; the callback receives narrowed data |
 
 The former collection selector names `dependencies` and `completionDependencies` are replaced by `dependsOn` and `dependsOnComplete`. All four adapters throw `TypeError` for the retired keys before input/selector callbacks, including inherited keys and keys present with `undefined`, to prevent silently dropping dependency edges. Task-data properties, diagnostic fields, walking relation selections and definition-diff aspects retain their names.
 
-Collection adapters copy membership and edge lists while retaining shallow item/ID identity. Async source helpers materialize iterable/async-iterable inputs and selectors into ordinary synchronous sources. `graphFrom` children are catalog IDs; `forestFrom` children are records, with shared references allowed. Missing child IDs and conflicting record identities reject.
+Collection adapters copy membership and edge lists while retaining shallow item/ID identity. Async source helpers materialize iterable/async-iterable inputs and selectors into ordinary synchronous sources. `materializeDagSourceFromRecords` children are catalog IDs; `materializeDagSourceFromRoots` children are records, with shared references allowed. Missing child IDs and conflicting record identities reject.
 
-Preparation returns `{ kind: 'valid', dag }` or `{ kind: 'invalid', issues }`, sharing `DagDefinitionResult` with definition preparation, composition and revision. Engine dependency validation failures contain one `{ kind: 'milestone', diagnostics }` issue, with no top-level `diagnostics` alias. Adapter-thrown errors retain their identity, even a caller-thrown stall error. Prepared replay normalizes hints to IDs, owns topology, and invokes no original adapters; original hint/context snapshots are not preserved. Async runner and session factories return promises. Runner options permit visitors, completed-work seeds, and completion policy; session options permit only `completedWork` plus async `concurrency`. Topology/source/state overrides reject, including own fields with `undefined`.
+Preparation returns `{ kind: 'valid', dag }` or `{ kind: 'invalid', issues }`, sharing `PrepareDagResult` with definition preparation, composition and revision. Engine dependency validation failures contain one `{ kind: 'milestone', diagnostics }` issue, with no top-level `diagnostics` alias. Adapter-thrown errors retain their identity, even a caller-thrown stall error. Prepared replay normalizes hints to IDs, owns topology, and invokes no original adapters; original hint/context snapshots are not preserved. Async runner and session factories return promises. Runner options permit visitors, completed-work seeds, and completion policy; session options permit only `completedWork` plus async `concurrency`. Topology/source/state overrides reject, including own fields with `undefined`.
 
 Coordination requires external settlement. Frontier tickets are nominal readonly local capabilities, bound to their issuing facade and generation. First acceptance returns `{ kind: 'accepted' }`, identical reports return `{ kind: 'alreadyAccepted' }`, and conflicting/foreign/stale tickets reject. `failTraversal(ticket, error)` is fatal, preserving exact errors. Reconstruct from accepted completion facts after restart; copied or serialized tickets cannot settle work. See [source and prepared contracts](reference.md#collection-and-forest-sources) and the [ticket contract](reference.md#ticket-coordination).
 
@@ -30,7 +30,7 @@ Coordination requires external settlement. Frontier tickets are nominal readonly
 
 These optional APIs extend prepared DAGs. `prepared.definition` retains entry mode, ordered discovery slots and omissions; `.vertices` is a live-child convenience projection and rebuilding from it loses those facts. Use `definition.vertices` when authoring revisions. Author values with `defineDag`, validate with `prepareDagDefinition`, or reuse shapes through `defineDagFragment`, `instantiateDagFragment` and `composeDag`. Structural child links and W/C wires remain separate.
 
-Use `inspectDag(runner)` for detached milestone navigation and explanations. Use `reviseDag(prepared, operations)` for ordered atomic edits: success returns a fresh prepared DAG plus a shallow `diffDagDefinitions` result; graph invalidity returns issues. Full replacement records explicitly declare slots and both dependency lists. Removal requires explicit repair of dangling references. Programmer errors throw.
+Use `inspectDagMilestones(runner)` for detached milestone navigation and explanations. Use `reviseDag(prepared, operations)` for ordered atomic edits: success returns a fresh prepared DAG plus a shallow `diffDagDefinitions` result; graph invalidity returns issues. Full replacement records explicitly declare slots and both dependency lists. Removal requires explicit repair of dangling references. Programmer errors throw.
 
 Create a new session from the revised DAG. Old tickets, generations, callbacks and completion facts stay in the old execution. Select valid `completedWork` facts explicitly for the new definition; diffs do not infer artifact invalidation. See [definition contracts](reference.md#materialized-dag-definitions), [fragment contracts](reference.md#dag-fragments-and-composition), [inspection](reference.md#dag-dependency-queries-and-explanations), and [revisions](reference.md#validated-dag-revisions).
 
@@ -48,9 +48,9 @@ Walking predicates `followEdge` and `expandVertex` now accept `null` to restore 
 
 DAG configure source checks now match construction: ignore inherited keys and own undefined keys, replace an own defined same-family source, and reject an own defined opposite-family source atomically. This relaxes a configure guard present in published 0.11.0, fixing placeholder/inheritance handling. Exactly one own defined source remains required at construction; typed-ID tree restrictions remain. Builders affect future runners only. See the [configuration table](reference.md#configuration-patches).
 
-`defineDagFragment` and definition validation during instantiation now throw `DagFragmentValidationError<ID = unknown> extends TypeError` with structured `issues`; successful values remain direct fragments/instances. Malformed shapes, port errors and mapping collisions remain ordinary `TypeError`s, and caller exceptions propagate exactly. `DagTraversalStallError<ID = unknown>` supports explicit typed diagnostic annotations and construction. Neither error infers ID types from arbitrary catches. Both DAG runner families now expose synchronous `inspectDag()` alongside the existing free function and session method.
+`defineDagFragment` and definition validation during instantiation now throw `DagFragmentValidationError<ID = unknown> extends TypeError` with structured `issues`; successful values remain direct fragments/instances. Malformed shapes, port errors and mapping collisions remain ordinary `TypeError`s, and caller exceptions propagate exactly. `DagTraversalStallError<ID = unknown>` supports explicit typed diagnostic annotations and construction. Neither error infers ID types from arbitrary catches. Both DAG runner families now expose synchronous `inspectMilestones()` alongside the existing free function and session method.
 
-`Traversal` / `TraversalRunner` are tree-only bases; use execution capabilities for cross-family wrappers. The common `ExecutionInspection.kind` remains an open string for structural implementations. Tree/DAG iterators may deliver previously buffered events on resume even when the new selector excludes their phase, so their return types remain broad. Walking selects at delivery and narrows accordingly.
+`TreeTraversal` / `TreeTraversalRunner` are tree-only bases; use execution capabilities for cross-family wrappers. The common `ExecutionInspection.kind` remains an open string for structural implementations. Tree/DAG iterators may deliver previously buffered events on resume even when the new selector excludes their phase, so their return types remain broad. Walking selects at delivery and narrows accordingly.
 
 Built-in object adapter methods retain published untagged `{ vertexContent, ... }` direct returns. New custom sources and canonical object hooks use tagged results; see [abstract trees](reference.md#abstract-trees). Family-specific root flags and omission-preserving definition slots keep their distinct meanings. For choosing preparation versus execution and dispatch, see the [workflow decision table](agent-workflows.md#discover-the-graph).
 
@@ -121,14 +121,14 @@ The same phase input configures a class, `configure`, `setVisitorsFor`, or a hel
 
 ```ts
 import {
-  DepthFirstTraversal, DepthFirstTraversalOrder as Order,
-  TraversableObjectTree, traverseDepthFirst,
+  DepthFirstTreeTraversal, DepthFirstTraversalOrder as Order,
+  ObjectTreeSource, traverseTreeDepthFirst,
   type VisitorPhaseInput, type TraversalVisitor,
   type TraversableObjectTTP,
 } from 'configurable-tree-traversal';
 
 type Tree = TraversableObjectTTP<string, number>;
-const source = new TraversableObjectTree<number, string, number>(1);
+const source = new ObjectTreeSource<number, string, number>(1);
 const calls: string[] = [];
 const definition: VisitorPhaseInput<TraversalVisitor<Order.POST_ORDER, Tree, Tree>> = {
   groups: [
@@ -138,12 +138,12 @@ const definition: VisitorPhaseInput<TraversalVisitor<Order.POST_ORDER, Tree, Tre
     { visitors: [{ visitor: () => { calls.push('second'); }, priority: 1000 }] },
   ],
 };
-const traversal = new DepthFirstTraversal({
+const traversal = new DepthFirstTreeTraversal({
   traversableTree: source, visitors: { [Order.POST_ORDER]: definition },
 });
 traversal.setVisitorsFor(Order.POST_ORDER, traversal.listVisitorsFor(Order.POST_ORDER));
-traversal.makeRunner().run();
-traverseDepthFirst({ traversableTree: source, visitors: { [Order.POST_ORDER]: definition } });
+traversal.createRunner().run();
+traverseTreeDepthFirst({ traversableTree: source, visitors: { [Order.POST_ORDER]: definition } });
 if (calls.join(',') !== 'first,second,first,second') throw new Error('Unexpected group order');
 ```
 
@@ -185,11 +185,11 @@ The table below applies to graph sources and prerequisite lookup. Tree sources u
 
 ```ts
 import type {
-  PrerequisiteResolutionResult,
-  TreeTypeParameters,
+  DagPrerequisiteResolution,
+  VertexTypes,
 } from 'configurable-tree-traversal';
-type Tasks = TreeTypeParameters<string, string>;
-function resolvePrerequisite(id: unknown): PrerequisiteResolutionResult<Tasks> {
+type Tasks = VertexTypes<string, string>;
+function resolvePrerequisite(id: unknown): DagPrerequisiteResolution<Tasks> {
   if (id !== 'build') return { kind: 'missing' };
   return {
     kind: 'found',
@@ -202,7 +202,7 @@ function resolvePrerequisite(id: unknown): PrerequisiteResolutionResult<Tasks> {
 }
 ```
 
-Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Graph roots/hints accept `SourceVertexResult`; prerequisite lookup accepts `PrerequisiteResolutionResult`, including `MissingVertexResult`. Tree adapters instead use `MakeTreeVertexResult<T>`, `TreeFoundVertexResult<T>`, `TreeOmittedVertexResult`, and `TreeSourceVertexResult<T>`. Remove tree annotations using graph-capable result types (or infer them). Tree callbacks reject `vertexId`, `dependsOn`, `dependsOnComplete`, and `satisfiesDependencies`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Async adapters accept value-or-promise equivalents.
+Own-property ID presence is significant: `{ vertexId: undefined }` supplies the real `undefined` ID. Omitting the field during prerequisite lookup inherits the requested ID. Explicit IDs must match using SameValueZero; symbols and object references retain identity. Graph roots/hints accept `DagVertexResolution`; prerequisite lookup accepts `DagPrerequisiteResolution`, including `PrerequisiteMissing`. Tree adapters instead use `MakeTreeVertexResult<T>`, `TreeVertexFound<T>`, `TreeVertexOmitted`, and `TreeVertexResolution<T>`. Remove tree annotations using graph-capable result types (or infer them). Tree callbacks reject `vertexId`, `dependsOn`, `dependsOnComplete`, and `satisfiesDependencies`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. Async adapters accept value-or-promise equivalents.
 
 ## Child hint command
 
@@ -213,14 +213,14 @@ Use `TraversalVisitorCommandName.REWRITE_CHILD_HINTS` with `{ newHints }`. `REWR
 All six helpers accept a single options object, with the source exactly once and a phase-keyed map of callbacks:
 
 ```ts
-// Before: traverseDepthFirst(tree, { postOrderVisitor: visit }, config);
-const runner = traverseDepthFirst({
+// Before: traverseTreeDepthFirst(tree, { postOrderVisitor: visit }, config);
+const runner = traverseTreeDepthFirst({
   ...config,
   traversableTree: tree,
   visitors: { [DepthFirstTraversalOrder.POST_ORDER]: visit },
 });
-// Before: traverseBreadthFirst(tree, visit, config);
-const breadth = traverseBreadthFirst({
+// Before: traverseTreeBreadthFirst(tree, visit, config);
+const breadth = traverseTreeBreadthFirst({
   ...config,
   traversableTree: tree,
   visitors: { [BreadthFirstTraversalOrder.LEVEL_ORDER]: visit },
@@ -233,7 +233,7 @@ const dag = traverseDag({
 });
 ```
 
-Use the same options shapes with `traverseDepthFirstAsync`, `traverseBreadthFirstAsync`, and `traverseDagAsync`; they return promises of runners, while synchronous helpers return runners. DAG helpers accept exactly one `traversableGraph`/`traversableTree`; tree helpers use `traversableTree`. Omit `visitors` to just resolve the source. Helper and constructor/configuration maps share the visitor definitions and explicit groups described above; normalized full records remain accepted. Direct positional calls remain deprecated overloads with their established behavior; the canonical form has no second nested source/configuration location.
+Use the same options shapes with `traverseTreeDepthFirstAsync`, `traverseTreeBreadthFirstAsync`, and `traverseDagAsync`; they return promises of runners, while synchronous helpers return runners. DAG helpers accept exactly one `traversableGraph`/`traversableTree`; tree helpers use `traversableTree`. Omit `visitors` to just resolve the source. Helper and constructor/configuration maps share the visitor definitions and explicit groups described above; normalized full records remain accepted. Direct positional calls remain deprecated overloads with their established behavior; the canonical form has no second nested source/configuration location.
 
 TypeScript may reject calling a generic union such as `const traverse = asyncMode ? traverseDagAsync : traverseDag`. Branch at the call site or select wrapper functions with concrete argument types. Direct canonical and positional calls retain phase inference and command safety.
 
@@ -293,7 +293,7 @@ DAG events add committed `kind: 'workCompleted'` / `'subgraphCompleted'` while r
 
 ## Family-safe execution and cooperative pause
 
-Use `SyncTraversalExecution<Phase, Event>` and `AsyncTraversalExecution<Phase, Event>` for reusable wrappers, preserving family enums and precise closeable generators. `TraversalExecutionState` supplies inspection/status/stop/pause without execution ownership. Historical `AsyncCoreExecution<Event, Phase = never>` now permits no explicit phase names when Phase is erased; add the intended family Phase instead of widening to string. `TraversalRunner` includes inspection and closeable iteration; historical iterable imports remain.
+Use `SyncTraversalExecution<Phase, Event>` and `AsyncTraversalExecution<Phase, Event>` for reusable wrappers, preserving family enums and precise closeable generators. `TraversalExecutionState` supplies inspection/status/stop/pause without execution ownership. Historical `AsyncCoreExecution<Event, Phase = never>` now permits no explicit phase names when Phase is erased; add the intended family Phase instead of widening to string. `TreeTraversalRunner` includes inspection and closeable iteration; historical iterable imports remain.
 
 All six runners have `requestPause(): boolean`: true records a new request only while RUNNING. Other states and repeated requests return false, without acquiring an iterator, driving discovery, or throwing stored failures. A request is acknowledged at HALTED/paused after admitted chains drain; callbacks are not canceled. A suspended iterator may need next/return to drive the boundary. Resume preserves committed events/work and does not replay discovery.
 

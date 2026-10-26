@@ -1,5 +1,5 @@
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
@@ -27,7 +27,7 @@ const obj = {
   },
 };
 
-const traversableTree = new TraversableObjectTree(obj, {
+const traversableTree = new ObjectTreeSource(obj, {
   resolveVertexHook: (vertexHint) => {
     if (vertexHint.value === null) {
       return { kind: 'omitted' };
@@ -35,7 +35,7 @@ const traversableTree = new TraversableObjectTree(obj, {
     return { kind: 'useDefault' };
   },
 });
-const traversal = new DepthFirstTraversal({
+const traversal = new DepthFirstTreeTraversal({
   traversableTree,
 });
 
@@ -95,13 +95,13 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
     jsonStringifySafe(v.getData().value),
   );
 });
-const traversalRunner = traversal.makeRunner();
+const traversalRunner = traversal.createRunner();
 
 traversalRunner.run();
 
 console.log();
 console.log(
-  'First stop. Traversal runner status:',
+  'First stop. TreeTraversal runner status:',
   traversalRunner.getStatus(),
 );
 console.log();
@@ -110,7 +110,7 @@ traversalRunner.run();
 
 console.log();
 console.log(
-  'Second stop. Traversal runner status:',
+  'Second stop. TreeTraversal runner status:',
   traversalRunner.getStatus(),
 );
 
@@ -121,7 +121,7 @@ console.log(
 -  In-order    key: B ; value: {"A":1,"D":["C","E"]}
 -  Post-order  key: B ; value: {"A":1,"D":["C","E"]}
 
-First stop. Traversal runner status: HALTED
+First stop. TreeTraversal runner status: HALTED
 
 -  In-order    key: F ; value: {"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}
 -  Pre-order   key: G ; value: {"_":null,"I":{"H":1}}
@@ -137,5 +137,5 @@ First stop. Traversal runner status: HALTED
 -  In-order    key: __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ ; value: {"F":{"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}}
 -  Post-order  key: __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ ; value: {"F":{"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}}
 
-Second stop. Traversal runner status: FINISHED
+Second stop. TreeTraversal runner status: FINISHED
 */

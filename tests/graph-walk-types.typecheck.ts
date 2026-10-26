@@ -207,7 +207,7 @@ void [
 ];
 
 // Inferred concrete runners retain exact data/ID types and the broad capability.
-const runner = new GraphWalk({ source }).makeRunner();
+const runner = new GraphWalk({ source }).createRunner();
 const execution: import('../src').SyncTraversalExecution<
   Phase,
   GraphWalkEvent<string, number, undefined>,
@@ -256,7 +256,7 @@ void [
 const persisted = new GraphWalk({
   source,
   emitPhases: [Phase.EDGE],
-}).makeRunner();
+}).createRunner();
 const persistedAll: typeof allEvents = persisted.getIterable();
 const emptyPatchAll: typeof allEvents = persisted.getIterable({});
 // @ts-expect-error Empty patches retain the full union.
@@ -387,7 +387,7 @@ asyncWalk.setVisitorsFor(
 asyncWalk.addVisitorFor(Phase.VERTEX, async () => ({
   commands: [{ commandName: Command.DELETE_VERTEX }],
 }));
-const asyncRunner = asyncWalk.makeRunner();
+const asyncRunner = asyncWalk.createRunner();
 const asyncCapability: import('../src').AsyncTraversalExecution<
   Phase,
   GraphWalkEvent<string, number, undefined>,

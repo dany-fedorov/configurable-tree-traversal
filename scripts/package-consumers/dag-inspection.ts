@@ -2,9 +2,9 @@ import {
   DagTraversalStallError,
   DagTraversal,
   AsyncDagTraversal,
-  graphFrom,
-  inspectDag,
-  type DagInspection,
+  materializeDagSourceFromRecords,
+  inspectDagMilestones,
+  type DagMilestoneSnapshot,
   type DagExplanation,
   type DagBlocker,
   type DagMilestoneStatus,
@@ -16,17 +16,17 @@ const records: { id: ID; work: ID[] }[] = [
   { id: 'build', work: [] },
   { id: 'review', work: ['build'] },
 ];
-const source = graphFrom(records, {
+const source = materializeDagSourceFromRecords(records, {
   id: (v) => v.id,
   dependsOn: (v) => v.work,
 });
-const inspections: DagInspection<ID>[] = [
-  inspectDag(new DagTraversal(source).makeRunner()),
-  new DagTraversal(source).makeRunner().inspectDag(),
-  new AsyncDagTraversal(source).makeRunner().inspectDag(),
-  dag.inspectDag(new AsyncDagTraversal(source).makeRunner()),
+const inspections: DagMilestoneSnapshot<ID>[] = [
+  inspectDagMilestones(new DagTraversal(source).createRunner()),
+  new DagTraversal(source).createRunner().inspectMilestones(),
+  new AsyncDagTraversal(source).createRunner().inspectMilestones(),
+  dag.inspectDagMilestones(new AsyncDagTraversal(source).createRunner()),
 ];
-const sameFunction: typeof inspectDag = cjs.inspectDag;
+const sameFunction: typeof inspectDagMilestones = cjs.inspectDagMilestones;
 const result: dag.DagExplanation<ID> = inspections[0]!.explain({
   vertexId: 'build',
   milestone: 'work',
@@ -64,10 +64,10 @@ const unknownId: ID = defaultStall.diagnostics.dependencies[0]!.id;
 // @ts-expect-error Typed errors retain the selected ID domain.
 const wrongStall: DagTraversalStallError<'other'> = typedStall;
 // @ts-expect-error Async runner inspection returns a synchronous snapshot.
-const asyncSnapshot: Promise<DagInspection<ID>> = new AsyncDagTraversal(source)
-  .makeRunner()
-  .inspectDag();
-const methodSnapshot = new DagTraversal(source).makeRunner().inspectDag();
+const asyncSnapshot: Promise<DagMilestoneSnapshot<ID>> = new AsyncDagTraversal(source)
+  .createRunner()
+  .inspectMilestones();
+const methodSnapshot = new DagTraversal(source).createRunner().inspectMilestones();
 // @ts-expect-error Runner method retains the source identity domain.
 methodSnapshot.explain({ vertexId: 'other', milestone: 'work' });
 void [stalledId, unknownId, wrongStall, asyncSnapshot];

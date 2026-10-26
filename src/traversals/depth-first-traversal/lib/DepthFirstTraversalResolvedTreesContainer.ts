@@ -1,4 +1,4 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import { CTTRef } from '@core/CTTRef';
 import {
@@ -10,13 +10,13 @@ import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/l
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export type NotMutatedResolvedTreeRefsMap<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = Map<CTTRef<Vertex<TTP | RW_TTP>>, CTTRef<Vertex<TTP>>>;
 
 export class DepthFirstTraversalResolvedTreesContainer<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > {
   resolvedTree: ResolvedTree<TTP | RW_TTP>;
   notMutatedResolvedTree: ResolvedTree<TTP> | null;

@@ -1,5 +1,5 @@
 import {
-  TraversableObjectTree,
+  ObjectTreeSource,
   rewriteObject as rewriteApi,
   rewriteObjectAs,
 } from '../src';
@@ -47,7 +47,7 @@ const explicit = rewriteObject<
   unknown
 >({});
 const explicitValue: number = explicit.getOutput()!.renamed;
-const source = new TraversableObjectTree({ count: 1 });
+const source = new ObjectTreeSource({ count: 1 });
 // @ts-expect-error The rewrite helper owns its source.
 rewriteObject({}, { traversableTree: source });
 // @ts-expect-error Presence is invalid even with undefined.

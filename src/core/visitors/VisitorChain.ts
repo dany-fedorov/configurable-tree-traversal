@@ -2,7 +2,7 @@ import { getVisitorBatchEnds } from './getVisitorBatchEnds';
 import { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import { normalizeVisitorOptions } from './normalizeVisitorOptions';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
 import type {
   VisitorBatchCommit,
@@ -13,8 +13,8 @@ import type {
 } from '@core/visitors/types';
 
 export class VisitorChain<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > {
   private readonly canDeferReady: boolean;
   private readonly ref: VisitorChainInput<T, R>['ref'];

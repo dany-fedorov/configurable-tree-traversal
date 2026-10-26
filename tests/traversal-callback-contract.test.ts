@@ -1,7 +1,7 @@
 import {
-  BreadthFirstTraversal,
+  BreadthFirstTreeTraversal,
   CTTRef,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
   ResolvedTree,
   TraversalVisitorCommandName,
@@ -12,16 +12,16 @@ import type { TestGraph } from './helpers/graph-fixtures';
 
 test('BFS resolves one queued child at the next visit boundary', () => {
   const calls: string[] = [];
-  const traversal = new BreadthFirstTraversal<TestGraph>({
+  const traversal = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
-      makeVertex: (hint) => {
+      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
+      resolveChild: (hint) => {
         calls.push(hint);
         return { vertexContent: { $d: hint, $c: [] } };
       },
     },
   });
-  const iterator = traversal.makeRunner().getIterable();
+  const iterator = traversal.createRunner().getIterable();
   expect(iterator.next().value?.vertex.getData()).toBe('root');
   expect(calls).toEqual([]);
   expect(iterator.next().value?.vertex.getData()).toBe('A');
@@ -31,13 +31,13 @@ test('BFS resolves one queued child at the next visit boundary', () => {
 
 test('DFS preserves callback boundaries and observes in-order parent rewrites', () => {
   const trace: string[] = [];
-  const traversal = new DepthFirstTraversal<TestGraph>({
+  const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         trace.push('adapter:root');
         return { vertexContent: { $d: 'root', $c: ['left', 'right'] } };
       },
-      makeVertex: (hint, { resolutionContext, resolvedTree }) => {
+      resolveChild: (hint, { resolutionContext, resolvedTree }) => {
         const root = resolvedTree.getRoot();
         const resolved = root === null ? [] : resolvedTree.getChildrenOf(root);
         trace.push(
@@ -71,7 +71,7 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
     });
   }
 
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   for (const event of runner.getIterable()) {
     trace.push(`iterator:${event.order}:${event.vertex.getData()}`);
   }

@@ -1,24 +1,24 @@
 import {
   CTTRef,
-  AsyncDepthFirstTraversal,
-  AsyncBreadthFirstTraversal,
-  BreadthFirstTraversal,
+  AsyncDepthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
   DagTraversal,
   AsyncDagTraversal,
   type VertexResolutionContext,
-  DepthFirstTraversal,
-  type TreeTypeParameters,
+  DepthFirstTreeTraversal,
+  type VertexTypes,
   Vertex,
 } from '../src';
 
 type Hint = { label: string };
 type Data = { label: string; nested: { count: number } };
-type T = TreeTypeParameters<Data, Hint>;
+type T = VertexTypes<Data, Hint>;
 const hint = { label: 'child' };
 const rootData = { label: 'root', nested: { count: 1 } };
 const source = {
-  makeRoot: () => ({ vertexContent: { $data: rootData, $childHints: [hint] } }),
-  makeVertex: (child: Hint) => ({
+  resolveRoot: () => ({ vertexContent: { $data: rootData, $childHints: [hint] } }),
+  resolveChild: (child: Hint) => ({
     vertexContent: {
       $data: { label: child.label, nested: { count: 1 } },
       $childHints: [],
@@ -27,9 +27,9 @@ const source = {
 };
 
 test('mutating child query arrays cannot corrupt forward/reverse topology or paths', () => {
-  const runner = new DepthFirstTraversal<T>({
+  const runner = new DepthFirstTreeTraversal<T>({
     traversableTree: source,
-  }).makeRunner();
+  }).createRunner();
   runner.run();
   const tree = runner.getResolvedTree();
   const root = tree.getRoot()!;
@@ -45,9 +45,9 @@ test('mutating child query arrays cannot corrupt forward/reverse topology or pat
 });
 
 test('mutating query contexts cannot reparent a child or overwrite discovery metadata', () => {
-  const runner = new DepthFirstTraversal<T>({
+  const runner = new DepthFirstTreeTraversal<T>({
     traversableTree: source,
-  }).makeRunner();
+  }).createRunner();
   runner.run();
   const tree = runner.getResolvedTree();
   const root = tree.getRoot()!;
@@ -76,15 +76,15 @@ test('mutating query contexts cannot reparent a child or overwrite discovery met
 });
 
 for (const Constructor of [
-  DepthFirstTraversal<T>,
-  AsyncDepthFirstTraversal<T>,
-  BreadthFirstTraversal<T>,
-  AsyncBreadthFirstTraversal<T>,
+  DepthFirstTreeTraversal<T>,
+  AsyncDepthFirstTreeTraversal<T>,
+  BreadthFirstTreeTraversal<T>,
+  AsyncBreadthFirstTreeTraversal<T>,
   DagTraversal<T>,
   AsyncDagTraversal<T>,
 ]) {
   test(`${Constructor.name} exposes a stable live safe query view`, async () => {
-    const runner = new Constructor({ traversableTree: source }).makeRunner();
+    const runner = new Constructor({ traversableTree: source }).createRunner();
     const view = runner.getResolvedTreeView()!;
     expect(view.getRoot()).toBeNull();
     expect(runner.getResolvedTreeView()).toBe(view);
@@ -134,13 +134,13 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
   test(`${Constructor.name} has no tree view for graph sources`, async () => {
     const runner = new Constructor({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           vertexContent: { $data: rootData, $childHints: [] },
         }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
-    }).makeRunner();
+    }).createRunner();
     expect(runner.getResolvedTreeView()).toBeNull();
     await runner.run();
     expect(runner.getResolvedTreeView()).toBeNull();
@@ -148,11 +148,11 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
 }
 
 test('safe queries preserve saved topology while explicit active edits stay live', () => {
-  const runner = new DepthFirstTraversal<T>({
+  const runner = new DepthFirstTreeTraversal<T>({
     traversableTree: source,
     saveNotMutatedResolvedTree: true,
   })
-    .makeRunner()
+    .createRunner()
     .run();
   const tree = runner.getResolvedTree();
   const view = tree.asReadOnly();

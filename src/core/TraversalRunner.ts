@@ -1,14 +1,14 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { CTTRef } from '@core/CTTRef';
 import type { CoreInspection } from '@core/CoreInspection';
 import type { SyncTraversalExecution } from '@core/TraversalExecution';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 
-export type TraversalRunnerIteratorResultContent<
+export type TreeTraversalEvent<
   ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = {
   vertex: Vertex<TTP | RW_TTP>;
   vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
@@ -32,26 +32,26 @@ export enum TraversalRunnerStatus {
   FAILED = 'FAILED',
 }
 
-export abstract class TraversalRunnerIterable<
+export abstract class TreeTraversalIterable<
   ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> implements Iterable<TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>>
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
+> implements Iterable<TreeTraversalEvent<ORDER, TTP, RW_TTP>>
 {
   abstract [Symbol.iterator](): Iterator<
-    TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>
+    TreeTraversalEvent<ORDER, TTP, RW_TTP>
   >;
 }
 
 /** Historical sync tree-only base; DAG and walking runners expose execution capabilities. */
-export abstract class TraversalRunner<
+export abstract class TreeTraversalRunner<
   ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > implements
     SyncTraversalExecution<
       ORDER,
-      TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>
+      TreeTraversalEvent<ORDER, TTP, RW_TTP>
     >
 {
   abstract getStatus(): TraversalRunnerStatus;
@@ -69,7 +69,7 @@ export abstract class TraversalRunner<
   abstract getIterable: (
     config?: TraversalIterableConfigInput<ORDER>,
   ) => Generator<
-    TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>,
+    TreeTraversalEvent<ORDER, TTP, RW_TTP>,
     void,
     unknown
   >;

@@ -1,22 +1,22 @@
 import {
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
   DagTraversal,
   AsyncDagTraversal,
-  type TraversableTree,
-  type TreeTypeParameters,
+  type TreeSource,
+  type VertexTypes,
 } from '../src';
 
-type T = TreeTypeParameters<string, string>;
+type T = VertexTypes<string, string>;
 const content = { $data: 'root', $childHints: [] };
 const root = { $data: 'root', $childHints: ['child'] };
 for (const Constructor of [
-  DepthFirstTraversal<T>,
-  AsyncDepthFirstTraversal<T>,
-  BreadthFirstTraversal<T>,
-  AsyncBreadthFirstTraversal<T>,
+  DepthFirstTreeTraversal<T>,
+  AsyncDepthFirstTreeTraversal<T>,
+  BreadthFirstTreeTraversal<T>,
+  AsyncBreadthFirstTreeTraversal<T>,
   DagTraversal<T>,
   AsyncDagTraversal<T>,
 ]) {
@@ -45,12 +45,12 @@ for (const Constructor of [
           ]) {
             for (const atRoot of [true, false]) {
               const source = {
-                makeRoot: () => (atRoot ? result : { vertexContent: root }),
-                makeVertex: () => result,
-              } as TraversableTree<T>;
+                resolveRoot: () => (atRoot ? result : { vertexContent: root }),
+                resolveChild: () => result,
+              } as TreeSource<T>;
               const runner = new Constructor({
                 traversableTree: source,
-              }).makeRunner();
+              }).createRunner();
               await expect(async () => {
                 await runner.run();
               }).rejects.toThrow(/graph metadata/i);

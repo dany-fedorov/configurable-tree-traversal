@@ -1,21 +1,21 @@
 import type { OwnerToken } from '@core/effects/types';
 import type { Ref } from '@core/graph/types';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 
-export type BreadthFirstPolicyState<T extends TreeTypeParameters> = {
+export type BreadthFirstPolicyState<T extends VertexTypes> = {
   queue: VertexResolutionContext<T>[];
   queueIndex: number;
 };
 
-type BreadthFirstExpansion<T extends TreeTypeParameters> = {
+type BreadthFirstExpansion<T extends VertexTypes> = {
   owner: OwnerToken;
   vertexRef: Ref<T>;
   depth: number;
   stage: 'prepare' | 'sort-wait';
 };
 
-type BreadthFirstResolution<T extends TreeTypeParameters> = {
+type BreadthFirstResolution<T extends VertexTypes> = {
   owner: OwnerToken;
   context: VertexResolutionContext<T>;
 };
@@ -25,12 +25,12 @@ type ParentProgress = {
   closeWhenDone: boolean;
 };
 
-export type InjectedBreadthFirstFrontier<T extends TreeTypeParameters> = {
+export type InjectedBreadthFirstFrontier<T extends VertexTypes> = {
   contexts: readonly VertexResolutionContext<T>[];
   consumedHintIndices: ReadonlySet<number>;
 };
 
-export type BreadthFirstWork<T extends TreeTypeParameters> =
+export type BreadthFirstWork<T extends VertexTypes> =
   | {
       kind: 'PREPARE_HINTS';
       expansion: BreadthFirstExpansion<T>;
@@ -45,7 +45,7 @@ export type BreadthFirstWork<T extends TreeTypeParameters> =
   | { kind: 'CLEAR_QUEUE' };
 
 /** Queue policy preserving dequeue-time resolution and legacy public state. */
-export class BreadthFirstPolicy<T extends TreeTypeParameters> {
+export class BreadthFirstPolicy<T extends VertexTypes> {
   private readonly expansions: BreadthFirstExpansion<T>[] = [];
   private readonly progressByParent = new Map<Ref<T>, ParentProgress>();
   private readonly injectedFrontiers = new Map<

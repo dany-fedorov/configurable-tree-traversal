@@ -1,6 +1,6 @@
 import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { CTTRef } from '@core/CTTRef';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
   VisitorRegistrationMetadata,
@@ -12,7 +12,7 @@ export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
 export type RegistrationMetadata = VisitorRegistrationMetadata;
 
-export type VisitorChainMetadata<T extends TreeTypeParameters> = {
+export type VisitorChainMetadata<T extends VertexTypes> = {
   vertexVisitIndex: number;
   curVertexVisitorVisitIndex: number;
   previousVisitedVertexRef: CTTRef<Vertex<T>> | null;
@@ -20,8 +20,8 @@ export type VisitorChainMetadata<T extends TreeTypeParameters> = {
 };
 
 export type VisitorChainPoll<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > =
   | {
       kind: 'VISIT';
@@ -40,8 +40,8 @@ export type VisitorBatchCommit = {
 };
 
 export type VisitorChainInput<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = {
   ref: CTTRef<Vertex<T | R>>;
   records: readonly RegistrationMetadata[];
@@ -50,6 +50,6 @@ export type VisitorChainInput<
   order?: string;
 };
 
-export type VisitorOutcome<R extends TreeTypeParameters> = Outcome<
+export type VisitorOutcome<R extends VertexTypes> = Outcome<
   VisitResult<R> | typeof DEFER_READY
 >;

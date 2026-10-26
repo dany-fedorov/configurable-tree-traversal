@@ -1,17 +1,17 @@
 import type {
   MakeVertexOptions,
-  TreeSourceVertexResult,
+  TreeVertexResolution,
 } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
 
-export interface AsyncTraversableTree<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export interface AsyncTreeSource<
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > {
-  makeRoot(): MaybePromise<TreeSourceVertexResult<T>>;
-  makeVertex(
+  resolveRoot(): MaybePromise<TreeVertexResolution<T>>;
+  resolveChild(
     hint: T['VertexHint'],
     options: MakeVertexOptions<T, R>,
-  ): MaybePromise<TreeSourceVertexResult<T>>;
+  ): MaybePromise<TreeVertexResolution<T>>;
 }

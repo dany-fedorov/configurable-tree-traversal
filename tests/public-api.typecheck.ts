@@ -1,20 +1,20 @@
 import {
-  AsyncBreadthFirstTraversal,
+  AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
-  AsyncDepthFirstTraversal,
+  AsyncDepthFirstTreeTraversal,
   DagTraversal,
   DagTraversalOrder,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
-  TraversableObjectTree,
+  ObjectTreeSource,
   Vertex,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
-  traverseDepthFirst,
-  traverseBreadthFirstAsync,
+  traverseTreeDepthFirst,
+  traverseTreeBreadthFirstAsync,
   traverseDag,
   traverseDagAsync,
-  traverseDepthFirstAsync,
+  traverseTreeDepthFirstAsync,
   type AsyncCoreExecution,
   type ChildSlot,
   type CoreInspection,
@@ -25,10 +25,10 @@ import {
   type KernelInspection,
   type MaybePromise,
   type ResolvedGraph,
-  type TraversableGraph,
-  type TraversalRunner,
-  type TreeTypeParameters,
-  type TraversableTree,
+  type DagDiscoverySource,
+  type TreeTraversalRunner,
+  type VertexTypes,
+  type TreeSource,
   type VertexId,
 } from '../src';
 import type {
@@ -46,19 +46,19 @@ import {
 } from '../src/traversals/dag-traversal';
 
 type Node = { $d: string; $c: (Node | null)[] };
-type Tree = TreeTypeParameters<string, Node | null>;
+type Tree = VertexTypes<string, Node | null>;
 
 const root: Node = { $d: 'root', $c: [{ $d: 'leaf', $c: [] }] };
-const tree: TraversableTree<Tree> = {
-  makeRoot: () => ({ vertexContent: root }),
-  makeVertex: (hint) => ({ vertexContent: hint }),
+const tree: TreeSource<Tree> = {
+  resolveRoot: () => ({ vertexContent: root }),
+  resolveChild: (hint) => ({ vertexContent: hint }),
 };
-const graph: TraversableGraph<Tree> = {
-  makeRoot: () => ({ vertexId: 'root', vertexContent: root }),
-  makeVertex: (hint) => ({ vertexId: hint?.$d, vertexContent: hint }),
+const graph: DagDiscoverySource<Tree> = {
+  resolveRoot: () => ({ vertexId: 'root', vertexContent: root }),
+  resolveChild: (hint) => ({ vertexId: hint?.$d, vertexContent: hint }),
 };
 
-const traversal = new DepthFirstTraversal({ traversableTree: tree });
+const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
 traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => ({
   commands: [
     {
@@ -68,19 +68,19 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => ({
   ],
 }));
 
-const concreteRunner = traversal.makeRunner();
+const concreteRunner = traversal.createRunner();
 for (const event of concreteRunner.getIterable()) {
   const data: string = event.vertex.getData();
   void data;
 }
 
-const interfaceRunner: TraversalRunner<DepthFirstTraversalOrder, Tree, Tree> =
-  traversal.makeRunner();
+const interfaceRunner: TreeTraversalRunner<DepthFirstTraversalOrder, Tree, Tree> =
+  traversal.createRunner();
 interfaceRunner.getIterable();
 interfaceRunner.run({ iterateOver: [] });
 const failedStatus: TraversalRunnerStatus = TraversalRunnerStatus.FAILED;
 
-const convenienceRunner = traverseDepthFirst(tree, {
+const convenienceRunner = traverseTreeDepthFirst(tree, {
   postOrderVisitor: (vertex) => {
     const data: string = vertex.getData();
     void data;
@@ -92,31 +92,31 @@ const convenienceData: string = convenienceRunner
   .unref()
   .getData();
 
-const objectTree = new TraversableObjectTree({ answer: 42 });
-const objectRunner = new DepthFirstTraversal({
+const objectTree = new ObjectTreeSource({ answer: 42 });
+const objectRunner = new DepthFirstTreeTraversal({
   traversableTree: objectTree,
-}).makeRunner();
+}).createRunner();
 for (const event of objectRunner.getIterable()) {
   const key: string | number | symbol = event.vertex.getData().key;
   void key;
 }
 
 const asyncDepthResult: Promise<
-  ReturnType<AsyncDepthFirstTraversal<Tree>['makeRunner']>
-> = traverseDepthFirstAsync(tree, null);
+  ReturnType<AsyncDepthFirstTreeTraversal<Tree>['createRunner']>
+> = traverseTreeDepthFirstAsync(tree, null);
 const asyncBreadthResult: Promise<
-  ReturnType<AsyncBreadthFirstTraversal<Tree>['makeRunner']>
-> = traverseBreadthFirstAsync(tree, null);
-const dagResult: ReturnType<DagTraversal<Tree>['makeRunner']> = traverseDag(
+  ReturnType<AsyncBreadthFirstTreeTraversal<Tree>['createRunner']>
+> = traverseTreeBreadthFirstAsync(tree, null);
+const dagResult: ReturnType<DagTraversal<Tree>['createRunner']> = traverseDag(
   { traversableGraph: graph },
   null,
 );
 const asyncDagResult: Promise<
-  ReturnType<AsyncDagTraversal<Tree>['makeRunner']>
+  ReturnType<AsyncDagTraversal<Tree>['createRunner']>
 > = traverseDagAsyncFromDagSubpath({ traversableGraph: graph }, null);
 const asyncExecution: AsyncCoreExecution<unknown> = new AsyncDagTraversal({
   traversableGraph: graph,
-}).makeRunner();
+}).createRunner();
 const resolvedGraph: ResolvedGraph<Tree> = dagResult.getResolvedGraph();
 const rootRef = resolvedGraph.getRoot();
 const children = rootRef === null ? null : resolvedGraph.getChildrenOf(rootRef);
@@ -201,7 +201,7 @@ canonicalVertex.clone({ $d: 'changed', $c: [] });
 const cloneFromVertex: Vertex<Tree> = canonicalVertex.clone(copiedVertex);
 void cloneFromVertex;
 const optionalDataVertex = new Vertex<
-  TreeTypeParameters<string | undefined, string>
+  VertexTypes<string | undefined, string>
 >({ $data: 'root', $childHints: [] });
 optionalDataVertex.clone({ $data: undefined });
 // @ts-expect-error Clone updates cannot mix canonical data and legacy hints.
@@ -238,40 +238,40 @@ void mixedContent;
 void duplicateContent;
 void duplicateLegacy;
 
-const canonicalFound: import('../src').FoundVertexResult<Tree> = {
+const canonicalFound: import('../src').DagVertexFound<Tree> = {
   kind: 'found',
   vertex: {
     vertexId: undefined,
     vertexContent: { $data: 'root', $childHints: [] },
   },
 };
-const canonicalOmitted: import('../src').OmittedVertexResult = {
+const canonicalOmitted: import('../src').DagVertexOmitted = {
   kind: 'omitted',
   satisfiesDependencies: true,
 };
-const canonicalMissing: import('../src').PrerequisiteResolutionResult<Tree> = {
+const canonicalMissing: import('../src').DagPrerequisiteResolution<Tree> = {
   kind: 'missing',
 };
-const canonicalSource: import('../src').TraversableGraph<Tree> = {
-  makeRoot: () => canonicalFound,
-  makeVertex: () => canonicalOmitted,
+const canonicalSource: import('../src').DagDiscoverySource<Tree> = {
+  resolveRoot: () => canonicalFound,
+  resolveChild: () => canonicalOmitted,
   resolvePrerequisite: () => canonicalMissing,
 };
-const missingRoot: import('../src').SourceVertexResult<Tree> = {
+const missingRoot: import('../src').DagVertexResolution<Tree> = {
   // @ts-expect-error A missing lookup is not a root/hint source result.
   kind: 'missing',
 };
-const nullFound: import('../src').FoundVertexResult<Tree> = {
+const nullFound: import('../src').DagVertexFound<Tree> = {
   kind: 'found',
   // @ts-expect-error Found content must be non-null.
   vertex: { vertexContent: null },
 };
 // @ts-expect-error Omission must explicitly satisfy dependencies.
-const incompleteOmission: import('../src').OmittedVertexResult = {
+const incompleteOmission: import('../src').DagVertexOmitted = {
   kind: 'omitted',
 };
 // @ts-expect-error A bare null is not a resolution result.
-const nullResolution: import('../src').PrerequisiteResolutionResult<Tree> =
+const nullResolution: import('../src').DagPrerequisiteResolution<Tree> =
   null;
 void canonicalSource;
 void missingRoot;
@@ -282,7 +282,7 @@ void nullResolution;
 const completionPolicyRunner = new DagTraversal({
   traversableGraph: graph,
   workCompletion: 'externalSettlement',
-}).makeRunner();
+}).createRunner();
 const stopReason: import('../src').TraversalStopReason | null =
   completionPolicyRunner.getStopReason();
 const coreStopReason: import('../src/core').TraversalStopReason | null =
@@ -306,15 +306,15 @@ new DagTraversal({ traversableGraph: graph }).configure({
 });
 void [stopReason, coreStopReason, inspectionStopReason];
 
-const canonicalTreeOmitted: import('../src').TreeOmittedVertexResult = {
+const canonicalTreeOmitted: import('../src').TreeVertexOmitted = {
   kind: 'omitted',
 };
-const canonicalCoreTreeOmitted: import('../src/core').TreeOmittedVertexResult =
+const canonicalCoreTreeOmitted: import('../src/core').TreeVertexOmitted =
   canonicalTreeOmitted;
 // @ts-expect-error Graph callbacks must explicitly acknowledge milestone satisfaction.
-const treeOmittedAsGraph: import('../src').OmittedVertexResult =
+const treeOmittedAsGraph: import('../src').DagVertexOmitted =
   canonicalTreeOmitted;
 // @ts-expect-error Graph acknowledgement is unsupported tree metadata.
-const graphOmittedAsTree: import('../src').TreeOmittedVertexResult =
+const graphOmittedAsTree: import('../src').TreeVertexOmitted =
   canonicalOmitted;
 void [canonicalCoreTreeOmitted, treeOmittedAsGraph, graphOmittedAsTree];

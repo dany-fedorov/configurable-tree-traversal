@@ -6,17 +6,17 @@ import {
   DagDeferredWork,
   DagSummary,
   DagEvent,
-  TreeTypeParameters,
-  TraversableGraph,
+  VertexTypes,
+  DagDiscoverySource,
 } from '../src';
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 type ID = 'a' | 'b';
-const source: TraversableGraph<G, G, ID> = {
-  makeRoot: () => ({
+const source: DagDiscoverySource<G, G, ID> = {
+  resolveRoot: () => ({
     vertexId: 'a',
     vertexContent: { $data: 'a', $childHints: [] },
   }),
-  makeVertex: () => ({
+  resolveChild: () => ({
     vertexId: 'b',
     vertexContent: { $data: 'b', $childHints: [] },
   }),
@@ -24,11 +24,11 @@ const source: TraversableGraph<G, G, ID> = {
 const sync: DagTraversalRunner<G, G, ID> = new DagTraversal<G, G, ID>({
   traversableGraph: source,
 })
-  .makeRunner()
+  .createRunner()
   .prepare();
 const asyncRunner = new AsyncDagTraversal<G, G, ID>({
   traversableGraph: source,
-}).makeRunner();
+}).createRunner();
 const prepared: Promise<AsyncDagTraversalRunner<G, G, ID>> =
   asyncRunner.prepare();
 const summary: DagSummary<ID> = sync.summary();

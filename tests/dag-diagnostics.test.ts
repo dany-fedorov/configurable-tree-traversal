@@ -2,7 +2,7 @@ import {
   DagTraversal,
   AsyncDagTraversal,
 } from '../src/traversals/dag-traversal';
-import { DagTraversalStallError, type TreeTypeParameters } from '../src/core';
+import { DagTraversalStallError, type VertexTypes } from '../src/core';
 import { graphAdapter } from './helpers/graph-fixtures';
 
 const fixture = {
@@ -36,7 +36,7 @@ function check(error: unknown) {
 test('sync stalls distinguish unknown prerequisites, cycle members and downstream work', () => {
   const runner = new DagTraversal({
     traversableGraph: graphAdapter(fixture),
-  }).makeRunner();
+  }).createRunner();
   try {
     runner.run();
     throw new Error('Expected stall');
@@ -48,7 +48,7 @@ test('sync stalls distinguish unknown prerequisites, cycle members and downstrea
 test('async stalls report the same detached diagnostic contract', async () => {
   const runner = new AsyncDagTraversal({
     traversableGraph: graphAdapter(fixture),
-  }).makeRunner();
+  }).createRunner();
   await runner.run().then(() => {
     throw new Error('Expected stall');
   }, check);
@@ -60,7 +60,7 @@ test('reports a missing prerequisite separately from its blocked vertex', () => 
       root: { children: ['task'], dependencies: [] },
       task: { children: [], dependencies: ['absent'] },
     }),
-  }).makeRunner();
+  }).createRunner();
   try {
     runner.run();
     throw new Error('Expected stall');
@@ -121,25 +121,25 @@ test('detaches reports and retains hostile and SameValueZero IDs without coercio
 test('diagnoses a deep dependency chain without using the call stack', () => {
   const count = 12000;
   const runner = new DagTraversal<
-    TreeTypeParameters<string, number>,
-    TreeTypeParameters<string, number>,
+    VertexTypes<string, number>,
+    VertexTypes<string, number>,
     string | number
   >({
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'root',
         vertexContent: {
           $d: 'root',
           $c: Array.from({ length: count }, (_, i) => i),
         },
       }),
-      makeVertex: (id: number) => ({
+      resolveChild: (id: number) => ({
         vertexId: id,
         dependsOn: [id === count - 1 ? id : id + 1],
         vertexContent: { $d: 'task', $c: [] as number[] },
       }),
     },
-  }).makeRunner();
+  }).createRunner();
   try {
     runner.run();
     throw new Error('Expected stall');
@@ -156,17 +156,17 @@ test('scheduler diagnostics preserve arbitrary missing and cyclic IDs', () => {
   const ids: unknown[] = [hostile, undefined, null, NaN, -0];
   const runner = new DagTraversal({
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'root',
         vertexContent: { $d: 'root', $c: ids },
       }),
-      makeVertex: (id: unknown) => ({
+      resolveChild: (id: unknown) => ({
         vertexId: id,
         dependsOn: [id, 'missing'],
         vertexContent: { $d: 'task', $c: [] as unknown[] },
       }),
     },
-  }).makeRunner();
+  }).createRunner();
   try {
     runner.run();
     throw new Error('Expected stall');
@@ -187,17 +187,17 @@ test('scheduler diagnostics preserve arbitrary missing and cyclic IDs', () => {
 test('keeps undefined first when its cycle was discovered first', () => {
   const runner = new DagTraversal({
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'root',
         vertexContent: { $d: 'root', $c: [undefined, 'b'] as unknown[] },
       }),
-      makeVertex: (id: unknown) => ({
+      resolveChild: (id: unknown) => ({
         vertexId: id,
         dependsOn: [id === undefined ? 'b' : undefined],
         vertexContent: { $d: 'task', $c: [] as unknown[] },
       }),
     },
-  }).makeRunner();
+  }).createRunner();
   try {
     runner.run();
     throw new Error('Expected stall');

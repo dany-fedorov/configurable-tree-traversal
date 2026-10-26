@@ -5,22 +5,22 @@ import {
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
   type DagSettlementOutcome,
-  type TreeTypeParameters,
+  type VertexTypes,
 } from '../src';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 const deferReady = () => ({
   commands: [{ commandName: Command.DEFER_READY }] as [
     { commandName: Command.DEFER_READY },
   ],
 });
 const rootOnly = {
-  makeRoot: () => ({
+  resolveRoot: () => ({
     vertexId: 'root',
     vertexContent: { $data: 'root', $childHints: [] },
   }),
-  makeVertex: () => ({ vertexContent: null }),
+  resolveChild: () => ({ vertexContent: null }),
 };
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
@@ -29,13 +29,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       discovery: 'eager',
       syntheticRoot: true,
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexContent: {
             $data: '',
             $childHints: ['parent', 'work', 'complete'],
           },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: id === 'work' ? ['parent'] : [],
           dependsOnComplete: id === 'complete' ? ['parent'] : [],
@@ -47,7 +47,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     });
     traversal.addVisitorFor(Order.ON_READY, deferReady);
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     const generation = runner.summary().vertices.get('parent')!.generation!;
     expect(runner.settle('parent', { kind: 'workCompleted' }, generation)).toBe(
@@ -79,7 +79,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     async (error) => {
       const traversal = new Constructor<G>({ traversableGraph: rootOnly });
       traversal.addVisitorFor(Order.ON_READY, deferReady);
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       await runner.run();
       const generation = runner.summary().vertices.get('root')!.generation!;
       expect(
@@ -120,7 +120,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     async (ok) => {
       const traversal = new Constructor<G>({ traversableGraph: rootOnly });
       traversal.addVisitorFor(Order.ON_READY, deferReady);
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       await runner.run();
       const generation = runner.summary().vertices.get('root')!.generation!;
       const error = {};
@@ -161,7 +161,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     async (outcome) => {
       const traversal = new Constructor<G>({ traversableGraph: rootOnly });
       traversal.addVisitorFor(Order.ON_READY, deferReady);
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       await runner.run();
       const generation = runner.summary().vertices.get('root')!.generation!;
       expect(() =>
@@ -187,11 +187,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversal = new Constructor<G>({
       traversableGraph: {
         ...rootOnly,
-        makeRoot: () => ({ ...rootOnly.makeRoot(), vertexId: id }),
+        resolveRoot: () => ({ ...rootOnly.resolveRoot(), vertexId: id }),
       },
     });
     traversal.addVisitorFor(Order.ON_READY, deferReady);
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     const generation = runner.summary().vertices.get(id)!.generation!;
     const poison = {
@@ -218,10 +218,10 @@ test('canonical async settlement wakes W consumers while physical callbacks reta
     discovery: 'eager',
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexContent: { $data: '', $childHints: ['a', 'b', 'c'] },
       }),
-      makeVertex: (id) => ({
+      resolveChild: (id) => ({
         vertexId: id,
         dependsOn: id === 'c' ? ['a'] : [],
         vertexContent: { $data: id, $childHints: [] },
@@ -232,7 +232,7 @@ test('canonical async settlement wakes W consumers while physical callbacks reta
     seen.push(vertex.getData());
     return vertex.getData() === 'b' ? release.promise : deferReady();
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const running = runner.run();
   await eventLoopTurn();
   runner.settle(

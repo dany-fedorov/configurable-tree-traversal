@@ -1,4 +1,4 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { CTTRef } from '@core/CTTRef';
 import type { Vertex } from '@core/Vertex';
@@ -9,8 +9,8 @@ import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 
 export function initDepthFirstVisitorsState<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 >(): DepthFirstTraversalVisitorsState<TTP, RW_TTP> {
   const empty = {
     vertexVisitIndex: 0,
@@ -25,8 +25,8 @@ export function initDepthFirstVisitorsState<
 }
 
 type PopStackResult<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > =
   | { stackIsEmpty: true; vertexContext: null }
   | {
@@ -35,8 +35,8 @@ type PopStackResult<
     };
 
 export class DepthFirstTraversalRunnerState<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > {
   STACK: Array<VertexResolutionContext<TTP | RW_TTP>>;
   postOrderNotVisitedChildrenCountMap: Map<

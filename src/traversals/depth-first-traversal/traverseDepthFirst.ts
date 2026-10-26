@@ -1,15 +1,15 @@
 import type { VisitorPhaseInput } from '@core/TraversalVisitor';
-import { DepthFirstTraversal } from '@depth-first-traversal/DepthFirstTraversal';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { TraversableTree } from '@core/TraversableTree';
+import { DepthFirstTreeTraversal } from '@depth-first-traversal/DepthFirstTraversal';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { TreeSource } from '@core/TraversableTree';
 import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { TraversalVisitor } from '@core/TraversalVisitor';
-import type { DepthFirstTraversalRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
+import type { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
 import type { DepthFirstTraversalInstanceConfigInput } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 
 export type DepthFirstTraversalVisitorsSimple<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = {
   preOrderVisitor?: TraversalVisitor<
     DepthFirstTraversalOrder.PRE_ORDER,
@@ -30,12 +30,12 @@ export type DepthFirstTraversalVisitorsSimple<
 
 /** Options for a single-call DepthFirst traversal with phase-keyed callbacks. */
 export type DepthFirstTraversalHelperOptions<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > = Omit<
   DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
   'visitors' | 'traversableTree'
-> & { traversableTree: TraversableTree<TTP, RW_TTP> } & {
+> & { traversableTree: TreeSource<TTP, RW_TTP> } & {
   visitors?: {
     [K in DepthFirstTraversalOrder]?: VisitorPhaseInput<
       TraversalVisitor<K, TTP, RW_TTP>
@@ -43,31 +43,31 @@ export type DepthFirstTraversalHelperOptions<
   };
 };
 
-export function traverseDepthFirst<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+export function traverseTreeDepthFirst<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 >(
   options: DepthFirstTraversalHelperOptions<TTP, RW_TTP>,
-): DepthFirstTraversalRunner<TTP, RW_TTP>;
+): DepthFirstTreeRunner<TTP, RW_TTP>;
 /** @deprecated Pass a single options object with a phase-keyed visitors map. */
-export function traverseDepthFirst<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+export function traverseTreeDepthFirst<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 >(
-  traversableTree: TraversableTree<TTP, RW_TTP>,
+  traversableTree: TreeSource<TTP, RW_TTP>,
   visitors: DepthFirstTraversalVisitorsSimple<TTP, RW_TTP> | null,
   config?: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-): DepthFirstTraversalRunner<TTP, RW_TTP>;
-export function traverseDepthFirst<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+): DepthFirstTreeRunner<TTP, RW_TTP>;
+export function traverseTreeDepthFirst<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 >(
   sourceOrOptions:
-    | TraversableTree<TTP, RW_TTP>
+    | TreeSource<TTP, RW_TTP>
     | DepthFirstTraversalHelperOptions<TTP, RW_TTP>,
   visitors?: DepthFirstTraversalVisitorsSimple<TTP, RW_TTP> | null,
   config?: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-): DepthFirstTraversalRunner<TTP, RW_TTP> {
+): DepthFirstTreeRunner<TTP, RW_TTP> {
   let traversalConfig: DepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>;
   const preOrderVisitor = visitors?.preOrderVisitor;
   const inOrderVisitor = visitors?.inOrderVisitor;
@@ -79,11 +79,11 @@ export function traverseDepthFirst<
     >;
   } else {
     traversalConfig = {
-      traversableTree: sourceOrOptions as TraversableTree<TTP, RW_TTP>,
+      traversableTree: sourceOrOptions as TreeSource<TTP, RW_TTP>,
       ...config,
     };
   }
-  const traversal = new DepthFirstTraversal<TTP, RW_TTP>(traversalConfig);
+  const traversal = new DepthFirstTreeTraversal<TTP, RW_TTP>(traversalConfig);
   if (preOrderVisitor) {
     traversal.addVisitorFor(
       DepthFirstTraversalOrder.PRE_ORDER,
@@ -99,5 +99,5 @@ export function traverseDepthFirst<
       postOrderVisitor,
     );
   }
-  return traversal.makeRunner().run();
+  return traversal.createRunner().run();
 }

@@ -1,12 +1,12 @@
 import {
-  graphFrom,
-  forestFrom,
-  graphFromAsync,
-  forestFromAsync,
+  materializeDagSourceFromRecords,
+  materializeDagSourceFromRoots,
+  materializeDagSourceFromRecordsAsync,
+  materializeDagSourceFromRootsAsync,
   prepareDag,
   prepareDagAsync,
-  coordinateDag,
-  coordinateDagAsync,
+  createDagWorkSession,
+  createAsyncDagWorkSession,
   filterDagVisitor,
   filterAsyncDagVisitor,
   DagTraversal,
@@ -15,19 +15,19 @@ import {
   DEFER_READY,
 } from 'configurable-tree-traversal';
 import type {
-  CollectionSource,
-  TreeTypeParameters,
+  MaterializedDagSource,
+  VertexTypes,
   PreparedDag,
   PrepareDagResult,
   DagEvent,
   DagWorkTicket,
-  DagCoordinator,
-  AsyncDagCoordinator,
+  DagWorkSession,
+  AsyncDagWorkSession,
   DagVisitorOptions,
 } from 'configurable-tree-traversal';
 import * as sourceSubpath from 'configurable-tree-traversal/sources/index';
-import { graphFrom as explicitGraphFrom } from 'configurable-tree-traversal/sources/graphFrom.js';
-import type { CollectionSource as SubpathSource } from 'configurable-tree-traversal/sources/types';
+import { materializeDagSourceFromRecords as explicitGraphFrom } from 'configurable-tree-traversal/sources/graphFrom.js';
+import type { MaterializedDagSource as SubpathSource } from 'configurable-tree-traversal/sources/types';
 import type {
   PreparedDag as SubpathPreparedDag,
   DagEvent as SubpathEvent,
@@ -45,26 +45,26 @@ type Group = {
   requires: readonly ID[];
 };
 type Item = Task | Group;
-type T = TreeTypeParameters<Item, ID>;
+type T = VertexTypes<Item, ID>;
 declare const items: readonly Item[];
-const source = graphFrom(items, {
+const source = materializeDagSourceFromRecords(items, {
   id: (item) => item.id,
   dependsOn: (item) => item.requires,
 });
-const sourceIdentity: CollectionSource<Item, ID> = source;
+const sourceIdentity: MaterializedDagSource<Item, ID> = source;
 const subpathIdentity: SubpathSource<Item, ID> = sourceIdentity;
-const cjsIdentity: cjs.CollectionSource<Item, ID> = subpathIdentity;
-const factoryIdentity: typeof graphFrom = sourceSubpath.graphFrom;
-const explicitIdentity: typeof cjs.graphFrom = explicitGraphFrom;
-const forest: CollectionSource<Item, ID> = forestFrom(items, {
+const cjsIdentity: cjs.MaterializedDagSource<Item, ID> = subpathIdentity;
+const factoryIdentity: typeof materializeDagSourceFromRecords = sourceSubpath.materializeDagSourceFromRecords;
+const explicitIdentity: typeof cjs.materializeDagSourceFromRecords = explicitGraphFrom;
+const forest: MaterializedDagSource<Item, ID> = materializeDagSourceFromRoots(items, {
   id: (item) => item.id,
   children: (item) => (item.kind === 'group' ? item.children : []),
 });
-const asyncSource: Promise<CollectionSource<Item, ID>> = graphFromAsync(items, {
+const asyncSource: Promise<MaterializedDagSource<Item, ID>> = materializeDagSourceFromRecordsAsync(items, {
   id: async (item) => item.id,
   dependsOn: async (item) => item.requires,
 });
-const asyncForest: Promise<CollectionSource<Item, ID>> = forestFromAsync(
+const asyncForest: Promise<MaterializedDagSource<Item, ID>> = materializeDagSourceFromRootsAsync(
   items,
   {
     id: async (item) => item.id,
@@ -77,7 +77,7 @@ if (prepared.kind === 'valid') {
   const dag: PreparedDag<Item, ID> = prepared.dag;
   const subpath: SubpathPreparedDag<Item, ID> = dag;
   const required: cjs.PreparedDag<Item, ID> = subpath;
-  const session: DagCoordinator<ID> = required.createSession();
+  const session: DagWorkSession<ID> = required.createWorkSession();
   const boundary = session.advance();
   if (boundary.kind === 'awaitingSettlement') {
     const ticket: DagWorkTicket<ID> = boundary.frontier[0]!;
@@ -95,7 +95,7 @@ if (prepared.kind === 'valid') {
     ticket.vertexId = id;
     void [wrong, forged];
   }
-  const coordinator: DagCoordinator<ID> = coordinateDag(
+  const coordinator: DagWorkSession<ID> = createDagWorkSession(
     dag.createRunner({ workCompletion: 'externalSettlement' }),
   );
   const vertex = dag.vertices[0]!;
@@ -104,7 +104,7 @@ if (prepared.kind === 'valid') {
   // @ts-expect-error Definitions own their topology.
   dag.createRunner({ syntheticRoot: undefined });
   // @ts-expect-error Session seeds preserve the inferred ID domain.
-  dag.createSession({ completedWork: new Set(['wrong']) });
+  dag.createWorkSession({ completedWork: new Set(['wrong']) });
   // @ts-expect-error Exposed vertex descriptions are readonly.
   vertex.children.push(vertex.vertexId);
   void [coordinator, data, children];
@@ -154,17 +154,17 @@ traversal.addVisitorFor(
   // @ts-expect-error Completion phase cannot defer work through a filter.
   filterDagVisitor(isTask, () => DEFER_READY),
 );
-for (const event of traversal.makeRunner().getIterable()) inspect(event);
+for (const event of traversal.createRunner().getIterable()) inspect(event);
 
 async function checkAsync() {
   const result: PrepareDagResult<Item, ID> = await prepareDagAsync(
     await asyncSource,
   );
   if (result.kind !== 'valid') return;
-  const session: AsyncDagCoordinator<ID> = await result.dag.createAsyncSession({
+  const session: AsyncDagWorkSession<ID> = await result.dag.createAsyncWorkSession({
     concurrency: 2,
   });
-  const coordinator: AsyncDagCoordinator<ID> = coordinateDagAsync(
+  const coordinator: AsyncDagWorkSession<ID> = createAsyncDagWorkSession(
     await result.dag.createAsyncRunner({
       workCompletion: 'externalSettlement',
     }),
@@ -181,21 +181,21 @@ async function checkAsync() {
       void [task, context];
     }),
   );
-  for await (const event of asyncTraversal.makeRunner().getIterable())
+  for await (const event of asyncTraversal.createRunner().getIterable())
     inspect(event);
 }
 
 // @ts-expect-error Graph selectors accept IDs as structural children.
-graphFrom(items, { id: (item) => item.id, children: () => items });
+materializeDagSourceFromRecords(items, { id: (item) => item.id, children: () => items });
 // @ts-expect-error Preparation cannot accept completed execution facts.
 prepareDag({ ...source, completedWork: new Set<ID>() });
 void [cjsIdentity, factoryIdentity, explicitIdentity, forest, checkAsync];
 
-function inspectSession(session: DagCoordinator<ID> | AsyncDagCoordinator<ID>) {
+function inspectSession(session: DagWorkSession<ID> | AsyncDagWorkSession<ID>) {
   const state: import('configurable-tree-traversal').TraversalExecutionState =
     session;
-  const inspection: import('configurable-tree-traversal').DagInspection<ID> =
-    session.inspectDag();
+  const inspection: import('configurable-tree-traversal').DagMilestoneSnapshot<ID> =
+    session.inspectMilestones();
   const fatal: (ticket: DagWorkTicket<ID>, error: unknown) => unknown =
     session.failTraversal;
   const ErrorConstructor: typeof cjs.DagDiscoveryCycleError =

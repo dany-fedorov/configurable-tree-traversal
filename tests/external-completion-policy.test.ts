@@ -5,12 +5,12 @@ import {
 } from '../src/traversals/dag-traversal';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 const catalog = {
-  makeRoot: () => ({ vertexContent: { $data: '', $childHints: ['A', 'B'] } }),
-  makeVertex: (id: string) => ({
+  resolveRoot: () => ({ vertexContent: { $data: '', $childHints: ['A', 'B'] } }),
+  resolveChild: (id: string) => ({
     vertexId: id,
     dependsOn: id === 'B' ? ['A'] : [],
     vertexContent: { $data: id, $childHints: [] },
@@ -27,7 +27,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         syntheticRoot: true,
         discovery,
         ...external,
-      }).makeRunner();
+      }).createRunner();
       await runner.run();
       expect(runner.summary().completedWorkIds).toEqual([]);
       expect(runner.summary().deferredIds).toEqual(['A']);
@@ -55,11 +55,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} tree source defers parent work before admitting children`, async () => {
     const runner = new Constructor<G>({
       traversableTree: {
-        makeRoot: () => ({ vertexContent: { $data: 'A', $childHints: ['B'] } }),
-        makeVertex: () => ({ vertexContent: { $data: 'B', $childHints: [] } }),
+        resolveRoot: () => ({ vertexContent: { $data: 'A', $childHints: ['B'] } }),
+        resolveChild: () => ({ vertexContent: { $data: 'B', $childHints: [] } }),
       },
       ...external,
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     expect(runner.summary().completedWorkIds).toEqual([]);
     expect(runner.summary().deferredIds).toHaveLength(1);
@@ -97,7 +97,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
       { commandCommitMode: 'afterGroup' },
     );
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expect(seen).toEqual(['A']);
     expect(runner.summary().completedWorkIds).toEqual([]);
@@ -125,7 +125,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, () => {
       throw new Error('filtered callback ran');
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run({ visitorPhases: { include: [] } });
     expect(runner.summary().completedWorkIds).toEqual(['A']);
     expect(runner.summary().deferredIds).toEqual(['B']);
@@ -174,7 +174,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, () => {
       throw new Error('must skip later callback');
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     const generation = runner.summary().vertices.get('A')!.generation!;
     await runner.run();
@@ -196,10 +196,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       ...external,
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexContent: { $data: '', $childHints: ['A', 'W', 'C'] },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: id === 'W' ? ['A'] : [],
           dependsOnComplete: id === 'C' ? ['A'] : [],
@@ -210,7 +210,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         }),
       },
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     const settle = (id: string) =>
       runner.settle(
         id,
@@ -253,7 +253,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, (vertex) => {
       seen.push(vertex.getData());
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expect(runner.getStopReason()).toBe('paused');
     expect(runner.summary().deferredIds).toEqual([]);
@@ -273,7 +273,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, () => ({
       commands: [{ commandName: Command.DELETE_VERTEX }],
     }));
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expect(runner.summary().deferredIds).toEqual([]);
     expect(runner.summary().vertices.size).toBe(0);
@@ -287,7 +287,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: catalog,
         syntheticRoot: true,
         ...external,
-      }).makeRunner();
+      }).createRunner();
       await runner.run();
       runner.settle(
         'A',
@@ -313,7 +313,7 @@ test('async external settlement frees logical chain capacity while a physical ca
     ...external,
     traversableGraph: {
       ...catalog,
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexContent: { $data: '', $childHints: ['A', 'busy', 'B'] },
       }),
     },
@@ -322,7 +322,7 @@ test('async external settlement frees logical chain capacity while a physical ca
     seen.push(vertex.getData());
     return vertex.getData() === 'busy' ? release.promise : undefined;
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const running = runner.run();
   await eventLoopTurn();
   expect(seen).toEqual(['A', 'busy']);
@@ -351,7 +351,7 @@ test('external async close drains callbacks before recording pause and retains g
     ...external,
     traversableGraph: {
       ...catalog,
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexContent: { $data: '', $childHints: ['A', 'busy', 'B'] },
       }),
     },
@@ -359,7 +359,7 @@ test('external async close drains callbacks before recording pause and retains g
   traversal.addVisitorFor(Order.ON_READY, (vertex) =>
     vertex.getData() === 'busy' ? release.promise : undefined,
   );
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const iterator = runner.getIterable();
   const pending = iterator.next();
   await eventLoopTurn();
@@ -385,6 +385,6 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversal = new Constructor<G>({ traversableGraph: catalog });
     // JavaScript callers can mutate the advanced configuration record.
     Object.assign(traversal.icfg, { workCompletion: null });
-    expect(() => traversal.makeRunner()).toThrow(TypeError);
+    expect(() => traversal.createRunner()).toThrow(TypeError);
   });
 }

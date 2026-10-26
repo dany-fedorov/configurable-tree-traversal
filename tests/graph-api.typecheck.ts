@@ -1,16 +1,16 @@
 import { CTTRef } from '../src/core/CTTRef';
 import type {
-  AsyncTraversableGraph,
-  TraversableGraph,
+  AsyncDagDiscoverySource,
+  DagDiscoverySource,
 } from '../src/core/TraversableGraph';
-import type { AsyncTraversableTree } from '../src/core/AsyncTraversableTree';
+import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
 import type {
   AsyncTraversalVisitor,
   AsyncTraversalVisitorInputOptions,
 } from '../src/core/AsyncTraversalVisitor';
 import type { ResolvedGraph } from '../src/core/ResolvedGraph';
-import type { TraversableTree } from '../src/core/TraversableTree';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { TreeSource } from '../src/core/TraversableTree';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
 import type { HintVertexId } from '../src/core/graph/types';
@@ -22,16 +22,16 @@ import type {
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import type { AsyncDagTraversalRunner } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalRunner';
 
-type Input = TreeTypeParameters<{ input: string }, string>;
-type Output = TreeTypeParameters<{ output: number }, number>;
+type Input = VertexTypes<{ input: string }, string>;
+type Output = VertexTypes<{ output: number }, number>;
 
-const graph: TraversableGraph<Input, Output> = {
-  makeRoot: () => ({
+const graph: DagDiscoverySource<Input, Output> = {
+  resolveRoot: () => ({
     vertexContent: { $d: { input: 'root' }, $c: ['child'] },
     vertexId: undefined,
     dependsOn: [null, NaN],
   }),
-  makeVertex: (hint, options) => {
+  resolveChild: (hint, options) => {
     const resolved: ResolvedGraph<Input | Output> = options.resolvedGraph;
     const input: string = hint;
     void [resolved, input, options.notMutatedResolvedGraph];
@@ -50,15 +50,15 @@ const graph: TraversableGraph<Input, Output> = {
       : undefined,
 };
 
-const asyncGraph: AsyncTraversableGraph<Input, Output> = {
+const asyncGraph: AsyncDagDiscoverySource<Input, Output> = {
   ...graph,
   resolvePrerequisite: (id) => Promise.resolve(graph.resolvePrerequisite!(id)),
 };
-const tree: TraversableTree<Input, Output> = {
-  makeRoot: () => ({ vertexContent: { $d: { input: 'root' }, $c: [] } }),
-  makeVertex: () => ({ vertexContent: null }),
+const tree: TreeSource<Input, Output> = {
+  resolveRoot: () => ({ vertexContent: { $d: { input: 'root' }, $c: [] } }),
+  resolveChild: () => ({ vertexContent: null }),
 };
-const asyncTree: AsyncTraversableTree<Input, Output> = tree;
+const asyncTree: AsyncTreeSource<Input, Output> = tree;
 
 const plainTreeVisitor: AsyncTraversalVisitor<'ORDER', Input, Output> = () => ({
   commands: [
@@ -150,7 +150,7 @@ const asyncTreeTraversal = new AsyncDagTraversal<Input, Output>({
   traversableTree: asyncTree,
 });
 const asyncDagRunner: AsyncDagTraversalRunner<Input, Output> =
-  asyncGraphTraversal.makeRunner();
+  asyncGraphTraversal.createRunner();
 const asyncDagEvents: AsyncGenerator<
   {
     order: DagTraversalOrder;

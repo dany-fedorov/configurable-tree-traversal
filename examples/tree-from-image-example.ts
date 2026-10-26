@@ -1,4 +1,4 @@
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 
 /**
@@ -113,13 +113,13 @@ const treeData =
           { $data: 'I', $childHints: [
               { $data: 'H', $childHints: [] }] }] }] };
 
-const traversal = new DepthFirstTraversal({
+const traversal = new DepthFirstTreeTraversal({
   traversableTree: {
-    makeRoot: () => ({
+    resolveRoot: () => ({
       kind: 'found' as const,
       vertex: { vertexContent: treeData },
     }),
-    makeVertex: (childHint: any) =>
+    resolveChild: (childHint: any) =>
       childHint === null
         ? { kind: 'omitted' }
         : { kind: 'found', vertex: { vertexContent: childHint } },
@@ -134,7 +134,7 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (vertex) =>
 traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) =>
   reportVisit(DepthFirstTraversalOrder.POST_ORDER, vertex.getData()),
 );
-traversal.makeRunner().run();
+traversal.createRunner().run();
 
 /*
     Pre-order

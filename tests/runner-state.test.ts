@@ -1,19 +1,19 @@
 import { CTTRef } from '../src/core/CTTRef';
 import type { VertexResolutionContext } from '../src/core/ResolvedTree';
-import type { TraversableTree } from '../src/core/TraversableTree';
+import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
 import type { DepthFirstTraversalRunnerState } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerState';
 
 type Node = { $d: string; $c: Node[] };
-type Tree = TreeTypeParameters<string, Node>;
+type Tree = VertexTypes<string, Node>;
 
 const node = ($d: string, ...$c: Node[]): Node => ({ $d, $c });
-const adapter = (root: Node): TraversableTree<Tree> => ({
-  makeRoot: () => ({ vertexContent: root }),
-  makeVertex: (hint) => ({ vertexContent: hint }),
+const adapter = (root: Node): TreeSource<Tree> => ({
+  resolveRoot: () => ({ vertexContent: root }),
+  resolveChild: (hint) => ({ vertexContent: hint }),
 });
 const ref = (data: string) => new CTTRef(new Vertex<Tree>(node(data)));
 const context = (
@@ -29,9 +29,9 @@ const context = (
 });
 
 function makeState(): DepthFirstTraversalRunnerState<Tree, Tree> {
-  return new DepthFirstTraversal<Tree>({
+  return new DepthFirstTreeTraversal<Tree>({
     traversableTree: adapter(node('root')),
-  }).makeRunner().state;
+  }).createRunner().state;
 }
 
 test('depth-first state injection retains supplied continuation objects', () => {
@@ -48,10 +48,10 @@ test('depth-first state injection retains supplied continuation objects', () => 
   source.traversalRootVertexRef = activeParentRef;
   source.status = TraversalRunnerStatus.HALTED;
 
-  const injected = new DepthFirstTraversal<Tree>({
+  const injected = new DepthFirstTreeTraversal<Tree>({
     traversableTree: adapter(node('unused')),
     traversalRunnerInternalObjects: { state: source },
-  }).makeRunner().state;
+  }).createRunner().state;
 
   expect(injected.STACK).toBe(source.STACK);
   expect(injected.postOrderNotVisitedChildrenCountMap).toBe(

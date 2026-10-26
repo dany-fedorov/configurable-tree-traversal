@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import type { TreeTypeParameters } from '../src/core';
+import type { VertexTypes } from '../src/core';
 import {
-  AsyncDepthFirstTraversal,
+  AsyncDepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
 } from '../src/traversals/depth-first-traversal';
 
-type ExampleTree = TreeTypeParameters<string, string>;
+type ExampleTree = VertexTypes<string, string>;
 
 let releaseSlow!: () => void;
 const slowGate = new Promise<void>((resolve) => {
@@ -16,17 +16,17 @@ const slowStarted = new Promise<void>((resolve) => {
   reportSlowStarted = resolve;
 });
 
-const traversal = new AsyncDepthFirstTraversal<ExampleTree>({
+const traversal = new AsyncDepthFirstTreeTraversal<ExampleTree>({
   concurrency: 2,
   traversableTree: {
     // Async adapters may return either a value or a promise from every callback.
-    makeRoot: () => ({
+    resolveRoot: () => ({
       kind: 'found' as const,
       vertex: {
         vertexContent: { $data: 'root', $childHints: ['fast', 'slow'] },
       },
     }),
-    makeVertex: (hint) => {
+    resolveChild: (hint) => {
       if (hint === 'fast') {
         return {
           kind: 'found' as const,
@@ -45,7 +45,7 @@ const traversal = new AsyncDepthFirstTraversal<ExampleTree>({
 });
 
 async function main() {
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const iterator = runner.getIterable({
     emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
   });

@@ -21,9 +21,9 @@ for (const entry of entries) {
     'GraphWalkPhase',
     'walkGraph',
     'walkGraphAsync',
-    'walkSourceFrom',
-    'walkSourceFromAsync',
-    'walkSourceFromDag',
+    'materializeWalkSourceFromRecords',
+    'materializeWalkSourceFromRecordsAsync',
+    'materializeWalkSourceFromDagDefinition',
   ])
     assert.equal(entry[name], root[name]);
 }
@@ -33,7 +33,7 @@ const symbolId = Symbol('symbol');
 const ids = [objectId, symbolId, undefined, null, NaN, -0];
 const relation = { kind: 'reference' };
 const items = ids.map((id, index) => ({ id, index }));
-const catalog = walking.walkSourceFrom(items, {
+const catalog = walking.materializeWalkSourceFromRecords(items, {
   id: (item) => item.id,
   outgoing: (item) =>
     Array.from({ length: item.index === 0 ? 2 : 1 }, () => ({
@@ -43,7 +43,7 @@ const catalog = walking.walkSourceFrom(items, {
   roots: [objectId],
 });
 const mixed = [
-  ...new root.GraphWalk({ source: catalog }).makeRunner().getIterable({
+  ...new root.GraphWalk({ source: catalog }).createRunner().getIterable({
     emitPhases: [Phase.VERTEX, Phase.EDGE],
   }),
 ];
@@ -76,15 +76,15 @@ assert.equal(
 for (const Factory of [cjsWalking.GraphWalk, walking.AsyncGraphWalk]) {
   for (const predicate of ['followEdge', 'expandVertex']) {
     const walk = new Factory({ source: catalog, [predicate]: () => false });
-    const filtered = walk.makeRunner();
+    const filtered = walk.createRunner();
     await filtered.run();
     assert.equal(filtered.summary().counts.foundVertices, 1);
     walk.configure({ [predicate]: undefined });
-    const retained = walk.makeRunner();
+    const retained = walk.createRunner();
     await retained.run();
     assert.equal(retained.summary().counts.foundVertices, 1);
     walk.configure({ [predicate]: null });
-    const reset = walk.makeRunner();
+    const reset = walk.createRunner();
     await reset.run();
     assert.equal(reset.summary().counts.foundVertices, 6);
   }
@@ -113,7 +113,7 @@ const stream = new walking.AsyncGraphWalk({
       }
     },
   },
-}).makeRunner();
+}).createRunner();
 const streamed = [];
 for await (const event of stream.getIterable({
   emitPhases: [Phase.VERTEX, Phase.EDGE],
@@ -136,7 +136,7 @@ assert.deepEqual(
 assert.equal(stream.summary().counts.omittedVertices, 1);
 
 const routes = [];
-const self = walking.walkSourceFrom([{ id: symbolId }], {
+const self = walking.materializeWalkSourceFromRecords([{ id: symbolId }], {
   id: (item) => item.id,
   outgoing: (item) => [{ to: item.id, data: relation }],
   roots: [symbolId],
@@ -182,8 +182,8 @@ for (const asynchronous of [false, true]) {
     outgoing: () => [],
   };
   const runner = asynchronous
-    ? new cjs.AsyncGraphWalk({ source }).makeRunner()
-    : new walking.GraphWalk({ source }).makeRunner();
+    ? new cjs.AsyncGraphWalk({ source }).createRunner()
+    : new walking.GraphWalk({ source }).createRunner();
   const iterator = runner.getIterable();
   assert.equal((await iterator.next()).value.kind, 'vertex');
   await iterator.return(undefined);
@@ -215,7 +215,7 @@ assert.deepEqual(callbacks, ['halt']);
 await paused.run();
 assert.deepEqual(callbacks, ['halt', 'tail']);
 
-const materialized = await walking.walkSourceFromAsync(
+const materialized = await walking.materializeWalkSourceFromRecordsAsync(
   (async function* () {
     yield items[0];
   })(),
@@ -232,7 +232,7 @@ assert.equal(
   1,
 );
 
-const projected = walking.walkSourceFromDag(
+const projected = walking.materializeWalkSourceFromDagDefinition(
   root.defineDag({
     vertices: [
       {

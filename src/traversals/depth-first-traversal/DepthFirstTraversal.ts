@@ -10,8 +10,8 @@ import type {
   VisitorPhaseInput,
   VisitorGroupDefinition,
 } from '@core/TraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import { Traversal } from '@core/Traversal';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import { TreeTraversal } from '@core/Traversal';
 import type {
   DepthFirstTraversalInstanceConfig,
   DepthFirstTraversalInstanceConfigInput,
@@ -27,12 +27,12 @@ import type {
 } from '@core/TraversalVisitor';
 import { initVisitors } from '@depth-first-traversal/init-helpers/initVisitors';
 import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { DepthFirstTraversalRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
+import { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
 
-export class DepthFirstTraversal<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
-> extends Traversal<DepthFirstTraversalOrder, TTP, RW_TTP> {
+export class DepthFirstTreeTraversal<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> extends TreeTraversal<DepthFirstTraversalOrder, TTP, RW_TTP> {
   icfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
 
   visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
@@ -121,8 +121,8 @@ export class DepthFirstTraversal<
     return this;
   }
 
-  makeRunner() {
-    return new DepthFirstTraversalRunner({
+  createRunner() {
+    return new DepthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,
     });

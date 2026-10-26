@@ -36,7 +36,7 @@ import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { ChainState, FrameState, KernelOptions } from '@core/kernelTypes';
 import { PrerequisiteResolution } from '@core/scheduling/PrerequisiteResolution';
 import { GraphScheduling } from '@core/scheduling/GraphScheduling';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { VisitorChain } from '@core/visitors/VisitorChain';
 import { deepFreeze } from '@utils/deepFreeze';
 import {
@@ -83,8 +83,8 @@ function normalizeDagSettlementOutcome(
 }
 
 type PendingRequest<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
 > = {
   call: CallSpec<T, R>;
   submitted: boolean;
@@ -93,22 +93,22 @@ type PendingRequest<
 };
 
 type ChainRuntime<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
 > = {
   state: ChainState<T, R>;
   machine: VisitorChain<T, R>;
 };
 
-type Boundary<T extends TreeTypeParameters> = {
+type Boundary<T extends VertexTypes> = {
   id: number;
   event: KernelEvent<T>;
   expandAfter: boolean;
 };
 
 type CallAction<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
 > = Extract<KernelAction<T, R>, { kind: 'CALL' }>;
 
 type PolicyOrders = {
@@ -117,8 +117,8 @@ type PolicyOrders = {
 };
 
 type CallInput<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
 > = CallSpec<T, R> extends infer C
   ? C extends { requestId: number }
     ? Omit<C, 'requestId'>
@@ -126,13 +126,13 @@ type CallInput<
   : never;
 
 type FrameCall<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
 > = Extract<CallSpec<T, R>, { kind: 'SORT_HINTS' | 'HINT_ID' | 'MAKE_VERTEX' }>;
 
 export class TraversalKernel<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > implements KernelPort<T, R>
 {
   private readonly prerequisites: PrerequisiteResolution | null;

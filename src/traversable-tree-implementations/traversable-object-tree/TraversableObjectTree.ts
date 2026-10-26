@@ -4,10 +4,10 @@ import {
 } from '@core/drivers/normalizeSourceResult';
 import { normalizeVertexContent } from '@core/Vertex';
 import {
-  AbstractTraversableTree,
+  AbstractTreeSource,
   MakeVertexOptions,
   MakeTreeVertexResult,
-  TreeSourceVertexResult,
+  TreeVertexResolution,
 } from '@core/TraversableTree';
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
@@ -25,13 +25,13 @@ type ObjectCycleState = {
   originalIdentityByVertexRef: WeakMap<object, object | null>;
 };
 
-export class TraversableObjectTree<
+export class ObjectTreeSource<
   In = TraversableObject<TraversableObjectPropKey, unknown>,
   InK extends TraversableObjectPropKey = TraversableObjectPropKey,
   InV = TraversableObject<TraversableObjectPropKey, unknown> | unknown,
   OutK extends TraversableObjectPropKey = InK,
   OutV = InV,
-> extends AbstractTraversableTree<
+> extends AbstractTreeSource<
   TraversableObjectTTP<InK, InV>,
   TraversableObjectTTP<OutK, OutV>
 > {
@@ -88,10 +88,10 @@ export class TraversableObjectTree<
     this.icfg = {
       getChildrenOfProperty:
         otherOptions.getChildrenOfProperty ??
-        TraversableObjectTree.getChildrenOfPropertyDefault,
+        ObjectTreeSource.getChildrenOfPropertyDefault,
       getRootPropertyFromInputObject:
         otherOptions.getRootPropertyFromInputObject ??
-        TraversableObjectTree.getRootPropertyFromInputObjectDefault(),
+        ObjectTreeSource.getRootPropertyFromInputObjectDefault(),
       ...otherOptions,
       resolveVertexHook,
       makeVertexHook: makeVertexHook ?? null,
@@ -101,7 +101,7 @@ export class TraversableObjectTree<
   static makeMutationCommandFactory = makeMutationCommandFactory;
 
   /** Retains the published untagged direct result; custom sources should use tagged results. */
-  makeRoot(): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
+  resolveRoot(): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
     const { getChildrenOfProperty, getRootPropertyFromInputObject } = this.icfg;
     const rootProp = getRootPropertyFromInputObject(this.rootObject);
     this.originalIdentityByVertexData.set(
@@ -118,7 +118,7 @@ export class TraversableObjectTree<
   }
 
   /** Retains direct vertexContent access, including null omission, for compatibility. */
-  makeVertex(
+  resolveChild(
     vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
     options: MakeVertexOptions<
       TraversableObjectTTP<InK, InV>,
@@ -127,7 +127,7 @@ export class TraversableObjectTree<
   ): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
     const canonicalHook = this.icfg.resolveVertexHook;
     let result:
-      | TreeSourceVertexResult<TraversableObjectTTP<InK, InV>>
+      | TreeVertexResolution<TraversableObjectTTP<InK, InV>>
       | undefined;
     if (canonicalHook !== undefined) {
       const resolved = canonicalHook(vertexHint, options);

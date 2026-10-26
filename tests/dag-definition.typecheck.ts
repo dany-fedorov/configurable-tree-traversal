@@ -6,8 +6,8 @@ import {
   prepareDag,
   prepareDagDefinition,
   type DagDefinitionIssue,
-  type DagDefinitionResult,
-  graphFrom,
+  type PrepareDagResult,
+  materializeDagSourceFromRecords,
 } from '../src';
 
 import { prepareDagDefinition as requirePrepareDagDefinition } from '../src/traversals/dag-traversal';
@@ -40,7 +40,7 @@ defineDag<Data, ID>({
   omittedIds: ['wrong'],
   entry: { kind: 'empty' },
 });
-const prepared = prepareDag(graphFrom<Data, ID>([], { id: () => 'a' }));
+const prepared = prepareDag(materializeDagSourceFromRecords<Data, ID>([], { id: () => 'a' }));
 if (prepared.kind === 'valid') {
   const captured: DagDefinition<Data, ID> = prepared.dag.definition;
   const runner = prepared.dag.createRunner();
@@ -52,7 +52,7 @@ if (prepared.kind === 'valid') {
 }
 void definition;
 
-const validated: DagDefinitionResult<Data, ID> =
+const validated: PrepareDagResult<Data, ID> =
   prepareDagDefinition(definition);
 if (validated.kind === 'valid') {
   const id: ID = validated.dag.vertices[0]!.vertexId;

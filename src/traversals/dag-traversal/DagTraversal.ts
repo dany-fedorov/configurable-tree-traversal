@@ -9,7 +9,7 @@ import type {
   VisitorPhaseInput,
   VisitorGroupDefinition,
 } from '@core/TraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import type { VisitorRecord } from '@core/graph/types';
 import {
@@ -30,8 +30,8 @@ import type { DagTraversalOrder } from './lib/DagTraversalOrder';
 import { DagTraversalRunner } from './lib/DagTraversalRunner';
 
 export class DagTraversal<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > {
   icfg: DagTraversalInstanceConfig<T, R, ID>;
@@ -131,7 +131,7 @@ export class DagTraversal<
     return this;
   }
 
-  makeRunner(): DagTraversalRunner<T, R, ID> {
+  createRunner(): DagTraversalRunner<T, R, ID> {
     return new DagTraversalRunner({ ...this.icfg, visitors: this.visitors });
   }
 }

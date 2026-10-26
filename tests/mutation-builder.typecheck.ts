@@ -1,16 +1,16 @@
 import {
-  TraversableObjectTree,
+  ObjectTreeSource,
   TraversalVisitorCommandName,
   type MakeMutationCommandFunction,
   type MakeMutationCommandFunctionFactory,
-  type TreeTypeParameters,
+  type VertexTypes,
   type TraversableObjectTTP,
 } from '../src';
 import { makeMutationCommandFactory } from '../src/traversable-tree-implementations/traversable-object-tree';
 
 type Input = TraversableObjectTTP<string, unknown>;
 type Output = TraversableObjectTTP<string, number>;
-const factory = TraversableObjectTree.makeMutationCommandFactory<
+const factory = ObjectTreeSource.makeMutationCommandFactory<
   Input,
   Output
 >();
@@ -47,7 +47,7 @@ optionalFactory(...optionalArgs).makeMutationCommand({
   rewrite: { value: undefined },
 });
 // @ts-expect-error Object factories require object property data, not arbitrary vertex data.
-makeMutationCommandFactory<TreeTypeParameters<number>, Output>();
+makeMutationCommandFactory<VertexTypes<number>, Output>();
 makeMutationCommandFactory<Input, Output>({
   // @ts-expect-error Classifiers cannot narrow their accepted input data.
   isArray: (_data: { key: string; value: number }) => false,

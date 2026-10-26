@@ -122,7 +122,7 @@ it('reports in-flight requests passively from inside source calls', () => {
   };
   const runner: GraphWalkRunner<string, unknown, string> = new GraphWalk({
     source,
-  }).makeRunner();
+  }).createRunner();
   const iterator = runner.getIterable({
     visitorPhases: { exclude: [Phase.PATH] },
   });

@@ -4,10 +4,10 @@ import {
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { VisitorChain } from '../src/core/visitors/VisitorChain';
 
-type Tree = TreeTypeParameters<string, string>;
+type Tree = VertexTypes<string, string>;
 
 const ref = () => new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
 const metadata = () => ({

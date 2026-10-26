@@ -2,9 +2,9 @@ import type { DagEvent } from '../src/traversals/dag-traversal/lib/DagTraversalV
 import type { DagTraversalRunner } from '../src/traversals/dag-traversal/lib/DagTraversalRunner';
 import type { AsyncDagTraversalRunner } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalRunner';
 import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type G = TreeTypeParameters<{ task: string }, string>;
+type G = VertexTypes<{ task: string }, string>;
 type ID = { readonly key: unique symbol };
 declare const runner: DagTraversalRunner<G, G, ID>;
 declare const asyncRunner: AsyncDagTraversalRunner<G, G, ID>;

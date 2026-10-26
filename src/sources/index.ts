@@ -1,10 +1,10 @@
-export { graphFrom, graphFromAsync } from './graphFrom';
-export { forestFrom, forestFromAsync } from './forestFrom';
+export { materializeDagSourceFromRecords, materializeDagSourceFromRecordsAsync } from './graphFrom';
+export { materializeDagSourceFromRoots, materializeDagSourceFromRootsAsync } from './forestFrom';
 export type {
-  CollectionSource,
-  GraphSelectors,
-  ForestSelectors,
+  MaterializedDagSource,
+  DagRecordSelectors,
+  DagRootSelectors,
   AsyncCollection,
-  AsyncGraphSelectors,
-  AsyncForestSelectors,
+  AsyncDagRecordSelectors,
+  AsyncDagRootSelectors,
 } from './types';

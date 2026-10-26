@@ -3,23 +3,23 @@ import {
   DepthFirstTraversalOrder,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
-  traverseBreadthFirstAsync,
+  traverseTreeBreadthFirstAsync,
 } from '../src';
-import { traverseDepthFirstAsync } from '../src/traversals/depth-first-traversal';
-import type { AsyncTraversableTree } from '../src/core/AsyncTraversableTree';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import { traverseTreeDepthFirstAsync } from '../src/traversals/depth-first-traversal';
+import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type TestTree = TreeTypeParameters<string, string>;
+type TestTree = VertexTypes<string, string>;
 
-function tree(root: string): AsyncTraversableTree<TestTree> {
+function tree(root: string): AsyncTreeSource<TestTree> {
   return {
-    makeRoot: async () => ({ vertexContent: { $d: root, $c: [] } }),
-    makeVertex: async () => ({ vertexContent: null }),
+    resolveRoot: async () => ({ vertexContent: { $d: root, $c: [] } }),
+    resolveChild: async () => ({ vertexContent: null }),
   };
 }
 
 test('async tree helpers run nullable visitors and preserve tree source precedence', async () => {
-  const depthRunner = await traverseDepthFirstAsync(tree('argument'), null, {
+  const depthRunner = await traverseTreeDepthFirstAsync(tree('argument'), null, {
     traversableTree: tree('config'),
   });
 
@@ -28,13 +28,13 @@ test('async tree helpers run nullable visitors and preserve tree source preceden
     'config',
   );
 
-  const breadthRunner = await traverseBreadthFirstAsync(tree('root'), null);
+  const breadthRunner = await traverseTreeBreadthFirstAsync(tree('root'), null);
   expect(breadthRunner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });
 
 test('async breadth-first helper registers its visitor and returns a halted runner', async () => {
   const visits: string[] = [];
-  const runner = await traverseBreadthFirstAsync(
+  const runner = await traverseTreeBreadthFirstAsync(
     tree('root'),
     async (vertex) => {
       visits.push(vertex.getData());
@@ -52,7 +52,7 @@ test('async breadth-first helper registers its visitor and returns a halted runn
 
 test('async depth-first helper registers each named visitor', async () => {
   const orders: DepthFirstTraversalOrder[] = [];
-  const runner = await traverseDepthFirstAsync(tree('root'), {
+  const runner = await traverseTreeDepthFirstAsync(tree('root'), {
     preOrderVisitor: async (_vertex, options) => {
       orders.push(options.order);
     },

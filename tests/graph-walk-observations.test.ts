@@ -4,7 +4,7 @@ import { contextFixture, idGraph } from './helpers/graph-walk-fixtures';
 it('observes vertices and every parallel/returning relationship in one pass', () => {
   const { source, calls } = contextFixture();
   const walker = new GraphWalk({ source });
-  const runner = walker.makeRunner();
+  const runner = walker.createRunner();
   expect(calls).toEqual([]);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.INITIAL);
   const events = [
@@ -61,7 +61,7 @@ it('observes vertices and every parallel/returning relationship in one pass', ()
 
 it('discovers depth first in source order without pulling the next root early', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).makeRunner();
+  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).createRunner();
   const iterator = runner.getIterable({ emitPhases: [GraphWalkPhase.VERTEX] });
   expect(iterator.next().value).toMatchObject({
     kind: 'vertex',
@@ -87,7 +87,7 @@ it('projects first-discovery prefix paths including isolated roots', () => {
   );
   const events = [
     ...new GraphWalk({ source })
-      .makeRunner()
+      .createRunner()
       .getIterable({ emitPhases: [GraphWalkPhase.PATH] }),
   ];
   expect(
@@ -105,11 +105,11 @@ it('projects first-discovery prefix paths including isolated roots', () => {
 
 it('selects edges independently and runs to exhaustion without selecting any records', () => {
   const { source } = contextFixture();
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect([
     ...runner.getIterable({ emitPhases: [GraphWalkPhase.EDGE] }),
   ]).toHaveLength(6);
-  const hidden = new GraphWalk({ source, emitPhases: [] }).makeRunner();
+  const hidden = new GraphWalk({ source, emitPhases: [] }).createRunner();
   expect(hidden.run()).toBe(hidden);
   expect(hidden.summary()).toEqual(runner.summary());
   expect([...runner.getIterable()]).toEqual([]);
@@ -117,7 +117,7 @@ it('selects edges independently and runs to exhaustion without selecting any rec
 
 it('pauses without expanding yielded occurrences and resumes pending phases with new selectors', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect(runner.requestPause()).toBe(false);
   expect(runner.getStopReason()).toBeNull();
   expect(runner.isHalted()).toBe(false);
@@ -174,7 +174,7 @@ it('retains detached emitted wrappers across caller mutation', () => {
       ['B', []],
     ],
   );
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   const iterator = runner.getIterable({
     emitPhases: [GraphWalkPhase.EDGE, GraphWalkPhase.PATH],
   });
@@ -197,7 +197,7 @@ it('retains detached emitted wrappers across caller mutation', () => {
 it('protects execution ownership and validates selector patches atomically', () => {
   const runner = new GraphWalk({
     source: idGraph(['A'], [['A', []]]),
-  }).makeRunner();
+  }).createRunner();
   const iterator = runner.getIterable();
   iterator.next();
   expect(() => runner.run()).toThrow('execution owner');
@@ -212,7 +212,7 @@ it('protects execution ownership and validates selector patches atomically', () 
       visitorPhases: { exclude: [GraphWalkPhase.EDGE] },
     }),
   ).toBe(factory);
-  const configured = factory.makeRunner();
+  const configured = factory.createRunner();
   expect(configured.inspect().iterableConfig.visitorPhases).toEqual({
     exclude: [GraphWalkPhase.EDGE],
   });
@@ -221,7 +221,7 @@ it('protects execution ownership and validates selector patches atomically', () 
 
 it('acknowledges an existing pause request when the iterator owner returns', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   const iterator = runner.getIterable();
   iterator.next();
   expect(runner.requestPause()).toBe(true);

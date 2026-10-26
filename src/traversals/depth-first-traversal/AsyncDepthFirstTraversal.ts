@@ -12,7 +12,7 @@ import type {
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import {
   ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -21,12 +21,12 @@ import {
   type AsyncDepthFirstTraversalInstanceConfigInput,
   type AsyncDepthFirstTraversalVisitors,
 } from '@depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
-import { AsyncDepthFirstTraversalRunner } from '@depth-first-traversal/lib/AsyncDepthFirstTraversalRunner';
+import { AsyncDepthFirstTreeRunner } from '@depth-first-traversal/lib/AsyncDepthFirstTraversalRunner';
 import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 
-export class AsyncDepthFirstTraversal<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+export class AsyncDepthFirstTreeTraversal<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > {
   icfg: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
   visitors: AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>;
@@ -120,8 +120,8 @@ export class AsyncDepthFirstTraversal<
     return this;
   }
 
-  makeRunner(): AsyncDepthFirstTraversalRunner<TTP, RW_TTP> {
-    return new AsyncDepthFirstTraversalRunner({
+  createRunner(): AsyncDepthFirstTreeRunner<TTP, RW_TTP> {
+    return new AsyncDepthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,
     });

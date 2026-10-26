@@ -1,5 +1,5 @@
 const { performance } = require('node:perf_hooks');
-const { DepthFirstTraversal, BreadthFirstTraversal } = require('../dist');
+const { DepthFirstTreeTraversal, BreadthFirstTreeTraversal } = require('../dist');
 const count = Number(process.argv[2] ?? 50000);
 if (!Number.isSafeInteger(count) || count < 1) {
   throw new TypeError('Provide a positive integer vertex count');
@@ -20,14 +20,14 @@ for (const [shape, root] of [
   ['deep', deep],
   ['wide', wide],
 ]) {
-  for (const Strategy of [DepthFirstTraversal, BreadthFirstTraversal]) {
+  for (const Strategy of [DepthFirstTreeTraversal, BreadthFirstTreeTraversal]) {
     const tree = {
-      makeRoot: () => ({ vertexContent: root }),
-      makeVertex: (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => ({ vertexContent: root }),
+      resolveChild: (hint) => ({ vertexContent: hint }),
     };
     const start = performance.now();
     new Strategy({ traversableTree: tree })
-      .makeRunner()
+      .createRunner()
       .run({ iterateOver: [] });
     results.push({
       shape,

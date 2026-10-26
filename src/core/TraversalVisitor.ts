@@ -1,4 +1,4 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { ResolvedTree } from '@core/ResolvedTree';
 import type { CTTRef } from '@core/CTTRef';
@@ -19,7 +19,7 @@ export enum TraversalVisitorCommandName {
 }
 
 export type TraversalVisitorCommandArguments<
-  RW_TTP extends TreeTypeParameters,
+  RW_TTP extends VertexTypes,
 > = {
   [TraversalVisitorCommandName.NOOP]: never;
   [TraversalVisitorCommandName.DEFER_READY]: never;
@@ -41,7 +41,7 @@ export type TraversalVisitorCommandArguments<
 };
 
 export type TraversalVisitorCommand<
-  RW_TTP extends TreeTypeParameters,
+  RW_TTP extends VertexTypes,
   T extends TraversalVisitorCommandName = TraversalVisitorCommandName,
 > = {
   [Name in T]: { commandName: Name } & ([
@@ -63,7 +63,7 @@ type CommonCommand = Exclude<
 >;
 
 export type TraversalVisitorResult<
-  RW_TTP extends TreeTypeParameters,
+  RW_TTP extends VertexTypes,
   ORDER extends string = string,
 > =
   | {
@@ -88,8 +88,8 @@ export type TraversalVisitorResult<
 
 export type TraversalVisitorInputOptions<
   ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = {
   resolvedTree: ResolvedTree<TTP | RW_TTP>;
   notMutatedResolvedTree: ResolvedTree<TTP> | null;
@@ -164,8 +164,8 @@ export type VisitorRegistrationMetadata = Readonly<
 
 export type TraversalVisitorRecord<
   ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>;
 
 export const DEFAULT_VISITOR_PRIORITY = 100;
@@ -181,8 +181,8 @@ export const DEFAULT_VISITOR_FN_OPTIONS = deepFreeze({
 // remain assignable to a narrower phase's superset of allowed commands).
 export type TraversalVisitor<
   ORDER extends string = string,
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > = TraversalVisitorResult<RW_TTP, ORDER> extends infer RESULT
   ? (
       vertex: Vertex<TTP | RW_TTP>,

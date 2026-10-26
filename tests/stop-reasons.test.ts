@@ -5,29 +5,29 @@ import {
   DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
 } from '../src/traversals/depth-first-traversal';
 import {
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
 } from '../src/traversals/breadth-first-traversal';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 const tree = {
-  makeRoot: () => ({ vertexContent: { $data: 'A', $childHints: ['B'] } }),
-  makeVertex: () => ({ vertexContent: { $data: 'B', $childHints: [] } }),
+  resolveRoot: () => ({ vertexContent: { $data: 'A', $childHints: ['B'] } }),
+  resolveChild: () => ({ vertexContent: { $data: 'B', $childHints: [] } }),
 };
 const graph = {
-  makeRoot: () => ({
+  resolveRoot: () => ({
     vertexId: 'A',
     vertexContent: { $data: 'A', $childHints: [] },
   }),
-  makeVertex: tree.makeVertex,
+  resolveChild: tree.resolveChild,
 };
 function expectReason(
   runner: {
@@ -41,15 +41,15 @@ function expectReason(
 }
 
 for (const Constructor of [
-  DepthFirstTraversal<G>,
-  BreadthFirstTraversal<G>,
+  DepthFirstTreeTraversal<G>,
+  BreadthFirstTreeTraversal<G>,
   DagTraversal<G>,
-  AsyncDepthFirstTraversal<G>,
-  AsyncBreadthFirstTraversal<G>,
+  AsyncDepthFirstTreeTraversal<G>,
+  AsyncBreadthFirstTreeTraversal<G>,
   AsyncDagTraversal<G>,
 ]) {
   test(`${Constructor.name} reports initial, running, iterator pause, resume, and finish boundaries`, async () => {
-    const runner = new Constructor({ traversableTree: tree }).makeRunner();
+    const runner = new Constructor({ traversableTree: tree }).createRunner();
     expectReason(runner, null);
     for await (const event of runner.getIterable()) {
       expect(event.vertex.getData()).toBe('A');
@@ -71,11 +71,11 @@ for (const Constructor of [
       const runner = new Constructor({
         traversableTree: {
           ...tree,
-          makeRoot: () => {
+          resolveRoot: () => {
             throw error;
           },
         },
-      }).makeRunner();
+      }).createRunner();
       await expect(async () => {
         await runner.run();
       }).rejects.toBe(error);
@@ -92,7 +92,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} keeps the preceding settlement stop until resume`, async () => {
     const traversal = new Constructor({ traversableGraph: graph });
     traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expectReason(runner, 'awaitingSettlement');
     const generation = runner.summary().vertices.get('A')!.generation!;
@@ -114,7 +114,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       }
       return undefined;
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expectReason(runner, 'paused');
     await runner.run();
@@ -126,7 +126,7 @@ test('async pause has no stop reason while admitted callbacks drain', async () =
   const release = deferred<void>();
   const traversal = new AsyncDagTraversal<G>({ traversableGraph: graph });
   traversal.addVisitorFor(Order.ON_READY, () => release.promise);
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const iterator = runner.getIterable();
   const next = iterator.next();
   await eventLoopTurn();
@@ -141,36 +141,36 @@ test('async pause has no stop reason while admitted callbacks drain', async () =
 });
 
 for (const Constructor of [
-  DepthFirstTraversal<G>,
-  AsyncDepthFirstTraversal<G>,
+  DepthFirstTreeTraversal<G>,
+  AsyncDepthFirstTreeTraversal<G>,
 ]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
-    const state = new DepthFirstTraversal<G>({
+    const state = new DepthFirstTreeTraversal<G>({
       traversableTree: tree,
-    }).makeRunner().state;
+    }).createRunner().state;
     state.status = Status.HALTED;
     const runner = new Constructor({
       traversableTree: tree,
       traversalRunnerInternalObjects: { state },
-    }).makeRunner();
+    }).createRunner();
     expectReason(runner, 'paused');
     await runner.run();
     expectReason(runner, 'finished');
   });
 }
 for (const Constructor of [
-  BreadthFirstTraversal<G>,
-  AsyncBreadthFirstTraversal<G>,
+  BreadthFirstTreeTraversal<G>,
+  AsyncBreadthFirstTreeTraversal<G>,
 ]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
-    const state = new BreadthFirstTraversal<G>({
+    const state = new BreadthFirstTreeTraversal<G>({
       traversableTree: tree,
-    }).makeRunner().state;
+    }).createRunner().state;
     state.status = Status.HALTED;
     const runner = new Constructor({
       traversableTree: tree,
       traversalRunnerInternalObjects: { state },
-    }).makeRunner();
+    }).createRunner();
     expectReason(runner, 'paused');
     await runner.run();
     expectReason(runner, 'finished');
@@ -178,13 +178,13 @@ for (const Constructor of [
 }
 for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
-    const state = new DagTraversal<G>({ traversableGraph: graph }).makeRunner()
+    const state = new DagTraversal<G>({ traversableGraph: graph }).createRunner()
       .state;
     state.status = Status.HALTED;
     const runner = new Constructor({
       traversableGraph: graph,
       traversalRunnerInternalObjects: { state },
-    }).makeRunner();
+    }).createRunner();
     expectReason(runner, 'paused');
     await runner.run();
     expectReason(runner, 'finished');

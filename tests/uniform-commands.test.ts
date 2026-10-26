@@ -3,24 +3,24 @@ import {
   AsyncDagTraversal,
   DagTraversalOrder as DagOrder,
   DEFER_READY,
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
   DepthFirstTraversalOrder as DfsOrder,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
   BreadthFirstTraversalOrder as BfsOrder,
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src';
-import type { TreeTypeParameters } from '../src';
+import type { VertexTypes } from '../src';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 const source = {
-  makeRoot: () => ({
+  resolveRoot: () => ({
     vertexId: 'root',
     vertexContent: { $data: 'root', $childHints: [] as string[] },
   }),
-  makeVertex: (id: string) => ({
+  resolveChild: (id: string) => ({
     vertexId: id,
     vertexContent: { $data: id, $childHints: [] as string[] },
   }),
@@ -53,7 +53,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       traversal.addVisitorFor(DagOrder.ON_READY, () => {
         throw new Error('must skip');
       });
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       await runner.run();
       expect(runner.summary().deferredIds).toEqual(['root']);
       expect(runner.summary().completedWorkIds).toEqual([]);
@@ -85,7 +85,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
           ],
         } as never),
     );
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await expect(async () => {
       await runner.run();
     }).rejects.toThrow(/sole command/);
@@ -95,10 +95,10 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   });
 }
 for (const [Constructor, order, sourceKey] of [
-  [DepthFirstTraversal<G>, DfsOrder.PRE_ORDER, 'traversableTree'],
-  [AsyncDepthFirstTraversal<G>, DfsOrder.PRE_ORDER, 'traversableTree'],
-  [BreadthFirstTraversal<G>, BfsOrder.LEVEL_ORDER, 'traversableTree'],
-  [AsyncBreadthFirstTraversal<G>, BfsOrder.LEVEL_ORDER, 'traversableTree'],
+  [DepthFirstTreeTraversal<G>, DfsOrder.PRE_ORDER, 'traversableTree'],
+  [AsyncDepthFirstTreeTraversal<G>, DfsOrder.PRE_ORDER, 'traversableTree'],
+  [BreadthFirstTreeTraversal<G>, BfsOrder.LEVEL_ORDER, 'traversableTree'],
+  [AsyncBreadthFirstTreeTraversal<G>, BfsOrder.LEVEL_ORDER, 'traversableTree'],
   [DagTraversal<G>, DagOrder.ON_READY, 'traversableGraph'],
   [AsyncDagTraversal<G>, DagOrder.ON_READY, 'traversableGraph'],
 ] as const) {
@@ -107,11 +107,11 @@ for (const [Constructor, order, sourceKey] of [
       [sourceKey]:
         sourceKey === 'traversableTree'
           ? {
-              makeRoot: () => ({
-                vertexContent: source.makeRoot().vertexContent,
+              resolveRoot: () => ({
+                vertexContent: source.resolveRoot().vertexContent,
               }),
-              makeVertex: (id: string) => ({
-                vertexContent: source.makeVertex(id).vertexContent,
+              resolveChild: (id: string) => ({
+                vertexContent: source.resolveChild(id).vertexContent,
               }),
             }
           : source,
@@ -121,7 +121,7 @@ for (const [Constructor, order, sourceKey] of [
     const seen: string[] = [];
     const add = traversal.addVisitorFor.bind(
       traversal,
-    ) as DepthFirstTraversal<G>['addVisitorFor'];
+    ) as DepthFirstTreeTraversal<G>['addVisitorFor'];
     add(order as DfsOrder.PRE_ORDER, (vertex, options) => {
       seen.push(vertex.$data);
       if (options.isTraversalRoot)
@@ -135,7 +135,7 @@ for (const [Constructor, order, sourceKey] of [
         };
       return undefined;
     });
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
     expect(seen).toEqual(['root', 'child']);
   });
   test(`${Constructor.name} normalizes configuration and replacement records and rejects conflicts`, async () => {
@@ -150,11 +150,11 @@ for (const [Constructor, order, sourceKey] of [
       },
     };
     traversal.configure({ visitors: { [order]: [record] } } as never);
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
     const listed = (
       traversal.listVisitorsFor.bind(
         traversal,
-      ) as DepthFirstTraversal<G>['listVisitorsFor']
+      ) as DepthFirstTreeTraversal<G>['listVisitorsFor']
     )(order as never);
     expect(listed[0]).toMatchObject({
       commandCommitMode: 'afterGroup',
@@ -163,7 +163,7 @@ for (const [Constructor, order, sourceKey] of [
     (
       traversal.setVisitorsFor.bind(
         traversal,
-      ) as DepthFirstTraversal<G>['setVisitorsFor']
+      ) as DepthFirstTreeTraversal<G>['setVisitorsFor']
     )(
       order as never,
       [
@@ -175,7 +175,7 @@ for (const [Constructor, order, sourceKey] of [
         },
       ] as never,
     );
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
     expect(seen).toEqual(['configured', 'replaced']);
     const conflict = { ...record, resolutionStyle: Style.SEQUENTIAL };
     expect(() =>
@@ -185,7 +185,7 @@ for (const [Constructor, order, sourceKey] of [
       (
         traversal.setVisitorsFor.bind(
           traversal,
-        ) as DepthFirstTraversal<G>['setVisitorsFor']
+        ) as DepthFirstTreeTraversal<G>['setVisitorsFor']
       )(order as never, [conflict] as never),
     ).toThrow(/conflict/i);
   });
@@ -195,11 +195,11 @@ for (const [Constructor, order, sourceKey] of [
       [sourceKey]:
         sourceKey === 'traversableTree'
           ? {
-              makeRoot: () => ({
-                vertexContent: source.makeRoot().vertexContent,
+              resolveRoot: () => ({
+                vertexContent: source.resolveRoot().vertexContent,
               }),
-              makeVertex: (id: string) => ({
-                vertexContent: source.makeVertex(id).vertexContent,
+              resolveChild: (id: string) => ({
+                vertexContent: source.resolveChild(id).vertexContent,
               }),
             }
           : source,
@@ -207,7 +207,7 @@ for (const [Constructor, order, sourceKey] of [
     const seen: string[] = [];
     const add = traversal.addVisitorFor.bind(
       traversal,
-    ) as DepthFirstTraversal<G>['addVisitorFor'];
+    ) as DepthFirstTreeTraversal<G>['addVisitorFor'];
     add(
       order as DfsOrder,
       (vertex) => {
@@ -245,7 +245,7 @@ for (const [Constructor, order, sourceKey] of [
       },
       { commandCommitMode: 'afterEachVisitor' },
     );
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
     expect(seen).toEqual(['group1:root', 'group2:root', 'each:changed']);
     expect(() =>
       add(order as DfsOrder, () => undefined, {
@@ -270,7 +270,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     traversal.addVisitorFor(DagOrder.ON_READY, () => ({
       commands: [{ commandName: Command.DEFER_READY }],
     }));
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expect(runner.getResolvedGraph().getVertexById('root')!.unref().$data).toBe(
       'kept',
@@ -298,7 +298,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       const completion = new Constructor({ traversableGraph: source });
       completion.addVisitorFor(DagOrder.ON_COMPLETE, rewrite as never);
       await expect(async () => {
-        await completion.makeRunner().run();
+        await completion.createRunner().run();
       }).rejects.toThrow(/ON_READY/);
       const eager = new Constructor({
         traversableGraph: source,
@@ -306,7 +306,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       });
       eager.addVisitorFor(DagOrder.ON_READY, rewrite);
       await expect(async () => {
-        await eager.makeRunner().run();
+        await eager.createRunner().run();
       }).rejects.toThrow(/eager discovery/);
     },
   );
@@ -318,7 +318,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       () => ({ commands: [{ commandName: Command.DEFER_READY }] } as never),
     );
     await expect(async () => {
-      await traversal.makeRunner().run();
+      await traversal.createRunner().run();
     }).rejects.toThrow(/ON_READY/);
   });
 }
@@ -329,11 +329,11 @@ test('async command deferral releases callback capacity while work prerequisites
     syntheticRoot: true,
     discovery: 'eager',
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexContent: { $data: '', $childHints: ['a', 'b', 'c'] },
       }),
-      makeVertex: (id) => ({
-        ...source.makeVertex(id),
+      resolveChild: (id) => ({
+        ...source.resolveChild(id),
         dependsOn: id === 'c' ? ['a'] : [],
       }),
     },
@@ -343,7 +343,7 @@ test('async command deferral releases callback capacity while work prerequisites
     seen.push(vertex.$data);
     return { commands: [{ commandName: Command.DEFER_READY }] };
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   await runner.run();
   expect(seen).toEqual(['a', 'b']);
   expect(runner.summary().inFlightIds).toEqual([]);
@@ -378,7 +378,7 @@ test.each(['afterGroup', 'afterEachVisitor'] as const)(
     traversal.addVisitorFor(DagOrder.ON_READY, () => pending.promise, {
       commandCommitMode,
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     const running = runner.run();
     await eventLoopTurn();
     expect(runner.inspect().chains[0]).toMatchObject({ commandCommitMode });

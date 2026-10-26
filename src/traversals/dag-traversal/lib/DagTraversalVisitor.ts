@@ -1,15 +1,15 @@
 import type { DEFER_READY } from './DagProgress';
 import type { CTTRef } from '@core/CTTRef';
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { MaybePromise, VisitResult } from '@core/graph/types';
 import type { VisitorRegistrationMetadata } from '@core/TraversalVisitor';
 import type { DagTraversalOrder } from './DagTraversalOrder';
 
 export type DagVisitorOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
   ID = unknown,
 > = {
@@ -27,8 +27,8 @@ export type DagVisitorOptions<
 };
 
 export type DagVisitor<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
   ID = unknown,
 > =
@@ -43,15 +43,15 @@ export type DagVisitor<
   : never;
 
 export type AsyncDagVisitorOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
   ID = unknown,
 > = DagVisitorOptions<T, R, ORDER, ID>;
 
 export type AsyncDagVisitor<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
   ID = unknown,
 > =
@@ -70,7 +70,7 @@ export type AsyncDagVisitor<
  * including deferred settlement, while an `ON_READY` visitor runs before work.
  * Dispatch external work from coordinator frontier tickets or a pre-work visitor.
  */
-export type DagEvent<T extends TreeTypeParameters, ID = unknown> = {
+export type DagEvent<T extends VertexTypes, ID = unknown> = {
   vertexId: ID;
   vertex: Vertex<T>;
   vertexRef: CTTRef<Vertex<T>>;

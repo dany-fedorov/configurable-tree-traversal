@@ -1,17 +1,17 @@
 import {
   DagTraversal,
-  graphFrom,
-  inspectDag,
+  materializeDagSourceFromRecords,
+  inspectDagMilestones,
   type DagDependencyMilestone,
 } from '../src';
 
 const id = { name: 'leaf' };
 function inspection() {
   const runner = new DagTraversal(
-    graphFrom([id], { id: (value) => value }),
-  ).makeRunner();
+    materializeDagSourceFromRecords([id], { id: (value) => value }),
+  ).createRunner();
   runner.prepare();
-  return inspectDag(runner);
+  return inspectDagMilestones(runner);
 }
 
 for (const representation of ['prototype getters', 'non-enumerable fields']) {

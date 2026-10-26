@@ -1,14 +1,14 @@
 import type { CTTRef } from '@core/CTTRef';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
 import type { BreadthFirstTraversalVisitorsState } from './BreadthFirstTraversalVisitorsState';
 
 export function initBreadthFirstVisitorsState<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 >(): BreadthFirstTraversalVisitorsState<TTP, RW_TTP> {
   return {
     [BreadthFirstTraversalOrder.LEVEL_ORDER]: {
@@ -20,8 +20,8 @@ export function initBreadthFirstVisitorsState<
 }
 
 export class BreadthFirstTraversalRunnerState<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > {
   queue: VertexResolutionContext<TTP | RW_TTP>[];
   queueIndex: number;

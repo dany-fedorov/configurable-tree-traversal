@@ -21,7 +21,7 @@ import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
 import { TraversalKernel } from '@core/TraversalKernel';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -29,9 +29,9 @@ import {
 } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import { deepFreeze } from '@utils/deepFreeze';
-import { inspectDag as captureDagInspection } from '../inspectDag';
+import { inspectDagMilestones as captureDagInspection } from '../inspectDag';
 import { initDagVisitors } from '../init-helpers/initVisitors';
-import type { DagInspection } from './DagInspection';
+import type { DagMilestoneSnapshot } from './DagInspection';
 import type { DagTraversalInstanceConfig } from './DagTraversalInstanceConfig';
 import { DagPolicy } from './DagPolicy';
 import { DagTraversalOrder } from './DagTraversalOrder';
@@ -49,14 +49,14 @@ import {
 } from './DagTerminalObservation';
 
 type Event<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID,
 > = DagEvent<T | R, ID>;
 
 export class DagTraversalRunner<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > {
   private readonly terminalObservation: ReturnType<
@@ -266,7 +266,7 @@ export class DagTraversalRunner<
   }
 
   /** Capture synchronously without advancing discovery or acquiring iterator ownership. */
-  inspectDag(): DagInspection<ID> {
+  inspectMilestones(): DagMilestoneSnapshot<ID> {
     return captureDagInspection(this);
   }
 

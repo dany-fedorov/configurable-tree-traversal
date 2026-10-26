@@ -1,10 +1,10 @@
 import {
   CTTRef,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
   DepthFirstTraversalResolvedTreesContainer,
   ResolvedTree,
-  type TreeTypeParameters,
+  type VertexTypes,
   TraversalVisitorCommandName,
   Vertex,
   VertexResolved,
@@ -12,20 +12,20 @@ import {
 } from '../src';
 
 type Node = { $d: string; $c: Node[] };
-type TestTTP = TreeTypeParameters<string, Node>;
+type TestTTP = VertexTypes<string, Node>;
 type MutableNode = {
   $d: { label: string; nested: { count: number } };
   $c: MutableNode[];
 };
-type MutableDataTTP = TreeTypeParameters<MutableNode['$d'], MutableNode>;
+type MutableDataTTP = VertexTypes<MutableNode['$d'], MutableNode>;
 
 const node = ($d: string, ...$c: Node[]): Node => ({ $d, $c });
 
 function makeTraversal(root: Node, saveNotMutatedResolvedTree = false) {
-  return new DepthFirstTraversal<TestTTP>({
+  return new DepthFirstTreeTraversal<TestTTP>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: root }),
-      makeVertex: (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => ({ vertexContent: root }),
+      resolveChild: (hint) => ({ vertexContent: hint }),
     },
     saveNotMutatedResolvedTree,
   });
@@ -73,7 +73,7 @@ function getSavedParts(
 
 describe('saved resolved-tree consistency', () => {
   test('setting an existing ref with children keeps one saved ref and translates its topology', () => {
-    const container = makeTraversal(node('unused'), true).makeRunner()
+    const container = makeTraversal(node('unused'), true).createRunner()
       .resolvedTreesContainer;
     const childHint = node('child');
     const parentRef = makeRef('parent', [childHint]);
@@ -108,7 +108,7 @@ describe('saved resolved-tree consistency', () => {
   });
 
   test('rejecting an unknown saved child does not partially update the active tree', () => {
-    const container = makeTraversal(node('unused'), true).makeRunner()
+    const container = makeTraversal(node('unused'), true).createRunner()
       .resolvedTreesContainer;
     const parentRef = makeRef('parent');
     const unknownChildRef = makeRef('unknown');
@@ -128,7 +128,7 @@ describe('saved resolved-tree consistency', () => {
   });
 
   test('keeps the first vertex snapshot when an existing active ref is rewritten', () => {
-    const container = makeTraversal(node('unused'), true).makeRunner()
+    const container = makeTraversal(node('unused'), true).createRunner()
       .resolvedTreesContainer;
     const rootRef = makeRef('original');
     container.setRoot(rootRef);
@@ -155,7 +155,7 @@ describe('saved resolved-tree consistency', () => {
   });
 
   test('rejects unresolved parent and child mappings without inserting the vertex', () => {
-    const container = makeTraversal(node('unused'), true).makeRunner()
+    const container = makeTraversal(node('unused'), true).createRunner()
       .resolvedTreesContainer;
     const unknownParentRef = makeRef('unknown-parent');
     const childHint = node('child');
@@ -188,7 +188,7 @@ describe('saved resolved-tree consistency', () => {
   });
 
   test('shares all three resolved-tree stores when a container is injected', () => {
-    const source = makeTraversal(node('unused'), true).makeRunner()
+    const source = makeTraversal(node('unused'), true).createRunner()
       .resolvedTreesContainer;
     const rootRef = makeRef('root');
     const firstHint = node('first');
@@ -201,7 +201,7 @@ describe('saved resolved-tree consistency', () => {
       .configure({
         traversalRunnerInternalObjects: { resolvedTreesContainer: source },
       })
-      .makeRunner().resolvedTreesContainer;
+      .createRunner().resolvedTreesContainer;
     expect(injected.resolvedTree).toBe(source.resolvedTree);
     expect(injected.notMutatedResolvedTree).toBe(source.notMutatedResolvedTree);
     expect(injected.notMutatedResolvedTreeRefsMap).toBe(
@@ -278,7 +278,7 @@ describe('saved resolved-tree consistency', () => {
       }
     });
 
-    const runner = traversal.makeRunner().run();
+    const runner = traversal.createRunner().run();
     const activeTree = runner.getResolvedTree();
     const activeRootRef = activeTree.getRoot();
     if (activeRootRef === null) throw new Error('Expected an active root');
@@ -324,14 +324,14 @@ describe('saved resolved-tree consistency', () => {
   test('copies structural arrays while shallowly sharing user data', () => {
     const sharedData = { label: 'root', nested: { count: 1 } };
     const root: MutableNode = { $d: sharedData, $c: [] };
-    const runner = new DepthFirstTraversal<MutableDataTTP>({
+    const runner = new DepthFirstTreeTraversal<MutableDataTTP>({
       traversableTree: {
-        makeRoot: () => ({ vertexContent: root }),
-        makeVertex: (hint) => ({ vertexContent: hint }),
+        resolveRoot: () => ({ vertexContent: root }),
+        resolveChild: (hint) => ({ vertexContent: hint }),
       },
       saveNotMutatedResolvedTree: true,
     })
-      .makeRunner()
+      .createRunner()
       .run();
     const activeRootRef = runner.getResolvedTree().getRoot();
     const savedRootRef =
@@ -355,7 +355,7 @@ describe('saved resolved-tree consistency', () => {
 describe('ResolvedTree paths', () => {
   test('rejects a path request for a ref that was never resolved', () => {
     const tree = makeTraversal(node('root'))
-      .makeRunner()
+      .createRunner()
       .run()
       .getResolvedTree();
 
@@ -368,7 +368,7 @@ describe('ResolvedTree paths', () => {
     const tree = makeTraversal(
       node('root', node('branch', node('leaf')), node('sibling')),
     )
-      .makeRunner()
+      .createRunner()
       .run()
       .getResolvedTree();
     const rootRef = tree.getRoot();
@@ -400,11 +400,11 @@ describe('ResolvedTree paths', () => {
     const firstTree = makeTraversal(
       node('root', node('branch', node('leaf')), node('sibling')),
     )
-      .makeRunner()
+      .createRunner()
       .run()
       .getResolvedTree();
-    const secondTree = new DepthFirstTraversal({ traversableTree: firstTree })
-      .makeRunner()
+    const secondTree = new DepthFirstTreeTraversal({ traversableTree: firstTree })
+      .createRunner()
       .run()
       .getResolvedTree();
     const secondRootRef = secondTree.getRoot();

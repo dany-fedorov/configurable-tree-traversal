@@ -1,10 +1,10 @@
 import {
-  TraversableObjectTree,
+  ObjectTreeSource,
   type TraversableObjectTTP,
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
   DagTraversal,
   AsyncDagTraversal,
   DepthFirstTraversalOrder,
@@ -53,7 +53,7 @@ test('canonical found preserves exact data and child hint identity', () => {
   const hint = { key: 'nested', value: 2 };
   const data = { key: 'replacement', value: {} };
   const childHints = [hint];
-  const tree = new TraversableObjectTree({ original: 1 }, {
+  const tree = new ObjectTreeSource({ original: 1 }, {
     resolveVertexHook: (input: { key: string }) =>
       input.key === 'original'
         ? {
@@ -63,13 +63,13 @@ test('canonical found preserves exact data and child hint identity', () => {
         : { kind: 'useDefault' },
   } as Options);
   const seen: unknown[] = [];
-  new DepthFirstTraversal({ traversableTree: tree })
+  new DepthFirstTreeTraversal({ traversableTree: tree })
     .addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
       seen.push(vertex.getData());
       if (vertex.getData() === data)
         expect(vertex.getChildrenHints()).toBe(childHints);
     })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(seen.slice(1)).toEqual([data, hint]);
   expect(seen[1]).toBe(data);
@@ -238,23 +238,23 @@ test('rejects a nonfunction canonical hook before traversal', () => {
 
 type ObjectT = TraversableObjectTTP<string | number | symbol, unknown>;
 for (const Constructor of [
-  DepthFirstTraversal<ObjectT>,
-  AsyncDepthFirstTraversal<ObjectT>,
-  BreadthFirstTraversal<ObjectT>,
-  AsyncBreadthFirstTraversal<ObjectT>,
+  DepthFirstTreeTraversal<ObjectT>,
+  AsyncDepthFirstTreeTraversal<ObjectT>,
+  BreadthFirstTreeTraversal<ObjectT>,
+  AsyncBreadthFirstTreeTraversal<ObjectT>,
   DagTraversal<ObjectT>,
   AsyncDagTraversal<ObjectT>,
 ]) {
   test(`${Constructor.name} object hooks use plain omissions and preserve callback errors`, async () => {
-    const tree: import('../src').TraversableTree<ObjectT> =
-      new TraversableObjectTree(
+    const tree: import('../src').TreeSource<ObjectT> =
+      new ObjectTreeSource(
         { keep: 1, skip: 2 },
         {
           resolveVertexHook: (hint) =>
             hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
         },
       );
-    const runner = new Constructor({ traversableTree: tree }).makeRunner();
+    const runner = new Constructor({ traversableTree: tree }).createRunner();
     const keys: unknown[] = [];
     for await (const event of runner.getIterable()) {
       if (event !== null && !keys.includes(event.vertex.getData().key))
@@ -264,7 +264,7 @@ for (const Constructor of [
     expect(keys).not.toContain('skip');
     for (const failure of [undefined, null, Symbol('object callback')]) {
       const failed = new Constructor({
-        traversableTree: new TraversableObjectTree(
+        traversableTree: new ObjectTreeSource(
           { child: 1 },
           {
             resolveVertexHook: () => {
@@ -272,7 +272,7 @@ for (const Constructor of [
             },
           },
         ),
-      }).makeRunner();
+      }).createRunner();
       let caught = false;
       try {
         await failed.run();

@@ -1,6 +1,6 @@
 import type { OwnerToken } from '@core/effects/types';
 import type { Ref } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { DepthFirstTraversalInOrderTraversalConfig } from './DepthFirstTraversalInOrderTraversalConfig';
 import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
 import { shouldVisitParentOnInOrder } from '../in-order-helpers/shouldVisitParentOnInOrder';
@@ -18,7 +18,7 @@ export type DepthFirstFrameStage =
   | 'post-visit'
   | 'done';
 
-export type DepthFirstFrame<T extends TreeTypeParameters> = {
+export type DepthFirstFrame<T extends VertexTypes> = {
   owner: OwnerToken;
   vertexRef: Ref<T>;
   depth: number;
@@ -29,7 +29,7 @@ export type DepthFirstFrame<T extends TreeTypeParameters> = {
   resumeAfterInOrder: 'children' | 'post';
 };
 
-export type DepthFirstWork<T extends TreeTypeParameters> =
+export type DepthFirstWork<T extends VertexTypes> =
   | {
       kind: 'VISIT';
       frame: DepthFirstFrame<T>;
@@ -54,7 +54,7 @@ export type DepthFirstWork<T extends TreeTypeParameters> =
   | { kind: 'POP'; frame: DepthFirstFrame<T> };
 
 /** Explicit stack policy preserving the legacy synchronous DFS boundaries. */
-export class DepthFirstPolicy<T extends TreeTypeParameters> {
+export class DepthFirstPolicy<T extends VertexTypes> {
   private readonly frames: DepthFirstFrame<T>[] = [];
 
   constructor(

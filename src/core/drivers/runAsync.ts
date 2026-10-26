@@ -1,5 +1,5 @@
 import type { DriverInspection } from '@core/CoreInspection';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   CallbackBindings,
   CallbackReply,
@@ -13,12 +13,12 @@ import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import { CallbackScheduler } from '@core/drivers/CallbackScheduler';
 import { Wakeup } from '@core/drivers/Wakeup';
 
-export type AsyncDriverControl<T extends TreeTypeParameters> =
+export type AsyncDriverControl<T extends VertexTypes> =
   AsyncSessionControl<KernelEvent<T>> & { notifyProgress(): void };
 
 export function createAsyncDriver<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 >(
   kernel: KernelPort<T, R>,
   bindings: CallbackBindings<T, R>,

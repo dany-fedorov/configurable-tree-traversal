@@ -22,7 +22,7 @@ import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
 import { TraversalKernel } from '@core/TraversalKernel';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -33,8 +33,8 @@ import {
   mergeAsyncDagTraversalInstanceConfigs,
   type AsyncDagTraversalInstanceConfig,
 } from './AsyncDagTraversalInstanceConfig';
-import { inspectDag as captureDagInspection } from '../inspectDag';
-import type { DagInspection } from './DagInspection';
+import { inspectDagMilestones as captureDagInspection } from '../inspectDag';
+import type { DagMilestoneSnapshot } from './DagInspection';
 import { DagPolicy } from './DagPolicy';
 import { DagTraversalOrder } from './DagTraversalOrder';
 import type { DagEvent } from './DagTraversalVisitor';
@@ -51,14 +51,14 @@ import {
 } from './DagTerminalObservation';
 
 type Event<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID,
 > = DagEvent<T | R, ID>;
 
 export class AsyncDagTraversalRunner<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > {
   private readonly terminalObservation: ReturnType<
@@ -255,7 +255,7 @@ export class AsyncDagTraversalRunner<
   }
 
   /** Capture synchronously without advancing discovery or acquiring iterator ownership. */
-  inspectDag(): DagInspection<ID> {
+  inspectMilestones(): DagMilestoneSnapshot<ID> {
     return captureDagInspection(this);
   }
 

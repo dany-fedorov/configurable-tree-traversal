@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import {
   DagTraversal,
   TraversalRunnerStatus,
-  type TreeTypeParameters,
+  type VertexTypes,
 } from '../src';
 
-type Workflow = TreeTypeParameters<string, string>;
+type Workflow = VertexTypes<string, string>;
 const dependencies: Record<string, string[]> = {
   design: [],
   backend: ['design'],
@@ -23,13 +23,13 @@ function reconstruct() {
     syntheticRoot: true,
     traversableGraph: {
       // Supply the complete catalog, including disconnected components.
-      makeRoot: () => ({
+      resolveRoot: () => ({
         kind: 'found' as const,
         vertex: {
           vertexContent: { $data: '', $childHints: Object.keys(dependencies) },
         },
       }),
-      makeVertex: (id) => ({
+      resolveChild: (id) => ({
         kind: 'found' as const,
         vertex: {
           vertexId: id,
@@ -39,7 +39,7 @@ function reconstruct() {
       }),
     },
   });
-  return traversal.makeRunner().run();
+  return traversal.createRunner().run();
 }
 
 const retained = reconstruct();

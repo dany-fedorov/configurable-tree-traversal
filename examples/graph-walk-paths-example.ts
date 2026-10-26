@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { GraphWalk, GraphWalkPhase, walkSourceFrom } from '../src';
+import { GraphWalk, GraphWalkPhase, materializeWalkSourceFromRecords } from '../src';
 
-const source = walkSourceFrom(
+const source = materializeWalkSourceFromRecords(
   [
     { id: 'claim', links: ['evidence', 'evidence'] }, // Distinct provenance links.
     { id: 'evidence', links: ['claim'] },
@@ -18,7 +18,7 @@ for (const revisit of ['simplePaths', 'walks'] as const) {
     source,
     revisit,
     limits: { maxDepth: 2 },
-  }).makeRunner();
+  }).createRunner();
   const paths = [...runner.getIterable({ emitPhases: [GraphWalkPhase.PATH] })];
   // Paths include the zero-edge root and every admitted prefix, not only leaves.
   assert.equal(paths[0]!.depth, 0);
@@ -44,7 +44,7 @@ const capped = new GraphWalk({
   revisit: 'walks',
   limits: { maxSteps: 4 },
 })
-  .makeRunner()
+  .createRunner()
   .run();
 assert.deepEqual(capped.summary().outcome, {
   kind: 'limited',

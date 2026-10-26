@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   AsyncGraphWalk,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
   GraphWalkPhase,
   type AsyncGraphWalkSource,
@@ -9,8 +9,8 @@ import {
   type SyncTraversalExecution,
   type AsyncTraversalExecution,
   type TraversalExecutionState,
-  type TraversableTree,
-  type TreeTypeParameters,
+  type TreeSource,
+  type VertexTypes,
 } from '../src';
 
 type Code = { kind: 'file'; path: string } | { kind: 'symbol'; name: string };
@@ -29,7 +29,7 @@ const source: AsyncGraphWalkSource<Code, Reference, string> = {
   },
   async outgoing(vertex) {
     if (vertex.data.kind === 'symbol') return [];
-    // Lazy links wrap targets; walkSourceFrom catalog links instead use { to, data }.
+    // Lazy links wrap targets; materializeWalkSourceFromRecords catalog links instead use { to, data }.
     return [
       {
         target: {
@@ -61,18 +61,18 @@ function runAsync<Phase extends string, Event>(
 ) {
   return execution.run({ emitPhases: [phase] });
 }
-const tree: TraversableTree<TreeTypeParameters<string, string>> = {
-  makeRoot: () => ({
+const tree: TreeSource<VertexTypes<string, string>> = {
+  resolveRoot: () => ({
     kind: 'found',
     vertex: {
       vertexContent: { $data: 'main.ts', $childHints: [] },
     },
   }),
-  makeVertex: () => ({ kind: 'omitted' }),
+  resolveChild: () => ({ kind: 'omitted' }),
 };
-const treeRunner = new DepthFirstTraversal({
+const treeRunner = new DepthFirstTreeTraversal({
   traversableTree: tree,
-}).makeRunner();
+}).createRunner();
 assert.equal(snapshot(treeRunner).execution, 'sync');
 runSync(treeRunner, DepthFirstTraversalOrder.PRE_ORDER);
 
@@ -91,14 +91,14 @@ async function main() {
         );
       }
     })
-    .makeRunner();
+    .createRunner();
   assert.equal(snapshot(runner).kind, 'graph-walk');
   await runAsync(runner, GraphWalkPhase.EDGE);
   assert.deepEqual(references, ['src/main.ts defines main']);
   assert.deepEqual(runner.summary().outcome, { kind: 'exhausted' });
   console.log('Typed references:', references);
   // A fresh runner can use explicitly narrowed iteration instead of callbacks.
-  const iteratorRunner = new AsyncGraphWalk({ source }).makeRunner();
+  const iteratorRunner = new AsyncGraphWalk({ source }).createRunner();
   for await (const event of iteratorRunner.getIterable({
     emitPhases: [GraphWalkPhase.EDGE],
   })) {

@@ -87,7 +87,7 @@ export class GraphWalk<Data, Edge, ID> {
       GraphWalkVisitor<Data, Edge, Phase, ID>
     >[];
   }
-  makeRunner(): GraphWalkRunner<Data, Edge, ID> {
+  createRunner(): GraphWalkRunner<Data, Edge, ID> {
     return new GraphWalkRunner(normalizeWalkOptions({}, this.options));
   }
 }

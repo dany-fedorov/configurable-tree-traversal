@@ -1,9 +1,9 @@
 import type {
   MakeVertexResult,
-  PrerequisiteResolutionResult,
-  TreeSourceVertexResult,
+  DagPrerequisiteResolution,
+  TreeVertexResolution,
 } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
 
 /** Validate before tagged branches can discard unsupported source fields. */
@@ -33,10 +33,10 @@ function assertOwnGraphIdentity(result: object): void {
 
 /** Normalize adapter vocabulary before any scheduling or identity decisions. */
 export function normalizeSourceResult<
-  T extends TreeTypeParameters,
+  T extends VertexTypes,
   ID = unknown,
 >(
-  result: PrerequisiteResolutionResult<T, ID> | TreeSourceVertexResult<T>,
+  result: DagPrerequisiteResolution<T, ID> | TreeVertexResolution<T>,
   prerequisite: boolean,
   treeSourceName?: string,
 ): MakeVertexResult<T> | undefined {

@@ -1,16 +1,16 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 
-type G = TreeTypeParameters<string, string>;
-const graph: TraversableGraph<G> = {
-  makeRoot: () => ({
+type G = VertexTypes<string, string>;
+const graph: DagDiscoverySource<G> = {
+  resolveRoot: () => ({
     vertexId: 'root',
     vertexContent: { $d: 'root', $c: ['child'] },
   }),
-  makeVertex: () => ({
+  resolveChild: () => ({
     vertexId: 'child',
     vertexContent: { $d: 'child', $c: [] },
   }),
@@ -25,7 +25,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, (vertex) => {
       seen.push(vertex.getData());
     });
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
     expect(seen).toEqual(['child']);
   });
 }
@@ -41,7 +41,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, (vertex) => {
       seen.push(vertex.getData());
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     completedWork.clear();
     completedWork.add('child');
     await runner.run();
@@ -59,7 +59,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       completedWork: new Set([hostile]),
     });
     await expect(async () => {
-      await traversal.makeRunner().run();
+      await traversal.createRunner().run();
     }).rejects.toThrow(TypeError);
   });
 
@@ -67,26 +67,26 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversal = new Constructor<G>({
       traversableGraph: {
         ...graph,
-        makeVertex: () => ({ vertexId: 'child', vertexContent: null }),
+        resolveChild: () => ({ vertexId: 'child', vertexContent: null }),
       },
       completedWork: new Set(['child']),
     });
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
   });
 
   test(`${Constructor.name} rejects seeds on trees before callbacks`, () => {
     let calls = 0;
     const traversal = new Constructor<G>({
       traversableTree: {
-        makeRoot: () => {
+        resolveRoot: () => {
           calls++;
           return { vertexContent: null };
         },
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
       completedWork: new Set(),
     });
-    expect(() => traversal.makeRunner()).toThrow(TypeError);
+    expect(() => traversal.createRunner()).toThrow(TypeError);
     expect(calls).toBe(0);
   });
 
@@ -95,11 +95,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const ids = [objectId, undefined, null, NaN];
     const traversal = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           vertexContent: { $d: 'root', $c: ['0', '1', '2', '3'] },
         }),
-        makeVertex: (context) => ({
+        resolveChild: (context) => ({
           vertexId: ids[Number(context)],
           vertexContent: { $d: context, $c: [] },
         }),
@@ -110,7 +110,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, (vertex) => {
       seen.push(vertex.getData());
     });
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
     expect(seen).toEqual(['root']);
   });
 }
@@ -119,11 +119,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} commits seeded work independently of its prerequisites`, async () => {
     const traversal = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           vertexContent: { $d: 'root', $c: ['A', 'B', 'C'] },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: id === 'A' ? ['B'] : id === 'C' ? ['A', 'B'] : [],
           vertexContent: { $d: id, $c: id === 'C' ? ['D'] : [] },
@@ -135,7 +135,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, (vertex) => {
       seen.push(vertex.getData());
     });
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
     expect(seen).toEqual(['root', 'C', 'D']);
   });
 }
@@ -147,7 +147,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       completedWork: new Set(['root']),
     });
     const events: string[] = [];
-    for await (const event of traversal.makeRunner().getIterable()) {
+    for await (const event of traversal.createRunner().getIterable()) {
       events.push(`${event.order}:${event.vertexRef.unref().getData()}`);
     }
     expect(events).toEqual([
@@ -158,7 +158,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   });
 
   test(`${Constructor.name} rejects seeds with injected state or container`, () => {
-    const runner = new Constructor<G>({ traversableGraph: graph }).makeRunner();
+    const runner = new Constructor<G>({ traversableGraph: graph }).createRunner();
     for (const injected of [
       { state: runner.state },
       { resolvedGraphsContainer: runner.resolvedGraphsContainer },
@@ -168,7 +168,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         completedWork: new Set(),
         traversalRunnerInternalObjects: injected,
       });
-      expect(() => traversal.makeRunner()).toThrow(TypeError);
+      expect(() => traversal.createRunner()).toThrow(TypeError);
     }
   });
 }

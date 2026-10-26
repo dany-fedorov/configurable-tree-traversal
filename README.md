@@ -40,7 +40,7 @@ research ──┬── implement ──┬── review
 <!-- standalone -->
 
 ```ts
-import { graphFrom, prepareDag } from 'configurable-tree-traversal';
+import { materializeDagSourceFromRecords, prepareDag } from 'configurable-tree-traversal';
 
 const tasks = [
   { id: 'research', requires: [] },
@@ -48,7 +48,7 @@ const tasks = [
   { id: 'testPlan', requires: ['research'] },
   { id: 'review', requires: ['implement', 'testPlan'] },
 ];
-const prepared = prepareDag(graphFrom(tasks, {
+const prepared = prepareDag(materializeDagSourceFromRecords(tasks, {
   id: task => task.id,
   dependsOn: task => task.requires,
 }));
@@ -56,7 +56,7 @@ if (prepared.kind === 'invalid') throw new Error('Invalid dependency constraints
 
 // In-memory stand-in for completion facts already accepted by the host.
 const accepted = new Set(['research']);
-const session = prepared.dag.createSession({ completedWork: accepted });
+const session = prepared.dag.createWorkSession({ completedWork: accepted });
 const boundary = session.advance();
 if (boundary.kind === 'awaitingSettlement') {
   if (boundary.frontier.map(ticket => ticket.vertexId).join(',') !== 'implement,testPlan') {
@@ -72,7 +72,7 @@ if (boundary.kind === 'awaitingSettlement') {
 }
 ```
 
-`graphFrom` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Dispatch from `advance().frontier` tickets; `ON_READY` visitors can also start work before deferral. `workCompleted` iterator events use `ON_READY` as their order but report work **after** commitment, so they are observations, not dispatch requests. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
+`materializeDagSourceFromRecords` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `complete(ticket)` accepts work without dispatching agents. Dispatch from `advance().frontier` tickets; `ON_READY` visitors can also start work before deferral. `workCompleted` iterator events use `ON_READY` as their order but report work **after** commitment, so they are observations, not dispatch requests. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
 
 See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) for independent sessions, duplicate reports, and recovery. Custom graph adapters and existing `runner.prepare()` / guarded `settle()` APIs remain available.
 

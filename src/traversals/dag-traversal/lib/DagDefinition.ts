@@ -49,6 +49,6 @@ export type DagDefinitionIssue<ID = unknown> =
       diagnostics: DagTraversalStallDiagnostics<ID>;
     };
 
-export type DagDefinitionResult<Data, ID = unknown> =
+export type PrepareDagResult<Data, ID = unknown> =
   | { kind: 'valid'; dag: PreparedDag<Data, ID> }
   | { kind: 'invalid'; issues: readonly DagDefinitionIssue<ID>[] };

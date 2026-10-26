@@ -1,24 +1,24 @@
 import {
-  AsyncBreadthFirstTraversal,
+  AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
   DagTraversal,
-  DepthFirstTraversal,
-  TraversableObjectTree,
+  DepthFirstTreeTraversal,
+  ObjectTreeSource,
   Vertex,
-  type TraversableTree,
-  type TreeTypeParameters,
+  type TreeSource,
+  type VertexTypes,
   type VertexContentInput,
 } from '../src';
 
-type T = TreeTypeParameters<string | undefined, string>;
+type T = VertexTypes<string | undefined, string>;
 
-const source: TraversableTree<T> = {
-  makeRoot: () => ({
+const source: TreeSource<T> = {
+  resolveRoot: () => ({
     vertexContent: { $data: 'root', $childHints: ['child'] },
   }),
-  makeVertex: (hint) => ({
+  resolveChild: (hint) => ({
     vertexContent: { $data: hint, $childHints: [] },
   }),
 };
@@ -28,7 +28,7 @@ describe('canonical vertex content', () => {
     const data = { $d: 'opaque', $childHints: 'also opaque' };
     const hint = { marker: Symbol('hint') };
     const hints = [hint];
-    const vertex = new Vertex<TreeTypeParameters<typeof data, typeof hint>>({
+    const vertex = new Vertex<VertexTypes<typeof data, typeof hint>>({
       $data: data,
       $childHints: hints,
     });
@@ -117,11 +117,11 @@ describe('canonical vertex content', () => {
   });
 
   test.each([
-    ['DFS', DepthFirstTraversal<T>],
-    ['BFS', BreadthFirstTraversal<T>],
+    ['DFS', DepthFirstTreeTraversal<T>],
+    ['BFS', BreadthFirstTreeTraversal<T>],
     ['DAG tree source', DagTraversal<T>],
-  ] as const)('follows canonical hints through %s', (_name, Traversal) => {
-    const runner = new Traversal({ traversableTree: source }).makeRunner();
+  ] as const)('follows canonical hints through %s', (_name, TreeTraversal) => {
+    const runner = new TreeTraversal({ traversableTree: source }).createRunner();
     const data = [...runner.getIterable()].map(({ vertex }) =>
       vertex.getData(),
     );
@@ -140,13 +140,13 @@ describe('canonical vertex content', () => {
   });
 
   test.each([
-    ['async DFS', AsyncDepthFirstTraversal<T>],
-    ['async BFS', AsyncBreadthFirstTraversal<T>],
+    ['async DFS', AsyncDepthFirstTreeTraversal<T>],
+    ['async BFS', AsyncBreadthFirstTreeTraversal<T>],
     ['async DAG tree source', AsyncDagTraversal<T>],
   ] as const)(
     'follows canonical hints through %s',
-    async (_name, Traversal) => {
-      const runner = new Traversal({ traversableTree: source }).makeRunner();
+    async (_name, TreeTraversal) => {
+      const runner = new TreeTraversal({ traversableTree: source }).createRunner();
       const data: Array<string | undefined> = [];
       for await (const { vertex } of runner.getIterable())
         data.push(vertex.getData());
@@ -157,21 +157,21 @@ describe('canonical vertex content', () => {
 
   test.each([DagTraversal<T>, AsyncDagTraversal<T>])(
     'preserves arbitrary graph IDs through canonical content',
-    async (Traversal) => {
+    async (TreeTraversal) => {
       const rootId = {};
       const childId = Symbol('child');
-      const runner = new Traversal({
+      const runner = new TreeTraversal({
         traversableGraph: {
-          makeRoot: () => ({
+          resolveRoot: () => ({
             vertexId: rootId,
             vertexContent: { $data: 'root', $childHints: ['child'] },
           }),
-          makeVertex: (hint) => ({
+          resolveChild: (hint) => ({
             vertexId: childId,
             vertexContent: { $data: hint, $childHints: [] },
           }),
         },
-      }).makeRunner();
+      }).createRunner();
       await runner.run();
       const graph = runner.getResolvedGraph();
       expect(graph.getVertexById(rootId)?.unref().getData()).toBe('root');
@@ -182,13 +182,13 @@ describe('canonical vertex content', () => {
   test('accepts canonical object-tree hook content without skipping cycle checks', () => {
     const cycle: { child?: unknown } = {};
     cycle.child = cycle;
-    const tree = new TraversableObjectTree(cycle, {
+    const tree = new ObjectTreeSource(cycle, {
       makeVertexHook: (hint) => ({
         returnMe: { $data: hint, $childHints: [] },
       }),
     });
     expect(() =>
-      new DepthFirstTraversal({ traversableTree: tree }).makeRunner().run(),
+      new DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().run(),
     ).toThrow(/object identity cycle/i);
   });
 });

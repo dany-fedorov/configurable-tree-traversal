@@ -1,11 +1,11 @@
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import {
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
   DepthFirstTraversalOrder as DFS,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
   BreadthFirstTraversalOrder as BFS,
   DagTraversal,
   AsyncDagTraversal,
@@ -35,35 +35,35 @@ type Runner = {
   inspect(): CoreInspection;
 };
 const tree = {
-  makeRoot: () => ({ vertexContent: { $data: 'root', $childHints: [] } }),
-  makeVertex: (_hint: string) => ({ vertexContent: null }),
+  resolveRoot: () => ({ vertexContent: { $data: 'root', $childHints: [] } }),
+  resolveChild: (_hint: string) => ({ vertexContent: null }),
 };
 const graph = {
   ...tree,
-  makeRoot: () => ({ ...tree.makeRoot(), vertexId: 'root' }),
+  resolveRoot: () => ({ ...tree.resolveRoot(), vertexId: 'root' }),
 };
 const families = [
   {
     name: 'sync DFS',
     phase: DFS.PRE_ORDER,
-    make: () => new DepthFirstTraversal<TestGraph>({ traversableTree: tree }),
+    make: () => new DepthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
   },
   {
     name: 'async DFS',
     phase: DFS.PRE_ORDER,
     make: () =>
-      new AsyncDepthFirstTraversal<TestGraph>({ traversableTree: tree }),
+      new AsyncDepthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
   },
   {
     name: 'sync BFS',
     phase: BFS.LEVEL_ORDER,
-    make: () => new BreadthFirstTraversal<TestGraph>({ traversableTree: tree }),
+    make: () => new BreadthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
   },
   {
     name: 'async BFS',
     phase: BFS.LEVEL_ORDER,
     make: () =>
-      new AsyncBreadthFirstTraversal<TestGraph>({ traversableTree: tree }),
+      new AsyncBreadthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
   },
   {
     name: 'sync DAG',
@@ -98,7 +98,7 @@ function create(family: typeof families[number], halt = false) {
     add(phase, () => {
       calls.push('continued');
     });
-  return { runner: traversal.makeRunner() as unknown as Runner, calls };
+  return { runner: traversal.createRunner() as unknown as Runner, calls };
 }
 async function events(runner: Runner, config?: unknown) {
   const result: string[] = [];
@@ -414,8 +414,8 @@ test.each([false, true])(
         },
       };
       return isAsync
-        ? new AsyncDagTraversal<TestGraph>(input).makeRunner()
-        : new DagTraversal<TestGraph>(input).makeRunner();
+        ? new AsyncDagTraversal<TestGraph>(input).createRunner()
+        : new DagTraversal<TestGraph>(input).createRunner();
     };
     const runner = make();
     const before = runner.inspect();

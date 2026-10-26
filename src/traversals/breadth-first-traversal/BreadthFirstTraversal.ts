@@ -10,12 +10,12 @@ import type {
   VisitorPhaseInput,
   VisitorGroupDefinition,
 } from '@core/TraversalVisitor';
-import { Traversal } from '@core/Traversal';
+import { TreeTraversal } from '@core/Traversal';
 import type {
   TraversalVisitor,
   TraversalVisitorFunctionOptions,
 } from '@core/TraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { initBreadthFirstVisitors } from './init-helpers/initVisitors';
 import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -24,13 +24,13 @@ import {
   type BreadthFirstTraversalInstanceConfigInput,
 } from './lib/BreadthFirstTraversalInstanceConfig';
 import type { BreadthFirstTraversalOrder } from './lib/BreadthFirstTraversalOrder';
-import { BreadthFirstTraversalRunner } from './lib/BreadthFirstTraversalRunner';
+import { BreadthFirstTreeRunner } from './lib/BreadthFirstTraversalRunner';
 import type { BreadthFirstTraversalVisitors } from './lib/BreadthFirstTraversalVisitors';
 
-export class BreadthFirstTraversal<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
-> extends Traversal<BreadthFirstTraversalOrder, TTP, RW_TTP> {
+export class BreadthFirstTreeTraversal<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> extends TreeTraversal<BreadthFirstTraversalOrder, TTP, RW_TTP> {
   icfg: BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
   visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
 
@@ -120,8 +120,8 @@ export class BreadthFirstTraversal<
     return this;
   }
 
-  makeRunner(): BreadthFirstTraversalRunner<TTP, RW_TTP> {
-    return new BreadthFirstTraversalRunner({
+  createRunner(): BreadthFirstTreeRunner<TTP, RW_TTP> {
+    return new BreadthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,
     });

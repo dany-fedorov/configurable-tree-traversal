@@ -1,25 +1,25 @@
 import {
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder as Order,
 } from '../src/traversals/depth-first-traversal';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import type { DepthFirstTraversalInOrderTraversalConfig as InOrderConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 
 type Node = { $d: string; $c: Node[] };
-type Tree = TreeTypeParameters<string, Node>;
+type Tree = VertexTypes<string, Node>;
 const root: Node = {
   $d: 'root',
   $c: ['a', 'b', 'c'].map(($d) => ({ $d, $c: [] })),
 };
 const create = (inOrderTraversalConfig: Partial<InOrderConfig> = {}) =>
-  new DepthFirstTraversal<Tree>({
+  new DepthFirstTreeTraversal<Tree>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: root }),
-      makeVertex: (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => ({ vertexContent: root }),
+      resolveChild: (hint) => ({ vertexContent: hint }),
     },
     inOrderTraversalConfig,
   });
-const collect = (runner: ReturnType<ReturnType<typeof create>['makeRunner']>) =>
+const collect = (runner: ReturnType<ReturnType<typeof create>['createRunner']>) =>
   [...runner.getIterable({ iterateOver: [Order.IN_ORDER] })].map((event) =>
     event.vertex.getData(),
   );
@@ -32,7 +32,7 @@ test('editing one traversal range does not change future traversal defaults', ()
   const original = range[0];
   try {
     range[0] = 2;
-    expect(collect(create().makeRunner())).toEqual([
+    expect(collect(create().createRunner())).toEqual([
       'a',
       'root',
       'b',
@@ -46,7 +46,7 @@ test('editing one traversal range does not change future traversal defaults', ()
 
 test('an existing runner keeps its in-order configuration after traversal configuration is edited', () => {
   const traversal = create({ visitParentAfterChildren: 0 });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   traversal.icfg.inOrderTraversalConfig.visitParentAfterChildren = 2;
   expect(collect(runner)).toEqual(['a', 'root', 'b', 'c']);
 });
@@ -56,7 +56,7 @@ test('caller-owned nested ranges are copied when configuring the traversal', () 
   const traversal = create({ visitParentAfterChildren: ranges });
   ranges.ranges[0]![0] = 2;
   ranges.ranges[0]![1] = 2;
-  expect(collect(traversal.makeRunner())).toEqual(['a', 'root', 'b', 'c']);
+  expect(collect(traversal.createRunner())).toEqual(['a', 'root', 'b', 'c']);
 });
 
 test('caller-owned fallback ranges are isolated too', () => {
@@ -67,5 +67,5 @@ test('caller-owned fallback ranges are isolated too', () => {
   });
   fallback.ranges[0]![0] = 2;
   fallback.ranges[0]![1] = 2;
-  expect(collect(traversal.makeRunner())).toEqual(['a', 'root', 'b', 'c']);
+  expect(collect(traversal.createRunner())).toEqual(['a', 'root', 'b', 'c']);
 });

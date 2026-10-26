@@ -1,14 +1,14 @@
 import { CTTRef } from '../src/core/CTTRef';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
   TraversalRunnerStatus as Status,
 } from '../src/core/TraversalRunner';
 import {
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src/core/TraversalVisitor';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
-import type { TraversableTree } from '../src/core/TraversableTree';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
+import type { TreeSource } from '../src/core/TraversableTree';
 import { Vertex } from '../src/core/Vertex';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/dag-traversal/lib/DagTraversalInstanceConfig';
@@ -16,22 +16,22 @@ import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import { DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerIterableConfig';
 
-type TestGraph = TreeTypeParameters<string, string>;
+type TestGraph = VertexTypes<string, string>;
 
-function source(): TraversableGraph<TestGraph> {
+function source(): DagDiscoverySource<TestGraph> {
   return {
-    makeRoot: () => ({
+    resolveRoot: () => ({
       vertexContent: { $d: 'root', $c: [] },
       vertexId: 'root',
     }),
-    makeVertex: () => ({ vertexContent: null }),
+    resolveChild: () => ({ vertexContent: null }),
   };
 }
 
-function treeSource(): TraversableTree<TestGraph> {
+function treeSource(): TreeSource<TestGraph> {
   return {
-    makeRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
-    makeVertex: () => ({ vertexContent: null }),
+    resolveRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
+    resolveChild: () => ({ vertexContent: null }),
   };
 }
 
@@ -111,7 +111,7 @@ test('sorts duplicate priorities stably and isolates builders and runners', () =
   const listed = traversal.listVisitorsFor(Order.ON_READY);
   expect(listed.map(({ priority }) => priority)).toEqual([2, 2, 1]);
 
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   traversal.setVisitorsFor(Order.ON_READY, []);
   listed.length = 0;
   runner.run();
@@ -132,7 +132,7 @@ test('configure copies visitor arrays and preserves existing registrations', () 
   ];
   traversal.configure({ visitors: { [Order.ON_COMPLETE]: visitors } });
   visitors.length = 0;
-  traversal.makeRunner().run();
+  traversal.createRunner().run();
   expect(calls).toEqual(['existing', 'complete']);
 });
 
@@ -142,7 +142,7 @@ test('filters visitor execution independently from event iteration', () => {
   traversal.addVisitorFor(Order.ON_READY, () => void calls.push('ready'));
   traversal.addVisitorFor(Order.ON_COMPLETE, () => void calls.push('complete'));
   const events = [
-    ...traversal.makeRunner().getIterable({
+    ...traversal.createRunner().getIterable({
       iterateOver: [Order.ON_COMPLETE],
       enableVisitorFunctionsFor: [Order.ON_READY],
     }),
@@ -191,7 +191,7 @@ test('accepts an initial or empty quiescent halted injected state', () => {
         state,
         resolvedGraphsContainer: container,
       },
-    }).makeRunner();
+    }).createRunner();
 
     expect(runner.state).toBe(state);
     expect(runner.resolvedGraphsContainer).toBe(container);
@@ -213,9 +213,9 @@ test('rejects a stale traversal root for an empty halted seed atomically', () =>
     sourceMode: 'graph',
     saveOriginal: false,
   });
-  const makeRoot = jest.fn(source().makeRoot);
+  const resolveRoot = jest.fn(source().resolveRoot);
   const traversal = new DagTraversal<TestGraph>({
-    traversableGraph: { ...source(), makeRoot },
+    traversableGraph: { ...source(), resolveRoot },
     traversalRunnerInternalObjects: {
       state,
       resolvedGraphsContainer: container,
@@ -225,8 +225,8 @@ test('rejects a stale traversal root for an empty halted seed atomically', () =>
   const beforeReadyVisits = [...state.readyVisits];
   const beforeExpansionQueue = [...state.expansionQueue];
 
-  expect(() => traversal.makeRunner()).toThrow(/traversal root mismatch/i);
-  expect(makeRoot).not.toHaveBeenCalled();
+  expect(() => traversal.createRunner()).toThrow(/traversal root mismatch/i);
+  expect(resolveRoot).not.toHaveBeenCalled();
   expect(container.resolvedGraph.getVertexRefs()).toEqual(beforeRefs);
   expect(container.resolvedGraph.getRoot()).toBeNull();
   expect(state.status).toBe(Status.HALTED);
@@ -310,10 +310,10 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
   const resolutions: string[] = [];
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('must not resolve root');
       },
-      makeVertex: (hint) => {
+      resolveChild: (hint) => {
         resolutions.push(hint);
         return {
           vertexContent: { $d: hint, $c: [] },
@@ -325,7 +325,7 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
       state,
       resolvedGraphsContainer: container,
     },
-  }).makeRunner();
+  }).createRunner();
 
   expect(runner.inspect().readyVisits).toEqual([
     { vertexRefId: state.readyVisits[0]!.vertexRef.getId(), order: Order.ON_READY },
@@ -475,7 +475,7 @@ test.each([
           state: seed.state,
           resolvedGraphsContainer: seed.container,
         },
-      }).makeRunner(),
+      }).createRunner(),
   ).toThrow(/injected DAG|seed/i);
   expect(seed.container.resolvedGraph.getVertexRefs()).toEqual(beforeRefs);
   expect(seed.container.resolvedGraph.getStatusOf(seed.root)).toBe(
@@ -502,7 +502,7 @@ test('rejects injected work for an empty graph', () => {
       new DagTraversal<TestGraph>({
         traversableGraph: source(),
         traversalRunnerInternalObjects: { state },
-      }).makeRunner(),
+      }).createRunner(),
   ).toThrow(/empty graph/i);
 });
 
@@ -517,10 +517,10 @@ test.each([
     order === null ? [] : [{ vertexRef: seed.b, order }];
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('must not resolve root');
       },
-      makeVertex: (hint) => ({
+      resolveChild: (hint) => ({
         vertexId: hint,
         vertexContent: { $d: hint, $c: [] },
       }),
@@ -529,7 +529,7 @@ test.each([
       state: seed.state,
       resolvedGraphsContainer: seed.container,
     },
-  }).makeRunner();
+  }).createRunner();
   const events = [...runner.getIterable()].map(
     (event) => `${event.order}:${event.vertex.getData()}`,
   );
@@ -544,10 +544,10 @@ test('restores discovered work blocked by a missing dependency', () => {
   const blocked = acceptDetached(seed, 'blocked', ['missing']);
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('must not resolve root');
       },
-      makeVertex: (hint) => ({
+      resolveChild: (hint) => ({
         vertexId: hint,
         vertexContent: { $d: hint, $c: [] },
       }),
@@ -556,7 +556,7 @@ test('restores discovered work blocked by a missing dependency', () => {
       state: seed.state,
       resolvedGraphsContainer: seed.container,
     },
-  }).makeRunner();
+  }).createRunner();
   expect(() => runner.run()).toThrow(/stalled.*blocked.*missing/i);
   expect(runner.getResolvedGraph().getStatusOf(blocked)).toBe('DISCOVERED');
 });
@@ -592,7 +592,7 @@ test.each(['omitted', 'completing', 'complete'] as const)(
             state: seed.state,
             resolvedGraphsContainer: seed.container,
           },
-        }).makeRunner(),
+        }).createRunner(),
     ).not.toThrow();
   },
 );
@@ -606,13 +606,13 @@ test('rejects incompatible and active injected objects', () => {
     () =>
       new DagTraversal<TestGraph>({
         traversableTree: {
-          makeRoot: () => ({ vertexContent: null }),
-          makeVertex: () => ({ vertexContent: null }),
+          resolveRoot: () => ({ vertexContent: null }),
+          resolveChild: () => ({ vertexContent: null }),
         },
         traversalRunnerInternalObjects: {
           resolvedGraphsContainer: treeContainer,
         },
-      }).makeRunner(),
+      }).createRunner(),
   ).toThrow(/source mode/i);
 
   const state = new DagTraversalRunnerState<TestGraph>({
@@ -623,7 +623,7 @@ test('rejects incompatible and active injected objects', () => {
       new DagTraversal<TestGraph>({
         traversableGraph: source(),
         traversalRunnerInternalObjects: { state },
-      }).makeRunner(),
+      }).createRunner(),
   ).toThrow(/quiescent|active|RUNNING/i);
 
   const failedWithoutError = new DagTraversalRunnerState<TestGraph>({
@@ -634,7 +634,7 @@ test('rejects incompatible and active injected objects', () => {
       new DagTraversal<TestGraph>({
         traversableGraph: source(),
         traversalRunnerInternalObjects: { state: failedWithoutError },
-      }).makeRunner(),
+      }).createRunner(),
   ).toThrow(/tagged failure/i);
 });
 
@@ -645,7 +645,7 @@ test('retains terminal injected state and validates snapshot compatibility', () 
   const finishedRunner = new DagTraversal<TestGraph>({
     traversableGraph: source(),
     traversalRunnerInternalObjects: { state: finished },
-  }).makeRunner();
+  }).createRunner();
   expect([...finishedRunner.getIterable()]).toEqual([]);
 
   const error = new Error('stored');
@@ -656,7 +656,7 @@ test('retains terminal injected state and validates snapshot compatibility', () 
   const failedRunner = new DagTraversal<TestGraph>({
     traversableGraph: source(),
     traversalRunnerInternalObjects: { state: failed },
-  }).makeRunner();
+  }).createRunner();
   expect(() => failedRunner.run()).toThrow(error);
 
   const container = new ResolvedGraphsContainer<TestGraph>({
@@ -670,7 +670,7 @@ test('retains terminal injected state and validates snapshot compatibility', () 
         traversalRunnerInternalObjects: {
           resolvedGraphsContainer: container,
         },
-      }).makeRunner(),
+      }).createRunner(),
   ).toThrow(/snapshot mode/i);
 });
 
@@ -687,7 +687,7 @@ test('prevents another runner from claiming live DAG objects', () => {
       resolvedGraphsContainer: container,
     },
   };
-  const runner = new DagTraversal<TestGraph>(input).makeRunner();
+  const runner = new DagTraversal<TestGraph>(input).createRunner();
   const iterator = runner.getIterable();
   iterator.next();
 
@@ -698,7 +698,7 @@ test('prevents another runner from claiming live DAG objects', () => {
         state: new DagTraversalRunnerState<TestGraph>(),
         resolvedGraphsContainer: container,
       },
-    }).makeRunner(),
+    }).createRunner(),
   ).toThrow(/active runner/i);
   iterator.return?.(undefined);
 });
@@ -715,7 +715,7 @@ test('rejects a deferred competing claim for shared DAG objects', () => {
         state: new DagTraversalRunnerState<TestGraph>(),
         resolvedGraphsContainer: container,
       },
-    }).makeRunner();
+    }).createRunner();
   const first = make();
   const second = make();
   const iterator = first.getIterable();
@@ -731,7 +731,7 @@ test('rejects a deferred competing claim for shared DAG objects', () => {
 
 test('inspection reports fixed synchronous DAG configuration', () => {
   const runner = new DagTraversal<TestGraph>({ traversableGraph: source() })
-    .makeRunner();
+    .createRunner();
   expect(runner.inspect()).toMatchObject({
     status: Status.INITIAL,
     kind: 'dag',

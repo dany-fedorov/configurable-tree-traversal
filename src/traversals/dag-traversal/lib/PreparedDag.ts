@@ -1,10 +1,10 @@
-import type { DagDefinition, DagDefinitionResult } from './DagDefinition';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { DagDefinition } from './DagDefinition';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { DagTraversalConfigureInput } from './DagTraversalInstanceConfig';
 import type { AsyncDagTraversalConfigureInput } from './AsyncDagTraversalInstanceConfig';
 import type { DagTraversalRunner } from './DagTraversalRunner';
 import type { AsyncDagTraversalRunner } from './AsyncDagTraversalRunner';
-import type { DagCoordinator, AsyncDagCoordinator } from '../coordinateDag';
+import type { DagWorkSession, AsyncDagWorkSession } from '../coordinateDag';
 
 export type PreparedDagVertex<Data, ID> = Readonly<{
   vertexId: ID;
@@ -27,8 +27,8 @@ type OwnedOptions = {
 
 export type PreparedDagRunnerOptions<Data, ID> = Pick<
   DagTraversalConfigureInput<
-    TreeTypeParameters<Data, ID>,
-    TreeTypeParameters<Data, ID>,
+    VertexTypes<Data, ID>,
+    VertexTypes<Data, ID>,
     ID
   >,
   | 'visitors'
@@ -40,8 +40,8 @@ export type PreparedDagRunnerOptions<Data, ID> = Pick<
 
 export type PreparedAsyncDagRunnerOptions<Data, ID> = Pick<
   AsyncDagTraversalConfigureInput<
-    TreeTypeParameters<Data, ID>,
-    TreeTypeParameters<Data, ID>,
+    VertexTypes<Data, ID>,
+    VertexTypes<Data, ID>,
     ID
   >,
   | 'visitors'
@@ -52,15 +52,15 @@ export type PreparedAsyncDagRunnerOptions<Data, ID> = Pick<
 > &
   OwnedOptions;
 
-export type PreparedDagSessionOptions<ID> = OwnedOptions & {
+export type DagWorkSessionOptions<ID> = OwnedOptions & {
   completedWork?: ReadonlySet<ID>;
   visitors?: never;
   workCompletion?: never;
   saveNotMutatedResolvedGraph?: never;
 };
 
-export type PreparedAsyncDagSessionOptions<ID> =
-  PreparedDagSessionOptions<ID> & {
+export type AsyncDagWorkSessionOptions<ID> =
+  DagWorkSessionOptions<ID> & {
     concurrency?: number;
   };
 
@@ -73,26 +73,21 @@ export interface PreparedDag<Data, ID = unknown> {
   createRunner(
     options?: PreparedDagRunnerOptions<Data, ID>,
   ): DagTraversalRunner<
-    TreeTypeParameters<Data, ID>,
-    TreeTypeParameters<Data, ID>,
+    VertexTypes<Data, ID>,
+    VertexTypes<Data, ID>,
     ID
   >;
   createAsyncRunner(
     options?: PreparedAsyncDagRunnerOptions<Data, ID>,
   ): Promise<
     AsyncDagTraversalRunner<
-      TreeTypeParameters<Data, ID>,
-      TreeTypeParameters<Data, ID>,
+      VertexTypes<Data, ID>,
+      VertexTypes<Data, ID>,
       ID
     >
   >;
-  createSession(options?: PreparedDagSessionOptions<ID>): DagCoordinator<ID>;
-  createAsyncSession(
-    options?: PreparedAsyncDagSessionOptions<ID>,
-  ): Promise<AsyncDagCoordinator<ID>>;
+  createWorkSession(options?: DagWorkSessionOptions<ID>): DagWorkSession<ID>;
+  createAsyncWorkSession(
+    options?: AsyncDagWorkSessionOptions<ID>,
+  ): Promise<AsyncDagWorkSession<ID>>;
 }
-
-export type PrepareDagResult<Data, ID = unknown> = DagDefinitionResult<
-  Data,
-  ID
->;

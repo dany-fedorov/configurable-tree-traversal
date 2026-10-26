@@ -55,8 +55,8 @@ async function main() {
   assert.equal(result.kind, 'valid');
   if (result.kind !== 'valid') throw new Error('Invalid composition');
   for (const session of [
-    result.dag.createSession(),
-    await result.dag.createAsyncSession(),
+    result.dag.createWorkSession(),
+    await result.dag.createAsyncWorkSession(),
   ]) {
     const observed: string[] = [];
     for (;;) {

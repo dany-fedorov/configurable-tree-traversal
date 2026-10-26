@@ -5,15 +5,15 @@ import {
   AsyncDagTraversalRunner,
   DagTraversalOrder,
 } from '../src/traversals/dag-traversal';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 const graph = {
-  makeRoot: () => ({
+  resolveRoot: () => ({
     vertexId: 'A',
     vertexContent: { $data: 'A', $childHints: ['B'] },
   }),
-  makeVertex: () => ({
+  resolveChild: () => ({
     vertexId: 'B',
     dependsOn: ['A'],
     vertexContent: { $data: 'B', $childHints: [] },
@@ -38,7 +38,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           entry === 'constructor'
             ? new Constructor<G>(input)
             : new Constructor<G>({ traversableGraph: graph }).configure(input);
-        const runner = traversal.makeRunner();
+        const runner = traversal.createRunner();
         await runner.run();
         expect(runner.summary().completedWorkIds).toEqual([]);
         expect(runner.summary().deferredIds).toEqual(['A']);
@@ -110,7 +110,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       workCompletion: 'externalSettlement',
     });
     traversal.configure({});
-    const external = traversal.makeRunner();
+    const external = traversal.createRunner();
     await external.run();
     expect(external.summary().completedWorkIds).toEqual([]);
     expect(external.summary().deferredIds).toEqual(['A']);
@@ -118,7 +118,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.configure({ workCompletion: undefined } as unknown as {
       workCompletion: Policy;
     });
-    const automatic = traversal.makeRunner();
+    const automatic = traversal.createRunner();
     await automatic.run();
     expect(automatic.summary().completedWorkIds).toEqual(['A', 'B']);
   });

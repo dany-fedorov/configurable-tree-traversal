@@ -1,4 +1,4 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   CallbackBindings,
   CallbackReply,
@@ -11,8 +11,8 @@ import type {
 export type SyncDriverState = { inFlightCallbackCount: number };
 
 export function* runSync<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 >(
   kernel: KernelPort<T, R>,
   bindings: CallbackBindings<T, R>,
@@ -51,8 +51,8 @@ export function* runSync<
 }
 
 function invokeAndSubmit<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
 >(
   kernel: KernelPort<T, R>,
   bindings: CallbackBindings<T, R>,

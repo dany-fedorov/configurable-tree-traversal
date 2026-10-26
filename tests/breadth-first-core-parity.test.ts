@@ -1,5 +1,5 @@
 import {
-  BreadthFirstTraversal,
+  BreadthFirstTreeTraversal,
   BreadthFirstTraversalOrder,
   TraversalRunnerStatus,
 } from '../src';
@@ -8,13 +8,13 @@ import type { TestGraph } from './helpers/graph-fixtures';
 
 test('BFS shared core resolves one queued child per event advancement', () => {
   const calls: string[] = [];
-  const traversal = new BreadthFirstTraversal<TestGraph>({
+  const traversal = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         calls.push('root');
         return { vertexContent: { $d: 'root', $c: ['A', 'B'] } };
       },
-      makeVertex: (hint) => {
+      resolveChild: (hint) => {
         calls.push(`resolve:${hint}`);
         return { vertexContent: { $d: hint, $c: [] } };
       },
@@ -24,7 +24,7 @@ test('BFS shared core resolves one queued child per event advancement', () => {
     if (vertex.getData() !== 'root') calls.push(`visit:${vertex.getData()}`);
   });
 
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   expect(runner.inspect()).toMatchObject({
     status: TraversalRunnerStatus.INITIAL,
     kind: 'breadth-first',
@@ -80,17 +80,17 @@ test('BFS shared core resolves one queued child per event advancement', () => {
 
 test('BFS can traverse a completed injected resolved-tree container again', () => {
   const adapter = {
-    makeRoot: () => ({
+    resolveRoot: () => ({
       vertexContent: { $d: 'root', $c: ['missing', 'child'] },
     }),
-    makeVertex: (hint: string) => ({
+    resolveChild: (hint: string) => ({
       vertexContent:
         hint === 'missing' ? null : { $d: hint, $c: [] as string[] },
     }),
   };
-  const first = new BreadthFirstTraversal<TestGraph>({
+  const first = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: adapter,
-  }).makeRunner();
+  }).createRunner();
   first.run();
   const root = first.getResolvedTree().getRoot();
   if (root === null) throw new Error('Expected a resolved root');
@@ -100,17 +100,17 @@ test('BFS can traverse a completed injected resolved-tree container again', () =
   if (originalChild === undefined) throw new Error('Expected a resolved child');
   const childRecord = first.getResolvedTree().get(originalChild);
 
-  const second = new BreadthFirstTraversal<TestGraph>({
+  const second = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      makeVertex: adapter.makeVertex,
+      resolveChild: adapter.resolveChild,
     },
     traversalRunnerInternalObjects: {
       resolvedTreesContainer: first.resolvedTreesContainer,
     },
-  }).makeRunner();
+  }).createRunner();
 
   const events = Array.from(second.getIterable());
   expect(events.map((event) => event.vertex.getData())).toEqual([
@@ -131,12 +131,12 @@ test('BFS can traverse a completed injected resolved-tree container again', () =
 });
 
 test('BFS resumes a valid injected queue context from a nonzero cursor once', () => {
-  const seed = new BreadthFirstTraversal<TestGraph>({
+  const seed = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['parent'] } }),
-      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['parent'] } }),
+      resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
     },
-  }).makeRunner();
+  }).createRunner();
   seed.run();
   const root = seed.getResolvedTree().getRoot();
   if (root === null) throw new Error('Expected seeded root');
@@ -161,12 +161,12 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
     queueIndex: 1,
   });
   const calls: string[] = [];
-  const traversal = new BreadthFirstTraversal<TestGraph>({
+  const traversal = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      makeVertex: (hint) => {
+      resolveChild: (hint) => {
         calls.push(`resolve:${hint}`);
         return { vertexContent: { $d: hint, $c: [] } };
       },
@@ -180,7 +180,7 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
     calls.push(`visit:${vertex.getData()}`);
   });
 
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   expect(runner.state.queue).toBe(queue);
   expect(
     Array.from(runner.getIterable()).map((event) => event.vertex.getData()),
@@ -192,12 +192,12 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
 });
 
 test('BFS resumes an injected reachable parent without regenerating its frontier', () => {
-  const first = new BreadthFirstTraversal<TestGraph>({
+  const first = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
-      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
+      resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
     },
-  }).makeRunner();
+  }).createRunner();
   const firstIterator = first.getIterable();
   expect(firstIterator.next().value?.vertex.getData()).toBe('root');
   expect(firstIterator.next().value?.vertex.getData()).toBe('A');
@@ -215,12 +215,12 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
   const calls: string[] = [];
   let queueAtResolution: string[] = [];
   const visits: Array<[string, number, string | undefined]> = [];
-  const traversal = new BreadthFirstTraversal<TestGraph>({
+  const traversal = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      makeVertex: (hint) => {
+      resolveChild: (hint) => {
         calls.push(hint);
         queueAtResolution = queue.map((context) => context.vertexHint);
         return { vertexContent: { $d: hint, $c: [] } };
@@ -242,7 +242,7 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
     },
   );
 
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   expect(runner.state.queue).toBe(queue);
   expect(
     Array.from(runner.getIterable()).map((event) => event.vertex.getData()),
@@ -267,12 +267,12 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
 });
 
 function completedParentSeed() {
-  const runner = new BreadthFirstTraversal<TestGraph>({
+  const runner = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
-      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
+      resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
     },
-  }).makeRunner();
+  }).createRunner();
   runner.run();
   const root = runner.getResolvedTree().getRoot();
   if (root === null) throw new Error('Expected root');
@@ -292,12 +292,12 @@ test('BFS closes an injected frontier whose contexts were all consumed', () => {
     queue: [context],
     queueIndex: 1,
   });
-  const runner = new BreadthFirstTraversal<TestGraph>({
+  const runner = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      makeVertex: () => {
+      resolveChild: () => {
         throw new Error('Consumed child must be reused');
       },
     },
@@ -305,7 +305,7 @@ test('BFS closes an injected frontier whose contexts were all consumed', () => {
       resolvedTreesContainer: seed.runner.resolvedTreesContainer,
       state,
     },
-  }).makeRunner();
+  }).createRunner();
   expect([...runner.getIterable()].map((event) => event.vertex.getData())).toEqual([
     'root',
   ]);
@@ -325,34 +325,34 @@ test('BFS rejects an injected frontier with non-contiguous hint indices', () => 
       },
     ],
   });
-  const runner = new BreadthFirstTraversal<TestGraph>({
+  const runner = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     },
     traversalRunnerInternalObjects: {
       resolvedTreesContainer: seed.runner.resolvedTreesContainer,
       state,
     },
-  }).makeRunner();
+  }).createRunner();
   expect(() => runner.run()).toThrow(/invalid injected breadth-first frontier/i);
 });
 
 test('BFS does not search newly appended children for legacy reuse', () => {
   const width = 1_000;
-  const runner = new BreadthFirstTraversal<TestGraph>({
+  const runner = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexContent: {
           $d: 'root',
           $c: Array.from({ length: width }, (_, index) => String(index)),
         },
       }),
-      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
     },
-  }).makeRunner();
+  }).createRunner();
   const lookup = jest.spyOn(
     runner.getResolvedTree(),
     'getResolutionContextOf',

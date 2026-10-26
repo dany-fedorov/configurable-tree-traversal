@@ -64,7 +64,7 @@ if (prepared.kind === 'valid') {
   const namespaceResult: dagTraversal.DagRevisionResult<number, ID> = subResult;
   if (result.kind === 'valid') {
     const id: ID | undefined = result.changes.addedIds[0];
-    result.dag.createSession({ completedWork: new Set<ID>(['task']) });
+    result.dag.createWorkSession({ completedWork: new Set<ID>(['task']) });
     void id;
   } else {
     result.issues;

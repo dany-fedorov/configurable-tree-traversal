@@ -2,7 +2,7 @@ import { defineDag } from './defineDag';
 import { DagFragmentValidationError } from './lib/DagFragmentValidationError';
 import type {
   DagDefinition,
-  DagDefinitionResult,
+  PrepareDagResult,
   DagDefinitionSlot,
 } from './lib/DagDefinition';
 import type {
@@ -122,7 +122,7 @@ function requireWireFields(value: unknown, fields: readonly string[]): void {
 export function composeDag<Data, ID>(
   instances: readonly DagFragmentInstance<Data, ID>[],
   options: DagCompositionOptions<InferredDagId<ID>> = {},
-): DagDefinitionResult<Data, ID> {
+): PrepareDagResult<Data, ID> {
   const definitions = instances.map((instance) =>
     defineDag(instance.definition),
   );

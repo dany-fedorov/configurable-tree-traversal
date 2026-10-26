@@ -7,9 +7,9 @@ import {
   graphWalk,
   walkGraph,
   walkGraphAsync,
-  walkSourceFrom,
-  walkSourceFromAsync,
-  walkSourceFromDag,
+  materializeWalkSourceFromRecords,
+  materializeWalkSourceFromRecordsAsync,
+  materializeWalkSourceFromDagDefinition,
   defineDag,
   type GraphWalkSource,
   type AsyncGraphWalkSource,
@@ -294,7 +294,7 @@ walkGraph({
 });
 
 const items = [{ id: symbolId, label: 'item' }];
-const catalog = walkSourceFrom(items, {
+const catalog = materializeWalkSourceFromRecords(items, {
   id: (item) => item.id,
   outgoing: (item) => [{ to: item.id, data: relation }],
   roots: [symbolId],
@@ -306,7 +306,7 @@ const catalogTyped: walking.GraphWalkSource<
 > = catalog;
 const materialized: Promise<
   GraphWalkSource<typeof items[number], Relation, symbol>
-> = walkSourceFromAsync(items, {
+> = materializeWalkSourceFromRecordsAsync(items, {
   id: async (item) => item.id,
   outgoing: async (item) => [{ to: item.id, data: relation }],
   roots: [symbolId],
@@ -328,7 +328,7 @@ const definition = defineDag<Data, ID>({
   omittedIds: [undefined],
   entry: { kind: 'root', vertexId: objectId },
 });
-const dag = walkSourceFromDag(definition, {
+const dag = materializeWalkSourceFromDagDefinition(definition, {
   relations: ['children', 'workDependencies'],
 });
 const projected: GraphWalkSource<Data, GraphWalkDagRelation, ID> = dag;
@@ -344,9 +344,9 @@ new GraphWalk({ source: dag }).addVisitorFor(Phase.EDGE, (event) => {
   }
 });
 // @ts-expect-error DAG projection must explicitly choose relationships.
-walkSourceFromDag(definition);
+materializeWalkSourceFromDagDefinition(definition);
 // @ts-expect-error The relationship selection is nonempty.
-walkSourceFromDag(definition, { relations: [] });
+materializeWalkSourceFromDagDefinition(definition, { relations: [] });
 void [
   requiredSubpath,
   constructorIdentity,

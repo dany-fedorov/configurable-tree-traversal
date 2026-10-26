@@ -1,16 +1,16 @@
-import { inspectDag, DagTraversalStallError } from '../src';
+import { inspectDagMilestones, DagTraversalStallError } from '../src';
 import type * as dag from '../src/traversals/dag-traversal';
 import * as core from '../src/core';
 import type {
-  DagInspection,
+  DagMilestoneSnapshot,
   DagMilestoneQueryResult,
   DagMilestoneQueryOptions,
-  AsyncTraversableGraph,
-  TraversableGraph,
-  TraversableTree,
+  AsyncDagDiscoverySource,
+  DagDiscoverySource,
+  TreeSource,
 } from '../src';
-import { AsyncDagTraversal, DagTraversal, graphFrom } from '../src';
-import type { DagVertexProgress, DagSummary, TreeTypeParameters } from '../src';
+import { AsyncDagTraversal, DagTraversal, materializeDagSourceFromRecords } from '../src';
+import type { DagVertexProgress, DagSummary, VertexTypes } from '../src';
 import type {
   DagInspectionState,
   GraphStoreContract,
@@ -21,12 +21,12 @@ const records: Array<{ id: ID; work: ID[] }> = [
   { id: 'review', work: ['work'] },
   { id: 'work', work: [] },
 ];
-const source = graphFrom(records, {
+const source = materializeDagSourceFromRecords(records, {
   id: (item) => item.id,
   dependsOn: (item) => item.work,
 });
-const sync = new DagTraversal(source).makeRunner();
-const asyncRunner = new AsyncDagTraversal(source).makeRunner();
+const sync = new DagTraversal(source).createRunner();
+const asyncRunner = new AsyncDagTraversal(source).createRunner();
 const summaries: DagSummary<ID>[] = [sync.summary(), asyncRunner.summary()];
 const waits: readonly ID[] | undefined =
   summaries[0]!.vertices.get('review')!.unmetWorkPrerequisiteIds;
@@ -53,15 +53,15 @@ state.schedulingStates[0]!.remainingChildren = 2;
 // @ts-expect-error Internal observations preserve the ID domain.
 const wrongId: 'other' = state.identityStates[0]!.vertexId;
 
-declare const store: GraphStoreContract<TreeTypeParameters<string, string>, ID>;
+declare const store: GraphStoreContract<VertexTypes<string, string>, ID>;
 const identity: ID = store.inspectIdentityStates()[0]!.vertexId;
 void [waits, wrong, wrongId, identity];
 
-const inspections: DagInspection<ID>[] = [
-  inspectDag(sync),
-  inspectDag(asyncRunner),
-  sync.inspectDag(),
-  asyncRunner.inspectDag(),
+const inspections: DagMilestoneSnapshot<ID>[] = [
+  inspectDagMilestones(sync),
+  inspectDagMilestones(asyncRunner),
+  sync.inspectMilestones(),
+  asyncRunner.inspectMilestones(),
 ];
 const navigation: DagMilestoneQueryResult<ID> = inspections[0]!.prerequisitesOf(
   { vertexId: 'review', milestone: 'work' },
@@ -78,28 +78,28 @@ inspections[0]!.prerequisitesOf({ vertexId: 'work', milestone: 'ready' });
 navigation.milestones.push({ vertexId: 'work', milestone: 'work' });
 // @ts-expect-error Inspection results preserve exact IDs instead of unknown.
 const narrowed: 'other' = milestoneId;
-declare const nativeAsyncSource: AsyncTraversableGraph<
-  TreeTypeParameters<string, string>,
-  TreeTypeParameters<string, string>,
+declare const nativeAsyncSource: AsyncDagDiscoverySource<
+  VertexTypes<string, string>,
+  VertexTypes<string, string>,
   ID
 >;
-const nativeAsyncInspection: DagInspection<ID> = inspectDag(
-  new AsyncDagTraversal({ traversableGraph: nativeAsyncSource }).makeRunner(),
+const nativeAsyncInspection: DagMilestoneSnapshot<ID> = inspectDagMilestones(
+  new AsyncDagTraversal({ traversableGraph: nativeAsyncSource }).createRunner(),
 );
 // @ts-expect-error Native async sources also retain their declared ID domain.
 nativeAsyncInspection.prerequisitesOf({ vertexId: 'other', milestone: 'work' });
-declare const numericSource: TraversableGraph<
-  TreeTypeParameters<string, string>,
-  TreeTypeParameters<string, string>,
+declare const numericSource: DagDiscoverySource<
+  VertexTypes<string, string>,
+  VertexTypes<string, string>,
   number
 >;
 // @ts-expect-error A different declared domain cannot substitute for this inspection.
-const anotherDomain: DagInspection<ID> = inspectDag(
-  new DagTraversal({ traversableGraph: numericSource }).makeRunner(),
+const anotherDomain: DagMilestoneSnapshot<ID> = inspectDagMilestones(
+  new DagTraversal({ traversableGraph: numericSource }).createRunner(),
 );
-declare const treeSource: TraversableTree<TreeTypeParameters<string, string>>;
-const treeInspection: DagInspection<unknown> = inspectDag(
-  new DagTraversal({ traversableTree: treeSource }).makeRunner(),
+declare const treeSource: TreeSource<VertexTypes<string, string>>;
+const treeInspection: DagMilestoneSnapshot<unknown> = inspectDagMilestones(
+  new DagTraversal({ traversableTree: treeSource }).createRunner(),
 );
 void [
   navigation,
@@ -171,10 +171,10 @@ const invalidStall = new DagTraversalStallError<ID>({
   structurallyIncompleteIds: [],
 });
 // @ts-expect-error Async runner inspection is synchronous.
-const asynchronousInspection: Promise<DagInspection<ID>> =
-  asyncRunner.inspectDag();
+const asynchronousInspection: Promise<DagMilestoneSnapshot<ID>> =
+  asyncRunner.inspectMilestones();
 // @ts-expect-error Runner method preserves the declared ID domain.
-sync.inspectDag().explain({ vertexId: 'other', milestone: 'work' });
+sync.inspectMilestones().explain({ vertexId: 'other', milestone: 'work' });
 void [
   stallId,
   stallWait,

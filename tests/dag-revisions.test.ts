@@ -1,5 +1,5 @@
 import {
-  coordinateDagAsync,
+  createAsyncDagWorkSession,
   DagTraversalOrder,
   defineDag,
   diffDagDefinitions,
@@ -366,7 +366,7 @@ describe('reviseDag', () => {
     );
     if (result.kind !== 'valid') throw new Error('Expected valid fixture');
     const original = result.dag;
-    const before = original.createSession();
+    const before = original.createWorkSession();
     expect(
       reviseDag(original, [{ kind: 'removeVertex', vertexId: 'research' }]),
     ).toMatchObject({ kind: 'invalid', issues: [{ kind: 'milestone' }] });
@@ -431,11 +431,11 @@ describe('ordered atomic revisions', () => {
       ],
       vertexOrderChanged: true,
     });
-    expect(result.dag.createSession().advance()).toMatchObject({
+    expect(result.dag.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
       frontier: [{ vertexId: 'review' }],
     });
-    expect(original.createSession().advance()).toMatchObject({
+    expect(original.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
       frontier: [{ vertexId: 'research' }],
     });
@@ -502,7 +502,7 @@ describe('ordered atomic revisions', () => {
       vertexOrderChanged: true,
       entryChanged: true,
     });
-    expect(original.createSession().advance()).toMatchObject({
+    expect(original.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
       frontier: [{ vertexId: 'root' }, { vertexId: 'child' }],
     });
@@ -522,7 +522,7 @@ describe('ordered atomic revisions', () => {
       omittedIds: [],
       entry: { kind: 'empty' },
     });
-    expect(result.dag.createSession().advance().kind).toBe('finished');
+    expect(result.dag.createWorkSession().advance().kind).toBe('finished');
   });
 
   test('can replace omitted identities and entry slots in one batch', () => {
@@ -561,7 +561,7 @@ describe('ordered atomic revisions', () => {
 
   test('an empty batch creates a fresh unseeded prepared DAG and session', () => {
     const original = prepared([vertex('task')]);
-    const old = original.createSession({ completedWork: new Set(['task']) });
+    const old = original.createWorkSession({ completedWork: new Set(['task']) });
     expect(old.advance().kind).toBe('finished');
     const result = reviseDag(original, []);
     if (result.kind !== 'valid') throw new Error('Expected revision');
@@ -571,7 +571,7 @@ describe('ordered atomic revisions', () => {
       original.definition.vertices[0],
     );
     expect(result.changes).toEqual(unchanged);
-    expect(result.dag.createSession().advance()).toMatchObject({
+    expect(result.dag.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
       frontier: [{ vertexId: 'task' }],
     });
@@ -646,7 +646,7 @@ describe('ordered atomic revisions', () => {
       const original = prepared([vertex('root')], {
         entry: { kind: 'root', vertexId: 'root' },
       });
-      const session = original.createSession();
+      const session = original.createWorkSession();
       const before = original.definition;
       expect(
         reviseDag(original, rawOperations<string>(operations)),
@@ -673,7 +673,7 @@ describe('ordered atomic revisions', () => {
     'throws on programmer error $kind without adopting preceding edits',
     (operation) => {
       const original = prepared([vertex('root')]);
-      const session = original.createSession();
+      const session = original.createWorkSession();
       expect(() =>
         reviseDag(
           original,
@@ -794,7 +794,7 @@ describe('ordered atomic revisions', () => {
       expect(() => reviseDag(original, rawOperations(value))).toThrow(
         TypeError,
       );
-      expect(original.createSession().advance()).toMatchObject({
+      expect(original.createWorkSession().advance()).toMatchObject({
         kind: 'awaitingSettlement',
         frontier: [{ vertexId: undefined }],
       });
@@ -911,7 +911,7 @@ describe('ordered atomic revisions', () => {
       caught = value;
     }
     expect(caught).toBe(error);
-    expect(original.createSession().advance()).toMatchObject({
+    expect(original.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
       frontier: [{ vertexId: 'root' }],
     });
@@ -941,11 +941,11 @@ test('adds a new reachable vertex with explicit parent and prerequisite edits', 
       { vertexId: 'root', aspects: ['slots', 'workDependencies'] },
     ],
   });
-  expect(result.dag.createSession().advance()).toMatchObject({
+  expect(result.dag.createWorkSession().advance()).toMatchObject({
     kind: 'awaitingSettlement',
     frontier: [{ vertexId: 'new' }],
   });
-  expect(original.createSession().advance()).toMatchObject({
+  expect(original.createWorkSession().advance()).toMatchObject({
     kind: 'awaitingSettlement',
     frontier: [{ vertexId: 'root' }],
   });
@@ -960,8 +960,8 @@ describe('revision session isolation', () => {
         vertex('review', { dependsOn: ['build'] }),
       ]);
       const old = async
-        ? await original.createAsyncSession()
-        : original.createSession();
+        ? await original.createAsyncWorkSession()
+        : original.createWorkSession();
       const first = await old.advance();
       if (first.kind !== 'awaitingSettlement')
         throw new Error('Expected old frontier');
@@ -982,8 +982,8 @@ describe('revision session isolation', () => {
       ]);
       if (revision.kind !== 'valid') throw new Error('Expected valid revision');
       const fresh = async
-        ? await revision.dag.createAsyncSession()
-        : revision.dag.createSession();
+        ? await revision.dag.createAsyncWorkSession()
+        : revision.dag.createWorkSession();
       expect(fresh.summary().completedWorkIds).toEqual([]);
       expect(await fresh.advance()).toMatchObject({
         kind: 'awaitingSettlement',
@@ -996,10 +996,10 @@ describe('revision session isolation', () => {
       // The host has independently accepted build's unchanged artifact for this revision.
       const selectedFacts = new Set(['build']);
       const seeded = async
-        ? await revision.dag.createAsyncSession({
+        ? await revision.dag.createAsyncWorkSession({
             completedWork: selectedFacts,
           })
-        : revision.dag.createSession({ completedWork: selectedFacts });
+        : revision.dag.createWorkSession({ completedWork: selectedFacts });
       expect(await seeded.advance()).toMatchObject({
         kind: 'awaitingSettlement',
         frontier: [{ vertexId: 'review' }],
@@ -1024,7 +1024,7 @@ describe('revision session isolation', () => {
         },
       },
     });
-    const old = coordinateDagAsync(oldRunner);
+    const old = createAsyncDagWorkSession(oldRunner);
     const boundary = await old.advance();
     if (boundary.kind !== 'awaitingSettlement')
       throw new Error('Expected ticket');
@@ -1040,7 +1040,7 @@ describe('revision session isolation', () => {
       { kind: 'replaceVertex', vertex: vertex('task', { data: 'revised' }) },
     ]);
     if (revision.kind !== 'valid') throw new Error('Expected valid revision');
-    const fresh = await revision.dag.createAsyncSession();
+    const fresh = await revision.dag.createAsyncWorkSession();
     const freshBoundary = await fresh.advance();
     if (freshBoundary.kind !== 'awaitingSettlement')
       throw new Error('Expected fresh ticket');

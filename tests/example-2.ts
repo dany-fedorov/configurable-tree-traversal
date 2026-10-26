@@ -1,5 +1,5 @@
-import { TraversableObjectTree } from '@traversable-object-tree/index';
-import { DepthFirstTraversal } from '@depth-first-traversal/DepthFirstTraversal';
+import { ObjectTreeSource } from '@traversable-object-tree/index';
+import { DepthFirstTreeTraversal } from '@depth-first-traversal/DepthFirstTraversal';
 import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
@@ -10,8 +10,8 @@ const obj = {
   d: [{ d1: { d11: 'd11', d12: 'd12' } }],
 };
 
-const tree = new TraversableObjectTree(obj);
-const t = new DepthFirstTraversal({
+const tree = new ObjectTreeSource(obj);
+const t = new DepthFirstTreeTraversal({
   traversableTree: tree,
 });
 t.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
@@ -34,7 +34,7 @@ t.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
   console.log('IN_ORDER', v.getData());
 });
 
-const runner = t.makeRunner();
+const runner = t.createRunner();
 runner.run();
 console.log(runner.getStatus());
 runner.run();

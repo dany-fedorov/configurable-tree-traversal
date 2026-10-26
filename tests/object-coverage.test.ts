@@ -1,13 +1,13 @@
 import {
   CTTRef,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
   ResolvedTree,
   TraversalVisitorCommandName,
   TraversalVisitorFunctionResolutionStyle,
   Vertex,
   VertexResolved,
-  TraversableObjectTree,
+  ObjectTreeSource,
   rewriteObject as rewriteObjectApi,
   type TraversableObjectTTP,
   type TraversalVisitorInputOptions,
@@ -81,9 +81,9 @@ describe('rewrite object option integration', () => {
   });
 
   test('uses and advances an injected empty runner state', () => {
-    const injectedState = new DepthFirstTraversal({
-      traversableTree: new TraversableObjectTree({ value: 1 }),
-    }).makeRunner().state;
+    const injectedState = new DepthFirstTreeTraversal({
+      traversableTree: new ObjectTreeSource({ value: 1 }),
+    }).createRunner().state;
     injectedState.visitorsState[
       DepthFirstTraversalOrder.POST_ORDER
     ].vertexVisitIndex = 40;
@@ -115,8 +115,8 @@ describe('object identity bookkeeping', () => {
   test('keeps the original non-root identity after pre-order data rewriting', () => {
     const branch: { self?: unknown } = {};
     branch.self = branch;
-    const traversal = new DepthFirstTraversal({
-      traversableTree: new TraversableObjectTree({ branch }),
+    const traversal = new DepthFirstTreeTraversal({
+      traversableTree: new ObjectTreeSource({ branch }),
     });
     traversal.addVisitorFor(
       DepthFirstTraversalOrder.PRE_ORDER,
@@ -140,7 +140,7 @@ describe('object identity bookkeeping', () => {
       },
     );
 
-    expect(() => traversal.makeRunner().run()).toThrow(
+    expect(() => traversal.createRunner().run()).toThrow(
       /cycle.*\$\.branch\.self.*ancestor at \$\.branch/i,
     );
   });
@@ -148,8 +148,8 @@ describe('object identity bookkeeping', () => {
   test('retains hook-substituted ancestor identity after data rewriting', () => {
     const branch: { self?: unknown } = {};
     branch.self = branch;
-    const traversal = new DepthFirstTraversal({
-      traversableTree: new TraversableObjectTree(
+    const traversal = new DepthFirstTreeTraversal({
+      traversableTree: new ObjectTreeSource(
         { branch: 0 },
         {
           resolveVertexHook: (hint) =>
@@ -180,15 +180,15 @@ describe('object identity bookkeeping', () => {
       }
       return undefined;
     });
-    expect(() => traversal.makeRunner().run()).toThrow(
+    expect(() => traversal.createRunner().run()).toThrow(
       'Object identity cycle detected at $.branch.self; value repeats ancestor at $.branch',
     );
   });
 
   test('a rewritten root keeps its original child hints after data rewriting', () => {
     const visited: PropertyKey[] = [];
-    const traversal = new DepthFirstTraversal({
-      traversableTree: new TraversableObjectTree({ child: 1 }),
+    const traversal = new DepthFirstTreeTraversal({
+      traversableTree: new ObjectTreeSource({ child: 1 }),
     });
     traversal.addVisitorFor(
       DepthFirstTraversalOrder.PRE_ORDER,
@@ -210,15 +210,15 @@ describe('object identity bookkeeping', () => {
       },
     );
 
-    traversal.makeRunner().run();
+    traversal.createRunner().run();
 
     expect(visited).toEqual(['child']);
   });
 
   test('hook-supplied primitive parents with explicit children do not create false cycles', () => {
     const visited: PropertyKey[] = [];
-    const traversal = new DepthFirstTraversal({
-      traversableTree: new TraversableObjectTree(
+    const traversal = new DepthFirstTreeTraversal({
+      traversableTree: new ObjectTreeSource(
         { custom: { ignored: true } },
         {
           makeVertexHook: (hint) =>
@@ -243,7 +243,7 @@ describe('object identity bookkeeping', () => {
       },
     );
 
-    expect(() => traversal.makeRunner().run()).not.toThrow();
+    expect(() => traversal.createRunner().run()).not.toThrow();
     expect(visited).toEqual(['custom', 'first', 'second']);
   });
 
@@ -278,14 +278,14 @@ describe('object identity bookkeeping', () => {
       }),
     );
     const childHint = { key: 'self', value: originalBranch };
-    const adapter = new TraversableObjectTree<
+    const adapter = new ObjectTreeSource<
       Record<PropertyKey, unknown>,
       PropertyKey,
       unknown
     >({});
 
     expect(() =>
-      adapter.makeVertex(childHint, {
+      adapter.resolveChild(childHint, {
         resolvedTree,
         notMutatedResolvedTree: null,
         resolutionContext: {
@@ -322,14 +322,14 @@ describe('object identity bookkeeping', () => {
       }),
     );
     const childHint = { key: 'child', value: detachedValue };
-    const adapter = new TraversableObjectTree<
+    const adapter = new ObjectTreeSource<
       Record<PropertyKey, unknown>,
       PropertyKey,
       unknown
     >({});
 
     expect(() =>
-      adapter.makeVertex(childHint, {
+      adapter.resolveChild(childHint, {
         resolvedTree,
         notMutatedResolvedTree: null,
         resolutionContext: {
@@ -420,7 +420,7 @@ describe('public mutation command factory', () => {
       const { vertex, options } = makeArguments({ child: 1 });
       const assembledMap = new Map();
       let assemblyCount = 0;
-      const mutation = TraversableObjectTree.makeMutationCommandFactory<
+      const mutation = ObjectTreeSource.makeMutationCommandFactory<
         ObjectTree,
         ObjectTree
       >({
@@ -454,7 +454,7 @@ describe('public mutation command factory', () => {
       let assemblyCount = 0;
       let reads = 0;
       const { makeMutationCommand } =
-        TraversableObjectTree.makeMutationCommandFactory<
+        ObjectTreeSource.makeMutationCommandFactory<
           ObjectTree,
           ObjectTree
         >({
@@ -510,7 +510,7 @@ describe('public mutation command factory', () => {
       let assemblyCount = 0;
       let reads = 0;
       const { makeMutationCommand } =
-        TraversableObjectTree.makeMutationCommandFactory<
+        ObjectTreeSource.makeMutationCommandFactory<
           ObjectTree,
           ObjectTree
         >({
@@ -546,7 +546,7 @@ describe('public mutation command factory', () => {
       let assemblyCount = 0;
       let reads = 0;
       const { makeMutationCommand } =
-        TraversableObjectTree.makeMutationCommandFactory<
+        ObjectTreeSource.makeMutationCommandFactory<
           ObjectTree,
           ObjectTree
         >({
@@ -579,7 +579,7 @@ describe('public mutation command factory', () => {
   test('honors own undefined values and key-only patches on primitives', () => {
     const { vertex, options } = makeArguments(1);
     const { makeMutationCommand } =
-      TraversableObjectTree.makeMutationCommandFactory<
+      ObjectTreeSource.makeMutationCommandFactory<
         ObjectTree,
         ObjectTree
       >()(vertex, options);
@@ -606,7 +606,7 @@ describe('public mutation command factory', () => {
         throw error;
       };
       const { makeMutationCommand } =
-        TraversableObjectTree.makeMutationCommandFactory<
+        ObjectTreeSource.makeMutationCommandFactory<
           ObjectTree,
           ObjectTree
         >({ assembleArray: failAssembly, assembleObject: failAssembly })(
@@ -624,7 +624,7 @@ describe('public mutation command factory', () => {
 
   test('default array assembly handles a ref with no resolved child entry', () => {
     const makeMutationCommand =
-      TraversableObjectTree.makeMutationCommandFactory<
+      ObjectTreeSource.makeMutationCommandFactory<
         ObjectTree,
         ObjectTree
       >();
@@ -642,7 +642,7 @@ describe('public mutation command factory', () => {
 
   test('assembling a primitive reports that it is not a composite', () => {
     const makeMutationCommand =
-      TraversableObjectTree.makeMutationCommandFactory<
+      ObjectTreeSource.makeMutationCommandFactory<
         ObjectTree,
         ObjectTree
       >();

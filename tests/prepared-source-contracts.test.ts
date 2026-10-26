@@ -2,10 +2,10 @@ import {
   prepareDag,
   prepareDagAsync,
 } from '../src/traversals/dag-traversal/prepareDag';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 
 for (const prepare of [prepareDag, prepareDagAsync]) {
   test(`${prepare.name} preserves non-enumerable own undefined identity`, async () => {
@@ -16,8 +16,8 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     );
     const result = await prepare<G, unknown>({
       traversableGraph: {
-        makeRoot: () => ({ kind: 'found', vertex }),
-        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveRoot: () => ({ kind: 'found', vertex }),
+        resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
       },
     });
     if (result.kind !== 'valid') throw new Error('Expected valid DAG');
@@ -45,8 +45,8 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     await expect(async () => {
       await prepare<G, string>({
         traversableGraph: {
-          makeRoot: () => ({ kind: 'found', vertex }),
-          makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+          resolveRoot: () => ({ kind: 'found', vertex }),
+          resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
         },
       });
     }).rejects.toThrow(/priority metadata is not supported/);
@@ -69,8 +69,8 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       await expect(async () => {
         await prepare<G, string>({
           traversableGraph: {
-            makeRoot: () => ({ kind: 'found', vertex }),
-            makeVertex: () => ({
+            resolveRoot: () => ({ kind: 'found', vertex }),
+            resolveChild: () => ({
               kind: 'omitted',
               satisfiesDependencies: true,
             }),
@@ -96,9 +96,9 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         return this.vertexId === 'c' ? ['b'] : [];
       }
     }
-    const source: TraversableGraph<G, G, string> = {
-      makeRoot: () => new Entry('root'),
-      makeVertex: (id) => new Entry(id),
+    const source: DagDiscoverySource<G, G, string> = {
+      resolveRoot: () => new Entry('root'),
+      resolveChild: (id) => new Entry(id),
     };
     const result = await prepare<G, string>({ traversableGraph: source });
     if (result.kind !== 'valid') throw new Error('Expected valid DAG');
@@ -137,7 +137,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       const inherited = Object.create(prototype) as { vertexId: string };
       const result = await prepare<G, string>({
         traversableGraph: {
-          makeRoot: () => ({
+          resolveRoot: () => ({
             kind: 'found',
             vertex: {
               vertexId: 'root',
@@ -145,7 +145,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
             },
           }),
           getVertexIdFromHint: () => inherited,
-          makeVertex: () => ({
+          resolveChild: () => ({
             kind: 'found',
             vertex: {
               vertexId: 'b',
@@ -173,7 +173,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       };
       const result = await prepare<G, unknown>({
         traversableGraph: {
-          makeRoot: () => ({
+          resolveRoot: () => ({
             kind: 'found',
             vertex: {
               vertexId: 'root',
@@ -182,7 +182,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
           }),
           getVertexIdFromHint: (hint) =>
             hint === 'skip' ? wrapper : { vertexId: hint },
-          makeVertex: (hint) =>
+          resolveChild: (hint) =>
             hint === 'skip'
               ? { kind: 'omitted', satisfiesDependencies: true }
               : {

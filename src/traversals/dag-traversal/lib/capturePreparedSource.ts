@@ -1,15 +1,15 @@
-import type { AsyncTraversableGraph } from '@core/TraversableGraph';
+import type { AsyncDagDiscoverySource } from '@core/TraversableGraph';
 import type {
   MakeVertexResult,
-  PrerequisiteResolutionResult,
+  DagPrerequisiteResolution,
 } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { normalizeSourceResult } from '@core/drivers/normalizeSourceResult';
 import type { MaybePromise } from '@core/graph/types';
 
 /** Capture omission candidates and distinguish source failures from engine validation. */
-export function capturePreparedSource<T extends TreeTypeParameters, ID>(
-  source: AsyncTraversableGraph<T, T, ID>,
+export function capturePreparedSource<T extends VertexTypes, ID>(
+  source: AsyncDagDiscoverySource<T, T, ID>,
   asynchronous: boolean,
 ) {
   const candidates = new Set<ID>();
@@ -43,7 +43,7 @@ export function capturePreparedSource<T extends TreeTypeParameters, ID>(
       : syncCall(invoke as () => I, receive);
 
   const record = (
-    value: PrerequisiteResolutionResult<T, ID>,
+    value: DagPrerequisiteResolution<T, ID>,
     prerequisite: boolean,
   ) => {
     const normalized = normalizeSourceResult<T, ID>(value, prerequisite);
@@ -68,17 +68,17 @@ export function capturePreparedSource<T extends TreeTypeParameters, ID>(
     return copied;
   };
 
-  const adapter: AsyncTraversableGraph<T, T, ID> = {
-    makeRoot: () =>
+  const adapter: AsyncDagDiscoverySource<T, T, ID> = {
+    resolveRoot: () =>
       call(
-        () => source.makeRoot(),
+        () => source.resolveRoot(),
         (value) => {
           return record(value, false)! as MakeVertexResult<T, ID>;
         },
       ),
-    makeVertex: (hint, options) =>
+    resolveChild: (hint, options) =>
       call(
-        () => source.makeVertex(hint, options),
+        () => source.resolveChild(hint, options),
         (value) => record(value, false)! as MakeVertexResult<T, ID>,
       ),
   };

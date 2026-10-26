@@ -55,19 +55,19 @@ function parseArguments(args) {
 function createLifecycleInspection(library, fixture, completed, options) {
   const counters = { root: 0, vertex: 0, ready: 0 };
   const indexes = new Map(fixture.ids.map((id, i) => [id, i]));
-  const Traversal =
+  const TreeTraversal =
     options.mode === 'async' ? library.AsyncDagTraversal : library.DagTraversal;
-  const traversal = new Traversal({
+  const traversal = new TreeTraversal({
     discovery: options.discovery,
     syntheticRoot: true,
     completedWork: new Set(completed),
     ...(options.mode === 'async' ? { concurrency: options.concurrency } : {}),
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         counters.root++;
         return { vertexContent: { $d: 'catalog', $c: fixture.ids } };
       },
-      makeVertex: (id) => {
+      resolveChild: (id) => {
         counters.vertex++;
         return {
           vertexId: id,
@@ -90,7 +90,7 @@ function createLifecycleInspection(library, fixture, completed, options) {
         }
       : visit,
   );
-  return { runner: traversal.makeRunner(), counters };
+  return { runner: traversal.createRunner(), counters };
 }
 
 async function timeRun(inspection, mode) {
@@ -428,7 +428,7 @@ async function main(args) {
       fixtureConstructionMs:
         'IDs/prerequisite arrays only, one shared fixture per shape outside samples; seed construction excluded',
       runnerConstructionMs:
-        'adapter index, copied completed seeds, constructor, visitor registration and makeRunner',
+        'adapter index, copied completed seeds, constructor, visitor registration and createRunner',
       initialRunMs:
         'run entry to quiescence, includes discovery, validation and deferred callback scheduling; async awaits run completion',
       settlementBatchMs:

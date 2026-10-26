@@ -322,7 +322,7 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
       traversal.configure({ limits: { maxSteps: 2, maxDepht: 1 } as never }),
     ).toThrow(TypeError);
     expect(roots).not.toHaveBeenCalled();
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
     expect(roots).not.toHaveBeenCalled();
   });
 }
@@ -340,7 +340,7 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
       followEdge: null,
       expandVertex: null,
     });
-    const runner = walk.makeRunner();
+    const runner = walk.createRunner();
     await runner.run();
     expect(runner.summary().counts.foundVertices).toBe(2);
     expect(runner.summary().counts.observedLinks).toBe(1);
@@ -360,7 +360,7 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
         [predicate]: () => false,
       });
       async function found() {
-        const runner = walk.makeRunner();
+        const runner = walk.createRunner();
         await runner.run();
         return runner.summary().counts.foundVertices;
       }

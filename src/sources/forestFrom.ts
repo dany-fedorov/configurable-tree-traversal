@@ -6,16 +6,16 @@ import {
 import type { MaterializedRecord } from './materialize';
 import type {
   AsyncCollection,
-  AsyncForestSelectors,
-  CollectionSource,
-  ForestSelectors,
+  AsyncDagRootSelectors,
+  MaterializedDagSource,
+  DagRootSelectors,
 } from './types';
 
 /** Expand finite forests iteratively; repeated references share one vertex. */
-export function forestFrom<Item, ID>(
+export function materializeDagSourceFromRoots<Item, ID>(
   roots: Iterable<Item>,
-  selectors: ForestSelectors<Item, ID>,
-): CollectionSource<Item, ID> {
+  selectors: DagRootSelectors<Item, ID>,
+): MaterializedDagSource<Item, ID> {
   validateCollectionSelectors(selectors);
   const identities = new Map<Item, ID>();
   const owners = new Map<ID, Item>();
@@ -47,10 +47,10 @@ export function forestFrom<Item, ID>(
 }
 
 /** Async forest discovery retains the same sharing and topology-copying rules. */
-export async function forestFromAsync<Item, ID>(
+export async function materializeDagSourceFromRootsAsync<Item, ID>(
   roots: AsyncCollection<Item>,
-  selectors: AsyncForestSelectors<Item, ID>,
-): Promise<CollectionSource<Item, ID>> {
+  selectors: AsyncDagRootSelectors<Item, ID>,
+): Promise<MaterializedDagSource<Item, ID>> {
   validateCollectionSelectors(selectors);
   const identities = new Map<Item, ID>();
   const owners = new Map<ID, Item>();

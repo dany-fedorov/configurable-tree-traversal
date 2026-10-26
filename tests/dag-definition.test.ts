@@ -1,6 +1,6 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { definitionSource } from '../src/traversals/dag-traversal/lib/definitionSource';
-import { graphFrom } from '../src';
+import { materializeDagSourceFromRecords } from '../src';
 import {
   defineDag,
   prepareDagDefinition,
@@ -8,14 +8,14 @@ import {
   type DagDefinitionSlot,
 } from '../src';
 import { prepareDag } from '../src/traversals/dag-traversal/prepareDag';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 
-function omissionSource(anonymous = false): TraversableGraph<G, G, string> {
+function omissionSource(anonymous = false): DagDiscoverySource<G, G, string> {
   return {
-    makeRoot: () => ({
+    resolveRoot: () => ({
       kind: 'found',
       vertex: {
         vertexId: 'root',
@@ -27,7 +27,7 @@ function omissionSource(anonymous = false): TraversableGraph<G, G, string> {
         },
       },
     }),
-    makeVertex: (id) =>
+    resolveChild: (id) =>
       ['before', 'skip', 'after'].includes(id)
         ? {
             kind: 'omitted',
@@ -219,7 +219,7 @@ for (const anonymous of [false, true]) {
   test(`definition replay preserves work and completion order with anonymous omissions ${anonymous}`, async () => {
     const adapter = omissionSource(anonymous);
     const original = new DagTraversal({ traversableGraph: adapter })
-      .makeRunner()
+      .createRunner()
       .prepare();
     const result = prepareDag({ traversableGraph: adapter });
     if (result.kind !== 'valid') throw new Error('Expected valid');
@@ -274,12 +274,12 @@ test('definitions retain empty and omitted roots separately from forest catalogs
   for (const identified of [false, true]) {
     const result = prepareDag<G, unknown>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           kind: 'omitted',
           satisfiesDependencies: true,
           ...(identified ? { vertexId: undefined } : {}),
         }),
-        makeVertex: () => {
+        resolveChild: () => {
           throw new Error('No children');
         },
       },
@@ -291,12 +291,12 @@ test('definitions retain empty and omitted roots separately from forest catalogs
       entry: { kind: 'empty' },
     });
     const replay = new DagTraversal(definitionSource(result.dag.definition))
-      .makeRunner()
+      .createRunner()
       .prepare();
     expect([...replay.getIterable()]).toEqual([]);
     expect(replay.getStopReason()).toBe('finished');
   }
-  const forest = prepareDag(graphFrom(['a', 'b'], { id: (id) => id }));
+  const forest = prepareDag(materializeDagSourceFromRecords(['a', 'b'], { id: (id) => id }));
   if (forest.kind !== 'valid') throw new Error('Expected valid');
   expect(forest.dag.definition.entry).toEqual({
     kind: 'forest',
@@ -305,14 +305,14 @@ test('definitions retain empty and omitted roots separately from forest catalogs
       { kind: 'vertex', vertexId: 'b' },
     ],
   });
-  const empty = prepareDag(graphFrom<string, string>([], { id: (id) => id }));
+  const empty = prepareDag(materializeDagSourceFromRecords<string, string>([], { id: (id) => id }));
   if (empty.kind !== 'valid') throw new Error('Expected valid');
   expect(empty.dag.definition.entry).toEqual({ kind: 'forest', slots: [] });
   const omittedHolder = prepareDag<G, string>({
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () => ({ kind: 'omitted', satisfiesDependencies: true }),
-      makeVertex: () => {
+      resolveRoot: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      resolveChild: () => {
         throw new Error('No children');
       },
     },
@@ -329,10 +329,10 @@ test('definition replay retains structural sharing and detached prerequisites wi
   const sharedId = { label: 'shared' };
   const remoteId = { label: 'remote' };
   type ID = typeof rootId | undefined;
-  type ObjectGraph = TreeTypeParameters<{ label: string }, ID>;
+  type ObjectGraph = VertexTypes<{ label: string }, ID>;
   const calls: unknown[] = [];
-  const adapter: TraversableGraph<ObjectGraph, ObjectGraph, ID> = {
-    makeRoot: () => {
+  const adapter: DagDiscoverySource<ObjectGraph, ObjectGraph, ID> = {
+    resolveRoot: () => {
       calls.push('root');
       return {
         kind: 'found',
@@ -349,7 +349,7 @@ test('definition replay retains structural sharing and detached prerequisites wi
       Object.defineProperty({}, 'vertexId', { value: vertexId }) as {
         vertexId: ID;
       },
-    makeVertex: (id) => {
+    resolveChild: (id) => {
       calls.push(id);
       return id === undefined
         ? { kind: 'omitted', satisfiesDependencies: true }
@@ -426,12 +426,12 @@ test('an omitted synthetic catalog root does not expose its private holder ident
   const result = prepareDag<G, string>({
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         kind: 'omitted',
         vertexId: 'catalog',
         satisfiesDependencies: true,
       }),
-      makeVertex: () => {
+      resolveChild: () => {
         throw new Error('No children');
       },
     },

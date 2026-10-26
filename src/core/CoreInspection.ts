@@ -1,5 +1,5 @@
 import type { VisitorPhaseSelection } from './TraversalRunnerIterableConfig';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalRunnerStatus,
   TraversalStopReason,
@@ -58,7 +58,7 @@ export type KernelInspection = Readonly<{
   }>[];
   pendingRequests: readonly Readonly<{
     requestId: number;
-    kind: keyof CallbackValues<TreeTypeParameters>;
+    kind: keyof CallbackValues<VertexTypes>;
     owner: Readonly<OwnerToken>;
     valid: boolean;
   }>[];

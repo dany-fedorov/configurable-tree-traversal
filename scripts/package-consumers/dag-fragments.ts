@@ -8,7 +8,7 @@ import {
   type DagFragment,
   type DagFragmentInstance,
   type DagCompositionOptions,
-  type DagDefinitionResult,
+  type PrepareDagResult,
 } from 'configurable-tree-traversal';
 import * as dag from 'configurable-tree-traversal/traversals/dag-traversal';
 type Local = 'start' | 'finish';
@@ -121,7 +121,7 @@ const second = defineDagFragment(
   }),
   { end: 3 },
 );
-const union: DagDefinitionResult<number | string, Local | number> = composeDag<
+const union: PrepareDagResult<number | string, Local | number> = composeDag<
   number | string,
   Local | number
 >([fragment, second], { children: [{ parent: 'start', child: 3 }] });
@@ -137,7 +137,7 @@ const packedInstance: dag.DagFragmentInstance<
   { local: Local },
   'start' | 'finish'
 > = instance;
-const validated: dag.DagDefinitionResult<number, Local> =
+const validated: dag.PrepareDagResult<number, Local> =
   dag.prepareDagDefinition(packedDefinition);
 void [packedInstance, validated];
 

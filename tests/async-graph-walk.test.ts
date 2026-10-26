@@ -36,12 +36,12 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
       emitPhases: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
       expandVertex: async () => true,
       followEdge: async () => true,
-    }).makeRunner();
+    }).createRunner();
     const expected = new GraphWalk({
       source: sync.source,
       strategy,
       emitPhases: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
-    }).makeRunner();
+    }).createRunner();
     expect(await collect(runner.getIterable())).toEqual([
       ...expected.getIterable(),
     ]);
@@ -101,7 +101,7 @@ it.each([false, true])(
           }
         : {}),
     };
-    const runner = new AsyncGraphWalk({ source }).makeRunner();
+    const runner = new AsyncGraphWalk({ source }).createRunner();
     const events = await collect(runner.getIterable());
     expect(events).toMatchObject([
       { vertex: { data: 'A' } },
@@ -131,7 +131,7 @@ it('captures source callbacks and receiver while retaining shared caller data an
     },
   };
   const walk = new AsyncGraphWalk({ source });
-  const runner = walk.makeRunner();
+  const runner = walk.createRunner();
   expect(rootsReads).toBe(1);
   source.outgoing = () => {
     throw new Error('mutated callback');
@@ -154,7 +154,7 @@ it('registration and configure changes snapshot async callbacks and detach liste
     calls.push('old');
   };
   expect(walk.addVisitorFor(Phase.VERTEX, visit, { priority: 5 })).toBe(walk);
-  const old = walk.makeRunner();
+  const old = walk.createRunner();
   const records = walk.listVisitorsFor(Phase.VERTEX);
   expect(records[0]!.visitor).toBe(visit);
   records.length = 0;
@@ -175,12 +175,12 @@ it('registration and configure changes snapshot async callbacks and detach liste
   ).toBe(walk);
   expect(walk.configure({ emitPhases: [] })).toBe(walk);
   await old.run();
-  await walk.makeRunner().run();
+  await walk.createRunner().run();
   expect(calls).toEqual(['old', 'group:first', 'group:second']);
   expect(() => walk.listVisitorsFor('invalid' as Phase)).toThrow(TypeError);
   expect(() => walk.configure({ revisit: 'walks' })).toThrow(TypeError);
   walk.configure({ limits: { maxDepth: 1 }, revisit: 'walks' });
-  const bounded = await walk.makeRunner().run();
+  const bounded = await walk.createRunner().run();
   // Replacing maxOccurrences admits A, E, AB, AB and AC at depth one.
   expect(bounded.summary().counts.occurrences).toBe(5);
   expect(calls.slice(3)).toEqual(
@@ -207,7 +207,7 @@ it('accepts resolved thenables from async sources, predicates and visitors', asy
         return thenable(undefined);
       },
     },
-  }).makeRunner();
+  }).createRunner();
   await runner.run();
   expect(seen).toEqual(['A']);
   expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
@@ -274,7 +274,7 @@ it.each([
       source,
       expandVertex: () =>
         stage === 'predicate' ? Promise.reject(error) : true,
-    }).makeRunner();
+    }).createRunner();
     await expect(runner.run()).rejects.toBe(error);
     await expect(runner.run()).rejects.toBe(error);
     expect(runner.summary().outcome).toEqual({ kind: 'failed', error });
@@ -299,7 +299,7 @@ it('prefers async iteration and falls back only for an absent async factory', as
       }),
       outgoing: () => [],
     },
-  }).makeRunner();
+  }).createRunner();
   expect(await collect(runner.getIterable())).toMatchObject([
     { vertex: { vertexId: 'A' } },
   ]);
@@ -318,7 +318,7 @@ it.each([1, { then: () => undefined }])(
       }),
       outgoing: () => [],
     } as unknown as AsyncGraphWalkSource<string, undefined, string>;
-    const runner = new AsyncGraphWalk({ source }).makeRunner();
+    const runner = new AsyncGraphWalk({ source }).createRunner();
     await expect(runner.run()).rejects.toBeInstanceOf(TypeError);
     expect(runner.summary().counts.occurrences).toBe(0);
   },
@@ -353,7 +353,7 @@ it('observes an invalid async iterator factory rejected promise before retaining
     }),
     outgoing: () => [],
   } as unknown as AsyncGraphWalkSource<string, undefined, string>;
-  const runner = new AsyncGraphWalk({ source }).makeRunner();
+  const runner = new AsyncGraphWalk({ source }).createRunner();
   await expect(runner.run()).rejects.toBeInstanceOf(TypeError);
   expect(observed).toEqual([error]);
 });

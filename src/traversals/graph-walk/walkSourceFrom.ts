@@ -34,7 +34,7 @@ function materializedSource<Data, Edge, ID>(
 }
 
 /** Eagerly copy a finite catalog's topology, retaining caller data and IDs. */
-export function walkSourceFrom<Data, Edge, ID>(
+export function materializeWalkSourceFromRecords<Data, Edge, ID>(
   items: Iterable<Data>,
   options: {
     id(item: Data): ID;
@@ -58,7 +58,7 @@ export function walkSourceFrom<Data, Edge, ID>(
 }
 
 /** Await finite inputs once and return a reusable synchronous walking source. */
-export async function walkSourceFromAsync<Data, Edge, ID>(
+export async function materializeWalkSourceFromRecordsAsync<Data, Edge, ID>(
   items: Iterable<Data> | AsyncIterable<Data>,
   options: {
     id(item: Data): MaybePromise<ID>;

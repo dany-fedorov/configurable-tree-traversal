@@ -2,28 +2,28 @@ import {
   AsyncDagTraversal,
   DagTraversal,
   DagTraversalOrder as D,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder as F,
   BreadthFirstTraversalOrder as B,
   TraversalVisitorCommandName as C,
   TraversalVisitorFunctionResolutionStyle as Style,
   DEFER_READY,
   core,
-  traverseDepthFirst,
-  traverseDepthFirstAsync,
-  traverseBreadthFirst,
-  traverseBreadthFirstAsync,
+  traverseTreeDepthFirst,
+  traverseTreeDepthFirstAsync,
+  traverseTreeBreadthFirst,
+  traverseTreeBreadthFirstAsync,
   traverseDag,
   traverseDagAsync,
 } from 'configurable-tree-traversal';
 import type {
-  TreeTypeParameters,
-  TraversableTree,
-  TraversableGraph,
-  SourceVertexResult,
-  FoundVertexResult,
-  MissingVertexResult,
-  PrerequisiteResolutionResult,
+  VertexTypes,
+  TreeSource,
+  DagDiscoverySource,
+  DagVertexResolution,
+  DagVertexFound,
+  PrerequisiteMissing,
+  DagPrerequisiteResolution,
   VertexContent,
   LegacyVertexContent,
   VisitorRegistrationMetadata,
@@ -33,7 +33,7 @@ import type {
   DagWorkState,
 } from 'configurable-tree-traversal';
 
-type T = TreeTypeParameters<string | undefined, string>;
+type T = VertexTypes<string | undefined, string>;
 const canonical: VertexContent<T> = { $data: 'root', $childHints: ['leaf'] };
 const legacy: LegacyVertexContent<T> = { $d: 'old', $c: [] };
 const vertex = new core.Vertex<T>(legacy).clone({ $data: undefined });
@@ -41,26 +41,26 @@ const data: string | undefined = vertex.$data;
 const alias: string | undefined = vertex.$d;
 // @ts-expect-error mixed vertex spellings are ambiguous
 new core.Vertex<T>({ $data: '', $c: [] });
-const found: FoundVertexResult<T> = {
+const found: DagVertexFound<T> = {
   kind: 'found',
   vertex: { vertexId: undefined, vertexContent: canonical },
 };
-const omitted: import('configurable-tree-traversal').OmittedVertexResult = {
+const omitted: import('configurable-tree-traversal').DagVertexOmitted = {
   kind: 'omitted',
   satisfiesDependencies: true,
 };
-const missing: MissingVertexResult = { kind: 'missing' };
-const source: SourceVertexResult<T> = found;
-const lookup: PrerequisiteResolutionResult<T> = missing;
+const missing: PrerequisiteMissing = { kind: 'missing' };
+const source: DagVertexResolution<T> = found;
+const lookup: DagPrerequisiteResolution<T> = missing;
 // @ts-expect-error missing is valid only in prerequisite lookup
-const invalidSource: SourceVertexResult<T> = missing;
-const tree: TraversableTree<T> = {
-  makeRoot: () => ({ kind: 'found', vertex: { vertexContent: canonical } }),
-  makeVertex: () => ({ kind: 'omitted' }),
+const invalidSource: DagVertexResolution<T> = missing;
+const tree: TreeSource<T> = {
+  resolveRoot: () => ({ kind: 'found', vertex: { vertexContent: canonical } }),
+  resolveChild: () => ({ kind: 'omitted' }),
 };
-const graph: TraversableGraph<T> = {
-  makeRoot: () => source,
-  makeVertex: () => omitted,
+const graph: DagDiscoverySource<T> = {
+  resolveRoot: () => source,
+  resolveChild: () => omitted,
   resolvePrerequisite: () => lookup,
 };
 const common: TraversalVisitor<string, T, T> = (_vertex, options) => {
@@ -74,7 +74,7 @@ const common: TraversalVisitor<string, T, T> = (_vertex, options) => {
 const dagCommon: DagVisitor<T> = () => ({
   commands: [{ commandName: C.NOOP }],
 });
-const depth = new DepthFirstTraversal({ traversableTree: tree });
+const depth = new DepthFirstTreeTraversal({ traversableTree: tree });
 depth.addVisitorFor(F.POST_ORDER, common);
 depth.configure({
   visitors: {
@@ -137,11 +137,11 @@ const work: DagWorkState = 'completed';
 // @ts-expect-error old progress string is replaced
 const oldWork: DagWorkState = 'succeeded';
 const syncHelpers = [
-  traverseDepthFirst({
+  traverseTreeDepthFirst({
     traversableTree: tree,
     visitors: { [F.POST_ORDER]: common },
   }),
-  traverseBreadthFirst({
+  traverseTreeBreadthFirst({
     traversableTree: tree,
     visitors: { [B.LEVEL_ORDER]: common },
   }),
@@ -149,16 +149,16 @@ const syncHelpers = [
     traversableGraph: graph,
     visitors: { [D.ON_READY]: dagCommon },
   }),
-  traverseDepthFirst(tree, { postOrderVisitor: common }),
-  traverseBreadthFirst(tree, common),
+  traverseTreeDepthFirst(tree, { postOrderVisitor: common }),
+  traverseTreeBreadthFirst(tree, common),
   traverseDag({ traversableGraph: graph }, { onReadyVisitor: dagCommon }),
 ];
 const asyncHelpers: Promise<unknown>[] = [
-  traverseDepthFirstAsync({
+  traverseTreeDepthFirstAsync({
     traversableTree: tree,
     visitors: { [F.POST_ORDER]: common },
   }),
-  traverseBreadthFirstAsync({
+  traverseTreeBreadthFirstAsync({
     traversableTree: tree,
     visitors: { [B.LEVEL_ORDER]: common },
   }),
@@ -166,8 +166,8 @@ const asyncHelpers: Promise<unknown>[] = [
     traversableGraph: graph,
     visitors: { [D.ON_READY]: dagCommon },
   }),
-  traverseDepthFirstAsync(tree, { postOrderVisitor: common }),
-  traverseBreadthFirstAsync(tree, common),
+  traverseTreeDepthFirstAsync(tree, { postOrderVisitor: common }),
+  traverseTreeBreadthFirstAsync(tree, common),
   traverseDagAsync({ traversableGraph: graph }, { onReadyVisitor: dagCommon }),
 ];
 // @ts-expect-error helper has exactly one source
@@ -198,10 +198,10 @@ void [
 
 // All new contracts compile through both declaration loader branches.
 import type {
-  TreeSourceVertexResult,
+  TreeVertexResolution,
   MakeTreeVertexResult,
-  TreeFoundVertexResult,
-  TreeOmittedVertexResult,
+  TreeVertexFound,
+  TreeVertexOmitted,
   TraversalExecutionOptions,
   TraversalStopReason,
   VisitorPhaseInput,
@@ -213,30 +213,30 @@ import type {
   TO_MutationPropertyPatch,
 } from 'configurable-tree-traversal';
 import {
-  TraversableObjectTree,
+  ObjectTreeSource,
   rewriteObject,
 } from 'configurable-tree-traversal';
-const treeFound: TreeFoundVertexResult<T> = {
+const treeFound: TreeVertexFound<T> = {
   kind: 'found',
   vertex: { vertexContent: canonical },
 };
-const treeOmitted: TreeOmittedVertexResult = { kind: 'omitted' };
+const treeOmitted: TreeVertexOmitted = { kind: 'omitted' };
 // @ts-expect-error Tree omissions cannot acknowledge graph milestones.
-const graphOmissionAsTree: TreeOmittedVertexResult = omitted;
+const graphOmissionAsTree: TreeVertexOmitted = omitted;
 // @ts-expect-error Graph omissions require explicit acknowledgement.
-const treeOmissionAsGraph: SourceVertexResult<T> = treeOmitted;
+const treeOmissionAsGraph: DagVertexResolution<T> = treeOmitted;
 const undefinedAcknowledgement = {
   kind: 'omitted' as const,
   satisfiesDependencies: undefined,
 };
 // @ts-expect-error Even present undefined is graph metadata.
-const undefinedOmissionAsTree: TreeOmittedVertexResult =
+const undefinedOmissionAsTree: TreeVertexOmitted =
   undefinedAcknowledgement;
 void [graphOmissionAsTree, treeOmissionAsGraph, undefinedOmissionAsTree];
-const treeResult: TreeSourceVertexResult<T> = treeFound;
+const treeResult: TreeVertexResolution<T> = treeFound;
 const oldTreeResult: MakeTreeVertexResult<T> = { vertexContent: canonical };
 // @ts-expect-error tree sources do not accept graph identity
-const wrongTree: TreeSourceVertexResult<T> = found;
+const wrongTree: TreeVertexResolution<T> = found;
 const execution: TraversalExecutionOptions<F> = {
   emitPhases: [],
   visitorPhases: { exclude: [] },
@@ -271,7 +271,7 @@ const externalDag = new DagTraversal({
   traversableGraph: graph,
   workCompletion: 'externalSettlement',
 });
-const externalRunner = externalDag.makeRunner();
+const externalRunner = externalDag.createRunner();
 const reason: TraversalStopReason | null = externalRunner.getStopReason();
 const treeView: ResolvedTreeView<T> | null =
   externalRunner.getResolvedTreeView();
@@ -290,14 +290,14 @@ if (vertexRef) {
 }
 const hookResult: ObjectVertexHookResult<TraversableObjectTTP<string, number>> =
   { kind: 'useDefault' };
-new TraversableObjectTree({ a: 1 }, { resolveVertexHook: () => hookResult });
-new TraversableObjectTree(
+new ObjectTreeSource({ a: 1 }, { resolveVertexHook: () => hookResult });
+new ObjectTreeSource(
   { a: 1 },
   { makeVertexHook: () => ({ returnMe: null }) },
 );
 type Prop = TraversableObjectTTP<string, number | undefined>;
 const objectPatch: TO_MutationPropertyPatch<Prop> = { value: undefined };
-const objectFactory = TraversableObjectTree.makeMutationCommandFactory<
+const objectFactory = ObjectTreeSource.makeMutationCommandFactory<
   Prop,
   Prop
 >();

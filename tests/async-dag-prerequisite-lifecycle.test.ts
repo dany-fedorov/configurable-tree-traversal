@@ -14,12 +14,12 @@ test('held lookup respects halt and iterator return, stores its reply and resume
   const calls: unknown[] = [];
   const traversal = new AsyncDagTraversal<G>({
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'root',
         dependsOn: ['external'],
         vertexContent: { $d: 'root', $c: [] },
       }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
       resolvePrerequisite: (id) => {
         calls.push(id);
         entered.resolve();
@@ -27,7 +27,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
       },
     },
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const iterator = runner.getIterable({ iterateOver: [] });
   const running = iterator.next();
   await entered.promise;
@@ -47,13 +47,13 @@ test('held lookup respects halt and iterator return, stores its reply and resume
   expect(() =>
     new AsyncDagTraversal<G>({
       traversableGraph: {
-        makeRoot: () => ({ vertexContent: null }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
       traversalRunnerInternalObjects: {
         resolvedGraphsContainer: runner.resolvedGraphsContainer,
       },
-    }).makeRunner(),
+    }).createRunner(),
   ).toThrow('Injected DAG objects belong to an active runner');
   gate.resolve(found);
   await eventLoopTurn();
@@ -75,11 +75,11 @@ for (const removeAll of [false, true]) {
       completedWork: new Set(['a', 'b']),
       concurrency: 4,
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           vertexContent: { $d: 'root', $c: ['a', 'b'] },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: ['external'],
           vertexContent: { $d: id, $c: [] },
@@ -102,7 +102,7 @@ for (const removeAll of [false, true]) {
       }
       return undefined;
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     const running = runner.run();
     await entered.promise;
     a.resolve();
@@ -127,12 +127,12 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
     completedWork: new Set(['root']),
     concurrency: 2,
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'root',
         dependsOn: ['external'],
         vertexContent: { $d: 'root', $c: [] },
       }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
       resolvePrerequisite: () => {
         entered.resolve();
         return lookup.promise;
@@ -143,7 +143,7 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
     await remove.promise;
     return removed;
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const running = runner.run();
   await entered.promise;
   remove.resolve();
@@ -163,7 +163,7 @@ for (const hinted of [false, true]) {
       discovery: 'eager',
       concurrency: 3,
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           dependsOn: ['loader', 'external'],
           vertexContent: { $d: 'root', $c: [] },
@@ -171,7 +171,7 @@ for (const hinted of [false, true]) {
         ...(hinted
           ? { getVertexIdFromHint: (id: string) => ({ vertexId: id }) }
           : {}),
-        makeVertex: (id) => {
+        resolveChild: (id) => {
           calls.push(id);
           return {
             vertexId: id,
@@ -190,7 +190,7 @@ for (const hinted of [false, true]) {
     traversal.addVisitorFor(Order.ON_READY, (v) => {
       events.push(v.getData());
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     const running = runner.run();
     await eventLoopTurn();
     expect(events).toEqual([]);
@@ -215,18 +215,18 @@ test('resolver calls share the finite callback concurrency ceiling', async () =>
   const runner = new AsyncDagTraversal<G>({
     concurrency: 2,
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'root',
         dependsOn: [0, 1, 2],
         vertexContent: { $d: 'root', $c: [] },
       }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
       resolvePrerequisite: (id) => {
         calls.push(id);
         return gates[id as number]!.promise;
       },
     },
-  }).makeRunner();
+  }).createRunner();
   const running = runner.run();
   await eventLoopTurn();
   expect(calls).toEqual([0, 1]);
@@ -247,15 +247,15 @@ for (const error of [undefined, null, { rejected: true }]) {
     const gate = deferred<MakeVertexResult<G>>();
     const runner = new AsyncDagTraversal<G>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           dependsOn: ['external'],
           vertexContent: { $d: 'root', $c: [] },
         }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
         resolvePrerequisite: () => gate.promise,
       },
-    }).makeRunner();
+    }).createRunner();
     const iterator = runner.getIterable({ iterateOver: [] });
     const next = iterator.next();
     await eventLoopTurn();
@@ -276,18 +276,18 @@ test('fatal lookup failure invalidates queued and started sibling lookups', asyn
   const runner = new AsyncDagTraversal<G>({
     concurrency: 2,
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'root',
         dependsOn: ['a', 'b', 'c'],
         vertexContent: { $d: 'root', $c: [] },
       }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
       resolvePrerequisite: (id) => {
         calls.push(id);
         return id === 'a' ? first.promise : second.promise;
       },
     },
-  }).makeRunner();
+  }).createRunner();
   const running = runner.run();
   const rejected = expect(running).rejects.toBe(error);
   await eventLoopTurn();
@@ -308,14 +308,14 @@ for (const lookupSource of [false, true]) {
         completedWork: new Set(['consumer']),
         concurrency: 4,
         traversableGraph: {
-          makeRoot: () => ({
+          resolveRoot: () => ({
             vertexId: 'root',
             vertexContent: {
               $d: 'root',
               $c: ['dead', 'consumer', ...(lookupSource ? [] : ['external'])],
             },
           }),
-          makeVertex: (id) =>
+          resolveChild: (id) =>
             id === 'external'
               ? acceptance.promise
               : {
@@ -337,7 +337,7 @@ for (const lookupSource of [false, true]) {
           await consumer.promise;
         }
       });
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       const running = runner.run();
       await consumerEntered.promise;
       acceptance.resolve({
@@ -367,12 +367,12 @@ for (const omittedFirst of [false, true]) {
       discovery: 'eager',
       concurrency: 2,
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           dependsOn: ['loader', 'external'],
           vertexContent: { $d: 'root', $c: [] },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: [],
           vertexContent: omittedFirst ? null : { $d: 'ordinary', $c: [] },
@@ -382,7 +382,7 @@ for (const omittedFirst of [false, true]) {
             ? second.promise
             : { vertexContent: { $d: 'loader', $c: ['external'] } },
       },
-    }).makeRunner();
+    }).createRunner();
     const running = runner.run();
     await eventLoopTurn();
     second.resolve(omittedFirst ? found : { vertexContent: null });

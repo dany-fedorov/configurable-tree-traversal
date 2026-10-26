@@ -1,9 +1,9 @@
 import type { ResolvedGraph } from '@core/ResolvedGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Ref } from '@core/graph/types';
 
 /** A forest view: the scheduler's root remains private structural bookkeeping. */
-export function makeDagGraphView<T extends TreeTypeParameters, ID = unknown>(
+export function makeDagGraphView<T extends VertexTypes, ID = unknown>(
   graph: ResolvedGraph<T, ID>,
   hiddenRoot: () => Ref<T> | null,
 ): ResolvedGraph<T, ID> {

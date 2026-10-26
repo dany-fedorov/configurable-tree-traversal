@@ -1,6 +1,6 @@
 import {
-  AsyncDepthFirstTraversal,
-  DepthFirstTraversal,
+  AsyncDepthFirstTreeTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder as Order,
 } from '../src/traversals/depth-first-traversal';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
@@ -8,31 +8,31 @@ import {
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import type { DepthFirstTraversalInOrderTraversalConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import { ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig';
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
+import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
 import type { TestGraph } from './helpers/graph-fixtures';
 
 type Node = { $d: string; $c: (Node | null)[] };
-type Tree = TreeTypeParameters<string, Node | null>;
+type Tree = VertexTypes<string, Node | null>;
 const node = ($d: string, ...$c: (Node | null)[]): Node => ({ $d, $c });
 
 function traversal(
   root: Node | null = node('root', node('A'), node('B')),
   concurrency = Infinity,
 ) {
-  return new AsyncDepthFirstTraversal<Tree>({
+  return new AsyncDepthFirstTreeTraversal<Tree>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: root }),
-      makeVertex: async (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => ({ vertexContent: root }),
+      resolveChild: async (hint) => ({ vertexContent: hint }),
     },
     concurrency,
   });
 }
 
 async function values(
-  runner: ReturnType<ReturnType<typeof traversal>['makeRunner']>,
+  runner: ReturnType<ReturnType<typeof traversal>['createRunner']>,
   order: Order,
 ): Promise<string[]> {
   const seen: string[] = [];
@@ -43,15 +43,15 @@ async function values(
 }
 
 test('exposes asynchronous depth-first post-order traversal', async () => {
-  const traversal = new AsyncDepthFirstTraversal<TestGraph>({
+  const traversal = new AsyncDepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
-      makeVertex: async (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
+      resolveChild: async (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
     },
     concurrency: 2,
   });
   const seen: string[] = [];
-  for await (const event of traversal.makeRunner().getIterable({
+  for await (const event of traversal.createRunner().getIterable({
     iterateOver: [Order.POST_ORDER],
   })) {
     seen.push(event.vertex.getData());
@@ -80,7 +80,7 @@ test.each(inOrderCases)('preserves in-order range configuration %#', async (conf
   const t = traversal(node('root', node('a'), node('b'), node('c'))).configure({
     inOrderTraversalConfig: config,
   });
-  await expect(values(t.makeRunner(), Order.IN_ORDER)).resolves.toEqual(expected);
+  await expect(values(t.createRunner(), Order.IN_ORDER)).resolves.toEqual(expected);
 });
 
 test('preserves one-child and null-slot in-order options', async () => {
@@ -90,12 +90,12 @@ test('preserves one-child and null-slot in-order options', async () => {
         .configure({
           inOrderTraversalConfig: { visitUpOneChildParents: false },
         })
-        .makeRunner(),
+        .createRunner(),
       Order.IN_ORDER,
     ),
   ).resolves.toEqual(['only']);
   await expect(
-    values(traversal(node('root', null, node('a'))).makeRunner(), Order.IN_ORDER),
+    values(traversal(node('root', null, node('a'))).createRunner(), Order.IN_ORDER),
   ).resolves.toEqual(['root', 'a']);
   await expect(
     values(
@@ -105,12 +105,12 @@ test('preserves one-child and null-slot in-order options', async () => {
             considerVisitAfterNullContentVertices: false,
           },
         })
-        .makeRunner(),
+        .createRunner(),
       Order.IN_ORDER,
     ),
   ).resolves.toEqual(['a']);
   await expect(
-    values(traversal(node('root', null, null)).makeRunner(), Order.IN_ORDER),
+    values(traversal(node('root', null, null)).createRunner(), Order.IN_ORDER),
   ).resolves.toEqual(['root']);
 });
 
@@ -124,7 +124,7 @@ test('resumes repeated mid-chain halts without repeating visitors', async () => 
   t.addVisitorFor(Order.PRE_ORDER, async (vertex) => {
     visits.push(`after:${vertex.getData()}`);
   });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
 
   await expect(runner.run({ iterateOver: [] })).resolves.toBe(runner);
   expect(runner.getStatus()).toBe(Status.HALTED);
@@ -143,7 +143,7 @@ test('resumes repeated mid-chain halts without repeating visitors', async () => 
 });
 
 test('uses new iterator filters when resuming after consumer closure', async () => {
-  const runner = traversal(node('root', node('leaf'))).makeRunner();
+  const runner = traversal(node('root', node('leaf'))).createRunner();
   for await (const event of runner.getIterable({ iterateOver: [Order.PRE_ORDER] })) {
     expect(event.vertex.getData()).toBe('root');
     break;
@@ -156,7 +156,7 @@ test('uses new iterator filters when resuming after consumer closure', async () 
 test('supports promised sorting and tree runner graph and vertex queries', async () => {
   const runner = traversal(node('root', node('a'), node('b')))
     .configure({ sortChildrenHints: async (hints) => hints.reverse() })
-    .makeRunner();
+    .createRunner();
   await expect(values(runner, Order.PRE_ORDER)).resolves.toEqual([
     'root',
     'b',
@@ -185,7 +185,7 @@ test('retains saved original tree data through asynchronous mutations', async ()
       },
     ],
   }));
-  const runner = await t.makeRunner().run();
+  const runner = await t.createRunner().run();
   expect(runner.getResolvedTree().getRoot()?.unref().getData()).toBe('ROOT');
   const saved = runner.resolvedTreesContainer.notMutatedResolvedTree;
   expect(saved?.getRoot()?.unref().getData()).toBe('root');
@@ -195,9 +195,9 @@ test('retains saved original tree data through asynchronous mutations', async ()
 });
 
 test('accepts the existing synchronous object-tree adapter', async () => {
-  const runner = new AsyncDepthFirstTraversal({
-    traversableTree: new TraversableObjectTree({ a: 1, b: { c: 2 } }),
-  }).makeRunner();
+  const runner = new AsyncDepthFirstTreeTraversal({
+    traversableTree: new ObjectTreeSource({ a: 1, b: { c: 2 } }),
+  }).createRunner();
   const keys: Array<string | number | symbol> = [];
   for await (const event of runner.getIterable({ iterateOver: [Order.PRE_ORDER] })) {
     keys.push(event.vertex.getData().key);
@@ -230,7 +230,7 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
     seen.push('second');
   });
   expect(t.listVisitorsFor(Order.PRE_ORDER)).toHaveLength(2);
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
   ranges.ranges[0]![0] = 1;
   t.addVisitorFor(Order.PRE_ORDER, async () => {
     seen.push('late');
@@ -250,21 +250,21 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
 });
 
 test('reuses injected tree storage and state objects', async () => {
-  const first = await traversal(node('root', node('child'))).makeRunner().run();
-  const state = traversal().makeRunner().state;
+  const first = await traversal(node('root', node('child'))).createRunner().run();
+  const state = traversal().createRunner().state;
   const root = first.getResolvedTree().getRoot();
-  const second = new AsyncDepthFirstTraversal<Tree>({
+  const second = new AsyncDepthFirstTreeTraversal<Tree>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      makeVertex: (hint) => ({ vertexContent: hint }),
+      resolveChild: (hint) => ({ vertexContent: hint }),
     },
     traversalRunnerInternalObjects: {
       resolvedTreesContainer: first.resolvedTreesContainer,
       state,
     },
-  }).makeRunner();
+  }).createRunner();
   expect(second.state.visitorsState).toBe(state.visitorsState);
   expect(second.state.subtreeTraversalDisabledRefs).toBe(
     state.subtreeTraversalDisabledRefs,
@@ -276,14 +276,14 @@ test('reuses injected tree storage and state objects', async () => {
 test.each([null, undefined])(
   'rethrows an original %p failure on every attempted rerun',
   async (failure) => {
-    const runner = new AsyncDepthFirstTraversal<TestGraph>({
+    const runner = new AsyncDepthFirstTreeTraversal<TestGraph>({
       traversableTree: {
-        makeRoot: async () => {
+        resolveRoot: async () => {
           throw failure;
         },
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
-    }).makeRunner();
+    }).createRunner();
     await expect(runner.run()).rejects.toBe(failure);
     expect(runner.getStatus()).toBe(Status.FAILED);
     await expect(runner.run()).rejects.toBe(failure);
@@ -293,7 +293,7 @@ test.each([null, undefined])(
 
 test('preserves an original consumer exception and allows resumption', async () => {
   const consumerError = { source: 'consumer' };
-  const runner = traversal(node('root', node('leaf'))).makeRunner();
+  const runner = traversal(node('root', node('leaf'))).createRunner();
   let caught: unknown;
   try {
     for await (const _event of runner.getIterable()) throw consumerError;
@@ -307,7 +307,7 @@ test('preserves an original consumer exception and allows resumption', async () 
 });
 
 test('directly exposes session one-active-iterator and synchronous close control', async () => {
-  const runner = traversal().makeRunner();
+  const runner = traversal().createRunner();
   const first = runner.getIterable();
   const firstEvent = await first.next();
   expect(firstEvent.done).toBe(false);
@@ -321,7 +321,7 @@ test('directly exposes session one-active-iterator and synchronous close control
 });
 
 test('validates and inspects concurrency without advancing traversal', () => {
-  const runner = traversal(undefined, 2).makeRunner();
+  const runner = traversal(undefined, 2).createRunner();
   expect(runner.inspect()).toMatchObject({
     execution: 'async',
     kind: 'depth-first',
@@ -360,20 +360,20 @@ test('matches synchronous DFS for timing-independent generated trees', async () 
       );
     const root = make(4, 'root');
     const tree = {
-      makeRoot: () => ({ vertexContent: root }),
-      makeVertex: (hint: Node | null) => ({ vertexContent: hint }),
+      resolveRoot: () => ({ vertexContent: root }),
+      resolveChild: (hint: Node | null) => ({ vertexContent: hint }),
     };
-    const sync = new DepthFirstTraversal<Tree>({ traversableTree: tree });
-    const asyncTraversal = new AsyncDepthFirstTraversal<Tree>({
+    const sync = new DepthFirstTreeTraversal<Tree>({ traversableTree: tree });
+    const asyncTraversal = new AsyncDepthFirstTreeTraversal<Tree>({
       traversableTree: tree,
       concurrency: 3,
     });
     for (const order of Object.values(Order)) {
       const expected = Array.from(
-        sync.makeRunner().getIterable({ iterateOver: [order] }),
+        sync.createRunner().getIterable({ iterateOver: [order] }),
         (event) => event.vertex.getData(),
       );
-      await expect(values(asyncTraversal.makeRunner(), order)).resolves.toEqual(
+      await expect(values(asyncTraversal.createRunner(), order)).resolves.toEqual(
         expected,
       );
     }

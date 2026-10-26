@@ -24,7 +24,7 @@ it('deduplicates arbitrary IDs by SameValueZero without coercion', () => {
       return [{ target: { vertexId: vertex.vertexId }, data: undefined }];
     },
   };
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   const events = [
     ...runner.getIterable({ emitPhases: [Phase.VERTEX, Phase.EDGE] }),
   ];
@@ -69,7 +69,7 @@ it('caches first accepted inline hydration and omission, copying wrappers but sh
             { target: root, data: link.data },
           ],
   };
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   const iterator = runner.getIterable({
     emitPhases: [Phase.VERTEX, Phase.EDGE],
   });
@@ -121,7 +121,7 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
           : [{ target: { vertexId: vertex.vertexId + 1 }, data: undefined }],
     };
     const runner = new GraphWalk({ source, strategy, emitPhases: [] })
-      .makeRunner()
+      .createRunner()
       .run();
     expect(runner.summary().counts).toMatchObject({
       foundVertices: 20000,
@@ -146,12 +146,12 @@ it('keeps independent runner caches and captured callback receivers', () => {
     },
   };
   const factory = new GraphWalk({ source });
-  const first = factory.makeRunner();
+  const first = factory.createRunner();
   source.roots = () => {
     throw new Error('re-read callback');
   };
   source.label = 'new';
-  const second = factory.makeRunner();
+  const second = factory.createRunner();
   expect([...first.getIterable()]).toEqual([...second.getIterable()]);
   expect(first.summary().counts.foundVertices).toBe(1);
   expect(second.summary().counts.foundVertices).toBe(1);
@@ -159,7 +159,7 @@ it('keeps independent runner caches and captured callback receivers', () => {
 
 it('exhausts empty roots and skips omitted roots without opening adjacency', () => {
   expect(
-    new GraphWalk({ source: idGraph([], []) }).makeRunner().run().summary()
+    new GraphWalk({ source: idGraph([], []) }).createRunner().run().summary()
       .counts.steps,
   ).toBe(1);
   const runner = new GraphWalk({
@@ -170,7 +170,7 @@ it('exhausts empty roots and skips omitted roots without opening adjacency', () 
         throw new Error('omitted');
       },
     },
-  }).makeRunner();
+  }).createRunner();
   expect([...runner.getIterable()]).toEqual([]);
   expect(runner.summary().counts).toMatchObject({
     occurrences: 1,
@@ -189,7 +189,7 @@ it.each([undefined, null, false, 0, 'failure', { error: true }])(
       },
       outgoing: () => [],
     };
-    const runner = new GraphWalk({ source }).makeRunner();
+    const runner = new GraphWalk({ source }).createRunner();
     let caught: unknown = 'not thrown';
     try {
       runner.run();
@@ -213,7 +213,7 @@ it.each([undefined, null, false, 0, 'failure', { error: true }])(
 it('fails only when an admitted unresolved ID actually needs a fallback resolver', () => {
   const runner = new GraphWalk({
     source: { roots: () => [{ vertexId: 'A' }], outgoing: () => [] },
-  }).makeRunner();
+  }).createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(runner.summary().counts.occurrences).toBe(1);
 });
@@ -239,7 +239,7 @@ it.each([
     outgoing: () => [],
     ...patch,
   } as unknown as GraphWalkSource<number, undefined, string>;
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(runner.getStatus()).toBe(Status.FAILED);
 });
@@ -249,7 +249,7 @@ it('counts a candidate before rejecting malformed inline hydration', () => {
     roots: () => [{ vertexId: 'A', resolution: { kind: 'missing' } }],
     outgoing: () => [],
   } as unknown as GraphWalkSource<string, undefined, string>;
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(runner.summary().counts).toMatchObject({
     occurrences: 1,
@@ -265,7 +265,7 @@ it.each([false, {}, { [Symbol.iterator]: 1 }])(
       roots: () => value,
       outgoing: () => [],
     } as unknown as GraphWalkSource<unknown, unknown, unknown>;
-    expect(() => new GraphWalk({ source }).makeRunner().run()).toThrow(
+    expect(() => new GraphWalk({ source }).createRunner().run()).toThrow(
       TypeError,
     );
   },
@@ -278,7 +278,7 @@ it('observes rejected thenables returned from callbacks and next methods', async
     roots: () => rejected,
     outgoing: () => [],
   } as unknown as GraphWalkSource<unknown, unknown, unknown>;
-  expect(() => new GraphWalk({ source }).makeRunner().run()).toThrow(TypeError);
+  expect(() => new GraphWalk({ source }).createRunner().run()).toThrow(TypeError);
   const iteratorSource = {
     roots: () => ({
       [Symbol.iterator]: () => ({ next: () => Promise.reject(error) }),
@@ -286,7 +286,7 @@ it('observes rejected thenables returned from callbacks and next methods', async
     outgoing: () => [],
   } as unknown as GraphWalkSource<unknown, unknown, unknown>;
   expect(() =>
-    new GraphWalk({ source: iteratorSource }).makeRunner().run(),
+    new GraphWalk({ source: iteratorSource }).createRunner().run(),
   ).toThrow(TypeError);
   await Promise.resolve();
 });
@@ -320,7 +320,7 @@ it.each(['target', 'resolution', 'kind', 'data', 'done', 'then'] as const)(
           ? [{ target: Object.assign(bad, { vertexId: 'B' }) }]
           : [],
     } as unknown as GraphWalkSource<unknown, unknown, unknown>;
-    const runner = new GraphWalk({ source }).makeRunner();
+    const runner = new GraphWalk({ source }).createRunner();
     let caught: unknown;
     try {
       runner.run();
@@ -346,7 +346,7 @@ it('ignores later inline hydration without reading its getters', () => {
     ],
     outgoing: () => [{ target: poisoned, data: undefined }],
   };
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect([...runner.getIterable({ emitPhases: [Phase.EDGE] })]).toMatchObject([
     { target: { kind: 'found', vertex: { vertexId: 'A', data: 'first' } } },
   ]);
@@ -388,7 +388,7 @@ it.each(['roots', 'outgoing'] as const)(
           : [{ vertexId: 'A', resolution: { kind: 'found', data: 'A' } }],
       outgoing: () => malformed,
     } as unknown as GraphWalkSource<string, undefined, string>;
-    const runner = new GraphWalk({ source }).makeRunner();
+    const runner = new GraphWalk({ source }).createRunner();
     let failure: unknown;
     try {
       runner.run();

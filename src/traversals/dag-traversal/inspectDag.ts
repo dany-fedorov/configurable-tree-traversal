@@ -1,18 +1,18 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { DagDependencyEdge } from '@core/errors/DagTraversalStallError';
 import { dependencyMilestones } from '@core/scheduling/dependencyMilestones';
 import type { DagTraversalRunner } from './lib/DagTraversalRunner';
 import type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
-import { makeDagInspection, type DagInspection } from './lib/DagInspection';
+import { makeDagInspection, type DagMilestoneSnapshot } from './lib/DagInspection';
 
 /** Capture synchronously without advancing discovery or acquiring iterator ownership. */
-export function inspectDag<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+export function inspectDagMilestones<
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID,
 >(
   runner: DagTraversalRunner<T, R, ID> | AsyncDagTraversalRunner<T, R, ID>,
-): DagInspection<ID> {
+): DagMilestoneSnapshot<ID> {
   const state = runner.inspectDagState();
   const summary = runner.summary();
   const graph = runner.getResolvedGraph();

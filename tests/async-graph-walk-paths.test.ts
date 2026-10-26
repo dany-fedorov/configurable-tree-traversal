@@ -37,7 +37,7 @@ it.each(policies)(
         context.revisit === revisit && context.path.depth < 3,
       expandVertex: async (_vertex, context) =>
         context.revisit === revisit && context.path.depth >= 0,
-    }).makeRunner();
+    }).createRunner();
     const paths: string[] = [];
     for await (const path of runner.getIterable({ emitPhases: [Phase.PATH] }))
       paths.push(path.vertices.map((v) => v.vertexId).join(''));
@@ -101,7 +101,7 @@ it.each(policies)(
       strategy: 'depthFirst',
       revisit,
       limits: { maxDepth: 5 },
-    }).makeRunner();
+    }).createRunner();
     const first = runner.getIterable({ emitPhases: [Phase.PATH] });
     const before: string[] = [];
     for (let i = 0; i < 3; i++) {
@@ -184,7 +184,7 @@ it.each(policies)(
       },
       revisit,
       limits: { maxDepth: 4 },
-    }).makeRunner();
+    }).createRunner();
     const first = runner.getIterable({ emitPhases: [Phase.PATH] });
     const paths: GraphWalkPathEvent<string, undefined, string>[] = [];
     for (let i = 0; i < 6; i++) {
@@ -248,7 +248,7 @@ it('closes each physical async iterator once after cached replay hits its step l
     strategy: 'depthFirst',
     revisit: 'walks',
     limits: { maxSteps: 3 },
-  }).makeRunner();
+  }).createRunner();
   const iterator = runner.getIterable({ emitPhases: [Phase.PATH] });
   const paths: string[] = [];
   for (let i = 0; i < 3; i++) {
@@ -277,14 +277,14 @@ it.each(policies)(
     expect(() => new AsyncGraphWalk({ source, revisit })).toThrow(TypeError);
     const factory = new AsyncGraphWalk({ source });
     expect(() => factory.configure({ revisit })).toThrow(TypeError);
-    expect((await factory.makeRunner().run()).summary().outcome).toEqual({
+    expect((await factory.createRunner().run()).summary().outcome).toEqual({
       kind: 'exhausted',
     });
     factory.configure({ limits: { maxDepth: 1 } }).configure({ revisit });
     expect(() => factory.configure({ limits: { maxOccurrences: 5 } })).toThrow(
       TypeError,
     );
-    const runner = await factory.makeRunner().run();
+    const runner = await factory.createRunner().run();
     expect(runner.summary().counts.occurrences).toBe(
       revisit === 'walks' ? 2 : 1,
     );
@@ -323,7 +323,7 @@ it.each(policies)(
         },
         revisit,
         limits: { maxDepth: 4, maxOccurrences: 3 },
-      }).makeRunner();
+      }).createRunner();
       for await (const event of runner.getIterable({ emitPhases }))
         expect(emitPhases).toContain(event.kind);
       results.push({ summary: runner.summary(), calls });
@@ -363,7 +363,7 @@ it.each(policies)(
         revisit,
         limits,
       })
-        .makeRunner()
+        .createRunner()
         .run();
       expect(calls).toEqual([]);
       expect(runner.summary().counts).toMatchObject({
@@ -399,7 +399,7 @@ it.each(policies)(
       limits: { maxSteps: 4 },
       followEdge: async () => false,
     })
-      .makeRunner()
+      .createRunner()
       .run();
     expect(calls).toEqual(['B', 'C', 'closed']);
     expect(runner.summary()).toMatchObject({

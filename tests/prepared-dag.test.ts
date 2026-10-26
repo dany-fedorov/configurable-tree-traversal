@@ -5,18 +5,18 @@ import {
   prepareDagAsync,
 } from '../src/traversals/dag-traversal/prepareDag';
 import { DagTraversalStallError } from '../src/core/errors/DagTraversalStallError';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import { graphFrom, forestFrom } from '../src/sources';
+import { materializeDagSourceFromRecords, materializeDagSourceFromRoots } from '../src/sources';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 
-type T = TreeTypeParameters<{ name: string }, string>;
+type T = VertexTypes<{ name: string }, string>;
 
-function source(calls: string[] = []): TraversableGraph<T, T, string> {
+function source(calls: string[] = []): DagDiscoverySource<T, T, string> {
   return {
-    makeRoot: () => {
+    resolveRoot: () => {
       calls.push('root');
       return {
         kind: 'found',
@@ -26,7 +26,7 @@ function source(calls: string[] = []): TraversableGraph<T, T, string> {
         },
       };
     },
-    makeVertex: (id) => {
+    resolveChild: (id) => {
       calls.push(id);
       return {
         kind: 'found',
@@ -82,13 +82,13 @@ test('async preparation supports both sync and async independent sessions', asyn
   const result = await prepareDagAsync({
     traversableGraph: {
       ...adapter,
-      makeRoot: async () => adapter.makeRoot(),
+      resolveRoot: async () => adapter.resolveRoot(),
     },
     concurrency: 2,
   });
   if (result.kind !== 'valid') throw new Error('Expected valid DAG');
-  const first = result.dag.createSession();
-  const second = await result.dag.createAsyncSession({
+  const first = result.dag.createWorkSession();
+  const second = await result.dag.createAsyncWorkSession({
     completedWork: new Set(['a']),
   });
   const work = first.advance();
@@ -106,12 +106,12 @@ test('async preparation supports both sync and async independent sessions', asyn
 
 test('dependency invalidity is structured while adapter errors keep exact identity', async () => {
   const adapter = source();
-  const root = adapter.makeRoot();
+  const root = adapter.resolveRoot();
   if (!('kind' in root) || root.kind !== 'found')
     throw new Error('Expected found');
   root.vertex.dependsOn = ['missing'];
   const invalid = prepareDag({
-    traversableGraph: { ...adapter, makeRoot: () => root },
+    traversableGraph: { ...adapter, resolveRoot: () => root },
   });
   expect(invalid).toMatchObject({
     kind: 'invalid',
@@ -134,7 +134,7 @@ test('dependency invalidity is structured while adapter errors keep exact identi
     prepareDag({
       traversableGraph: {
         ...adapter,
-        makeRoot: () => {
+        resolveRoot: () => {
           throw error;
         },
       },
@@ -144,7 +144,7 @@ test('dependency invalidity is structured while adapter errors keep exact identi
     prepareDagAsync({
       traversableGraph: {
         ...adapter,
-        makeRoot: async () => {
+        resolveRoot: async () => {
           throw null;
         },
       },
@@ -171,7 +171,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       prepare<T, string>({
         traversableGraph: {
           ...source(),
-          makeRoot: () => {
+          resolveRoot: () => {
             throw error;
           },
         },
@@ -180,8 +180,8 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
   });
 
   test(`${prepare.name} retains omitted hints and prerequisite identities across seeds`, async () => {
-    const adapter: TraversableGraph<T, T, string> = {
-      makeRoot: () => ({
+    const adapter: DagDiscoverySource<T, T, string> = {
+      resolveRoot: () => ({
         kind: 'found',
         vertex: {
           vertexId: 'a',
@@ -189,7 +189,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         },
       }),
       getVertexIdFromHint: (id) => ({ vertexId: id }),
-      makeVertex: (id) =>
+      resolveChild: (id) =>
         id === 'skip'
           ? { kind: 'omitted', satisfiesDependencies: true }
           : {
@@ -224,33 +224,33 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     for (const explicit of [false, true]) {
       const result = await prepare<T, string>({
         traversableGraph: {
-          makeRoot: () => ({
+          resolveRoot: () => ({
             kind: 'omitted',
             satisfiesDependencies: true,
             ...(explicit ? { vertexId: 'empty' } : {}),
           }),
-          makeVertex: () => {
+          resolveChild: () => {
             throw new Error('No children');
           },
         },
       });
       if (result.kind !== 'valid') throw new Error('Expected valid');
       expect(result.dag.vertices).toEqual([]);
-      const session = result.dag.createSession(
+      const session = result.dag.createWorkSession(
         explicit ? { completedWork: new Set(['empty']) } : {},
       );
       expect(session.advance()).toEqual({ kind: 'finished' });
     }
-    const empty = await prepare<TreeTypeParameters<string, string>, string>(
-      graphFrom<string, string>([], { id: (id) => id }),
+    const empty = await prepare<VertexTypes<string, string>, string>(
+      materializeDagSourceFromRecords<string, string>([], { id: (id) => id }),
     );
     if (empty.kind !== 'valid') throw new Error('Expected valid');
-    expect(empty.dag.createSession().advance()).toEqual({ kind: 'finished' });
+    expect(empty.dag.createWorkSession().advance()).toEqual({ kind: 'finished' });
   });
 
   test(`${prepare.name} returns missing prerequisites as milestone issues`, async () => {
-    const missing = await prepare<TreeTypeParameters<string, string>, string>(
-      graphFrom(['a'], { id: (id) => id, dependsOn: () => ['absent'] }),
+    const missing = await prepare<VertexTypes<string, string>, string>(
+      materializeDagSourceFromRecords(['a'], { id: (id) => id, dependsOn: () => ['absent'] }),
     );
     expect(missing).toMatchObject({
       kind: 'invalid',
@@ -265,8 +265,8 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
   });
 
   test(`${prepare.name} returns dependency cycles as milestone issues`, async () => {
-    const cycle = await prepare<TreeTypeParameters<string, string>, string>(
-      graphFrom(['a', 'b'], {
+    const cycle = await prepare<VertexTypes<string, string>, string>(
+      materializeDagSourceFromRecords(['a', 'b'], {
         id: (id) => id,
         dependsOn: (id) => [id === 'a' ? 'b' : 'a'],
       }),
@@ -288,9 +288,9 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
 
 test('prepared discovery retains undefined omission IDs and transitive detached prerequisites', async () => {
   type ID = string | undefined;
-  type G = TreeTypeParameters<ID, ID>;
-  const adapter: TraversableGraph<G, G, ID> = {
-    makeRoot: () => ({
+  type G = VertexTypes<ID, ID>;
+  const adapter: DagDiscoverySource<G, G, ID> = {
+    resolveRoot: () => ({
       kind: 'found',
       vertex: {
         vertexId: 'root',
@@ -298,7 +298,7 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
       },
     }),
     getVertexIdFromHint: (vertexId) => ({ vertexId }),
-    makeVertex: (id) =>
+    resolveChild: (id) =>
       id === undefined
         ? { kind: 'omitted', satisfiesDependencies: true }
         : {
@@ -319,7 +319,7 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
     }),
   };
   const original = new DagTraversal({ traversableGraph: adapter })
-    .makeRunner()
+    .createRunner()
     .prepare();
   const result = await prepareDagAsync({ traversableGraph: adapter });
   if (result.kind !== 'valid') throw new Error('Expected valid');
@@ -348,9 +348,9 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
 });
 
 test('unidentified omitted children do not become fake prepared identities', () => {
-  const adapter: TraversableGraph<T, T, string> = {
+  const adapter: DagDiscoverySource<T, T, string> = {
     ...source(),
-    makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+    resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
   };
   const result = prepareDag({ traversableGraph: adapter });
   if (result.kind !== 'valid') throw new Error('Expected valid');
@@ -362,7 +362,7 @@ test('unidentified omitted children do not become fake prepared identities', () 
 
 test('prepared definitions preserve effective implicit work dependencies and root policy', () => {
   const adapter = source();
-  const makeVertex: typeof adapter.makeVertex = (id) => ({
+  const resolveChild: typeof adapter.resolveChild = (id) => ({
     kind: 'found',
     vertex: {
       vertexId: id,
@@ -370,12 +370,12 @@ test('prepared definitions preserve effective implicit work dependencies and roo
     },
   });
   const implicit = prepareDag({
-    traversableGraph: { ...adapter, makeVertex },
+    traversableGraph: { ...adapter, resolveChild },
     implicitParentDependency: true,
   });
   if (implicit.kind !== 'valid') throw new Error('Expected valid');
   expect(implicit.dag.vertices[1]!.dependsOn).toEqual(['a']);
-  const session = implicit.dag.createSession();
+  const session = implicit.dag.createWorkSession();
   const boundary = session.advance();
   if (boundary.kind !== 'awaitingSettlement') throw new Error('Expected work');
   expect(boundary.frontier.map((ticket) => ticket.vertexId)).toEqual(['a']);
@@ -386,8 +386,8 @@ test('prepared definitions preserve effective implicit work dependencies and roo
     rootDependencies: 'ignore',
     traversableGraph: {
       ...adapter,
-      makeVertex,
-      makeRoot: () => ({
+      resolveChild,
+      resolveRoot: () => ({
         kind: 'found',
         vertex: {
           vertexId: 'a',
@@ -415,7 +415,7 @@ test('prepared forest completion joins retain structural sharing and order', () 
     { id: 'review', children: [], after: ['left', 'right'] },
   ];
   const result = prepareDag(
-    forestFrom(roots, {
+    materializeDagSourceFromRoots(roots, {
       id: (item) => item.id,
       children: (item) => item.children,
       dependsOnComplete: (item) => item.after ?? [],
@@ -454,7 +454,7 @@ test('definition arrays are immutable while arbitrary IDs and data stay shallow'
   const symbol = Symbol('id');
   const ids: unknown[] = [undefined, null, NaN, objectId, symbol];
   const items = ids.map((id) => ({ id, label: 'original' }));
-  const result = prepareDag(graphFrom(items, { id: (item) => item.id }));
+  const result = prepareDag(materializeDagSourceFromRecords(items, { id: (item) => item.id }));
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(() => (result.dag.vertices as unknown[]).pop()).toThrow();
   expect(() =>
@@ -528,10 +528,10 @@ test('prepared option boundaries reject overrides including present undefined be
     ).rejects.toThrow(TypeError);
   }
   expect(() =>
-    result.dag.createSession({ workCompletion: 'visitorReturn' } as any),
+    result.dag.createWorkSession({ workCompletion: 'visitorReturn' } as any),
   ).toThrow(TypeError);
   await expect(
-    result.dag.createAsyncSession({ visitors: {} } as any),
+    result.dag.createAsyncWorkSession({ visitors: {} } as any),
   ).rejects.toThrow(TypeError);
   expect(() =>
     result.dag.createRunner({ [Symbol('extra')]: true } as any),
@@ -548,7 +548,7 @@ test('source callback failures are never mistaken for validation results', async
   });
   for (const prepare of [prepareDag, prepareDagAsync]) {
     const adapter = source();
-    for (const hook of ['makeVertex', 'getVertexIdFromHint'] as const) {
+    for (const hook of ['resolveChild', 'getVertexIdFromHint'] as const) {
       await expect(async () =>
         prepare({
           traversableGraph: {
@@ -564,7 +564,7 @@ test('source callback failures are never mistaken for validation results', async
       prepare({
         traversableGraph: {
           ...adapter,
-          makeRoot: () => ({
+          resolveRoot: () => ({
             kind: 'found' as const,
             vertex: {
               vertexId: 'a',
@@ -589,8 +589,8 @@ test('hint identity may be unknown and default async sessions remain independent
     },
   });
   if (result.kind !== 'valid') throw new Error('Expected valid');
-  const first = await result.dag.createAsyncSession();
-  const second = await result.dag.createAsyncSession();
+  const first = await result.dag.createAsyncWorkSession();
+  const second = await result.dag.createAsyncWorkSession();
   expect(await first.advance()).toMatchObject({
     kind: 'awaitingSettlement',
     frontier: [{ vertexId: 'a' }],
@@ -620,8 +620,8 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     }
     const result = await prepare<T, string>({
       traversableGraph: {
-        makeRoot: () => ({ kind: 'found', vertex: new Entry('a') }),
-        makeVertex: (id) => ({ kind: 'found', vertex: new Entry(id) }),
+        resolveRoot: () => ({ kind: 'found', vertex: new Entry('a') }),
+        resolveChild: (id) => ({ kind: 'found', vertex: new Entry(id) }),
       },
     });
     if (result.kind !== 'valid') throw new Error('Expected valid');
@@ -641,8 +641,8 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
 
   test(`${prepare.name} preserves omission order with own and hint-supplied IDs`, async () => {
     for (const hintSupplied of [false, true]) {
-      const adapter: TraversableGraph<T, T, string> = {
-        makeRoot: () => ({
+      const adapter: DagDiscoverySource<T, T, string> = {
+        resolveRoot: () => ({
           kind: 'found',
           vertex: {
             vertexId: 'root',
@@ -655,7 +655,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         ...(hintSupplied
           ? { getVertexIdFromHint: (id: string) => ({ vertexId: id }) }
           : {}),
-        makeVertex: (id) =>
+        resolveChild: (id) =>
           id === 'skip'
             ? {
                 kind: 'omitted',
@@ -672,7 +672,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
               },
       };
       const original = new DagTraversal({ traversableGraph: adapter })
-        .makeRunner()
+        .createRunner()
         .prepare();
       const result = await prepare<T, string>({ traversableGraph: adapter });
       if (result.kind !== 'valid') throw new Error('Expected valid');
@@ -702,7 +702,7 @@ for (const async of [false, true]) {
     async (self) => {
       const a = { name: 'same' };
       const b = self ? a : { name: 'same' };
-      const graph = graphFrom(
+      const graph = materializeDagSourceFromRecords(
         [{ id: a, children: [b] }, ...(self ? [] : [{ id: b, children: [a] }])],
         {
           id: (item) => item.id,

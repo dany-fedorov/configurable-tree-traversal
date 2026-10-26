@@ -1,27 +1,27 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { CTTAbstractParent } from '@core/CTTAbstractParent';
 
-export type VertexContent<TTP extends TreeTypeParameters> = {
+export type VertexContent<TTP extends VertexTypes> = {
   $data: TTP['VertexData'];
   $childHints: TTP['VertexHint'][];
 };
 
 /** @deprecated Use VertexContent with $data and $childHints. */
-export type LegacyVertexContent<TTP extends TreeTypeParameters> =
+export type LegacyVertexContent<TTP extends VertexTypes> =
   CTTAbstractParent<TTP['VertexData'], TTP['VertexHint']>;
 
-type CanonicalContentInput<TTP extends TreeTypeParameters> =
+type CanonicalContentInput<TTP extends VertexTypes> =
   VertexContent<TTP> & { $d?: never; $c?: never };
-type LegacyContentInput<TTP extends TreeTypeParameters> =
+type LegacyContentInput<TTP extends VertexTypes> =
   LegacyVertexContent<TTP> & { $data?: never; $childHints?: never };
 
 /** Input accepts either spelling, but never a mixture of the two. */
-export type VertexContentInput<TTP extends TreeTypeParameters> =
+export type VertexContentInput<TTP extends VertexTypes> =
   | CanonicalContentInput<TTP>
   | LegacyContentInput<TTP>
   | Vertex<TTP>;
 
-export type VertexCloneContent<TTP extends TreeTypeParameters> =
+export type VertexCloneContent<TTP extends VertexTypes> =
   | Partial<CanonicalContentInput<TTP>>
   | Partial<LegacyContentInput<TTP>>
   | Vertex<TTP>;
@@ -38,7 +38,7 @@ function assertUnmixedContent(content: object): void {
 }
 
 /** Normalize source content without interpreting or copying caller data/hints. */
-export function normalizeVertexContent<TTP extends TreeTypeParameters>(
+export function normalizeVertexContent<TTP extends VertexTypes>(
   content: VertexContentInput<TTP>,
 ): VertexContent<TTP> {
   // Vertex exposes legacy getters as aliases, rather than conflicting inputs.
@@ -50,7 +50,7 @@ export function normalizeVertexContent<TTP extends TreeTypeParameters>(
   return { $data: content.$d, $childHints: content.$c };
 }
 
-export class Vertex<TTP extends TreeTypeParameters>
+export class Vertex<TTP extends VertexTypes>
   implements VertexContent<TTP>
 {
   readonly $data: TTP['VertexData'];

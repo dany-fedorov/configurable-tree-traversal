@@ -1,16 +1,16 @@
 import {
-  AsyncBreadthFirstTraversal,
+  AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
   BreadthFirstTraversalOrder as BFS,
   DagTraversal,
   DagTraversalOrder as DAG,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder as DFS,
   TraversalRunnerStatus as Status,
   type TraversalExecutionState,
-  type TreeTypeParameters,
+  type VertexTypes,
 } from '../src';
 import {
   deferred,
@@ -18,17 +18,17 @@ import {
   graphAdapter,
 } from './helpers/graph-fixtures';
 
-type Tree = TreeTypeParameters<string, string>;
+type Tree = VertexTypes<string, string>;
 function source(calls: string[]) {
   return {
-    makeRoot: () => {
+    resolveRoot: () => {
       calls.push('root');
       return {
         kind: 'found' as const,
         vertex: { vertexContent: { $data: 'root', $childHints: ['child'] } },
       };
     },
-    makeVertex: (hint: string) => {
+    resolveChild: (hint: string) => {
       calls.push(hint);
       return {
         kind: 'found' as const,
@@ -41,60 +41,60 @@ const syncFamilies = [
   {
     name: 'DFS',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
-      new DepthFirstTraversal<Tree>({ traversableTree: tree })
+      new DepthFirstTreeTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(DFS.PRE_ORDER, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'BFS',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
-      new BreadthFirstTraversal<Tree>({ traversableTree: tree })
+      new BreadthFirstTreeTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(BFS.LEVEL_ORDER, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'DAG tree',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
       new DagTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(DAG.ON_READY, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'DAG graph',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
       new DagTraversal<Tree>({ traversableGraph: tree })
         .addVisitorFor(DAG.ON_READY, visit)
-        .makeRunner(),
+        .createRunner(),
   },
 ];
 const asyncFamilies = [
   {
     name: 'DFS',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
-      new AsyncDepthFirstTraversal<Tree>({ traversableTree: tree })
+      new AsyncDepthFirstTreeTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(DFS.PRE_ORDER, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'BFS',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
-      new AsyncBreadthFirstTraversal<Tree>({ traversableTree: tree })
+      new AsyncBreadthFirstTreeTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(BFS.LEVEL_ORDER, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'DAG tree',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
       new AsyncDagTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(DAG.ON_READY, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'DAG graph',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
       new AsyncDagTraversal<Tree>({ traversableGraph: tree })
         .addVisitorFor(DAG.ON_READY, visit)
-        .makeRunner(),
+        .createRunner(),
   },
 ];
 
@@ -257,7 +257,7 @@ test('async pause drains admitted chains and retains undelivered events for the 
   traversal.addVisitorFor(DAG.ON_READY, (vertex) => {
     visits.push(`${vertex.getData()}:second`);
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const owner = runner.getIterable({ emitPhases: [DAG.ON_READY] });
   expect((await owner.next()).value?.vertex.getData()).toBe('root');
   const pending = owner.next();
@@ -289,15 +289,15 @@ test('async pause drains admitted chains and retains undelivered events for the 
 });
 
 const queuedSourceFamilies = [
-  { name: 'DFS', Traversal: AsyncDepthFirstTraversal<Tree> },
-  { name: 'BFS', Traversal: AsyncBreadthFirstTraversal<Tree> },
-  { name: 'DAG tree', Traversal: AsyncDagTraversal<Tree> },
-  { name: 'DAG graph', Traversal: AsyncDagTraversal<Tree> },
+  { name: 'DFS', TreeTraversal: AsyncDepthFirstTreeTraversal<Tree> },
+  { name: 'BFS', TreeTraversal: AsyncBreadthFirstTreeTraversal<Tree> },
+  { name: 'DAG tree', TreeTraversal: AsyncDagTraversal<Tree> },
+  { name: 'DAG graph', TreeTraversal: AsyncDagTraversal<Tree> },
 ];
 
 test.each(queuedSourceFamilies)(
   '$name stops queued source admission when a callback pauses within a scheduler batch',
-  async ({ name, Traversal }) => {
+  async ({ name, TreeTraversal }) => {
     const found = (data: string, hints: string[] = []) => ({
       kind: 'found' as const,
       vertex: { vertexContent: { $data: data, $childHints: hints } },
@@ -307,8 +307,8 @@ test.each(queuedSourceFamilies)(
     const sources: string[] = [];
     const requests: boolean[] = [];
     const tree = {
-      makeRoot: () => found('root', ['A', 'B', 'C', 'D', 'E']),
-      makeVertex: (hint: string) => {
+      resolveRoot: () => found('root', ['A', 'B', 'C', 'D', 'E']),
+      resolveChild: (hint: string) => {
         sources.push(hint);
         if (hint === 'A') return finishA.promise;
         if (hint === 'B') return finishB.promise;
@@ -321,11 +321,11 @@ test.each(queuedSourceFamilies)(
         ? new AsyncDagTraversal<Tree>({
             concurrency: 2,
             traversableGraph: tree,
-          }).makeRunner()
-        : new Traversal({
+          }).createRunner()
+        : new TreeTraversal({
             concurrency: 2,
             traversableTree: tree,
-          }).makeRunner();
+          }).createRunner();
     const running = runner.run();
     await eventLoopTurn();
     expect(sources).toEqual(['A', 'B']);

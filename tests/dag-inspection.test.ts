@@ -3,14 +3,14 @@ import {
   TraversalVisitorCommandName as Command,
 } from '../src';
 import { DagTraversalStallError as CTTStallError } from '../src';
-import { AsyncDagTraversal, DagTraversal, graphFrom, inspectDag } from '../src';
+import { AsyncDagTraversal, DagTraversal, materializeDagSourceFromRecords, inspectDagMilestones } from '../src';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import type { CallSpec } from '../src/core/effects/types';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} reports exact W waits when the same seeded ID still blocks C`, async () => {
@@ -20,7 +20,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { id: 'review', children: [], work: ['bundle'], complete: ['bundle'] },
     ];
     const runner = new Constructor({
-      ...graphFrom(records, {
+      ...materializeDagSourceFromRecords(records, {
         id: (item) => item.id,
         children: (item) => item.children,
         dependsOn: (item) => item.work,
@@ -28,7 +28,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       }),
       completedWork: new Set(['bundle']),
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     expect(runner.summary().vertices.get('review')).toMatchObject({
       unmetWorkPrerequisiteIds: [],
@@ -44,13 +44,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { id: 'complete', work: [], complete: [] },
     ];
     const runner = new Constructor({
-      ...graphFrom(records, {
+      ...materializeDagSourceFromRecords(records, {
         id: (item) => item.id,
         dependsOn: (item) => item.work,
         dependsOnComplete: (item) => item.complete,
       }),
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     const first = runner.summary().vertices.get('review')!;
     expect(first).toMatchObject({
@@ -67,7 +67,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   });
 }
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 
 function makeKernel(
   options: { syntheticRoot?: boolean; seeded?: boolean } = {},
@@ -334,17 +334,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { id: 'source', children: [], work: [], complete: [] },
     ];
     const runner = new Constructor({
-      ...graphFrom(records, {
+      ...materializeDagSourceFromRecords(records, {
         id: (item) => item.id,
         children: (item) => item.children,
         dependsOn: (item) => item.work,
         dependsOnComplete: (item) => item.complete,
       }),
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     await runner.prepare();
     await runner.run();
-    const inspection = inspectDag(runner);
+    const inspection = inspectDagMilestones(runner);
     expect(
       inspection.prerequisitesOf({ vertexId: 'review', milestone: 'work' }),
     ).toEqual({
@@ -447,14 +447,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const records = ids.map((id) => ({ id, work: [] as unknown[] }));
     records[0]!.work = [second, symbol, undefined, null, NaN, -0, '0'];
     const runner = new Constructor({
-      ...graphFrom(records, {
+      ...materializeDagSourceFromRecords(records, {
         id: (item) => item.id,
         dependsOn: (item) => item.work,
       }),
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     await runner.prepare();
-    const inspection = inspectDag(runner);
+    const inspection = inspectDagMilestones(runner);
     const result = inspection.prerequisitesOf({
       vertexId: first,
       milestone: 'work',
@@ -511,18 +511,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
   test(`${Constructor.name} terminates cyclic forward and reverse queries without returning the start`, async () => {
     const runner = new Constructor(
-      graphFrom(
+      materializeDagSourceFromRecords(
         [
           { id: 'a', work: ['b'] },
           { id: 'b', work: ['a'] },
         ],
         { id: (item) => item.id, dependsOn: (item) => item.work },
       ),
-    ).makeRunner();
+    ).createRunner();
     await expect((async () => runner.prepare())()).rejects.toBeInstanceOf(
       CTTStallError,
     );
-    const inspection = inspectDag(runner);
+    const inspection = inspectDagMilestones(runner);
     expect(
       inspection.prerequisitesOf(
         { vertexId: 'a', milestone: 'work' },
@@ -560,7 +560,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     let calls = 0;
     const runner = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => {
+        resolveRoot: () => {
           calls++;
           return {
             vertexId: 'root',
@@ -568,7 +568,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             dependsOn: [undefined, 'missing'],
           };
         },
-        makeVertex: () => {
+        resolveChild: () => {
           calls++;
           return { vertexContent: null };
         },
@@ -583,12 +583,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             : { kind: 'missing' };
         },
       },
-    }).makeRunner();
+    }).createRunner();
     await expect((async () => runner.prepare())()).rejects.toBeInstanceOf(
       CTTStallError,
     );
     const before = calls;
-    const inspection = inspectDag(runner);
+    const inspection = inspectDagMilestones(runner);
     expect(
       inspection.prerequisitesOf({ vertexId: 'root', milestone: 'work' })
         .milestones,
@@ -616,14 +616,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     let calls = 0;
     const traversal = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => {
+        resolveRoot: () => {
           calls++;
           return {
             vertexId: 'root',
             vertexContent: { $data: 'root', $childHints: ['child'] },
           };
         },
-        makeVertex: (hint) => {
+        resolveChild: (hint) => {
           calls++;
           return {
             vertexId: hint,
@@ -643,15 +643,15 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       paused = true;
       return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
     });
-    const runner = traversal.makeRunner();
-    const initial = inspectDag(runner);
+    const runner = traversal.createRunner();
+    const initial = inspectDagMilestones(runner);
     expect(
       initial.prerequisitesOf({ vertexId: 'root', milestone: 'completion' }),
     ).toEqual({ milestones: [], edges: [], discoveryComplete: false });
     expect(calls).toBe(0);
     await runner.run();
     const before = calls;
-    const partial = inspectDag(runner);
+    const partial = inspectDagMilestones(runner);
     const target = { vertexId: 'root', milestone: 'completion' as const };
     const original = partial.prerequisitesOf(target);
     expect(original).toEqual({
@@ -681,7 +681,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       initial.dependentsOf({ vertexId: 'child', milestone: 'work' }),
     ).toEqual({ milestones: [], edges: [], discoveryComplete: false });
     expect(
-      inspectDag(runner).prerequisitesOf({
+      inspectDagMilestones(runner).prerequisitesOf({
         vertexId: 'root',
         milestone: 'completion',
       }).milestones,
@@ -694,7 +694,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { vertexId: 'root', milestone: 'work' },
       { transitive: true },
     );
-    inspectDag(runner).prerequisitesOf({
+    inspectDagMilestones(runner).prerequisitesOf({
       vertexId: 'child',
       milestone: 'work',
     });
@@ -705,14 +705,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} retains old constraints after deletion and hides forest holders`, async () => {
     const traversal = new Constructor(
-      graphFrom([{ id: 'deleted' }], { id: (item) => item.id }),
+      materializeDagSourceFromRecords([{ id: 'deleted' }], { id: (item) => item.id }),
     );
     traversal.addVisitorFor(Order.ON_READY, () => ({
       commands: [{ commandName: Command.DELETE_VERTEX }],
     }));
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.prepare();
-    const inspection = inspectDag(runner);
+    const inspection = inspectDagMilestones(runner);
     const before = inspection.prerequisitesOf({
       vertexId: 'deleted',
       milestone: 'completion',
@@ -732,7 +732,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       }),
     ).toEqual(before);
     expect(
-      inspectDag(runner).prerequisitesOf({
+      inspectDagMilestones(runner).prerequisitesOf({
         vertexId: 'deleted',
         milestone: 'completion',
       }),
@@ -743,23 +743,23 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     let calls = 0;
     const runner = new Constructor<G>({
       traversableTree: {
-        makeRoot: () => {
+        resolveRoot: () => {
           calls++;
           return { vertexContent: { $data: 'root', $childHints: ['child'] } };
         },
-        makeVertex: (hint) => {
+        resolveChild: (hint) => {
           calls++;
           return { vertexContent: { $data: hint, $childHints: [] } };
         },
       },
-    }).makeRunner();
+    }).createRunner();
     const iterator = runner.getIterable({ iterateOver: [Order.ON_READY] });
     const first = await iterator.next();
     expect(first.done).toBe(false);
     if (first.done) throw new Error('Expected root event');
     const rootId = runner.getResolvedGraph().getVertexId(first.value.vertexRef);
     const before = calls;
-    const inspection = inspectDag(runner);
+    const inspection = inspectDagMilestones(runner);
     expect(
       inspection.explain({ vertexId: rootId, milestone: 'completion' }),
     ).toMatchObject({ kind: 'known', satisfied: false });
@@ -782,19 +782,19 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} handles a known omitted root without inventing constraints`, async () => {
     const runner = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           kind: 'omitted',
           vertexId: undefined,
           satisfiesDependencies: true,
         }),
-        makeVertex: () => {
+        resolveChild: () => {
           throw new Error('Unexpected child resolution');
         },
       },
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     expect(
-      inspectDag(runner).prerequisitesOf({
+      inspectDagMilestones(runner).prerequisitesOf({
         vertexId: undefined,
         milestone: 'completion',
       }),
@@ -810,7 +810,7 @@ test('inspection of a native async source does not interfere with a pending sour
   let calls = 0;
   const runner = new AsyncDagTraversal<G, G, 'root'>({
     traversableGraph: {
-      makeRoot: async () => {
+      resolveRoot: async () => {
         calls++;
         await gate;
         return {
@@ -821,13 +821,13 @@ test('inspection of a native async source does not interfere with a pending sour
           },
         };
       },
-      makeVertex: async () => {
+      resolveChild: async () => {
         throw new Error('Unexpected child resolution');
       },
     },
-  }).makeRunner();
+  }).createRunner();
   const pending = runner.run();
-  const inspection = inspectDag(runner);
+  const inspection = inspectDagMilestones(runner);
   expect(
     inspection.explain({ vertexId: 'root', milestone: 'work' }),
   ).toMatchObject({ kind: 'unknown', discoveryComplete: false });
@@ -842,7 +842,7 @@ test('inspection of a native async source does not interfere with a pending sour
       .milestones,
   ).toEqual([]);
   expect(
-    inspectDag(runner).prerequisitesOf({
+    inspectDagMilestones(runner).prerequisitesOf({
       vertexId: 'root',
       milestone: 'completion',
     }).milestones,
@@ -856,14 +856,14 @@ test('transitive navigation uses an iterative walk on deep prerequisite chains',
     work: id === 11999 ? [] : [id + 1],
   }));
   const runner = new DagTraversal({
-    ...graphFrom(records, {
+    ...materializeDagSourceFromRecords(records, {
       id: (item) => item.id,
       dependsOn: (item) => item.work,
     }),
     completedWork: new Set(records.map(({ id }) => id)),
-  }).makeRunner();
+  }).createRunner();
   runner.prepare();
-  const inspection = inspectDag(runner);
+  const inspection = inspectDagMilestones(runner);
   const forward = inspection.prerequisitesOf(
     { vertexId: 0, milestone: 'work' },
     { transitive: true },
@@ -888,14 +888,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor({
       syntheticRoot: true,
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           kind: 'omitted',
           vertexId: 'catalog',
           satisfiesDependencies: true,
         }),
-        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
       },
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     expect(runner.inspectDagState()).toEqual({
       identityStates: [],
@@ -903,7 +903,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       discoveryComplete: true,
     });
     expect(
-      inspectDag(runner).explain({ vertexId: 'catalog', milestone: 'work' })
+      inspectDagMilestones(runner).explain({ vertexId: 'catalog', milestone: 'work' })
         .kind,
     ).toBe('unknown');
   });
@@ -914,12 +914,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       syntheticRoot: true,
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexContent: { $data: 'forest', $childHints: [] },
         }),
-        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
       },
-    }).makeRunner();
+    }).createRunner();
     // Exercise raw bookkeeping deletion independently of runner callback scheduling.
     const container = runner.resolvedGraphsContainer;
     const scheduling = new GraphScheduling(container);
@@ -933,7 +933,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { vertexId: callerId, kind: 'omitted' },
     ]);
     expect(
-      inspectDag(runner).explain({ vertexId: callerId, milestone: 'work' }),
+      inspectDagMilestones(runner).explain({ vertexId: callerId, milestone: 'work' }),
     ).toMatchObject({ kind: 'known', satisfied: true });
   });
 }
@@ -944,7 +944,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     let visitors = 0;
     const traversal = new Constructor<G, G, string>({
       traversableGraph: {
-        makeRoot: () => {
+        resolveRoot: () => {
           sources++;
           return {
             kind: 'found',
@@ -954,7 +954,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             },
           };
         },
-        makeVertex: () => {
+        resolveChild: () => {
           throw new Error('Unexpected child resolution');
         },
       },
@@ -962,9 +962,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, () => {
       visitors++;
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     const target = { vertexId: 'root', milestone: 'work' as const };
-    const before = runner.inspectDag();
+    const before = runner.inspectMilestones();
     expect(before.explain(target)).toEqual({
       kind: 'unknown',
       target,
@@ -973,15 +973,15 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect({ sources, visitors }).toEqual({ sources: 0, visitors: 0 });
     const iterator = runner.getIterable();
     expect((await iterator.next()).done).toBe(false);
-    const active = runner.inspectDag();
+    const active = runner.inspectMilestones();
     const calls = { sources, visitors };
-    expect(active.explain(target)).toEqual(inspectDag(runner).explain(target));
+    expect(active.explain(target)).toEqual(inspectDagMilestones(runner).explain(target));
     expect(active.explain(target)).toMatchObject({
       kind: 'known',
       satisfied: true,
     });
     expect(active.dependentsOf(target)).toEqual(
-      inspectDag(runner).dependentsOf(target),
+      inspectDagMilestones(runner).dependentsOf(target),
     );
     const completion = { vertexId: 'root', milestone: 'completion' as const };
     expect(active.prerequisitesOf(completion)).toEqual({
@@ -993,12 +993,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     for await (const _event of iterator) {
       /* Drain the owner retained during inspection. */
     }
-    expect(runner.inspectDag().explain(completion)).toMatchObject({
+    expect(runner.inspectMilestones().explain(completion)).toMatchObject({
       kind: 'known',
       satisfied: true,
     });
-    expect(runner.inspectDag().explain(completion)).toEqual(
-      inspectDag(runner).explain(completion),
+    expect(runner.inspectMilestones().explain(completion)).toEqual(
+      inspectDagMilestones(runner).explain(completion),
     );
     expect({ sources, visitors }).toEqual({ sources: 1, visitors: 1 });
     expect(before.explain(target)).toMatchObject({
@@ -1020,7 +1020,7 @@ test('async runner inspection stays synchronous while a source callback is pendi
   let sources = 0;
   const runner = new AsyncDagTraversal<G, G, string>({
     traversableGraph: {
-      makeRoot: async () => {
+      resolveRoot: async () => {
         sources++;
         await gate;
         return {
@@ -1031,14 +1031,14 @@ test('async runner inspection stays synchronous while a source callback is pendi
           },
         };
       },
-      makeVertex: () => {
+      resolveChild: () => {
         throw new Error('Unexpected child resolution');
       },
     },
-  }).makeRunner();
+  }).createRunner();
   const pending = runner.run();
   try {
-    const snapshot = runner.inspectDag();
+    const snapshot = runner.inspectMilestones();
     const target = { vertexId: 'root', milestone: 'work' as const };
     expect(snapshot.explain(target)).toEqual({
       kind: 'unknown',
@@ -1046,7 +1046,7 @@ test('async runner inspection stays synchronous while a source callback is pendi
       discoveryComplete: false,
     });
     expect(snapshot.explain(target)).toEqual(
-      inspectDag(runner).explain(target),
+      inspectDagMilestones(runner).explain(target),
     );
     expect(sources).toBe(1);
   } finally {

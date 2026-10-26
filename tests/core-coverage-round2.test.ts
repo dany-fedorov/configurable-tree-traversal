@@ -7,7 +7,7 @@ import { DepthFirstPolicy } from '../src/traversals/depth-first-traversal/lib/De
 import { shouldYieldForOrder } from '../src/traversals/depth-first-traversal/iterable-helpers/shouldYieldForOrder';
 import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { createVertexIdLabeler } from '../src/core/graph/identity';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -134,12 +134,12 @@ test('small vertex and identity helpers report their remaining cases', () => {
 });
 
 test('depth runner leaf checks include explicit subtree disabling', () => {
-  const runner = new DepthFirstTraversal<TestGraph>({
+  const runner = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     },
-  }).makeRunner();
+  }).createRunner();
   const leaf = ref('leaf');
   const branch = ref('branch', ['child']);
   expect(runner.isLeafVertexRef(leaf)).toBe(true);

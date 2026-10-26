@@ -1,9 +1,9 @@
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
+import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import type { MaybePromise, VisitorRecord } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   type DepthFirstTraversalInstanceConfig,
@@ -15,34 +15,34 @@ import type { IndexRange } from '@depth-first-traversal/in-order-helpers/IndexRa
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type AsyncDepthFirstTraversalVisitors<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = {
   [K in DepthFirstTraversalOrder]: VisitorRecord<
     AsyncTraversalVisitor<K, TTP, RW_TTP>
   >[];
 };
 
-export type AsyncSortChildrenHintsFn<TTP extends TreeTypeParameters> = (
+export type AsyncSortChildrenHintsFn<TTP extends VertexTypes> = (
   childrenHints: TTP['VertexHint'][],
 ) => MaybePromise<TTP['VertexHint'][]>;
 
 export type AsyncDepthFirstTraversalInstanceConfig<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > = Omit<
   DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
   'traversableTree' | 'sortChildrenHints' | 'visitors'
 > & {
-  traversableTree: AsyncTraversableTree<TTP, RW_TTP>;
+  traversableTree: AsyncTreeSource<TTP, RW_TTP>;
   sortChildrenHints: AsyncSortChildrenHintsFn<TTP> | null;
   visitors: AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>;
   concurrency: number;
 };
 
 export type AsyncDepthFirstTraversalInstanceConfigInput<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > = Omit<
   DepthFirstTraversalInstanceConfigDeepPartial<
     AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
@@ -61,7 +61,7 @@ export type AsyncDepthFirstTraversalInstanceConfigInput<
 > & { visitors?: VisitorInputs<AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>> };
 
 export const ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
-  AsyncDepthFirstTraversalInstanceConfig<TreeTypeParameters>,
+  AsyncDepthFirstTraversalInstanceConfig<VertexTypes>,
   'traversableTree'
 > = deepFreeze({
   ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -75,8 +75,8 @@ export const ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
 });
 
 export function mergeAsyncDepthFirstTraversalInstanceConfigs<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 >(
   base: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
   input: AsyncDepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
@@ -124,8 +124,8 @@ function cloneRange(range: IndexRange): IndexRange {
 }
 
 function clonePositions(
-  positions: AsyncDepthFirstTraversalInstanceConfig<TreeTypeParameters>['inOrderTraversalConfig']['visitParentAfterChildren'],
-): AsyncDepthFirstTraversalInstanceConfig<TreeTypeParameters>['inOrderTraversalConfig']['visitParentAfterChildren'] {
+  positions: AsyncDepthFirstTraversalInstanceConfig<VertexTypes>['inOrderTraversalConfig']['visitParentAfterChildren'],
+): AsyncDepthFirstTraversalInstanceConfig<VertexTypes>['inOrderTraversalConfig']['visitParentAfterChildren'] {
   return typeof positions === 'number' || Array.isArray(positions)
     ? cloneRange(positions)
     : { ranges: positions.ranges.map(cloneRange) };

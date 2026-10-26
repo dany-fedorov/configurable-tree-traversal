@@ -4,7 +4,7 @@ import type {
   VisitorGroupMetadata,
 } from '@core/TraversalVisitor';
 import type { TraversalVisitorResult } from '@core/TraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { VertexResolved } from '@core/ResolvedTree';
@@ -13,10 +13,10 @@ export type VertexId = unknown;
 
 export type MaybePromise<T> = T | PromiseLike<T>;
 
-export type Ref<T extends TreeTypeParameters> = CTTRef<Vertex<T>>;
+export type Ref<T extends VertexTypes> = CTTRef<Vertex<T>>;
 
 export type VisitResult<
-  R extends TreeTypeParameters,
+  R extends VertexTypes,
   ORDER extends string = never,
 > = TraversalVisitorResult<R, ORDER> | undefined | void;
 
@@ -30,14 +30,14 @@ export type GraphVertexStatus =
   | 'COMPLETING'
   | 'COMPLETE';
 
-export type GraphEdge<T extends TreeTypeParameters> = Readonly<{
+export type GraphEdge<T extends VertexTypes> = Readonly<{
   parentRef: Ref<T>;
   childRef: Ref<T>;
   hintIndex: number;
   hint: T['VertexHint'];
 }>;
 
-export type ChildSlot<T extends TreeTypeParameters, ID = unknown> =
+export type ChildSlot<T extends VertexTypes, ID = unknown> =
   | Readonly<{ kind: 'pending'; hint: T['VertexHint'] }>
   | Readonly<{
       kind: 'linked';
@@ -55,7 +55,7 @@ export type ChildSlot<T extends TreeTypeParameters, ID = unknown> =
       hint: T['VertexHint'];
     }>;
 
-export type GraphVertex<T extends TreeTypeParameters, ID = unknown> = Readonly<{
+export type GraphVertex<T extends VertexTypes, ID = unknown> = Readonly<{
   vertexRef: Ref<T>;
   vertex: Vertex<T>;
   vertexId: ID;
@@ -73,7 +73,7 @@ export type VisitorRecord<F> = {
   readonly visitorGroup?: VisitorGroupMetadata | undefined;
 } & TraversalVisitorFunctionOptions;
 
-export type IdState<T extends TreeTypeParameters> =
+export type IdState<T extends VertexTypes> =
   | { kind: 'live'; ref: Ref<T> }
   | { kind: 'omitted' }
   | { kind: 'deleted' };
@@ -101,7 +101,7 @@ export type DagInspectionState<ID = unknown> = Readonly<{
 }>;
 
 export interface GraphStoreContract<
-  T extends TreeTypeParameters,
+  T extends VertexTypes,
   ID = unknown,
 > {
   readonly mode: 'tree' | 'dag';

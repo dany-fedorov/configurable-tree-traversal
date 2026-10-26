@@ -2,11 +2,11 @@ import {
   AsyncDagTraversal,
   DagTraversal,
   DagTraversalStallError,
-  type TreeTypeParameters,
+  type VertexTypes,
   type DagDependencyEdge,
 } from '../src';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 function edge(
   from: unknown,
   fromPhase: 'work' | 'completion',
@@ -39,12 +39,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             discovery: 'eager',
             ...(seeded ? { completedWork: new Set(['root', 'child']) } : {}),
             traversableGraph: {
-              makeRoot: () => ({
+              resolveRoot: () => ({
                 vertexId: 'root',
                 dependsOn: completion ? [] : ['child'],
                 vertexContent: { $data: 'root', $childHints: ['child'] },
               }),
-              makeVertex: () => ({
+              resolveChild: () => ({
                 vertexId: 'child',
                 ...(completion
                   ? { dependsOnComplete: ['root'] }
@@ -52,7 +52,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
                 vertexContent: { $data: 'child', $childHints: [] },
               }),
             },
-          }).makeRunner();
+          }).createRunner();
           const error = await failure(() => runner[operation]());
           const expected = [
             ...(completion
@@ -92,20 +92,20 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       discovery: 'eager',
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           dependsOn: ['missing-work'],
           dependsOnComplete: ['missing-completion'],
           vertexContent: { $data: 'root', $childHints: ['a', 'b', 'c'] },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: id === 'a' ? ['b', 'b'] : id === 'b' ? ['a'] : [],
           dependsOnComplete: id === 'c' ? ['c'] : [],
           vertexContent: { $data: id, $childHints: [] },
         }),
       },
-    }).makeRunner();
+    }).createRunner();
     const error = await failure(() => runner.run());
     expect(error.diagnostics).toMatchObject({
       unknownPrerequisiteIds: ['missing-work', 'missing-completion'],
@@ -137,16 +137,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       syntheticRoot: true,
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexContent: { $data: 'holder', $childHints: ['a', 'b'] },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: [id === 'a' ? 'b' : 'a'],
           vertexContent: { $data: id, $childHints: [] },
         }),
       },
-    }).makeRunner();
+    }).createRunner();
     const error = await failure(() => runner.prepare());
     const dependencyEdges = [
       edge('a', 'work', 'b', 'work', 'workDependency'),
@@ -185,21 +185,21 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const twin = { value: 1 };
     const symbol = Symbol('child');
     const ids = [twin, symbol, undefined, NaN, -0];
-    const runner = new Constructor<TreeTypeParameters<unknown, unknown>>({
+    const runner = new Constructor<VertexTypes<unknown, unknown>>({
       discovery: 'eager',
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: root,
           dependsOn: [root],
           vertexContent: { $data: '', $childHints: ids },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: [id, id],
           vertexContent: { $data: '', $childHints: [] },
         }),
       },
-    }).makeRunner();
+    }).createRunner();
     const error = await failure(() => runner.run());
     const expected = [
       edge(root, 'work', root, 'work', 'workDependency'),
@@ -283,21 +283,21 @@ test('manual labelled diagnostics copy arrays, edges and both milestone records'
 });
 
 test('public preparation diagnoses a 10k-node dependency chain without recursion', async () => {
-  type Numeric = TreeTypeParameters<number, number>;
+  type Numeric = VertexTypes<number, number>;
   const runner = new DagTraversal<Numeric, Numeric, number>({
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 0,
         dependsOn: [1],
         vertexContent: { $data: 0, $childHints: [1] },
       }),
-      makeVertex: (id) => ({
+      resolveChild: (id) => ({
         vertexId: id,
         dependsOn: [id + 1],
         vertexContent: { $data: id, $childHints: id < 9999 ? [id + 1] : [] },
       }),
     },
-  }).makeRunner();
+  }).createRunner();
   const error = await failure(() => runner.prepare());
   expect(error.diagnostics).toMatchObject({
     dependencyCycles: [],

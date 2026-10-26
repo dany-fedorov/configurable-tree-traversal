@@ -5,7 +5,7 @@ import { dependencyMilestones } from './dependencyMilestones';
 import { CTTRef } from '@core/CTTRef';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { hasVertexId, sameVertexId } from '@core/graph/identity';
@@ -22,8 +22,8 @@ import type {
 } from '@core/scheduling/types';
 
 export class GraphScheduling<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > {
   private readonly work = new Map<Ref<T | R>, VertexWork<T | R>>();
   private readonly reverseDependencies = new Map<VertexId, Set<Ref<T | R>>>();

@@ -3,21 +3,21 @@ import {
   DepthFirstTraversalOrder as F,
   DagTraversalOrder as D,
   TraversalVisitorCommandName as C,
-  traverseDepthFirst,
-  traverseDepthFirstAsync,
-  traverseBreadthFirst,
-  traverseBreadthFirstAsync,
+  traverseTreeDepthFirst,
+  traverseTreeDepthFirstAsync,
+  traverseTreeBreadthFirst,
+  traverseTreeBreadthFirstAsync,
   traverseDag,
   traverseDagAsync,
 } from '../src';
 import type {
-  TraversableTree,
-  TraversableGraph,
-  TreeTypeParameters,
-  DepthFirstTraversalRunner,
-  AsyncDepthFirstTraversalRunner,
-  BreadthFirstTraversalRunner,
-  AsyncBreadthFirstTraversalRunner,
+  TreeSource,
+  DagDiscoverySource,
+  VertexTypes,
+  DepthFirstTreeRunner,
+  AsyncDepthFirstTreeRunner,
+  BreadthFirstTreeRunner,
+  AsyncBreadthFirstTreeRunner,
   DagTraversalRunner,
   AsyncDagTraversalRunner,
   TraversalVisitor,
@@ -26,9 +26,9 @@ import type {
   AsyncDagVisitor,
 } from '../src';
 
-type T = TreeTypeParameters<string, string>;
-declare const tree: TraversableTree<T>;
-declare const graph: TraversableGraph<T>;
+type T = VertexTypes<string, string>;
+declare const tree: TreeSource<T>;
+declare const graph: DagDiscoverySource<T>;
 const common: TraversalVisitor<string, T, T> = () => ({
   commands: [{ commandName: C.NOOP }],
 });
@@ -41,7 +41,7 @@ const dagCommon: DagVisitor<T> = () => ({
 const asyncDagCommon: AsyncDagVisitor<T> = async () => ({
   commands: [{ commandName: C.NOOP }],
 });
-const dfs: DepthFirstTraversalRunner<T, T> = traverseDepthFirst({
+const dfs: DepthFirstTreeRunner<T, T> = traverseTreeDepthFirst({
   traversableTree: tree,
   visitors: {
     [F.PRE_ORDER]: (_vertex, options) => {
@@ -63,8 +63,8 @@ const dfs: DepthFirstTraversalRunner<T, T> = traverseDepthFirst({
     [F.POST_ORDER]: common,
   },
 });
-const adfs: Promise<AsyncDepthFirstTraversalRunner<T, T>> =
-  traverseDepthFirstAsync({
+const adfs: Promise<AsyncDepthFirstTreeRunner<T, T>> =
+  traverseTreeDepthFirstAsync({
     traversableTree: tree,
     visitors: {
       [F.PRE_ORDER]: asyncCommon,
@@ -72,7 +72,7 @@ const adfs: Promise<AsyncDepthFirstTraversalRunner<T, T>> =
       [F.POST_ORDER]: asyncCommon,
     },
   });
-const bfs: BreadthFirstTraversalRunner<T, T> = traverseBreadthFirst({
+const bfs: BreadthFirstTreeRunner<T, T> = traverseTreeBreadthFirst({
   traversableTree: tree,
   visitors: {
     [B.LEVEL_ORDER]: (_vertex, options) => {
@@ -81,8 +81,8 @@ const bfs: BreadthFirstTraversalRunner<T, T> = traverseBreadthFirst({
     },
   },
 });
-const abfs: Promise<AsyncBreadthFirstTraversalRunner<T, T>> =
-  traverseBreadthFirstAsync({
+const abfs: Promise<AsyncBreadthFirstTreeRunner<T, T>> =
+  traverseTreeBreadthFirstAsync({
     traversableTree: tree,
     visitors: { [B.LEVEL_ORDER]: asyncCommon },
   });
@@ -101,7 +101,7 @@ const adag: Promise<AsyncDagTraversalRunner<T, T>> = traverseDagAsync({
   traversableTree: tree,
   visitors: { [D.ON_READY]: asyncDagCommon, [D.ON_COMPLETE]: asyncDagCommon },
 });
-traverseDepthFirst({
+traverseTreeDepthFirst({
   traversableTree: tree,
   visitors: {
     [F.PRE_ORDER]: common,
@@ -109,7 +109,7 @@ traverseDepthFirst({
     [F.POST_ORDER]: common,
   },
 });
-traverseBreadthFirst({
+traverseTreeBreadthFirst({
   traversableTree: tree,
   visitors: { [B.LEVEL_ORDER]: common },
 });
@@ -118,7 +118,7 @@ traverseDag({
   visitors: { [D.ON_READY]: dagCommon, [D.ON_COMPLETE]: dagCommon },
 });
 // Async callback contexts infer the actual phase too.
-traverseDepthFirstAsync({
+traverseTreeDepthFirstAsync({
   traversableTree: tree,
   visitors: {
     [F.POST_ORDER]: async (_v, options) => {
@@ -127,7 +127,7 @@ traverseDepthFirstAsync({
     },
   },
 });
-traverseBreadthFirstAsync({
+traverseTreeBreadthFirstAsync({
   traversableTree: tree,
   visitors: {
     [B.LEVEL_ORDER]: async (_v, options) => {
@@ -152,20 +152,20 @@ traverseDag<T>({ traversableGraph: graph, traversableTree: tree });
 // @ts-expect-error Async canonical DAG sources are exclusive.
 traverseDagAsync<T>({ traversableGraph: graph, traversableTree: tree });
 // @ts-expect-error A source is required.
-traverseDepthFirst<T>({ visitors: {} });
+traverseTreeDepthFirst<T>({ visitors: {} });
 // @ts-expect-error A source is required.
 traverseDag<T>({ visitors: {} });
-traverseBreadthFirst<T>({
+traverseTreeBreadthFirst<T>({
   traversableTree: tree,
   // @ts-expect-error Canonical configuration has no second nested source/config.
   config: { traversableTree: tree },
 });
-traverseDepthFirst<T>({
+traverseTreeDepthFirst<T>({
   traversableTree: tree,
   // @ts-expect-error PRE_ORDER-only callbacks cannot run in POST_ORDER.
   visitors: { [F.POST_ORDER]: preOnly },
 });
-traverseDepthFirstAsync<T>({
+traverseTreeDepthFirstAsync<T>({
   traversableTree: tree,
   // @ts-expect-error Async POST_ORDER rejects initial-phase callbacks too.
   visitors: { [F.POST_ORDER]: preOnly },
@@ -180,7 +180,7 @@ traverseDagAsync<T>({
   // @ts-expect-error Async completion callbacks cannot require ON_READY.
   visitors: { [D.ON_COMPLETE]: readyOnly },
 });
-traverseDepthFirst<T>({
+traverseTreeDepthFirst<T>({
   traversableTree: tree,
   visitors: {
     // @ts-expect-error POST_ORDER cannot rewrite hints.
@@ -194,7 +194,7 @@ traverseDepthFirst<T>({
     }),
   },
 });
-traverseDepthFirstAsync<T>({
+traverseTreeDepthFirstAsync<T>({
   traversableTree: tree,
   visitors: {
     // @ts-expect-error IN_ORDER cannot rewrite hints asynchronously either.
@@ -224,14 +224,14 @@ traverseDagAsync<T>({
     }),
   },
 });
-traverseBreadthFirst<T>({
+traverseTreeBreadthFirst<T>({
   traversableTree: tree,
   visitors: {
     // @ts-expect-error BFS cannot defer work.
     [B.LEVEL_ORDER]: () => ({ commands: [{ commandName: C.DEFER_READY }] }),
   },
 });
-traverseBreadthFirstAsync<T>({
+traverseTreeBreadthFirstAsync<T>({
   traversableTree: tree,
   visitors: {
     // @ts-expect-error Async BFS cannot defer work.
@@ -252,10 +252,10 @@ void [dfs, adfs, bfs, abfs, dag, adag];
 // wrappers with one shared signature when choosing between sync and async.
 declare const chooseAsync: boolean;
 const selectedDfs = chooseAsync
-  ? (source: TraversableTree<T>) => traverseDepthFirstAsync(source, null)
-  : (source: TraversableTree<T>) => traverseDepthFirst(source, null);
+  ? (source: TreeSource<T>) => traverseTreeDepthFirstAsync(source, null)
+  : (source: TreeSource<T>) => traverseTreeDepthFirst(source, null);
 const selectedBfs = chooseAsync
-  ? (source: TraversableTree<T>) => traverseBreadthFirstAsync(source, null)
-  : (source: TraversableTree<T>) => traverseBreadthFirst(source, null);
+  ? (source: TreeSource<T>) => traverseTreeBreadthFirstAsync(source, null)
+  : (source: TreeSource<T>) => traverseTreeBreadthFirst(source, null);
 selectedDfs(tree);
 selectedBfs(tree);

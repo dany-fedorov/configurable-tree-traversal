@@ -1,10 +1,10 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
   DagTraversalOrder as D,
   DepthFirstTraversalOrder as F,
   BreadthFirstTraversalOrder as B,
@@ -12,18 +12,18 @@ import {
   type VisitorGroupMember,
   type DagVisitor,
   type TraversalVisitor,
-  type TraversableGraph,
-  type TraversableTree,
+  type DagDiscoverySource,
+  type TreeSource,
   traverseDag,
   traverseDagAsync,
-  traverseDepthFirst,
-  traverseDepthFirstAsync,
-  traverseBreadthFirst,
-  traverseBreadthFirstAsync,
+  traverseTreeDepthFirst,
+  traverseTreeDepthFirstAsync,
+  traverseTreeBreadthFirst,
+  traverseTreeBreadthFirstAsync,
 } from '../src';
 type T = { VertexData: string; VertexHint: string };
-declare const traversableGraph: TraversableGraph<T>;
-declare const traversableTree: TraversableTree<T>;
+declare const traversableGraph: DagDiscoverySource<T>;
+declare const traversableTree: TreeSource<T>;
 const common: DagVisitor<T> = () => undefined;
 const ready: VisitorPhaseInput<DagVisitor<T, T, D.ON_READY>> = {
   groups: [
@@ -57,38 +57,38 @@ traverseDagAsync({ traversableGraph, visitors });
 const treeCommon: TraversalVisitor<string, T, T> = () => undefined;
 const dfs = { [F.PRE_ORDER]: { groups: [{ visitors: [treeCommon] }] } };
 {
-  const t = new DepthFirstTraversal({ traversableTree, visitors: dfs });
+  const t = new DepthFirstTreeTraversal({ traversableTree, visitors: dfs });
   t.configure({ visitors: dfs });
   t.setVisitorsFor(F.PRE_ORDER, treeCommon);
   t.setVisitorsFor(F.PRE_ORDER, t.listVisitorsFor(F.PRE_ORDER));
   t.addVisitorGroupFor(F.PRE_ORDER, { visitors: [treeCommon] });
 }
 {
-  const t = new AsyncDepthFirstTraversal({ traversableTree, visitors: dfs });
+  const t = new AsyncDepthFirstTreeTraversal({ traversableTree, visitors: dfs });
   t.configure({ visitors: dfs });
   t.setVisitorsFor(F.PRE_ORDER, treeCommon);
   t.setVisitorsFor(F.PRE_ORDER, t.listVisitorsFor(F.PRE_ORDER));
   t.addVisitorGroupFor(F.PRE_ORDER, { visitors: [treeCommon] });
 }
-traverseDepthFirst({ traversableTree, visitors: dfs });
-traverseDepthFirstAsync({ traversableTree, visitors: dfs });
+traverseTreeDepthFirst({ traversableTree, visitors: dfs });
+traverseTreeDepthFirstAsync({ traversableTree, visitors: dfs });
 const bfs = { [B.LEVEL_ORDER]: { visitor: treeCommon } };
 {
-  const t = new BreadthFirstTraversal({ traversableTree, visitors: bfs });
+  const t = new BreadthFirstTreeTraversal({ traversableTree, visitors: bfs });
   t.configure({ visitors: bfs });
   t.setVisitorsFor(B.LEVEL_ORDER, treeCommon);
   t.setVisitorsFor(B.LEVEL_ORDER, t.listVisitorsFor(B.LEVEL_ORDER));
   t.addVisitorGroupFor(B.LEVEL_ORDER, { visitors: [treeCommon] });
 }
 {
-  const t = new AsyncBreadthFirstTraversal({ traversableTree, visitors: bfs });
+  const t = new AsyncBreadthFirstTreeTraversal({ traversableTree, visitors: bfs });
   t.configure({ visitors: bfs });
   t.setVisitorsFor(B.LEVEL_ORDER, treeCommon);
   t.setVisitorsFor(B.LEVEL_ORDER, t.listVisitorsFor(B.LEVEL_ORDER));
   t.addVisitorGroupFor(B.LEVEL_ORDER, { visitors: [treeCommon] });
 }
-traverseBreadthFirst({ traversableTree, visitors: bfs });
-traverseBreadthFirstAsync({ traversableTree, visitors: bfs });
+traverseTreeBreadthFirst({ traversableTree, visitors: bfs });
+traverseTreeBreadthFirstAsync({ traversableTree, visitors: bfs });
 const bad: VisitorGroupMember<DagVisitor<T>> = {
   visitor: common,
   // @ts-expect-error Explicit group owns commit policy.
@@ -107,7 +107,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
 
 // Definition and group callbacks infer their literal phase at each concrete public boundary.
 {
-  const traversal = new DepthFirstTraversal<T>({
+  const traversal = new DepthFirstTreeTraversal<T>({
     traversableTree,
     visitors: {
       [F.PRE_ORDER]: (_v, o) => {
@@ -142,7 +142,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
       },
     ],
   });
-  traverseDepthFirst({
+  traverseTreeDepthFirst({
     traversableTree,
     visitors: {
       [F.PRE_ORDER]: {
@@ -161,7 +161,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new AsyncDepthFirstTraversal<T>({
+  const traversal = new AsyncDepthFirstTreeTraversal<T>({
     traversableTree,
     visitors: {
       [F.PRE_ORDER]: (_v, o) => {
@@ -196,7 +196,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
       },
     ],
   });
-  traverseDepthFirstAsync({
+  traverseTreeDepthFirstAsync({
     traversableTree,
     visitors: {
       [F.PRE_ORDER]: {
@@ -215,7 +215,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new BreadthFirstTraversal<T>({
+  const traversal = new BreadthFirstTreeTraversal<T>({
     traversableTree,
     visitors: {
       [B.LEVEL_ORDER]: (_v, o) => {
@@ -250,7 +250,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
       },
     ],
   });
-  traverseBreadthFirst({
+  traverseTreeBreadthFirst({
     traversableTree,
     visitors: {
       [B.LEVEL_ORDER]: {
@@ -269,7 +269,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new AsyncBreadthFirstTraversal<T>({
+  const traversal = new AsyncBreadthFirstTreeTraversal<T>({
     traversableTree,
     visitors: {
       [B.LEVEL_ORDER]: (_v, o) => {
@@ -304,7 +304,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
       },
     ],
   });
-  traverseBreadthFirstAsync({
+  traverseTreeBreadthFirstAsync({
     traversableTree,
     visitors: {
       [B.LEVEL_ORDER]: {

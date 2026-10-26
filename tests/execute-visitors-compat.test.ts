@@ -3,7 +3,7 @@ import {
   executeVisitors,
   sortVisitorRecords,
 } from '../src/core/executeVisitors';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
@@ -12,7 +12,7 @@ import {
 } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
 
-type Tree = TreeTypeParameters<string, string>;
+type Tree = VertexTypes<string, string>;
 type Record = TraversalVisitorRecord<'ORDER', Tree, Tree>;
 
 test('yields for an external halt after the first callback batch', () => {

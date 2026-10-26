@@ -21,7 +21,7 @@ type RelationSelection =
   | 'completionDependencies';
 
 /** Explore explicit declaration relationships without DAG scheduling or validation. */
-export function walkSourceFromDag<Data, ID>(
+export function materializeWalkSourceFromDagDefinition<Data, ID>(
   definition: DagDefinition<Data, ID>,
   options: { relations: readonly [RelationSelection, ...RelationSelection[]] },
 ): GraphWalkSource<Data, GraphWalkDagRelation, ID> {

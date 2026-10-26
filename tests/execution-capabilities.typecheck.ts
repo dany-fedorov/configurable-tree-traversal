@@ -2,12 +2,12 @@ import {
   GraphWalk,
   AsyncGraphWalk,
   GraphWalkPhase as WALK,
-  AsyncBreadthFirstTraversal,
+  AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
   DagTraversal,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   BreadthFirstTraversalOrder as BFS,
   DagTraversalOrder as DAG,
   DepthFirstTraversalOrder as DFS,
@@ -18,22 +18,22 @@ import {
   type AsyncCoreExecution,
   type AsyncTraversalExecution,
   type SyncTraversalExecution,
-  type TraversalRunner,
-  type TraversalRunnerIterable,
-  type TraversableTree,
-  type TreeTypeParameters,
+  type TreeTraversalRunner,
+  type TreeTraversalIterable,
+  type TreeSource,
+  type VertexTypes,
 } from '../src';
 
-type Tree = TreeTypeParameters<string, string>;
-const tree: TraversableTree<Tree> = {
-  makeRoot: () => ({
+type Tree = VertexTypes<string, string>;
+const tree: TreeSource<Tree> = {
+  resolveRoot: () => ({
     kind: 'found',
     vertex: { vertexContent: { $data: 'root', $childHints: [] } },
   }),
-  makeVertex: () => ({ kind: 'omitted' }),
+  resolveChild: () => ({ kind: 'omitted' }),
 };
-const dfs = new AsyncDepthFirstTraversal({ traversableTree: tree });
-const concrete = dfs.makeRunner();
+const dfs = new AsyncDepthFirstTreeTraversal({ traversableTree: tree });
+const concrete = dfs.createRunner();
 const common: AsyncCoreExecution<unknown> = concrete;
 common.run();
 common.run({ emitPhases: [], visitorPhases: 'all' });
@@ -60,17 +60,17 @@ const unsafeHistorical: AsyncCoreExecution<unknown, DFS | DAG> = precise;
 // @ts-expect-error Concrete API still rejects another family's phase.
 concrete.getIterable({ emitPhases: [BFS.LEVEL_ORDER] });
 
-const syncConcrete = new DepthFirstTraversal({
+const syncConcrete = new DepthFirstTreeTraversal({
   traversableTree: tree,
-}).makeRunner();
-const sync: TraversalRunner<DFS, Tree, Tree> = syncConcrete;
+}).createRunner();
+const sync: TreeTraversalRunner<DFS, Tree, Tree> = syncConcrete;
 sync.inspect();
 sync.isHalted();
 sync.requestPause();
 const syncReturn: IteratorResult<unknown, void> = sync
   .getIterable()
   .return(undefined);
-const historical: TraversalRunnerIterable<DFS, Tree, Tree> = sync.getIterable();
+const historical: TreeTraversalIterable<DFS, Tree, Tree> = sync.getIterable();
 const syncPrecise: SyncTraversalExecution<DFS, unknown> = sync;
 const syncRun: typeof syncPrecise = syncPrecise.run();
 // @ts-expect-error Sync abstraction rejects DAG phases.
@@ -78,21 +78,21 @@ syncPrecise.run({ emitPhases: [DAG.ON_READY] });
 // @ts-expect-error Sync capability must reject unsafe phase widening.
 const unsafeSync: SyncTraversalExecution<DFS | DAG, unknown> = syncPrecise;
 // @ts-expect-error Historical sync class must reject unsafe phase widening.
-const unsafeSyncHistorical: TraversalRunner<DFS | DAG, Tree, Tree> = sync;
+const unsafeSyncHistorical: TreeTraversalRunner<DFS | DAG, Tree, Tree> = sync;
 // @ts-expect-error Concrete sync source cannot be widened either.
 const unsafeSyncConcrete: SyncTraversalExecution<DFS | DAG, unknown> =
   syncConcrete;
-const breadth: SyncTraversalExecution<BFS, unknown> = new BreadthFirstTraversal(
+const breadth: SyncTraversalExecution<BFS, unknown> = new BreadthFirstTreeTraversal(
   { traversableTree: tree },
-).makeRunner();
+).createRunner();
 const dag: SyncTraversalExecution<DAG, unknown> = new DagTraversal({
   traversableTree: tree,
-}).makeRunner();
+}).createRunner();
 const asyncBreadth: AsyncTraversalExecution<BFS, unknown> =
-  new AsyncBreadthFirstTraversal({ traversableTree: tree }).makeRunner();
+  new AsyncBreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
 const asyncDag: AsyncTraversalExecution<DAG, unknown> = new AsyncDagTraversal({
   traversableTree: tree,
-}).makeRunner();
+}).createRunner();
 breadth.run({ emitPhases: [BFS.LEVEL_ORDER] });
 dag.run({ emitPhases: [DAG.ON_READY] });
 asyncBreadth.run({ emitPhases: [BFS.LEVEL_ORDER] });
@@ -185,8 +185,8 @@ paused(commonAsyncBreadth);
 paused(commonAsyncDag);
 
 const walkingSource = { roots: () => [], outgoing: () => [] };
-const walking = new GraphWalk({ source: walkingSource }).makeRunner();
-const asyncWalking = new AsyncGraphWalk({ source: walkingSource }).makeRunner();
+const walking = new GraphWalk({ source: walkingSource }).createRunner();
+const asyncWalking = new AsyncGraphWalk({ source: walkingSource }).createRunner();
 const commonWalking: SyncTraversalExecution<
   WALK,
   unknown,

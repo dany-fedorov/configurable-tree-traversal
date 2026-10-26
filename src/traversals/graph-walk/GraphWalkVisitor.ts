@@ -1,5 +1,5 @@
 import type { MaybePromise } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
   TraversalVisitorCommandName,
@@ -10,7 +10,7 @@ import type { GraphWalkEventFor } from './GraphWalkEvent';
 
 export type GraphWalkVisitorResult = void | {
   commands?: readonly TraversalVisitorCommand<
-    TreeTypeParameters,
+    VertexTypes,
     | TraversalVisitorCommandName.HALT_TRAVERSAL
     | TraversalVisitorCommandName.NOOP
   >[];

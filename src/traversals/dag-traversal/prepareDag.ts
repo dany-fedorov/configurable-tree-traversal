@@ -1,15 +1,15 @@
 import type {
-  TraversableGraph,
-  AsyncTraversableGraph,
+  DagDiscoverySource,
+  AsyncDagDiscoverySource,
 } from '@core/TraversableGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   DagTraversalStallError,
   type DagTraversalStallDiagnostics,
 } from '@core/errors/DagTraversalStallError';
 import { AsyncDagTraversal } from './AsyncDagTraversal';
 import { prepareDagSource } from './lib/prepareDagSource';
-import type { PrepareDagResult } from './lib/PreparedDag';
+import type { PrepareDagResult } from './lib/DagDefinition';
 import { capturePreparedSource } from './lib/capturePreparedSource';
 import { makePreparedDag, assertPreparedOptions } from './lib/makePreparedDag';
 
@@ -27,16 +27,16 @@ export type PrepareDagOptions = {
   saveNotMutatedResolvedGraph?: never;
 };
 export type PrepareDagInput<
-  T extends TreeTypeParameters,
+  T extends VertexTypes,
   ID = unknown,
 > = PrepareDagOptions & {
-  traversableGraph: TraversableGraph<T, T, ID>;
+  traversableGraph: DagDiscoverySource<T, T, ID>;
 };
 export type PrepareAsyncDagInput<
-  T extends TreeTypeParameters,
+  T extends VertexTypes,
   ID = unknown,
 > = PrepareDagOptions & {
-  traversableGraph: AsyncTraversableGraph<T, T, ID>;
+  traversableGraph: AsyncDagDiscoverySource<T, T, ID>;
   concurrency?: number;
 };
 
@@ -48,21 +48,21 @@ const preparationFields = [
 ];
 
 /** Discover and validate without visitors; caller source errors retain exact identity. */
-export function prepareDag<T extends TreeTypeParameters, ID = unknown>(
+export function prepareDag<T extends VertexTypes, ID = unknown>(
   input: PrepareDagInput<T, ID>,
 ): PrepareDagResult<T['VertexData'], ID> {
   return prepareDagSource(input);
 }
 
 /** Async discovery produces the same reusable in-memory definition. */
-export function prepareDagAsync<T extends TreeTypeParameters, ID = unknown>(
+export function prepareDagAsync<T extends VertexTypes, ID = unknown>(
   input: PrepareDagInput<T, ID> & { concurrency?: number },
 ): Promise<PrepareDagResult<T['VertexData'], ID>>;
-export function prepareDagAsync<T extends TreeTypeParameters, ID = unknown>(
+export function prepareDagAsync<T extends VertexTypes, ID = unknown>(
   input: PrepareAsyncDagInput<T, ID>,
 ): Promise<PrepareDagResult<T['VertexData'], ID>>;
 export async function prepareDagAsync<
-  T extends TreeTypeParameters,
+  T extends VertexTypes,
   ID = unknown,
 >(
   input: PrepareAsyncDagInput<T, ID>,
@@ -72,7 +72,7 @@ export async function prepareDagAsync<
   const runner = new AsyncDagTraversal<T, T, ID>({
     ...input,
     traversableGraph: captured.adapter,
-  }).makeRunner();
+  }).createRunner();
   try {
     await runner.prepare();
   } catch (error) {

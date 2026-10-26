@@ -1,8 +1,8 @@
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import type { TraversableGraph } from '@core/TraversableGraph';
-import type { TraversableTree } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { DagDiscoverySource } from '@core/TraversableGraph';
+import type { TreeSource } from '@core/TraversableTree';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { VisitorRecord } from '@core/graph/types';
 import { deepFreeze } from '@utils/deepFreeze';
 import { captureDagSourcePatch, captureDagConfigPatch } from './dagSourcePatch';
@@ -19,34 +19,34 @@ export type DagDiscoveryOptions = {
 };
 
 export type DagSource<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > =
   | {
-      traversableGraph: TraversableGraph<T, R, ID>;
+      traversableGraph: DagDiscoverySource<T, R, ID>;
       traversableTree?: undefined;
     }
   | {
-      traversableTree: unknown extends ID ? TraversableTree<T, R> : never;
+      traversableTree: unknown extends ID ? TreeSource<T, R> : never;
       traversableGraph?: undefined;
     };
 
 export type DagTraversalVisitors<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = {
   [K in DagTraversalOrder]: VisitorRecord<DagVisitor<T, R, K, ID>>[];
 };
 
-export type DagSortChildrenHintsFn<T extends TreeTypeParameters> = (
+export type DagSortChildrenHintsFn<T extends VertexTypes> = (
   childrenHints: T['VertexHint'][],
 ) => T['VertexHint'][];
 
 type DagTraversalOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 > = DagDiscoveryOptions & {
   completedWork?: ReadonlySet<ID>;
@@ -62,14 +62,14 @@ type DagTraversalOptions<
 };
 
 export type DagTraversalInstanceConfig<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = DagSource<T, R, ID> & DagTraversalOptions<T, R, ID>;
 
 type DagTraversalOptionsInput<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 > = Partial<
   Omit<
@@ -84,32 +84,32 @@ type DagTraversalOptionsInput<
 };
 
 export type DagTraversalInstanceConfigInput<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = DagSource<T, R, ID> & DagTraversalOptionsInput<T, R, ID>;
 
 export type DagTraversalConfigureInput<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = DagTraversalOptionsInput<T, R, ID> &
   (
     | {
-        traversableGraph?: TraversableGraph<T, R, ID> | undefined;
+        traversableGraph?: DagDiscoverySource<T, R, ID> | undefined;
         traversableTree?: undefined;
       }
     | {
         traversableTree?:
-          | (unknown extends ID ? TraversableTree<T, R> : never)
+          | (unknown extends ID ? TreeSource<T, R> : never)
           | undefined;
         traversableGraph?: undefined;
       }
   );
 
 export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
-  TreeTypeParameters,
-  TreeTypeParameters
+  VertexTypes,
+  VertexTypes
 > = deepFreeze({
   sortChildrenHints: null,
   visitors: {
@@ -124,8 +124,8 @@ export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
 });
 
 export function mergeDagTraversalInstanceConfigs<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 >(
   base: DagTraversalInstanceConfig<T, R, ID>,

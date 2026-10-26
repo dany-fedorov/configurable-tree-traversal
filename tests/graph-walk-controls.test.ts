@@ -19,7 +19,7 @@ it('filters before inline hydration and target lookup, keeping link indices', ()
       return edge.to !== 'B';
     },
   })
-    .makeRunner()
+    .createRunner()
     .run({ emitPhases: [] });
   expect(calls).not.toContain('resolve:B');
   expect(followed).toEqual(['A:0', 'A:1', 'A:2', 'C:0', 'D:0']);
@@ -45,7 +45,7 @@ it('filters before inline hydration and target lookup, keeping link indices', ()
     } as unknown as GraphWalkSource<string, undefined, string>,
     followEdge: () => false,
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(inline.summary().outcome).toEqual({ kind: 'exhausted' });
 });
@@ -65,7 +65,7 @@ it('emits pruned occurrences before expansion and retains the first pruning deci
       ).toBe(true);
       return vertex.vertexId !== 'B';
     },
-  }).makeRunner();
+  }).createRunner();
   const iterator = runner.getIterable({ emitPhases: [Phase.VERTEX] });
   expect(iterator.next().value).toMatchObject({ vertex: { vertexId: 'A' } });
   expect(expanded).toEqual([]);
@@ -95,7 +95,7 @@ it.each(['followEdge', 'expandVertex'] as const)(
         source: idGraph(['A'], [['A', ['A']]]),
         [key]: () => result,
       } as unknown as GraphWalkOptions<string, undefined, string>;
-      const runner = new GraphWalk(options).makeRunner();
+      const runner = new GraphWalk(options).createRunner();
       expect(() => runner.run()).toThrow(TypeError);
       expect(runner.getStatus()).toBe(Status.FAILED);
       const outcome = runner.summary().outcome;
@@ -115,7 +115,7 @@ it.each(['followEdge', 'expandVertex'] as const)(
         [key]: () => {
           throw error;
         },
-      }).makeRunner();
+      }).createRunner();
       for (let index = 0; index < 2; index++) {
         let caught = false;
         try {
@@ -151,7 +151,7 @@ it('detaches predicate wrappers from subsequent observations and expansion', () 
       if (context.via !== null) (context.via as { to: string }).to = 'bad';
       return true;
     },
-  }).makeRunner();
+  }).createRunner();
   expect([...runner.getIterable({ emitPhases: [Phase.EDGE] })]).toMatchObject([
     {
       edge: { from: 'A', to: 'B' },

@@ -8,7 +8,7 @@ it.each([
   { maxSteps: 0, maxOccurrences: 0 },
 ])('zero global cap %o performs no source calls', (limits) => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source, limits }).makeRunner().run();
+  const runner = new GraphWalk({ source, limits }).createRunner().run();
   expect(calls).toEqual([]);
   expect(runner.summary().counts).toMatchObject({ steps: 0, occurrences: 0 });
   expect(runner.summary().outcome).toEqual({
@@ -20,7 +20,7 @@ it.each([
 it('zero depth permits roots and never opens adjacency', () => {
   const { source, calls } = contextFixture();
   const runner = new GraphWalk({ source, limits: { maxDepth: 0 } })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(calls).toEqual(['roots', 'resolve:A', 'resolve:E']);
   expect(runner.summary().counts).toMatchObject({ steps: 3, occurrences: 2 });
@@ -35,7 +35,7 @@ it('does not treat returning edge depth as a new vertex cutoff', () => {
     source: idGraph(['A'], [['A', ['A']]]),
     limits: { maxDepth: 1 },
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(self.summary().outcome).toEqual({ kind: 'exhausted' });
   const boundary = new GraphWalk({
@@ -48,7 +48,7 @@ it('does not treat returning edge depth as a new vertex cutoff', () => {
     ),
     limits: { maxDepth: 1 },
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(boundary.summary().outcome).toEqual({
     kind: 'limited',
@@ -62,7 +62,7 @@ it('runs expansion predicate before depth and lets host pruning exhaust', () => 
     limits: { maxDepth: 0 },
     expandVertex: () => false,
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
 });
@@ -75,7 +75,7 @@ it.each([
   'drains admitted observations without probing at exact cap $limits',
   ({ limits, steps, occurrences }) => {
     const { source, calls } = contextFixture();
-    const runner = new GraphWalk({ source, limits }).makeRunner();
+    const runner = new GraphWalk({ source, limits }).createRunner();
     expect([
       ...runner.getIterable({ emitPhases: [Phase.VERTEX, Phase.PATH] }),
     ]).toHaveLength(2);
@@ -102,7 +102,7 @@ it.each([
       source: idGraph(roots, adjacency),
       limits: { maxSteps },
     })
-      .makeRunner()
+      .createRunner()
       .run();
     expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
     expect(runner.summary().counts).toMatchObject({
@@ -115,7 +115,7 @@ it.each([
 it('does not open new adjacency after a root-done step reaches the global cap', () => {
   const { source, calls } = contextFixture();
   const runner = new GraphWalk({ source, limits: { maxSteps: 3 } })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(calls).toEqual(['roots', 'resolve:A', 'resolve:E']);
   expect(runner.summary().outcome).toEqual({
@@ -136,7 +136,7 @@ it('counts duplicate and rejected candidates only as steps', () => {
     limits: { maxSteps: 5 },
     followEdge: () => false,
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(runner.summary().counts).toMatchObject({
     steps: 5,
@@ -158,7 +158,7 @@ it('counts omitted and returning targets toward the occurrence cap', () => {
         : { kind: 'found' as const, data: id },
   };
   const runner = new GraphWalk({ source, limits: { maxOccurrences: 3 } })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(runner.summary().counts).toMatchObject({
     steps: 4,
@@ -185,7 +185,7 @@ it('retains earlier depth cutoffs when a later global cap ends exploration', () 
     ),
     limits: { maxDepth: 0, maxOccurrences: 1, maxSteps: 1 },
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(runner.summary().outcome).toEqual({
     kind: 'limited',
@@ -209,7 +209,7 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
       source,
       strategy,
       limits: { maxDepth: 2 },
-    }).makeRunner();
+    }).createRunner();
     const vertices = [
       ...runner.getIterable({ emitPhases: [Phase.VERTEX] }),
     ].map((e) => [e.vertex.vertexId, e.depth]);
@@ -240,17 +240,17 @@ it('replaces supplied limits and atomically rejects invalid patches', () => {
     limits: { maxDepth: 0, maxSteps: 0 },
   });
   factory.configure({ limits: { maxSteps: 3 } });
-  const snapshot = factory.makeRunner();
+  const snapshot = factory.createRunner();
   expect(() => factory.configure({ limits: { maxSteps: -1 } })).toThrow(
     TypeError,
   );
   expect(snapshot.run().summary().outcome).toEqual({ kind: 'exhausted' });
-  expect(factory.makeRunner().run().summary().outcome).toEqual({
+  expect(factory.createRunner().run().summary().outcome).toEqual({
     kind: 'exhausted',
   });
   const limits: GraphWalkLimits = { maxDepth: 0 };
   factory.configure({ limits });
-  const bounded = factory.makeRunner();
+  const bounded = factory.createRunner();
   limits.maxDepth = 8;
   expect(bounded.run().summary().outcome).toEqual({
     kind: 'limited',

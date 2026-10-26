@@ -1,6 +1,6 @@
 import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalRunnerStatus,
   TraversalStopReason,
@@ -35,7 +35,7 @@ export type OwnerToken = {
   epoch: number;
 };
 
-export type VisitMetadata<T extends TreeTypeParameters> = {
+export type VisitMetadata<T extends VertexTypes> = {
   vertexVisitIndex: number;
   curVertexVisitorVisitIndex: number;
   previousVisitedVertexRef: Ref<T> | null;
@@ -43,8 +43,8 @@ export type VisitMetadata<T extends TreeTypeParameters> = {
 };
 
 export type CallSpec<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = { requestId: number; owner: OwnerToken } & (
   | { kind: 'MAKE_ROOT' }
   | { kind: 'RESOLVE_PREREQUISITE'; vertexId: VertexId }
@@ -61,8 +61,8 @@ export type CallSpec<
 );
 
 export type CallbackValues<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = {
   MAKE_ROOT: MakeVertexResult<T>;
   RESOLVE_PREREQUISITE: MakeVertexResult<T> | undefined;
@@ -73,8 +73,8 @@ export type CallbackValues<
 };
 
 export type CallbackReply<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = {
   [K in keyof CallbackValues<T, R>]: {
     requestId: number;
@@ -84,8 +84,8 @@ export type CallbackReply<
 }[keyof CallbackValues<T, R>];
 
 export type RawCallbackResult<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = {
   [K in keyof CallbackValues<T, R>]: {
     kind: K;
@@ -94,13 +94,13 @@ export type RawCallbackResult<
 }[keyof CallbackValues<T, R>];
 
 export interface CallbackBindings<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > {
   invoke(call: CallSpec<T, R>): RawCallbackResult<T, R>;
 }
 
-export type KernelEvent<T extends TreeTypeParameters> = {
+export type KernelEvent<T extends VertexTypes> = {
   vertex: Vertex<T>;
   vertexRef: Ref<T>;
   order: VisitOrder;
@@ -109,8 +109,8 @@ export type KernelEvent<T extends TreeTypeParameters> = {
 };
 
 export type KernelAction<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > =
   | { kind: 'CALL'; call: CallSpec<T, R> }
   | { kind: 'EVENT'; event: KernelEvent<T | R>; boundaryId: number }
@@ -120,8 +120,8 @@ export type KernelAction<
   | { kind: 'FAILED'; error: unknown };
 
 export interface KernelPort<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > {
   poll(mode: PumpMode): KernelAction<T, R>;
   submit(reply: CallbackReply<T, R>): void;

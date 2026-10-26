@@ -1,16 +1,16 @@
-import type { CollectionSource } from '../src/sources';
+import type { MaterializedDagSource } from '../src/sources';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagTraversalOrder } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import {
-  graphFrom,
-  forestFrom,
-  graphFromAsync,
-  forestFromAsync,
+  materializeDagSourceFromRecords,
+  materializeDagSourceFromRoots,
+  materializeDagSourceFromRecordsAsync,
+  materializeDagSourceFromRootsAsync,
 } from '../src/sources';
 
 test('a flat diamond discovers all records and releases dependencies after settlement', () => {
-  const source = graphFrom(
+  const source = materializeDagSourceFromRecords(
     [
       { id: 'a', requires: [] },
       { id: 'b', requires: ['a'] },
@@ -22,7 +22,7 @@ test('a flat diamond discovers all records and releases dependencies after settl
   const runner = new DagTraversal({
     ...source,
     workCompletion: 'externalSettlement',
-  }).makeRunner();
+  }).createRunner();
   runner.run();
   expect(
     runner.summary().deferredFrontier.map((work) => work.vertexId),
@@ -61,10 +61,10 @@ test('arbitrary IDs retain identity and caller data stays shared and unfrozen', 
   const ids: unknown[] = [undefined, null, NaN, objectId, Symbol('id'), 0];
   const items = ids.map((id) => ({ id, value: 1 }));
   for (const source of [
-    graphFrom(items, { id: (item) => item.id }),
-    await graphFromAsync(items, { id: async (item) => item.id }),
-    forestFrom(items, { id: (item) => item.id }),
-    await forestFromAsync(items, { id: async (item) => item.id }),
+    materializeDagSourceFromRecords(items, { id: (item) => item.id }),
+    await materializeDagSourceFromRecordsAsync(items, { id: async (item) => item.id }),
+    materializeDagSourceFromRoots(items, { id: (item) => item.id }),
+    await materializeDagSourceFromRootsAsync(items, { id: async (item) => item.id }),
   ]) {
     items[0]!.value = 2;
     const traversal = new DagTraversal(source);
@@ -72,7 +72,7 @@ test('arbitrary IDs retain identity and caller data stays shared and unfrozen', 
     traversal.addVisitorFor(DagTraversalOrder.ON_READY, (vertex) => {
       seen.push(vertex.getData());
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     runner.run();
     expect(seen).toEqual(items);
     const graph = runner.getResolvedGraph();
@@ -102,8 +102,8 @@ test('materialization copies membership, children, and both milestone edges', as
       dependsOnComplete: (item: typeof items[number]) => item.completion,
     };
     const source = asyncSource
-      ? await graphFromAsync(items, selectors)
-      : graphFrom(items, selectors);
+      ? await materializeDagSourceFromRecordsAsync(items, selectors)
+      : materializeDagSourceFromRecords(items, selectors);
     const first = items[0]!;
     first.children.length = 0;
     items[1]!.dependencies.length = 0;
@@ -113,7 +113,7 @@ test('materialization copies membership, children, and both milestone edges', as
       const runner = new DagTraversal({
         ...source,
         workCompletion: 'externalSettlement',
-      }).makeRunner();
+      }).createRunner();
       runner.run();
       expect(
         runner.summary().deferredFrontier.map((work) => work.vertexId),
@@ -152,25 +152,25 @@ test.each([undefined, NaN, 0, {}])(
   async (id) => {
     const item = { id };
     expect(() =>
-      graphFrom([item, item], { id: (record) => record.id }),
+      materializeDagSourceFromRecords([item, item], { id: (record) => record.id }),
     ).toThrow(TypeError);
     await expect(
-      graphFromAsync([item, item], { id: (record) => record.id }),
+      materializeDagSourceFromRecordsAsync([item, item], { id: (record) => record.id }),
     ).rejects.toThrow(TypeError);
   },
 );
 
 test('forest permits repeated record identity but rejects different records sharing IDs', async () => {
   const roots = [{ id: undefined }, { id: undefined }];
-  expect(() => forestFrom(roots, { id: (item) => item.id })).toThrow(TypeError);
+  expect(() => materializeDagSourceFromRoots(roots, { id: (item) => item.id })).toThrow(TypeError);
   await expect(
-    forestFromAsync(roots, { id: (item) => item.id }),
+    materializeDagSourceFromRootsAsync(roots, { id: (item) => item.id }),
   ).rejects.toThrow(TypeError);
   for (const source of [
-    forestFrom([roots[0]!, roots[0]!], { id: (item) => item.id }),
-    await forestFromAsync([roots[0]!, roots[0]!], { id: (item) => item.id }),
+    materializeDagSourceFromRoots([roots[0]!, roots[0]!], { id: (item) => item.id }),
+    await materializeDagSourceFromRootsAsync([roots[0]!, roots[0]!], { id: (item) => item.id }),
   ]) {
-    const runner = new DagTraversal(source).makeRunner();
+    const runner = new DagTraversal(source).createRunner();
     runner.run();
     expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(1);
   }
@@ -178,15 +178,15 @@ test('forest permits repeated record identity but rejects different records shar
 
 test('missing structural children reject during catalog materialization', async () => {
   expect(() =>
-    graphFrom(['a'], { id: (item) => item, children: () => ['missing'] }),
+    materializeDagSourceFromRecords(['a'], { id: (item) => item, children: () => ['missing'] }),
   ).toThrow(TypeError);
   await expect(
-    graphFromAsync(['a'], { id: (item) => item, children: () => ['missing'] }),
+    materializeDagSourceFromRecordsAsync(['a'], { id: (item) => item, children: () => ['missing'] }),
   ).rejects.toThrow(TypeError);
 });
 
 test('unknown prerequisites remain engine validation errors while known lookup is tagged found', () => {
-  const source = graphFrom(['a'], {
+  const source = materializeDagSourceFromRecords(['a'], {
     id: (item) => item,
     dependsOn: () => ['missing'],
   });
@@ -197,20 +197,20 @@ test('unknown prerequisites remain engine validation errors while known lookup i
   expect(source.traversableGraph.resolvePrerequisite!('missing')).toEqual({
     kind: 'missing',
   });
-  expect(() => new DagTraversal(source).makeRunner().run()).toThrow();
+  expect(() => new DagTraversal(source).createRunner().run()).toThrow();
 });
 
 test('a source rejects unknown structural lookup without omitting it', () => {
-  const source = graphFrom(['a'], { id: (item) => item });
+  const source = materializeDagSourceFromRecords(['a'], { id: (item) => item });
   const traversal = new DagTraversal({
     ...source,
     traversableGraph: {
       ...source.traversableGraph,
-      makeVertex: (_hint, options) =>
-        source.traversableGraph.makeVertex('missing', options),
+      resolveChild: (_hint, options) =>
+        source.traversableGraph.resolveChild('missing', options),
     },
   });
-  expect(() => traversal.makeRunner().run()).toThrow(TypeError);
+  expect(() => traversal.createRunner().run()).toThrow(TypeError);
 });
 
 test('async catalogs and promised iterable selectors preserve completion and structural edges', async () => {
@@ -221,13 +221,13 @@ test('async catalogs and promised iterable selectors preserve completion and str
   async function* children(id: string) {
     if (id === 'a') yield 'b';
   }
-  const source = await graphFromAsync(catalog(), {
+  const source = await materializeDagSourceFromRecordsAsync(catalog(), {
     id: async (item) => item.id,
     children: (item) => children(item.id),
     dependsOn: async () => [],
     dependsOnComplete: async () => [],
   });
-  const runner = new AsyncDagTraversal(source).makeRunner();
+  const runner = new AsyncDagTraversal(source).createRunner();
   await runner.run();
   const graph = runner.getResolvedGraph();
   expect(graph.getParentsOf(graph.getVertexRefById('b')!)).toEqual([
@@ -250,11 +250,11 @@ test('forest async selectors and input materialize once, preserving milestone de
     dependsOn: async (item: typeof root) => (item === leaf ? ['root'] : []),
     dependsOnComplete: async () => [],
   };
-  const source = await forestFromAsync(roots(), selectors);
+  const source = await materializeDagSourceFromRootsAsync(roots(), selectors);
   const runner = new DagTraversal({
     ...source,
     workCompletion: 'externalSettlement',
-  }).makeRunner();
+  }).createRunner();
   runner.run();
   expect(
     runner.summary().deferredFrontier.map((work) => work.vertexId),
@@ -275,15 +275,15 @@ test('forest copies child records and completion constraints before caller mutat
       dependsOnComplete: (item: Item) => item.after,
     };
     const source = asyncSource
-      ? await forestFromAsync(roots, selectors)
-      : forestFrom(roots, selectors);
+      ? await materializeDagSourceFromRootsAsync(roots, selectors)
+      : materializeDagSourceFromRoots(roots, selectors);
     root.children.length = 0;
     after.after.length = 0;
     roots.length = 0;
     const runner = new DagTraversal({
       ...source,
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     runner.run();
     expect(
       runner.summary().deferredFrontier.map((work) => work.vertexId),
@@ -311,10 +311,10 @@ test('forest copies child records and completion constraints before caller mutat
 
 test('empty forests produce finished empty graphs with no holder events', async () => {
   for (const source of [
-    forestFrom([], { id: (item: string) => item }),
-    await forestFromAsync([], { id: (item: string) => item }),
+    materializeDagSourceFromRoots([], { id: (item: string) => item }),
+    await materializeDagSourceFromRootsAsync([], { id: (item: string) => item }),
   ]) {
-    const runner = new DagTraversal(source).makeRunner();
+    const runner = new DagTraversal(source).createRunner();
     expect([...runner.getIterable()]).toEqual([]);
     expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
   }
@@ -330,11 +330,11 @@ test('forest materialization is iterative for deep input and leaves cycle valida
     dependsOn: () => [],
     dependsOnComplete: () => [],
   };
-  expect(() => forestFrom([root], selectors)).not.toThrow();
+  expect(() => materializeDagSourceFromRoots([root], selectors)).not.toThrow();
   const cycle: Item = { id: 0, children: [] };
   cycle.children.push(cycle);
-  const source = forestFrom([cycle], selectors);
-  expect(() => new DagTraversal(source).makeRunner().run()).toThrow();
+  const source = materializeDagSourceFromRoots([cycle], selectors);
+  expect(() => new DagTraversal(source).createRunner().run()).toThrow();
 });
 
 test('selector and catalog failures retain exact identity', async () => {
@@ -342,7 +342,7 @@ test('selector and catalog failures retain exact identity', async () => {
   const id = () => {
     throw error;
   };
-  for (const factory of [graphFrom, forestFrom]) {
+  for (const factory of [materializeDagSourceFromRecords, materializeDagSourceFromRoots]) {
     try {
       factory([1], { id });
       throw new Error('Expected selector failure');
@@ -350,7 +350,7 @@ test('selector and catalog failures retain exact identity', async () => {
       expect(actual).toBe(error);
     }
   }
-  for (const factory of [graphFromAsync, forestFromAsync]) {
+  for (const factory of [materializeDagSourceFromRecordsAsync, materializeDagSourceFromRootsAsync]) {
     await expect(
       factory([1], { id: () => Promise.reject(error) }),
     ).rejects.toBe(error);
@@ -371,12 +371,12 @@ test('selector and catalog failures retain exact identity', async () => {
 
 test('empty and disconnected catalogs expose only actual records', async () => {
   const empty = new DagTraversal(
-    graphFrom([], { id: (item: string) => item }),
-  ).makeRunner();
+    materializeDagSourceFromRecords([], { id: (item: string) => item }),
+  ).createRunner();
   empty.run();
   expect(empty.getResolvedGraph().getVertexRefs()).toEqual([]);
-  const source = await graphFromAsync([1, 2], { id: (item) => item });
-  const runner = new AsyncDagTraversal(source).makeRunner();
+  const source = await materializeDagSourceFromRecordsAsync([1, 2], { id: (item) => item });
+  const runner = new AsyncDagTraversal(source).createRunner();
   await runner.run();
   expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(2);
 });
@@ -389,16 +389,16 @@ test('forest expansion shares records across parents', async () => {
     { id: 'b', children: [leaf] },
   ];
   for (const source of [
-    forestFrom(roots, {
+    materializeDagSourceFromRoots(roots, {
       id: (item) => item.id,
       children: (item) => item.children,
     }),
-    await forestFromAsync(roots, {
+    await materializeDagSourceFromRootsAsync(roots, {
       id: (item) => item.id,
       children: (item) => item.children,
     }),
   ]) {
-    const runner = new DagTraversal(source).makeRunner();
+    const runner = new DagTraversal(source).createRunner();
     runner.run();
     const graph = runner.getResolvedGraph();
     expect(graph.getVertexRefs()).toHaveLength(3);
@@ -425,42 +425,42 @@ type MilestoneSelectors = {
 
 test.each([
   [
-    'graphFrom',
+    'materializeDagSourceFromRecords',
     (
       items: MilestoneItem[],
       selectors: MilestoneSelectors,
-    ): CollectionSource<MilestoneItem, string> =>
-      graphFrom(items, {
+    ): MaterializedDagSource<MilestoneItem, string> =>
+      materializeDagSourceFromRecords(items, {
         ...selectors,
         children: (item) => item.children.map((child) => child.id),
       }),
   ],
   [
-    'graphFromAsync',
+    'materializeDagSourceFromRecordsAsync',
     (
       items: MilestoneItem[],
       selectors: MilestoneSelectors,
-    ): Promise<CollectionSource<MilestoneItem, string>> =>
-      graphFromAsync(items, {
+    ): Promise<MaterializedDagSource<MilestoneItem, string>> =>
+      materializeDagSourceFromRecordsAsync(items, {
         ...selectors,
         children: async (item) => item.children.map((child) => child.id),
       }),
   ],
   [
-    'forestFrom',
+    'materializeDagSourceFromRoots',
     (
       items: MilestoneItem[],
       selectors: MilestoneSelectors,
-    ): CollectionSource<MilestoneItem, string> =>
-      forestFrom(items, { ...selectors, children: (item) => item.children }),
+    ): MaterializedDagSource<MilestoneItem, string> =>
+      materializeDagSourceFromRoots(items, { ...selectors, children: (item) => item.children }),
   ],
   [
-    'forestFromAsync',
+    'materializeDagSourceFromRootsAsync',
     (
       items: MilestoneItem[],
       selectors: MilestoneSelectors,
-    ): Promise<CollectionSource<MilestoneItem, string>> =>
-      forestFromAsync(items, {
+    ): Promise<MaterializedDagSource<MilestoneItem, string>> =>
+      materializeDagSourceFromRootsAsync(items, {
         ...selectors,
         children: async (item) => item.children,
       }),
@@ -503,7 +503,7 @@ test.each([
     const runner = new DagTraversal({
       ...source,
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     runner.run();
     expect(
       runner
@@ -539,10 +539,10 @@ test.each([
 );
 
 for (const [name, make] of [
-  ['graphFrom', graphFrom],
-  ['forestFrom', forestFrom],
-  ['graphFromAsync', graphFromAsync],
-  ['forestFromAsync', forestFromAsync],
+  ['materializeDagSourceFromRecords', materializeDagSourceFromRecords],
+  ['materializeDagSourceFromRoots', materializeDagSourceFromRoots],
+  ['materializeDagSourceFromRecordsAsync', materializeDagSourceFromRecordsAsync],
+  ['materializeDagSourceFromRootsAsync', materializeDagSourceFromRootsAsync],
 ] as const) {
   for (const key of ['dependencies', 'completionDependencies']) {
     for (const inherited of [false, true]) {

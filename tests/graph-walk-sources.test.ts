@@ -3,9 +3,9 @@ import {
   GraphWalk,
   GraphWalkPhase as Phase,
   graphWalk,
-  walkSourceFrom,
-  walkSourceFromAsync,
-  walkSourceFromDag,
+  materializeWalkSourceFromRecords,
+  materializeWalkSourceFromRecordsAsync,
+  materializeWalkSourceFromDagDefinition,
   defineDag,
   prepareDagDefinition,
 } from '../src';
@@ -18,7 +18,7 @@ it('captures catalog topology eagerly while retaining shallow caller data', () =
   const adjacency = [link, link];
   const roots = ['A'];
   const calls: string[] = [];
-  const source = walkSourceFrom([a, b], {
+  const source = materializeWalkSourceFromRecords([a, b], {
     id: (item) => {
       calls.push(`id:${item.id}`);
       return item.id;
@@ -38,7 +38,7 @@ it('captures catalog topology eagerly while retaining shallow caller data', () =
   const factory = new GraphWalk({ source });
   for (let run = 0; run < 2; run++) {
     const events = [
-      ...factory.makeRunner().getIterable({ emitPhases: [Phase.EDGE] }),
+      ...factory.createRunner().getIterable({ emitPhases: [Phase.EDGE] }),
     ];
     expect(
       events.map((event) => [event.edge.from, event.edge.to, event.edge.index]),
@@ -54,12 +54,12 @@ it('captures catalog topology eagerly while retaining shallow caller data', () =
     expect(events[0]!.edge.data).toBe(relation);
   }
   expect(calls).toHaveLength(4);
-  expect(graphWalk.walkSourceFrom).toBe(walkSourceFrom);
+  expect(graphWalk.materializeWalkSourceFromRecords).toBe(materializeWalkSourceFromRecords);
 });
 
 it('returns detached root, resolution and outgoing wrappers for independent consumers', () => {
   const data = { id: undefined };
-  const source = walkSourceFrom([data], {
+  const source = materializeWalkSourceFromRecords([data], {
     id: (item) => item.id,
     outgoing: () => [{ to: undefined, data: undefined }],
     roots: [undefined, undefined],
@@ -89,7 +89,7 @@ it('preserves arbitrary identity, parallel links and explicit root order without
     symbol = Symbol('id');
   const ids: unknown[] = [object, other, symbol, undefined, null, NaN, -0];
   const items = ids.map((id) => ({ id }));
-  const source = walkSourceFrom(items, {
+  const source = materializeWalkSourceFromRecords(items, {
     id: (item) => item.id,
     outgoing: () => ids.map((to, data) => ({ to, data })),
     roots: [NaN, object, 0, symbol],
@@ -128,7 +128,7 @@ it.each([
     const items =
       second === 'same-record' ? [item, item] : [item, { id: second }];
     expect(() =>
-      walkSourceFrom(items, {
+      materializeWalkSourceFromRecords(items, {
         id: (value) => value.id,
         outgoing: () => [],
         roots: [],
@@ -139,14 +139,14 @@ it.each([
 
 it('rejects unknown roots and targets even in unreachable records', () => {
   expect(() =>
-    walkSourceFrom(['a'], {
+    materializeWalkSourceFromRecords(['a'], {
       id: (item) => item,
       outgoing: () => [],
       roots: ['missing'],
     }),
   ).toThrow(TypeError);
   expect(() =>
-    walkSourceFrom(['a', 'b'], {
+    materializeWalkSourceFromRecords(['a', 'b'], {
       id: (item) => item,
       outgoing: (item) => (item === 'b' ? [{ to: 'missing', data: 1 }] : []),
       roots: ['a'],
@@ -155,12 +155,12 @@ it('rejects unknown roots and targets even in unreachable records', () => {
 });
 
 it('allows empty catalog and root sets without inventing vertices', () => {
-  const source = walkSourceFrom([], {
+  const source = materializeWalkSourceFromRecords([], {
     id: (value) => value,
     outgoing: () => [],
     roots: [],
   });
-  expect([...new GraphWalk({ source }).makeRunner().getIterable()]).toEqual([]);
+  expect([...new GraphWalk({ source }).createRunner().getIterable()]).toEqual([]);
   expect(() => source.resolveVertex!(undefined as never)).toThrow(TypeError);
 });
 
@@ -170,7 +170,7 @@ it('eagerly awaits async catalogs, selectors and roots into a synchronous reusab
   const relation = { kind: 'link' };
   const link = { to: 'b', data: relation };
   const calls: string[] = [];
-  const source = await walkSourceFromAsync(
+  const source = await materializeWalkSourceFromRecordsAsync(
     (async function* () {
       yield a;
       yield b;
@@ -196,22 +196,22 @@ it('eagerly awaits async catalogs, selectors and roots into a synchronous reusab
   link.to = 'unknown';
   const factory = new GraphWalk({ source });
   expect(
-    [...factory.makeRunner().getIterable({ emitPhases: [Phase.EDGE] })].map(
+    [...factory.createRunner().getIterable({ emitPhases: [Phase.EDGE] })].map(
       (event) => event.edge.to,
     ),
   ).toEqual(['b']);
   const events = [];
   for await (const event of new AsyncGraphWalk({ source })
-    .makeRunner()
+    .createRunner()
     .getIterable({ emitPhases: [Phase.EDGE] }))
     events.push(event);
   expect(events[0]!.edge.data).toBe(relation);
   expect(calls).toHaveLength(5);
-  expect(graphWalk.walkSourceFromAsync).toBe(walkSourceFromAsync);
+  expect(graphWalk.materializeWalkSourceFromRecordsAsync).toBe(materializeWalkSourceFromRecordsAsync);
 });
 
 it('accepts synchronous async-adapter inputs and validates their captured membership', async () => {
-  const source = await walkSourceFromAsync([undefined], {
+  const source = await materializeWalkSourceFromRecordsAsync([undefined], {
     id: (value) => value,
     outgoing: () => [],
     roots: [undefined],
@@ -221,21 +221,21 @@ it('accepts synchronous async-adapter inputs and validates their captured member
     data: undefined,
   });
   await expect(
-    walkSourceFromAsync([NaN, NaN], {
+    materializeWalkSourceFromRecordsAsync([NaN, NaN], {
       id: (value) => value,
       outgoing: () => [],
       roots: [],
     }),
   ).rejects.toThrow(TypeError);
   await expect(
-    walkSourceFromAsync(['a'], {
+    materializeWalkSourceFromRecordsAsync(['a'], {
       id: (value) => value,
       outgoing: () => [],
       roots: ['missing'],
     }),
   ).rejects.toThrow(TypeError);
   await expect(
-    walkSourceFromAsync(['a'], {
+    materializeWalkSourceFromRecordsAsync(['a'], {
       id: (value) => value,
       outgoing: () => [{ to: 'missing', data: 1 }],
       roots: [],
@@ -247,7 +247,7 @@ it.each([null, undefined, { exact: true }])(
   'retains exact synchronous and asynchronous selector failures %#',
   async (error) => {
     try {
-      walkSourceFrom(['a'], {
+      materializeWalkSourceFromRecords(['a'], {
         id: () => {
           throw error;
         },
@@ -259,7 +259,7 @@ it.each([null, undefined, { exact: true }])(
       expect(caught).toBe(error);
     }
     try {
-      await walkSourceFromAsync(['a'], {
+      await materializeWalkSourceFromRecordsAsync(['a'], {
         id: (value) => value,
         outgoing: async () => {
           throw error;
@@ -299,8 +299,8 @@ it('walks cyclic definitions without DAG preparation or callback execution', () 
     entry: { kind: 'root', vertexId: 'a' },
   });
   expect(prepareDagDefinition(definition).kind).toBe('invalid');
-  const source = walkSourceFromDag(definition, { relations: ['children'] });
-  const runner = new GraphWalk({ source }).makeRunner();
+  const source = materializeWalkSourceFromDagDefinition(definition, { relations: ['children'] });
+  const runner = new GraphWalk({ source }).createRunner();
   expect(
     [...runner.getIterable({ emitPhases: [Phase.EDGE] })].map((event) => [
       event.edge.from,
@@ -312,7 +312,7 @@ it('walks cyclic definitions without DAG preparation or callback execution', () 
     ['b', 'a', { kind: 'child', slotIndex: 0 }],
   ]);
   expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
-  expect(graphWalk.walkSourceFromDag).toBe(walkSourceFromDag);
+  expect(graphWalk.materializeWalkSourceFromDagDefinition).toBe(materializeWalkSourceFromDagDefinition);
 });
 
 it('projects selected DAG relations in canonical order with parallel slots and dependent-to-prerequisite direction', () => {
@@ -334,12 +334,12 @@ it('projects selected DAG relations in canonical order with parallel slots and d
     omittedIds: ['skip'],
     entry: { kind: 'root', vertexId: 'a' },
   });
-  const source = walkSourceFromDag(definition, {
+  const source = materializeWalkSourceFromDagDefinition(definition, {
     relations: ['completionDependencies', 'workDependencies', 'children'],
   });
   const edges = [
     ...new GraphWalk({ source })
-      .makeRunner()
+      .createRunner()
       .getIterable({ emitPhases: [Phase.EDGE] }),
   ];
   expect(
@@ -365,7 +365,7 @@ it('projects selected DAG relations in canonical order with parallel slots and d
 it.each(['workDependencies', 'completionDependencies'] as const)(
   'allows cyclic %s and ignores unselected missing relationships',
   (relation) => {
-    const source = walkSourceFromDag(
+    const source = materializeWalkSourceFromDagDefinition(
       defineDag({
         vertices: [
           dagVertex('a', {
@@ -383,7 +383,7 @@ it.each(['workDependencies', 'completionDependencies'] as const)(
     );
     const events = [
       ...new GraphWalk({ source })
-        .makeRunner()
+        .createRunner()
         .getIterable({ emitPhases: [Phase.EDGE] }),
     ];
     expect(
@@ -428,7 +428,7 @@ it('copies mutable definitions and separates generated relationship wrappers acr
     'workDependencies',
     'completionDependencies',
   ] as const;
-  const source = walkSourceFromDag(
+  const source = materializeWalkSourceFromDagDefinition(
     { vertices, omittedIds: [], entry },
     { relations },
   );
@@ -449,7 +449,7 @@ it('copies mutable definitions and separates generated relationship wrappers acr
   const factory = new GraphWalk({ source });
   for (let run = 0; run < 2; run++) {
     const events = [
-      ...factory.makeRunner().getIterable({ emitPhases: [Phase.EDGE] }),
+      ...factory.createRunner().getIterable({ emitPhases: [Phase.EDGE] }),
     ];
     expect(events.map((event) => [event.edge.to, event.edge.data])).toEqual([
       [other, { kind: 'child', slotIndex: 0 }],
@@ -467,7 +467,7 @@ it('preserves forest root slots, arbitrary identities and known omitted roots', 
   const object = {},
     symbol = Symbol('id');
   const ids: unknown[] = [undefined, null, NaN, -0, object, symbol];
-  const source = walkSourceFromDag(
+  const source = materializeWalkSourceFromDagDefinition(
     defineDag({
       vertices: ids.map((id) => dagVertex(id)),
       omittedIds: ['skip'],
@@ -488,7 +488,7 @@ it('preserves forest root slots, arbitrary identities and known omitted roots', 
     ...ids,
     object,
   ]);
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect(
     [...runner.getIterable({ emitPhases: [Phase.VERTEX] })].map(
       (event) => event.vertex.vertexId,
@@ -500,7 +500,7 @@ it('preserves forest root slots, arbitrary identities and known omitted roots', 
 });
 
 it('permits omitted root entries and empty entries without fabricating roots', () => {
-  const omitted = walkSourceFromDag(
+  const omitted = materializeWalkSourceFromDagDefinition(
     defineDag({
       vertices: [],
       omittedIds: [undefined],
@@ -510,9 +510,9 @@ it('permits omitted root entries and empty entries without fabricating roots', (
   );
   expect([...omitted.roots()]).toEqual([{ vertexId: undefined }]);
   expect([
-    ...new GraphWalk({ source: omitted }).makeRunner().getIterable(),
+    ...new GraphWalk({ source: omitted }).createRunner().getIterable(),
   ]).toEqual([]);
-  const empty = walkSourceFromDag(
+  const empty = materializeWalkSourceFromDagDefinition(
     defineDag({
       vertices: [dagVertex('unreachable')],
       omittedIds: ['skip'],
@@ -522,7 +522,7 @@ it('permits omitted root entries and empty entries without fabricating roots', (
   );
   expect([...empty.roots()]).toEqual([]);
   expect([
-    ...new GraphWalk({ source: empty }).makeRunner().getIterable(),
+    ...new GraphWalk({ source: empty }).createRunner().getIterable(),
   ]).toEqual([]);
 });
 
@@ -543,7 +543,7 @@ it.each([
       omittedIds: [],
       entry: { kind: 'empty' },
     });
-    expect(() => walkSourceFromDag(definition, options as any)).toThrow(
+    expect(() => materializeWalkSourceFromDagDefinition(definition, options as any)).toThrow(
       TypeError,
     );
   },
@@ -557,7 +557,7 @@ it.each([
   'rejects inconsistent declared identities even with no selected edges %#',
   (records) => {
     expect(() =>
-      walkSourceFromDag<unknown, unknown>(
+      materializeWalkSourceFromDagDefinition<unknown, unknown>(
         { ...records, entry: { kind: 'empty' } },
         { relations: ['children'] },
       ),
@@ -579,15 +579,15 @@ it.each([
       entry: { kind: 'root', vertexId: 'a' },
     });
     expect(() =>
-      walkSourceFromDag(definition, { relations: ['children'] }),
+      materializeWalkSourceFromDagDefinition(definition, { relations: ['children'] }),
     ).toThrow(TypeError);
     expect([
       ...new GraphWalk({
-        source: walkSourceFromDag(definition, {
+        source: materializeWalkSourceFromDagDefinition(definition, {
           relations: ['workDependencies'],
         }),
       })
-        .makeRunner()
+        .createRunner()
         .getIterable({ emitPhases: [Phase.VERTEX] }),
     ]).toHaveLength(1);
   },
@@ -607,7 +607,7 @@ it.each(['workDependencies', 'completionDependencies'] as const)(
       entry: { kind: 'empty' },
     });
     expect(() =>
-      walkSourceFromDag(definition, { relations: [relation] }),
+      materializeWalkSourceFromDagDefinition(definition, { relations: [relation] }),
     ).toThrow(TypeError);
   },
 );
@@ -630,7 +630,7 @@ it.each([
       entry,
     });
     expect(() =>
-      walkSourceFromDag(definition, { relations: ['workDependencies'] }),
+      materializeWalkSourceFromDagDefinition(definition, { relations: ['workDependencies'] }),
     ).toThrow(TypeError);
   },
 );
@@ -654,16 +654,16 @@ it('keeps DAG task callbacks opaque through sync and async walking', async () =>
     omittedIds: [],
     entry: { kind: 'root', vertexId: 'task' },
   });
-  const source = walkSourceFromDag(definition, { relations: ['children'] });
+  const source = materializeWalkSourceFromDagDefinition(definition, { relations: ['children'] });
   const syncEvents = [
     ...new GraphWalk({ source })
-      .makeRunner()
+      .createRunner()
       .getIterable({ emitPhases: [Phase.VERTEX] }),
   ];
   expect(syncEvents[0]!.vertex.data).toBe(task);
   const asyncEvents = [];
   for await (const event of new AsyncGraphWalk({ source })
-    .makeRunner()
+    .createRunner()
     .getIterable({ emitPhases: [Phase.VERTEX] }))
     asyncEvents.push(event);
   expect(asyncEvents[0]!.vertex.data).toBe(task);
@@ -673,7 +673,7 @@ it('keeps DAG task callbacks opaque through sync and async walking', async () =>
 it('copies async links as they are yielded, before the iterator reuses its wrapper', async () => {
   const link = { to: 'b', data: { kind: 'first' } };
   const first = link.data;
-  const source = await walkSourceFromAsync(['a', 'b', 'c'], {
+  const source = await materializeWalkSourceFromRecordsAsync(['a', 'b', 'c'], {
     id: (id) => id,
     outgoing: (id) =>
       (async function* () {
@@ -687,7 +687,7 @@ it('copies async links as they are yielded, before the iterator reuses its wrapp
   });
   const events = [
     ...new GraphWalk({ source })
-      .makeRunner()
+      .createRunner()
       .getIterable({ emitPhases: [Phase.EDGE] }),
   ];
   expect(events.map((event) => event.edge.to)).toEqual(['b', 'c']);

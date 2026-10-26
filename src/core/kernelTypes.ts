@@ -1,6 +1,6 @@
 import type { DepthFirstTraversalInOrderTraversalConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalRunnerStatus,
   TraversalStopReason,
@@ -24,7 +24,7 @@ import type {
 import type { RegistrationMetadata } from '@core/visitors/types';
 import type { EligibleVisit } from '@core/scheduling/types';
 
-export type KernelStateBridge<T extends TreeTypeParameters> = {
+export type KernelStateBridge<T extends VertexTypes> = {
   status: TraversalRunnerStatus;
   traversalRootVertexRef: Ref<T> | null;
   subtreeTraversalDisabledRefs: Set<Ref<T>>;
@@ -32,8 +32,8 @@ export type KernelStateBridge<T extends TreeTypeParameters> = {
 };
 
 export type KernelOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = {
   kind: 'depth-first' | 'breadth-first' | 'dag';
   execution: 'sync' | 'async';
@@ -60,8 +60,8 @@ export type KernelOptions<
 };
 
 export type FrameState<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = {
   owner: OwnerToken;
   ref: Ref<T | R>;
@@ -81,8 +81,8 @@ export type FrameState<
 };
 
 export type ChainState<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = {
   owner: OwnerToken;
   ref: Ref<T | R>;
@@ -96,7 +96,7 @@ export type ChainState<
   config: EffectiveTraversalExecutionOptions<VisitOrder>;
 };
 
-export type VertexWork<T extends TreeTypeParameters> = {
+export type VertexWork<T extends VertexTypes> = {
   ref: Ref<T>;
   unmet: Set<VertexId>;
   unmetComplete: Set<VertexId>;

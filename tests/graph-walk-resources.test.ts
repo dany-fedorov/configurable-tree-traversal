@@ -56,7 +56,7 @@ it.each([null, undefined, false, 0, { reason: 'source' }])(
     const runner = new GraphWalk({
       strategy: 'depthFirst',
       source: failingResourceSource(returns, primary, { reason: 'cleanup' }),
-    }).makeRunner();
+    }).createRunner();
     let caught = false;
     try {
       runner.run();
@@ -98,7 +98,7 @@ it('cleans an acquired iterator even when its next getter fails before first nex
       },
     }),
   };
-  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).makeRunner();
+  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).createRunner();
   expect(() => runner.run()).toThrow();
   expect(runner.summary().outcome).toEqual({ kind: 'failed', error: primary });
   expect(returns).toEqual(['edges:A', 'roots']);
@@ -109,7 +109,7 @@ it('async failure awaits reverse cleanup and retains arbitrary primary errors', 
   const runner = new AsyncGraphWalk({
     strategy: 'depthFirst',
     source: failingResourceSource(returns, undefined, null),
-  }).makeRunner();
+  }).createRunner();
   let caught = false;
   try {
     await runner.run();
@@ -126,7 +126,7 @@ it('public iterator return retains sources, terminal close releases them once an
   const returns: string[] = [];
   const runner = new GraphWalk({
     source: failingResourceSource(returns, 'unused', 'unused'),
-  }).makeRunner();
+  }).createRunner();
   const iterator = runner.getIterable();
   iterator.next();
   expect(() => runner.close()).toThrow('owner');
@@ -185,7 +185,7 @@ it.each([null, undefined, false, 0, { reason: 'cleanup' }])(
         source,
         strategy: 'depthFirst',
         limits: { maxOccurrences: 2 },
-      }).makeRunner();
+      }).createRunner();
       let caught = false;
       try {
         await runner.run();
@@ -242,7 +242,7 @@ it('releases nested DFS iterators in reverse order on a global bound without ope
     strategy: 'depthFirst',
     limits: { maxSteps: 3 },
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(opens).toEqual(['A', 'B']);
   expect(returns).toEqual(['edges:B', 'edges:A', 'roots']);
@@ -273,7 +273,7 @@ it('removes exhausted iterators without reading their return and preserves exhau
     };
     const runner = new factory({
       source: { roots: () => roots, outgoing: () => [] },
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     await runner.close();
     expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
@@ -299,7 +299,7 @@ it('does not close exhausted outgoing iterators when a later branch fails', () =
         return { done: true, value: undefined };
       }),
   };
-  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).makeRunner();
+  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).createRunner();
   expect(() => runner.run()).toThrow();
   expect(returns).toEqual(['edges:B', 'roots']);
 });
@@ -315,7 +315,7 @@ it('close on INITIAL performs no source work and remains terminal', async () => 
           throw new Error('Must not open');
         },
       },
-    }).makeRunner();
+    }).createRunner();
     await runner.close();
     await runner.close();
     await runner.run();
@@ -359,7 +359,7 @@ it('attempts cleanup after a throwing return getter and tolerates missing return
         },
       }),
     },
-  }).makeRunner();
+  }).createRunner();
   expect(() => runner.run()).toThrow();
   expect(returns).toEqual(['roots']);
   expect(runner.summary().outcome).toEqual({ kind: 'failed', error: cleanup });
@@ -379,7 +379,7 @@ it('attempts cleanup after a throwing return getter and tolerates missing return
       outgoing: () => [],
     },
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(withoutReturn.summary().outcome).toEqual({
     kind: 'limited',
@@ -422,7 +422,7 @@ it('overlapping async terminal closes join, await cleanup, and exclude execution
       }),
       outgoing: () => [],
     },
-  }).makeRunner();
+  }).createRunner();
   const iterator = runner.getIterable();
   await iterator.next();
   await expect(runner.close()).rejects.toThrow('owner');
@@ -468,7 +468,7 @@ it.each([null, undefined])(
           ),
         outgoing: () => [],
       },
-    }).makeRunner();
+    }).createRunner();
     const iterator = runner.getIterable();
     await iterator.next();
     await iterator.return();
@@ -512,7 +512,7 @@ it('terminal close does not acquire a returned iterable that has never been open
           };
         },
       },
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     expect(runner.getStatus()).toBe(Status.HALTED);
     expect(runner.inspect().openSourceIteratorCount).toBe(1);
@@ -568,7 +568,7 @@ it.each([null, undefined])(
           },
         }),
       },
-    }).makeRunner();
+    }).createRunner();
     let caught = false;
     const running = runner.run().catch((error) => {
       caught = true;
@@ -662,7 +662,7 @@ it.each([GraphWalk, AsyncGraphWalk])(
         const runner = new factory({
           source,
           strategy: 'depthFirst',
-        }).makeRunner();
+        }).createRunner();
         let caught = false;
         try {
           await runner.run();
@@ -722,7 +722,7 @@ it.each([GraphWalk, AsyncGraphWalk])(
         roots: () => ({ [Symbol.iterator]: () => value }),
         outgoing: () => [],
       } as unknown as GraphWalkSource<never, never, never>;
-      const runner = new factory({ source }).makeRunner();
+      const runner = new factory({ source }).createRunner();
       let caught = false;
       try {
         await runner.run();

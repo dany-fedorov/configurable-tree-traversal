@@ -4,7 +4,7 @@ import type {
   VertexResolutionContext,
   VertexResolved,
 } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { GraphStore } from '@core/graph/GraphStore';
 import {
   StructuralGraphSnapshot,
@@ -20,8 +20,8 @@ type GraphContainerOptions = {
 };
 
 type TreeContainerOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
 > = {
   sourceMode: 'tree';
   saveOriginal: boolean;
@@ -29,16 +29,16 @@ type TreeContainerOptions<
 };
 
 export type ResolvedGraphsContainerOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > =
   | GraphContainerOptions
   | (unknown extends ID ? TreeContainerOptions<T, R> : never);
 
 export class ResolvedGraphsContainer<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > {
   readonly sourceMode: 'tree' | 'graph';

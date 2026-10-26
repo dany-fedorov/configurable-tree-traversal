@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {
-  graphFrom,
+  materializeDagSourceFromRecords,
   prepareDag,
-  type DagCoordinationBoundary,
+  type DagWorkBoundary,
   type DagWorkTicket,
 } from '../src';
 
@@ -16,7 +16,7 @@ const tasks: Task[] = [
 ];
 
 function work(
-  boundary: DagCoordinationBoundary<TaskId>,
+  boundary: DagWorkBoundary<TaskId>,
 ): readonly DagWorkTicket<TaskId>[] {
   assert.equal(boundary.kind, 'awaitingSettlement');
   if (boundary.kind !== 'awaitingSettlement') throw new Error('Expected work');
@@ -24,7 +24,7 @@ function work(
 }
 
 async function main(): Promise<void> {
-  const source = graphFrom(tasks, {
+  const source = materializeDagSourceFromRecords(tasks, {
     id: (task) => task.id,
     dependsOn: (task) => task.requires,
   });
@@ -33,13 +33,13 @@ async function main(): Promise<void> {
     ...source,
     traversableGraph: {
       ...source.traversableGraph,
-      makeRoot: () => {
+      resolveRoot: () => {
         sourceCalls++;
-        return source.traversableGraph.makeRoot();
+        return source.traversableGraph.resolveRoot();
       },
-      makeVertex: (hint, context) => {
+      resolveChild: (hint, context) => {
         sourceCalls++;
-        return source.traversableGraph.makeVertex(hint, context);
+        return source.traversableGraph.resolveChild(hint, context);
       },
     },
   });
@@ -53,11 +53,11 @@ async function main(): Promise<void> {
 
   // This set stands in for completion facts durably accepted by the host.
   const accepted = new Set<TaskId>(['research']);
-  const session = dag.createSession({ completedWork: accepted });
-  const fresh = dag.createSession();
+  const session = dag.createWorkSession({ completedWork: accepted });
+  const fresh = dag.createWorkSession();
   assert.equal(session.getStopReason(), 'prepared');
   assert.equal(
-    session.inspectDag().explain({ vertexId: 'review', milestone: 'work' })
+    session.inspectMilestones().explain({ vertexId: 'review', milestone: 'work' })
       .kind,
     'known',
   );
@@ -93,7 +93,7 @@ async function main(): Promise<void> {
   );
 
   // Recovery uses accepted facts, never serialized tickets or runner state.
-  const recovered = await dag.createAsyncSession({
+  const recovered = await dag.createAsyncWorkSession({
     completedWork: accepted,
     concurrency: 2,
   });

@@ -4,21 +4,21 @@ import {
   DagTraversalOrder as D,
   TraversalRunnerStatus,
   TraversalVisitorCommandName as C,
-  traverseDepthFirst,
-  traverseDepthFirstAsync,
-  traverseBreadthFirst,
-  traverseBreadthFirstAsync,
+  traverseTreeDepthFirst,
+  traverseTreeDepthFirstAsync,
+  traverseTreeBreadthFirst,
+  traverseTreeBreadthFirstAsync,
   traverseDag,
   traverseDagAsync,
 } from '../src';
 import type {
-  TraversableGraph,
-  TraversableTree,
-  TreeTypeParameters,
+  DagDiscoverySource,
+  TreeSource,
+  VertexTypes,
 } from '../src';
 
-type T = TreeTypeParameters<string, string>;
-function source(root = 'root'): TraversableGraph<T> & TraversableTree<T> {
+type T = VertexTypes<string, string>;
+function source(root = 'root'): DagDiscoverySource<T> & TreeSource<T> {
   const make = (id: string) => ({
     kind: 'found' as const,
     vertex: {
@@ -29,15 +29,15 @@ function source(root = 'root'): TraversableGraph<T> & TraversableTree<T> {
     },
   });
   return {
-    makeRoot: () => make(root),
-    makeVertex: make,
+    resolveRoot: () => make(root),
+    resolveChild: make,
     getVertexIdFromHint: (vertexId) => ({ vertexId }),
   };
 }
 
 test('DFS options register all phases and honor child ordering', () => {
   const visits: string[] = [];
-  const runner = traverseDepthFirst({
+  const runner = traverseTreeDepthFirst({
     traversableTree: source(),
     sortChildrenHints: (hints) => hints.reverse(),
     visitors: {
@@ -68,7 +68,7 @@ test('DFS options register all phases and honor child ordering', () => {
 
 test('async DFS options register all phases and honor async child ordering', async () => {
   const visits: string[] = [];
-  const result = traverseDepthFirstAsync({
+  const result = traverseTreeDepthFirstAsync({
     traversableTree: source(),
     concurrency: 1,
     sortChildrenHints: async (hints) => hints.reverse(),
@@ -101,7 +101,7 @@ test('async DFS options register all phases and honor async child ordering', asy
 
 test('BFS options visit levels with configured ordering', async () => {
   const visits: string[] = [];
-  const runner = traverseBreadthFirst({
+  const runner = traverseTreeBreadthFirst({
     traversableTree: source(),
     sortChildrenHints: (hints) => hints.reverse(),
     visitors: {
@@ -113,7 +113,7 @@ test('BFS options visit levels with configured ordering', async () => {
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(visits).toEqual(['root', 'b', 'a']);
   visits.length = 0;
-  const result = traverseBreadthFirstAsync({
+  const result = traverseTreeBreadthFirstAsync({
     traversableTree: source(),
     concurrency: 1,
     sortChildrenHints: async (hints) => hints.reverse(),
@@ -188,19 +188,19 @@ test('canonical helpers accept omitted and empty visitor maps', async () => {
       traversableGraph: source(),
       ...(visitors && { visitors }),
     };
-    expect(traverseDepthFirst(treeOptions).getStatus()).toBe(
+    expect(traverseTreeDepthFirst(treeOptions).getStatus()).toBe(
       TraversalRunnerStatus.FINISHED,
     );
-    expect(traverseBreadthFirst(treeOptions).getStatus()).toBe(
+    expect(traverseTreeBreadthFirst(treeOptions).getStatus()).toBe(
       TraversalRunnerStatus.FINISHED,
     );
     expect(traverseDag(graphOptions).getStatus()).toBe(
       TraversalRunnerStatus.FINISHED,
     );
-    expect((await traverseDepthFirstAsync(treeOptions)).getStatus()).toBe(
+    expect((await traverseTreeDepthFirstAsync(treeOptions)).getStatus()).toBe(
       TraversalRunnerStatus.FINISHED,
     );
-    expect((await traverseBreadthFirstAsync(treeOptions)).getStatus()).toBe(
+    expect((await traverseTreeBreadthFirstAsync(treeOptions)).getStatus()).toBe(
       TraversalRunnerStatus.FINISHED,
     );
     expect((await traverseDagAsync(graphOptions)).getStatus()).toBe(
@@ -224,7 +224,7 @@ test('canonical helper callbacks preserve exact failures', async () => {
   };
   expect(
     capture(() =>
-      traverseDepthFirst({
+      traverseTreeDepthFirst({
         traversableTree: source(),
         visitors: { [F.PRE_ORDER]: fail },
       }),
@@ -232,7 +232,7 @@ test('canonical helper callbacks preserve exact failures', async () => {
   ).toBe(failure);
   expect(
     capture(() =>
-      traverseBreadthFirst({
+      traverseTreeBreadthFirst({
         traversableTree: source(),
         visitors: { [B.LEVEL_ORDER]: fail },
       }),
@@ -247,13 +247,13 @@ test('canonical helper callbacks preserve exact failures', async () => {
     ),
   ).toBe(failure);
   await expect(
-    traverseDepthFirstAsync({
+    traverseTreeDepthFirstAsync({
       traversableTree: source(),
       visitors: { [F.PRE_ORDER]: fail },
     }),
   ).rejects.toBe(failure);
   await expect(
-    traverseBreadthFirstAsync({
+    traverseTreeBreadthFirstAsync({
       traversableTree: source(),
       visitors: { [B.LEVEL_ORDER]: fail },
     }),
@@ -271,13 +271,13 @@ test('canonical commands reach the traversal runner', async () => {
     commands: [{ commandName: C.HALT_TRAVERSAL as const }],
   });
   expect(
-    traverseDepthFirst({
+    traverseTreeDepthFirst({
       traversableTree: source(),
       visitors: { [F.POST_ORDER]: halt },
     }).getStatus(),
   ).toBe(TraversalRunnerStatus.HALTED);
   expect(
-    traverseBreadthFirst({
+    traverseTreeBreadthFirst({
       traversableTree: source(),
       visitors: { [B.LEVEL_ORDER]: halt },
     }).getStatus(),
@@ -290,7 +290,7 @@ test('canonical commands reach the traversal runner', async () => {
   ).toBe(TraversalRunnerStatus.HALTED);
   expect(
     (
-      await traverseDepthFirstAsync({
+      await traverseTreeDepthFirstAsync({
         traversableTree: source(),
         visitors: { [F.POST_ORDER]: halt },
       })
@@ -298,7 +298,7 @@ test('canonical commands reach the traversal runner', async () => {
   ).toBe(TraversalRunnerStatus.HALTED);
   expect(
     (
-      await traverseBreadthFirstAsync({
+      await traverseTreeBreadthFirstAsync({
         traversableTree: source(),
         visitors: { [B.LEVEL_ORDER]: halt },
       })
@@ -326,12 +326,12 @@ test('legacy calls retain arity interpretation, null visitors, and source preced
       getRoot(): { unref(): { getData(): unknown } } | null;
     };
   }) => runner.getResolvedGraph().getRoot()?.unref().getData();
-  expect(root(traverseDepthFirst(legacy, null, config))).toBe('config');
-  expect(root(traverseBreadthFirst(legacy, null, config))).toBe('config');
-  expect(root(await traverseDepthFirstAsync(legacy, null, config))).toBe(
+  expect(root(traverseTreeDepthFirst(legacy, null, config))).toBe('config');
+  expect(root(traverseTreeBreadthFirst(legacy, null, config))).toBe('config');
+  expect(root(await traverseTreeDepthFirstAsync(legacy, null, config))).toBe(
     'config',
   );
-  expect(root(await traverseBreadthFirstAsync(legacy, null, config))).toBe(
+  expect(root(await traverseTreeBreadthFirstAsync(legacy, null, config))).toBe(
     'config',
   );
   expect(
@@ -359,7 +359,7 @@ test('canonical helpers preserve exact source failures', async () => {
   const fail = () => {
     throw failure;
   };
-  const broken = { ...source(), makeRoot: fail };
+  const broken = { ...source(), resolveRoot: fail };
   const capture = (run: () => unknown) => {
     try {
       run();
@@ -368,20 +368,20 @@ test('canonical helpers preserve exact source failures', async () => {
     }
     return undefined;
   };
-  expect(capture(() => traverseDepthFirst({ traversableTree: broken }))).toBe(
+  expect(capture(() => traverseTreeDepthFirst({ traversableTree: broken }))).toBe(
     failure,
   );
-  expect(capture(() => traverseBreadthFirst({ traversableTree: broken }))).toBe(
+  expect(capture(() => traverseTreeBreadthFirst({ traversableTree: broken }))).toBe(
     failure,
   );
   expect(capture(() => traverseDag({ traversableGraph: broken }))).toBe(
     failure,
   );
   await expect(
-    traverseDepthFirstAsync({ traversableTree: broken }),
+    traverseTreeDepthFirstAsync({ traversableTree: broken }),
   ).rejects.toBe(failure);
   await expect(
-    traverseBreadthFirstAsync({ traversableTree: broken }),
+    traverseTreeBreadthFirstAsync({ traversableTree: broken }),
   ).rejects.toBe(failure);
   await expect(traverseDagAsync({ traversableGraph: broken })).rejects.toBe(
     failure,
@@ -390,10 +390,10 @@ test('canonical helpers preserve exact source failures', async () => {
 
 test('canonical async options retain constructor configuration validation', () => {
   expect(() =>
-    traverseDepthFirstAsync({ traversableTree: source(), concurrency: 0 }),
+    traverseTreeDepthFirstAsync({ traversableTree: source(), concurrency: 0 }),
   ).toThrow(TypeError);
   expect(() =>
-    traverseBreadthFirstAsync({ traversableTree: source(), concurrency: 0 }),
+    traverseTreeBreadthFirstAsync({ traversableTree: source(), concurrency: 0 }),
   ).toThrow(TypeError);
   expect(() =>
     traverseDagAsync({ traversableGraph: source(), concurrency: 0 }),

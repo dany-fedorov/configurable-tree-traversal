@@ -31,7 +31,7 @@ it('captures passive frozen detached mechanical state while a visitor is pending
         await pending;
       },
     },
-  }).makeRunner();
+  }).createRunner();
   const running = runner.run();
   await started;
   const snapshot = runner.inspect();
@@ -96,7 +96,7 @@ it('freezes owned summary records without freezing arbitrary failure objects', (
       },
       outgoing: () => [],
     },
-  }).makeRunner();
+  }).createRunner();
   try {
     runner.run();
   } catch (observed) {
@@ -165,7 +165,7 @@ it('uses consistent private tokens across source, predicate, observation, and cl
       return true;
     },
     visitors: { [Phase.VERTEX]: snapshot, [Phase.EDGE]: snapshot },
-  }).makeRunner();
+  }).createRunner();
   runner.run();
   expect(operations).toEqual([
     'resolveVertex',
@@ -216,7 +216,7 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
       outgoing: () => [],
     },
   });
-  const runner = factory.makeRunner();
+  const runner = factory.createRunner();
   const iterator = runner.getIterable();
   const next = iterator.next();
   await started;
@@ -236,7 +236,7 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
   started = new Promise<void>((resolve) => {
     entered = resolve;
   });
-  const other = factory.makeRunner();
+  const other = factory.createRunner();
   const otherIterator = other.getIterable();
   const otherNext = otherIterator.next();
   await started;

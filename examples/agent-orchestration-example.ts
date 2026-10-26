@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { DagTraversal, type TreeTypeParameters } from '../src';
+import { DagTraversal, type VertexTypes } from '../src';
 
 type TaskId = 'research' | 'implement' | 'testPlan' | 'review';
-type Workflow = TreeTypeParameters<string, TaskId>;
+type Workflow = VertexTypes<string, TaskId>;
 const catalog: TaskId[] = ['research', 'implement', 'testPlan', 'review'];
 const dependencies: Record<TaskId, TaskId[]> = {
   research: [],
@@ -19,7 +19,7 @@ function reconstruct() {
     syntheticRoot: true,
     completedWork: accepted,
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         sourceCalls += 1;
         return {
           kind: 'found',
@@ -29,7 +29,7 @@ function reconstruct() {
           },
         };
       },
-      makeVertex: (id) => {
+      resolveChild: (id) => {
         sourceCalls += 1;
         return {
           kind: 'found',
@@ -41,7 +41,7 @@ function reconstruct() {
         };
       },
     },
-  }).makeRunner();
+  }).createRunner();
 }
 
 const runner = reconstruct();

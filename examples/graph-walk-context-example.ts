@@ -62,7 +62,7 @@ const runner = new GraphWalk({ source })
       `${edge.from}:${edge.index}:${edge.data.kind}:${edge.to}`,
     );
   })
-  .makeRunner();
+  .createRunner();
 const observations = [
   ...runner.getIterable({
     emitPhases: [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE],

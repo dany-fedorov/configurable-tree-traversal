@@ -1,15 +1,15 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
 import type {
-  TreeFoundVertexResult,
-  TreeOmittedVertexResult,
+  TreeVertexFound,
+  TreeVertexOmitted,
   MakeVertexOptions,
 } from '@core/TraversableTree';
 import type { VertexContentInput } from '@core/Vertex';
 
-export type ObjectVertexHookResult<T extends TreeTypeParameters> =
+export type ObjectVertexHookResult<T extends VertexTypes> =
   | {
       kind: 'useDefault';
       vertexId?: never;
@@ -17,8 +17,8 @@ export type ObjectVertexHookResult<T extends TreeTypeParameters> =
       dependsOnComplete?: never;
       satisfiesDependencies?: never;
     }
-  | TreeFoundVertexResult<T>
-  | TreeOmittedVertexResult;
+  | TreeVertexFound<T>
+  | TreeVertexOmitted;
 
 /** @deprecated Use resolveVertexHook and tagged results. */
 export type TraversableObjectTreeInstanceConfig_makeVertexHook<

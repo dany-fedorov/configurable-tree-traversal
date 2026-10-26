@@ -1,6 +1,6 @@
 import type { NoInferPhase } from '@core/TraversalVisitor';
-import type { TraversableGraph } from '@core/TraversableGraph';
-import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
+import type { DagDiscoverySource } from '@core/TraversableGraph';
+import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
@@ -13,7 +13,7 @@ import type {
 } from '@core/TraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import {
   captureDagSourcePatch,
@@ -32,8 +32,8 @@ import type { DagTraversalOrder } from './lib/DagTraversalOrder';
 import type { AsyncDagVisitor } from './lib/DagTraversalVisitor';
 
 export class AsyncDagTraversal<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > {
   icfg: AsyncDagTraversalInstanceConfig<T, R, ID>;
@@ -48,12 +48,12 @@ export class AsyncDagTraversal<
     > &
       (
         | {
-            traversableGraph: TraversableGraph<T, R, ID>;
+            traversableGraph: DagDiscoverySource<T, R, ID>;
             traversableTree?: undefined;
           }
         | {
             traversableTree: unknown extends ID
-              ? AsyncTraversableTree<T, R>
+              ? AsyncTreeSource<T, R>
               : never;
             traversableGraph?: undefined;
           }
@@ -154,7 +154,7 @@ export class AsyncDagTraversal<
     return this;
   }
 
-  makeRunner(): AsyncDagTraversalRunner<T, R, ID> {
+  createRunner(): AsyncDagTraversalRunner<T, R, ID> {
     return new AsyncDagTraversalRunner({
       ...this.icfg,
       visitors: this.visitors,
@@ -163,8 +163,8 @@ export class AsyncDagTraversal<
 }
 
 function initVisitors<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 >(
   visitors: AsyncDagTraversalVisitors<T, R, ID>,

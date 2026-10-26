@@ -2,7 +2,7 @@ import { orderVisitorRecords } from './visitors/normalizeVisitorDefinitions';
 import { normalizeVisitorOptions } from './visitors/normalizeVisitorOptions';
 import type { CTTRef } from './CTTRef';
 import type { Vertex } from './Vertex';
-import type { TreeTypeParameters } from './TreeTypeParameters';
+import type { VertexTypes } from './TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
   TraversalVisitorInputOptions,
@@ -12,11 +12,11 @@ import { VisitorChain } from './visitors/VisitorChain';
 import type { VisitorChainPoll } from './visitors/types';
 
 type SynchronousVisitorChainAction<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = Exclude<VisitorChainPoll<TTP, RW_TTP>, { kind: 'WAIT' | 'PAUSED' }>;
 
-export type VisitorExecutionState<TTP extends TreeTypeParameters> = {
+export type VisitorExecutionState<TTP extends VertexTypes> = {
   vertexVisitIndex: number;
   curVertexVisitorVisitIndex: number;
   previousVisitedVertexRef: CTTRef<Vertex<TTP>> | null;
@@ -27,8 +27,8 @@ export type VisitorCommandResult = { vertexVisitorsChainState?: unknown };
 /** A yielded value is a halt boundary, retaining the rest of the visitor chain. */
 export function* executeVisitors<
   ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 >(input: {
   vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
   records: TraversalVisitorRecord<ORDER, TTP, RW_TTP>[];
@@ -122,8 +122,8 @@ export function* executeVisitors<
 
 export function sortVisitorRecords<
   ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 >(
   records: TraversalVisitorRecord<ORDER, TTP, RW_TTP>[],
 ): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[];

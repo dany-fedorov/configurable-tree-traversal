@@ -1,15 +1,14 @@
 import {
-  graphFrom,
+  materializeDagSourceFromRecords,
   prepareDag,
   prepareDagAsync,
   type PreparedDag,
   type PrepareDagResult,
-  type DagDefinitionResult,
 } from '../src';
 
 type ID = 'research' | 'review';
 type Task = { id: ID; title: string; requires: ID[] };
-const source = graphFrom<Task, ID>(
+const source = materializeDagSourceFromRecords<Task, ID>(
   [{ id: 'research', title: 'Read', requires: [] }],
   {
     id: (item) => item.id,
@@ -30,7 +29,7 @@ if (prepared.kind === 'valid') {
   // @ts-expect-error Prepared topology arrays are readonly.
   dag.vertices[0]!.children.push('review');
   // @ts-expect-error Sessions preserve the identity domain.
-  dag.createSession({ completedWork: new Set(['wrong']) });
+  dag.createWorkSession({ completedWork: new Set(['wrong']) });
   // @ts-expect-error Prepared runners own their source.
   dag.createRunner({ traversableGraph: source.traversableGraph });
   const injected = { traversalRunnerInternalObjects: {} };
@@ -40,7 +39,7 @@ if (prepared.kind === 'valid') {
   dag.createRunner({ traversableTree: undefined });
   void [id, data];
 } else {
-  const definitionResult: DagDefinitionResult<Task, ID> = prepared;
+  const definitionResult: PrepareDagResult<Task, ID> = prepared;
   const preparationResult: PrepareDagResult<Task, ID> = definitionResult;
   for (const issue of prepared.issues) {
     if (issue.kind === 'milestone') {
@@ -62,7 +61,7 @@ async function checkAsync() {
     const id: ID = event.vertexId;
     void id;
   }
-  const session = await result.dag.createAsyncSession({ concurrency: 2 });
+  const session = await result.dag.createAsyncWorkSession({ concurrency: 2 });
   const boundary = await session.advance();
   if (boundary.kind === 'awaitingSettlement') {
     const id: ID = boundary.frontier[0]!.vertexId;

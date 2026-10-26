@@ -1,10 +1,10 @@
 import {
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
   TraversalVisitorFunctionResolutionStyle,
-  TraversableObjectTree,
+  ObjectTreeSource,
   rewriteObject as rewriteObjectApi,
 } from '../src';
 
@@ -116,7 +116,7 @@ describe('object traversal and rewriting edge cases', () => {
               key,
               value,
             }))
-          : TraversableObjectTree.getChildrenOfPropertyDefault(property),
+          : ObjectTreeSource.getChildrenOfPropertyDefault(property),
       isObject: ({ value }) =>
         value !== null && typeof value === 'object' && !Array.isArray(value),
       assembleObject: (children, property) => {
@@ -396,7 +396,7 @@ describe('object traversal and rewriting edge cases', () => {
 
   test('a hook that substitutes an ancestor identity is rejected as a cycle', () => {
     const input = { child: { leaf: 1 } };
-    const tree = new TraversableObjectTree(input, {
+    const tree = new ObjectTreeSource(input, {
       makeVertexHook: (hint) =>
         hint.key === 'child'
           ? {
@@ -407,26 +407,26 @@ describe('object traversal and rewriting edge cases', () => {
             }
           : {},
     });
-    const traversal = new DepthFirstTraversal({ traversableTree: tree });
+    const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
 
-    expect(() => traversal.makeRunner().run()).toThrow(
+    expect(() => traversal.createRunner().run()).toThrow(
       /cycle.*\$\.child.*ancestor at \$/i,
     );
   });
 
   test('repeated object identities remain valid across interleaved runners', () => {
     const shared = { leaf: 1 };
-    const tree = new TraversableObjectTree({ left: shared, right: shared });
+    const tree = new ObjectTreeSource({ left: shared, right: shared });
     const makeTraversal = () => {
       const keys: PropertyKey[] = [];
-      const traversal = new DepthFirstTraversal({ traversableTree: tree });
+      const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
       traversal.addVisitorFor(
         DepthFirstTraversalOrder.PRE_ORDER,
         (vertex, { isTreeRoot }) => {
           if (!isTreeRoot) keys.push(vertex.getData().key);
         },
       );
-      return { keys, iterator: traversal.makeRunner().getIterable() };
+      return { keys, iterator: traversal.createRunner().getIterable() };
     };
     const first = makeTraversal();
     const second = makeTraversal();

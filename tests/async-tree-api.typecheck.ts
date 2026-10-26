@@ -1,6 +1,6 @@
 import {
-  AsyncBreadthFirstTraversal,
-  AsyncDepthFirstTraversal,
+  AsyncBreadthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
   BreadthFirstTraversalOrder,
   DepthFirstTraversalOrder,
   TraversalVisitorCommandName,
@@ -8,18 +8,18 @@ import {
   type AsyncBreadthFirstTraversalInstanceConfig,
   type AsyncDepthFirstTraversalInstanceConfig,
   type AsyncTraversalVisitor,
-  type AsyncTraversableTree,
-  type TreeTypeParameters,
+  type AsyncTreeSource,
+  type VertexTypes,
 } from '../src';
 
-type Input = TreeTypeParameters<{ input: string }, string>;
-type Output = TreeTypeParameters<{ output: number }, number>;
+type Input = VertexTypes<{ input: string }, string>;
+type Output = VertexTypes<{ output: number }, number>;
 
-const tree: AsyncTraversableTree<Input, Output> = {
-  makeRoot: async () => ({
+const tree: AsyncTreeSource<Input, Output> = {
+  resolveRoot: async () => ({
     vertexContent: { $d: { input: 'root' }, $c: ['child'] },
   }),
-  makeVertex: (hint, options) => {
+  resolveChild: (hint, options) => {
     const input: string = hint;
     void [input, options.resolvedTree, options.notMutatedResolvedTree];
     return Promise.resolve({ vertexContent: null });
@@ -45,7 +45,7 @@ const config: AsyncDepthFirstTraversalInstanceConfig<Input, Output> = {
   concurrency: Infinity,
 };
 
-const traversal = new AsyncDepthFirstTraversal<Input, Output>(config);
+const traversal = new AsyncDepthFirstTreeTraversal<Input, Output>(config);
 const visitor: AsyncTraversalVisitor<
   DepthFirstTraversalOrder,
   Input,
@@ -70,7 +70,7 @@ traversal.setVisitorsFor(
   DepthFirstTraversalOrder.PRE_ORDER,
   traversal.listVisitorsFor(DepthFirstTraversalOrder.PRE_ORDER),
 );
-const runner = traversal.makeRunner();
+const runner = traversal.createRunner();
 const execution: AsyncCoreExecution<
   ReturnType<typeof runner.getIterable> extends AsyncGenerator<infer E>
     ? E
@@ -90,7 +90,7 @@ const breadthConfig: AsyncBreadthFirstTraversalInstanceConfig<Input, Output> = {
   },
   concurrency: 2,
 };
-const breadthTraversal = new AsyncBreadthFirstTraversal<Input, Output>(
+const breadthTraversal = new AsyncBreadthFirstTreeTraversal<Input, Output>(
   breadthConfig,
 );
 const breadthVisitor: AsyncTraversalVisitor<
@@ -113,7 +113,7 @@ breadthTraversal.setVisitorsFor(
   BreadthFirstTraversalOrder.LEVEL_ORDER,
   breadthTraversal.listVisitorsFor(BreadthFirstTraversalOrder.LEVEL_ORDER),
 );
-const breadthRunner = breadthTraversal.makeRunner();
+const breadthRunner = breadthTraversal.createRunner();
 const breadthExecution: AsyncCoreExecution<
   ReturnType<typeof breadthRunner.getIterable> extends AsyncGenerator<infer E>
     ? E

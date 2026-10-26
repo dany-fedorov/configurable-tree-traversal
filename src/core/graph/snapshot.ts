@@ -1,33 +1,33 @@
 import { CTTRef } from '@core/CTTRef';
 import type { ResolvedGraphSnapshot } from '@core/ResolvedGraph';
 import type { GetPathToOptions } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
 import type { Ref, VertexId } from '@core/graph/types';
 
-type SnapshotEntry<T extends TreeTypeParameters> = {
+type SnapshotEntry<T extends VertexTypes> = {
   ref: Ref<T>;
   id: VertexId;
   incoming: SnapshotEdge<T>[];
   children: SnapshotEdge<T>[];
 };
 
-type SnapshotEdge<T extends TreeTypeParameters> = {
+type SnapshotEdge<T extends VertexTypes> = {
   parentRef: Ref<T>;
   childRef: Ref<T>;
   hintIndex: number;
 };
 
 export type StagedSnapshotVertex<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
 > = {
   activeRef: Ref<T | R>;
   snapshotRef: Ref<T>;
   id: VertexId;
 };
 
-export type StagedSnapshotEdge<T extends TreeTypeParameters> = {
+export type StagedSnapshotEdge<T extends VertexTypes> = {
   parent: SnapshotEntry<T>;
   child: SnapshotEntry<T>;
   hintIndex: number;
@@ -35,8 +35,8 @@ export type StagedSnapshotEdge<T extends TreeTypeParameters> = {
 };
 
 export class StructuralGraphSnapshot<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > {
   readonly graph: ResolvedGraphSnapshot<T>;
   readonly refsMap = new Map<Ref<T | R>, Ref<T>>();

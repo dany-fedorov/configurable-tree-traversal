@@ -6,11 +6,11 @@ import {
 } from '../src';
 type T = { VertexData: string; VertexHint: string };
 const traversableGraph = {
-  makeRoot: () => ({
+  resolveRoot: () => ({
     vertexId: 'root',
     vertexContent: { $data: 'root', $childHints: [] as string[] },
   }),
-  makeVertex: () => ({ vertexContent: null }),
+  resolveChild: () => ({ vertexContent: null }),
 };
 for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Ctor.name}: flat priority order precedes batching mode`, async () => {
@@ -30,7 +30,7 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
       },
       { priority: 1, commandCommitMode: 'afterGroup' },
     );
-    await t.makeRunner().run();
+    await t.createRunner().run();
     expect(seen).toEqual(['high', 'low']);
   });
   test(`${Ctor.name}: groups preserve boundaries, committed state and list/set append order`, async () => {
@@ -108,7 +108,7 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
       { priority: 9999 },
     );
     t.configure({ visitors: { [D.ON_READY]: t.listVisitorsFor(D.ON_READY) } });
-    await t.makeRunner().run();
+    await t.createRunner().run();
     expect(seen).toEqual([
       ['high', 'committed'],
       ['low', 'committed'],
@@ -149,7 +149,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     add(4, 'afterGroup', 'first');
     add(3, 'afterGroup', 'second');
     add(2, 'afterEachVisitor', 'third');
-    await t.makeRunner().run();
+    await t.createRunner().run();
     expect(seen).toEqual(['root', 'root', 'second', 'third']);
   });
   test(`${Constructor.name}: stable equal priorities ignore deprecated caller indexes`, async () => {
@@ -195,7 +195,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     t.addVisitorFor(D.ON_READY, () => {
       seen.push('fifth');
     });
-    await t.makeRunner().run();
+    await t.createRunner().run();
     expect(seen).toEqual(['first', 'second', 'third', 'fourth', 'fifth']);
     t.setVisitorsFor(D.ON_READY, [
       {
@@ -213,7 +213,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         addedIndex: 0,
       },
     ]);
-    await t.makeRunner().run();
+    await t.createRunner().run();
     expect(seen.slice(-2)).toEqual(['legacy-first', 'legacy-second']);
   });
   test(`${Constructor.name}: explicit deferral rolls back only its current batch`, async () => {
@@ -259,7 +259,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       ],
     });
-    const runner = t.makeRunner();
+    const runner = t.createRunner();
     await runner.run();
     expect(seen).toEqual(['committed']);
     expect(runner.getResolvedGraph().getRoot()!.unref().getData()).toBe(
@@ -305,7 +305,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    const runner = t.makeRunner();
+    const runner = t.createRunner();
     await runner.run();
     expect(seen).toEqual(['committed']);
     expect(runner.summary().completedWorkIds).toEqual([]);
@@ -350,7 +350,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    const runner = t.makeRunner();
+    const runner = t.createRunner();
     await runner.run();
     expect(seen).toEqual([]);
     expect(runner.getStopReason()).toBe('paused');
@@ -385,7 +385,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       },
     });
-    const runner = t.makeRunner();
+    const runner = t.createRunner();
     await runner.run();
     expect(seen).toEqual(['same batch']);
     expect(runner.getResolvedGraph().getRoot()).toBeNull();
@@ -459,7 +459,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }));
     expect(() => t.setVisitorsFor(D.ON_READY, changed)).toThrow(/conflicting/);
     expect(Object.isFrozen(original[0]!.visitorGroup)).toBe(true);
-    await t.makeRunner().run();
+    await t.createRunner().run();
     expect(seen).toEqual(['original']);
   });
 }
@@ -489,7 +489,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const t = new Constructor<T>({ traversableGraph });
       t.configure({ visitors: { [D.ON_READY]: input as never } });
       expect(reads).toBe(1);
-      await t.makeRunner().run();
+      await t.createRunner().run();
       expect(calls).toEqual(['captured']);
       expect(reads).toBe(1);
     },

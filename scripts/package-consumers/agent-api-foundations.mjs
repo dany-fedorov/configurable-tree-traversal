@@ -10,22 +10,22 @@ const cjs = require('configurable-tree-traversal');
 const cjsSources = require('configurable-tree-traversal/sources/index');
 const cjsDag = require('configurable-tree-traversal/traversals/dag-traversal');
 for (const name of [
-  'graphFrom',
-  'forestFrom',
-  'graphFromAsync',
-  'forestFromAsync',
+  'materializeDagSourceFromRecords',
+  'materializeDagSourceFromRoots',
+  'materializeDagSourceFromRecordsAsync',
+  'materializeDagSourceFromRootsAsync',
 ]) {
   assert.equal(esm[name], cjs[name]);
   assert.equal(sources[name], cjs[name]);
   assert.equal(cjsSources[name], cjs[name]);
 }
-assert.equal(graphModule.graphFrom, esm.graphFrom);
-assert.equal(graphModule.graphFromAsync, esm.graphFromAsync);
+assert.equal(graphModule.materializeDagSourceFromRecords, esm.materializeDagSourceFromRecords);
+assert.equal(graphModule.materializeDagSourceFromRecordsAsync, esm.materializeDagSourceFromRecordsAsync);
 for (const name of [
   'prepareDag',
   'prepareDagAsync',
-  'coordinateDag',
-  'coordinateDagAsync',
+  'createDagWorkSession',
+  'createAsyncDagWorkSession',
   'filterDagVisitor',
   'filterAsyncDagVisitor',
 ]) {
@@ -59,7 +59,7 @@ for (const api of [cjs, esm]) {
     { id: ids[1], requires: [ids[0]] },
     { id: ids[2], requires: [ids[0]] },
   ];
-  const source = api.graphFrom(items, {
+  const source = api.materializeDagSourceFromRecords(items, {
     id: (item) => {
       selections++;
       return item.id;
@@ -89,8 +89,8 @@ for (const api of [cjs, esm]) {
     prepared.dag.vertices.map((vertex) => vertex.vertexId),
     ids,
   );
-  const first = prepared.dag.createSession();
-  const seeded = prepared.dag.createSession({
+  const first = prepared.dag.createWorkSession();
+  const seeded = prepared.dag.createWorkSession({
     completedWork: new Set([ids[0]]),
   });
   const initial = first.advance();
@@ -116,11 +116,11 @@ for (const api of [cjs, esm]) {
   );
   assert.equal(selections, 3);
 
-  const coordinator = api.coordinateDag(
+  const coordinator = api.createDagWorkSession(
     prepared.dag.createRunner({ workCompletion: 'externalSettlement' }),
   );
   assert.deepEqual(await drain(coordinator), ids);
-  const asyncCoordinator = api.coordinateDagAsync(
+  const asyncCoordinator = api.createAsyncDagWorkSession(
     await prepared.dag.createAsyncRunner({
       workCompletion: 'externalSettlement',
     }),
@@ -128,7 +128,7 @@ for (const api of [cjs, esm]) {
   assert.deepEqual(await drain(asyncCoordinator), ids);
   assert.deepEqual(
     await drain(
-      await prepared.dag.createAsyncSession({
+      await prepared.dag.createAsyncWorkSession({
         completedWork: new Set([ids[0]]),
         concurrency: 2,
       }),
@@ -141,12 +141,12 @@ for (const api of [cjs, esm]) {
     yield { id: undefined };
     yield { id: NaN };
   }
-  const asyncSource = await api.graphFromAsync(catalog(), {
+  const asyncSource = await api.materializeDagSourceFromRecordsAsync(catalog(), {
     id: async (item) => item.id,
   });
   const asyncPrepared = await api.prepareDagAsync(asyncSource);
   assert.equal(asyncPrepared.kind, 'valid');
-  assert.deepEqual(await drain(await asyncPrepared.dag.createAsyncSession()), [
+  assert.deepEqual(await drain(await asyncPrepared.dag.createAsyncWorkSession()), [
     undefined,
     NaN,
   ]);
@@ -161,8 +161,8 @@ for (const api of [cjs, esm]) {
     children: (item) => item.children,
   };
   for (const forest of [
-    api.forestFrom(roots, selectors),
-    await api.forestFromAsync(roots, {
+    api.materializeDagSourceFromRoots(roots, selectors),
+    await api.materializeDagSourceFromRootsAsync(roots, {
       id: async (item) => item.id,
       children: async (item) => item.children,
     }),
@@ -192,9 +192,9 @@ for (const api of [cjs, esm]) {
       { id: taskId, kind: 'task', label: 'build' },
       { id: groupId, kind: 'group', label: 'bundle' },
     ];
-    const Traversal = asyncMode ? api.AsyncDagTraversal : api.DagTraversal;
-    const traversal = new Traversal(
-      api.graphFrom(records, { id: (item) => item.id }),
+    const TreeTraversal = asyncMode ? api.AsyncDagTraversal : api.DagTraversal;
+    const traversal = new TreeTraversal(
+      api.materializeDagSourceFromRecords(records, { id: (item) => item.id }),
     );
     const calls = [];
     const callback = (data, options) => {
@@ -221,7 +221,7 @@ for (const api of [cjs, esm]) {
           )
         : api.filterDagVisitor((data) => data.kind === 'task', callback),
     );
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     const events = [];
     for await (const event of runner.getIterable()) {
       events.push(event);
@@ -259,7 +259,7 @@ for (const api of [esm, cjs]) {
   assert.throws(
     () =>
       api.prepareDag(
-        api.graphFrom([{ id: 'a', children: ['a'] }], {
+        api.materializeDagSourceFromRecords([{ id: 'a', children: ['a'] }], {
           id: (item) => item.id,
           children: (item) => item.children,
         }),
@@ -270,7 +270,7 @@ for (const api of [esm, cjs]) {
   );
   for (const prepare of [api.prepareDag, api.prepareDagAsync]) {
     const invalid = await prepare(
-      api.graphFrom([{ id: 'b', deps: ['missing'] }], {
+      api.materializeDagSourceFromRecords([{ id: 'b', deps: ['missing'] }], {
         id: (item) => item.id,
         dependsOn: (item) => item.deps,
       }),
@@ -284,17 +284,17 @@ for (const api of [esm, cjs]) {
     ]);
   }
   const prepared = api.prepareDag(
-    api.graphFrom([{ id: 'a' }], { id: (item) => item.id }),
+    api.materializeDagSourceFromRecords([{ id: 'a' }], { id: (item) => item.id }),
   );
   for (const session of [
-    prepared.dag.createSession(),
-    await prepared.dag.createAsyncSession(),
+    prepared.dag.createWorkSession(),
+    await prepared.dag.createAsyncWorkSession(),
   ]) {
     assert.equal(session.getStopReason(), 'prepared');
     assert.equal(session.isHalted(), true);
     assert.equal(session.inspect().status, session.getStatus());
     assert.equal(
-      session.inspectDag().explain({ vertexId: 'a', milestone: 'work' })
+      session.inspectMilestones().explain({ vertexId: 'a', milestone: 'work' })
         .satisfied,
       false,
     );

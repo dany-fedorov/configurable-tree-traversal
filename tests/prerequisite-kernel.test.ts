@@ -132,8 +132,8 @@ test('lookup reply validation rejects malformed and duplicate transport replies'
 test('a missing optional lookup binding returns not-found through transport', () => {
   const bindings = createCallbackBindings<G>({
     source: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     },
     visit: {},
   });

@@ -1,38 +1,38 @@
-import { TraversableObjectTree } from '../src';
+import { ObjectTreeSource } from '../src';
 import { rewriteObject } from '../src/tools/rewrite-object/rewriteObject';
 import type {
-  TraversableTree,
-  AsyncTraversableTree,
-  TraversableGraph,
-  TreeTypeParameters,
+  TreeSource,
+  AsyncTreeSource,
+  DagDiscoverySource,
+  VertexTypes,
   MakeTreeVertexResult,
-  TreeFoundVertexResult,
-  TreeOmittedVertexResult,
-  TreeSourceVertexResult,
-  SourceVertexResult,
+  TreeVertexFound,
+  TreeVertexOmitted,
+  TreeVertexResolution,
+  DagVertexResolution,
   ObjectVertexHookResult,
 } from '../src';
 
-type T = TreeTypeParameters<string, string>;
+type T = VertexTypes<string, string>;
 const content = { $data: 'root', $childHints: [] };
-const found: TreeFoundVertexResult<T> = {
+const found: TreeVertexFound<T> = {
   kind: 'found',
   vertex: { vertexContent: content },
 };
-const omitted: TreeOmittedVertexResult = { kind: 'omitted' };
+const omitted: TreeVertexOmitted = { kind: 'omitted' };
 const legacy: MakeTreeVertexResult<T> = { vertexContent: null };
-const source: TreeSourceVertexResult<T> = found;
-const tree: TraversableTree<T> = {
-  makeRoot: () => source,
-  makeVertex: () => omitted,
+const source: TreeVertexResolution<T> = found;
+const tree: TreeSource<T> = {
+  resolveRoot: () => source,
+  resolveChild: () => omitted,
 };
-const asyncTree: AsyncTraversableTree<T> = {
-  makeRoot: async () => legacy,
-  makeVertex: async () => found,
+const asyncTree: AsyncTreeSource<T> = {
+  resolveRoot: async () => legacy,
+  resolveChild: async () => found,
 };
 const hook: ObjectVertexHookResult<T> = { kind: 'useDefault' };
-const graph: TraversableGraph<T> = {
-  makeRoot: () => ({
+const graph: DagDiscoverySource<T> = {
+  resolveRoot: () => ({
     kind: 'found',
     vertex: {
       vertexContent: content,
@@ -41,142 +41,142 @@ const graph: TraversableGraph<T> = {
       dependsOnComplete: [],
     },
   }),
-  makeVertex: () => ({
+  resolveChild: () => ({
     kind: 'omitted',
     satisfiesDependencies: true,
     vertexId: undefined,
   }),
 };
-const graphResult: SourceVertexResult<T> = graph.makeRoot();
+const graphResult: DagVertexResolution<T> = graph.resolveRoot();
 void [tree, asyncTree, hook, graphResult];
 
 const vertexIdlegacy = () => ({ vertexContent: content, vertexId: undefined });
-const badvertexIdlegacy: TraversableTree<T> = {
+const badvertexIdlegacy: TreeSource<T> = {
   // @ts-expect-error vertexId is not a tree legacy capability, even on pretyped functions.
-  makeRoot: vertexIdlegacy,
-  makeVertex: () => omitted,
+  resolveRoot: vertexIdlegacy,
+  resolveChild: () => omitted,
 };
-const asyncBadvertexIdlegacy: AsyncTraversableTree<T> = {
+const asyncBadvertexIdlegacy: AsyncTreeSource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  makeRoot: async () => vertexIdlegacy(),
-  makeVertex: () => omitted,
+  resolveRoot: async () => vertexIdlegacy(),
+  resolveChild: () => omitted,
 };
 void [badvertexIdlegacy, asyncBadvertexIdlegacy];
 const vertexIdfound = () => ({
   kind: 'found' as const,
   vertex: { vertexContent: content, vertexId: undefined },
 });
-const badvertexIdfound: TraversableTree<T> = {
+const badvertexIdfound: TreeSource<T> = {
   // @ts-expect-error vertexId is not a tree found capability, even on pretyped functions.
-  makeRoot: vertexIdfound,
-  makeVertex: () => omitted,
+  resolveRoot: vertexIdfound,
+  resolveChild: () => omitted,
 };
-const asyncBadvertexIdfound: AsyncTraversableTree<T> = {
+const asyncBadvertexIdfound: AsyncTreeSource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  makeRoot: async () => vertexIdfound(),
-  makeVertex: () => omitted,
+  resolveRoot: async () => vertexIdfound(),
+  resolveChild: () => omitted,
 };
 void [badvertexIdfound, asyncBadvertexIdfound];
 const vertexIdomitted = () => ({
   kind: 'omitted' as const,
   vertexId: undefined,
 });
-const badvertexIdomitted: TraversableTree<T> = {
+const badvertexIdomitted: TreeSource<T> = {
   // @ts-expect-error vertexId is not a tree omitted capability, even on pretyped functions.
-  makeRoot: vertexIdomitted,
-  makeVertex: () => omitted,
+  resolveRoot: vertexIdomitted,
+  resolveChild: () => omitted,
 };
-const asyncBadvertexIdomitted: AsyncTraversableTree<T> = {
+const asyncBadvertexIdomitted: AsyncTreeSource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  makeRoot: async () => vertexIdomitted(),
-  makeVertex: () => omitted,
+  resolveRoot: async () => vertexIdomitted(),
+  resolveChild: () => omitted,
 };
 void [badvertexIdomitted, asyncBadvertexIdomitted];
 const dependsOnlegacy = () => ({ vertexContent: content, dependsOn: [] });
-const baddependsOnlegacy: TraversableTree<T> = {
+const baddependsOnlegacy: TreeSource<T> = {
   // @ts-expect-error dependsOn is not a tree legacy capability, even on pretyped functions.
-  makeRoot: dependsOnlegacy,
-  makeVertex: () => omitted,
+  resolveRoot: dependsOnlegacy,
+  resolveChild: () => omitted,
 };
-const asyncBaddependsOnlegacy: AsyncTraversableTree<T> = {
+const asyncBaddependsOnlegacy: AsyncTreeSource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  makeRoot: async () => dependsOnlegacy(),
-  makeVertex: () => omitted,
+  resolveRoot: async () => dependsOnlegacy(),
+  resolveChild: () => omitted,
 };
 void [baddependsOnlegacy, asyncBaddependsOnlegacy];
 const dependsOnfound = () => ({
   kind: 'found' as const,
   vertex: { vertexContent: content, dependsOn: [] },
 });
-const baddependsOnfound: TraversableTree<T> = {
+const baddependsOnfound: TreeSource<T> = {
   // @ts-expect-error dependsOn is not a tree found capability, even on pretyped functions.
-  makeRoot: dependsOnfound,
-  makeVertex: () => omitted,
+  resolveRoot: dependsOnfound,
+  resolveChild: () => omitted,
 };
-const asyncBaddependsOnfound: AsyncTraversableTree<T> = {
+const asyncBaddependsOnfound: AsyncTreeSource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  makeRoot: async () => dependsOnfound(),
-  makeVertex: () => omitted,
+  resolveRoot: async () => dependsOnfound(),
+  resolveChild: () => omitted,
 };
 void [baddependsOnfound, asyncBaddependsOnfound];
 const dependsOnomitted = () => ({
   kind: 'omitted' as const,
   dependsOn: [],
 });
-const baddependsOnomitted: TraversableTree<T> = {
+const baddependsOnomitted: TreeSource<T> = {
   // @ts-expect-error dependsOn is not a tree omitted capability, even on pretyped functions.
-  makeRoot: dependsOnomitted,
-  makeVertex: () => omitted,
+  resolveRoot: dependsOnomitted,
+  resolveChild: () => omitted,
 };
-const asyncBaddependsOnomitted: AsyncTraversableTree<T> = {
+const asyncBaddependsOnomitted: AsyncTreeSource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  makeRoot: async () => dependsOnomitted(),
-  makeVertex: () => omitted,
+  resolveRoot: async () => dependsOnomitted(),
+  resolveChild: () => omitted,
 };
 void [baddependsOnomitted, asyncBaddependsOnomitted];
 const dependsOnCompletelegacy = () => ({
   vertexContent: content,
   dependsOnComplete: [],
 });
-const baddependsOnCompletelegacy: TraversableTree<T> = {
+const baddependsOnCompletelegacy: TreeSource<T> = {
   // @ts-expect-error dependsOnComplete is not a tree legacy capability, even on pretyped functions.
-  makeRoot: dependsOnCompletelegacy,
-  makeVertex: () => omitted,
+  resolveRoot: dependsOnCompletelegacy,
+  resolveChild: () => omitted,
 };
-const asyncBaddependsOnCompletelegacy: AsyncTraversableTree<T> = {
+const asyncBaddependsOnCompletelegacy: AsyncTreeSource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  makeRoot: async () => dependsOnCompletelegacy(),
-  makeVertex: () => omitted,
+  resolveRoot: async () => dependsOnCompletelegacy(),
+  resolveChild: () => omitted,
 };
 void [baddependsOnCompletelegacy, asyncBaddependsOnCompletelegacy];
 const dependsOnCompletefound = () => ({
   kind: 'found' as const,
   vertex: { vertexContent: content, dependsOnComplete: [] },
 });
-const baddependsOnCompletefound: TraversableTree<T> = {
+const baddependsOnCompletefound: TreeSource<T> = {
   // @ts-expect-error dependsOnComplete is not a tree found capability, even on pretyped functions.
-  makeRoot: dependsOnCompletefound,
-  makeVertex: () => omitted,
+  resolveRoot: dependsOnCompletefound,
+  resolveChild: () => omitted,
 };
-const asyncBaddependsOnCompletefound: AsyncTraversableTree<T> = {
+const asyncBaddependsOnCompletefound: AsyncTreeSource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  makeRoot: async () => dependsOnCompletefound(),
-  makeVertex: () => omitted,
+  resolveRoot: async () => dependsOnCompletefound(),
+  resolveChild: () => omitted,
 };
 void [baddependsOnCompletefound, asyncBaddependsOnCompletefound];
 const dependsOnCompleteomitted = () => ({
   kind: 'omitted' as const,
   dependsOnComplete: [],
 });
-const baddependsOnCompleteomitted: TraversableTree<T> = {
+const baddependsOnCompleteomitted: TreeSource<T> = {
   // @ts-expect-error dependsOnComplete is not a tree omitted capability, even on pretyped functions.
-  makeRoot: dependsOnCompleteomitted,
-  makeVertex: () => omitted,
+  resolveRoot: dependsOnCompleteomitted,
+  resolveChild: () => omitted,
 };
-const asyncBaddependsOnCompleteomitted: AsyncTraversableTree<T> = {
+const asyncBaddependsOnCompleteomitted: AsyncTreeSource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  makeRoot: async () => dependsOnCompleteomitted(),
-  makeVertex: () => omitted,
+  resolveRoot: async () => dependsOnCompleteomitted(),
+  resolveChild: () => omitted,
 };
 void [baddependsOnCompleteomitted, asyncBaddependsOnCompleteomitted];
 // @ts-expect-error Canonical hooks cannot implicitly request default resolution.
@@ -189,7 +189,7 @@ const graphHook: ObjectVertexHookResult<T> = {
 void [implicitHook, graphHook];
 
 // The real adapter/helper surfaces infer hook hints and enforce tagged results.
-const adapter = new TraversableObjectTree(
+const adapter = new ObjectTreeSource(
   { a: 1 },
   {
     resolveVertexHook: (hint, options) => {
@@ -202,7 +202,7 @@ const adapter = new TraversableObjectTree(
   },
 );
 rewriteObject({ a: 1 }, { resolveVertexHook: () => ({ kind: 'useDefault' }) });
-new TraversableObjectTree(
+new ObjectTreeSource(
   { a: 1 },
   {
     // @ts-expect-error Canonical hooks require an explicit tagged result.
@@ -224,27 +224,27 @@ for (const satisfiesDependencies of [true, undefined] as const) {
     kind: 'omitted' as const,
     satisfiesDependencies,
   });
-  const invalidTree: TraversableTree<T> = {
+  const invalidTree: TreeSource<T> = {
     // @ts-expect-error Trees forbid graph acknowledgement, including present undefined.
-    makeRoot: invalidOmission,
-    makeVertex: () => omitted,
+    resolveRoot: invalidOmission,
+    resolveChild: () => omitted,
   };
-  const invalidAsyncTree: AsyncTraversableTree<T> = {
+  const invalidAsyncTree: AsyncTreeSource<T> = {
     // @ts-expect-error Async tree sources enforce the same restriction.
-    makeRoot: async () => invalidOmission(),
-    makeVertex: async () => omitted,
+    resolveRoot: async () => invalidOmission(),
+    resolveChild: async () => omitted,
   };
   // @ts-expect-error Object hooks are tree sources too.
   const invalidHook: ObjectVertexHookResult<T> = invalidOmission();
   void [invalidTree, invalidAsyncTree, invalidHook];
 }
 const plainHook: ObjectVertexHookResult<T> = omitted;
-const plainAsyncTree: AsyncTraversableTree<T> = {
-  makeRoot: async () => omitted,
-  makeVertex: async () => omitted,
+const plainAsyncTree: AsyncTreeSource<T> = {
+  resolveRoot: async () => omitted,
+  resolveChild: async () => omitted,
 };
 // @ts-expect-error Graph omission requires explicit acknowledgement.
-const invalidGraphOmission: SourceVertexResult<T> = omitted;
+const invalidGraphOmission: DagVertexResolution<T> = omitted;
 void [plainHook, plainAsyncTree, invalidGraphOmission];
 
 const acknowledgedTreeOmission = () => ({
@@ -255,15 +255,15 @@ const undefinedTreeOmission = () => ({
   kind: 'omitted' as const,
   satisfiesDependencies: undefined,
 });
-const acknowledgedTree: TraversableTree<T> = {
+const acknowledgedTree: TreeSource<T> = {
   // @ts-expect-error Literal true is forbidden metadata for a tree callback.
-  makeRoot: acknowledgedTreeOmission,
-  makeVertex: () => omitted,
+  resolveRoot: acknowledgedTreeOmission,
+  resolveChild: () => omitted,
 };
-const undefinedTree: TraversableTree<T> = {
+const undefinedTree: TreeSource<T> = {
   // @ts-expect-error Present undefined is forbidden metadata for a tree callback.
-  makeRoot: undefinedTreeOmission,
-  makeVertex: () => omitted,
+  resolveRoot: undefinedTreeOmission,
+  resolveChild: () => omitted,
 };
 const invalidDefaultHook = {
   kind: 'useDefault' as const,

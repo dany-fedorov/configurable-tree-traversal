@@ -1,9 +1,9 @@
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
+import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
 import type { MaybePromise, VisitorRecord } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   type BreadthFirstTraversalInstanceConfig,
@@ -12,8 +12,8 @@ import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type AsyncBreadthFirstTraversalVisitors<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = {
   [K in BreadthFirstTraversalOrder]: VisitorRecord<
     AsyncTraversalVisitor<K, TTP, RW_TTP>
@@ -21,25 +21,25 @@ export type AsyncBreadthFirstTraversalVisitors<
 };
 
 export type AsyncBreadthFirstSortChildrenHintsFn<
-  TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
 > = (childrenHints: TTP['VertexHint'][]) => MaybePromise<TTP['VertexHint'][]>;
 
 export type AsyncBreadthFirstTraversalInstanceConfig<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > = Omit<
   BreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
   'traversableTree' | 'sortChildrenHints' | 'visitors'
 > & {
-  traversableTree: AsyncTraversableTree<TTP, RW_TTP>;
+  traversableTree: AsyncTreeSource<TTP, RW_TTP>;
   sortChildrenHints: AsyncBreadthFirstSortChildrenHintsFn<TTP> | null;
   visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
   concurrency: number;
 };
 
 export type AsyncBreadthFirstTraversalInstanceConfigInput<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > = Partial<
   Omit<
     AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
@@ -56,7 +56,7 @@ export type AsyncBreadthFirstTraversalInstanceConfigInput<
 };
 
 export const ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
-  AsyncBreadthFirstTraversalInstanceConfig<TreeTypeParameters>,
+  AsyncBreadthFirstTraversalInstanceConfig<VertexTypes>,
   'traversableTree'
 > = deepFreeze({
   ...BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -68,8 +68,8 @@ export const ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
 });
 
 export function mergeAsyncBreadthFirstTraversalInstanceConfigs<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 >(
   base: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>,
   input: AsyncBreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,

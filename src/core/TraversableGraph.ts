@@ -1,15 +1,15 @@
 import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type {
-  SourceVertexResult,
-  PrerequisiteResolutionResult,
+  DagVertexResolution,
+  DagPrerequisiteResolution,
 } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { HintVertexId, MaybePromise } from '@core/graph/types';
 
 export type MakeGraphVertexOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = {
   resolutionContext: VertexResolutionContext<T | R>;
@@ -17,33 +17,33 @@ export type MakeGraphVertexOptions<
   notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
 };
 
-export interface TraversableGraph<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export interface DagDiscoverySource<
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > {
-  resolvePrerequisite?(id: ID): PrerequisiteResolutionResult<T, ID>;
-  makeRoot(): SourceVertexResult<T, ID>;
-  makeVertex(
+  resolvePrerequisite?(id: ID): DagPrerequisiteResolution<T, ID>;
+  resolveRoot(): DagVertexResolution<T, ID>;
+  resolveChild(
     hint: T['VertexHint'],
     options: MakeGraphVertexOptions<T, R, ID>,
-  ): SourceVertexResult<T, ID>;
+  ): DagVertexResolution<T, ID>;
   getVertexIdFromHint?(hint: T['VertexHint']): HintVertexId<ID> | undefined;
 }
 
-export interface AsyncTraversableGraph<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export interface AsyncDagDiscoverySource<
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > {
   resolvePrerequisite?(
     id: ID,
-  ): MaybePromise<PrerequisiteResolutionResult<T, ID>>;
-  makeRoot(): MaybePromise<SourceVertexResult<T, ID>>;
-  makeVertex(
+  ): MaybePromise<DagPrerequisiteResolution<T, ID>>;
+  resolveRoot(): MaybePromise<DagVertexResolution<T, ID>>;
+  resolveChild(
     hint: T['VertexHint'],
     options: MakeGraphVertexOptions<T, R, ID>,
-  ): MaybePromise<SourceVertexResult<T, ID>>;
+  ): MaybePromise<DagVertexResolution<T, ID>>;
   getVertexIdFromHint?(
     hint: T['VertexHint'],
   ): MaybePromise<HintVertexId<ID> | undefined>;

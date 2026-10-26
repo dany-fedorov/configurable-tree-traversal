@@ -3,7 +3,7 @@ import {
   AsyncDagTraversal,
   DagTraversalOrder as Order,
 } from '../src/traversals/dag-traversal';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
 const identities = [undefined, null, NaN, { name: 'task' }, Symbol('task')];
 
@@ -11,20 +11,20 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test.each(identities)(
     `${Constructor.name} keeps exact event identity %p and committed phase timing`,
     async (id) => {
-      type G = TreeTypeParameters<string, never>;
+      type G = VertexTypes<string, never>;
       const runner = new Constructor<G, G, typeof id>({
         workCompletion: 'externalSettlement',
         traversableGraph: {
-          makeRoot: () => ({
+          resolveRoot: () => ({
             kind: 'found',
             vertex: {
               vertexId: id,
               vertexContent: { $data: 'task', $childHints: [] },
             },
           }),
-          makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+          resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
         },
-      }).makeRunner();
+      }).createRunner();
       const before = [];
       for await (const event of runner.getIterable()) before.push(event);
       expect(before).toEqual([]);
@@ -46,20 +46,20 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   );
 
   test(`${Constructor.name} seeded work emits only the selected completion event`, async () => {
-    type G = TreeTypeParameters<string, never>;
+    type G = VertexTypes<string, never>;
     const runner = new Constructor<G, G, string>({
       completedWork: new Set(['task']),
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           kind: 'found',
           vertex: {
             vertexId: 'task',
             vertexContent: { $data: 'task', $childHints: [] },
           },
         }),
-        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
       },
-    }).makeRunner();
+    }).createRunner();
     const events = [];
     for await (const event of runner.getIterable({
       emitPhases: [Order.ON_COMPLETE],
@@ -72,16 +72,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} tree-source events retain generated identity`, async () => {
-    type G = TreeTypeParameters<string, never>;
+    type G = VertexTypes<string, never>;
     const runner = new Constructor<G>({
       traversableTree: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           kind: 'found',
           vertex: { vertexContent: { $data: 'task', $childHints: [] } },
         }),
-        makeVertex: () => ({ kind: 'omitted' }),
+        resolveChild: () => ({ kind: 'omitted' }),
       },
-    }).makeRunner();
+    }).createRunner();
     const ids = [];
     for await (const event of runner.getIterable()) {
       expect(event.vertexId).toBe(

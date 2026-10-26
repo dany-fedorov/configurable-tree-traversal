@@ -21,7 +21,7 @@ export * from './lib/PreparedDag';
 export * from './filterDagVisitor';
 export * from './inspectDag';
 export type {
-  DagInspection,
+  DagMilestoneSnapshot,
   DagMilestoneStatus,
   DagBlocker,
   DagExplanation,
@@ -37,7 +37,7 @@ export type {
 export * from './prepareDagDefinition';
 export type {
   DagDefinitionIssue,
-  DagDefinitionResult,
+  PrepareDagResult,
 } from './lib/DagDefinition';
 export * from './dagFragments';
 export type {

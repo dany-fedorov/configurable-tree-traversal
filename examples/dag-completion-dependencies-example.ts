@@ -3,20 +3,20 @@ import {
   DagTraversal,
   DagTraversalOrder as Order,
 } from '../src/traversals/dag-traversal';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type Build = TreeTypeParameters<string, string>;
+type Build = VertexTypes<string, string>;
 const events: string[] = [];
 const traversal = new DagTraversal<Build>({
   traversableGraph: {
-    makeRoot: () => ({
+    resolveRoot: () => ({
       kind: 'found' as const,
       vertex: {
         vertexId: 'build',
         vertexContent: { $data: 'build', $childHints: ['package', 'compile'] },
       },
     }),
-    makeVertex: (id) => ({
+    resolveChild: (id) => ({
       kind: 'found' as const,
       vertex: {
         vertexId: id,
@@ -38,7 +38,7 @@ traversal.addVisitorFor(Order.ON_READY, (vertex) => {
 traversal.addVisitorFor(Order.ON_COMPLETE, (vertex) => {
   events.push(`complete:${vertex.getData()}`);
 });
-const runner = traversal.makeRunner().run();
+const runner = traversal.createRunner().run();
 assert(events.indexOf('work:package') > events.indexOf('complete:compile'));
 assert(
   events.indexOf('complete:compile') >

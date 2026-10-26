@@ -4,13 +4,13 @@ import {
   VertexResolved,
   type VertexResolutionContext,
 } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
 import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 
-type TestTTP = TreeTypeParameters<{ label: string }, string>;
-type NullableDataTTP = TreeTypeParameters<string | null | undefined, string>;
+type TestTTP = VertexTypes<{ label: string }, string>;
+type NullableDataTTP = VertexTypes<string | null | undefined, string>;
 
 function makeRef(
   label: string,
@@ -160,7 +160,7 @@ describe('ResolvedTree', () => {
     expect(tree.getRoot()).toBeNull();
     expect(tree.has(rootRef)).toBe(false);
     expect(tree.has(childRef)).toBe(false);
-    expect(tree.makeRoot().vertexContent).toBeNull();
+    expect(tree.resolveRoot().vertexContent).toBeNull();
   });
 
   test('deleting a wide root subtree does not exceed argument limits', () => {

@@ -13,7 +13,7 @@ import type {
   AsyncDagVisitor,
   DagVisitorOptions,
 } from '../src/traversals/dag-traversal/lib/DagTraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { ResolvedGraph } from '../src/core/ResolvedGraph';
 
@@ -22,8 +22,8 @@ type Group = { kind: 'group'; title: string };
 type Output = { kind: 'result'; count: number };
 type Input = Task | Group;
 type Data = Input | Output;
-type T = TreeTypeParameters<Input, string>;
-type R = TreeTypeParameters<Output, number>;
+type T = VertexTypes<Input, string>;
+type R = VertexTypes<Output, number>;
 type ID = { key: string };
 const isTask = (data: Data): data is Task => data.kind === 'task';
 declare const traversal: DagTraversal<T, R, ID>;

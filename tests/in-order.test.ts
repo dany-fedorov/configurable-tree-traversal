@@ -1,10 +1,10 @@
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import { DepthFirstTraversalOrder as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { DepthFirstTraversalInOrderTraversalConfig as Config } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
 type Node = { $d: string; $c: (Node | null)[] };
-type Tree = TreeTypeParameters<string, Node | null>;
+type Tree = VertexTypes<string, Node | null>;
 function walk(
   hints: (string | null)[],
   config: Partial<Config> = {},
@@ -13,14 +13,14 @@ function walk(
     $d: 'root',
     $c: hints.map((value) => (value === null ? null : { $d: value, $c: [] })),
   };
-  const t = new DepthFirstTraversal<Tree>({
+  const t = new DepthFirstTreeTraversal<Tree>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: root }),
-      makeVertex: (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => ({ vertexContent: root }),
+      resolveChild: (hint) => ({ vertexContent: hint }),
     },
     inOrderTraversalConfig: config,
   });
-  return [...t.makeRunner().getIterable({ iterateOver: [Order.IN_ORDER] })].map(
+  return [...t.createRunner().getIterable({ iterateOver: [Order.IN_ORDER] })].map(
     (v) => v.vertex.getData(),
   );
 }

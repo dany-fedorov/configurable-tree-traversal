@@ -3,18 +3,18 @@ import {
   normalizeSourceResult,
 } from './normalizeSourceResult';
 import type {
-  SourceVertexResult,
-  TreeSourceVertexResult,
+  DagVertexResolution,
+  TreeVertexResolution,
 } from '@core/TraversableTree';
 import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { MakeVertexResult, TraversableTree } from '@core/TraversableTree';
-import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
+import type { MakeVertexResult, TreeSource } from '@core/TraversableTree';
+import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import type {
-  AsyncTraversableGraph,
-  TraversableGraph,
+  AsyncDagDiscoverySource,
+  DagDiscoverySource,
 } from '@core/TraversableGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { HintVertexId, MaybePromise, VertexId } from '@core/graph/types';
 import type { VisitResult } from '@core/graph/types';
@@ -26,14 +26,14 @@ import type {
 } from '@core/effects/types';
 
 export interface BoundSource<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > {
   resolvePrerequisite?(
     id: VertexId,
   ): MaybePromise<MakeVertexResult<T> | undefined>;
-  makeRoot(): MaybePromise<MakeVertexResult<T>>;
-  makeVertex(
+  resolveRoot(): MaybePromise<MakeVertexResult<T>>;
+  resolveChild(
     context: VertexResolutionContext<T | R>,
   ): MaybePromise<MakeVertexResult<T>>;
   getVertexIdFromHint?(
@@ -41,24 +41,24 @@ export interface BoundSource<
   ): MaybePromise<HintVertexId | undefined>;
 }
 
-type TreeSource<T extends TreeTypeParameters, R extends TreeTypeParameters> =
-  | TraversableTree<T, R>
-  | AsyncTraversableTree<T, R>;
+type AnyTreeSource<T extends VertexTypes, R extends VertexTypes> =
+  | TreeSource<T, R>
+  | AsyncTreeSource<T, R>;
 
 type GraphSource<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID,
-> = TraversableGraph<T, R, ID> | AsyncTraversableGraph<T, R, ID>;
+> = DagDiscoverySource<T, R, ID> | AsyncDagDiscoverySource<T, R, ID>;
 
-function normalizeVertexResult<T extends TreeTypeParameters>(
-  result: SourceVertexResult<T>,
+function normalizeVertexResult<T extends VertexTypes>(
+  result: DagVertexResolution<T>,
 ): MakeVertexResult<T> {
   return normalizeSourceResult(result, false)!;
 }
 
-function validateTreeResult<T extends TreeTypeParameters>(
-  result: MaybePromise<TreeSourceVertexResult<T>>,
+function validateTreeResult<T extends VertexTypes>(
+  result: MaybePromise<TreeVertexResolution<T>>,
   runnerName?: string,
 ): MaybePromise<MakeVertexResult<T>> {
   return mapSourceResult(
@@ -73,17 +73,17 @@ function validateTreeResult<T extends TreeTypeParameters>(
 }
 
 function asInputHint<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
 >(hint: (T | R)['VertexHint']): T['VertexHint'] {
   return hint as T['VertexHint'];
 }
 
 export function bindTreeSource<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 >(
-  adapter: TreeSource<T, R>,
+  adapter: AnyTreeSource<T, R>,
   container: ResolvedGraphsContainer<T, R>,
   runnerName?: string,
 ): BoundSource<T, R> {
@@ -92,10 +92,10 @@ export function bindTreeSource<
     throw new TypeError('Tree source binding requires a tree graph container');
   }
   return {
-    makeRoot: () => validateTreeResult(adapter.makeRoot(), runnerName),
-    makeVertex: (context) =>
+    resolveRoot: () => validateTreeResult(adapter.resolveRoot(), runnerName),
+    resolveChild: (context) =>
       validateTreeResult(
-        adapter.makeVertex(asInputHint<T, R>(context.vertexHint), {
+        adapter.resolveChild(asInputHint<T, R>(context.vertexHint), {
           resolutionContext: context,
           resolvedTree: treeContainer.resolvedTree,
           notMutatedResolvedTree: treeContainer.notMutatedResolvedTree,
@@ -106,8 +106,8 @@ export function bindTreeSource<
 }
 
 export function bindGraphSource<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 >(
   adapter: GraphSource<T, R, ID>,
@@ -117,10 +117,10 @@ export function bindGraphSource<
     throw new TypeError('Graph source binding requires a graph-mode container');
   }
   const bound: BoundSource<T, R> = {
-    makeRoot: () => mapSourceResult(adapter.makeRoot(), normalizeVertexResult),
-    makeVertex: (context) =>
+    resolveRoot: () => mapSourceResult(adapter.resolveRoot(), normalizeVertexResult),
+    resolveChild: (context) =>
       mapSourceResult(
-        adapter.makeVertex(asInputHint<T, R>(context.vertexHint), {
+        adapter.resolveChild(asInputHint<T, R>(context.vertexHint), {
           resolutionContext: context,
           resolvedGraph: container.publicResolvedGraph,
           notMutatedResolvedGraph: container.notMutatedResolvedGraph,
@@ -144,15 +144,15 @@ export function bindGraphSource<
 }
 
 export type BoundVisit<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = (
   call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>,
 ) => MaybePromise<VisitResult<R> | typeof DEFER_READY>;
 
 export function createCallbackBindings<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 >(input: {
   source: BoundSource<T, R>;
   sortHints?: (
@@ -164,7 +164,7 @@ export function createCallbackBindings<
     invoke(call): RawCallbackResult<T, R> {
       switch (call.kind) {
         case 'MAKE_ROOT':
-          return { kind: call.kind, value: input.source.makeRoot() };
+          return { kind: call.kind, value: input.source.resolveRoot() };
         case 'RESOLVE_PREREQUISITE':
           return {
             kind: call.kind,
@@ -173,7 +173,7 @@ export function createCallbackBindings<
         case 'MAKE_VERTEX':
           return {
             kind: call.kind,
-            value: input.source.makeVertex(call.context),
+            value: input.source.resolveChild(call.context),
           };
         case 'SORT_HINTS':
           return {

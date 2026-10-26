@@ -5,7 +5,7 @@ import {
   DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
 } from '../src/traversals/depth-first-traversal';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
@@ -13,13 +13,13 @@ import {
   TraversalVisitorCommandName as Command,
   TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 const rootOnly = {
-  makeRoot: () => ({ vertexId: 'a', vertexContent: { $d: 'a', $c: [] } }),
-  makeVertex: () => ({ vertexContent: null }),
+  resolveRoot: () => ({ vertexId: 'a', vertexContent: { $d: 'a', $c: [] } }),
+  resolveChild: () => ({ vertexContent: null }),
 };
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} settlement preserves configured event once and discards buffered commands and remaining visitors`, async () => {
@@ -48,12 +48,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_READY, () => {
       throw Error('must skip');
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run({ iterateOver: [Order.ON_READY] });
     const token = runner.summary().vertices.get('a')!.generation!;
     expect(() => runner.settle('missing', { ok: true }, token)).toThrow();
     expect(() => runner.settle('a', { ok: true }, Symbol())).toThrow();
-    const other = traversal.makeRunner();
+    const other = traversal.createRunner();
     await other.run();
     expect(() => other.settle('a', { ok: true }, token)).toThrow();
     runner.settle('a', { ok: true }, token);
@@ -72,7 +72,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     async (error) => {
       const traversal = new Constructor<G>({ traversableGraph: rootOnly });
       traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       await runner.run();
       const token = runner.summary().vertices.get('a')!.generation!;
       expect(runner.settle('a', { ok: false, error }, token)).toBe(true);
@@ -94,18 +94,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     // @ts-expect-error Runtime validation for JavaScript callers.
     traversal.addVisitorFor(Order.ON_COMPLETE, () => DEFER_READY);
     await expect(async () => {
-      await traversal.makeRunner().run();
+      await traversal.createRunner().run();
     }).rejects.toThrow(/ON_READY/);
   });
 
   test(`${Constructor.name} lazy deferred discovery reports a partial frontier until settlement`, async () => {
     const traversal = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           vertexId: 'root',
           vertexContent: { $d: 'root', $c: ['a', 'b'] },
         }),
-        makeVertex: (id) => ({
+        resolveChild: (id) => ({
           vertexId: id,
           dependsOn: id === 'a' ? ['c'] : id === 'b' ? ['root'] : [],
           vertexContent: { $d: id, $c: id === 'b' ? ['c'] : [] },
@@ -113,7 +113,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     });
     traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expect(runner.summary().discovery).toEqual({
       mode: 'lazy',
@@ -139,17 +139,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 }
 
 test('tree visitors cannot use the DAG deferral sentinel', () => {
-  const traversal = new DepthFirstTraversal<G>({
+  const traversal = new DepthFirstTreeTraversal<G>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'a', $c: [] } }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ vertexContent: { $d: 'a', $c: [] } }),
+      resolveChild: () => ({ vertexContent: null }),
     },
   });
   traversal.addVisitorFor(
     DepthFirstTraversalOrder.PRE_ORDER,
     () => DEFER_READY as never,
   );
-  expect(() => traversal.makeRunner().run()).toThrow(/ON_READY/);
+  expect(() => traversal.createRunner().run()).toThrow(/ON_READY/);
 });
 
 test('settlement wakes an active async consumer while another physical callback is pending', async () => {
@@ -160,8 +160,8 @@ test('settlement wakes an active async consumer while another physical callback 
     discovery: 'eager',
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b', 'c'] } }),
-      makeVertex: (id) => ({
+      resolveRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b', 'c'] } }),
+      resolveChild: (id) => ({
         vertexId: id,
         dependsOn: id === 'c' ? ['a'] : [],
         vertexContent: { $d: id, $c: [] },
@@ -173,7 +173,7 @@ test('settlement wakes an active async consumer while another physical callback 
     seen.push(id);
     return id === 'b' ? waitB.promise : DEFER_READY;
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const running = runner.run();
   await eventLoopTurn();
   expect(runner.summary().inFlightIds).toEqual(['b']);
@@ -197,11 +197,11 @@ test('deleted orphan refuses a previously issued deferred generation', async () 
     concurrency: 2,
     discovery: 'eager',
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         vertexId: 'root',
         vertexContent: { $d: 'root', $c: ['p'] },
       }),
-      makeVertex: (id) => ({
+      resolveChild: (id) => ({
         vertexId: id,
         dependsOn: [],
         vertexContent: { $d: id, $c: id === 'p' ? ['a'] : [] },
@@ -216,7 +216,7 @@ test('deleted orphan refuses a previously issued deferred generation', async () 
     if (vertex.getData() === 'a') return DEFER_READY;
     return undefined;
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const running = runner.run();
   await eventLoopTurn();
   const token = runner.summary().vertices.get('a')!.generation!;
@@ -234,14 +234,14 @@ test('halt waits for a physical callback and retains deferred handles across res
     discovery: 'eager',
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b'] } }),
-      makeVertex: (id) => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
+      resolveRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b'] } }),
+      resolveChild: (id) => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
     },
   });
   traversal.addVisitorFor(Order.ON_READY, (vertex) =>
     vertex.getData() === 'a' ? DEFER_READY : release.promise,
   );
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const iterator = runner.getIterable({ iterateOver: [Order.ON_READY] });
   const next = iterator.next();
   await eventLoopTurn();
@@ -271,14 +271,14 @@ test('failure settlement cannot free a still-running callback permit or accept a
     discovery: 'eager',
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b', 'c'] } }),
-      makeVertex: (id) => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
+      resolveRoot: () => ({ vertexContent: { $d: '', $c: ['a', 'b', 'c'] } }),
+      resolveChild: (id) => ({ vertexId: id, vertexContent: { $d: id, $c: [] } }),
     },
   });
   traversal.addVisitorFor(Order.ON_READY, (vertex) =>
     vertex.getData() === 'b' ? release.promise : DEFER_READY,
   );
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const running = runner.run();
   const rejected = expect(running).rejects.toBe(null);
   await eventLoopTurn();
@@ -311,13 +311,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           syntheticRoot: true,
           completedWork,
           traversableGraph: {
-            makeRoot: () => ({
+            resolveRoot: () => ({
               vertexContent: {
                 $d: '',
                 $c: ['design', 'backend', 'frontend', 'verify'],
               },
             }),
-            makeVertex: (id) => ({
+            resolveChild: (id) => ({
               vertexId: id,
               dependsOn:
                 id === 'design'
@@ -330,7 +330,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         });
         traversal.addVisitorFor(Order.ON_READY, () => DEFER_READY);
-        return traversal.makeRunner();
+        return traversal.createRunner();
       };
       const completed = new Set(['design']);
       const retained = make(completed);

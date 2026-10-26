@@ -1,5 +1,5 @@
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
@@ -40,7 +40,7 @@ const obj = {
   },
 };
 
-const traversableTree = new TraversableObjectTree(obj, {
+const traversableTree = new ObjectTreeSource(obj, {
   resolveVertexHook: (vertexHint) => {
     if (vertexHint.value === null) {
       return { kind: 'omitted' };
@@ -48,7 +48,7 @@ const traversableTree = new TraversableObjectTree(obj, {
     return { kind: 'useDefault' };
   },
 });
-const traversal = new DepthFirstTraversal({
+const traversal = new DepthFirstTreeTraversal({
   traversableTree,
 });
 
@@ -99,7 +99,7 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
   );
 });
 
-const traversalRunner = traversal.makeRunner();
+const traversalRunner = traversal.createRunner();
 
 const traversalIterable = traversalRunner.getIterable({
   visitorPhases: { include: [DepthFirstTraversalOrder.POST_ORDER] },

@@ -74,11 +74,11 @@ function createInspection(
     syntheticRoot: true,
     completedWork: completed,
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         counters.root++;
         return { vertexContent: { $d: 'catalog', $c: fixture.ids } };
       },
-      makeVertex: (id) => {
+      resolveChild: (id) => {
         counters.vertex++;
         return {
           vertexId: id,
@@ -92,7 +92,7 @@ function createInspection(
     if (counters.ready++ === 0) onFirstReady();
     return library.DEFER_READY;
   });
-  return { runner: traversal.makeRunner(), counters };
+  return { runner: traversal.createRunner(), counters };
 }
 
 function sample(library, shape, count, seedCount, summaryIterations) {
@@ -280,7 +280,7 @@ function main(args) {
       fixtureConstructionMs:
         'IDs and prerequisite arrays only; excludes completedWork seed creation',
       runnerConstructionMs:
-        'adapter index, traversal construction, visitor registration and makeRunner',
+        'adapter index, traversal construction, visitor registration and createRunner',
       eagerToFirstReadyMs:
         'run entry to first ON_READY callback; includes traversal setup, full eager discovery and validation; overlaps runToQuiescenceMs',
       runToQuiescenceMs:

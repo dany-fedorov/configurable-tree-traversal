@@ -1,9 +1,9 @@
 import {
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
   DepthFirstTraversalOrder as DFS,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
   BreadthFirstTraversalOrder as BFS,
   DagTraversal,
   AsyncDagTraversal,
@@ -19,26 +19,26 @@ import type { VisitorPhaseSelection, TraversalExecutionOptions } from '../src';
 
 export function executionSelectionTypes() {
   const dfs = [
-    new DepthFirstTraversal({}).makeRunner(),
-    new AsyncDepthFirstTraversal({}).makeRunner(),
+    new DepthFirstTreeTraversal({}).createRunner(),
+    new AsyncDepthFirstTreeTraversal({}).createRunner(),
   ];
   const bfs = [
-    new BreadthFirstTraversal({}).makeRunner(),
-    new AsyncBreadthFirstTraversal({}).makeRunner(),
+    new BreadthFirstTreeTraversal({}).createRunner(),
+    new AsyncBreadthFirstTreeTraversal({}).createRunner(),
   ];
   const dag = [
     new DagTraversal({
       traversableGraph: {
-        makeRoot: () => ({ vertexContent: null }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
-    }).makeRunner(),
+    }).createRunner(),
     new AsyncDagTraversal({
       traversableGraph: {
-        makeRoot: () => ({ vertexContent: null }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ vertexContent: null }),
+        resolveChild: () => ({ vertexContent: null }),
       },
-    }).makeRunner(),
+    }).createRunner(),
   ];
   const phases: readonly DFS[] = [DFS.PRE_ORDER];
   const selection: VisitorPhaseSelection<DFS> = { include: phases };

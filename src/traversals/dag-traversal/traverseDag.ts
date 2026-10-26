@@ -1,5 +1,5 @@
 import type { VisitorPhaseInput } from '@core/TraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { DagTraversal } from './DagTraversal';
 import type {
   DagSource,
@@ -11,8 +11,8 @@ import type { DagTraversalRunner } from './lib/DagTraversalRunner';
 import type { DagVisitor } from './lib/DagTraversalVisitor';
 
 export type DagTraversalVisitorsSimple<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 > = {
   onReadyVisitor?: DagVisitor<T, R, DagTraversalOrder.ON_READY, ID>;
@@ -20,8 +20,8 @@ export type DagTraversalVisitorsSimple<
 };
 
 export type DagTraversalHelperConfig<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 > = Omit<
   DagTraversalConfigureInput<T, R, ID>,
@@ -30,8 +30,8 @@ export type DagTraversalHelperConfig<
 
 /** Options for a single-call Dag traversal with phase-keyed callbacks. */
 export type DagTraversalHelperOptions<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = Omit<DagTraversalHelperConfig<T, R, ID>, 'visitors'> &
   DagSource<T, R, ID> & {
@@ -41,14 +41,14 @@ export type DagTraversalHelperOptions<
   };
 
 export function traverseDag<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 >(options: DagTraversalHelperOptions<T, R, ID>): DagTraversalRunner<T, R, ID>;
 /** @deprecated Pass a single options object with a phase-keyed visitors map. */
 export function traverseDag<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 >(
   source: DagSource<T, R, ID>,
@@ -56,8 +56,8 @@ export function traverseDag<
   config?: DagTraversalHelperConfig<T, R, ID>,
 ): DagTraversalRunner<T, R, ID>;
 export function traverseDag<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 >(
   sourceOrOptions: DagSource<T, R, ID> | DagTraversalHelperOptions<T, R, ID>,
@@ -82,5 +82,5 @@ export function traverseDag<
   if (onCompleteVisitor) {
     traversal.addVisitorFor(DagTraversalOrder.ON_COMPLETE, onCompleteVisitor);
   }
-  return traversal.makeRunner().run();
+  return traversal.createRunner().run();
 }

@@ -1,5 +1,5 @@
 import type { VisitorPhaseInput } from '@core/TraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { AsyncDagTraversal } from './AsyncDagTraversal';
 import type {
   AsyncDagSource,
@@ -11,8 +11,8 @@ import type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
 import type { AsyncDagVisitor } from './lib/DagTraversalVisitor';
 
 export type AsyncDagTraversalVisitorsSimple<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 > = {
   onReadyVisitor?: AsyncDagVisitor<T, R, DagTraversalOrder.ON_READY, ID>;
@@ -20,8 +20,8 @@ export type AsyncDagTraversalVisitorsSimple<
 };
 
 export type AsyncDagTraversalHelperConfig<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 > = Omit<
   AsyncDagTraversalConfigureInput<T, R, ID>,
@@ -30,8 +30,8 @@ export type AsyncDagTraversalHelperConfig<
 
 /** Options for a single-call Dag traversal with phase-keyed callbacks. */
 export type AsyncDagTraversalHelperOptions<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = Omit<AsyncDagTraversalHelperConfig<T, R, ID>, 'visitors'> &
   AsyncDagSource<T, R, ID> & {
@@ -43,16 +43,16 @@ export type AsyncDagTraversalHelperOptions<
   };
 
 export function traverseDagAsync<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 >(
   options: AsyncDagTraversalHelperOptions<T, R, ID>,
 ): Promise<AsyncDagTraversalRunner<T, R, ID>>;
 /** @deprecated Pass a single options object with a phase-keyed visitors map. */
 export function traverseDagAsync<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 >(
   source: AsyncDagSource<T, R, ID>,
@@ -60,8 +60,8 @@ export function traverseDagAsync<
   config?: AsyncDagTraversalHelperConfig<T, R, ID>,
 ): Promise<AsyncDagTraversalRunner<T, R, ID>>;
 export function traverseDagAsync<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 >(
   sourceOrOptions:
@@ -92,5 +92,5 @@ export function traverseDagAsync<
   if (onCompleteVisitor) {
     traversal.addVisitorFor(DagTraversalOrder.ON_COMPLETE, onCompleteVisitor);
   }
-  return traversal.makeRunner().run();
+  return traversal.createRunner().run();
 }

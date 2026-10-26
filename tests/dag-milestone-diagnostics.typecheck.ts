@@ -6,13 +6,13 @@ import {
   type DagDependencyEdge,
   type DagSummary,
   type DagTraversalStallDiagnostics,
-  type TreeTypeParameters,
-  type TraversableGraph,
+  type VertexTypes,
+  type DagDiscoverySource,
 } from '../src';
 import type { DagDependencyEdge as CoreEdge } from '../src/core';
 import type { DagDependencyMilestone as DagMilestone } from '../src/traversals/dag-traversal';
 type ID = 'root' | 'child';
-type G = TreeTypeParameters<string, ID>;
+type G = VertexTypes<string, ID>;
 const milestone: DagDependencyMilestone<ID> = {
   vertexId: 'root',
   milestone: 'work',
@@ -24,12 +24,12 @@ const edge: DagDependencyEdge<ID> = {
   reason: 'completionDependency',
 };
 const sameEdge: CoreEdge<ID> = edge;
-const source: TraversableGraph<G, G, ID> = {
-  makeRoot: () => ({
+const source: DagDiscoverySource<G, G, ID> = {
+  resolveRoot: () => ({
     vertexId: 'root',
     vertexContent: { $data: '', $childHints: [] },
   }),
-  makeVertex: (vertexId) => ({
+  resolveChild: (vertexId) => ({
     vertexId,
     vertexContent: { $data: '', $childHints: [] },
   }),
@@ -38,7 +38,7 @@ for (const Constructor of [
   DagTraversal<G, G, ID>,
   AsyncDagTraversal<G, G, ID>,
 ]) {
-  const runner = new Constructor({ traversableGraph: source }).makeRunner();
+  const runner = new Constructor({ traversableGraph: source }).createRunner();
   const summary: DagSummary<ID> = runner.summary();
   const diagnostics: DagTraversalStallDiagnostics<ID> | null =
     summary.diagnostics;

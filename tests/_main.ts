@@ -1,8 +1,8 @@
 // import {
 //   VisitParent,
-//   traverseDepthFirst,
+//   traverseTreeDepthFirst,
 // } from '../src/traversals/traverseDepthFirst';
-// import { TraversableObjectTree } from '../src/traversable-tree-implementations/TraversableObjectTree';
+// import { ObjectTreeSource } from '../src/traversable-tree-implementations/TraversableObjectTree';
 // import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
 // import { rewriteObject } from '../src/tools';
 // import { TraversalVisitorCommandName } from '../src/core';
@@ -18,11 +18,11 @@
     g: [{ g1: 123, g11: { g22: [1, 2, 3, 4, 3, 2, 1] } }],
   };
   console.log(jsonStringifySafe(host, 8));
-  const tree = new TraversableObjectTree({
+  const tree = new ObjectTreeSource({
     host,
   });
   type TreeTTP = TraversableTreeParametersFromTraversableTree<typeof tree>;
-  const { resolvedTree } = traverseDepthFirst(tree, {
+  const { resolvedTree } = traverseTreeDepthFirst(tree, {
     postOrderVisitor: (
       vertex: Vertex<TreeTTP>,
       options: TraversalVisitorOptions<TreeTTP>,
@@ -32,7 +32,7 @@
           ?.depth ?? 0;
       // console.log(depth, vertex.getData());
       const makeMutationCommand =
-        TraversableObjectTree.makeMutationCommandFactory<TreeTTP, TreeTTP>()(vertex, options);
+        ObjectTreeSource.makeMutationCommandFactory<TreeTTP, TreeTTP>()(vertex, options);
       // TraversableTreeParametersFromTraversableTree<typeof tree>,
       if (vertex.getData().value === 1) {
         return {
@@ -186,8 +186,8 @@
 //   //   k: 11,
 //   // };
 //   console.log(jsonStringifySafe(inputObject, 2));
-//   const tree = new TraversableObjectTree({ inputObject });
-//   traverseDepthFirst(
+//   const tree = new ObjectTreeSource({ inputObject });
+//   traverseTreeDepthFirst(
 //     tree,
 //     {
 //       inOrderVisitor: (vertex, options) => {
@@ -241,10 +241,10 @@
 //     b: 2,
 //     c: 3,
 //   };
-//   const tree = new TraversableObjectTree({
+//   const tree = new ObjectTreeSource({
 //     inputObject: obj,
 //   });
-//   const res = traverseDepthFirst(tree, {
+//   const res = traverseTreeDepthFirst(tree, {
 //     preOrderVisitor(vertex, { isTreeRoot }) {
 //       console.log(
 //         'PRE'.padEnd(4),

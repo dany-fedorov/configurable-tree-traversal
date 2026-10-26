@@ -1,4 +1,4 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitor,
   NoInferPhase,
@@ -7,13 +7,13 @@ import type {
   VisitorPhaseInput,
   VisitorGroupDefinition,
 } from '@core/TraversalVisitor';
-import type { TraversalRunner } from '@core/TraversalRunner';
+import type { TreeTraversalRunner } from '@core/TraversalRunner';
 
 /** Historical tree-only builder base; generic runner wrappers use execution capabilities. */
-export abstract class Traversal<
+export abstract class TreeTraversal<
   ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > {
   abstract addVisitorFor<PHASE extends ORDER>(
     order: PHASE,
@@ -39,5 +39,5 @@ export abstract class Traversal<
     order: PHASE,
   ): { [P in PHASE]: TraversalVisitorRecord<P, TTP, RW_TTP>[] }[PHASE];
 
-  abstract makeRunner(): TraversalRunner<ORDER, TTP, RW_TTP>;
+  abstract createRunner(): TreeTraversalRunner<ORDER, TTP, RW_TTP>;
 }

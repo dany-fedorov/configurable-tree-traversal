@@ -1,11 +1,11 @@
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
+import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
 import {
   rewriteObject,
   rewriteObjectAs,
 } from '../src/tools/rewrite-object/rewriteObject';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
 import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { BreadthFirstTraversal } from '../src/traversals/breadth-first-traversal';
+import { BreadthFirstTreeTraversal } from '../src/traversals/breadth-first-traversal';
 import { BreadthFirstTraversalOrder } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 
@@ -149,8 +149,8 @@ describe('object rewriting', () => {
   test('rejects cycles under breadth-first traversal with repeated branches', () => {
     const shared: { self?: unknown } = {};
     shared.self = shared;
-    const tree = new TraversableObjectTree({ a: shared, b: shared });
-    const traversal = new BreadthFirstTraversal({ traversableTree: tree });
+    const tree = new ObjectTreeSource({ a: shared, b: shared });
+    const traversal = new BreadthFirstTreeTraversal({ traversableTree: tree });
     let visits = 0;
     traversal.addVisitorFor(BreadthFirstTraversalOrder.LEVEL_ORDER, () => {
       visits += 1;
@@ -159,7 +159,7 @@ describe('object rewriting', () => {
       }
     });
 
-    expect(() => traversal.makeRunner().run()).toThrow(
+    expect(() => traversal.createRunner().run()).toThrow(
       /object identity cycle/i,
     );
     expect(visits).toBeLessThanOrEqual(20);
@@ -167,8 +167,8 @@ describe('object rewriting', () => {
 
   test('detects cycles introduced by rewritten child hints', () => {
     const input = { child: {} };
-    const tree = new TraversableObjectTree(input);
-    const traversal = new DepthFirstTraversal({ traversableTree: tree });
+    const tree = new ObjectTreeSource(input);
+    const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
     let visits = 0;
     traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
       visits += 1;
@@ -191,7 +191,7 @@ describe('object rewriting', () => {
       return undefined;
     });
 
-    expect(() => traversal.makeRunner().run()).toThrow(
+    expect(() => traversal.createRunner().run()).toThrow(
       /object identity cycle/i,
     );
     expect(visits).toBeLessThanOrEqual(20);
@@ -200,8 +200,8 @@ describe('object rewriting', () => {
   test('keeps cycle ancestry isolated across concurrent adapter runs', () => {
     const input: { self?: unknown } = {};
     input.self = input;
-    const tree = new TraversableObjectTree(input);
-    const firstTraversal = new DepthFirstTraversal({ traversableTree: tree });
+    const tree = new ObjectTreeSource(input);
+    const firstTraversal = new DepthFirstTreeTraversal({ traversableTree: tree });
     let visits = 0;
     firstTraversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => {
       visits += 1;
@@ -209,11 +209,11 @@ describe('object rewriting', () => {
         throw new Error('cycle test guard exceeded');
       }
     });
-    const firstIterator = firstTraversal.makeRunner().getIterable();
+    const firstIterator = firstTraversal.createRunner().getIterable();
     expect(firstIterator.next().done).toBe(false);
 
-    const secondIterator = new DepthFirstTraversal({ traversableTree: tree })
-      .makeRunner()
+    const secondIterator = new DepthFirstTreeTraversal({ traversableTree: tree })
+      .createRunner()
       .getIterable();
     expect(secondIterator.next().done).toBe(false);
     secondIterator.return(undefined);
@@ -239,13 +239,13 @@ describe('object rewriting', () => {
 
   test('allows a traversable object adapter to be reused', () => {
     const input = { child: { leaf: 1 } };
-    const tree = new TraversableObjectTree(input);
+    const tree = new ObjectTreeSource(input);
 
     expect(() =>
-      new DepthFirstTraversal({ traversableTree: tree }).makeRunner().run(),
+      new DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().run(),
     ).not.toThrow();
     expect(() =>
-      new DepthFirstTraversal({ traversableTree: tree }).makeRunner().run(),
+      new DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().run(),
     ).not.toThrow();
   });
 });

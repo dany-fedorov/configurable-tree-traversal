@@ -4,12 +4,12 @@ import {
   ResolvedTree,
   Vertex,
   VertexResolved,
-  type TreeTypeParameters,
+  type VertexTypes,
 } from '../src';
 import { CTTRef as CoreRef } from '../src/core';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 
-type T = TreeTypeParameters<string, string>;
+type T = VertexTypes<string, string>;
 const makeRef = (data: string) =>
   new CTTRef(new Vertex<T>({ $data: data, $childHints: [] }));
 

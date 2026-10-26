@@ -1,6 +1,6 @@
 import {
   CTTRef,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   DepthFirstTraversalOrder,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
@@ -10,13 +10,13 @@ import type { TestGraph } from './helpers/graph-fixtures';
 
 test('DFS shared core preserves the callback, context, and event trace', () => {
   const trace: string[] = [];
-  const traversal = new DepthFirstTraversal<TestGraph>({
+  const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         trace.push('adapter:root');
         return { vertexContent: { $d: 'root', $c: ['left', 'missing', 'right'] } };
       },
-      makeVertex: (hint, { resolutionContext, resolvedTree }) => {
+      resolveChild: (hint, { resolutionContext, resolvedTree }) => {
         const root = resolvedTree.getRoot();
         trace.push(
           `adapter:${hint}:parent=${resolutionContext.parentVertex.getData()}:depth=${resolutionContext.depth}:index=${resolutionContext.hintIndex}:children=${
@@ -44,7 +44,7 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
     });
   }
 
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const initialInspection = runner.inspect();
   expect(initialInspection).toMatchObject({
     status: TraversalRunnerStatus.INITIAL,
@@ -112,10 +112,10 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
 
 test('DFS inspection during a visitor halt preserves the next visitor', () => {
   const visits: string[] = [];
-  const traversal = new DepthFirstTraversal<TestGraph>({
+  const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
+      resolveChild: () => ({ vertexContent: null }),
     },
   });
   traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => ({
@@ -125,7 +125,7 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
     visits.push(vertex.getData());
   });
 
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   expect(Array.from(runner.getIterable())).toEqual([]);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.HALTED);
   const halted = runner.inspect();
@@ -151,17 +151,17 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
 
 test('DFS can traverse a completed injected resolved-tree container again', () => {
   const adapter = {
-    makeRoot: () => ({
+    resolveRoot: () => ({
       vertexContent: { $d: 'root', $c: ['missing', 'child'] },
     }),
-    makeVertex: (hint: string) => ({
+    resolveChild: (hint: string) => ({
       vertexContent:
         hint === 'missing' ? null : { $d: hint, $c: [] },
     }),
   };
-  const first = new DepthFirstTraversal<TestGraph>({
+  const first = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: adapter,
-  }).makeRunner();
+  }).createRunner();
   first.run();
   const root = first.getResolvedTree().getRoot();
   if (root === null) throw new Error('Expected a resolved root');
@@ -171,17 +171,17 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
   if (originalChild === undefined) throw new Error('Expected a resolved child');
   const childRecord = first.getResolvedTree().get(originalChild);
 
-  const second = new DepthFirstTraversal<TestGraph>({
+  const second = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      makeVertex: adapter.makeVertex,
+      resolveChild: adapter.resolveChild,
     },
     traversalRunnerInternalObjects: {
       resolvedTreesContainer: first.resolvedTreesContainer,
     },
-  }).makeRunner();
+  }).createRunner();
 
   const events = Array.from(
     second.getIterable({
@@ -207,10 +207,10 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
 
 test('deleting the current vertex still advances visitor metadata for its sibling', () => {
   const siblingMetadata: unknown[] = [];
-  const traversal = new DepthFirstTraversal<TestGraph>({
+  const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['deleted', 'sibling'] } }),
-      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['deleted', 'sibling'] } }),
+      resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
     },
   });
   traversal.addVisitorFor(
@@ -231,16 +231,16 @@ test('deleting the current vertex still advances visitor metadata for its siblin
     },
   );
 
-  traversal.makeRunner().run();
+  traversal.createRunner().run();
   expect(siblingMetadata).toEqual([2, 'deleted']);
 });
 
 test('hint rewrites clone the command payload before a later visitor mutates it', () => {
   const hints = ['first'];
-  const traversal = new DepthFirstTraversal<TestGraph>({
+  const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['original'] } }),
-      makeVertex: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['original'] } }),
+      resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
     },
   });
   traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) =>
@@ -262,7 +262,7 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
 
   expect(
     Array.from(
-      traversal.makeRunner().getIterable({
+      traversal.createRunner().getIterable({
         iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
       }),
     ).map((event) => event.vertex.getData()),
@@ -270,13 +270,13 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
 });
 
 test('disabled visitor execution leaves injected per-order state unchanged', () => {
-  const traversal = new DepthFirstTraversal<TestGraph>({
+  const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
+      resolveChild: () => ({ vertexContent: null }),
     },
   });
-  const seed = traversal.makeRunner().state;
+  const seed = traversal.createRunner().state;
   const previous = new CTTRef(
     new Vertex<TestGraph>({ $d: 'previous', $c: [] }),
   );
@@ -289,11 +289,11 @@ test('disabled visitor execution leaves injected per-order state unchanged', () 
   traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => {
     visitorCalls += 1;
   });
-  const runner = new DepthFirstTraversal<TestGraph>({
+  const runner = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: traversal.icfg.traversableTree,
     visitors: traversal.visitors,
     traversalRunnerInternalObjects: { state: seed },
-  }).makeRunner();
+  }).createRunner();
 
   expect(
     Array.from(
@@ -319,10 +319,10 @@ test.each(['sorter', 'resolver', 'visitor'] as const)(
   'DFS %s failure clears policy frames from inspection',
   (failureAt) => {
     const failure = new Error(`${failureAt} failed`);
-    const traversal = new DepthFirstTraversal<TestGraph>({
+    const traversal = new DepthFirstTreeTraversal<TestGraph>({
       traversableTree: {
-        makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
-        makeVertex: () => {
+        resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
+        resolveChild: () => {
           if (failureAt === 'resolver') throw failure;
           return { vertexContent: { $d: 'child', $c: [] } };
         },
@@ -339,7 +339,7 @@ test.each(['sorter', 'resolver', 'visitor'] as const)(
         throw failure;
       });
     }
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
 
     expect(() => runner.run()).toThrow(failure);
     expect(runner.inspect()).toMatchObject({

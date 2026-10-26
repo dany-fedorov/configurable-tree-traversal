@@ -36,7 +36,7 @@ async function main() {
     }),
   );
   if (initial.kind !== 'valid') throw new Error('Invalid initial definition');
-  const old = initial.dag.createSession();
+  const old = initial.dag.createWorkSession();
   const build = old.advance();
   if (build.kind !== 'awaitingSettlement') throw new Error('Expected build');
   old.complete(build.frontier[0]!);
@@ -58,8 +58,8 @@ async function main() {
     { vertexId: 'review', aspects: ['data'] },
   ]);
   for (const fresh of [
-    revised.dag.createSession(),
-    await revised.dag.createAsyncSession(),
+    revised.dag.createWorkSession(),
+    await revised.dag.createAsyncWorkSession(),
   ]) {
     assert.deepEqual(fresh.summary().completedWorkIds, []);
     assert.throws(() => fresh.complete(oldTicket), TypeError);
@@ -73,7 +73,7 @@ async function main() {
     ...revised.dag.vertices.map((vertex) => vertex.vertexId),
     ...revised.dag.definition.omittedIds,
   ]);
-  const next = await revised.dag.createAsyncSession({
+  const next = await revised.dag.createAsyncWorkSession({
     completedWork: new Set(
       acceptedForRevision.filter((id) => knownIds.has(id)),
     ),

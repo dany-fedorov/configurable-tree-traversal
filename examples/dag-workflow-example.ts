@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import type { TreeTypeParameters } from '../src/core';
+import type { VertexTypes } from '../src/core';
 import {
   DagTraversal,
   DagTraversalOrder,
   hasSingleSink,
 } from '../src/traversals/dag-traversal';
 
-type Workflow = TreeTypeParameters<string, string>;
+type Workflow = VertexTypes<string, string>;
 type Task = {
   children: string[];
   dependsOn: string[];
@@ -35,8 +35,8 @@ function resolveTask(id: string) {
 
 const traversal = new DagTraversal<Workflow>({
   traversableGraph: {
-    makeRoot: () => resolveTask('root'),
-    makeVertex: resolveTask,
+    resolveRoot: () => resolveTask('root'),
+    resolveChild: resolveTask,
     getVertexIdFromHint: (hint) => ({ vertexId: hint }),
   },
 });
@@ -57,7 +57,7 @@ traversal.addVisitorFor(DagTraversalOrder.ON_COMPLETE, (vertex) => {
   completedSubtrees.push(vertex.getData());
 });
 
-const runner = traversal.makeRunner().run();
+const runner = traversal.createRunner().run();
 assert.equal(readyTasks[0], 'root');
 assert(readyTasks.indexOf('publish') > readyTasks.indexOf('compile-module'));
 assert(readyTasks.indexOf('publish') > readyTasks.indexOf('test'));

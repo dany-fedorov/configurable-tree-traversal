@@ -3,10 +3,10 @@ import {
   AsyncDagTraversal,
   DagTraversalOrder as Order,
 } from '../src/traversals/dag-traversal';
-import type { FoundVertexResult } from '../src/core/TraversableTree';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { DagVertexFound } from '../src/core/TraversableTree';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type ModuleGraph = TreeTypeParameters<string, string>;
+type ModuleGraph = VertexTypes<string, string>;
 const modules = new Map([
   [
     'module:parser',
@@ -19,7 +19,7 @@ const moduleRegistry = {
     return modules.get(id);
   },
 };
-const generatedStep = (id: string): FoundVertexResult<ModuleGraph> => ({
+const generatedStep = (id: string): DagVertexFound<ModuleGraph> => ({
   kind: 'found' as const,
   vertex: {
     vertexId: id,
@@ -32,7 +32,7 @@ async function main() {
   const events: string[] = [];
   const traversal = new AsyncDagTraversal<ModuleGraph>({
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         kind: 'found' as const,
         vertex: {
           vertexId: 'app',
@@ -41,7 +41,7 @@ async function main() {
           vertexContent: { $data: 'app', $childHints: [] },
         },
       }),
-      makeVertex: generatedStep,
+      resolveChild: generatedStep,
       resolvePrerequisite: async (id) => {
         if (typeof id !== 'string') return { kind: 'missing' };
         const definition = await moduleRegistry.find(id);
@@ -64,7 +64,7 @@ async function main() {
   traversal.addVisitorFor(Order.ON_READY, (vertex) => {
     events.push(vertex.getData());
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   await runner.run();
   assert.deepEqual(events, [
     'module:lexer',

@@ -1,4 +1,4 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { DagTraversalOrder } from './lib/DagTraversalOrder';
 import type {
   AsyncDagVisitor,
@@ -8,8 +8,8 @@ import type {
 
 type FilteredVisitor<
   DATA,
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ORDER extends DagTraversalOrder,
   ID,
 > = ReturnType<DagVisitor<T, R, ORDER, ID>> extends infer RESULT
@@ -18,8 +18,8 @@ type FilteredVisitor<
 
 type AsyncFilteredVisitor<
   DATA,
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ORDER extends DagTraversalOrder,
   ID,
 > = ReturnType<AsyncDagVisitor<T, R, ORDER, ID>> extends infer RESULT
@@ -30,8 +30,8 @@ type AsyncFilteredVisitor<
 export function filterDagVisitor<
   DATA,
   NARROWED extends DATA,
-  T extends TreeTypeParameters<DATA> = TreeTypeParameters<DATA>,
-  R extends TreeTypeParameters<DATA> = T,
+  T extends VertexTypes<DATA> = VertexTypes<DATA>,
+  R extends VertexTypes<DATA> = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
   ID = unknown,
 >(
@@ -40,8 +40,8 @@ export function filterDagVisitor<
 ): DagVisitor<T, R, ORDER, ID>;
 export function filterDagVisitor<
   DATA,
-  T extends TreeTypeParameters<DATA> = TreeTypeParameters<DATA>,
-  R extends TreeTypeParameters<DATA> = T,
+  T extends VertexTypes<DATA> = VertexTypes<DATA>,
+  R extends VertexTypes<DATA> = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
   ID = unknown,
 >(
@@ -51,8 +51,8 @@ export function filterDagVisitor<
 export function filterDagVisitor<
   DATA,
   NARROWED extends DATA,
-  T extends TreeTypeParameters<DATA>,
-  R extends TreeTypeParameters<DATA>,
+  T extends VertexTypes<DATA>,
+  R extends VertexTypes<DATA>,
   ORDER extends DagTraversalOrder,
   ID,
 >(
@@ -70,8 +70,8 @@ export function filterDagVisitor<
 export function filterAsyncDagVisitor<
   DATA,
   NARROWED extends DATA,
-  T extends TreeTypeParameters<DATA> = TreeTypeParameters<DATA>,
-  R extends TreeTypeParameters<DATA> = T,
+  T extends VertexTypes<DATA> = VertexTypes<DATA>,
+  R extends VertexTypes<DATA> = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
   ID = unknown,
 >(
@@ -80,8 +80,8 @@ export function filterAsyncDagVisitor<
 ): AsyncDagVisitor<T, R, ORDER, ID>;
 export function filterAsyncDagVisitor<
   DATA,
-  T extends TreeTypeParameters<DATA> = TreeTypeParameters<DATA>,
-  R extends TreeTypeParameters<DATA> = T,
+  T extends VertexTypes<DATA> = VertexTypes<DATA>,
+  R extends VertexTypes<DATA> = T,
   ORDER extends DagTraversalOrder = DagTraversalOrder,
   ID = unknown,
 >(
@@ -91,8 +91,8 @@ export function filterAsyncDagVisitor<
 export function filterAsyncDagVisitor<
   DATA,
   NARROWED extends DATA,
-  T extends TreeTypeParameters<DATA>,
-  R extends TreeTypeParameters<DATA>,
+  T extends VertexTypes<DATA>,
+  R extends VertexTypes<DATA>,
   ORDER extends DagTraversalOrder,
   ID,
 >(

@@ -1,13 +1,13 @@
 import {
   CTTRef,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
   ResolvedTree,
-  type TreeTypeParameters,
+  type VertexTypes,
   Vertex,
   VertexResolved,
 } from '../src';
 
-type TestGraph = TreeTypeParameters<string, string>;
+type TestGraph = VertexTypes<string, string>;
 
 test('the advanced tree API retains supplied mutable records with detached child queries', () => {
   const tree = new ResolvedTree<TestGraph>();
@@ -80,16 +80,16 @@ test('legacy deletion detaches by clone and permits manually re-setting a ref', 
 
 test('an injected tree container retains its graph facade and store', () => {
   const traversableTree = {
-    makeRoot: () => ({ vertexContent: null }),
-    makeVertex: () => ({ vertexContent: null }),
+    resolveRoot: () => ({ vertexContent: null }),
+    resolveChild: () => ({ vertexContent: null }),
   };
-  const source = new DepthFirstTraversal<TestGraph>({ traversableTree })
-    .makeRunner().resolvedTreesContainer;
-  const injected = new DepthFirstTraversal<TestGraph>({ traversableTree })
+  const source = new DepthFirstTreeTraversal<TestGraph>({ traversableTree })
+    .createRunner().resolvedTreesContainer;
+  const injected = new DepthFirstTreeTraversal<TestGraph>({ traversableTree })
     .configure({
       traversalRunnerInternalObjects: { resolvedTreesContainer: source },
     })
-    .makeRunner().resolvedTreesContainer;
+    .createRunner().resolvedTreesContainer;
 
   expect(injected.resolvedTree).toBe(source.resolvedTree);
   expect(injected.resolvedTree.getResolvedGraph()).toBe(

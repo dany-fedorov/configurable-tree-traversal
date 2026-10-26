@@ -1,53 +1,53 @@
 import {
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
   DagTraversal,
   AsyncDagTraversal,
   DepthFirstTraversalOrder as F,
   BreadthFirstTraversalOrder as B,
   DagTraversalOrder as D,
-  traverseDepthFirst,
-  traverseDepthFirstAsync,
-  traverseBreadthFirst,
-  traverseBreadthFirstAsync,
+  traverseTreeDepthFirst,
+  traverseTreeDepthFirstAsync,
+  traverseTreeBreadthFirst,
+  traverseTreeBreadthFirstAsync,
   traverseDag,
   traverseDagAsync,
 } from '../src';
 
 const traversableTree = {
-  makeRoot: () => ({
+  resolveRoot: () => ({
     vertexContent: { $data: 'root', $childHints: [] as string[] },
   }),
-  makeVertex: () => ({ vertexContent: null }),
+  resolveChild: () => ({ vertexContent: null }),
 };
 const traversableGraph = {
-  makeRoot: () => ({
+  resolveRoot: () => ({
     vertexId: 'root',
     vertexContent: { $data: 'root', $childHints: [] as string[] },
   }),
-  makeVertex: () => ({ vertexContent: null }),
+  resolveChild: () => ({ vertexContent: null }),
 };
 const families = [
-  [DepthFirstTraversal, F.PRE_ORDER, { traversableTree }, traverseDepthFirst],
+  [DepthFirstTreeTraversal, F.PRE_ORDER, { traversableTree }, traverseTreeDepthFirst],
   [
-    AsyncDepthFirstTraversal,
+    AsyncDepthFirstTreeTraversal,
     F.PRE_ORDER,
     { traversableTree },
-    traverseDepthFirstAsync,
+    traverseTreeDepthFirstAsync,
   ],
   [
-    BreadthFirstTraversal,
+    BreadthFirstTreeTraversal,
     B.LEVEL_ORDER,
     { traversableTree },
-    traverseBreadthFirst,
+    traverseTreeBreadthFirst,
   ],
   [
-    AsyncBreadthFirstTraversal,
+    AsyncBreadthFirstTreeTraversal,
     B.LEVEL_ORDER,
     { traversableTree },
-    traverseBreadthFirstAsync,
+    traverseTreeBreadthFirstAsync,
   ],
   [DagTraversal, D.ON_READY, { traversableGraph }, traverseDag],
   [AsyncDagTraversal, D.ON_READY, { traversableGraph }, traverseDagAsync],
@@ -79,16 +79,16 @@ for (const [Ctor, order, source, helper] of families) {
         const Constructor = Ctor as unknown as new (input: unknown) => {
           configure(input: unknown): unknown;
           setVisitorsFor(order: string, input: unknown): unknown;
-          makeRunner(): { run(): unknown };
+          createRunner(): { run(): unknown };
         };
         const config = { ...source, visitors: { [order]: input } };
-        await new Constructor(config).makeRunner().run();
+        await new Constructor(config).createRunner().run();
         const configured = new Constructor(source);
         configured.configure(config);
-        await configured.makeRunner().run();
+        await configured.createRunner().run();
         const replaced = new Constructor(source);
         replaced.setVisitorsFor(order, input);
-        await replaced.makeRunner().run();
+        await replaced.createRunner().run();
         await (helper as unknown as (input: unknown) => unknown)(config);
         expect(seen).toEqual(
           Array(shape === 'array' || shape === 'groups' ? 8 : 4).fill('called'),
@@ -110,7 +110,7 @@ for (const [Ctor, order, source] of families) {
       addVisitorGroupFor(order: string, input: unknown): unknown;
       setVisitorsFor(order: string, input: unknown): unknown;
       listVisitorsFor(order: string): unknown;
-      makeRunner(): { run(): unknown };
+      createRunner(): { run(): unknown };
     };
     const t = new Constructor(source);
     t.addVisitorFor(
@@ -147,13 +147,13 @@ for (const [Ctor, order, source] of families) {
       { priority: 9999 },
     );
     t.setVisitorsFor(order, t.listVisitorsFor(order));
-    const snapshot = t.makeRunner();
+    const snapshot = t.createRunner();
     t.setVisitorsFor(order, () => {
       calls.push('replacement');
     });
     await snapshot.run();
     expect(calls).toEqual(['high', 'low', 'group', 'tail']);
-    await t.makeRunner().run();
+    await t.createRunner().run();
     expect(calls.slice(-1)).toEqual(['replacement']);
     expect(() =>
       t.addVisitorGroupFor(order, {
