@@ -78,6 +78,10 @@ export class AsyncDagTraversal<
     this.visitors = initVisitors(this.icfg.visitors);
   }
 
+  /**
+   * Configure future runners. Own defined same-family sources replace; inherited
+   * and own undefined sources retain the active source. Mode changes reject atomically.
+   */
   configure(input: AsyncDagTraversalConfigureInput<T, R, ID>): this {
     const sources = captureDagSourcePatch(input);
     if (

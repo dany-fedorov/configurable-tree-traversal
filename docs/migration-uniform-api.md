@@ -42,6 +42,18 @@ Defaults are BFS, unique vertices (`once`), vertex-only emission and serial exec
 
 The shared execution interfaces add a defaulted inspection parameter, preserving `CoreInspection` for existing code. `TraversalExecutionState<ExecutionInspection>` accepts all families; `SyncTraversalExecution<Phase, Event, ExecutionInspection>` and its async counterpart keep phase safety while generalizing inspection. Choose `GraphWalkInspection` for walking detail; old two-parameter wrappers still expect tree/DAG inspection. No common source interface, DAG settlement, concurrency option or durable checkpoint is added to walking.
 
+## Configuration and diagnostic follow-up
+
+Walking predicates `followEdge` and `expandVertex` now accept `null` to restore the absent predicate, initially or in `configure()`. Omitted/undefined patches retain an existing predicate. Limits still replace; visitor/phase records still patch field-wise. These optional predicates and DAG optional source placeholders explicitly accept `undefined` under `exactOptionalPropertyTypes`.
+
+DAG configure source checks now match construction: ignore inherited keys and own undefined keys, replace an own defined same-family source, and reject an own defined opposite-family source atomically. This relaxes a configure guard present in published 0.11.0, fixing placeholder/inheritance handling. Exactly one own defined source remains required at construction; typed-ID tree restrictions remain. Builders affect future runners only. See the [configuration table](reference.md#configuration-patches).
+
+`defineDagFragment` and definition validation during instantiation now throw `DagFragmentValidationError<ID = unknown> extends TypeError` with structured `issues`; successful values remain direct fragments/instances. Malformed shapes, port errors and mapping collisions remain ordinary `TypeError`s, and caller exceptions propagate exactly. `DagTraversalStallError<ID = unknown>` supports explicit typed diagnostic annotations and construction. Neither error infers ID types from arbitrary catches. Both DAG runner families now expose synchronous `inspectDag()` alongside the existing free function and session method.
+
+`Traversal` / `TraversalRunner` are tree-only bases; use execution capabilities for cross-family wrappers. The common `ExecutionInspection.kind` remains an open string for structural implementations. Tree/DAG iterators may deliver previously buffered events on resume even when the new selector excludes their phase, so their return types remain broad. Walking selects at delivery and narrows accordingly.
+
+Built-in object adapter methods retain published untagged `{ vertexContent, ... }` direct returns. New custom sources and canonical object hooks use tagged results; see [abstract trees](reference.md#abstract-trees). Family-specific root flags and omission-preserving definition slots keep their distinct meanings. For choosing preparation versus execution and dispatch, see the [workflow decision table](agent-workflows.md#discover-the-graph).
+
 ## Typed DAG event identities
 
 `DagEvent<T, ID = unknown>` now requires `vertexId: ID`; sync and async iterators preserve the runner's ID generic. `kind` and `order` form a correlated union: `workCompleted` means `ON_READY`, and `subgraphCompleted` means `ON_COMPLETE`. Code constructing event fixtures must supply an ID and a matching kind/order pair. Existing event timing, ordering, phase filters, and seeded/settled completion behavior remain unchanged. Dispatch from `advance().frontier` tickets or an enabled pre-work `ON_READY` visitor; emitted `workCompleted` events are committed observations, including when deferred work settles.

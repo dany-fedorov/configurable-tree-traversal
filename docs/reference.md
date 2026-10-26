@@ -7,6 +7,7 @@ Current behavior: the unreleased uniform, composable, and graph-walking APIs in 
 ## On this page
 
 - [General graph walking](#general-graph-walking)
+- [Configuration patches](#configuration-patches)
 - [DAG traversal](#dag-traversal)
 - [Collection and forest sources](#collection-and-forest-sources)
 - [Reusable prepared DAGs](#reusable-prepared-dags)
@@ -131,6 +132,19 @@ Declared live/omitted IDs must always be unique and disjoint. Selected child slo
 
 `inspect(): GraphWalkInspection` is synchronous, detached, frozen and passive on both runner families. It exposes common execution fields plus `kind: 'graph-walk'`, `sourceMode: 'graph'`, `concurrency: 1`, strategy, revisit, effective `iterableConfig`, counters, frontier size, open source iterator count, pending observation phases, active visitor phase/position, and pending request IDs/operations with optional runner-local `vertexToken` symbols. Tokens are not caller IDs. No callbacks, data, promises or kernel closures leak into inspection. It neither advances sources nor acquires ownership. For common cross-family wrappers and detailed-type defaults, see [inspection and execution](#inspection-and-execution).
 
+## Configuration patches
+
+Builders configure future runners; an existing runner retains its configuration snapshot. Sync and async variants use the same rules.
+
+| Field | Omitted or `undefined` patch | Defined patch |
+| --- | --- | --- |
+| Walking `followEdge`, `expandVertex` | Retain the previous predicate | Callback replaces it; `null` clears it. Initial `null` also means absent. |
+| Walking `limits` | Retain previous limits | Replace the entire limits record; include every bound to retain. |
+| `visitors` and `emitPhases` / `visitorPhases` | Retain unspecified fields | Patch visitor phases and selector fields independently, under their existing validation rules. |
+| DAG `traversableTree` / `traversableGraph` | Inherited keys and own `undefined` keys retain the active source | An own defined same-family source replaces it; an opposite-family source rejects. |
+
+Nullable walking predicates and optional DAG source placeholders explicitly accept `undefined` with `exactOptionalPropertyTypes`. DAG construction still requires exactly one own defined source; the active source cannot be omitted or undefined. Source getters are captured once per request, without calling source callbacks. Invalid walking mixed patches and DAG source-mode changes reject before configuration or registrations change. A rejected patch does not affect later runners. DAG source presence now consistently uses own-and-defined checks: this is a bug-fix relaxation of the configure guard already shipped in 0.11.0.
+
 ## DAG traversal
 
 `DagTraversal` and `AsyncDagTraversal` traverse a discovered acyclic graph in two lifecycle orders: `ON_READY` visits eligible initial work, and `ON_COMPLETE` visits structural completion after the vertex’s work, discovery, and retained children complete. Under default `visitorReturn`, normal initial visitor-chain completion satisfies work dependents; `externalSettlement` requires guarded host settlement; committed completion satisfies completion dependents. `dependsOn: [p]` waits for p's completed initial work (W); `dependsOnComplete: [p]` waits for p's committed `ON_COMPLETE` transition (C), including closed discovery and completion of every retained child. Both lists gate `ON_READY` conjunctively. Completion admission or an unfinished async completion callback does not satisfy C. Dependencies do not create structural parent/child edges; graph sources have no implicit parent W by default. Set `implicitParentDependency: true` to inherit parent W when `dependsOn` is omitted; explicit lists, including `[]`, always win. Tree sources retain structural order and parent dependencies.
@@ -188,7 +202,7 @@ Selecting an ID domain other than `unknown` requires an explicit `vertexId` on e
 
 Graph ids use `Map`/`Set` SameValueZero equality, so `NaN`, `null`, explicit `undefined`, symbols, and object references are valid. `getVertexIdFromHint()` returns a wrapper, not a bare id: return `{ vertexId: undefined }` for the real id `undefined`, or return `undefined` when the hint has no identity. A known hint id can reuse a vertex without resolving it; if both the hint hook and resolver supply ids, they must match.
 
-Stalled DAG runners throw `DagTraversalStallError` (available from the root, `core`, and DAG traversal exports). Its `diagnostics` contains detached arrays while retaining original ID identity:
+Stalled DAG runners throw `DagTraversalStallError<ID = unknown>` (available from the root, `core`, and DAG traversal exports). Explicit type arguments type constructed errors and diagnostic annotations; an arbitrary catch value narrowed with `instanceof DagTraversalStallError` still has unknown IDs. The runner's ID type is not inferred through exceptions. Its `diagnostics` contains detached arrays while retaining original ID identity:
 
 - `dependencies`: `{ id, unmet }` entries for vertices waiting on prerequisites.
 - `unknownPrerequisiteIds`: unmet IDs absent from the discovered graph; lazy discovery may still hide those vertices in the source.
@@ -304,9 +318,9 @@ See the [revision example](https://github.com/dany-fedorov/configurable-tree-tra
 
 ### DAG fragments and composition
 
-`defineDagFragment(definition, ports)` creates a `DagFragment<Data, ID, Port>` from a closed valid definition and a record of string-named live vertex IDs. It copies/freezes owned topology and port wrappers; caller data and IDs stay shallow and unfrozen. Port names retain literal keys. Unknown or omitted ports, symbol port names, malformed definitions, and semantically invalid local graphs throw `TypeError`. Local W/C endpoints must resolve within the live/omitted domain; add external edges during composition.
+`defineDagFragment(definition, ports)` creates a `DagFragment<Data, ID, Port>` from a closed valid definition and a record of string-named live vertex IDs. It copies/freezes owned topology and port wrappers; caller data and IDs stay shallow and unfrozen. Port names retain literal keys. A closed-definition validation failure throws `DagFragmentValidationError<ID = unknown> extends TypeError`, exported from the root and DAG subpath, with `issues: readonly DagDefinitionIssue<ID>[]`. The issue array is copied shallowly; issue records and caller IDs retain identity. Successful construction still returns the fragment directly. Malformed definitions, unknown or omitted ports, and symbol port names remain ordinary `TypeError`s. Local W/C endpoints must resolve within the live/omitted domain; add external edges during composition.
 
-`instantiateDagFragment(fragment, { mapId })` returns a `DagFragmentInstance<Data, MappedID, Port>` with `{ definition, ports }`. It calls `mapId` once per declared live identity in vertex order, then once per omitted identity in declaration order, caching results across entry, slots, W/C lists, omissions and ports. Arbitrary identities, including objects, symbols, `undefined` and `NaN`, retain SameValueZero semantics. Mapped live/live, live/omitted and omitted/omitted collisions throw `TypeError`. Caller-thrown mapping/accessor values propagate unchanged. No ID scheme or name binding is implicit.
+`instantiateDagFragment(fragment, { mapId })` returns a `DagFragmentInstance<Data, MappedID, Port>` with `{ definition, ports }`. It calls `mapId` once per declared live identity in vertex order, then once per omitted identity in declaration order, caching results across entry, slots, W/C lists, omissions and ports. Arbitrary identities, including objects, symbols, `undefined` and `NaN`, retain SameValueZero semantics. Mapped live/live, live/omitted and omitted/omitted collisions throw ordinary `TypeError`. Instantiation revalidates the definition before mapping and uses `DagFragmentValidationError` for that validation branch. Caller-thrown mapping/accessor values propagate unchanged. As with stall errors, `instanceof` alone does not recover the caller's ID type from an arbitrary catch. No ID scheme or name binding is implicit.
 
 `composeDag(instances, options?)` returns `DagDefinitionResult<Data, ID>`. Entries concatenate in instance order beneath a hidden forest holder. Root entries contribute a vertex slot, forest entries retain ordered slots, and empty entries contribute ordered known omitted slots. An entirely empty instance contributes no slot. Vertex/omission declaration order, internal slots, and structurally detached prerequisite components are preserved.
 
@@ -550,7 +564,7 @@ validation; data rewrites and vertex deletion retain their existing behavior.
 
 ### DAG dependency queries and explanations
 
-`inspectDag(runner)` captures a synchronous detached `DagInspection<ID>` from either DAG runner, including tree-source runners with their existing unknown ID domain. Import it and `DagExplanation`, `DagBlocker`, `DagMilestoneStatus`, `DagMilestoneQueryOptions`, and `DagMilestoneQueryResult` from the package root or DAG subpath. Capture performs no callbacks, source lookup, scheduling, settlement, or iterator ownership changes. Methods reuse that capture after the runner advances; take another inspection for current facts. Owned arrays and result records are copied on every query. IDs and caller data retain shallow identity and are never frozen.
+`runner.inspectDag()` and the equivalent free function `inspectDag(runner)` capture a synchronous detached `DagInspection<ID>` from either sync or async DAG runner (no `await` needed), including tree-source runners with their existing unknown ID domain. Import it and `DagExplanation`, `DagBlocker`, `DagMilestoneStatus`, `DagMilestoneQueryOptions`, and `DagMilestoneQueryResult` from the package root or DAG subpath. Capture performs no callbacks, source lookup, scheduling, settlement, or iterator ownership changes. Methods reuse that capture after the runner advances; take another inspection for current facts. Owned arrays and result records are copied on every query. IDs and caller data retain shallow identity and are never frozen.
 
 Terminal runners reconstructed with their original in-memory `state` and `resolvedGraphsContainer` retain the original committed W/C, partial discovery, and progress observations. `new DagTraversalRunnerState(original.state)`, object spread, and `Object.assign` also retain this internal observation metadata. It does not resume execution or turn failure into successful work; original failure values remain unchanged. State class instances reserve the metadata slot before sealing, so sealed instances retain the same copying behavior. For manually assembled nonextensible state without that slot, observations remain available through the original state or `new DagTraversalRunnerState(original.state)`; plain spread cannot carry its side-table-only metadata. These facts are not serialized checkpoint fields: manually assembled or deserialized terminal state cannot recreate historical scheduler facts. A nonempty injected terminal graph without that metadata remains constructible, but `inspectDag` and `summary()` throw an explicit unavailable-observation error instead of inventing success.
 
@@ -738,6 +752,8 @@ for (const { vertex, vertexRef } of runner.getIterable({
 The object adapter creates a synthetic root representing the whole input. Each vertex contains `{ key, value }`. Arrays use numeric index keys; objects include their own enumerable string and symbol keys. Sparse array holes are skipped. Non-enumerable and inherited properties are excluded. Property access may invoke getters.
 
 Ancestor cycles throw a descriptive error before descent; shared objects in separate branches are traversed independently. The same adapter can be used by multiple runners. Use `resolveVertexHook` to skip or customize properties, or `getChildrenOfProperty` to define traversal for specialized values.
+
+`TraversableObjectTree.makeRoot()` / `.makeVertex()` intentionally retain their published direct `{ vertexContent, ... }` results, including `{ vertexContent: null }` omission, for callers that read those methods directly. New custom tree sources and `resolveVertexHook` use tagged results. See the [tagged custom-tree example](#abstract-trees) below; changing the built-in adapter's direct return shape requires a separate compatibility decision.
 
 ## Abstract trees
 
@@ -979,9 +995,13 @@ await next;
 await iterator.return();
 ```
 
+Tree and DAG emission uses the selector retained by each admitted visitor chain. Already buffered events survive pause and are delivered on resume without re-filtering against the new call's selector. For example, resuming an async DFS iterator with only POST_ORDER selected can first yield a retained PRE_ORDER event. Their iterator result types therefore remain the family event union; a call-level selector does not promise narrowing. Walking applies its selector at delivery, including buffered records, and supports that narrower promise.
+
+Root flags describe family-specific boundaries. Tree `isTreeRoot` and DAG `isGraphRoot` identify the resolved container root; `isTraversalRoot` identifies the chosen traversal start, which can differ when traversing a subtree. Synthetic graph holders are bookkeeping and hidden from public events. Walking uses `via: null` for an entry occurrence; under route policies, the same ID reached through a link has a non-null `via`. These meanings do not imply a shared root flag.
+
 The six tree/DAG runners use the same explicit transition-state model. Synchronous runners execute its callback requests inline; asynchronous runners delegate iteration and `run()` to one shared `AsyncCoreExecution` session with serialized state commits, finite callback limiting when configured, and one iterator lease. Calling `run()` while an iterator owns that session rejects rather than starting a second execution.
 
-For tree/DAG wrappers, use `TraversalExecutionState` (`getStatus`, `getStopReason`, `isHalted`, `inspect`, `requestPause`), `SyncTraversalExecution<Phase, Event>`, or `AsyncTraversalExecution<Phase, Event>`. Run returns this / Promise of this; iterators are closeable `Generator<Event, void, unknown>` / `AsyncGenerator<Event, void, unknown>`. Preserve the family's phase enum: a DFS abstraction rejects DAG phases and cannot widen to accept them. Historical `AsyncCoreExecution<Event, Phase = never>` remains available; its erased default permits no explicit phase names. Specify Phase when selecting phases. `TraversalRunner` exposes the same sync capabilities; historical `TraversalRunnerIterable` imports remain supported.
+For tree/DAG wrappers, use `TraversalExecutionState` (`getStatus`, `getStopReason`, `isHalted`, `inspect`, `requestPause`), `SyncTraversalExecution<Phase, Event>`, or `AsyncTraversalExecution<Phase, Event>`. Run returns this / Promise of this; iterators are closeable `Generator<Event, void, unknown>` / `AsyncGenerator<Event, void, unknown>`. Preserve the family's phase enum: a DFS abstraction rejects DAG phases and cannot widen to accept them. Historical `AsyncCoreExecution<Event, Phase = never>` remains available; its erased default permits no explicit phase names. Specify Phase when selecting phases. `Traversal` and `TraversalRunner` are historical tree-only abstract bases, not common bases for DAG or walking builders/runners. Use the execution capability interfaces for generic wrappers. `TraversalRunner` exposes the same sync capabilities; historical `TraversalRunnerIterable` imports remain supported.
 
 Walking runners share the public execution capabilities with a default-preserving inspection parameter: `TraversalExecutionState<Inspection = CoreInspection>`, `SyncTraversalExecution<Phase, Event, Inspection = CoreInspection>`, and the async counterpart. Existing two-parameter code retains detailed `CoreInspection`. Walkers use `GraphWalkInspection`; choose `ExecutionInspection` explicitly for a wrapper accepting every family. Its common fields are status, stop reason, halt request, kind, execution mode, in-flight callback count and buffered event count. Generalizing inspection never widens supported phases or gives walking a tree/DAG frame shape.
 

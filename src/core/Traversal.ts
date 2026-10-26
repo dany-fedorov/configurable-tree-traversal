@@ -9,6 +9,7 @@ import type {
 } from '@core/TraversalVisitor';
 import type { TraversalRunner } from '@core/TraversalRunner';
 
+/** Historical tree-only builder base; generic runner wrappers use execution capabilities. */
 export abstract class Traversal<
   ORDER extends string,
   TTP extends TreeTypeParameters,

@@ -31,6 +31,7 @@ export type DagTraversalStallDiagnostics<ID = unknown> = {
 // IDs); explicit type arguments validate diagnostics on TypeScript 4.7 too.
 type DiagnosticId<ID> = [ID][ID extends unknown ? 0 : never];
 
+/** Explicit ID annotations type diagnostics; arbitrary catches retain the unknown ID domain. */
 export class DagTraversalStallError<ID = unknown> extends Error {
   readonly diagnostics: DagTraversalStallDiagnostics<ID>;
 
