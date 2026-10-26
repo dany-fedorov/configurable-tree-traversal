@@ -1,4 +1,5 @@
 import { GraphWalk, AsyncGraphWalk } from '../src';
+import { idGraph } from './helpers/graph-walk-fixtures';
 import { GraphWalkPhase as Phase } from '../src/traversals/graph-walk/GraphWalkPhase';
 import type { GraphWalkSource } from '../src/traversals/graph-walk/GraphWalkSource';
 import { normalizeWalkOptions } from '../src/traversals/graph-walk/lib/normalizeWalkOptions';
@@ -181,7 +182,7 @@ describe('walking configuration snapshots', () => {
     { limits: [] },
     { limits: 1 },
     { followEdge: false },
-    { expandVertex: null },
+    { expandVertex: false },
     { visitors: null },
     { visitors: [] },
     { visitors: 1 },
@@ -324,4 +325,55 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
     await traversal.makeRunner().run();
     expect(roots).not.toHaveBeenCalled();
   });
+}
+
+for (const Factory of [GraphWalk, AsyncGraphWalk]) {
+  test(`${Factory.name} accepts initially absent null predicates`, async () => {
+    const walk = new Factory({
+      source: idGraph(
+        ['root'],
+        [
+          ['root', ['child']],
+          ['child', []],
+        ],
+      ),
+      followEdge: null,
+      expandVertex: null,
+    });
+    const runner = walk.makeRunner();
+    await runner.run();
+    expect(runner.summary().counts.foundVertices).toBe(2);
+    expect(runner.summary().counts.observedLinks).toBe(1);
+  });
+
+  test.each(['followEdge', 'expandVertex'] as const)(
+    `${Factory.name} resets %s with null and retains it with undefined or omission atomically`,
+    async (predicate) => {
+      const walk = new Factory({
+        source: idGraph(
+          ['root'],
+          [
+            ['root', ['child']],
+            ['child', []],
+          ],
+        ),
+        [predicate]: () => false,
+      });
+      async function found() {
+        const runner = walk.makeRunner();
+        await runner.run();
+        return runner.summary().counts.foundVertices;
+      }
+      expect(await found()).toBe(1);
+      walk.configure({ [predicate]: undefined });
+      walk.configure({});
+      expect(await found()).toBe(1);
+      expect(() =>
+        walk.configure({ [predicate]: null, emitPhases: ['invalid'] as never }),
+      ).toThrow(TypeError);
+      expect(await found()).toBe(1);
+      walk.configure({ [predicate]: null });
+      expect(await found()).toBe(2);
+    },
+  );
 }

@@ -71,8 +71,8 @@ export type AsyncGraphWalkFollowEdge<Data, Edge, ID> = (
 type GraphWalkFields<Data, Edge, ID> = {
   source: GraphWalkSource<Data, Edge, ID>;
   strategy?: GraphWalkStrategy;
-  followEdge?: GraphWalkFollowEdge<Data, Edge, ID>;
-  expandVertex?: GraphWalkExpandVertex<Data, Edge, ID>;
+  followEdge?: GraphWalkFollowEdge<Data, Edge, ID> | null | undefined;
+  expandVertex?: GraphWalkExpandVertex<Data, Edge, ID> | null | undefined;
   visitors?: {
     [Phase in GraphWalkPhase]?: VisitorPhaseInput<
       GraphWalkVisitor<Data, Edge, Phase, ID>
@@ -82,8 +82,8 @@ type GraphWalkFields<Data, Edge, ID> = {
 type AsyncGraphWalkFields<Data, Edge, ID> = {
   source: AsyncGraphWalkSource<Data, Edge, ID>;
   strategy?: GraphWalkStrategy;
-  followEdge?: AsyncGraphWalkFollowEdge<Data, Edge, ID>;
-  expandVertex?: AsyncGraphWalkExpandVertex<Data, Edge, ID>;
+  followEdge?: AsyncGraphWalkFollowEdge<Data, Edge, ID> | null | undefined;
+  expandVertex?: AsyncGraphWalkExpandVertex<Data, Edge, ID> | null | undefined;
   visitors?: {
     [Phase in GraphWalkPhase]?: VisitorPhaseInput<
       AsyncGraphWalkVisitor<Data, Edge, Phase, ID>

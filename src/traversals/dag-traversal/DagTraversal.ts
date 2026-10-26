@@ -12,6 +12,10 @@ import type {
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import type { VisitorRecord } from '@core/graph/types';
+import {
+  captureDagSourcePatch,
+  assertExactlyOneDagSource,
+} from './lib/dagSourcePatch';
 import { initDagVisitors } from './init-helpers/initVisitors';
 import {
   DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -36,7 +40,8 @@ export class DagTraversal<
 
   constructor(input: DagTraversalInstanceConfigInput<T, R, ID>) {
     assertNoConcurrency(input);
-    this.sourceMode = assertExactlyOneSource(input);
+    const sources = captureDagSourcePatch(input);
+    this.sourceMode = assertExactlyOneDagSource(sources);
     this.icfg = mergeDagTraversalInstanceConfigs(
       {
         ...(DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as DagTraversalInstanceConfig<
@@ -44,26 +49,27 @@ export class DagTraversal<
           R,
           ID
         >),
-        ...(this.sourceMode === 'graph'
-          ? { traversableGraph: input.traversableGraph }
-          : { traversableTree: input.traversableTree }),
+        ...sources,
       } as DagTraversalInstanceConfig<T, R, ID>,
       input,
+      sources,
     );
     this.visitors = initDagVisitors(this.icfg);
   }
 
   configure(input: DagTraversalConfigureInput<T, R, ID>): this {
     assertNoConcurrency(input);
+    const sources = captureDagSourcePatch(input);
     if (
-      (this.sourceMode === 'graph' && 'traversableTree' in input) ||
-      (this.sourceMode === 'tree' && 'traversableGraph' in input)
+      (this.sourceMode === 'graph' && sources.traversableTree !== undefined) ||
+      (this.sourceMode === 'tree' && sources.traversableGraph !== undefined)
     ) {
       throw new TypeError('DAG source mode cannot change after construction');
     }
     this.icfg = mergeDagTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       input,
+      sources,
     );
     this.visitors = initDagVisitors(this.icfg);
     return this;
@@ -132,19 +138,4 @@ function assertNoConcurrency(input: object): void {
       'Synchronous DAG traversal does not accept concurrency',
     );
   }
-}
-
-function assertExactlyOneSource(input: object): 'tree' | 'graph' {
-  const graph =
-    Object.prototype.hasOwnProperty.call(input, 'traversableGraph') &&
-    (input as { traversableGraph?: unknown }).traversableGraph !== undefined;
-  const tree =
-    Object.prototype.hasOwnProperty.call(input, 'traversableTree') &&
-    (input as { traversableTree?: unknown }).traversableTree !== undefined;
-  if (graph === tree) {
-    throw new TypeError(
-      'DAG traversal requires exactly one tree or graph source',
-    );
-  }
-  return graph ? 'graph' : 'tree';
 }

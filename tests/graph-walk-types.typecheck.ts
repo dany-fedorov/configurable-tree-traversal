@@ -459,3 +459,57 @@ new AsyncGraphWalk({
     return true;
   },
 });
+
+// Null explicitly clears optional predicates in both initial options and patches.
+const nullSyncOptions: GraphWalkOptions<string, number, undefined> = {
+  source,
+  followEdge: null,
+  expandVertex: null,
+};
+const nullAsyncOptions: AsyncGraphWalkOptions<string, number, undefined> = {
+  source: asyncSource,
+  followEdge: null,
+  expandVertex: null,
+};
+const nullPatch: GraphWalkConfigureInput<string, number, undefined> = {
+  followEdge: null,
+  expandVertex: null,
+};
+const nullAsyncPatch: AsyncGraphWalkConfigureInput<string, number, undefined> =
+  nullPatch;
+new GraphWalk(nullSyncOptions).configure(nullPatch);
+new AsyncGraphWalk(nullAsyncOptions).configure(nullAsyncPatch);
+const invalidPredicates: GraphWalkConfigureInput<string, number, undefined> = {
+  // @ts-expect-error Predicates accept callbacks or null, never booleans.
+  followEdge: false,
+  // @ts-expect-error Predicates accept callbacks or null, never numbers.
+  expandVertex: 0,
+};
+const invalidAsyncPredicates: AsyncGraphWalkConfigureInput<
+  string,
+  number,
+  undefined
+> = {
+  // @ts-expect-error Async predicates accept callbacks or null, never booleans.
+  followEdge: false,
+  // @ts-expect-error Async predicates accept callbacks or null, never numbers.
+  expandVertex: 0,
+};
+void [invalidPredicates, invalidAsyncPredicates];
+
+new GraphWalk({
+  source,
+  followEdge: undefined,
+  expandVertex: undefined,
+}).configure({
+  followEdge: undefined,
+  expandVertex: undefined,
+});
+new AsyncGraphWalk({
+  source: asyncSource,
+  followEdge: undefined,
+  expandVertex: undefined,
+}).configure({
+  followEdge: undefined,
+  expandVertex: undefined,
+});

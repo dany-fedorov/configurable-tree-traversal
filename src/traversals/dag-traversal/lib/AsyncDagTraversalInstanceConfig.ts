@@ -7,6 +7,7 @@ import type { MaybePromise, VisitorRecord } from '@core/graph/types';
 import type { AsyncTraversableGraph } from '@core/TraversableGraph';
 import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { deepFreeze } from '@utils/deepFreeze';
+import { captureDagSourcePatch, captureDagConfigPatch } from './dagSourcePatch';
 import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
 import { DagTraversalOrder } from './DagTraversalOrder';
 import type { AsyncDagVisitor } from './DagTraversalVisitor';
@@ -18,11 +19,11 @@ export type AsyncDagSource<
 > =
   | {
       traversableGraph: AsyncTraversableGraph<T, R, ID>;
-      traversableTree?: never;
+      traversableTree?: undefined;
     }
   | {
       traversableTree: unknown extends ID ? AsyncTraversableTree<T, R> : never;
-      traversableGraph?: never;
+      traversableGraph?: undefined;
     };
 
 export type AsyncDagTraversalVisitors<
@@ -90,14 +91,14 @@ export type AsyncDagTraversalConfigureInput<
 > = AsyncDagTraversalOptionsInput<T, R, ID> &
   (
     | {
-        traversableGraph?: AsyncTraversableGraph<T, R, ID>;
-        traversableTree?: never;
+        traversableGraph?: AsyncTraversableGraph<T, R, ID> | undefined;
+        traversableTree?: undefined;
       }
     | {
-        traversableTree?: unknown extends ID
-          ? AsyncTraversableTree<T, R>
-          : never;
-        traversableGraph?: never;
+        traversableTree?:
+          | (unknown extends ID ? AsyncTraversableTree<T, R> : never)
+          | undefined;
+        traversableGraph?: undefined;
       }
   );
 
@@ -125,8 +126,9 @@ export function mergeAsyncDagTraversalInstanceConfigs<
 >(
   base: AsyncDagTraversalInstanceConfig<T, R, ID>,
   input: AsyncDagTraversalConfigureInput<T, R, ID>,
+  sources = captureDagSourcePatch(input),
 ): AsyncDagTraversalInstanceConfig<T, R, ID> {
-  const capturedInput = { ...input };
+  const capturedInput = captureDagConfigPatch(input, sources);
   assertDagWorkCompletion(capturedInput.workCompletion);
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
   const merged = {

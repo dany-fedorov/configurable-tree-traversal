@@ -73,6 +73,23 @@ assert.equal(
   6,
 );
 
+for (const Factory of [cjsWalking.GraphWalk, walking.AsyncGraphWalk]) {
+  for (const predicate of ['followEdge', 'expandVertex']) {
+    const walk = new Factory({ source: catalog, [predicate]: () => false });
+    const filtered = walk.makeRunner();
+    await filtered.run();
+    assert.equal(filtered.summary().counts.foundVertices, 1);
+    walk.configure({ [predicate]: undefined });
+    const retained = walk.makeRunner();
+    await retained.run();
+    assert.equal(retained.summary().counts.foundVertices, 1);
+    walk.configure({ [predicate]: null });
+    const reset = walk.makeRunner();
+    await reset.run();
+    assert.equal(reset.summary().counts.foundVertices, 6);
+  }
+}
+
 const stream = new walking.AsyncGraphWalk({
   source: {
     async *roots() {

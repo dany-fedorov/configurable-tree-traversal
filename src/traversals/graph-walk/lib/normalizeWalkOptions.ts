@@ -190,10 +190,14 @@ export function normalizeWalkOptions<Data, Edge, ID>(
   const followEdge =
     snapshot['followEdge'] === undefined
       ? previous?.followEdge
+      : snapshot['followEdge'] === null
+      ? undefined
       : snapshot['followEdge'];
   const expandVertex =
     snapshot['expandVertex'] === undefined
       ? previous?.expandVertex
+      : snapshot['expandVertex'] === null
+      ? undefined
       : snapshot['expandVertex'];
   if (
     (followEdge !== undefined && typeof followEdge !== 'function') ||

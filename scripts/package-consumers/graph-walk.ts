@@ -191,6 +191,38 @@ walkGraphAsync({
   revisit: 'simplePaths',
   limits: { maxSteps: 10 },
 });
+new GraphWalk({ source, followEdge: null, expandVertex: null }).configure({
+  followEdge: null,
+  expandVertex: null,
+});
+new AsyncGraphWalk({
+  source: asyncSource,
+  followEdge: null,
+  expandVertex: null,
+}).configure({
+  followEdge: null,
+  expandVertex: null,
+});
+new GraphWalk({
+  source,
+  followEdge: undefined,
+  expandVertex: undefined,
+}).configure({
+  followEdge: undefined,
+  expandVertex: undefined,
+});
+new AsyncGraphWalk({
+  source: asyncSource,
+  followEdge: undefined,
+  expandVertex: undefined,
+}).configure({
+  followEdge: undefined,
+  expandVertex: undefined,
+});
+// @ts-expect-error Nullable reset does not admit nonfunction predicates.
+new GraphWalk({ source }).configure({ followEdge: false });
+// @ts-expect-error Async predicates accept callbacks or null, never booleans.
+new AsyncGraphWalk({ source: asyncSource }).configure({ expandVertex: false });
 new GraphWalk({ source }).configure({ revisit: 'walks' });
 new AsyncGraphWalk({ source }).configure({ revisit: 'simplePaths' });
 // @ts-expect-error Route enumeration always requires depth or step bounds.
