@@ -86,7 +86,7 @@ if (treeSourceName === undefined && result.satisfiesDependencies !== true) {
 
 ### Task 4: Canonical learning path and full integration
 
-**Files:** README.md, CHANGELOG.md, docs/{reference,agent-workflows,migration-uniform-api,index}.md as needed, AGENTS.md, examples/{agent-api-foundations,dag-inspection,graph-walk-references}-example.ts as needed, new review disposition and verification record, package consumer fixtures if needed.
+**Files:** README.md, CHANGELOG.md, docs/{reference,agent-workflows,migration-uniform-api,index}.md as needed, AGENTS.md, examples/{agent-api-foundations,dag-inspection,graph-walk-references}-example.ts as needed, new review disposition and verification record, package consumer fixtures if needed; JSDoc-only changes in `src/traversals/dag-traversal/{hasSingleSink.ts,lib/PreparedDag.ts,lib/DagTraversalVisitor.ts}`.
 **Interfaces:** Uses Tasks 1-3 without introducing runtime policies. Clarifies existing published contracts.
 
 - [ ] Add point-of-use guidance with executable examples: dispatch from session.advance frontier; workCompleted events are observations, not dispatch requests; ON_READY visitor and event timing are distinct.
@@ -97,7 +97,7 @@ if (boundary.kind === 'awaitingSettlement') {
 }
 // In runnable examples use local assertions instead of undefined hostDispatch.
 ```
-- [ ] Label PreparedDag.vertices a convenience projection and definition a faithful representation; explain progress/dependency/execution observations, enum phase selection, slots with known undefined IDs, edge target depth and catalog/lazy link mapping. Document hasSingleSink with structural relation, empty and single-leaf semantics. Avoid redundant explanatory sprawl; preserve existing anchors.
+- [ ] Label PreparedDag.vertices a convenience projection and definition a faithful representation; explain progress/dependency/execution observations, enum phase selection, slots with known undefined IDs, edge target depth and catalog/lazy link mapping. Document hasSingleSink with structural relation, empty and single-leaf semantics. Mirror the projection, event-timing and structural-sink guidance in the corresponding public JSDoc so IDE users see it. Avoid redundant explanatory sprawl; preserve existing anchors.
 - [ ] Record migrations and disposition of every Fable observation, distinguishing implemented changes, justified existing differences and deferred major-version work. No broad generics/phase renaming or added aliases.
 - [ ] Run `npm run check` and six packed lanes Node22.12.0/Node24.20.0/Bun1.4.4 × TS4.7.4/4.9.5. Also run Bun packaging/benchmark correctness tests. Resolve genuine failures using evidence, retaining full coverage. Add a durable concise verification record with commands/counts/log paths. Commit and report.
 
