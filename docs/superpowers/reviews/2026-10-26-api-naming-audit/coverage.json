@@ -1,0 +1,57 @@
+{
+  "baseline": "e52fab02333a044472e9aea864db26a8c33fc051",
+  "consolidated": {
+    "assessedRows": 2148,
+    "rankedImprovements": 20,
+    "unresolvedProposedNameCollisions": 0,
+    "intentionalConsolidations": [
+      "AsyncChildHintSorter",
+      "PrepareDagResult",
+      "ChildHintSorter",
+      "DagVisitorContext",
+      "TraversalExecutionOptions"
+    ]
+  },
+  "modules": 188,
+  "exportBindings": 1189,
+  "symbols": 556,
+  "directlyExportedSymbols": 509,
+  "signatureSupportDeclarations": 47,
+  "declaredMembers": 1592,
+  "assessedRows": 2148,
+  "missingRows": 0,
+  "perFamily": {
+    "dag": {
+      "expected": 477,
+      "reviewed": 477
+    },
+    "walking": {
+      "expected": 320,
+      "reviewed": 320
+    },
+    "tree-core": {
+      "expected": 966,
+      "reviewed": 966
+    },
+    "engine": {
+      "expected": 385,
+      "reviewed": 385
+    }
+  },
+  "inheritedOrMappedRelationships": 2300,
+  "relationshipsAtAlternativeSignatureLocations": 190,
+  "structuralCheck": {
+    "declarationModules": 188,
+    "topLevelSyntaxDeclarations": 559,
+    "publicOrProtectedMemberSyntaxOccurrences": 1714,
+    "uncoveredSyntaxEntries": 0
+  },
+  "limits": [
+    "Canonical declaration/member counts merge overloads and same-named fields of tagged union alternatives.",
+    "Signature-support declarations are included conservatively; they are not all standalone imports.",
+    "ESM default namespace facades and extension aliases are reviewed as module bindings, not new domain APIs.",
+    "Standard-library inherited members and private implementation members are excluded.",
+    "Parameters, generics, literals and inherited/mapped members are assessed with their owning contracts; only declared members have standalone rows.",
+    "No claim of formally proven human unambiguity; scores estimate likely agent comprehension impact."
+  ]
+}

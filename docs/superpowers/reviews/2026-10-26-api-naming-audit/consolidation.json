@@ -1,0 +1,1086 @@
+{
+  "overrides": [
+    {
+      "id": "sources/types::AsyncGraphSelectors#dependsOn",
+      "previousDecision": "rename",
+      "previousName": "dependsOnWork",
+      "decision": "rename",
+      "proposedName": "dependsOnWork",
+      "rationale": "Expose that this relation waits for the W work milestone, not structural child completion."
+    },
+    {
+      "id": "sources/types::AsyncGraphSelectors#dependsOnComplete",
+      "previousDecision": "rename",
+      "previousName": "dependsOnSubgraph",
+      "decision": "rename",
+      "proposedName": "dependsOnSubgraphCompletion",
+      "rationale": "Use explicit C-milestone vocabulary consistently across source selectors, definitions, prepared vertices and resolved records. Structural child edges remain separate."
+    },
+    {
+      "id": "sources/types::GraphSelectors#dependsOn",
+      "previousDecision": "rename",
+      "previousName": "dependsOnWork",
+      "decision": "rename",
+      "proposedName": "dependsOnWork",
+      "rationale": "Expose that this relation waits for the W work milestone, not structural child completion."
+    },
+    {
+      "id": "sources/types::GraphSelectors#dependsOnComplete",
+      "previousDecision": "rename",
+      "previousName": "dependsOnSubgraph",
+      "decision": "rename",
+      "proposedName": "dependsOnSubgraphCompletion",
+      "rationale": "Use explicit C-milestone vocabulary consistently across source selectors, definitions, prepared vertices and resolved records. Structural child edges remain separate."
+    },
+    {
+      "id": "traversals/dag-traversal/AsyncDagTraversal::AsyncDagTraversal#makeRunner",
+      "previousDecision": "rename",
+      "previousName": "createRunner",
+      "decision": "rename",
+      "proposedName": "createRunner",
+      "rationale": "Use one runner-construction verb across tree, DAG, walking builders and PreparedDag; no execution is implied."
+    },
+    {
+      "id": "traversals/dag-traversal/DagTraversal::DagTraversal#makeRunner",
+      "previousDecision": "rename",
+      "previousName": "createRunner",
+      "decision": "rename",
+      "proposedName": "createRunner",
+      "rationale": "Use one runner-construction verb across tree, DAG, walking builders and PreparedDag; no execution is implied."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagTraversalConfigureInput",
+      "previousDecision": "rename",
+      "previousName": "AsyncDagTraversalPatch",
+      "decision": "rename",
+      "proposedName": "AsyncDagTraversalOptionsPatch",
+      "rationale": "Use the same Options/OptionsPatch grammar across all families; patches preserve unmentioned source and configuration fields."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagTraversalInstanceConfig",
+      "previousDecision": "rename",
+      "previousName": "ResolvedAsyncDagTraversalOptions",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagTraversalOptions",
+      "previousDecision": "rename",
+      "previousName": "ResolvedDagTraversalFields",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagTraversalOptions#saveNotMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalStructure",
+      "decision": "rename",
+      "proposedName": "retainOriginalGraphStructure",
+      "rationale": "Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalRunner::AsyncDagTraversalRunner#getIterable",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalRunner::AsyncDagTraversalRunner#notMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "originalGraphView",
+      "decision": "rename",
+      "proposedName": "originalGraphView",
+      "rationale": "Name the retained provenance view consistently across tree/DAG contexts; caller data stays shallowly shared and discovery can grow the view."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagDefinition::DagDefinitionVertex#dependsOn",
+      "previousDecision": "rename",
+      "previousName": "dependsOnWork",
+      "decision": "rename",
+      "proposedName": "dependsOnWork",
+      "rationale": "Expose that this relation waits for the W work milestone, not structural child completion."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagDefinition::DagDefinitionVertex#dependsOnComplete",
+      "previousDecision": "rename",
+      "previousName": "dependsOnSubgraph",
+      "decision": "rename",
+      "proposedName": "dependsOnSubgraphCompletion",
+      "rationale": "Use explicit C-milestone vocabulary consistently across source selectors, definitions, prepared vertices and resolved records. Structural child edges remain separate."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagTraversalConfigureInput",
+      "previousDecision": "rename",
+      "previousName": "DagTraversalPatch",
+      "decision": "rename",
+      "proposedName": "DagTraversalOptionsPatch",
+      "rationale": "Use the same Options/OptionsPatch grammar across all families; patches preserve unmentioned source and configuration fields."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagTraversalInstanceConfig",
+      "previousDecision": "rename",
+      "previousName": "ResolvedDagTraversalOptions",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagTraversalOptions",
+      "previousDecision": "rename",
+      "previousName": "ResolvedDagTraversalFields",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagTraversalOptions#saveNotMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalStructure",
+      "decision": "rename",
+      "proposedName": "retainOriginalGraphStructure",
+      "rationale": "Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalRunner::DagTraversalRunner#getIterable",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalRunner::DagTraversalRunner#notMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "originalGraphView",
+      "decision": "rename",
+      "proposedName": "originalGraphView",
+      "rationale": "Name the retained provenance view consistently across tree/DAG contexts; caller data stays shallowly shared and discovery can grow the view."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalRunnerIterableConfig::DagTraversalRunnerIterableConfig",
+      "previousDecision": "rename",
+      "previousName": "ResolvedDagExecutionOptions",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalVisitor::DagVisitorOptions#notMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "originalGraphView",
+      "decision": "rename",
+      "proposedName": "originalGraphView",
+      "rationale": "Name the retained provenance view consistently across tree/DAG contexts; caller data stays shallowly shared and discovery can grow the view."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalVisitor::DagVisitorOptions#visitorRecord",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "registration",
+      "rationale": "Callback context supplies registration metadata; distinguish it from callback-bearing registration records."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/PreparedDag::PreparedDagSessionOptions#saveNotMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalStructure",
+      "decision": "rename",
+      "proposedName": "retainOriginalGraphStructure",
+      "rationale": "Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/PreparedDag::PreparedDagVertex#dependsOn",
+      "previousDecision": "rename",
+      "previousName": "dependsOnWork",
+      "decision": "rename",
+      "proposedName": "dependsOnWork",
+      "rationale": "Expose that this relation waits for the W work milestone, not structural child completion."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/PreparedDag::PreparedDagVertex#dependsOnComplete",
+      "previousDecision": "rename",
+      "previousName": "dependsOnSubgraph",
+      "decision": "rename",
+      "proposedName": "dependsOnSubgraphCompletion",
+      "rationale": "Use explicit C-milestone vocabulary consistently across source selectors, definitions, prepared vertices and resolved records. Structural child edges remain separate."
+    },
+    {
+      "id": "traversals/dag-traversal/prepareDag::PrepareDagOptions#saveNotMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalStructure",
+      "decision": "rename",
+      "proposedName": "retainOriginalGraphStructure",
+      "rationale": "Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/graph-walk/AsyncGraphWalk::AsyncGraphWalk#makeRunner",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "createRunner",
+      "rationale": "Use one runner-construction verb across tree, DAG, walking builders and PreparedDag; no execution is implied."
+    },
+    {
+      "id": "traversals/graph-walk/AsyncGraphWalkRunner::AsyncGraphWalkRunner#getIterable",
+      "previousDecision": "rename",
+      "previousName": "iterateEvents",
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "traversals/graph-walk/GraphWalk::GraphWalk#makeRunner",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "createRunner",
+      "rationale": "Use one runner-construction verb across tree, DAG, walking builders and PreparedDag; no execution is implied."
+    },
+    {
+      "id": "traversals/graph-walk/GraphWalkRunner::GraphWalkRunner#getIterable",
+      "previousDecision": "rename",
+      "previousName": "iterateEvents",
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "traversals/graph-walk/GraphWalkSource::AsyncGraphWalkSource#roots",
+      "previousDecision": "rename",
+      "previousName": "starts",
+      "decision": "keep",
+      "proposedName": null,
+      "rationale": "Retain conventional traversal-root terminology: a root here is a selected start occurrence, not a promised zero-in-degree structural vertex. Source protocol context establishes the role; no separate starts vocabulary is adopted."
+    },
+    {
+      "id": "traversals/graph-walk/GraphWalkSource::GraphWalkSource#roots",
+      "previousDecision": "rename",
+      "previousName": "starts",
+      "decision": "keep",
+      "proposedName": null,
+      "rationale": "Retain conventional traversal-root terminology: a root here is a selected start occurrence, not a promised zero-in-degree structural vertex. Source protocol context establishes the role; no separate starts vocabulary is adopted."
+    },
+    {
+      "id": "traversals/graph-walk/GraphWalkVisitor::GraphWalkVisitorContext#visitorRecord",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "registration",
+      "rationale": "Callback context supplies registration metadata; distinguish it from callback-bearing registration records."
+    },
+    {
+      "id": "traversals/graph-walk/walkSourceFrom::walkSourceFrom#(options).roots",
+      "previousDecision": "rename",
+      "previousName": "startIds",
+      "decision": "keep",
+      "proposedName": null,
+      "rationale": "Retain conventional traversal-root terminology: a root here is a selected start occurrence, not a promised zero-in-degree structural vertex. Source protocol context establishes the role; no separate starts vocabulary is adopted."
+    },
+    {
+      "id": "traversals/graph-walk/walkSourceFrom::walkSourceFromAsync#(options).roots",
+      "previousDecision": "rename",
+      "previousName": "startIds",
+      "decision": "keep",
+      "proposedName": null,
+      "rationale": "Retain conventional traversal-root terminology: a root here is a selected start occurrence, not a promised zero-in-degree structural vertex. Source protocol context establishes the role; no separate starts vocabulary is adopted."
+    },
+    {
+      "id": "core/CoreInspection::InspectionFilters#emitPhases",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "configure",
+      "proposedName": "emitEvents",
+      "rationale": "Select emitted observations by family-specific event discriminants, independently from visitor eligibility phases; shared execution types need separate selector parameters. This is a type-surface redesign, not only a rename."
+    },
+    {
+      "id": "core/TraversableGraph::MakeGraphVertexOptions#notMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "originalGraph",
+      "decision": "rename",
+      "proposedName": "originalGraphView",
+      "rationale": "Name the retained provenance view consistently across tree/DAG contexts; caller data stays shallowly shared and discovery can grow the view."
+    },
+    {
+      "id": "core/TraversableTree::MakeVertexOptions#notMutatedResolvedTree",
+      "previousDecision": "rename",
+      "previousName": "originalTree",
+      "decision": "rename",
+      "proposedName": "originalTreeView",
+      "rationale": "Name the retained provenance view consistently across tree/DAG contexts; caller data stays shallowly shared and discovery can grow the view."
+    },
+    {
+      "id": "core/Traversal::Traversal#makeRunner",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "createRunner",
+      "rationale": "Use one runner-construction verb across tree, DAG, walking builders and PreparedDag; no execution is implied."
+    },
+    {
+      "id": "core/TraversalExecution::AsyncTraversalExecution#getIterable",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "core/TraversalExecution::SyncTraversalExecution#getIterable",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "core/TraversalRunner::TraversalRunner#getIterable",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "core/TraversalRunnerIterableConfig::EffectiveTraversalExecutionOptions#emitPhases",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "configure",
+      "proposedName": "emitEvents",
+      "rationale": "Select emitted observations by family-specific event discriminants, independently from visitor eligibility phases; shared execution types need separate selector parameters. This is a type-surface redesign, not only a rename."
+    },
+    {
+      "id": "core/TraversalRunnerIterableConfig::TraversalExecutionOptions#emitPhases",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "configure",
+      "proposedName": "emitEvents",
+      "rationale": "Select emitted observations by family-specific event discriminants, independently from visitor eligibility phases; shared execution types need separate selector parameters. This is a type-surface redesign, not only a rename."
+    },
+    {
+      "id": "core/TraversalVisitor::TraversalVisitorInputOptions#notMutatedResolvedTree",
+      "previousDecision": "rename",
+      "previousName": "originalTree",
+      "decision": "rename",
+      "proposedName": "originalTreeView",
+      "rationale": "Name the retained provenance view consistently across tree/DAG contexts; caller data stays shallowly shared and discovery can grow the view."
+    },
+    {
+      "id": "core/TraversalVisitor::TraversalVisitorInputOptions#visitorRecord",
+      "previousDecision": "rename",
+      "previousName": "registration",
+      "decision": "rename",
+      "proposedName": "registration",
+      "rationale": "Callback context supplies registration metadata; distinguish it from callback-bearing registration records."
+    },
+    {
+      "id": "traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectTreeInstanceConfig::ObjectVertexHookResult#dependsOn",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "dependsOnWork",
+      "rationale": "Expose that this relation waits for the W work milestone, not structural child completion."
+    },
+    {
+      "id": "traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectTreeInstanceConfig::ObjectVertexHookResult#dependsOnComplete",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "dependsOnSubgraphCompletion",
+      "rationale": "Use explicit C-milestone vocabulary consistently across source selectors, definitions, prepared vertices and resolved records. Structural child edges remain separate."
+    },
+    {
+      "id": "traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectTreeInstanceConfig::TraversableObjectTreeInstanceConfig",
+      "previousDecision": "rename",
+      "previousName": "ResolvedObjectTreeOptions",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/AsyncBreadthFirstTraversal::AsyncBreadthFirstTraversal#makeRunner",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "createRunner",
+      "rationale": "Use one runner-construction verb across tree, DAG, walking builders and PreparedDag; no execution is implied."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/BreadthFirstTraversal::BreadthFirstTraversal#makeRunner",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "createRunner",
+      "rationale": "Use one runner-construction verb across tree, DAG, walking builders and PreparedDag; no execution is implied."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig::AsyncBreadthFirstSortChildrenHintsFn",
+      "previousDecision": "consolidate",
+      "previousName": "ChildHintSorter / AsyncChildHintSorter",
+      "decision": "consolidate",
+      "proposedName": "AsyncChildHintSorter",
+      "rationale": "Merge only callback types with identical sync/async contracts. Keep promise-aware sorter types separate from synchronous ones."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig::AsyncBreadthFirstTraversalInstanceConfig",
+      "previousDecision": "rename",
+      "previousName": "ResolvedAsyncBreadthFirstTreeOptions",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalRunner::AsyncBreadthFirstTraversalRunner#getIterable",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig::BreadthFirstSortChildrenHintsFn",
+      "previousDecision": "consolidate",
+      "previousName": "ChildHintSorter / AsyncChildHintSorter",
+      "decision": "consolidate",
+      "proposedName": "ChildHintSorter",
+      "rationale": "Merge only callback types with identical sync/async contracts. Keep promise-aware sorter types separate from synchronous ones."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig::BreadthFirstTraversalInstanceConfig",
+      "previousDecision": "rename",
+      "previousName": "ResolvedBreadthFirstTreeOptions",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig::BreadthFirstTraversalInstanceConfig#saveNotMutatedResolvedTree",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalTree",
+      "decision": "rename",
+      "proposedName": "retainOriginalTreeStructure",
+      "rationale": "Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunner::BreadthFirstTraversalRunner#getIterable",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "traversals/depth-first-traversal/AsyncDepthFirstTraversal::AsyncDepthFirstTraversal#makeRunner",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "createRunner",
+      "rationale": "Use one runner-construction verb across tree, DAG, walking builders and PreparedDag; no execution is implied."
+    },
+    {
+      "id": "traversals/depth-first-traversal/DepthFirstTraversal::DepthFirstTraversal#makeRunner",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "createRunner",
+      "rationale": "Use one runner-construction verb across tree, DAG, walking builders and PreparedDag; no execution is implied."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig::AsyncDepthFirstTraversalInstanceConfig",
+      "previousDecision": "rename",
+      "previousName": "ResolvedAsyncDepthFirstTreeOptions",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig::AsyncSortChildrenHintsFn",
+      "previousDecision": "consolidate",
+      "previousName": "ChildHintSorter / AsyncChildHintSorter",
+      "decision": "consolidate",
+      "proposedName": "AsyncChildHintSorter",
+      "rationale": "Merge only callback types with identical sync/async contracts. Keep promise-aware sorter types separate from synchronous ones."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalRunner::AsyncDepthFirstTraversalRunner#getIterable",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig::DepthFirstTraversalInstanceConfig",
+      "previousDecision": "rename",
+      "previousName": "ResolvedDepthFirstTreeOptions",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Defaulted/normalized implementation configuration is not a second public construction vocabulary. Keep public input Options/OptionsPatch and explicit diagnostic output types."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig::DepthFirstTraversalInstanceConfig#saveNotMutatedResolvedTree",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalTree",
+      "decision": "rename",
+      "proposedName": "retainOriginalTreeStructure",
+      "rationale": "Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig::SortChildrenHintsFn",
+      "previousDecision": "consolidate",
+      "previousName": "ChildHintSorter / AsyncChildHintSorter",
+      "decision": "consolidate",
+      "proposedName": "ChildHintSorter",
+      "rationale": "Merge only callback types with identical sync/async contracts. Keep promise-aware sorter types separate from synchronous ones."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/DepthFirstTraversalRunner::DepthFirstTraversalRunner#getIterable",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "iterateEvents",
+      "rationale": "Advancing this lazy iterator drives execution and visitor/source effects. Match all public execution families; it is not a passive getter or replay."
+    },
+    {
+      "id": "core/graph/types::GraphVertex#dependsOn",
+      "previousDecision": "rename",
+      "previousName": "dependsOnWork",
+      "decision": "rename",
+      "proposedName": "dependsOnWork",
+      "rationale": "Expose that this relation waits for the W work milestone, not structural child completion."
+    },
+    {
+      "id": "core/graph/types::GraphVertex#dependsOnComplete",
+      "previousDecision": "rename",
+      "previousName": "dependsOnSubgraphCompletion",
+      "decision": "rename",
+      "proposedName": "dependsOnSubgraphCompletion",
+      "rationale": "Use explicit C-milestone vocabulary consistently across source selectors, definitions, prepared vertices and resolved records. Structural child edges remain separate."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagSortChildrenHintsFn",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "consolidate",
+      "proposedName": "ChildHintSorter",
+      "rationale": "Same synchronous child-hint ordering function as tree families; share the contract rather than three family names."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagSortChildrenHintsFn",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "consolidate",
+      "proposedName": "AsyncChildHintSorter",
+      "rationale": "Same promise-aware child-hint ordering function as asynchronous tree families; keep distinct from sync sorter."
+    },
+    {
+      "id": "core/TraversableTree::FoundVertexResult",
+      "previousDecision": "rename",
+      "previousName": "GraphVertexFound",
+      "decision": "rename",
+      "proposedName": "DagVertexFound",
+      "rationale": "Make the identity/dependency-aware DAG discovery role explicit, separate from tree and arbitrary graph-walk resolution. Only prerequisite resolution permits missing."
+    },
+    {
+      "id": "core/TraversableTree::OmittedVertexResult",
+      "previousDecision": "rename",
+      "previousName": "GraphVertexOmitted",
+      "decision": "rename",
+      "proposedName": "DagVertexOmitted",
+      "rationale": "Make the identity/dependency-aware DAG discovery role explicit, separate from tree and arbitrary graph-walk resolution. Only prerequisite resolution permits missing."
+    },
+    {
+      "id": "core/TraversableTree::SourceVertexResult",
+      "previousDecision": "rename",
+      "previousName": "GraphVertexResolution",
+      "decision": "rename",
+      "proposedName": "DagVertexResolution",
+      "rationale": "Make the identity/dependency-aware DAG discovery role explicit, separate from tree and arbitrary graph-walk resolution. Only prerequisite resolution permits missing."
+    },
+    {
+      "id": "core/TraversableTree::PrerequisiteResolutionResult",
+      "previousDecision": "rename",
+      "previousName": "PrerequisiteResolution",
+      "decision": "rename",
+      "proposedName": "DagPrerequisiteResolution",
+      "rationale": "Make the identity/dependency-aware DAG discovery role explicit, separate from tree and arbitrary graph-walk resolution. Only prerequisite resolution permits missing."
+    },
+    {
+      "id": "core/TraversableGraph::MakeGraphVertexOptions",
+      "previousDecision": "rename",
+      "previousName": "GraphChildResolutionContext",
+      "decision": "rename",
+      "proposedName": "DagChildResolutionContext",
+      "rationale": "Engine-supplied context for resolving a DAG structural child hint; not generic graph construction options."
+    },
+    {
+      "id": "traversals/graph-walk/walkSourceFromDag::walkSourceFromDag",
+      "previousDecision": "rename",
+      "previousName": "walkSourceFromDagDefinition",
+      "decision": "rename",
+      "proposedName": "materializeWalkSourceFromDagDefinition",
+      "rationale": "Eagerly builds walking adjacency from an authored DagDefinition and selected relations. It does not adapt a live runner or execute milestones."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagProgress::DEFER_READY",
+      "previousDecision": "rename",
+      "previousName": "DEFER_WORK_COMPLETION",
+      "decision": "compatibility-only",
+      "proposedName": null,
+      "rationale": "The old exported sentinel is already deprecated. Do not introduce a renamed second sentinel; use the explicit DEFER_WORK_COMPLETION visitor command."
+    },
+    {
+      "id": "core/TraversalVisitor::TraversalVisitorCommandName#DEFER_READY",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "DEFER_WORK_COMPLETION",
+      "rationale": "Names deferred W commitment after readiness; this command ends its visitor chain rather than postponing readiness."
+    },
+    {
+      "id": "core/TraversalRunnerIterableConfig::EffectiveTraversalExecutionOptions",
+      "previousDecision": "consolidate",
+      "previousName": "TraversalExecutionOptions",
+      "decision": "keep",
+      "proposedName": null,
+      "rationale": "Retain a distinct effective diagnostic/output shape rather than conflating it with caller input. Remove legacy aliases in the canonical migration and align separate event/visitor selectors."
+    },
+    {
+      "id": "core/TraversalRunnerIterableConfig::TraversalExecutionOptions",
+      "previousDecision": "consolidate",
+      "previousName": "TraversalExecutionOptions",
+      "decision": "keep",
+      "proposedName": null,
+      "rationale": "Canonical configurable execution input name is idiomatic. Extend type parameters to distinguish DAG event selection from visitor phases without merging normalized output into this input."
+    },
+    {
+      "id": "core/TraversalRunnerIterableConfig::TraversalIterableConfigInput",
+      "previousDecision": "consolidate",
+      "previousName": "TraversalExecutionOptions",
+      "decision": "consolidate",
+      "proposedName": "TraversalExecutionOptions",
+      "rationale": "Retire the compatibility union as a preferred competing name; canonical input keeps explicit independent selectors. Effective output remains a distinct type."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalVisitor::AsyncDagVisitorOptions",
+      "previousDecision": "consolidate",
+      "previousName": "DagVisitorContext",
+      "decision": "consolidate",
+      "proposedName": "DagVisitorContext",
+      "rationale": "Async callbacks receive the identical supplied context; consolidate instead of creating duplicate types with the same proposed name."
+    },
+    {
+      "id": "traversable-tree-implementations/traversable-object-tree/lib/makeMutationCommandFactory::MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT",
+      "previousDecision": "rename",
+      "previousName": "DEFAULT_OBJECT_MUTATION_OPTIONS",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Keep default implementation configuration behind ObjectMutationOptions rather than another public constant/normalization vocabulary."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagTraversalOptions#completedWork",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Host-accepted W facts seed new execution; naming is precise about completed work rather than durable runner state."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagTraversalOptions#concurrency",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Bounded async callback/chain admission is a real scheduling control; not worker count in the host."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagTraversalOptions#saveNotMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalGraphStructure",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagTraversalOptions#sortChildrenHints",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Orders sibling discovery hints; it is not a priority scheduler for host tasks."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagTraversalOptions#visitors",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed member visitors in AsyncDagTraversalOptions. Private signature composition for normalized execution/source policy and caller patches; member meanings are reviewed across public configuration aliases."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagTraversalOptions#completedWork",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Host-accepted W facts seed new execution; naming is precise about completed work rather than durable runner state."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagTraversalOptions#saveNotMutatedResolvedGraph",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalGraphStructure",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagTraversalOptions#sortChildrenHints",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Orders sibling discovery hints; it is not a priority scheduler for host tasks."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagTraversalOptions#visitors",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed member visitors in DagTraversalOptions. Private signature composition for normalized execution/source policy and caller patches; member meanings are reviewed across public configuration aliases."
+    },
+    {
+      "id": "traversable-tree-implementations/traversable-object-tree/lib/makeMutationCommandFactory::MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT#assembleArray",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT: Exported default factory configuration is object-property-specific, not a generic mutation system. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversable-tree-implementations/traversable-object-tree/lib/makeMutationCommandFactory::MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT#assembleObject",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT: Exported default factory configuration is object-property-specific, not a generic mutation system. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversable-tree-implementations/traversable-object-tree/lib/makeMutationCommandFactory::MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT#isArray",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT: Exported default factory configuration is object-property-specific, not a generic mutation system. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversable-tree-implementations/traversable-object-tree/lib/makeMutationCommandFactory::MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT#isObject",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT: Exported default factory configuration is object-property-specific, not a generic mutation system. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectTreeInstanceConfig::TraversableObjectTreeInstanceConfig#resolveVertexHook",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within TraversableObjectTreeInstanceConfig: Resolved/defaulted configuration should be named for that role instead of InstanceConfig. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig::AsyncBreadthFirstTraversalInstanceConfig#concurrency",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within AsyncBreadthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig::AsyncBreadthFirstTraversalInstanceConfig#sortChildrenHints",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within AsyncBreadthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig::AsyncBreadthFirstTraversalInstanceConfig#traversableTree",
+      "previousDecision": "rename",
+      "previousName": "source",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Owning tree-specific option/type determines family; source distinguishes discovery protocol from resolved structure."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig::AsyncBreadthFirstTraversalInstanceConfig#visitors",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within AsyncBreadthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig::BreadthFirstTraversalInstanceConfig#saveNotMutatedResolvedTree",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalTreeStructure",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig::BreadthFirstTraversalInstanceConfig#sortChildrenHints",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within BreadthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig::BreadthFirstTraversalInstanceConfig#traversableTree",
+      "previousDecision": "rename",
+      "previousName": "source",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Owning tree-specific option/type determines family; source distinguishes discovery protocol from resolved structure."
+    },
+    {
+      "id": "traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig::BreadthFirstTraversalInstanceConfig#visitors",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within BreadthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig::AsyncDepthFirstTraversalInstanceConfig#concurrency",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within AsyncDepthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig::AsyncDepthFirstTraversalInstanceConfig#sortChildrenHints",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within AsyncDepthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig::AsyncDepthFirstTraversalInstanceConfig#traversableTree",
+      "previousDecision": "rename",
+      "previousName": "source",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Owning tree-specific option/type determines family; source distinguishes discovery protocol from resolved structure."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig::AsyncDepthFirstTraversalInstanceConfig#visitors",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within AsyncDepthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig::DepthFirstTraversalInstanceConfig#inOrderTraversalConfig",
+      "previousDecision": "rename",
+      "previousName": "inOrder",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Receiver already identifies traversal options; nested public knob is the in-order policy."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig::DepthFirstTraversalInstanceConfig#saveNotMutatedResolvedTree",
+      "previousDecision": "rename",
+      "previousName": "retainOriginalTreeStructure",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Retain progressively accepted original structure with shared payloads; neither complete point-in-time snapshot nor deep immutability is promised."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig::DepthFirstTraversalInstanceConfig#sortChildrenHints",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within DepthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig::DepthFirstTraversalInstanceConfig#traversableTree",
+      "previousDecision": "rename",
+      "previousName": "source",
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Owning tree-specific option/type determines family; source distinguishes discovery protocol from resolved structure."
+    },
+    {
+      "id": "traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig::DepthFirstTraversalInstanceConfig#visitors",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "internalize",
+      "proposedName": null,
+      "rationale": "Reviewed owning type is implementation-only; this member is not a separate supported API. Reviewed within DepthFirstTraversalInstanceConfig: Use Options for caller configuration, ResolvedOptions internally and ConfigureInput only for patches; InstanceConfig/HelperOptions length obscures operation ownership. This member's spelling follows its explicit signature role."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalVisitor::DagEvent#order",
+      "previousDecision": "rename",
+      "previousName": "phase",
+      "decision": "compatibility-only",
+      "proposedName": null,
+      "rationale": "Remove the callback-phase label from canonical committed DAG events. Event kind selects the observation; callbacks use their own eligibility phase."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalVisitor::DagVisitorOptions#previousVisitedVertexRef",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "previousPhaseVertexRef",
+      "rationale": "Previous vertex belongs to this visitor phase; make that scope explicit consistently across tree/DAG contexts."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagTraversalVisitor::DagVisitorOptions#vertexVisitIndex",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "rename",
+      "proposedName": "phaseVisitIndex",
+      "rationale": "Counter belongs to this visitor phase, not a global traversal event sequence. Preserve its existing increment timing."
+    },
+    {
+      "id": "core/TraversalVisitor::TraversalVisitorInputOptions#previousVisitedVertexRef",
+      "previousDecision": "rename",
+      "previousName": "previousPhaseVertexRef",
+      "decision": "rename",
+      "proposedName": "previousPhaseVertexRef",
+      "rationale": "Previous vertex belongs to this visitor phase; make that scope explicit consistently across tree/DAG contexts."
+    },
+    {
+      "id": "core/TraversalVisitor::TraversalVisitorInputOptions#vertexVisitIndex",
+      "previousDecision": "rename",
+      "previousName": "phaseVisitIndex",
+      "decision": "rename",
+      "proposedName": "phaseVisitIndex",
+      "rationale": "Counter belongs to this visitor phase, not a global traversal event sequence. Preserve its existing increment timing."
+    },
+    {
+      "id": "core/errors/DagTraversalStallError::DagDependencyMilestone#milestone",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "configure",
+      "proposedName": "milestone",
+      "rationale": "Retain the discriminant property, but use work | subgraphCompletion literal vocabulary so C means the same thing across all public layers."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagInspection::CompletionTarget#milestone",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "configure",
+      "proposedName": "milestone",
+      "rationale": "Retain the discriminant property, but use work | subgraphCompletion literal vocabulary so C means the same thing across all public layers."
+    },
+    {
+      "id": "traversals/dag-traversal/lib/DagRevision::DagDefinitionChangeAspect",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "configure",
+      "proposedName": "DagDefinitionChangeAspect",
+      "rationale": "Retain the type name; align the completionDependencies aspect literal to subgraphCompletionDependencies while preserving structural and work aspect distinctions."
+    },
+    {
+      "id": "traversals/graph-walk/walkSourceFromDag::GraphWalkDagRelation#kind",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "configure",
+      "proposedName": "kind",
+      "rationale": "Retain the tagged relation property; rename completionDependency to subgraphCompletionDependency, preserving child and work relation distinctions."
+    },
+    {
+      "id": "traversals/graph-walk/walkSourceFromDag::RelationSelection",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "configure",
+      "proposedName": "RelationSelection",
+      "rationale": "Keep the genuine configurable relation set; align completionDependencies to subgraphCompletionDependencies."
+    },
+    {
+      "id": "traversals/graph-walk/walkSourceFromDag::walkSourceFromDag#(options).relations",
+      "previousDecision": "keep",
+      "previousName": null,
+      "decision": "configure",
+      "proposedName": "relations",
+      "rationale": "Keep the genuine relation selection option; align completionDependencies to subgraphCompletionDependencies to match the C milestone vocabulary."
+    }
+  ],
+  "proposedNameCollisions": [
+    {
+      "name": "AsyncChildHintSorter",
+      "ids": [
+        "traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig::AsyncDagSortChildrenHintsFn",
+        "traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig::AsyncBreadthFirstSortChildrenHintsFn",
+        "traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig::AsyncSortChildrenHintsFn"
+      ],
+      "decisions": [
+        "consolidate",
+        "consolidate",
+        "consolidate"
+      ],
+      "resolution": "Intentional consolidation; retain one canonical definition and migration aliases only."
+    },
+    {
+      "name": "PrepareDagResult",
+      "ids": [
+        "traversals/dag-traversal/lib/DagDefinition::DagDefinitionResult",
+        "traversals/dag-traversal/lib/PreparedDag::PrepareDagResult"
+      ],
+      "decisions": [
+        "consolidate",
+        "keep"
+      ],
+      "resolution": "Intentional consolidation; retain one canonical definition and migration aliases only."
+    },
+    {
+      "name": "ChildHintSorter",
+      "ids": [
+        "traversals/dag-traversal/lib/DagTraversalInstanceConfig::DagSortChildrenHintsFn",
+        "traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig::BreadthFirstSortChildrenHintsFn",
+        "traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig::SortChildrenHintsFn"
+      ],
+      "decisions": [
+        "consolidate",
+        "consolidate",
+        "consolidate"
+      ],
+      "resolution": "Intentional consolidation; retain one canonical definition and migration aliases only."
+    },
+    {
+      "name": "DagVisitorContext",
+      "ids": [
+        "traversals/dag-traversal/lib/DagTraversalVisitor::AsyncDagVisitorOptions",
+        "traversals/dag-traversal/lib/DagTraversalVisitor::DagVisitorOptions"
+      ],
+      "decisions": [
+        "consolidate",
+        "rename"
+      ],
+      "resolution": "Intentional consolidation; retain one canonical definition and migration aliases only."
+    },
+    {
+      "name": "TraversalExecutionOptions",
+      "ids": [
+        "core/TraversalRunnerIterableConfig::TraversalExecutionOptions",
+        "core/TraversalRunnerIterableConfig::TraversalIterableConfigInput"
+      ],
+      "decisions": [
+        "keep",
+        "consolidate"
+      ],
+      "resolution": "Intentional consolidation; retain one canonical definition and migration aliases only."
+    }
+  ]
+}

@@ -26,7 +26,7 @@ CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool
 npm install configurable-tree-traversal
 ```
 
-**This checkout documents the unreleased uniform, composable, and graph-walking APIs.** The published npm release is **0.11.0**; its API differs from the examples below. See the [migration guide](docs/migration-uniform-api.md) for changed defaults and compatibility forms. The package version stays unchanged until release. Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
+Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
 
 ## Quickstart: find the next agent tasks
 

@@ -2,8 +2,6 @@
 
 [Documentation map](index.md) · [Quickstart](../README.md#quickstart-find-the-next-agent-tasks) · [API reference](reference.md)
 
-This guide describes the unreleased checkout API; published npm 0.11.0 users should read the [migration guide](migration-uniform-api.md).
-
 Use CTT when agents or tools perform work with dependencies: research before implementation, independent specialist tasks in parallel, verification after several branches, or review after an entire composite completes. CTT supplies graph discovery, dependency readiness, lifecycle transitions, and inspection. Your coordinator supplies the workflow and executes it.
 
 ## On this page

@@ -2,7 +2,7 @@
 
 [Home and quickstart](../README.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md)
 
-These pages describe the **unreleased uniform, composable, and graph-walking APIs in this checkout**. The published npm release remains **0.11.0**. The [migration guide](migration-uniform-api.md) covers changed defaults and deprecated forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
+The [migration guide](migration-uniform-api.md) covers changed defaults and deprecated forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
 
 ## Read by task
 
@@ -19,7 +19,7 @@ These pages describe the **unreleased uniform, composable, and graph-walking API
 | Explore cyclic context, references or provenance | [Walking workflow](agent-workflows.md#explore-context-and-references) → [walking contracts](reference.md#general-graph-walking) | A lazy source, independent observations, and explicit completeness outcome |
 | Walk an object or abstract tree | [Objects](reference.md#traverse-an-object) → [abstract trees](reference.md#abstract-trees) → [orders](reference.md#traversal-orders) | The correct adapter, traversal family, and order |
 | Use async callbacks | [Execution models](agent-workflows.md#choose-an-execution-model) → [async traversal](reference.md#async-traversal) → [pause/resume](reference.md#pause-and-resume) | A callback concurrency limit and clear iterator ownership |
-| Migrate from published 0.11.0               | [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                                                      | Prepared previews, guarded frontiers, execution/pause capabilities, truthful rewrite outputs, typed identity, diagnostics and detached queries |
+| Migrate from 0.11.0               | [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                                                      | Prepared previews, guarded frontiers, execution/pause capabilities, truthful rewrite outputs, typed identity, diagnostics and detached queries |
 | Modify CTT | [AGENTS.md](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/AGENTS.md) → [testing](testing.md) | The relevant implementation and regression tests |
 
 ## Runnable examples
@@ -47,8 +47,8 @@ The npm package includes these guides and the reference. Examples, contributor i
 
 ## Evidence and history
 
-- [Changelog](../CHANGELOG.md): unreleased changes and historical release facts.
+- [Changelog](../CHANGELOG.md): changes and release history.
 - [Testing](testing.md): commands, coverage requirements, package/runtime checks.
 - [Performance reports](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/performance): measured artifacts and explicit limits; not universal speed guarantees.
-- [Agent API roadmap](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/docs/superpowers/specs/2026-10-25-agent-api-roadmap.md): ten proposals; the current reference documents the implemented collection, preparation, coordination, fragment composition, validated revisions, dependency inspection, event and visitor APIs. General graph walking (9) is implemented in this checkout; items 5 and 10 remain future work.
+- [Agent API roadmap](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/docs/superpowers/specs/2026-10-25-agent-api-roadmap.md): ten proposals; the current reference documents the implemented collection, preparation, coordination, fragment composition, validated revisions, dependency inspection, event and visitor APIs. General graph walking (9) is implemented; items 5 and 10 remain future work.
 - [Research](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/research) and [design plans](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/superpowers): decision history. Some proposals are superseded or describe downstream work that CTT does not implement. Use current guides and source/tests to establish behavior.

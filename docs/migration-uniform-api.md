@@ -2,7 +2,7 @@
 
 [Documentation map](index.md) · [Agent workflows](agent-workflows.md) · [API reference](reference.md)
 
-This guide describes the **unreleased API in this checkout**, relative to published npm **0.11.0**. The package version remains 0.11.0 until a separately requested release. Installing the current published package does not provide these new contracts.
+This guide covers API changes from **0.11.0**, including changed defaults, deprecated forms, and compatibility guidance.
 
 CTT still owns generic discovery, dependencies, callback scheduling, traversal lifecycle, and in-memory progress. The host owns agent execution, business outcomes, retries, claims, artifacts, and durable storage. Data and hints remain opaque values.
 
@@ -18,7 +18,7 @@ These additions compose with existing DAG constructors and runners; custom adapt
 | `run()` → summary frontier → `settle()` → `run()` | `advance()` → frontier ticket → `complete(ticket)` → `advance()` |
 | Callback-local data filtering | `filterDagVisitor(guard, (data, context) => ...)` or `filterAsyncDagVisitor`; the callback receives narrowed data |
 
-The unreleased collection selector names `dependencies` and `completionDependencies` are replaced by `dependsOn` and `dependsOnComplete`. All four adapters throw `TypeError` for the retired keys before input/selector callbacks, including inherited keys and keys present with `undefined`, to prevent silently dropping dependency edges. Task-data properties, diagnostic fields, walking relation selections and definition-diff aspects retain their names.
+The former collection selector names `dependencies` and `completionDependencies` are replaced by `dependsOn` and `dependsOnComplete`. All four adapters throw `TypeError` for the retired keys before input/selector callbacks, including inherited keys and keys present with `undefined`, to prevent silently dropping dependency edges. Task-data properties, diagnostic fields, walking relation selections and definition-diff aspects retain their names.
 
 Collection adapters copy membership and edge lists while retaining shallow item/ID identity. Async source helpers materialize iterable/async-iterable inputs and selectors into ordinary synchronous sources. `graphFrom` children are catalog IDs; `forestFrom` children are records, with shared references allowed. Missing child IDs and conflicting record identities reject.
 
@@ -28,7 +28,7 @@ Coordination requires external settlement. Frontier tickets are nominal readonly
 
 ## Materialized definitions, fragments, inspection, and revisions
 
-These optional APIs extend prepared DAGs in this unreleased checkout. `prepared.definition` retains entry mode, ordered discovery slots and omissions; `.vertices` is a live-child convenience projection and rebuilding from it loses those facts. Use `definition.vertices` when authoring revisions. Author values with `defineDag`, validate with `prepareDagDefinition`, or reuse shapes through `defineDagFragment`, `instantiateDagFragment` and `composeDag`. Structural child links and W/C wires remain separate.
+These optional APIs extend prepared DAGs. `prepared.definition` retains entry mode, ordered discovery slots and omissions; `.vertices` is a live-child convenience projection and rebuilding from it loses those facts. Use `definition.vertices` when authoring revisions. Author values with `defineDag`, validate with `prepareDagDefinition`, or reuse shapes through `defineDagFragment`, `instantiateDagFragment` and `composeDag`. Structural child links and W/C wires remain separate.
 
 Use `inspectDag(runner)` for detached milestone navigation and explanations. Use `reviseDag(prepared, operations)` for ordered atomic edits: success returns a fresh prepared DAG plus a shallow `diffDagDefinitions` result; graph invalidity returns issues. Full replacement records explicitly declare slots and both dependency lists. Removal requires explicit repair of dangling references. Programmer errors throw.
 
@@ -36,7 +36,7 @@ Create a new session from the revised DAG. Old tickets, generations, callbacks a
 
 ## General graph walking and common inspection
 
-The unreleased walking family is additive: use `GraphWalk`, `AsyncGraphWalk`, `walkGraph` or `walkGraphAsync` with a single options object and a walking `source`. Root, `graphWalk` namespace and `traversals/graph-walk` subpath exports share identity. Existing tree/DAG source types and event timing are unchanged. Explicit target wrappers support ID-only or inline-hydrated discovery; event records carry typed vertices, edges and prefixes rather than tree `Vertex` instances. Use explicit adapters for finite catalogs or selected `DagDefinition` relations.
+The walking family is additive: use `GraphWalk`, `AsyncGraphWalk`, `walkGraph` or `walkGraphAsync` with a single options object and a walking `source`. Root, `graphWalk` namespace and `traversals/graph-walk` subpath exports share identity. Existing tree/DAG source types and event timing are unchanged. Explicit target wrappers support ID-only or inline-hydrated discovery; event records carry typed vertices, edges and prefixes rather than tree `Vertex` instances. Use explicit adapters for finite catalogs or selected `DagDefinition` relations.
 
 Defaults are BFS, unique vertices (`once`), vertex-only emission and serial execution. `simplePaths`/`walks` require depth or step bounds; always inspect `summary().outcome`. A supplied `configure` limits record replaces the old record, with merged validation before mutation. The first accepted resolution wins even after omission; this intentionally differs from DAG milestone omission. Walking explicit emission selectors narrow at delivery, including buffered records, without changing tree/DAG admission semantics. Consumer iterator return pauses; walking runner close is terminal disposal. Closing a failed walker rethrows its exact error without repeated cleanup; overlapping async closes share a promise. See the [full walking contract](reference.md#general-graph-walking).
 
