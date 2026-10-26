@@ -1,4 +1,6 @@
-import { inspectDag } from '../src';
+import { inspectDag, DagTraversalStallError } from '../src';
+import type * as dag from '../src/traversals/dag-traversal';
+import * as core from '../src/core';
 import type {
   DagInspection,
   DagMilestoneQueryResult,
@@ -58,6 +60,8 @@ void [waits, wrong, wrongId, identity];
 const inspections: DagInspection<ID>[] = [
   inspectDag(sync),
   inspectDag(asyncRunner),
+  sync.inspectDag(),
+  asyncRunner.inspectDag(),
 ];
 const navigation: DagMilestoneQueryResult<ID> = inspections[0]!.prerequisitesOf(
   { vertexId: 'review', milestone: 'work' },
@@ -140,3 +144,57 @@ if (explanation.kind === 'known') {
   void progress;
 }
 void declaredExplanation;
+
+const typedStall: dag.DagTraversalStallError<ID> =
+  new core.DagTraversalStallError<ID>({
+    dependencies: [{ id: 'review', unmet: ['work'] }],
+    unknownPrerequisiteIds: [],
+    dependencyCycles: [],
+    dependencyBlockedIds: ['review'],
+    structurallyIncompleteIds: [],
+  });
+const stallId: ID = typedStall.diagnostics.dependencies[0]!.id;
+const stallWait: ID = typedStall.diagnostics.dependencies[0]!.unmet[0]!;
+const stallEdgeId: ID | undefined =
+  typedStall.diagnostics.dependencyEdges[0]?.to.vertexId;
+const defaultStall: DagTraversalStallError = typedStall;
+// @ts-expect-error Defaults preserve unknown instead of allowing an unchecked ID.
+const unknownId: ID = defaultStall.diagnostics.dependencies[0]!.id;
+// @ts-expect-error A typed diagnostic cannot silently change ID domains.
+const wrongStall: DagTraversalStallError<'other'> = typedStall;
+const invalidStall = new DagTraversalStallError<ID>({
+  // @ts-expect-error Constructor diagnostics retain the chosen ID domain.
+  dependencies: [{ id: 'other', unmet: [] }],
+  unknownPrerequisiteIds: [],
+  dependencyCycles: [],
+  dependencyBlockedIds: [],
+  structurallyIncompleteIds: [],
+});
+// @ts-expect-error Async runner inspection is synchronous.
+const asynchronousInspection: Promise<DagInspection<ID>> =
+  asyncRunner.inspectDag();
+// @ts-expect-error Runner method preserves the declared ID domain.
+sync.inspectDag().explain({ vertexId: 'other', milestone: 'work' });
+void [
+  stallId,
+  stallWait,
+  stallEdgeId,
+  unknownId,
+  wrongStall,
+  invalidStall,
+  asynchronousInspection,
+];
+
+const heterogeneousStall = new DagTraversalStallError({
+  dependencies: [{ id: { task: 'root' }, unmet: [undefined, null, NaN] }],
+  unknownPrerequisiteIds: [undefined, null, NaN],
+  dependencyCycles: [],
+  dependencyBlockedIds: [],
+  structurallyIncompleteIds: [],
+});
+const legacyUnknown: unknown =
+  heterogeneousStall.diagnostics.dependencies[0]!.id;
+// @ts-expect-error Omitting the error type argument preserves the unknown default.
+const legacyDomain: { task: string } | null | undefined | number =
+  heterogeneousStall.diagnostics.dependencies[0]!.id;
+void [legacyUnknown, legacyDomain];

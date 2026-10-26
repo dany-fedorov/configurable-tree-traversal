@@ -55,3 +55,4 @@ export type {
 } from './lib/DagRevision';
 
 export * from './reviseDag';
+export * from './lib/DagFragmentValidationError';

@@ -33,6 +33,8 @@ import {
   mergeAsyncDagTraversalInstanceConfigs,
   type AsyncDagTraversalInstanceConfig,
 } from './AsyncDagTraversalInstanceConfig';
+import { inspectDag as captureDagInspection } from '../inspectDag';
+import type { DagInspection } from './DagInspection';
 import { DagPolicy } from './DagPolicy';
 import { DagTraversalOrder } from './DagTraversalOrder';
 import type { DagEvent } from './DagTraversalVisitor';
@@ -250,6 +252,11 @@ export class AsyncDagTraversalRunner<
         ? this.kernel.inspectDagState()
         : this.terminalObservation.inspectDagState()
     ) as DagInspectionState<ID>;
+  }
+
+  /** Capture synchronously without advancing discovery or acquiring iterator ownership. */
+  inspectDag(): DagInspection<ID> {
+    return captureDagInspection(this);
   }
 
   summary(): DagSummary<ID> {

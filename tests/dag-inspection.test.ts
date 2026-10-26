@@ -937,3 +937,120 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     ).toMatchObject({ kind: 'known', satisfied: true });
   });
 }
+
+for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+  test(`${Constructor.name} runner inspection observes initial, active and finished execution without driving it`, async () => {
+    let sources = 0;
+    let visitors = 0;
+    const traversal = new Constructor<G, G, string>({
+      traversableGraph: {
+        makeRoot: () => {
+          sources++;
+          return {
+            kind: 'found',
+            vertex: {
+              vertexId: 'root',
+              vertexContent: { $data: 'root', $childHints: [] },
+            },
+          };
+        },
+        makeVertex: () => {
+          throw new Error('Unexpected child resolution');
+        },
+      },
+    });
+    traversal.addVisitorFor(Order.ON_READY, () => {
+      visitors++;
+    });
+    const runner = traversal.makeRunner();
+    const target = { vertexId: 'root', milestone: 'work' as const };
+    const before = runner.inspectDag();
+    expect(before.explain(target)).toEqual({
+      kind: 'unknown',
+      target,
+      discoveryComplete: false,
+    });
+    expect({ sources, visitors }).toEqual({ sources: 0, visitors: 0 });
+    const iterator = runner.getIterable();
+    expect((await iterator.next()).done).toBe(false);
+    const active = runner.inspectDag();
+    const calls = { sources, visitors };
+    expect(active.explain(target)).toEqual(inspectDag(runner).explain(target));
+    expect(active.explain(target)).toMatchObject({
+      kind: 'known',
+      satisfied: true,
+    });
+    expect(active.dependentsOf(target)).toEqual(
+      inspectDag(runner).dependentsOf(target),
+    );
+    const completion = { vertexId: 'root', milestone: 'completion' as const };
+    expect(active.prerequisitesOf(completion)).toEqual({
+      milestones: [target],
+      edges: [{ from: completion, to: target, reason: 'ownWork' }],
+      discoveryComplete: false,
+    });
+    expect({ sources, visitors }).toEqual(calls);
+    for await (const _event of iterator) {
+      /* Drain the owner retained during inspection. */
+    }
+    expect(runner.inspectDag().explain(completion)).toMatchObject({
+      kind: 'known',
+      satisfied: true,
+    });
+    expect(runner.inspectDag().explain(completion)).toEqual(
+      inspectDag(runner).explain(completion),
+    );
+    expect({ sources, visitors }).toEqual({ sources: 1, visitors: 1 });
+    expect(before.explain(target)).toMatchObject({
+      kind: 'unknown',
+      discoveryComplete: false,
+    });
+    expect(active.explain(completion)).toMatchObject({
+      kind: 'known',
+      satisfied: false,
+    });
+  });
+}
+
+test('async runner inspection stays synchronous while a source callback is pending', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let sources = 0;
+  const runner = new AsyncDagTraversal<G, G, string>({
+    traversableGraph: {
+      makeRoot: async () => {
+        sources++;
+        await gate;
+        return {
+          kind: 'found',
+          vertex: {
+            vertexId: 'root',
+            vertexContent: { $data: 'root', $childHints: [] },
+          },
+        };
+      },
+      makeVertex: () => {
+        throw new Error('Unexpected child resolution');
+      },
+    },
+  }).makeRunner();
+  const pending = runner.run();
+  try {
+    const snapshot = runner.inspectDag();
+    const target = { vertexId: 'root', milestone: 'work' as const };
+    expect(snapshot.explain(target)).toEqual({
+      kind: 'unknown',
+      target,
+      discoveryComplete: false,
+    });
+    expect(snapshot.explain(target)).toEqual(
+      inspectDag(runner).explain(target),
+    );
+    expect(sources).toBe(1);
+  } finally {
+    release();
+    await pending;
+  }
+});

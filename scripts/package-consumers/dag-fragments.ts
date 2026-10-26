@@ -1,4 +1,6 @@
 import {
+  DagFragmentValidationError,
+  type DagDefinitionIssue,
   defineDag,
   defineDagFragment,
   instantiateDagFragment,
@@ -138,3 +140,31 @@ const packedInstance: dag.DagFragmentInstance<
 const validated: dag.DagDefinitionResult<number, Local> =
   dag.prepareDagDefinition(packedDefinition);
 void [packedInstance, validated];
+
+const fragmentError: dag.DagFragmentValidationError<Local> =
+  new DagFragmentValidationError<Local>([
+    { kind: 'unreachable', vertexIds: ['start'] },
+  ]);
+const fragmentIssues: readonly DagDefinitionIssue<Local>[] =
+  fragmentError.issues;
+const defaultError: DagFragmentValidationError = fragmentError;
+const fragmentTypeError: TypeError = fragmentError;
+// @ts-expect-error The issue collection is readonly.
+fragmentError.issues.push({ kind: 'unreachable', vertexIds: ['finish'] });
+// @ts-expect-error The issue collection cannot be replaced.
+fragmentError.issues = [];
+const invalidFragmentError = new DagFragmentValidationError<Local>([
+  // @ts-expect-error Issue IDs preserve the explicitly selected domain.
+  { kind: 'unreachable', vertexIds: ['other'] },
+]);
+const fragmentIssue = fragmentError.issues[0]!;
+if (fragmentIssue.kind === 'milestone') {
+  const id: Local = fragmentIssue.diagnostics.dependencyEdges[0]!.to.vertexId;
+  // @ts-expect-error Typed diagnostic IDs are not foreign IDs.
+  const wrong: 'other' = id;
+  void wrong;
+} else if (fragmentIssue.kind === 'unreachable') {
+  const id: Local = fragmentIssue.vertexIds[0]!;
+  void id;
+}
+void [fragmentIssues, defaultError, fragmentTypeError, invalidFragmentError];

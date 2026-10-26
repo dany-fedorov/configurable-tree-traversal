@@ -29,7 +29,9 @@ import {
 } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import { deepFreeze } from '@utils/deepFreeze';
+import { inspectDag as captureDagInspection } from '../inspectDag';
 import { initDagVisitors } from '../init-helpers/initVisitors';
+import type { DagInspection } from './DagInspection';
 import type { DagTraversalInstanceConfig } from './DagTraversalInstanceConfig';
 import { DagPolicy } from './DagPolicy';
 import { DagTraversalOrder } from './DagTraversalOrder';
@@ -261,6 +263,11 @@ export class DagTraversalRunner<
         ? this.kernel.inspectDagState()
         : this.terminalObservation.inspectDagState()
     ) as DagInspectionState<ID>;
+  }
+
+  /** Capture synchronously without advancing discovery or acquiring iterator ownership. */
+  inspectDag(): DagInspection<ID> {
+    return captureDagInspection(this);
   }
 
   summary(): DagSummary<ID> {
