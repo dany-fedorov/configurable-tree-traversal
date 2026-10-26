@@ -1,3 +1,4 @@
+import { TraversalVisitorFunctionResolutionStyle as Style } from '../src/core/TraversalVisitor';
 import {
   DepthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
@@ -9,7 +10,6 @@ import {
   BreadthFirstPhase as B,
   DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
-  TraversalVisitorFunctionResolutionStyle as Style,
   type Vertex,
 } from '../src';
 

@@ -1,10 +1,15 @@
-/** The event discriminant at each internal callback boundary. */
+/** Maps callback phases to event kinds accepted by TraversalExecutionOptions.
+ * Explicit walking branches also preserve enum-to-literal mapping on TS 4.7. */
 export type EmissionKind<Phase extends string> = Phase extends 'ON_WORK_READY'
   ? 'workCompleted'
   : Phase extends 'ON_SUBGRAPH_READY'
   ? 'subgraphCompleted'
-  : Phase extends 'vertex' | 'edge' | 'path'
-  ? `${Phase}`
+  : Phase extends 'vertex'
+  ? 'vertex'
+  : Phase extends 'edge'
+  ? 'edge'
+  : Phase extends 'path'
+  ? 'path'
   : Phase;
 
 export type VisitorPhaseSelection<ORDER extends string> =

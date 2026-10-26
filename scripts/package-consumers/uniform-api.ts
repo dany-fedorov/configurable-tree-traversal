@@ -24,7 +24,7 @@ import type {
   PrerequisiteMissing,
   DagPrerequisiteResolution,
   VertexContent,
-  LegacyVertexContent,
+  VertexContentInput,
   VisitorRegistrationMetadata,
   TraversalVisitor,
   DagVisitor,
@@ -34,7 +34,7 @@ import type {
 
 type T = VertexTypes<string | undefined, string>;
 const canonical: VertexContent<T> = { $data: 'root', $childHints: ['leaf'] };
-const legacy: LegacyVertexContent<T> = { $d: 'old', $c: [] };
+const legacy: Extract<VertexContentInput<T>, { $d: unknown }> = { $d: 'old', $c: [] };
 const vertex = new core.Vertex<T>(legacy).clone({ $data: undefined });
 const data: string | undefined = vertex.$data;
 const alias: string | undefined = vertex.$d;
@@ -200,7 +200,6 @@ void [
 // All new contracts compile through both declaration loader branches.
 import type {
   TreeVertexResolution,
-  MakeTreeVertexResult,
   TreeVertexFound,
   TreeVertexOmitted,
   TraversalExecutionOptions,
@@ -231,7 +230,7 @@ const undefinedAcknowledgement = {
 const undefinedOmissionAsTree: TreeVertexOmitted = undefinedAcknowledgement;
 void [graphOmissionAsTree, treeOmissionAsGraph, undefinedOmissionAsTree];
 const treeResult: TreeVertexResolution<T> = treeFound;
-const oldTreeResult: MakeTreeVertexResult<T> = { vertexContent: canonical };
+const oldTreeResult: Extract<TreeVertexResolution<T>, { vertexContent: unknown }> = { vertexContent: canonical };
 // @ts-expect-error tree sources do not accept graph identity
 const wrongTree: TreeVertexResolution<T> = found;
 const execution: TraversalExecutionOptions<F> = {

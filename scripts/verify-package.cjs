@@ -55,8 +55,6 @@ try {
     const dag = require('configurable-tree-traversal/traversals/dag-traversal');
     const objectTree = require('configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree');
     const rewrite = require('configurable-tree-traversal/tools/rewrite-object');
-    const vertex = require('configurable-tree-traversal/core/Vertex');
-    const explicitVertex = require('configurable-tree-traversal/core/Vertex.js');
     assert.equal(core.Vertex, lib.core.Vertex);
     assert.equal(core.MutableRef, lib.MutableRef);
     assert.equal(core.TreeVertexRecord, lib.TreeVertexRecord);
@@ -73,8 +71,7 @@ try {
     assert.equal(dag.AsyncDagTraversal, lib.AsyncDagTraversal);
     assert.equal(objectTree.ObjectTreeSource, lib.ObjectTreeSource);
     assert.equal(rewrite.rewriteObject, lib.rewriteObject);
-    assert.equal(vertex.Vertex, lib.core.Vertex);
-    assert.equal(explicitVertex.Vertex, lib.core.Vertex);
+    assert.equal(core.Vertex, lib.Vertex);
     assert.equal('DepthFirstTreeRunner' in depth, false);
     assert.equal('InternalDepthFirstTreeRunner' in depth, false);
     assert.equal('DagTraversalRunner' in dag, false);
@@ -166,14 +163,6 @@ try {
             key !== '.' && !key.includes('*') && key !== './package.json',
         )
         .map((key) => 'configurable-tree-traversal' + key.slice(1)),
-      ...require('node:fs')
-        .readdirSync(path.join(root, 'dist'), { recursive: true })
-        .filter((name) => name.endsWith('.js'))
-        .flatMap((name) => [
-          'configurable-tree-traversal/' + name.replace(/\\/g, '/'),
-          'configurable-tree-traversal/' +
-            name.replace(/\\/g, '/').slice(0, -3),
-        ]),
     ])}) {
       assert.match(import.meta.resolve(specifier), /\\.mjs$/, specifier + ' must resolve to native ESM');
       assert.match(require.resolve(specifier), /\\.js$/, specifier + ' must resolve to CommonJS');
@@ -195,8 +184,8 @@ try {
     import { AsyncDagTraversal, DagTraversal, DagVisitorPhase, DagTraversalStallError, DagFragmentValidationError, DEFER_READY } from 'configurable-tree-traversal/traversals/dag-traversal';
     import { ObjectTreeSource } from 'configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree';
     import { rewriteObject } from 'configurable-tree-traversal/tools/rewrite-object';
-    import { Vertex } from 'configurable-tree-traversal/core/Vertex';
-    import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
+    import { Vertex } from 'configurable-tree-traversal';
+    import { Vertex as CoreVertex } from 'configurable-tree-traversal/core';
     assert.equal(RootAsyncDepthFirstTraversal, lib.AsyncDepthFirstTreeTraversal);
     assert.equal(DepthFirstTreeTraversal, lib.DepthFirstTreeTraversal);
     assert.equal(BreadthFirstTreeTraversal, lib.BreadthFirstTreeTraversal);
@@ -207,7 +196,7 @@ try {
     assert.equal(ObjectTreeSource, lib.ObjectTreeSource);
     assert.equal(rewriteObject, lib.rewriteObject);
     assert.equal(Vertex, lib.core.Vertex);
-    assert.equal(ExplicitVertex, lib.core.Vertex);
+    assert.equal(CoreVertex, lib.core.Vertex);
 
     assert.equal(lib, cjs);
     assert.equal(lib.core, cjs.core);
@@ -326,8 +315,8 @@ try {
     import { DEFER_READY } from 'configurable-tree-traversal';
     import type { DagSummary, DagSettlementGeneration, DagSettlementOutcome, DagVertexProgress, DagWorkState } from 'configurable-tree-traversal';
     import type { DagSummary as SubpathSummary } from 'configurable-tree-traversal/traversals/dag-traversal';
-    import { Vertex } from 'configurable-tree-traversal/core/Vertex';
-    import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
+    import { Vertex } from 'configurable-tree-traversal';
+    import { Vertex as CoreVertex } from 'configurable-tree-traversal/core';
 
     const stall: import('configurable-tree-traversal').DagTraversalStallDiagnostics = {
       dependencies: [], unknownPrerequisiteIds: [], dependencyCycleComponents: [], dependencyEdges: [], dependencyBlockedIds: [], structurallyIncompleteIds: [],
@@ -429,7 +418,7 @@ try {
       traverseDagAsync({ traversableGraph: asyncGraph }, null),
     ];
     const syncDag = traverseDag({ traversableGraph: graph }, null);
-    void [Vertex, ExplicitVertex, core.Vertex, value, status, failedStatus, convenience, resolvedGraph, inspection, publicTypes, asyncRuns, syncDag];
+    void [Vertex, CoreVertex, core.Vertex, value, status, failedStatus, convenience, resolvedGraph, inspection, publicTypes, asyncRuns, syncDag];
   `,
   );
   fs.writeFileSync(
@@ -443,11 +432,10 @@ try {
     import cjs = require('configurable-tree-traversal');
     import dagCjs = require('configurable-tree-traversal/traversals/dag-traversal');
     import { DEFER_READY as subpathSentinel, DagTraversal as SubpathDag } from 'configurable-tree-traversal/traversals/dag-traversal';
-    import { Vertex } from 'configurable-tree-traversal/core/Vertex';
-    import { Vertex as ExplicitVertex } from 'configurable-tree-traversal/core/Vertex.js';
-    import vertexCjs = require('configurable-tree-traversal/core/Vertex.js');
-    import { DagTraversalRunner } from 'configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner';
-    import runnerCjs = require('configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner.js');
+    import { Vertex } from 'configurable-tree-traversal';
+    import { Vertex as CoreVertex } from 'configurable-tree-traversal/core';
+    import vertexCjs = require('configurable-tree-traversal/core');
+    import type { DagTraversalRunner } from 'configurable-tree-traversal/traversals/dag-traversal';
     import type { AsyncDagDiscoverySource, DagSummary, DagDiscoverySource, VertexTypes, VertexId } from 'configurable-tree-traversal';
     import type { DagSummary as CjsSummary } from 'configurable-tree-traversal/traversals/dag-traversal';
     type Tree = VertexTypes<string, string>;
@@ -474,12 +462,12 @@ try {
     const fromCjs: DagTraversal<Tree> = new cjs.DagTraversal({ traversableGraph: graph });
     const fromSubpath: DagTraversal<Tree> = new SubpathDag({ traversableGraph: graph });
     const fromDefault: cjs.DagTraversal<Tree> = new namespace.DagTraversal({ traversableGraph: graph });
-    const esmRunner: runnerCjs.DagTraversalRunner<Tree> = fromEsm.createRunner();
+    const esmRunner: dagCjs.DagTraversalRunner<Tree> = fromEsm.createRunner();
     const cjsRunner: DagTraversalRunner<Tree> = fromCjs.createRunner();
     const summary: DagSummary = cjsRunner.summary();
     const cjsSummary: CjsSummary = esmRunner.summary();
     const fromEsmVertex: vertexCjs.Vertex<Tree> = new Vertex<Tree>({ $d: '', $c: [] });
-    const fromCjsVertex: ExplicitVertex<Tree> = new vertexCjs.Vertex<Tree>({ $d: '', $c: [] });
+    const fromCjsVertex: CoreVertex<Tree> = new vertexCjs.Vertex<Tree>({ $d: '', $c: [] });
     const coreVertex: core.Vertex<Tree> = fromCjsVertex;
     fromCjs.addVisitorFor(cjs.DagVisitorPhase.ON_WORK_READY, () => DEFER_READY);
     fromEsm.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => cjs.DEFER_READY);
@@ -498,10 +486,11 @@ try {
     void [esmSentinel, cjsSentinel, subpath, defaultSentinel, fromSubpath, fromDefault, summary, cjsSummary, fromEsmVertex, coreVertex, asyncEsm, asyncCjs, invalidGraph];
   `,
   );
-  // Keep uniform-API contracts in reviewable fixtures, separate from historical
-  // deep-import and loader-identity consumers above. Fixtures run only against
+  // Keep uniform-API contracts in reviewable fixtures, separate from the
+  // public-path and loader-identity consumers above. Fixtures run only against
   // the extracted package, never this checkout's source aliases.
   const typeFixtures = [
+    'supported-exports',
     'uniform-api',
     'rewrite-output',
     'execution-capabilities',
@@ -523,6 +512,7 @@ try {
     }
   }
   for (const file of [
+    'supported-exports.mjs',
     'uniform-api.mjs',
     'composable-api.mjs',
     'agent-api-foundations.mjs',
@@ -540,6 +530,12 @@ try {
   const compiler =
     process.env.CTT_TYPESCRIPT_COMPILER ||
     path.join(root, 'node_modules/typescript/bin/tsc');
+  console.log(
+    'Packed type consumers: ' +
+      execFileSync(process.execPath, [compiler, '--version'], {
+        encoding: 'utf8',
+      }).trim(),
+  );
   for (const resolution of ['node', 'node16']) {
     execFileSync(
       process.execPath,
@@ -569,6 +565,9 @@ try {
       { cwd: consumer, stdio: 'inherit' },
     );
   }
+  console.log(
+    'Verified supported and denied type imports: node (.ts), node16 (.ts/.cts/.mts).',
+  );
   const optionalCommands = 'walking-optional-commands.ts';
   fs.copyFileSync(
     path.join(root, 'scripts/package-consumers', optionalCommands),
@@ -764,7 +763,7 @@ try {
       process.versions.bun
         ? 'Bun ' + process.versions.bun
         : 'Node ' + process.version
-    }: shared CommonJS/native ESM, mixed TypeScript node/node16 (.ts/.cts/.mts), and every historical deep import (${
+    }: shared CommonJS/native ESM, mixed TypeScript node/node16 (.ts/.cts/.mts), supported public imports and denied internal paths (${
       pack.entryCount
     } files).`,
   );

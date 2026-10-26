@@ -1,18 +1,19 @@
-export * from './AsyncDepthFirstTraversal';
-export * from './DepthFirstTraversal';
-export * from './in-order-helpers/IndexRange';
-export * from './lib/AsyncDepthFirstTraversalInstanceConfig';
+export { AsyncDepthFirstTreeTraversal } from './AsyncDepthFirstTraversal';
+export { DepthFirstTreeTraversal } from './DepthFirstTraversal';
+export type { ChildIndexSelection } from './in-order-helpers/IndexRange';
+export type {
+  AsyncDepthFirstTreeOptionsPatch,
+  AsyncDepthFirstTreeOptions,
+} from './lib/AsyncDepthFirstTraversalInstanceConfig';
 export type { AsyncDepthFirstTreeRunner } from './lib/AsyncDepthFirstTraversalRunner';
-export * from './lib/DepthFirstTraversalExecuteVisitorCommandsResult';
-export * from './lib/DepthFirstTraversalInOrderTraversalConfig';
-export * from './lib/DepthFirstTraversalInstanceConfig';
-export * from './lib/DepthFirstTraversalOrder';
-export * from './lib/DepthFirstTraversalResolvedTreesContainer';
+export type { InOrderOptions } from './lib/DepthFirstTraversalInOrderTraversalConfig';
+export type {
+  DepthFirstTreeOptionsPatch,
+  DepthFirstTreeOptions,
+} from './lib/DepthFirstTraversalInstanceConfig';
+export { DepthFirstPhase } from './lib/DepthFirstTraversalOrder';
 export type { DepthFirstTreeRunner } from './lib/DepthFirstTraversalRunner';
-export * from './lib/DepthFirstTraversalRunnerInternalObjects';
-export * from './lib/DepthFirstTraversalRunnerIterableConfig';
-export * from './lib/DepthFirstTraversalRunnerState';
-export * from './lib/DepthFirstTraversalVisitors';
-export * from './lib/DepthFirstTraversalVisitorsState';
-export * from './traverseDepthFirst';
-export * from './traverseDepthFirstAsync';
+export { traverseTreeDepthFirst } from './traverseDepthFirst';
+export type { DepthFirstTraversalVisitorsSimple } from './traverseDepthFirst';
+export { traverseTreeDepthFirstAsync } from './traverseDepthFirstAsync';
+export type { AsyncDepthFirstTraversalVisitorsSimple } from './traverseDepthFirstAsync';

@@ -121,8 +121,8 @@ it.each([
   'rootNext',
   'outgoing',
   'edgeNext',
-  'followEdge',
-  'expandVertex',
+  'shouldFollowEdge',
+  'shouldExpandVertex',
 ] as const)(
   'return pauses pending %s without pulling another item or losing continuation',
   async (operation) => {
@@ -179,8 +179,8 @@ it.each([
     const runner = new AsyncGraphWalk({
       source,
       emitEvents: [],
-      shouldFollowEdge: () => step('followEdge', true),
-      shouldExpandVertex: () => step('expandVertex', true),
+      shouldFollowEdge: () => step('shouldFollowEdge', true),
+      shouldExpandVertex: () => step('shouldExpandVertex', true),
     }).createRunner();
     const iterator = runner.iterateEvents();
     const pending = iterator.next();

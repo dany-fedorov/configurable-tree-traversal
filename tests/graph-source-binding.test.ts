@@ -1,3 +1,4 @@
+import { getTreeGraphStore } from '../src/core/graph/treeStoreCapabilities';
 import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
 import { MutableRef } from '../src/core/CTTRef';
 import {
@@ -72,7 +73,7 @@ test('tree binding reuses the legacy facade and passes real tree options', () =>
   );
 
   expect(result).toEqual({ vertexContent: { $d: 'child', $c: [] } });
-  expect(container.store).toBe(treeContainer.resolvedTree.getGraphStore());
+  expect(container.store).toBe(getTreeGraphStore(treeContainer.resolvedTree));
   expect(container.resolvedGraph).toBe(
     treeContainer.resolvedTree.getResolvedGraph(),
   );

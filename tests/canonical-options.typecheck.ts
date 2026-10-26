@@ -1,3 +1,4 @@
+import { TraversalVisitorFunctionResolutionStyle as Style } from '../src/core/TraversalVisitor';
 import {
   DepthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
@@ -9,7 +10,6 @@ import {
   AsyncGraphWalk,
   DepthFirstPhase,
   ObjectTreeSource,
-  TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src';
 const source = new ObjectTreeSource({ value: 1 });
 // @ts-expect-error construction requires its source

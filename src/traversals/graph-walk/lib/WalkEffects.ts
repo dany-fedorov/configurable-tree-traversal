@@ -1,21 +1,12 @@
+import type { GraphWalkOperation } from '../GraphWalkOperation';
 import type { GraphWalkEvent } from '../GraphWalkEvent';
 import type { GraphWalkPhase } from '../GraphWalkPhase';
 
-export type WalkOperation =
-  | 'roots'
-  | 'rootNext'
-  | 'resolveVertex'
-  | 'outgoing'
-  | 'edgeNext'
-  | 'followEdge'
-  | 'expandVertex'
-  | 'visitor'
-  | 'iteratorReturn';
 export type WalkAction<Data, Edge, ID> =
   | {
       kind: 'CALL';
       requestId: number;
-      operation: WalkOperation;
+      operation: GraphWalkOperation;
       vertexToken?: symbol | undefined;
       invoke: () => unknown;
     }

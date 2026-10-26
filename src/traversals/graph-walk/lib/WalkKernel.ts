@@ -17,7 +17,8 @@ import type {
   GraphWalkResolvedOptions,
   WalkVisitor,
 } from './normalizeWalkOptions';
-import type { WalkAction, WalkOperation } from './WalkEffects';
+import type { WalkAction } from './WalkEffects';
+import type { GraphWalkOperation } from '../GraphWalkOperation';
 import type { WalkRoute } from './WalkFrontier';
 import { projectPath, routeContains, WalkFrontier } from './WalkFrontier';
 import { WalkResources } from './WalkResources';
@@ -130,7 +131,7 @@ export class WalkKernel<Data, Edge, ID> {
   }
 
   private call(
-    operation: WalkOperation,
+    operation: GraphWalkOperation,
     invoke: () => unknown,
     accept: (value: unknown) => void,
     vertexToken?: symbol,
@@ -293,7 +294,7 @@ export class WalkKernel<Data, Edge, ID> {
     if (predicate === undefined) this.admit(candidate);
     else {
       this.call(
-        'followEdge',
+        'shouldFollowEdge',
         () =>
           predicate(
             { ...candidate.via! },
@@ -323,7 +324,7 @@ export class WalkKernel<Data, Edge, ID> {
     if (predicate === undefined) accept(true);
     else {
       this.call(
-        'expandVertex',
+        'shouldExpandVertex',
         () =>
           predicate(
             { ...route.vertex },

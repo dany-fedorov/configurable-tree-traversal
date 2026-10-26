@@ -1,7 +1,7 @@
+import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalRunnerState,
   DagTraversalStallError,
   DagVisitorPhase as Order,
   DEFER_READY,

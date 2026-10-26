@@ -1,3 +1,9 @@
+import { BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultBFS } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
+import { DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDAG } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerIterableConfig';
+import { DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
+import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
+import { makeEffectiveDagTraversalRunnerIterableConfig as makeDAG } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerIterableConfig';
+import { makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
 import type { TraversalExecutionOptions, VisitorPhaseSelection } from '../src';
 import {
   AsyncBreadthFirstTreeTraversal,
@@ -6,18 +12,12 @@ import {
   AsyncGraphWalk,
   BreadthFirstPhase as BFS,
   BreadthFirstTreeTraversal,
-  BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultBFS,
   DagTraversal,
   DagVisitorPhase as DAG,
-  DAG_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDAG,
   DepthFirstPhase as DFS,
   DepthFirstTreeTraversal,
-  DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS,
   GraphWalk,
   GraphWalkPhase,
-  makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS,
-  makeEffectiveDagTraversalRunnerIterableConfig as makeDAG,
-  makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS,
 } from '../src';
 
 export function executionSelectionTypes() {

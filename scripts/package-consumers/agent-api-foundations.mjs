@@ -2,12 +2,11 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import * as esm from 'configurable-tree-traversal';
 import * as dag from 'configurable-tree-traversal/traversals/dag-traversal';
-import * as sources from 'configurable-tree-traversal/sources/index';
-import * as graphModule from 'configurable-tree-traversal/sources/graphFrom.js';
+import * as sources from 'configurable-tree-traversal/sources';
 
 const require = createRequire(import.meta.url);
 const cjs = require('configurable-tree-traversal');
-const cjsSources = require('configurable-tree-traversal/sources/index');
+const cjsSources = require('configurable-tree-traversal/sources');
 const cjsDag = require('configurable-tree-traversal/traversals/dag-traversal');
 for (const name of [
   'materializeDagSourceFromRecords',
@@ -19,8 +18,6 @@ for (const name of [
   assert.equal(sources[name], cjs[name]);
   assert.equal(cjsSources[name], cjs[name]);
 }
-assert.equal(graphModule.materializeDagSourceFromRecords, esm.materializeDagSourceFromRecords);
-assert.equal(graphModule.materializeDagSourceFromRecordsAsync, esm.materializeDagSourceFromRecordsAsync);
 for (const name of [
   'prepareDag',
   'prepareDagAsync',

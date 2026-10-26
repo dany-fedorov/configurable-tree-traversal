@@ -314,7 +314,7 @@ for (const [api, other] of [
         events.push(vertex.getData());
       },
       {
-        resolutionStyle: api.TraversalVisitorFunctionResolutionStyle.CONCURRENT,
+        resolutionStyle: 'CONCURRENT',
         priority: 0,
       },
     );

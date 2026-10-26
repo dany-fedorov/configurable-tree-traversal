@@ -13,7 +13,6 @@ import type {
   VertexTypes,
   DagVertexResolution,
   DagVertexFound,
-  MakeVertexResult,
   DagVertexOmitted,
   HintVertexId,
   ResolvedGraph,
@@ -138,7 +137,7 @@ const missingTagged: DagVertexFound<W, string> = {
   vertex: { vertexContent: { $data: 'a', $childHints: [] } },
 };
 // @ts-expect-error Legacy live content also requires a typed ID.
-const missingLegacy: MakeVertexResult<W, string> = {
+const missingLegacy: Extract<DagVertexResolution<W, string>, { vertexContent: unknown }> = {
   vertexContent: { $data: 'a', $childHints: [] },
 };
 const missingUnion: DagVertexResolution<W, string> = {
@@ -150,7 +149,7 @@ const omitted: DagVertexOmitted<string> = {
   kind: 'omitted',
   satisfiesDependencies: true,
 };
-const legacyOmitted: MakeVertexResult<W, string> = { vertexContent: null };
+const legacyOmitted: Extract<DagVertexResolution<W, string>, { vertexContent: unknown }> = { vertexContent: null };
 const wrongDependency: DagVertexFound<W, string> = {
   kind: 'found',
   vertex: {
@@ -160,7 +159,7 @@ const wrongDependency: DagVertexFound<W, string> = {
     dependsOnWork: [42],
   },
 };
-const wrongComplete: MakeVertexResult<W, string> = {
+const wrongComplete: Extract<DagVertexResolution<W, string>, { vertexContent: unknown }> = {
   vertexId: 'a',
   vertexContent: { $data: 'a', $childHints: [] },
   // @ts-expect-error Completion dependencies use the selected ID type.
@@ -346,7 +345,7 @@ if (ref !== null) {
 }
 
 // Default legacy results remain object types usable by existing extending interfaces.
-interface DefaultLegacyResult extends MakeVertexResult<W> {
+interface DefaultLegacyResult extends Extract<DagVertexResolution<W>, { vertexContent: unknown }> {
   note?: string;
 }
 const extendedDefault: DefaultLegacyResult = {

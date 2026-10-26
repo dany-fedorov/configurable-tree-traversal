@@ -1,3 +1,4 @@
+import { getTreeGraphStore } from '../src/core/graph/treeStoreCapabilities';
 import {
   BreadthFirstPhase,
   BreadthFirstTreeTraversal,
@@ -158,7 +159,7 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
   if (parent == null) throw new Error('Expected seeded parent');
   root.setValue(root.getValue().clone({ $c: [] }));
   parent.setValue(parent.getValue().clone({ $c: ['child'] }));
-  const store = seed.getResolvedTreeStore().getGraphStore();
+  const store = getTreeGraphStore(seed.getResolvedTreeStore());
   store.resetTraversal(parent);
   store.prepareSlots(parent, ['child']);
   store.setStatus(parent, 'COMPLETE');

@@ -20,7 +20,6 @@ import {
   type CoreInspection,
   type DagDiscoverySource,
   type HintVertexId,
-  type KernelInspection,
   type MaybePromise,
   type ResolvedGraph,
   type ResolvedGraphVertex,
@@ -121,7 +120,6 @@ const resolvedGraph: ResolvedGraph<Tree> = dagResult.getResolvedGraph();
 const rootRef = resolvedGraph.getRoot();
 const children = rootRef === null ? null : resolvedGraph.getChildrenOf(rootRef);
 const inspection: CoreInspection = dagResult.inspect();
-const kernelInspection: KernelInspection = inspection;
 const oneSink: boolean = hasSingleSinkFromDagSubpath(resolvedGraph);
 const order: DagVisitorPhase = DagVisitorPhase.ON_WORK_READY;
 const publicTypes: [
@@ -173,7 +171,6 @@ void [
   resolvedGraph,
   children,
   inspection,
-  kernelInspection,
   oneSink,
   order,
   publicTypes,
@@ -184,7 +181,7 @@ const canonicalContent: import('../src').VertexContent<Tree> = {
   $data: 'canonical',
   $childHints: [],
 };
-const legacyContent: import('../src').LegacyVertexContent<Tree> = {
+const legacyContent: Extract<import('../src').VertexContentInput<Tree>, { $d: unknown }> = {
   $d: 'legacy',
   $c: [],
 };

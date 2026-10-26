@@ -1,3 +1,4 @@
+import type { MakeTreeVertexResult } from '../src/core/TraversableTree';
 import { ObjectTreeSource } from '../src';
 import { rewriteObject } from '../src/tools/rewrite-object/rewriteObject';
 import type {
@@ -5,7 +6,6 @@ import type {
   AsyncTreeSource,
   DagDiscoverySource,
   VertexTypes,
-  MakeTreeVertexResult,
   TreeVertexFound,
   TreeVertexOmitted,
   TreeVertexResolution,

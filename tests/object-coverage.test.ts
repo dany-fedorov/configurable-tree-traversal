@@ -1,3 +1,4 @@
+import { TraversalVisitorFunctionResolutionStyle } from '../src/core/TraversalVisitor';
 import {
   DepthFirstPhase,
   DepthFirstTreeTraversal,
@@ -6,7 +7,6 @@ import {
   ObjectTreeSource,
   ResolvedTreeStore,
   TraversalVisitorCommandName,
-  TraversalVisitorFunctionResolutionStyle,
   TreeVertexRecord,
   Vertex,
   type TraversableObjectTTP,

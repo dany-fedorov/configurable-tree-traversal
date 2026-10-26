@@ -9,6 +9,7 @@ import type { ResolvedTreeTypeParameters } from '@core/ResolvedTreeTypeParameter
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import { GraphStore } from '@core/graph/GraphStore';
+import { registerTreeGraphStore } from '@core/graph/treeStoreCapabilities';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export type VertexResolutionContext<TTP extends VertexTypes> = {
@@ -100,6 +101,7 @@ export class ResolvedTreeStore<
   constructor(/*config: ResolvedTreeConfig<TTP, RW_TTP>*/) {
     super();
     this.store = new GraphStore<TTP>('tree');
+    registerTreeGraphStore(this, this.store);
     this.readOnly = Object.freeze({
       getRoot: () => this.getRoot(),
       has: (ref: MutableRef<Vertex<TTP>>) => this.has(ref),
@@ -127,11 +129,6 @@ export class ResolvedTreeStore<
 
   getResolvedGraph(): ResolvedGraph<TTP> {
     return this.store.graph;
-  }
-
-  /** @internal */
-  getGraphStore(): GraphStore<TTP> {
-    return this.store;
   }
 
   getChildrenOf(

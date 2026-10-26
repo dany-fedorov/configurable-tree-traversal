@@ -347,3 +347,9 @@ The root `rewriteObject` export is now directly callable; use `objectRewrite` fo
 Replace `DepthFirstTraversalInOrderTraversalConfig` / `inOrderTraversalConfig` with `InOrderOptions` / `inOrder`, and `IndexRange` with `ChildIndexSelection`. Fields become `afterChildIndices`, `fallbackChildIndices`, `visitSingleChildParent`, and `visitAfterOmittedChildren`. Index zero means after child slot zero; negative indices, range normalization, all-out-of-bounds fallback, and omitted-slot handling retain their behavior.
 
 Use `Vertex.hasNoChildHints()`, runner `isTraversalLeaf(ref)`, and `hasSingleStructuralSink(graph)` for their separate hint, traversal, and structural-edge criteria. `filterDagDataVisitor` and `filterAsyncDagDataVisitor` predicate and visit payload data, retaining type-guard narrowing and async results.
+
+### Supported package imports
+
+Use the root, `core`, `sources`, traversal family barrels, the object-tree barrel, or `tools/rewrite-object`. `package.json` remains available. Engine files, normalization/default helpers, raw runner constructors, state/injection types, and arbitrary `dist` imports are no longer supported package imports, with or without `.js`. Runtime exports and classic/Node16 TypeScript resolution enforce this boundary. Physical implementation files remain in the package for relative implementation references.
+
+`GraphWalkOperation` names the complete pending-invocation diagnostic union. Predicate operations now use `shouldFollowEdge` and `shouldExpandVertex`, matching the public callbacks; invocation, accounting, pending-request identity, and exact error propagation are unchanged.

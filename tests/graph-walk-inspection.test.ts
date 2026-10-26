@@ -170,10 +170,10 @@ it('uses consistent private tokens across source, predicate, observation, and cl
   expect(operations).toEqual([
     'resolveVertex',
     'visitor',
-    'expandVertex',
+    'shouldExpandVertex',
     'outgoing',
     'edgeNext',
-    'followEdge',
+    'shouldFollowEdge',
     'visitor',
     'iteratorReturn',
   ]);

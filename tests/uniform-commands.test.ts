@@ -1,3 +1,4 @@
+import { TraversalVisitorFunctionResolutionStyle as Style } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src';
 import {
   AsyncBreadthFirstTreeTraversal,
@@ -11,7 +12,6 @@ import {
   DepthFirstPhase as DfsOrder,
   DepthFirstTreeTraversal,
   TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
 } from '../src';
 
 type G = VertexTypes<string, string>;

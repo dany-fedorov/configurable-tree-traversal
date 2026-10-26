@@ -1,3 +1,4 @@
+import type { MakeVertexResult } from '../src/core/TraversableTree';
 import type {
   AsyncDagDiscoverySource,
   DagDiscoverySource,
@@ -8,7 +9,6 @@ import type {
   DagVertexProgress,
   DagVertexResolution,
   HintVertexId,
-  MakeVertexResult,
   OriginalGraphView,
   ResolvedGraph,
   TreeSource,

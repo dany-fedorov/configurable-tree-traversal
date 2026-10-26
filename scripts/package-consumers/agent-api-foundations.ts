@@ -25,9 +25,9 @@ import type {
   AsyncDagWorkSession,
   DagVisitorContext,
 } from 'configurable-tree-traversal';
-import * as sourceSubpath from 'configurable-tree-traversal/sources/index';
-import { materializeDagSourceFromRecords as explicitGraphFrom } from 'configurable-tree-traversal/sources/graphFrom.js';
-import type { MaterializedDagSource as SubpathSource } from 'configurable-tree-traversal/sources/types';
+import * as sourceSubpath from 'configurable-tree-traversal/sources';
+import { materializeDagSourceFromRecords as subpathMaterializeRecords } from 'configurable-tree-traversal/sources';
+import type { MaterializedDagSource as SubpathSource } from 'configurable-tree-traversal/sources';
 import type {
   PreparedDag as SubpathPreparedDag,
   DagEvent as SubpathEvent,
@@ -57,7 +57,7 @@ const cjsIdentity: cjs.MaterializedDagSource<Item, ID> = subpathIdentity;
 const factoryIdentity: typeof materializeDagSourceFromRecords =
   sourceSubpath.materializeDagSourceFromRecords;
 const explicitIdentity: typeof cjs.materializeDagSourceFromRecords =
-  explicitGraphFrom;
+  subpathMaterializeRecords;
 const forest: MaterializedDagSource<Item, ID> = materializeDagSourceFromRoots(
   items,
   {

@@ -1,6 +1,6 @@
+import type { DepthFirstTraversalResolvedTreesContainer } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import {
   DepthFirstPhase,
-  DepthFirstTraversalResolvedTreesContainer,
   DepthFirstTreeTraversal,
   MutableRef,
   ResolvedTreeStore,

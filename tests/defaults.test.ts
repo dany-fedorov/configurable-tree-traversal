@@ -1,21 +1,19 @@
-import {
-  DEFAULT_VISITOR_FN_OPTIONS,
-  TraversalVisitorFunctionResolutionStyle,
-  type VertexTypes,
-} from '../src/core';
+import { DEFAULT_VISITOR_FN_OPTIONS } from '../src/core/TraversalVisitor';
+import { TraversalVisitorFunctionResolutionStyle } from '../src/core/TraversalVisitor';
+import { BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig';
+import { BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
+import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
+import { DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import { DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
+import { makeEffectiveDepthFirstTraversalRunnerIterableConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
+import type { VertexTypes } from '../src/core';
 import {
   BreadthFirstPhase,
   BreadthFirstTreeTraversal,
-  BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
-  makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
 } from '../src/traversals/breadth-first-traversal';
 import {
   DepthFirstPhase,
   DepthFirstTreeTraversal,
-  DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT,
-  makeEffectiveDepthFirstTraversalRunnerIterableConfig,
 } from '../src/traversals/depth-first-traversal';
 import { traversalInternals } from './internal-runner-fixtures';
 
@@ -49,7 +47,7 @@ function expectRecursivelyFrozen(value: unknown, seen = new Set<object>()) {
   }
 }
 
-describe('exported traversal defaults', () => {
+describe('internal traversal defaults', () => {
   test.each([
     ['depth-first instance', DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG],
     ['breadth-first instance', BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG],
@@ -66,7 +64,7 @@ describe('exported traversal defaults', () => {
     expectRecursivelyFrozen(defaults);
   });
 
-  test('mutating the exported DFS range cannot corrupt a future traversal', () => {
+  test('mutating the internal DFS range cannot corrupt a future traversal', () => {
     const ranges =
       DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.inOrder.afterChildIndices;
     if (!Array.isArray(ranges)) throw new Error('Expected default ranges');

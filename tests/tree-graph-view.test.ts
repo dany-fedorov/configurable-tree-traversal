@@ -1,3 +1,4 @@
+import { getTreeGraphStore } from '../src/core/graph/treeStoreCapabilities';
 import {
   DepthFirstTreeTraversal,
   MutableRef,
@@ -105,7 +106,12 @@ test('an injected tree container retains its graph facade and store', () => {
   expect(injected.resolvedTree.getResolvedGraph()).toBe(
     source.resolvedTree.getResolvedGraph(),
   );
-  expect(injected.resolvedTree.getGraphStore()).toBe(
-    source.resolvedTree.getGraphStore(),
+  expect(getTreeGraphStore(injected.resolvedTree)).toBe(
+    getTreeGraphStore(source.resolvedTree),
   );
+});
+
+test('the public tree store does not expose its graph engine capability', () => {
+  const tree = new ResolvedTreeStore<TestGraph>();
+  expect('getGraphStore' in tree).toBe(false);
 });

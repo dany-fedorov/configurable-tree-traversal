@@ -6,6 +6,7 @@ import type {
 } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { GraphStore } from '@core/graph/GraphStore';
+import { getTreeGraphStore } from './treeStoreCapabilities';
 import {
   StructuralGraphSnapshot,
   type StagedSnapshotVertex,
@@ -66,8 +67,12 @@ export class ResolvedGraphsContainer<
       options.sourceMode === 'tree' ? options.treeContainer : null;
     this.store =
       // The erased store contains source IDs plus a private synthetic-root symbol.
-      (this.treeContainer?.resolvedTree.getGraphStore() ??
-        new GraphStore<T | R>('dag')) as GraphStoreContract<T | R, ID | symbol>;
+      (this.treeContainer === null
+        ? new GraphStore<T | R>('dag')
+        : getTreeGraphStore(this.treeContainer.resolvedTree)) as GraphStoreContract<
+        T | R,
+        ID | symbol
+      >;
     this.resolvedGraph = this.store.graph;
     // The public forest view excludes the synthetic identity; other IDs come from the source.
     this.publicResolvedGraph = (
