@@ -219,9 +219,6 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const work = runner.summary().deferredFrontier[0]!;
     runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation);
     for await (const event of runner.iterateEvents()) {
-      expect(event.kind).toBe(
-        event.kind === 'workCompleted' ? 'workCompleted' : 'subgraphCompleted',
-      );
       events.push([event.vertex.getData(), event.kind]);
     }
     expect(events).toEqual([

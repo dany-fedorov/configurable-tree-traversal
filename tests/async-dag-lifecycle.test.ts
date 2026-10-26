@@ -411,8 +411,8 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
     .map((ref) => ref.unref().getData());
   expect(beforeLate).toEqual(['root']);
   const eventsBeforeLate = events.slice();
-  expect(eventsBeforeLate).not.toContain('ON_WORK_READY:B');
-  expect(eventsBeforeLate).not.toContain('ON_WORK_READY:C');
+  expect(eventsBeforeLate).not.toContain('workCompleted:B');
+  expect(eventsBeforeLate).not.toContain('workCompleted:C');
 
   bVisit.resolve({
     commands: [
