@@ -73,7 +73,8 @@ export type ObjectMutationCommands<
 > = ObjectCompositeClassification & {
   makeMutationCommand: MutationCommandBuilder<
     ObjectCurrentVertexTypes<InputTypes, OutputTypes>,
-    ObjectPropertyPatch<OutputTypes>
+    ObjectPropertyPatch<OutputTypes>,
+    TraversalVisitorCommandName.DELETE_TREE_SUBTREE
   >;
   assembleComposite: (
     saveToMap?: boolean,
@@ -191,7 +192,10 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
 
       function buildMutationCommand(
         request?: MutationRequest<ObjectPropertyPatch<OutputTypes>>,
-      ): MutationCommand<ObjectCurrentVertexTypes<InputTypes, OutputTypes>> {
+      ): MutationCommand<
+        ObjectCurrentVertexTypes<InputTypes, OutputTypes>,
+        TraversalVisitorCommandName.DELETE_TREE_SUBTREE
+      > {
         const inputOk = request && typeof request === 'object';
         const toDelete =
           inputOk &&
@@ -230,7 +234,7 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
             };
         if (toDelete) {
           return {
-            commandName: TraversalVisitorCommandName.DELETE_VERTEX,
+            commandName: TraversalVisitorCommandName.DELETE_TREE_SUBTREE,
           };
         } else if (hasRewriteValue) {
           return {

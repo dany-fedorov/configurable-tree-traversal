@@ -104,7 +104,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
       });
       dfs.addVisitorFor(DepthOrder.PRE_ORDER, (vertex) =>
         prune(vertex.getData())
-          ? { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] }
+          ? { commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }] }
           : undefined,
       );
       expect(
@@ -119,7 +119,7 @@ describe.each(Array.from({ length: 24 }, (_, i) => i + 1))(
       });
       bfs.addVisitorFor(BreadthOrder.LEVEL_ORDER, (vertex) =>
         prune(vertex.getData())
-          ? { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] }
+          ? { commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }] }
           : undefined,
       );
       expect(
@@ -176,7 +176,7 @@ test.each(Object.values(DepthOrder))(
     });
     traversal.addVisitorFor(order, (vertex) =>
       vertex.getData() === 1
-        ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
+        ? { commands: [{ commandName: Command.DELETE_TREE_SUBTREE }] }
         : undefined,
     );
     const runner = traversal.createRunner().run();
@@ -203,7 +203,7 @@ test('disabling a subtree in-order stops unresolved children but retains complet
   });
   traversal.addVisitorFor(DepthOrder.IN_ORDER, (vertex) =>
     vertex.getData() === 0
-      ? { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] }
+      ? { commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }] }
       : undefined,
   );
   const runner = traversal.createRunner();

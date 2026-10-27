@@ -14,8 +14,8 @@ import type { DagVisitor } from './DagTraversalVisitor';
 export type DagSchedulingOptions = {
   workCompletion?: 'visitorReturn' | 'externalSettlement';
   discovery?: 'lazy' | 'eager';
-  rootDependencies?: 'honor' | 'ignore';
-  implicitParentDependency?: boolean;
+  rootWorkDependencies?: 'honor' | 'ignore';
+  omittedWorkDependencies?: 'none' | 'discoveryParentWork';
   syntheticRoot?: boolean;
 };
 
@@ -79,7 +79,12 @@ export type DagOptions<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
-> = DagSource<T, R, ID> & DagTraversalOptionsInput<T, R, ID>;
+> = DagSource<T, R, ID> &
+  DagTraversalOptionsInput<T, R, ID> &
+  (
+    | { traversableGraph: DagDiscoverySource<T, R, ID> }
+    | { rootWorkDependencies?: never; omittedWorkDependencies?: never }
+  );
 
 export type DagOptionsPatch<
   T extends VertexTypes = VertexTypes,
@@ -92,6 +97,8 @@ export type DagOptionsPatch<
         traversableTree?: undefined;
       }
     | {
+        rootWorkDependencies?: never;
+        omittedWorkDependencies?: never;
         traversableTree?:
           | (unknown extends ID ? TreeSource<T, R> : never)
           | undefined;
@@ -126,6 +133,12 @@ export function mergeDagTraversalInstanceConfigs<
 ): DagResolvedOptions<T, R, ID> {
   const capturedInput = captureDagConfigPatch(input, sources);
   assertDagWorkCompletion(capturedInput.workCompletion);
+  assertDagDependencyPolicies(
+    capturedInput,
+    sources.traversableGraph !== undefined ||
+      base.traversableGraph !== undefined,
+    input,
+  );
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
   return {
     ...base,
@@ -153,6 +166,37 @@ export function assertDagWorkCompletion(policy: unknown): void {
   ) {
     throw new TypeError(
       'workCompletion must be visitorReturn or externalSettlement',
+    );
+  }
+}
+
+/** Explicit dependency policies apply only to graph discovery, never tree ordering. */
+export function assertDagDependencyPolicies(
+  input: DagSchedulingOptions,
+  graphSource: boolean,
+  originalInput: object,
+): void {
+  if (
+    !graphSource &&
+    ('rootWorkDependencies' in originalInput ||
+      'omittedWorkDependencies' in originalInput)
+  ) {
+    throw new TypeError('Dependency policies require a graph discovery source');
+  }
+  if (
+    input.rootWorkDependencies !== undefined &&
+    input.rootWorkDependencies !== 'honor' &&
+    input.rootWorkDependencies !== 'ignore'
+  ) {
+    throw new TypeError('rootWorkDependencies must be honor or ignore');
+  }
+  if (
+    input.omittedWorkDependencies !== undefined &&
+    input.omittedWorkDependencies !== 'none' &&
+    input.omittedWorkDependencies !== 'discoveryParentWork'
+  ) {
+    throw new TypeError(
+      'omittedWorkDependencies must be none or discoveryParentWork',
     );
   }
 }

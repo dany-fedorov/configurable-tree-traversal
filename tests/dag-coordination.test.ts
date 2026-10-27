@@ -233,7 +233,7 @@ test('deleted work rejects previously issued tickets as stale', () => {
   });
   traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'parent'
-      ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
+      ? { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] }
       : undefined,
   );
   const coordinator = createDagWorkSession(traversal.createRunner());

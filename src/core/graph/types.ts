@@ -15,10 +15,11 @@ export type MaybePromise<T> = T | PromiseLike<T>;
 
 export type VertexRef<T extends VertexTypes> = MutableRef<Vertex<T>>;
 
-export type VisitResult<R extends VertexTypes, ORDER extends string = never> =
-  | TraversalVisitorResult<R, ORDER>
-  | undefined
-  | void;
+export type VisitResult<
+  R extends VertexTypes,
+  ORDER extends string = never,
+  Family extends 'tree' | 'dag' = 'tree' | 'dag',
+> = TraversalVisitorResult<R, ORDER, Family> | undefined | void;
 
 export type HintVertexId<ID = unknown> = { vertexId: ID };
 

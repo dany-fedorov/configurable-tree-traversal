@@ -288,7 +288,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
             ],
           }
-        : { commands: [{ commandName: Command.DELETE_VERTEX }] },
+        : { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] },
     );
     const runner = traversal.createRunner();
     await runner.run();

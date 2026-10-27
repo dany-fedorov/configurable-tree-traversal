@@ -379,7 +379,7 @@ test('prepared definitions preserve effective implicit work dependencies and roo
   });
   const implicit = prepareDag({
     traversableGraph: { ...adapter, resolveChild },
-    implicitParentDependency: true,
+    omittedWorkDependencies: 'discoveryParentWork',
   });
   if (implicit.kind !== 'valid') throw new Error('Expected valid');
   expect(implicit.dag.vertices[1]!.dependsOnWork).toEqual(['a']);
@@ -391,7 +391,7 @@ test('prepared definitions preserve effective implicit work dependencies and roo
   expect(session.advance()).toMatchObject({ workTickets: [{ vertexId: 'b' }] });
 
   const ignored = prepareDag({
-    rootDependencies: 'ignore',
+    rootWorkDependencies: 'ignore',
     traversableGraph: {
       ...adapter,
       resolveChild,
@@ -525,8 +525,8 @@ test('prepared option boundaries reject overrides including present undefined be
     'traversableTree',
     'syntheticRoot',
     'discovery',
-    'rootDependencies',
-    'implicitParentDependency',
+    'rootWorkDependencies',
+    'omittedWorkDependencies',
     'sortChildrenHints',
     'traversalRunnerInternalObjects',
   ]) {

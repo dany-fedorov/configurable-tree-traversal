@@ -30,7 +30,7 @@ export type DagVisitor<
   R extends VertexTypes = T,
   ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
-> = VisitResult<R, ORDER> extends infer RESULT
+> = VisitResult<R, ORDER, 'dag'> extends infer RESULT
   ? (
       vertex: Vertex<T | R>,
       options: DagVisitorContext<T, R, ORDER, ID>,
@@ -42,7 +42,7 @@ export type AsyncDagVisitor<
   R extends VertexTypes = T,
   ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
-> = VisitResult<R, ORDER> extends infer RESULT
+> = VisitResult<R, ORDER, 'dag'> extends infer RESULT
   ? (
       vertex: Vertex<T | R>,
       options: DagVisitorContext<T, R, ORDER, ID>,

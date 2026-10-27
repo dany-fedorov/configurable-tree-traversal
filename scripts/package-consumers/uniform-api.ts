@@ -108,8 +108,8 @@ depth.addVisitorFor(F.POST_ORDER, () => ({
 }));
 const dag = new DagTraversal({
   traversableGraph: graph,
-  rootDependencies: 'honor',
-  implicitParentDependency: false,
+  rootWorkDependencies: 'honor',
+  omittedWorkDependencies: 'none',
 });
 dag.addVisitorFor(D.ON_WORK_READY, (_v, options) => {
   const phase: D.ON_WORK_READY = options.phase;

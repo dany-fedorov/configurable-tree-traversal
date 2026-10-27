@@ -323,7 +323,8 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     async (commandName) => {
       const rewrite = (): import('../src').TraversalVisitorResult<
         G,
-        'ON_WORK_READY'
+        'ON_WORK_READY',
+        'dag'
       > => ({
         commands: [{ commandName, commandArguments: { newHints: [] } }],
       });

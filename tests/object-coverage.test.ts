@@ -566,7 +566,7 @@ describe('public mutation command factory', () => {
       commandArguments: { newData: { key: 'renamed', value: 1 } },
     });
     expect(makeMutationCommand({ delete: true })).toEqual({
-      commandName: TraversalVisitorCommandName.DELETE_VERTEX,
+      commandName: TraversalVisitorCommandName.DELETE_TREE_SUBTREE,
     });
     expect(vertex.getData()).toEqual({ key: 'root', value: 1 });
   });

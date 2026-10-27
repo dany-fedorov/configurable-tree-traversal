@@ -24,7 +24,7 @@ export type DagDefinition<Data, ID = unknown> = {
   readonly entry:
     | { readonly kind: 'root'; readonly vertexId: ID }
     | {
-        readonly kind: 'forest';
+        readonly kind: 'roots';
         readonly slots: readonly DagDefinitionSlot<ID>[];
       }
     | { readonly kind: 'empty' };

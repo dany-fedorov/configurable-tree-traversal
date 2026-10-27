@@ -292,7 +292,7 @@ test('kernel observations hide the synthetic holder while preserving caller symb
     outcome: {
       ok: true,
       value: {
-        vertexContent: { $data: 'forest', $childHints: ['child'] },
+        vertexContent: { $data: 'roots', $childHints: ['child'] },
       },
     },
   });
@@ -739,7 +739,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       }),
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
-      commands: [{ commandName: Command.DELETE_VERTEX }],
+      commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
     }));
     const runner = traversal.createRunner();
     await runner.prepare();
@@ -971,7 +971,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveRoot: () => ({
           kind: 'found' as const,
           vertex: {
-            vertexContent: { $data: 'forest', $childHints: [] },
+            vertexContent: { $data: 'roots', $childHints: [] },
           },
         }),
         resolveChild: () => ({
@@ -984,7 +984,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const container = runnerInternals(runner).resolvedGraphsContainer;
     const scheduling = new GraphScheduling(container);
     const ref = scheduling.acceptRoot({
-      vertexContent: { $data: 'forest', $childHints: [] },
+      vertexContent: { $data: 'roots', $childHints: [] },
     })!;
     const callerId = Symbol('caller omission');
     container.store.markOmitted(callerId);

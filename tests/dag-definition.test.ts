@@ -149,26 +149,26 @@ test.each([
     omittedIds: [],
     entry: { kind: 'empty' },
   },
-  { vertices: [], omittedIds: [], entry: { kind: 'forest', slots: [null] } },
+  { vertices: [], omittedIds: [], entry: { kind: 'roots', slots: [null] } },
   {
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [{ kind: 'other' }] },
+    entry: { kind: 'roots', slots: [{ kind: 'other' }] },
   },
   {
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [{ kind: 'vertex' }] },
+    entry: { kind: 'roots', slots: [{ kind: 'vertex' }] },
   },
   {
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [{ kind: 'omitted' }] },
+    entry: { kind: 'roots', slots: [{ kind: 'omitted' }] },
   },
   {
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [{ kind: 'omitted', identity: {} }] },
+    entry: { kind: 'roots', slots: [{ kind: 'omitted', identity: {} }] },
   },
 ])('defineDag rejects malformed declarations %#', (input) => {
   expect(() => defineDag(input as any)).toThrow(TypeError);
@@ -316,7 +316,7 @@ test('definitions retain empty and omitted roots separately from forest catalogs
   );
   if (forest.kind !== 'valid') throw new Error('Expected valid');
   expect(forest.dag.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'vertex', vertexId: 'a' },
       { kind: 'vertex', vertexId: 'b' },
@@ -326,7 +326,7 @@ test('definitions retain empty and omitted roots separately from forest catalogs
     materializeDagSourceFromRecords<string, string>([], { id: (id) => id }),
   );
   if (empty.kind !== 'valid') throw new Error('Expected valid');
-  expect(empty.dag.definition.entry).toEqual({ kind: 'forest', slots: [] });
+  expect(empty.dag.definition.entry).toEqual({ kind: 'roots', slots: [] });
   const omittedHolder = prepareDag<G, string>({
     syntheticRoot: true,
     traversableGraph: {
@@ -341,7 +341,7 @@ test('definitions retain empty and omitted roots separately from forest catalogs
   });
   if (omittedHolder.kind !== 'valid') throw new Error('Expected valid');
   expect(omittedHolder.dag.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [],
   });
 });
@@ -435,11 +435,11 @@ test('defineDag accepts graph-invalid source facts without executing or validati
       },
     ],
     omittedIds: ['unreachable'],
-    entry: { kind: 'forest', slots: [{ kind: 'omitted', identity: null }] },
+    entry: { kind: 'roots', slots: [{ kind: 'omitted', identity: null }] },
   });
   expect(definition.vertices[0]!.dependsOnWork).toEqual(['a']);
   expect(definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [{ kind: 'omitted', identity: null }],
   });
 });
@@ -462,7 +462,7 @@ test('an omitted synthetic catalog root does not expose its private holder ident
   expect(result.dag.definition).toEqual({
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [] },
+    entry: { kind: 'roots', slots: [] },
   });
   expect(() =>
     result.dag.createRunner({ completedWork: new Set(['catalog']) }),
@@ -477,7 +477,7 @@ test('a live synthetic holder preserves omitted catalog entries for seed reuse',
   });
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(result.dag.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'omitted', identity: { vertexId: 'skip' } },
       { kind: 'vertex', vertexId: 'b' },
@@ -508,8 +508,8 @@ test('definition copies remain independent of later caller edits to arrays and w
     dependsOnWork: ['skip'],
     dependsOnSubgraphCompletion: ['skip'],
   };
-  const entry: { kind: 'forest'; slots: DagDefinitionSlot<string>[] } = {
-    kind: 'forest',
+  const entry: { kind: 'roots'; slots: DagDefinitionSlot<string>[] } = {
+    kind: 'roots',
     slots: [{ kind: 'vertex', vertexId: 'a' }],
   };
   const input = { vertices: [vertex], omittedIds: ['skip'], entry };
@@ -533,9 +533,9 @@ test('definition copies remain independent of later caller edits to arrays and w
       },
     ],
     omittedIds: ['skip'],
-    entry: { kind: 'forest', slots: [{ kind: 'vertex', vertexId: 'a' }] },
+    entry: { kind: 'roots', slots: [{ kind: 'vertex', vertexId: 'a' }] },
   });
-  if (definition.entry.kind !== 'forest') throw new Error('Expected forest');
+  if (definition.entry.kind !== 'roots') throw new Error('Expected forest');
   const entrySlots = definition.entry.slots;
   expect(() => (entrySlots as unknown[]).pop()).toThrow();
 });

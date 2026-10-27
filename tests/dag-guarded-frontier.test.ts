@@ -260,7 +260,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     })
       .addVisitorFor(Order.ON_WORK_READY, (vertex) => {
         if (vertex.getData() === 'deleted')
-          return { commands: [{ commandName: Command.DELETE_VERTEX }] };
+          return {
+            commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
+          };
         if (vertex.getData() === 'deferred')
           return { commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] };
         return undefined;

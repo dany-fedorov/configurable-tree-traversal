@@ -256,7 +256,9 @@ test('deleting the current vertex still advances visitor metadata for its siblin
   traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex, options) => {
     if (vertex.getData() === 'deleted') {
       return {
-        commands: [{ commandName: TraversalVisitorCommandName.DELETE_VERTEX }],
+        commands: [
+          { commandName: TraversalVisitorCommandName.DELETE_TREE_SUBTREE },
+        ],
       };
     }
     if (vertex.getData() === 'sibling') {

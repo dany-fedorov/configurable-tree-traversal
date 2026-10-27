@@ -272,28 +272,28 @@ describe('diffDagDefinitions', () => {
     ],
     [{ kind: 'root', vertexId: undefined }, { kind: 'empty' }, true],
     [{ kind: 'root', vertexId: 'a' }, { kind: 'root', vertexId: 'b' }, true],
-    [{ kind: 'forest', slots: [] }, { kind: 'empty' }, true],
+    [{ kind: 'roots', slots: [] }, { kind: 'empty' }, true],
     [
       {
-        kind: 'forest',
+        kind: 'roots',
         slots: [{ kind: 'omitted', identity: { vertexId: undefined } }],
       },
       {
-        kind: 'forest',
+        kind: 'roots',
         slots: [{ kind: 'omitted', identity: { vertexId: undefined } }],
       },
       false,
     ],
     [
       {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'a' },
           { kind: 'vertex', vertexId: 'b' },
         ],
       },
       {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'b' },
           { kind: 'vertex', vertexId: 'a' },
@@ -368,7 +368,9 @@ describe('reviseDag', () => {
     const original = result.dag;
     const before = original.createWorkSession();
     expect(
-      reviseDag(original, [{ kind: 'removeVertex', vertexId: 'research' }]),
+      reviseDag(original, [
+        { kind: 'removeVertexDeclaration', vertexId: 'research' },
+      ]),
     ).toMatchObject({ kind: 'invalid', issues: [{ kind: 'milestone' }] });
     expect(original.definition.vertices.map((v) => v.vertexId)).toEqual([
       'review',
@@ -388,7 +390,7 @@ const prepared = <ID>(
   const result = prepareDagDefinition(
     definition(vertices, {
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: vertices.map((v) => ({ kind: 'vertex', vertexId: v.vertexId })),
       },
       ...patch,
@@ -414,7 +416,7 @@ describe('ordered atomic revisions', () => {
       { entry: { kind: 'root', vertexId: 'review' } },
     );
     const result = reviseDag(original, [
-      { kind: 'removeVertex', vertexId: 'research' },
+      { kind: 'removeVertexDeclaration', vertexId: 'research' },
       { kind: 'replaceVertex', vertex: vertex('review') },
     ]);
     expect(result.kind).toBe('valid');
@@ -445,7 +447,7 @@ describe('ordered atomic revisions', () => {
     const original = prepared([vertex('a'), vertex('b'), vertex('c')]);
     const result = reviseDag(original, [
       { kind: 'replaceVertex', vertex: vertex('c', { data: 1 }) },
-      { kind: 'removeVertex', vertexId: 'b' },
+      { kind: 'removeVertexDeclaration', vertexId: 'b' },
       { kind: 'addVertex', vertex: vertex('b', { data: 'new' }) },
       { kind: 'replaceVertex', vertex: vertex('c', { data: 2 }) },
     ]);
@@ -481,7 +483,7 @@ describe('ordered atomic revisions', () => {
       { entry: { kind: 'root', vertexId: 'root' } },
     );
     const invalid = reviseDag(original, [
-      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'removeVertexDeclaration', vertexId: 'root' },
     ]);
     expect(invalid).toEqual({
       kind: 'invalid',
@@ -491,7 +493,7 @@ describe('ordered atomic revisions', () => {
       ],
     });
     const result = reviseDag(original, [
-      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'removeVertexDeclaration', vertexId: 'root' },
       { kind: 'replaceEntry', entry: { kind: 'root', vertexId: 'child' } },
     ]);
     if (result.kind !== 'valid') throw new Error('Expected revision');
@@ -514,7 +516,7 @@ describe('ordered atomic revisions', () => {
     });
     const result = reviseDag(original, [
       { kind: 'replaceEntry', entry: { kind: 'empty' } },
-      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'removeVertexDeclaration', vertexId: 'root' },
     ]);
     if (result.kind !== 'valid') throw new Error('Expected revision');
     expect(result.dag.definition).toEqual({
@@ -529,7 +531,7 @@ describe('ordered atomic revisions', () => {
     const original = prepared<unknown>([vertex('root')], {
       omittedIds: ['old'],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'omitted', identity: { vertexId: 'old' } },
           { kind: 'vertex', vertexId: 'root' },
@@ -541,7 +543,7 @@ describe('ordered atomic revisions', () => {
       {
         kind: 'replaceEntry',
         entry: {
-          kind: 'forest',
+          kind: 'roots',
           slots: [
             { kind: 'vertex', vertexId: 'root' },
             { kind: 'omitted', identity: { vertexId: undefined } },
@@ -561,7 +563,9 @@ describe('ordered atomic revisions', () => {
 
   test('an empty batch creates a fresh unseeded prepared DAG and session', () => {
     const original = prepared([vertex('task')]);
-    const old = original.createWorkSession({ completedWork: new Set(['task']) });
+    const old = original.createWorkSession({
+      completedWork: new Set(['task']),
+    });
     expect(old.advance().kind).toBe('finished');
     const result = reviseDag(original, []);
     if (result.kind !== 'valid') throw new Error('Expected revision');
@@ -666,7 +670,7 @@ describe('ordered atomic revisions', () => {
   test.each([
     { kind: 'addVertex', vertex: vertex('root') },
     { kind: 'replaceVertex', vertex: vertex('unknown') },
-    { kind: 'removeVertex', vertexId: 'unknown' },
+    { kind: 'removeVertexDeclaration', vertexId: 'unknown' },
     { kind: 'replaceOmissions', omittedIds: ['root'] },
     { kind: 'replaceOmissions', omittedIds: ['x', 'x'] },
   ])(
@@ -698,7 +702,7 @@ describe('ordered atomic revisions', () => {
     const original = prepared([vertex('root')]);
     const result = reviseDag(original, [
       { kind: 'replaceOmissions', omittedIds: ['root'] },
-      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'removeVertexDeclaration', vertexId: 'root' },
       { kind: 'replaceEntry', entry: { kind: 'empty' } },
     ]);
     if (result.kind !== 'valid') throw new Error('Expected revision');
@@ -726,11 +730,11 @@ describe('ordered atomic revisions', () => {
       { kind: 'replaceVertex', vertex: vertex(+0, { data: 'zero' }) },
       { kind: 'replaceVertex', vertex: vertex(id, { data: 'object' }) },
       { kind: 'replaceVertex', vertex: vertex(symbol, { data: 'symbol' }) },
-      { kind: 'removeVertex', vertexId: undefined },
+      { kind: 'removeVertexDeclaration', vertexId: undefined },
       {
         kind: 'replaceEntry',
         entry: {
-          kind: 'forest',
+          kind: 'roots',
           slots: [NaN, +0, id, symbol, other].map((vertexId) => ({
             kind: 'vertex',
             vertexId,
@@ -756,7 +760,10 @@ describe('ordered atomic revisions', () => {
       reviseDag(original, [{ kind: 'addVertex', vertex: vertex(+0) }]),
     ).toThrow(TypeError);
     expect(() =>
-      reviseDag(original, rawOperations<string>([{ kind: 'removeVertex' }])),
+      reviseDag(
+        original,
+        rawOperations<string>([{ kind: 'removeVertexDeclaration' }]),
+      ),
     ).toThrow(TypeError);
   });
 
@@ -768,8 +775,8 @@ describe('ordered atomic revisions', () => {
     [false],
     [[]],
     [{ kind: 'unknown' }],
-    [Object.create({ kind: 'removeVertex', vertexId: undefined })],
-    [{ kind: 'removeVertex' }],
+    [Object.create({ kind: 'removeVertexDeclaration', vertexId: undefined })],
+    [{ kind: 'removeVertexDeclaration' }],
     [{ kind: 'replaceVertex' }],
     [{ kind: 'addVertex', vertex: null }],
     [
@@ -892,9 +899,13 @@ describe('ordered atomic revisions', () => {
         ? { kind: 'replaceOmissions' }
         : { kind: 'replaceVertex', vertex: replacement };
     Object.defineProperty(
-      ['vertexId', 'data', 'slots', 'dependsOnWork', 'dependsOnSubgraphCompletion'].includes(
-        field,
-      )
+      [
+        'vertexId',
+        'data',
+        'slots',
+        'dependsOnWork',
+        'dependsOnSubgraphCompletion',
+      ].includes(field)
         ? replacement
         : operation,
       field,

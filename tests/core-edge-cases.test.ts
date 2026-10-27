@@ -280,7 +280,7 @@ describe('saved resolved-tree consistency', () => {
         case 'delete':
           return {
             commands: [
-              { commandName: TraversalVisitorCommandName.DELETE_VERTEX },
+              { commandName: TraversalVisitorCommandName.DELETE_TREE_SUBTREE },
             ],
           };
         case 'prune':
@@ -288,7 +288,7 @@ describe('saved resolved-tree consistency', () => {
             commands: [
               {
                 commandName:
-                  TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL,
+                  TraversalVisitorCommandName.SKIP_REMAINING_CHILDREN,
               },
             ],
           };
@@ -488,7 +488,7 @@ describe('ResolvedTreeStore deletion boundaries', () => {
       deepestRef = childRef;
     }
 
-    expect(() => tree.delete(rootRef)).not.toThrow();
+    expect(() => tree.deleteSubtree(rootRef)).not.toThrow();
     expect(tree.getRoot()).toBeNull();
     expect(tree.has(deepestRef)).toBe(false);
   });
@@ -518,7 +518,7 @@ describe('ResolvedTreeStore deletion boundaries', () => {
     });
     tree.pushChildrenTo(rootRef, children);
 
-    tree.delete(rootRef);
+    tree.deleteSubtree(rootRef);
 
     expect(tree.getRoot()).toBeNull();
     expect(tree.has(children[0]!)).toBe(false);

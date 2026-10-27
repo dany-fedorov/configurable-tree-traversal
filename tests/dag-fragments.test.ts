@@ -27,7 +27,7 @@ test('two object-ID instances compose a completion wire without sharing local id
       vertices: [vertex(start), vertex(finish, [start])],
       omittedIds: [],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: start },
           { kind: 'vertex', vertexId: finish },
@@ -54,14 +54,17 @@ test('two object-ID instances compose a completion wire without sharing local id
     dependencies: [
       {
         dependent: second.ports.start,
-        prerequisite: { vertexId: first.ports.finish, milestone: 'subgraphCompletion' },
+        prerequisite: {
+          vertexId: first.ports.finish,
+          milestone: 'subgraphCompletion',
+        },
       },
     ],
   });
   if (result.kind !== 'valid') throw new Error('Expected valid composition');
-  expect(result.dag.definition.vertices[2]!.dependsOnSubgraphCompletion).toEqual([
-    firstIds.get(finish),
-  ]);
+  expect(
+    result.dag.definition.vertices[2]!.dependsOnSubgraphCompletion,
+  ).toEqual([firstIds.get(finish)]);
   expect(
     [...result.dag.createRunner().iterateEvents()].map((e) => [
       e.vertexId.name,
@@ -143,7 +146,7 @@ test('preserves forest order, detached prerequisites and empty-entry known omiss
       vertices: [vertex('a', ['remote']), vertex('remote')],
       omittedIds: ['skip'],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'omitted', identity: { vertexId: 'skip' } },
           { kind: 'vertex', vertexId: 'a' },
@@ -163,7 +166,7 @@ test('preserves forest order, detached prerequisites and empty-entry known omiss
   const result = composeDag([a, omitted, empty, single('b')]);
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(result.dag.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'omitted', identity: { vertexId: 'skip' } },
       { kind: 'vertex', vertexId: 'a' },
@@ -259,7 +262,7 @@ test('composition validates structural and combined W/C cycles through the share
   ).toMatchObject({ kind: 'invalid', issues: [{ kind: 'milestone' }] });
   expect(composeDag([])).toMatchObject({
     kind: 'valid',
-    dag: { definition: { entry: { kind: 'forest', slots: [] } } },
+    dag: { definition: { entry: { kind: 'roots', slots: [] } } },
   });
 });
 
@@ -285,7 +288,7 @@ test('rejects unknown/omitted ports, malformed port maps and symbol port names',
     vertices: [vertex('a')],
     omittedIds: ['skip'],
     entry: {
-      kind: 'forest' as const,
+      kind: 'roots' as const,
       slots: [
         { kind: 'vertex' as const, vertexId: 'a' },
         { kind: 'omitted' as const, identity: { vertexId: 'skip' } },
@@ -312,7 +315,7 @@ test('maps SameValueZero identities and rejects mapped live/omitted collisions',
       vertices: [vertex<unknown>('a')],
       omittedIds: [undefined],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'a' },
           { kind: 'omitted', identity: { vertexId: undefined } },
@@ -428,7 +431,7 @@ test('remaps forest entry references and empty omission catalogs before composit
       vertices: [vertex('a')],
       omittedIds: ['skip'],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'omitted', identity: { vertexId: 'skip' } },
           { kind: 'vertex', vertexId: 'a' },
@@ -441,7 +444,7 @@ test('remaps forest entry references and empty omission catalogs before composit
     mapId: (id) => (id === 'a' ? 1 : 2),
   });
   expect(mapped.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'omitted', identity: { vertexId: 2 } },
       { kind: 'vertex', vertexId: 1 },
@@ -724,9 +727,9 @@ test('forged fragments expose milestone validation before any mapping', () => {
     )!;
     expect(edge.waiter.vertexId).toBe(id);
     expect(edge.prerequisite.vertexId).toBeUndefined();
-    expect(Object.prototype.hasOwnProperty.call(edge.prerequisite, 'vertexId')).toBe(
-      true,
-    );
+    expect(
+      Object.prototype.hasOwnProperty.call(edge.prerequisite, 'vertexId'),
+    ).toBe(true);
     expect(mappings).toBe(0);
   }
 });
@@ -763,7 +766,7 @@ test('fragment port and mapping failures retain their plain TypeError taxonomy',
             vertices: [vertex('a'), vertex('b')],
             omittedIds: [],
             entry: {
-              kind: 'forest',
+              kind: 'roots',
               slots: [
                 { kind: 'vertex', vertexId: 'a' },
                 { kind: 'vertex', vertexId: 'b' },

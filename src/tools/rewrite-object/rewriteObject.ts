@@ -129,7 +129,7 @@ export function rewriteObject<
   object: In,
   options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
 ): RewriteObjectResult<InK, InV, Out, OutK, OutV> {
-  if (options) assertPublicOptions(options);
+  if (options) assertPublicOptions(options, false);
   if (options && 'makeVertexHook' in options) {
     throw new TypeError('makeVertexHook is unsupported; use resolveVertexHook');
   }

@@ -65,12 +65,12 @@ Ordinary graph roots now honor both work and completion prerequisites, consisten
 ```ts
 const traversal = new DagTraversal({
   traversableGraph: graph,
-  rootDependencies: 'honor', // New default: root dependsOnWork applies.
+  rootWorkDependencies: 'honor', // New default: root dependsOnWork applies.
 });
 // To preserve ignoring the root's W declarations:
 const legacyRootPolicy = new DagTraversal({
   traversableGraph: graph,
-  rootDependencies: 'ignore', // Root dependsOnSubgraphCompletion still applies.
+  rootWorkDependencies: 'ignore', // Root dependsOnSubgraphCompletion still applies.
 });
 ```
 
@@ -78,13 +78,13 @@ Synthetic catalog roots remain bookkeeping with no work dependencies. Tree trave
 
 ## Structural parent dependencies
 
-Graph sources default to `implicitParentDependency: false`. Omitting `dependsOnWork` means no W prerequisites. Previously, an ordinary discovered child inherited its discovery parent's W when the list was omitted.
+Graph sources default to `omittedWorkDependencies: 'none'`. Omitting `dependsOnWork` means no W prerequisites. Previously, an ordinary discovered child inherited its discovery parent's W when the list was omitted.
 
 Choose explicitly:
 
 - Declare `dependsOnWork: [parentId]` for a parent W requirement, or another explicit ID list for independent workflow relationships.
 - Declare `dependsOnWork: []` for no work prerequisites under either policy.
-- Set `implicitParentDependency: true` to restore inheritance when `dependsOnWork` is omitted.
+- Set `omittedWorkDependencies: 'discoveryParentWork'` to restore inheritance when `dependsOnWork` is omitted.
 
 Explicit lists always win. `dependsOnSubgraphCompletion` adds C gates independently; it does not replace W declarations. Roots and detached prerequisites have no discovery parent, and synthetic catalog parents never gate work. Tree sources retain their structural execution order and parent dependencies. Structural child edges still govern paths and subtree completion, independently of work edges.
 
@@ -133,33 +133,32 @@ import {
 type Tree = ObjectTreeVertexTypes<string, number>;
 const source = new ObjectTreeSource<number, string, number>(1);
 const calls: string[] = [];
-const definition: VisitorPhaseInput<
-  TreeVisitor<Order.POST_ORDER, Tree, Tree>
-> = {
-  groups: [
-    {
-      commandCommitMode: 'afterGroup',
-      visitors: [
-        {
-          visitor: () => {
-            calls.push('first');
+const definition: VisitorPhaseInput<TreeVisitor<Order.POST_ORDER, Tree, Tree>> =
+  {
+    groups: [
+      {
+        commandCommitMode: 'afterGroup',
+        visitors: [
+          {
+            visitor: () => {
+              calls.push('first');
+            },
+            priority: 1,
           },
-          priority: 1,
-        },
-      ],
-    },
-    {
-      visitors: [
-        {
-          visitor: () => {
-            calls.push('second');
+        ],
+      },
+      {
+        visitors: [
+          {
+            visitor: () => {
+              calls.push('second');
+            },
+            priority: 1000,
           },
-          priority: 1000,
-        },
-      ],
-    },
-  ],
-};
+        ],
+      },
+    ],
+  };
 const traversal = new DepthFirstTreeTraversal({
   traversableTree: source,
   visitors: { [Order.POST_ORDER]: definition },

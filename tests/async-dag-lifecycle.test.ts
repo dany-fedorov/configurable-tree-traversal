@@ -382,8 +382,8 @@ test('close does not await a pending resolver and reuses its result on resume', 
 
 test('cascade deletion invalidates running dependents and all late outcomes', async () => {
   const deleteA = deferred<void>();
-  const bVisit = deferred<VisitResult<TestGraph>>();
-  const cVisit = deferred<VisitResult<TestGraph>>();
+  const bVisit = deferred<VisitResult<TestGraph, 'ON_WORK_READY', 'dag'>>();
+  const cVisit = deferred<VisitResult<TestGraph, 'ON_WORK_READY', 'dag'>>();
   const started: string[] = [];
   const traversal = new AsyncDagTraversal<TestGraph>({
     traversableGraph: graphAdapter({
@@ -404,7 +404,7 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
   traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, async (vertex) => {
     if (vertex.getData() !== 'A') return undefined;
     await deleteA.promise;
-    return { commands: [{ commandName: Command.DELETE_VERTEX }] };
+    return { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] };
   });
   const runner = traversal.createRunner();
   const events: string[] = [];
@@ -452,8 +452,8 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
 
 test('retains the first live failure and ignores later sibling settlement', async () => {
   const failure = new Error('first live failure');
-  const aVisit = deferred<VisitResult<TestGraph>>();
-  const bVisit = deferred<VisitResult<TestGraph>>();
+  const aVisit = deferred<VisitResult<TestGraph, 'ON_WORK_READY', 'dag'>>();
+  const bVisit = deferred<VisitResult<TestGraph, 'ON_WORK_READY', 'dag'>>();
   const traversal = new AsyncDagTraversal<TestGraph>({
     traversableGraph: twoBranches(),
     concurrency: 2,

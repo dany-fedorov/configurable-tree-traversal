@@ -51,8 +51,10 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     private readonly container: ResolvedGraphsContainer<T, R>,
     completedWork?: ReadonlySet<VertexId>,
     private eager = false,
-    private readonly rootDependencies: 'honor' | 'ignore' = 'honor',
-    private readonly implicitParentDependency = false,
+    private readonly rootWorkDependencies: 'honor' | 'ignore' = 'honor',
+    private readonly omittedWorkDependencies:
+      | 'none'
+      | 'discoveryParentWork' = 'none',
   ) {
     this.unusedCompletedWork = new Set(completedWork);
   }
@@ -330,7 +332,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         : this.makeUniqueRef(result.vertexContent);
     const dependencies =
       this.container.sourceMode === 'graph' &&
-      this.rootDependencies === 'honor' &&
+      this.rootWorkDependencies === 'honor' &&
       !this.container.syntheticRoot
         ? Array.from(new Set(result.dependsOnWork))
         : [];
@@ -898,7 +900,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     const declared = result.dependsOnWork;
     if (declared !== undefined) return Array.from(new Set(declared));
     return (this.container.sourceMode === 'graph' &&
-      !this.implicitParentDependency) ||
+      this.omittedWorkDependencies === 'none') ||
       context.parentVertexRef === this.container.syntheticRootRef
       ? []
       : [this.container.resolvedGraph.getVertexId(context.parentVertexRef)];

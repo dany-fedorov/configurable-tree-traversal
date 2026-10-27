@@ -54,8 +54,9 @@ for (const entry of entries) {
   assert.equal(old.completeWork(oldTicket).kind, 'accepted');
   assert.equal(old.advance().kind, 'finished');
   assert.equal(
-    entry.reviseDag(result.dag, [{ kind: 'removeVertex', vertexId: 'task' }])
-      .kind,
+    entry.reviseDag(result.dag, [
+      { kind: 'removeVertexDeclaration', vertexId: 'task' },
+    ]).kind,
     'invalid',
   );
 }

@@ -38,10 +38,10 @@ Invalid ports, identity collisions and nonexistent wire endpoints throw `TypeErr
 
 ## Choose an execution model
 
-| Model | How it works | Appropriate when |
-| --- | --- | --- |
+| Model                    | How it works                                                                                                                                                                | Appropriate when                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | Host-controlled frontier | Use a prepared DAG's `createWorkSession()`, then `advance()` and dispatch its frontier tickets; custom runners can use `createDagWorkSession` / `createAsyncDagWorkSession` | Agents run externally, work needs claims/approval, or state must survive process loss |
-| Work inside visitors | Use `AsyncDagTraversal` and await work in `ON_WORK_READY` visitors; normal chain completion releases dependents | One process owns execution and immediate callback failure should fail traversal |
+| Work inside visitors     | Use `AsyncDagTraversal` and await work in `ON_WORK_READY` visitors; normal chain completion releases dependents                                                             | One process owns execution and immediate callback failure should fail traversal       |
 
 Start with the host-controlled model for a durable agent coordinator. For in-memory collections, use `materializeDagSourceFromRecords` → `prepareDag` → `dag.createWorkSession({ completedWork })`. Use `await prepareDagAsync(...)` for async source discovery and `await dag.createAsyncWorkSession(...)` for an async session. `DagTraversal` is sufficient when graph facts are already in memory; use `AsyncDagTraversal` for asynchronous adapters. The host can run asynchronous agents independently of which runner it uses.
 
@@ -67,14 +67,14 @@ The same vertex can remain in `readyOrDeferredIds` while an external agent is ru
 
 CTT traverses the graph your adapter provides; it does not generate a plan from a goal or work-item type. A host's `planDag` can select a type-specific template or generate and validate a revision, then adapt its nodes to CTT. `planDag` is a host function, not a CTT API. Hints describe how to discover that plan.
 
-| Concept | CTT representation | Host responsibility |
-| --- | --- | --- |
-| Stable work identity | `vertexId` | Choose IDs that can be reconstructed and matched to accepted facts |
-| Opaque task data                 | `vertexContent.$data`                                         | Agent role, prompt/artifact references, policy and metadata        |
+| Concept                          | CTT representation                                                 | Host responsibility                                                |
+| -------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Stable work identity             | `vertexId`                                                         | Choose IDs that can be reconstructed and matched to accepted facts |
+| Opaque task data                 | `vertexContent.$data`                                              | Agent role, prompt/artifact references, policy and metadata        |
 | Discovery and structure          | `resolveRoot()`, `resolveChild(hint)`, `vertexContent.$childHints` | Supply the complete intended catalog and structural relationships  |
-| Initial-work dependency | `dependsOnWork` | Declare which work must be accepted first |
-| Structural-completion dependency | `dependsOnSubgraphCompletion` | Declare which composite must finish before work begins |
-| Missing prerequisite lookup | Optional `resolvePrerequisite(id)` | Fetch graph facts from a catalog/service |
+| Initial-work dependency          | `dependsOnWork`                                                    | Declare which work must be accepted first                          |
+| Structural-completion dependency | `dependsOnSubgraphCompletion`                                      | Declare which composite must finish before work begins             |
+| Missing prerequisite lookup      | Optional `resolvePrerequisite(id)`                                 | Fetch graph facts from a catalog/service                           |
 
 For a known catalog, use `materializeDagSourceFromRecords(items, { id, children?, dependsOnWork?, dependsOnSubgraphCompletion? })`. Every catalog item is discovered, including disconnected entries; `children` returns structural child IDs. A child ID absent from the catalog rejects immediately, while missing prerequisite IDs reach dependency validation. For nested records, `materializeDagSourceFromRoots(roots, selectors)` expands `children(item)` records iteratively and shares repeated references. Different forest records with the same ID reject; `materializeDagSourceFromRecords` rejects any duplicate ID. Async variants accept iterable/async-iterable inputs and value-or-promise selectors, then return the same ordinary synchronous source options.
 
@@ -84,18 +84,18 @@ Call `prepareDag(source)` or `await prepareDagAsync(source)` to discover and val
 
 A prepared definition owns copied topology and detached readonly vertex descriptions. Each new session gets independent progress, accepted seeds, references, and settlement generations without calling the original adapter again. Replay hints are normalized to IDs; original opaque discovery hints are not retained. Preparation can perform source I/O, so business work belongs in host execution or visitors. See the [prepared definition contract](reference.md#reusable-prepared-dags).
 
-Discovery and execution dependencies are distinct. Graph sources default to `implicitParentDependency: false`: omitting `dependsOnWork` means no work prerequisites. Declare explicit lists (including `[]`), or set `implicitParentDependency: true` to inherit the discovery parent's W when the list is omitted. Ordinary roots honor W by default; `rootDependencies: 'ignore'` suppresses root W only, never C. Children of a synthetic root have no implicit dependency on the holder. See [discovery versus execution](reference.md#discovery-and-execution-as-separate-phases).
+Discovery and execution dependencies are distinct. Graph sources default to `omittedWorkDependencies: 'none'`: omitting `dependsOnWork` means no work prerequisites. Declare explicit lists (including `[]`), or set `omittedWorkDependencies: 'discoveryParentWork'` to inherit the discovery parent's W when the list is omitted. Ordinary roots honor W by default; `rootWorkDependencies: 'ignore'` suppresses root W only, never C. Children of a synthetic root have no implicit dependency on the holder. See [discovery versus execution](reference.md#discovery-and-execution-as-separate-phases).
 
 A prerequisite ID alone does not make a vertex discoverable. Include it through hints/catalog entries or supply `resolvePrerequisite`. That hook may find further prerequisites transitively; concurrent demand is coalesced. Return `{ kind: 'found', vertex: { vertexId, vertexContent: { $data, $childHints }, dependsOnWork } }` for content, `{ kind: 'missing' }` for not found, or `{ kind: 'omitted', satisfiesDependencies: true }` for intentional omission. Omission deliberately omits the vertex and satisfies its dependencies, so it is not a representation of a failed agent or a temporary service outage. Let adapter errors propagate as appropriate. See [lookup and identity rules](reference.md#discovery-and-completed-work).
 
 Choose discovery and dispatch surfaces by the lifetime you need:
 
-| Need | Surface | Execution boundary |
-| --- | --- | --- |
-| Reuse validated topology across independent runs | `prepareDag(source)` / `prepareDagAsync(source)` | Discover and validate once; create fresh runners or sessions afterward. |
-| Preview one fresh runner before work | `runner.prepare()` / `await runner.prepare()` | Discover and validate without visitors or dispatch generations; `run()` adopts that discovery. |
-| Discover fully, then execute in one operation | Runner with `discovery: 'eager'`, then `run()` | Validation precedes callbacks, but execution begins in the same call. |
-| Dispatch host work | Session `advance()` frontier tickets, or runner `summary().awaitingSettlement` after `run()` | Use external settlement; apply host claims and capacity. `readyOrDeferredIds` is observational dependency eligibility, not a dispatch ticket. |
+| Need                                             | Surface                                                                                      | Execution boundary                                                                                                                            |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reuse validated topology across independent runs | `prepareDag(source)` / `prepareDagAsync(source)`                                             | Discover and validate once; create fresh runners or sessions afterward.                                                                       |
+| Preview one fresh runner before work             | `runner.prepare()` / `await runner.prepare()`                                                | Discover and validate without visitors or dispatch generations; `run()` adopts that discovery.                                                |
+| Discover fully, then execute in one operation    | Runner with `discovery: 'eager'`, then `run()`                                               | Validation precedes callbacks, but execution begins in the same call.                                                                         |
+| Dispatch host work                               | Session `advance()` frontier tickets, or runner `summary().awaitingSettlement` after `run()` | Use external settlement; apply host claims and capacity. `readyOrDeferredIds` is observational dependency eligibility, not a dispatch ticket. |
 
 For a preview before dispatch, call `runner.prepare()` (await it on `AsyncDagTraversal`). It eagerly discovers the closure exposed by roots, hints and prerequisite lookup and validates the combined W/C graph, without visitors, execution events, new real-vertex completion, or deferred generations. Accepted `completedWork` seeds remain W facts. Inspect the graph at `HALTED` / `prepared`, then call `run()` to admit work without replaying discovery. Repeated preparation before execution is idempotent. This requires a fresh tree-source or graph-source runner without injected state/containers, even empty injected objects; invalid preparation requests reject recoverably. Once preparation begins, summaries report effective eager mode and eager topology freezing applies. After execution starts, preparation rejects.
 
@@ -105,11 +105,11 @@ Lazy execution remains available without preparation and may expose partially di
 
 ## Work dependencies and completion joins
 
-| Declaration | Releases the dependent after… | Example |
-| --- | --- | --- |
-| `dependsOnWork: ['research']` | Research's initial work completes (W) | Implementation can start from accepted research |
-| `dependsOnSubgraphCompletion: ['implementation']` | Implementation's committed completion transition (C), including discovery and retained children | Review waits for implementation and all its component tasks |
-| Both lists | Every declared W and C prerequisite is satisfied | Review waits for a composite and a separate test-plan result |
+| Declaration                                       | Releases the dependent after…                                                                   | Example                                                      |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `dependsOnWork: ['research']`                     | Research's initial work completes (W)                                                           | Implementation can start from accepted research              |
+| `dependsOnSubgraphCompletion: ['implementation']` | Implementation's committed completion transition (C), including discovery and retained children | Review waits for implementation and all its component tasks  |
+| Both lists                                        | Every declared W and C prerequisite is satisfied                                                | Review waits for a composite and a separate test-plan result |
 
 Use work dependencies for flat agent tasks. Use completion dependencies when structural children are meaningful parts of a composite. Seeds in `completedWork` satisfy W only; children and completion visitors still have to complete before C is released.
 
@@ -122,13 +122,15 @@ Start from the [quickstart](../README.md#quickstart-find-the-next-agent-tasks). 
 ```ts
 const pending = session.advance();
 if (pending.kind === 'awaitingSettlement') {
-  const ticket = pending.workTickets.find(work => work.vertexId === 'testPlan')!;
+  const ticket = pending.workTickets.find(
+    (work) => work.vertexId === 'testPlan',
+  )!;
   // Retain the ticket before dispatch; validate revision/attempt on the result.
   accepted.add(ticket.vertexId); // In-memory simulation of durable acceptance.
   session.completeWork(ticket);
   const next = session.advance();
   if (next.kind === 'awaitingSettlement') {
-    console.log(next.workTickets.map(work => work.vertexId)); // ['review']
+    console.log(next.workTickets.map((work) => work.vertexId)); // ['review']
   }
 }
 ```
@@ -151,12 +153,12 @@ Capture the generation belonging to the deferred work you dispatched. It is a lo
 
 CTT does not prescribe a storage engine or ship a persistence adapter. Define storage interfaces in your host and implement them with SQLite, PostgreSQL, a service, or another provider. Provider interchangeability must preserve the host's claim and result-acceptance guarantees, not just CRUD method names.
 
-| Persist in the host | Purpose |
-| --- | --- |
+| Persist in the host                                                          | Purpose                                                                        |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | Graph revision, stable IDs, task definitions, W/C declarations and structure | Reconstruct the intended graph and associate results with the correct revision |
-| Accepted outcomes and artifact references | Decide which work is complete for traversal and supply downstream inputs |
-| Attempts, claims/leases, wait state, retry decisions and deduplication keys | Prevent readiness from dispatching duplicate or ineligible work |
-| Accepted completion facts for the revision | Supply `completedWork` to a new runner |
+| Accepted outcomes and artifact references                                    | Decide which work is complete for traversal and supply downstream inputs       |
+| Attempts, claims/leases, wait state, retry decisions and deduplication keys  | Prevent readiness from dispatching duplicate or ineligible work                |
+| Accepted completion facts for the revision                                   | Supply `completedWork` to a new runner                                         |
 
 Keep prepared definitions, runners, tickets, vertex references, generation symbols, pending promises, and lookup handles in memory. A serialized summary is useful for presentation, but is not a runner checkpoint. CTT allows arbitrary SameValueZero IDs; durable hosts should choose their own stable serializable ID convention, such as strings.
 
@@ -186,17 +188,17 @@ Keep host revision/attempt checks when results arrive. A ticket issued before re
 
 ## Troubleshoot a workflow
 
-| Symptom | Check |
-| --- | --- |
-| Work completed without an agent running              | Check `workCompletion: 'externalSettlement'`; the default `visitorReturn` completes W on normal callback-chain return. Seeds also mark W complete                           |
-| The same agent task dispatches again | Host claim/attempt state must filter `readyOrDeferredIds`; deferral intentionally leaves work ready |
-| Ready work seems absent | Run discovery first; inspect discovery completeness, seed IDs, and unmet W/C dependencies |
-| Missing prerequisite or cycle | Inspect the `milestone` issue in `invalid.issues` from source preparation or `DagTraversalStallError` from direct execution for W/C constraints. Structural child cycles throw `DagDiscoveryCycleError`; collection adapters reject absent child IDs with `TypeError`. Authored definitions report `invalid.issues`. Check catalog coverage, lookup results and structural edges |
-| A seeded composite still blocks review | Seeds complete W, not C; its retained children and completion transition must finish |
-| A retry aborts everything                            | `settle(..., { kind: 'traversalFailed', error }, ...)` is fatal; keep retryable work incomplete in host policy                            |
-| Settlement fails after restart | Generations are runner-local; reconstruct from accepted facts rather than replaying an old handle |
-| An external task still runs after halt | Callback/executor cancellation belongs to the host |
-| A node fetched by lookup is missing from a root walk | Resolved prerequisites may be detached; enumerate `getVertexRefs()` instead of only walking `getRoot()` |
+| Symptom                                              | Check                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Work completed without an agent running              | Check `workCompletion: 'externalSettlement'`; the default `visitorReturn` completes W on normal callback-chain return. Seeds also mark W complete                                                                                                                                                                                                                                |
+| The same agent task dispatches again                 | Host claim/attempt state must filter `readyOrDeferredIds`; deferral intentionally leaves work ready                                                                                                                                                                                                                                                                              |
+| Ready work seems absent                              | Run discovery first; inspect discovery completeness, seed IDs, and unmet W/C dependencies                                                                                                                                                                                                                                                                                        |
+| Missing prerequisite or cycle                        | Inspect the `milestone` issue in `invalid.issues` from source preparation or `DagTraversalStallError` from direct execution for W/C constraints. Structural child cycles throw `DagDiscoveryCycleError`; collection adapters reject absent child IDs with `TypeError`. Authored definitions report `invalid.issues`. Check catalog coverage, lookup results and structural edges |
+| A seeded composite still blocks review               | Seeds complete W, not C; its retained children and completion transition must finish                                                                                                                                                                                                                                                                                             |
+| A retry aborts everything                            | `settle(..., { kind: 'traversalFailed', error }, ...)` is fatal; keep retryable work incomplete in host policy                                                                                                                                                                                                                                                                   |
+| Settlement fails after restart                       | Generations are runner-local; reconstruct from accepted facts rather than replaying an old handle                                                                                                                                                                                                                                                                                |
+| An external task still runs after halt               | Callback/executor cancellation belongs to the host                                                                                                                                                                                                                                                                                                                               |
+| A node fetched by lookup is missing from a root walk | Resolved prerequisites may be detached; enumerate `getVertexRefs()` instead of only walking `getRoot()`                                                                                                                                                                                                                                                                          |
 
 Use synchronous `runner.inspectMilestones()` (also on async runners), or the equivalent `inspectDagMilestones(runner)`, when a host needs to show why a milestone is blocked or which original constraints depend on it. Capture once, then call `explain({ vertexId, milestone: 'work' | 'subgraphCompletion' })`, `prerequisitesOf(...)`, or `dependentsOf(..., { transitive: true })`. Explanations distinguish unknown/deleted identities, omitted vertices, unfinished work, incomplete local discovery and pending completion transitions. A ready or externally deferred task still has unfinished W; a seeded parent's W may be satisfied while its C waits for children. Constraint endpoints include work state and milestone satisfaction, without interpreting business outcomes.
 

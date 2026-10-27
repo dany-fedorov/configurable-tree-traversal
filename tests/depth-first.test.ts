@@ -141,7 +141,7 @@ describe('depth-first traversal', () => {
     );
     t.addVisitorFor(Order.PRE_ORDER, (v) =>
       v.getData() === 'branch'
-        ? { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] }
+        ? { commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }] }
         : undefined,
     );
     expect(values(t.createRunner(), Order.POST_ORDER)).toEqual([
@@ -229,8 +229,8 @@ describe('depth-first traversal', () => {
       return {
         commands: [
           {
-            commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-            commandArguments: { vertexVisitorsChainState: 42 },
+            commandName: Command.SET_VISITOR_CHAIN_STATE,
+            commandArguments: { state: 42 },
           },
         ],
       };
@@ -263,7 +263,7 @@ describe('depth-first traversal', () => {
     );
     t.addVisitorFor(Order.PRE_ORDER, (v) =>
       v.getData() === 'branch'
-        ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
+        ? { commands: [{ commandName: Command.DELETE_TREE_SUBTREE }] }
         : undefined,
     );
     const runner = t.createRunner().run();
@@ -296,8 +296,8 @@ test('passes chain state from concurrent commands to the first sequential visito
     () => ({
       commands: [
         {
-          commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-          commandArguments: { vertexVisitorsChainState: 42 },
+          commandName: Command.SET_VISITOR_CHAIN_STATE,
+          commandArguments: { state: 42 },
         },
       ],
     }),

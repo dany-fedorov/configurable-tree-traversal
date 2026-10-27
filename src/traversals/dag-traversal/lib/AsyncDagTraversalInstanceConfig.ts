@@ -8,7 +8,10 @@ import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefi
 import { deepFreeze } from '@utils/deepFreeze';
 import { captureDagConfigPatch, captureDagSourcePatch } from './dagSourcePatch';
 import type { DagSchedulingOptions } from './DagTraversalInstanceConfig';
-import { assertDagWorkCompletion } from './DagTraversalInstanceConfig';
+import {
+  assertDagWorkCompletion,
+  assertDagDependencyPolicies,
+} from './DagTraversalInstanceConfig';
 import { DagVisitorPhase } from './DagTraversalOrder';
 import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
 import type { AsyncDagVisitor } from './DagTraversalVisitor';
@@ -75,7 +78,12 @@ export type AsyncDagOptions<
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
   ID = unknown,
-> = AsyncDagSource<T, R, ID> & AsyncDagTraversalOptionsInput<T, R, ID>;
+> = AsyncDagSource<T, R, ID> &
+  AsyncDagTraversalOptionsInput<T, R, ID> &
+  (
+    | { traversableGraph: AsyncDagDiscoverySource<T, R, ID> }
+    | { rootWorkDependencies?: never; omittedWorkDependencies?: never }
+  );
 
 export type AsyncDagOptionsPatch<
   T extends VertexTypes = VertexTypes,
@@ -88,6 +96,8 @@ export type AsyncDagOptionsPatch<
         traversableTree?: undefined;
       }
     | {
+        rootWorkDependencies?: never;
+        omittedWorkDependencies?: never;
         traversableTree?:
           | (unknown extends ID ? AsyncTreeSource<T, R> : never)
           | undefined;
@@ -123,6 +133,12 @@ export function mergeAsyncDagTraversalInstanceConfigs<
 ): AsyncDagResolvedOptions<T, R, ID> {
   const capturedInput = captureDagConfigPatch(input, sources);
   assertDagWorkCompletion(capturedInput.workCompletion);
+  assertDagDependencyPolicies(
+    capturedInput,
+    sources.traversableGraph !== undefined ||
+      base.traversableGraph !== undefined,
+    input,
+  );
   const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
   const merged = {
     ...base,

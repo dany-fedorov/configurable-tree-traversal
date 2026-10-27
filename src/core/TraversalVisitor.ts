@@ -11,10 +11,11 @@ export enum TraversalVisitorCommandName {
   DEFER_WORK_COMPLETION = 'DEFER_WORK_COMPLETION',
   REWRITE_CHILD_HINTS = 'REWRITE_CHILD_HINTS',
   PAUSE_TRAVERSAL = 'PAUSE_TRAVERSAL',
-  DELETE_VERTEX = 'DELETE_VERTEX',
-  SET_VERTEX_VISITORS_CHAIN_STATE = 'SET_VERTEX_VISITORS_CHAIN_STATE',
+  DELETE_TREE_SUBTREE = 'DELETE_TREE_SUBTREE',
+  DELETE_DAG_VERTEX_CASCADE = 'DELETE_DAG_VERTEX_CASCADE',
+  SET_VISITOR_CHAIN_STATE = 'SET_VISITOR_CHAIN_STATE',
   REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
-  DISABLE_SUBTREE_TRAVERSAL = 'DISABLE_SUBTREE_TRAVERSAL',
+  SKIP_REMAINING_CHILDREN = 'SKIP_REMAINING_CHILDREN',
 }
 
 export type TraversalVisitorCommandArguments<RW_TTP extends VertexTypes> = {
@@ -24,14 +25,15 @@ export type TraversalVisitorCommandArguments<RW_TTP extends VertexTypes> = {
     newHints: RW_TTP['VertexHint'][];
   };
   [TraversalVisitorCommandName.PAUSE_TRAVERSAL]: never;
-  [TraversalVisitorCommandName.DELETE_VERTEX]: never;
-  [TraversalVisitorCommandName.SET_VERTEX_VISITORS_CHAIN_STATE]: {
-    vertexVisitorsChainState: unknown;
+  [TraversalVisitorCommandName.DELETE_TREE_SUBTREE]: never;
+  [TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE]: never;
+  [TraversalVisitorCommandName.SET_VISITOR_CHAIN_STATE]: {
+    state: unknown;
   };
   [TraversalVisitorCommandName.REWRITE_VERTEX_DATA]: {
     newData: RW_TTP['VertexData'];
   };
-  [TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL]: never;
+  [TraversalVisitorCommandName.SKIP_REMAINING_CHILDREN]: never;
 };
 
 export type TraversalVisitorCommand<
@@ -49,19 +51,29 @@ export type TraversalVisitorCommand<
 export type NoInferPhase<P extends string> = [P][P extends string ? 0 : never];
 
 type HintCommand = TraversalVisitorCommandName.REWRITE_CHILD_HINTS;
+export type DeletionCommandName =
+  | TraversalVisitorCommandName.DELETE_TREE_SUBTREE
+  | TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE;
+
 type CommonCommand = Exclude<
   TraversalVisitorCommandName,
-  HintCommand | TraversalVisitorCommandName.DEFER_WORK_COMPLETION
+  | HintCommand
+  | TraversalVisitorCommandName.DEFER_WORK_COMPLETION
+  | DeletionCommandName
 >;
 
 export type TraversalVisitorResult<
   RW_TTP extends VertexTypes,
   Phase extends string = string,
+  Family extends 'tree' | 'dag' = 'tree' | 'dag',
 > =
   | {
       commands?: TraversalVisitorCommand<
         RW_TTP,
         | CommonCommand
+        | (Family extends 'tree'
+            ? TraversalVisitorCommandName.DELETE_TREE_SUBTREE
+            : TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE)
         | ([Phase] extends ['PRE_ORDER' | 'LEVEL_ORDER' | 'ON_WORK_READY']
             ? HintCommand
             : never)
@@ -164,7 +176,7 @@ export type TreeVisitor<
   Phase extends string = string,
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> = TraversalVisitorResult<RW_TTP, Phase> extends infer RESULT
+> = TraversalVisitorResult<RW_TTP, Phase, 'tree'> extends infer RESULT
   ? (
       vertex: Vertex<TTP | RW_TTP>,
       options: TreeVisitorContext<Phase, TTP, RW_TTP>,

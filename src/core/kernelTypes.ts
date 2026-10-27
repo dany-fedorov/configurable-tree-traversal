@@ -47,8 +47,8 @@ export type KernelOptions<T extends VertexTypes, R extends VertexTypes = T> = {
   discovery?: 'lazy' | 'eager';
   canPrepare?: boolean;
   workCompletion?: 'visitorReturn' | 'externalSettlement';
-  rootDependencies?: 'honor' | 'ignore';
-  implicitParentDependency?: boolean;
+  rootWorkDependencies?: 'honor' | 'ignore';
+  omittedWorkDependencies?: 'none' | 'discoveryParentWork';
   completedWork?: ReadonlySet<VertexId>;
   dagSeed?: {
     readyVisits: readonly EligibleVisit<T | R>[];

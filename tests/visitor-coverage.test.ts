@@ -74,8 +74,8 @@ describe.each(['depth-first', 'breadth-first'] as const)(
               commandArguments: { newData: 'rewritten' },
             },
             {
-              commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-              commandArguments: { vertexVisitorsChainState: 'group finished' },
+              commandName: Command.SET_VISITOR_CHAIN_STATE,
+              commandArguments: { state: 'group finished' },
             },
           ],
         };
@@ -109,7 +109,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       const calls: string[] = [];
       add(() => {
         calls.push('delete');
-        return { commands: [{ commandName: Command.DELETE_VERTEX }] };
+        return { commands: [{ commandName: Command.DELETE_TREE_SUBTREE }] };
       }, 'afterGroup');
       add((vertex) => {
         calls.push(vertex.getData());

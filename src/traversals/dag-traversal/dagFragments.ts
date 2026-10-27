@@ -87,14 +87,15 @@ export function instantiateDagFragment<Data, ID, Port extends string, MappedID>(
       data: vertex.data,
       slots: vertex.slots.map(slot),
       dependsOnWork: vertex.dependsOnWork.map(remap),
-      dependsOnSubgraphCompletion: vertex.dependsOnSubgraphCompletion.map(remap),
+      dependsOnSubgraphCompletion:
+        vertex.dependsOnSubgraphCompletion.map(remap),
     })),
     omittedIds: local.definition.omittedIds.map(remap),
     entry:
       entry.kind === 'root'
         ? { kind: 'root', vertexId: remap(entry.vertexId) }
-        : entry.kind === 'forest'
-        ? { kind: 'forest', slots: entry.slots.map(slot) }
+        : entry.kind === 'roots'
+        ? { kind: 'roots', slots: entry.slots.map(slot) }
         : { kind: 'empty' },
   });
   const ports = Object.freeze(
@@ -156,7 +157,7 @@ export function composeDag<Data, ID>(
     const entry = definition.entry;
     if (entry.kind === 'root')
       return [{ kind: 'vertex', vertexId: entry.vertexId }];
-    if (entry.kind === 'forest') return [...entry.slots];
+    if (entry.kind === 'roots') return [...entry.slots];
     return definition.omittedIds.map((vertexId) => ({
       kind: 'omitted',
       identity: { vertexId },
@@ -185,6 +186,6 @@ export function composeDag<Data, ID>(
   return prepareDagDefinition({
     vertices,
     omittedIds,
-    entry: { kind: 'forest', slots },
+    entry: { kind: 'roots', slots },
   });
 }

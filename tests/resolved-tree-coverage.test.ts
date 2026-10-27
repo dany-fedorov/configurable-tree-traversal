@@ -90,7 +90,7 @@ describe('resolved-tree public fallbacks', () => {
     tree.set(childRef, makeResolved(makeContext(rootRef, node('child'))));
     tree.pushChildrenTo(rootRef, [childRef, childRef]);
 
-    tree.delete(rootRef);
+    tree.deleteSubtree(rootRef);
 
     expect(tree.getRoot()).toBeNull();
     expect(tree.has(rootRef)).toBe(false);
@@ -124,7 +124,7 @@ describe('saved-container consistency errors', () => {
     if (savedTree === null || savedRootRef === undefined) {
       throw new Error('Expected saved root state');
     }
-    savedTree.delete(savedRootRef);
+    savedTree.deleteSubtree(savedRootRef);
 
     expect(() => container.pushChildrenTo(rootRef, [childRef])).toThrow(
       /could not find not mutated ref/i,

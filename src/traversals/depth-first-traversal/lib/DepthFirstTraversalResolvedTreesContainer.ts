@@ -150,7 +150,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
   }
 
   delete(vertexRef: MutableRef<Vertex<TTP | RW_TTP>>): void {
-    this.resolvedTree.delete(vertexRef);
+    this.resolvedTree.deleteSubtree(vertexRef);
   }
 
   pushChildrenTo(

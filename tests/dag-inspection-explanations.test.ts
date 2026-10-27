@@ -193,7 +193,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       materializeDagSourceFromRecords([{ id: 'deleted' }], { id: (v) => v.id }),
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
-      commands: [{ commandName: Command.DELETE_VERTEX }],
+      commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
     }));
     const runner = traversal.createRunner();
     await runner.run();

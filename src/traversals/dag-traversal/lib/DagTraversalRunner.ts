@@ -102,19 +102,6 @@ export class InternalDagTraversalRunner<
   private readonly bindings: CallbackBindings<T, R>;
 
   constructor(input: DagResolvedOptions<T, R, ID>) {
-    if (
-      input.rootDependencies !== undefined &&
-      input.rootDependencies !== 'honor' &&
-      input.rootDependencies !== 'ignore'
-    ) {
-      throw new TypeError('rootDependencies must be honor or ignore');
-    }
-    if (
-      input.implicitParentDependency !== undefined &&
-      typeof input.implicitParentDependency !== 'boolean'
-    ) {
-      throw new TypeError('implicitParentDependency must be a boolean');
-    }
     this.icfg = { ...input, visitors: initDagVisitors(input) };
     const injectedState = input.traversalRunnerInternalObjects.state;
     this.state = injectedState ?? new DagTraversalRunnerState<T, R>();
@@ -216,12 +203,12 @@ export class InternalDagTraversalRunner<
         this.icfg.workCompletion === undefined
           ? 'visitorReturn'
           : this.icfg.workCompletion,
-      ...(input.rootDependencies === undefined
+      ...(input.rootWorkDependencies === undefined
         ? {}
-        : { rootDependencies: input.rootDependencies }),
-      ...(input.implicitParentDependency === undefined
+        : { rootWorkDependencies: input.rootWorkDependencies }),
+      ...(input.omittedWorkDependencies === undefined
         ? {}
-        : { implicitParentDependency: input.implicitParentDependency }),
+        : { omittedWorkDependencies: input.omittedWorkDependencies }),
       ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'sync',
       sourceMode,

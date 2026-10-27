@@ -282,7 +282,7 @@ walkGraphAsync({
   visitors: {
     // @ts-expect-error Async walking cannot mutate the tree topology.
     [Phase.VERTEX]: async () => ({
-      commands: [{ commandName: Command.DELETE_VERTEX }],
+      commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
     }),
   },
 });

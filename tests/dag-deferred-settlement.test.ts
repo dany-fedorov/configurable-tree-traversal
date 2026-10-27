@@ -276,7 +276,7 @@ test('deleted orphan refuses a previously issued deferred generation', async () 
   traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
     if (vertex.getData() === 'p') {
       await finishP.promise;
-      return { commands: [{ commandName: Command.DELETE_VERTEX }] };
+      return { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] };
     }
     if (vertex.getData() === 'a')
       return {

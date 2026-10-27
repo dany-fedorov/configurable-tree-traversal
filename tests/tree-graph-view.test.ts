@@ -42,7 +42,7 @@ test('deleting an unresolved root clears the legacy root', () => {
   );
   tree.setRoot(ref);
 
-  tree.delete(ref);
+  tree.deleteSubtree(ref);
 
   expect(tree.getRoot()).toBeNull();
 });
@@ -75,7 +75,7 @@ test('legacy deletion detaches by clone and permits manually re-setting a ref', 
   tree.set(rootRef, rootRecord);
   tree.set(childRef, childRecord);
 
-  tree.delete(childRef);
+  tree.deleteSubtree(childRef);
 
   expect(tree.get(rootRef)).not.toBe(rootRecord);
   expect(tree.getChildrenOf(rootRef)).toEqual([]);

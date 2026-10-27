@@ -48,7 +48,7 @@ export function captureDagDefinition<T extends VertexTypes, ID>(
     }),
     omittedIds,
     entry: container.syntheticRoot
-      ? { kind: 'forest', slots: holder === null ? [] : captureSlots(holder) }
+      ? { kind: 'roots', slots: holder === null ? [] : captureSlots(holder) }
       : root === null
       ? { kind: 'empty' }
       : { kind: 'root', vertexId: graph.getVertexId(root) },
@@ -95,14 +95,27 @@ export function definitionSource<Data, ID>(
       },
     };
   };
+  const rootHints = (slots: readonly DagDefinitionSlot<ID>[]): ID[] => {
+    const seen = new Set<ID>();
+    return hints(
+      slots.filter((slot) => {
+        if (slot.kind === 'omitted') return true;
+        if (seen.has(slot.vertexId)) return false;
+        seen.add(slot.vertexId);
+        return true;
+      }),
+    );
+  };
   const syntheticRoot =
-    definition.entry.kind === 'forest' ||
+    definition.entry.kind === 'roots' ||
     (definition.entry.kind === 'empty' && omitted.size > 0);
   return {
     syntheticRoot,
     traversableGraph: {
       resolveRoot: () => {
         const entry = definition.entry;
+        // The private holder discovers repeated live identities once; the authored entry
+        // retains repeated ordered slots for round trips and walking adapters.
         if (syntheticRoot)
           return {
             kind: 'found',
@@ -111,8 +124,8 @@ export function definitionSource<Data, ID>(
               vertexContent: {
                 $data: undefined as Data,
                 $childHints:
-                  entry.kind === 'forest'
-                    ? hints(entry.slots)
+                  entry.kind === 'roots'
+                    ? rootHints(entry.slots)
                     : definition.omittedIds.slice(),
               },
             },

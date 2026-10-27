@@ -59,8 +59,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               },
             },
             {
-              commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-              commandArguments: { vertexVisitorsChainState: data },
+              commandName: Command.SET_VISITOR_CHAIN_STATE,
+              commandArguments: { state: data },
             },
           ],
         };

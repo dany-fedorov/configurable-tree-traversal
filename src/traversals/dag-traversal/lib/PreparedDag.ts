@@ -19,8 +19,8 @@ type OwnedOptions = {
   traversableTree?: never;
   syntheticRoot?: never;
   discovery?: never;
-  rootDependencies?: never;
-  implicitParentDependency?: never;
+  rootWorkDependencies?: never;
+  omittedWorkDependencies?: never;
   sortChildrenHints?: never;
   traversalRunnerInternalObjects?: never;
 };

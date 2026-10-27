@@ -81,7 +81,7 @@ export function materializeWalkSourceFromDagDefinition<Data, ID>(
   if (snapshot.entry.kind === 'root') {
     lookup(snapshot.entry.vertexId);
     roots.push({ vertexId: snapshot.entry.vertexId });
-  } else if (snapshot.entry.kind === 'forest') {
+  } else if (snapshot.entry.kind === 'roots') {
     for (const slot of snapshot.entry.slots) {
       const target = slotTarget(slot);
       if (target !== null) roots.push(target);

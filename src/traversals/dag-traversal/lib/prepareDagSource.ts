@@ -20,8 +20,8 @@ export function prepareDagSource<T extends VertexTypes, ID>(
   assertPreparedOptions(input, [
     'traversableGraph',
     'syntheticRoot',
-    'rootDependencies',
-    'implicitParentDependency',
+    'rootWorkDependencies',
+    'omittedWorkDependencies',
   ]);
   const captured = capturePreparedSource<T, ID>(input.traversableGraph, false);
   const runner = new DagTraversal<T, T, ID>({
@@ -53,7 +53,7 @@ export function prepareDagSource<T extends VertexTypes, ID>(
       dagRunnerCapabilities.get(runner)!
         .container as unknown as ResolvedGraphsContainer<T, T, ID>,
       captured.candidates,
-      input.rootDependencies ?? 'honor',
+      input.rootWorkDependencies ?? 'honor',
       authoredDefinition,
     ),
   };

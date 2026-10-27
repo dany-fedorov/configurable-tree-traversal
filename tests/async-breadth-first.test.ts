@@ -156,7 +156,7 @@ test('deleting the root skips prefetched children and clears the tree root', asy
     concurrency: 2,
   });
   t.addVisitorFor(Order.LEVEL_ORDER, async () => ({
-    commands: [{ commandName: Command.DELETE_VERTEX }],
+    commands: [{ commandName: Command.DELETE_TREE_SUBTREE }],
   }));
   const runner = t.createRunner();
 

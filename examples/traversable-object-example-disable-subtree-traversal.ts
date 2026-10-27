@@ -55,7 +55,7 @@ traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (v) => {
     return {
       commands: [
         {
-          commandName: TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL,
+          commandName: TraversalVisitorCommandName.SKIP_REMAINING_CHILDREN,
         },
       ],
     };

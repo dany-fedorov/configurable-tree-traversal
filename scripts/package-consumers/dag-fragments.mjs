@@ -35,7 +35,7 @@ const definition = cjs.defineDag({
   ],
   omittedIds: [],
   entry: {
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'vertex', vertexId: 'start' },
       { kind: 'vertex', vertexId: 'finish' },
@@ -56,7 +56,10 @@ const result = cjsDag.composeDag([first, second], {
   dependencies: [
     {
       dependent: second.ports.start,
-      prerequisite: { vertexId: first.ports.finish, milestone: 'subgraphCompletion' },
+      prerequisite: {
+        vertexId: first.ports.finish,
+        milestone: 'subgraphCompletion',
+      },
     },
   ],
 });
@@ -92,7 +95,10 @@ assert.equal(
       },
       {
         dependent: second.ports.start,
-        prerequisite: { vertexId: first.ports.finish, milestone: 'subgraphCompletion' },
+        prerequisite: {
+          vertexId: first.ports.finish,
+          milestone: 'subgraphCompletion',
+        },
       },
     ],
   }).kind,

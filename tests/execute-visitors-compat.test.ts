@@ -82,8 +82,8 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
           commands: [
             { commandName: Command.PAUSE_TRAVERSAL },
             {
-              commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-              commandArguments: { vertexVisitorsChainState: undefined },
+              commandName: Command.SET_VISITOR_CHAIN_STATE,
+              commandArguments: { state: undefined },
             },
           ],
         };
@@ -122,8 +122,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
         halted = true;
       }
       return commands.some(
-        (command) =>
-          command.commandName === Command.SET_VERTEX_VISITORS_CHAIN_STATE,
+        (command) => command.commandName === Command.SET_VISITOR_CHAIN_STATE,
       )
         ? { visitorChainState: undefined }
         : {};
@@ -138,8 +137,8 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     [
       { commandName: Command.PAUSE_TRAVERSAL },
       {
-        commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-        commandArguments: { vertexVisitorsChainState: undefined },
+        commandName: Command.SET_VISITOR_CHAIN_STATE,
+        commandArguments: { state: undefined },
       },
     ],
   ]);

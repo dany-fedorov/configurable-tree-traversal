@@ -100,19 +100,6 @@ export class InternalAsyncDagTraversalRunner<
   private readonly execution: AsyncRunnerSession<Event<T, R, ID>>;
 
   constructor(input: AsyncDagResolvedOptions<T, R, ID>) {
-    if (
-      input.rootDependencies !== undefined &&
-      input.rootDependencies !== 'honor' &&
-      input.rootDependencies !== 'ignore'
-    ) {
-      throw new TypeError('rootDependencies must be honor or ignore');
-    }
-    if (
-      input.implicitParentDependency !== undefined &&
-      typeof input.implicitParentDependency !== 'boolean'
-    ) {
-      throw new TypeError('implicitParentDependency must be a boolean');
-    }
     this.icfg = mergeAsyncDagTraversalInstanceConfigs(input, {});
     this.icfg.visitors = Object.fromEntries(
       Object.entries(this.icfg.visitors).map(([order, records]) => [
@@ -217,12 +204,12 @@ export class InternalAsyncDagTraversalRunner<
         this.icfg.workCompletion === undefined
           ? 'visitorReturn'
           : this.icfg.workCompletion,
-      ...(input.rootDependencies === undefined
+      ...(input.rootWorkDependencies === undefined
         ? {}
-        : { rootDependencies: input.rootDependencies }),
-      ...(input.implicitParentDependency === undefined
+        : { rootWorkDependencies: input.rootWorkDependencies }),
+      ...(input.omittedWorkDependencies === undefined
         ? {}
-        : { implicitParentDependency: input.implicitParentDependency }),
+        : { omittedWorkDependencies: input.omittedWorkDependencies }),
       ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'async',
       sourceMode,

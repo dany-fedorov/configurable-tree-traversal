@@ -160,7 +160,7 @@ test.each([
   { kind: 'root', vertexId: 'missing' },
   { kind: 'root', vertexId: 'skip' },
   { kind: 'empty' },
-  { kind: 'forest', slots: [{ kind: 'omitted', identity: null }] },
+  { kind: 'roots', slots: [{ kind: 'omitted', identity: null }] },
 ] as const)('invalid entry has no executable DAG %#', (entry) => {
   const result = prepareDagDefinition({
     vertices: [vertex('root')],
@@ -191,7 +191,7 @@ test('forest missing structural endpoints carry a null parent', () => {
     prepareDagDefinition({
       vertices: [],
       omittedIds: [],
-      entry: { kind: 'forest', slots: [{ kind: 'vertex', vertexId: null }] },
+      entry: { kind: 'roots', slots: [{ kind: 'vertex', vertexId: null }] },
     }),
   ).toEqual({
     kind: 'invalid',
@@ -286,7 +286,7 @@ test('forest definitions preserve authored order, structural sharing and omitted
     ],
     omittedIds: [undefined],
     entry: {
-      kind: 'forest',
+      kind: 'roots',
       slots: [
         { kind: 'omitted', identity: { vertexId: undefined } },
         { kind: 'vertex', vertexId: null },
@@ -321,7 +321,7 @@ test('forest omissions cannot masquerade as live or unknown identities', () => {
       vertices: [],
       omittedIds: ['unused'],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'omitted', identity: { vertexId: 'unknown' } },
           { kind: 'omitted', identity: { vertexId: 'unknown' } },
@@ -350,7 +350,7 @@ test('structural SCCs retain declaration order and stay separate before mileston
       ],
       omittedIds: [],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'a' },
           { kind: 'vertex', vertexId: 'c' },
@@ -406,7 +406,7 @@ test('membership and SCC validation handle deep unreachable structures without r
   const result = prepareDagDefinition({
     vertices,
     omittedIds: [],
-    entry: { kind: 'forest', slots: [] },
+    entry: { kind: 'roots', slots: [] },
   });
   expect(result).toEqual({
     kind: 'invalid',

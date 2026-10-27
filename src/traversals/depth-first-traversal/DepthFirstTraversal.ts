@@ -40,7 +40,7 @@ export class DepthFirstTreeTraversal<
   private visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
 
   constructor(icfgInput: DepthFirstTreeOptions<TTP, RW_TTP>) {
-    assertPublicOptions(icfgInput);
+    assertPublicOptions(icfgInput, false);
     this.icfg = mergeInstanceConfigs(
       DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as DepthFirstTreeResolvedOptions<
         TTP,
@@ -52,7 +52,7 @@ export class DepthFirstTreeTraversal<
   }
 
   configure(icfgInput: DepthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
-    assertPublicOptions(icfgInput);
+    assertPublicOptions(icfgInput, false);
     this.icfg = mergeInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,

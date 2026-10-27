@@ -41,7 +41,11 @@ it('captures catalog topology eagerly while retaining shallow caller data', () =
       ...factory.createRunner().iterateEvents({ emitEvents: [Phase.EDGE] }),
     ];
     expect(
-      events.map((event) => [event.edge.from, event.edge.to, event.edge.outgoingIndex]),
+      events.map((event) => [
+        event.edge.from,
+        event.edge.to,
+        event.edge.outgoingIndex,
+      ]),
     ).toEqual([
       ['A', 'B', 0],
       ['A', 'B', 1],
@@ -54,7 +58,9 @@ it('captures catalog topology eagerly while retaining shallow caller data', () =
     expect(events[0]!.edge.data).toBe(relation);
   }
   expect(calls).toHaveLength(4);
-  expect(graphWalk.materializeWalkSourceFromRecords).toBe(materializeWalkSourceFromRecords);
+  expect(graphWalk.materializeWalkSourceFromRecords).toBe(
+    materializeWalkSourceFromRecords,
+  );
 });
 
 it('returns detached root, resolution and outgoing wrappers for independent consumers', () => {
@@ -148,8 +154,7 @@ it('rejects unknown roots and targets even in unreachable records', () => {
   expect(() =>
     materializeWalkSourceFromRecords(['a', 'b'], {
       id: (item) => item,
-      outgoing: (item) =>
-        item === 'b' ? [{ to: 'missing', data: 1 }] : [],
+      outgoing: (item) => (item === 'b' ? [{ to: 'missing', data: 1 }] : []),
       roots: ['a'],
     }),
   ).toThrow(TypeError);
@@ -161,7 +166,9 @@ it('allows empty catalog and root sets without inventing vertices', () => {
     outgoing: () => [],
     roots: [],
   });
-  expect([...new GraphWalk({ source }).createRunner().iterateEvents()]).toEqual([]);
+  expect([...new GraphWalk({ source }).createRunner().iterateEvents()]).toEqual(
+    [],
+  );
   expect(() => source.resolveVertex!(undefined as never)).toThrow(TypeError);
 });
 
@@ -208,7 +215,9 @@ it('eagerly awaits async catalogs, selectors and roots into a synchronous reusab
     events.push(event);
   expect(events[0]!.edge.data).toBe(relation);
   expect(calls).toHaveLength(5);
-  expect(graphWalk.materializeWalkSourceFromRecordsAsync).toBe(materializeWalkSourceFromRecordsAsync);
+  expect(graphWalk.materializeWalkSourceFromRecordsAsync).toBe(
+    materializeWalkSourceFromRecordsAsync,
+  );
 });
 
 it('accepts synchronous async-adapter inputs and validates their captured membership', async () => {
@@ -300,7 +309,9 @@ it('walks cyclic definitions without DAG preparation or callback execution', () 
     entry: { kind: 'root', vertexId: 'a' },
   });
   expect(prepareDagDefinition(definition).kind).toBe('invalid');
-  const source = materializeWalkSourceFromDagDefinition(definition, { relations: ['children'] });
+  const source = materializeWalkSourceFromDagDefinition(definition, {
+    relations: ['children'],
+  });
   const runner = new GraphWalk({ source }).createRunner();
   expect(
     [...runner.iterateEvents({ emitEvents: [Phase.EDGE] })].map((event) => [
@@ -313,7 +324,9 @@ it('walks cyclic definitions without DAG preparation or callback execution', () 
     ['b', 'a', { kind: 'child', slotIndex: 0 }],
   ]);
   expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
-  expect(graphWalk.materializeWalkSourceFromDagDefinition).toBe(materializeWalkSourceFromDagDefinition);
+  expect(graphWalk.materializeWalkSourceFromDagDefinition).toBe(
+    materializeWalkSourceFromDagDefinition,
+  );
 });
 
 it('projects selected DAG relations in canonical order with parallel slots and dependent-to-prerequisite direction', () => {
@@ -336,7 +349,11 @@ it('projects selected DAG relations in canonical order with parallel slots and d
     entry: { kind: 'root', vertexId: 'a' },
   });
   const source = materializeWalkSourceFromDagDefinition(definition, {
-    relations: ['subgraphCompletionDependencies', 'workDependencies', 'children'],
+    relations: [
+      'subgraphCompletionDependencies',
+      'workDependencies',
+      'children',
+    ],
   });
   const edges = [
     ...new GraphWalk({ source })
@@ -361,7 +378,9 @@ it('projects selected DAG relations in canonical order with parallel slots and d
     ['a', 'a', { kind: 'subgraphCompletionDependency' }, 'found'],
     ['a', 'skip', { kind: 'subgraphCompletionDependency' }, 'omitted'],
   ]);
-  expect(edges.map((event) => event.edge.outgoingIndex)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  expect(edges.map((event) => event.edge.outgoingIndex)).toEqual([
+    0, 1, 2, 3, 4, 5, 6, 7, 8,
+  ]);
 });
 
 it.each(['workDependencies', 'subgraphCompletionDependencies'] as const)(
@@ -372,11 +391,17 @@ it.each(['workDependencies', 'subgraphCompletionDependencies'] as const)(
         vertices: [
           dagVertex('a', {
             slots: [{ kind: 'vertex', vertexId: 'unknown' }],
-            dependsOnWork: relation === 'workDependencies' ? ['b'] : ['missing'],
+            dependsOnWork:
+              relation === 'workDependencies' ? ['b'] : ['missing'],
             dependsOnSubgraphCompletion:
-              relation === 'subgraphCompletionDependencies' ? ['b'] : ['missing'],
+              relation === 'subgraphCompletionDependencies'
+                ? ['b']
+                : ['missing'],
           }),
-          dagVertex('b', { dependsOnWork: ['a'], dependsOnSubgraphCompletion: ['a'] }),
+          dagVertex('b', {
+            dependsOnWork: ['a'],
+            dependsOnSubgraphCompletion: ['a'],
+          }),
         ],
         omittedIds: [],
         entry: { kind: 'root', vertexId: 'a' },
@@ -423,7 +448,13 @@ it('copies mutable definitions and separates generated relationship wrappers acr
   const entry = { kind: 'root' as const, vertexId: id };
   const vertices = [
     { vertexId: id, data, slots, dependsOnWork, dependsOnSubgraphCompletion },
-    { vertexId: other, data, slots: [], dependsOnWork: [], dependsOnSubgraphCompletion: [] },
+    {
+      vertexId: other,
+      data,
+      slots: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
+    },
   ];
   const relations = [
     'children',
@@ -474,7 +505,7 @@ it('preserves forest root slots, arbitrary identities and known omitted roots', 
       vertices: ids.map((id) => dagVertex(id)),
       omittedIds: ['skip'],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'omitted', identity: null },
           { kind: 'omitted', identity: { vertexId: 'skip' } },
@@ -545,9 +576,9 @@ it.each([
       omittedIds: [],
       entry: { kind: 'empty' },
     });
-    expect(() => materializeWalkSourceFromDagDefinition(definition, options as any)).toThrow(
-      TypeError,
-    );
+    expect(() =>
+      materializeWalkSourceFromDagDefinition(definition, options as any),
+    ).toThrow(TypeError);
   },
 );
 
@@ -581,7 +612,9 @@ it.each([
       entry: { kind: 'root', vertexId: 'a' },
     });
     expect(() =>
-      materializeWalkSourceFromDagDefinition(definition, { relations: ['children'] }),
+      materializeWalkSourceFromDagDefinition(definition, {
+        relations: ['children'],
+      }),
     ).toThrow(TypeError);
     expect([
       ...new GraphWalk({
@@ -609,18 +642,20 @@ it.each(['workDependencies', 'subgraphCompletionDependencies'] as const)(
       entry: { kind: 'empty' },
     });
     expect(() =>
-      materializeWalkSourceFromDagDefinition(definition, { relations: [relation] }),
+      materializeWalkSourceFromDagDefinition(definition, {
+        relations: [relation],
+      }),
     ).toThrow(TypeError);
   },
 );
 
 it.each([
   { kind: 'root', vertexId: 'unknown' },
-  { kind: 'forest', slots: [{ kind: 'vertex', vertexId: 'unknown' }] },
-  { kind: 'forest', slots: [{ kind: 'vertex', vertexId: 'skip' }] },
-  { kind: 'forest', slots: [{ kind: 'omitted', identity: { vertexId: 'a' } }] },
+  { kind: 'roots', slots: [{ kind: 'vertex', vertexId: 'unknown' }] },
+  { kind: 'roots', slots: [{ kind: 'vertex', vertexId: 'skip' }] },
+  { kind: 'roots', slots: [{ kind: 'omitted', identity: { vertexId: 'a' } }] },
   {
-    kind: 'forest',
+    kind: 'roots',
     slots: [{ kind: 'omitted', identity: { vertexId: 'unknown' } }],
   },
 ] as const)(
@@ -632,7 +667,9 @@ it.each([
       entry,
     });
     expect(() =>
-      materializeWalkSourceFromDagDefinition(definition, { relations: ['workDependencies'] }),
+      materializeWalkSourceFromDagDefinition(definition, {
+        relations: ['workDependencies'],
+      }),
     ).toThrow(TypeError);
   },
 );
@@ -656,7 +693,9 @@ it('keeps DAG task callbacks opaque through sync and async walking', async () =>
     omittedIds: [],
     entry: { kind: 'root', vertexId: 'task' },
   });
-  const source = materializeWalkSourceFromDagDefinition(definition, { relations: ['children'] });
+  const source = materializeWalkSourceFromDagDefinition(definition, {
+    relations: ['children'],
+  });
   const syncEvents = [
     ...new GraphWalk({ source })
       .createRunner()

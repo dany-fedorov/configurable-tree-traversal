@@ -98,13 +98,13 @@ test('batches concurrent records in input order and passes null chain state', ()
   });
   chain.submit({
     ok: true,
-    value: { commands: [{ commandName: Command.DELETE_VERTEX }] },
+    value: { commands: [{ commandName: Command.DELETE_TREE_SUBTREE }] },
   });
   expect(chain.poll()).toEqual({
     kind: 'COMMANDS',
     commands: [
       { commandName: Command.NOOP },
-      { commandName: Command.DELETE_VERTEX },
+      { commandName: Command.DELETE_TREE_SUBTREE },
     ],
   });
   chain.commitBatch({

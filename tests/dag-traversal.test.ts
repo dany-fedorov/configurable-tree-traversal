@@ -243,10 +243,12 @@ test('applies rewrite, disable, and delete commands with tombstones', () => {
         };
       case 'disabled':
         return {
-          commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }],
+          commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }],
         };
       case 'deleted':
-        return { commands: [{ commandName: Command.DELETE_VERTEX }] };
+        return {
+          commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
+        };
     }
     return undefined;
   });
@@ -323,7 +325,7 @@ test('captures a structural graph snapshot before rewrite and delete', () => {
               commandName: Command.REWRITE_VERTEX_DATA,
               commandArguments: { newData: 'changed' },
             },
-            { commandName: Command.DELETE_VERTEX },
+            { commandName: Command.DELETE_DAG_VERTEX_CASCADE },
           ],
         }
       : undefined,
@@ -491,8 +493,8 @@ test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
     () => ({
       commands: [
         {
-          commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-          commandArguments: { vertexVisitorsChainState: 'shared' },
+          commandName: Command.SET_VISITOR_CHAIN_STATE,
+          commandArguments: { state: 'shared' },
         },
       ],
     }),
@@ -540,7 +542,7 @@ test('tombstones deleted ids and closes later arrivals', () => {
   });
   traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'victim'
-      ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
+      ? { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] }
       : undefined,
   );
   const graph = traversal.createRunner().run().getResolvedGraph();
@@ -558,7 +560,7 @@ test('deleting the graph root empties the graph', () => {
   });
   traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
     vertex.getData() === 'root'
-      ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
+      ? { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] }
       : undefined,
   );
   const runner = traversal.createRunner().run();

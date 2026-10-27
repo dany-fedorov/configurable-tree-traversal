@@ -434,7 +434,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_WORK_READY, (v) => {
       events.push(`W:${v.getData()}`);
       return v.getData() === 'bundle'
-        ? { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] }
+        ? { commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }] }
         : undefined;
     });
     traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (v) => {

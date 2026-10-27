@@ -71,8 +71,10 @@ if (prepared.kind === 'valid') {
     // @ts-expect-error Invalid revisions expose no executable DAG.
     result.dag;
   }
-  // @ts-expect-error Operations cannot widen the prepared identity domain.
-  reviseDag(prepared.dag, [{ kind: 'removeVertex', vertexId: 'foreign' }]);
+  reviseDag(prepared.dag, [
+    // @ts-expect-error Operations cannot widen the prepared identity domain.
+    { kind: 'removeVertexDeclaration', vertexId: 'foreign' },
+  ]);
   reviseDag(prepared.dag, [
     {
       kind: 'replaceVertex',

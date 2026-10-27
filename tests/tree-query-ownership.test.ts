@@ -131,11 +131,11 @@ for (const Constructor of [
         ? internal.resolvedTreesContainer.resolvedTree
         : internal.resolvedGraphsContainer.treeContainer!.resolvedTree;
     expect(view).toBe(tree.asReadOnly());
-    tree.delete(child);
+    tree.deleteSubtree(child);
     expect(view.getChildrenOf(root)).toEqual([]);
     expect(view.has(child)).toBe(false);
     expect(view.getParentOf(child)).toBeNull();
-    tree.delete(root);
+    tree.deleteSubtree(root);
     expect(view.getRoot()).toBeNull();
   });
 }
@@ -190,7 +190,7 @@ test('safe queries preserve saved topology while explicit active edits stay live
   expect(savedView.getParentOf(savedChild)).toBe(savedRoot);
   expect(savedView.getPathTo(savedChild)).toEqual([savedRoot, savedChild]);
   expect(view.getChildrenOf(root)).toEqual([child]);
-  tree.delete(child);
+  tree.deleteSubtree(child);
   expect(view.getChildrenOf(root)).toEqual([]);
   expect(savedView.getChildrenOf(savedRoot)).toEqual([savedChild]);
   expect(savedView.getPathTo(savedChild)).toEqual([savedRoot, savedChild]);

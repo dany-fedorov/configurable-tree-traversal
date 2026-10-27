@@ -31,7 +31,7 @@ const definition = defineDag<number, Local>({
   ],
   omittedIds: [],
   entry: {
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'vertex', vertexId: 'start' },
       { kind: 'vertex', vertexId: 'finish' },
@@ -159,7 +159,8 @@ const invalidFragmentError = new DagFragmentValidationError<Local>([
 ]);
 const fragmentIssue = fragmentError.issues[0]!;
 if (fragmentIssue.kind === 'milestone') {
-  const id: Local = fragmentIssue.diagnostics.dependencyEdges[0]!.prerequisite.vertexId;
+  const id: Local =
+    fragmentIssue.diagnostics.dependencyEdges[0]!.prerequisite.vertexId;
   // @ts-expect-error Typed diagnostic IDs are not foreign IDs.
   const wrong: 'other' = id;
   void wrong;

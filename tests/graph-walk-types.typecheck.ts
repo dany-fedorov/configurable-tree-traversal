@@ -328,7 +328,7 @@ const exactRecords: import('../src/core/graph/types').VisitorRecord<
 registered.addVisitorFor(Phase.VERTEX, async () => undefined);
 registered.addVisitorFor(Phase.EDGE, () => ({
   // @ts-expect-error Invalid return commands must not widen the registered phase.
-  commands: [{ commandName: Command.DELETE_VERTEX }],
+  commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
 }));
 registered.addVisitorGroupFor(Phase.EDGE, {
   visitors: [
@@ -383,7 +383,7 @@ asyncWalk.setVisitorsFor(
 );
 // @ts-expect-error Walking cannot accept topology commands.
 asyncWalk.addVisitorFor(Phase.VERTEX, async () => ({
-  commands: [{ commandName: Command.DELETE_VERTEX }],
+  commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
 }));
 const asyncRunner = asyncWalk.createRunner();
 const asyncCapability: import('../src').AsyncTraversalExecution<

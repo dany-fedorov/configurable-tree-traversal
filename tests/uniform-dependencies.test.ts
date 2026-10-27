@@ -42,15 +42,15 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     },
   );
 
-  test.each([undefined, false, true])(
+  test.each([undefined, 'none', 'discoveryParentWork'] as const)(
     `${Constructor.name} graph parent dependency is explicit (%s)`,
-    async (implicitParentDependency) => {
+    async (omittedWorkDependencies) => {
       const visited: string[] = [];
       const runner = new Constructor<G>({
         discovery: 'eager',
-        ...(implicitParentDependency === undefined
+        ...(omittedWorkDependencies === undefined
           ? {}
-          : { implicitParentDependency }),
+          : { omittedWorkDependencies }),
         traversableGraph: {
           resolveRoot: () => ({
             kind: 'found' as const,
@@ -79,7 +79,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         .createRunner();
       await runner.run();
       expect(visited).toEqual(
-        implicitParentDependency === true ? ['root'] : ['root', 'child'],
+        omittedWorkDependencies === 'discoveryParentWork'
+          ? ['root']
+          : ['root', 'child'],
       );
     },
   );
@@ -88,7 +90,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     `${Constructor.name} ignore root work dependencies is independent of seeds (%s)`,
     async (completedWork) => {
       const runner = new Constructor<G>({
-        ...{ rootDependencies: 'ignore' },
+        ...{ rootWorkDependencies: 'ignore' },
         ...(completedWork === undefined ? {} : { completedWork }),
         traversableGraph: {
           resolveRoot: () => ({
@@ -177,7 +179,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} ignore root work dependencies still honors completion prerequisites`, async () => {
     const visited: string[] = [];
     const runner = new Constructor<G>({
-      rootDependencies: 'ignore',
+      rootWorkDependencies: 'ignore',
       traversableGraph: {
         resolveRoot: () => ({
           kind: 'found' as const,
@@ -245,11 +247,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   );
 
   test.each([
-    { rootDependencies: false },
-    { rootDependencies: null },
-    { rootDependencies: 'unknown' },
-    { implicitParentDependency: 'true' },
-    { implicitParentDependency: null },
+    { rootWorkDependencies: false },
+    { rootWorkDependencies: null },
+    { rootWorkDependencies: 'unknown' },
+    { omittedWorkDependencies: 'true' },
+    { omittedWorkDependencies: null },
   ])(
     `${Constructor.name} rejects malformed dependency policies (%j)`,
     (options) => {
@@ -274,7 +276,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} explicit empty dependencies override parent inheritance`, async () => {
     const visited: string[] = [];
     const runner = new Constructor<G>({
-      implicitParentDependency: true,
+      omittedWorkDependencies: 'discoveryParentWork',
       discovery: 'eager',
       traversableGraph: {
         resolveRoot: () => ({
@@ -369,7 +371,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       syntheticRoot: true,
       discovery: 'eager',
-      implicitParentDependency: true,
+      omittedWorkDependencies: 'discoveryParentWork',
       traversableGraph: {
         resolveRoot: () => ({
           kind: 'found' as const,

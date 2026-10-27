@@ -182,8 +182,8 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       options.container,
       options.completedWork,
       options.discovery === 'eager',
-      options.rootDependencies,
-      options.implicitParentDependency,
+      options.rootWorkDependencies,
+      options.omittedWorkDependencies,
     );
     this.prerequisites =
       options.hasPrerequisiteResolver === true
@@ -1163,7 +1163,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       if (
         this.options.discovery === 'eager' &&
         (command.commandName ===
-          TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL ||
+          TraversalVisitorCommandName.SKIP_REMAINING_CHILDREN ||
           command.commandName ===
             TraversalVisitorCommandName.REWRITE_CHILD_HINTS)
       ) {
@@ -1180,14 +1180,24 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           halt = true;
           this.pauseRequested = true;
           break;
-        case TraversalVisitorCommandName.DELETE_VERTEX: {
+        case TraversalVisitorCommandName.DELETE_TREE_SUBTREE:
+        case TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE: {
+          const expected =
+            this.options.kind === 'dag'
+              ? TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE
+              : TraversalVisitorCommandName.DELETE_TREE_SUBTREE;
+          if (command.commandName !== expected) {
+            throw new TypeError(
+              'Deletion command does not match traversal family',
+            );
+          }
           const removed = this.scheduling.deleteVertex(runtime.state.ref);
           this.scheduling.takeRemovedRefs();
           deleted = removed.has(runtime.state.ref);
           this.invalidateRefs(removed, runtime.state.owner);
           break;
         }
-        case TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL:
+        case TraversalVisitorCommandName.SKIP_REMAINING_CHILDREN:
           this.options.stateBridge.subtreeTraversalDisabledRefs.add(
             runtime.state.ref,
           );
@@ -1213,9 +1223,24 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
             this.scheduling.disableSubtree(runtime.state.ref);
           }
           break;
-        case TraversalVisitorCommandName.SET_VERTEX_VISITORS_CHAIN_STATE:
+        case TraversalVisitorCommandName.SET_VISITOR_CHAIN_STATE:
+          if (
+            command.commandArguments === null ||
+            typeof command.commandArguments !== 'object' ||
+            !Object.prototype.hasOwnProperty.call(
+              command.commandArguments,
+              'state',
+            ) ||
+            Reflect.ownKeys(command.commandArguments).some(
+              (key) => key !== 'state',
+            )
+          ) {
+            throw new TypeError(
+              'SET_VISITOR_CHAIN_STATE requires only an own state field',
+            );
+          }
           hasState = true;
-          chainState = command.commandArguments.vertexVisitorsChainState;
+          chainState = command.commandArguments.state;
           break;
         case TraversalVisitorCommandName.REWRITE_VERTEX_DATA:
           runtime.state.ref.setValue(

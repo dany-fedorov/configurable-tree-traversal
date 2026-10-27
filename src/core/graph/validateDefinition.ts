@@ -76,7 +76,7 @@ export function validateDefinition<Data, ID>(
     }
     return children;
   };
-  if (entry.kind === 'forest') {
+  if (entry.kind === 'roots') {
     checkSlots(entry.slots, null);
     for (const id of slotIds(entry.slots)) queue.push(id);
   }

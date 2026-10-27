@@ -88,9 +88,9 @@ export function defineDag<Data, ID = unknown>(
         vertexId: own(entryInput, 'vertexId') as ID,
       });
       break;
-    case 'forest':
+    case 'roots':
       entry = Object.freeze({
-        kind: 'forest',
+        kind: 'roots',
         slots: slots<ID>(own(entryInput, 'slots')),
       });
       break;

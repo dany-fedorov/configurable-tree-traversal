@@ -31,7 +31,7 @@ export function assertPreparedOptions(
 export function makePreparedDag<T extends VertexTypes, ID>(
   container: ResolvedGraphsContainer<T, T, ID>,
   candidates: ReadonlySet<ID>,
-  rootDependencies: 'honor' | 'ignore',
+  rootWorkDependencies: 'honor' | 'ignore',
   authoredDefinition?: DagDefinition<T['VertexData'], ID>,
 ): PreparedDag<T['VertexData'], ID> {
   type Data = T['VertexData'];
@@ -66,8 +66,8 @@ export function makePreparedDag<T extends VertexTypes, ID>(
     return new DagTraversal<Replay, Replay, ID>({
       ...options,
       ...definitionSource(definition),
-      rootDependencies,
-      implicitParentDependency: false,
+      rootWorkDependencies,
+      omittedWorkDependencies: 'none',
     })
       .createRunner()
       .prepare();
@@ -79,8 +79,8 @@ export function makePreparedDag<T extends VertexTypes, ID>(
     return new AsyncDagTraversal<Replay, Replay, ID>({
       ...options,
       ...definitionSource(definition),
-      rootDependencies,
-      implicitParentDependency: false,
+      rootWorkDependencies,
+      omittedWorkDependencies: 'none',
     })
       .createRunner()
       .prepare();

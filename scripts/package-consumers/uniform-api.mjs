@@ -158,7 +158,7 @@ for (const [api, other] of [
       await assert.rejects(blocked.run(), api.DagTraversalStallError);
     else assert.throws(() => blocked.run(), api.DagTraversalStallError);
     const ignored = new TreeTraversal({
-      rootDependencies: 'ignore',
+      rootWorkDependencies: 'ignore',
       traversableGraph: {
         resolveRoot: () => found('root', [], { dependsOnWork: ['absent'] }),
         resolveChild: (id) => found(id),
@@ -169,7 +169,7 @@ for (const [api, other] of [
 
     for (const inherit of [false, true]) {
       const traversal = new TreeTraversal({
-        implicitParentDependency: inherit,
+        omittedWorkDependencies: inherit ? 'discoveryParentWork' : 'none',
         traversableGraph: graphTree,
       });
       traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
@@ -486,4 +486,44 @@ for (const [api, other] of [
     });
     assert.deepEqual(visits, ['root']);
   }
+}
+
+// Both installed module identities enforce scoped command envelopes at runtime.
+for (const api of [cjs, esm]) {
+  const tree = {
+    resolveRoot: () => ({
+      kind: 'found',
+      vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+    }),
+    resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+  };
+  const dag = new api.DagTraversal({ traversableTree: tree });
+  dag.addVisitorFor(api.DagVisitorPhase.ON_WORK_READY, () => ({
+    commands: [
+      {
+        commandName: api.TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE,
+      },
+    ],
+  }));
+  assert.equal(
+    dag.createRunner().run().getResolvedGraph().getVertexRefs().length,
+    0,
+  );
+  assert.throws(
+    () =>
+      new api.DagTraversal({
+        traversableTree: tree,
+        omittedWorkDependencies: 'none',
+      }),
+    /graph discovery source/,
+  );
+  const wrong = new api.DepthFirstTreeTraversal({ traversableTree: tree });
+  wrong.addVisitorFor(api.DepthFirstPhase.PRE_ORDER, () => ({
+    commands: [
+      {
+        commandName: api.TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE,
+      },
+    ],
+  }));
+  assert.throws(() => wrong.createRunner().run(), /traversal family/);
 }

@@ -37,7 +37,7 @@ export class AsyncBreadthFirstTreeTraversal<
   private visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
 
   constructor(icfgInput: AsyncBreadthFirstTreeOptions<TTP, RW_TTP>) {
-    assertPublicOptions(icfgInput);
+    assertPublicOptions(icfgInput, false);
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(
       ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncBreadthFirstTreeResolvedOptions<
         TTP,
@@ -49,7 +49,7 @@ export class AsyncBreadthFirstTreeTraversal<
   }
 
   configure(icfgInput: AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
-    assertPublicOptions(icfgInput);
+    assertPublicOptions(icfgInput, false);
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,

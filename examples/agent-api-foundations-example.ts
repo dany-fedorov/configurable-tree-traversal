@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   // vertices is a live-child projection; definition carries ordered slots.
   assert.equal(dag.vertices.length, 4);
   assert.equal(dag.definition.vertices.length, 4);
-  assert.equal(dag.definition.entry.kind, 'forest');
+  assert.equal(dag.definition.entry.kind, 'roots');
   const discoveryCalls = sourceCalls;
 
   // This set stands in for completion facts durably accepted by the host.

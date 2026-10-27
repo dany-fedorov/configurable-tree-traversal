@@ -52,9 +52,9 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
                 () => ({
                   commands: [
                     {
-                      commandName: C.SET_VERTEX_VISITORS_CHAIN_STATE,
+                      commandName: C.SET_VISITOR_CHAIN_STATE,
                       commandArguments: {
-                        vertexVisitorsChainState: 'committed',
+                        state: 'committed',
                       },
                     },
                   ],
@@ -77,9 +77,9 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
                     return {
                       commands: [
                         {
-                          commandName: C.SET_VERTEX_VISITORS_CHAIN_STATE,
+                          commandName: C.SET_VISITOR_CHAIN_STATE,
                           commandArguments: {
-                            vertexVisitorsChainState: 'buffered',
+                            state: 'buffered',
                           },
                         },
                       ],
@@ -375,7 +375,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             {
               commandCommitMode: 'afterGroup' as const,
               visitors: [
-                () => ({ commands: [{ commandName: C.DELETE_VERTEX }] }),
+                () => ({
+                  commands: [{ commandName: C.DELETE_DAG_VERTEX_CASCADE }],
+                }),
                 () => {
                   seen.push('same batch');
                 },

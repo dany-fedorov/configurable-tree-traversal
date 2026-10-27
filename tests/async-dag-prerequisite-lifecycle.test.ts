@@ -9,7 +9,9 @@ import {
   runnerInternals,
 } from './internal-runner-fixtures';
 
-const removed = { commands: [{ commandName: Command.DELETE_VERTEX as const }] };
+const removed = {
+  commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE as const }],
+};
 const found = {
   kind: 'found' as const,
   vertex: { vertexContent: { $data: 'external', $childHints: [] } },

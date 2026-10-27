@@ -27,7 +27,7 @@ async function main() {
       ],
       omittedIds: [],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'build' },
           { kind: 'vertex', vertexId: 'review' },

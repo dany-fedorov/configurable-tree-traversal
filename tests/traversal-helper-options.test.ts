@@ -129,7 +129,7 @@ test('DAG options support both source choices, phases, and discovery configurati
   const runner = traverseDag({
     traversableGraph: source(),
     sortChildrenHints: (hints) => hints.reverse(),
-    implicitParentDependency: true,
+    omittedWorkDependencies: 'discoveryParentWork',
     visitors: {
       [D.ON_WORK_READY]: (vertex) => {
         visits.push(`ready:${vertex.getData()}`);

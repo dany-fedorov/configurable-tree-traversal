@@ -112,3 +112,39 @@ void [
   TreeTraversalIterable,
   AbstractTreeSource,
 ];
+
+// Scoped operations retain family safety through the packed declarations.
+import {
+  TraversalVisitorCommandName as ScopedCommand,
+  DagTraversal as ScopedDagTraversal,
+  AsyncDagTraversal as ScopedAsyncDagTraversal,
+  type MutationCommand as ScopedMutationCommand,
+} from 'configurable-tree-traversal';
+declare const scopedTree: import('configurable-tree-traversal').TreeSource<Tree>;
+const wrongTreeDeletion: TreeVisitor<DepthFirstPhase.PRE_ORDER, Tree> = () => ({
+  // @ts-expect-error Graph cascade is not a tree command.
+  commands: [{ commandName: ScopedCommand.DELETE_DAG_VERTEX_CASCADE }],
+});
+const wrongDagDeletion: import('configurable-tree-traversal').DagVisitor<
+  Tree
+> = () => ({
+  // @ts-expect-error Tree subtree deletion is not a DAG command.
+  commands: [{ commandName: ScopedCommand.DELETE_TREE_SUBTREE }],
+});
+// @ts-expect-error Graph work policies cannot apply to tree discovery.
+new ScopedDagTraversal({
+  traversableTree: scopedTree,
+  rootWorkDependencies: 'ignore',
+});
+// @ts-expect-error Async synchronous-source inference preserves policy restrictions.
+new ScopedAsyncDagTraversal({
+  traversableTree: scopedTree,
+  omittedWorkDependencies: 'none',
+});
+const scopedMutation: ScopedMutationCommand<
+  Tree,
+  ScopedCommand.DELETE_TREE_SUBTREE
+> = { commandName: ScopedCommand.DELETE_TREE_SUBTREE };
+// @ts-expect-error Retired command name has no compatibility alias.
+ScopedCommand.DELETE_VERTEX;
+void [wrongTreeDeletion, wrongDagDeletion, scopedMutation];

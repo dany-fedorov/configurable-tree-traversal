@@ -139,7 +139,7 @@ describe('ResolvedTreeStore', () => {
     setResolved(tree, grandchildRef, makeContext(deletedRef, 'grandchild', 2));
     setResolved(tree, siblingRef, makeContext(rootRef, 'sibling', 1));
 
-    tree.delete(deletedRef);
+    tree.deleteSubtree(deletedRef);
 
     expect(tree.getChildrenOf(rootRef)).toEqual([siblingRef]);
     expect(tree.has(deletedRef)).toBe(false);
@@ -155,7 +155,7 @@ describe('ResolvedTreeStore', () => {
     setResolved(tree, rootRef, null, [childRef]);
     setResolved(tree, childRef, makeContext(rootRef, 'child', 1));
 
-    tree.delete(rootRef);
+    tree.deleteSubtree(rootRef);
 
     expect(tree.getRoot()).toBeNull();
     expect(tree.has(rootRef)).toBe(false);
@@ -176,7 +176,7 @@ describe('ResolvedTreeStore', () => {
     setResolved(tree, rootRef, null, children);
     setResolved(tree, lastChildRef, makeContext(rootRef, 'last', 1));
 
-    tree.delete(rootRef);
+    tree.deleteSubtree(rootRef);
 
     expect(tree.getRoot()).toBeNull();
     expect(tree.has(lastChildRef)).toBe(false);

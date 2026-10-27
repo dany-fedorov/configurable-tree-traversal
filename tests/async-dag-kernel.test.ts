@@ -724,7 +724,11 @@ test('finishes after deletion without awaiting an invalidated running callback',
             kind: call.kind,
             value:
               data === 'A' && call.order === 'ON_SUBGRAPH_READY'
-                ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
+                ? {
+                    commands: [
+                      { commandName: Command.DELETE_DAG_VERTEX_CASCADE },
+                    ],
+                  }
                 : undefined,
           };
         }

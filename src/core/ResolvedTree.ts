@@ -152,7 +152,7 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
     }
   }
 
-  delete(vertexRef: MutableRef<Vertex<TTP>>): void {
+  deleteSubtree(vertexRef: MutableRef<Vertex<TTP>>): void {
     const parent = this.getParentOf(vertexRef);
     if (parent !== null) {
       this.deleteChildOf(parent, vertexRef);

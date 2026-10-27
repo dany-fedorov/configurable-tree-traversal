@@ -522,8 +522,8 @@ test('commits a halting command batch once and resumes at the next visitor', () 
       value: {
         commands: [
           {
-            commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-            commandArguments: { vertexVisitorsChainState: 'once' },
+            commandName: Command.SET_VISITOR_CHAIN_STATE,
+            commandArguments: { state: 'once' },
           },
           { commandName: Command.PAUSE_TRAVERSAL },
         ],
@@ -570,7 +570,7 @@ test('disables an unexpanded subtree without failing its current chain', () => {
     kind: 'VISIT',
     outcome: {
       ok: true,
-      value: { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] },
+      value: { commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }] },
     },
   });
 
@@ -811,7 +811,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
     kind: 'VISIT',
     outcome: {
       ok: true,
-      value: { commands: [{ commandName: Command.DELETE_VERTEX }] },
+      value: { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] },
     },
   });
   kernel.poll('drive');

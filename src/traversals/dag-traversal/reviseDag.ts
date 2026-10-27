@@ -65,7 +65,7 @@ export function reviseDag<Data, ID = unknown>(
         vertices.set(vertex.vertexId, vertex);
         break;
       }
-      case 'removeVertex': {
+      case 'removeVertexDeclaration': {
         const id = own(operation, 'vertexId') as ID;
         if (!vertices.delete(id)) throw new TypeError('Unknown DAG vertex');
         break;

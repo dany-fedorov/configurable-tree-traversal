@@ -37,7 +37,7 @@ export class BreadthFirstTreeTraversal<
   private visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
 
   constructor(icfgInput: BreadthFirstTreeOptions<TTP, RW_TTP>) {
-    assertPublicOptions(icfgInput);
+    assertPublicOptions(icfgInput, false);
     this.icfg = mergeBreadthFirstTraversalInstanceConfigs(
       BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as BreadthFirstTreeResolvedOptions<
         TTP,
@@ -49,7 +49,7 @@ export class BreadthFirstTreeTraversal<
   }
 
   configure(icfgInput: BreadthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
-    assertPublicOptions(icfgInput);
+    assertPublicOptions(icfgInput, false);
     this.icfg = mergeBreadthFirstTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,

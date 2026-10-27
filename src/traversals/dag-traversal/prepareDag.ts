@@ -17,8 +17,8 @@ import { prepareDagSource } from './lib/prepareDagSource';
 
 export type PrepareDagOptions = {
   syntheticRoot?: boolean;
-  rootDependencies?: 'honor' | 'ignore';
-  implicitParentDependency?: boolean;
+  rootWorkDependencies?: 'honor' | 'ignore';
+  omittedWorkDependencies?: 'none' | 'discoveryParentWork';
   traversableTree?: never;
   visitors?: never;
   completedWork?: never;
@@ -45,8 +45,8 @@ export type PrepareAsyncDagInput<
 const preparationFields = [
   'traversableGraph',
   'syntheticRoot',
-  'rootDependencies',
-  'implicitParentDependency',
+  'rootWorkDependencies',
+  'omittedWorkDependencies',
 ];
 
 /** Discover and validate without visitors; caller source errors retain exact identity. */
@@ -96,7 +96,7 @@ export async function prepareDagAsync<T extends VertexTypes, ID = unknown>(
       dagRunnerCapabilities.get(runner)!
         .container as unknown as ResolvedGraphsContainer<T, T, ID>,
       captured.candidates,
-      input.rootDependencies ?? 'honor',
+      input.rootWorkDependencies ?? 'honor',
     ),
   };
 }

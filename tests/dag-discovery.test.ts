@@ -96,7 +96,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     },
   );
 
-  test.each([Command.DISABLE_SUBTREE_TRAVERSAL, Command.REWRITE_CHILD_HINTS])(
+  test.each([Command.SKIP_REMAINING_CHILDREN, Command.REWRITE_CHILD_HINTS])(
     `${Constructor.name} rejects eager topology command %s`,
     async (command) => {
       const traversal = new Constructor<G>({
@@ -114,7 +114,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       });
       traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
         commands: [
-          command === Command.DISABLE_SUBTREE_TRAVERSAL
+          command === Command.SKIP_REMAINING_CHILDREN
             ? { commandName: command }
             : {
                 commandName: Command.REWRITE_CHILD_HINTS,
@@ -334,7 +334,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => ({
       commands: [
         vertex.getData() === 'a'
-          ? { commandName: Command.DELETE_VERTEX }
+          ? { commandName: Command.DELETE_DAG_VERTEX_CASCADE }
           : {
               commandName: Command.REWRITE_VERTEX_DATA,
               commandArguments: { newData: 'rewritten' },

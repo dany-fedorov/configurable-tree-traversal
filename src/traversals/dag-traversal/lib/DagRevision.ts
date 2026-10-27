@@ -15,7 +15,7 @@ export type DagRevisionOperation<Data, ID = unknown> =
       readonly kind: 'replaceVertex';
       readonly vertex: DagDefinitionVertex<Data, ID>;
     }
-  | { readonly kind: 'removeVertex'; readonly vertexId: ID }
+  | { readonly kind: 'removeVertexDeclaration'; readonly vertexId: ID }
   | {
       readonly kind: 'replaceEntry';
       readonly entry: DagDefinition<Data, ID>['entry'];

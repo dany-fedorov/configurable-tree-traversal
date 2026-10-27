@@ -25,9 +25,7 @@ function sameSlots<ID>(
     before.every((slot, index) => {
       const next = after[index]!;
       if (slot.kind === 'vertex')
-        return (
-          next.kind === 'vertex' && sameId(slot.vertexId, next.vertexId)
-        );
+        return next.kind === 'vertex' && sameId(slot.vertexId, next.vertexId);
       if (next.kind !== 'omitted') return false;
       return slot.identity === null
         ? next.identity === null
@@ -45,13 +43,9 @@ function sameEntry<ID>(
     case 'empty':
       return after.kind === 'empty';
     case 'root':
-      return (
-        after.kind === 'root' && sameId(before.vertexId, after.vertexId)
-      );
-    case 'forest':
-      return (
-        after.kind === 'forest' && sameSlots(before.slots, after.slots)
-      );
+      return after.kind === 'root' && sameId(before.vertexId, after.vertexId);
+    case 'roots':
+      return after.kind === 'roots' && sameSlots(before.slots, after.slots);
   }
 }
 
@@ -88,7 +82,12 @@ export function diffDagDefinitions<BeforeData, AfterData, ID = unknown>(
     if (!sameSlots(vertex.slots, next.slots)) aspects.push('slots');
     if (!sameIds(vertex.dependsOnWork, next.dependsOnWork))
       aspects.push('workDependencies');
-    if (!sameIds(vertex.dependsOnSubgraphCompletion, next.dependsOnSubgraphCompletion))
+    if (
+      !sameIds(
+        vertex.dependsOnSubgraphCompletion,
+        next.dependsOnSubgraphCompletion,
+      )
+    )
       aspects.push('subgraphCompletionDependencies');
     if (aspects.length > 0)
       changedVertices.push(

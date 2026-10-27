@@ -269,7 +269,9 @@ it('validates the whole command batch before applying HALT', () => {
       () => ({ commands: [{ commandName: C.PAUSE_TRAVERSAL }] }),
       () => {
         seen.push('invalid');
-        return { commands: [{ commandName: C.DELETE_VERTEX }] } as never;
+        return {
+          commands: [{ commandName: C.DELETE_DAG_VERTEX_CASCADE }],
+        } as never;
       },
     ],
   });

@@ -230,7 +230,7 @@ test.each([
     'parent record',
     ({ root, treeContainer }: ReturnType<typeof treeEdgeContainer>) => {
       const savedRoot = treeContainer.originalTreeRefsMap!.get(root)!;
-      treeContainer.originalTreeView!.delete(savedRoot);
+      treeContainer.originalTreeView!.deleteSubtree(savedRoot);
     },
   ],
 ] as const)(

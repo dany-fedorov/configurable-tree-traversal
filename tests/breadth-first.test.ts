@@ -152,8 +152,8 @@ describe('breadth-first traversal', () => {
   });
 
   test.each([
-    [Command.DISABLE_SUBTREE_TRAVERSAL],
-    [Command.DELETE_VERTEX],
+    [Command.SKIP_REMAINING_CHILDREN],
+    [Command.DELETE_TREE_SUBTREE],
   ] as const)(
     '%s suppresses descendants while later siblings continue',
     (commandName) => {
@@ -167,7 +167,7 @@ describe('breadth-first traversal', () => {
       );
       const runner = traversal.createRunner();
       expect(yieldedValues(runner)).toEqual(
-        commandName === Command.DELETE_VERTEX
+        commandName === Command.DELETE_TREE_SUBTREE
           ? ['root', 'sibling']
           : ['root', 'branch', 'sibling'],
       );
@@ -179,7 +179,7 @@ describe('breadth-first traversal', () => {
             .getChildrenOf(rootRef)
             ?.map((ref) => ref.getValue().getData()),
       ).toEqual(
-        commandName === Command.DELETE_VERTEX
+        commandName === Command.DELETE_TREE_SUBTREE
           ? ['sibling']
           : ['branch', 'sibling'],
       );
@@ -189,7 +189,7 @@ describe('breadth-first traversal', () => {
   test('deleting the root skips all child resolution and clears the resolved root', () => {
     const { traversal, calls } = setup(node('root', node('hidden')));
     traversal.addVisitorFor(Order.LEVEL_ORDER, () => ({
-      commands: [{ commandName: Command.DELETE_VERTEX }],
+      commands: [{ commandName: Command.DELETE_TREE_SUBTREE }],
     }));
     const runner = traversal.createRunner();
     expect([...runner.iterateEvents()]).toEqual([]);
@@ -295,8 +295,8 @@ describe('breadth-first traversal', () => {
       return {
         commands: [
           {
-            commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-            commandArguments: { vertexVisitorsChainState: 42 },
+            commandName: Command.SET_VISITOR_CHAIN_STATE,
+            commandArguments: { state: 42 },
           },
         ],
       };
@@ -324,7 +324,7 @@ describe('breadth-first traversal', () => {
         };
       }
       if (vertex.getData() === 'deleted') {
-        return { commands: [{ commandName: Command.DELETE_VERTEX }] };
+        return { commands: [{ commandName: Command.DELETE_TREE_SUBTREE }] };
       }
       const saved = options.originalTreeView;
       const savedRoot = saved?.getRoot();
