@@ -18,9 +18,15 @@ export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
   private readonly metadata: VisitorChainMetadata<T | R>;
   private position = 0;
   private awaitingOutcome = false;
-  private pendingCommands: TraversalVisitorCommand<R>[] | null = null;
+  private pendingCommands:
+    | TraversalVisitorCommand<R, TraversalVisitorCommandName, T['VertexHint']>[]
+    | null = null;
   private commandsEmitted = false;
-  private readonly bufferedCommands: TraversalVisitorCommand<R>[] = [];
+  private readonly bufferedCommands: TraversalVisitorCommand<
+    R,
+    TraversalVisitorCommandName,
+    T['VertexHint']
+  >[] = [];
   private paused = false;
   private deleted = false;
   private done = false;
@@ -64,7 +70,7 @@ export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
     return { kind: 'DONE' };
   }
 
-  submit(outcome: VisitorOutcome<R>): void {
+  submit(outcome: VisitorOutcome<R, T['VertexHint']>): void {
     if (!this.valid || !this.awaitingOutcome) {
       throw new Error('Visitor chain is not waiting for an outcome');
     }

@@ -78,7 +78,7 @@ test('breadth-first convenience visitor receives sorted level-order vertices', (
   const visits: string[] = [];
   const runner = traverseTreeBreadthFirst({
     traversableTree: adapter(node('root', node('a'), node('b'))),
-    ...{ sortChildrenHints: (hints) => hints.reverse() },
+    ...{ sortChildrenHints: <Hint,>(hints: Hint[]) => hints.reverse() },
     visitors: {
       LEVEL_ORDER: (vertex, options) => {
         visits.push(`${options.phase}:${vertex.getData()}`);

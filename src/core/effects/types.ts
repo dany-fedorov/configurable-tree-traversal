@@ -65,7 +65,7 @@ export type CallbackValues<T extends VertexTypes, R extends VertexTypes = T> = {
   MAKE_VERTEX: MakeVertexResult<T>;
   SORT_HINTS: (T | R)['VertexHint'][];
   HINT_ID: HintVertexId | undefined;
-  VISIT: VisitResult<R>;
+  VISIT: VisitResult<R, never, 'tree' | 'dag', T['VertexHint']>;
 };
 
 export type CallbackReply<T extends VertexTypes, R extends VertexTypes = T> = {

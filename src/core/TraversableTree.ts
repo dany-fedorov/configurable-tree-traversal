@@ -81,14 +81,15 @@ export type TreeVertexResolution<T extends VertexTypes> =
   | TreeVertexFound<T>
   | TreeVertexOmitted;
 
+/** Input T owns discovery hints/results; callbacks must accept the full T | R live context. */
 export type TreeSource<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = {
-  resolveRoot(): TreeVertexResolution<TTP>;
+  resolveRoot: () => TreeVertexResolution<TTP>;
 
-  resolveChild(
+  resolveChild: (
     vertexHint: TTP['VertexHint'],
     options: TreeChildResolutionContext<TTP, RW_TTP>,
-  ): TreeVertexResolution<TTP>;
+  ) => TreeVertexResolution<TTP>;
 };

@@ -49,7 +49,7 @@ traversal.addVisitorFor(
         },
         {
           commandName: Command.REWRITE_CHILD_HINTS,
-          commandArguments: { newHints: [1] },
+          commandArguments: { newHints: ['child'] },
         },
       ],
     };
@@ -153,7 +153,7 @@ traversal.addVisitorFor(
     commands: [
       {
         commandName: Command.REWRITE_CHILD_HINTS,
-        commandArguments: { newHints: [1] },
+        commandArguments: { newHints: ['child'] },
       },
     ],
   })),

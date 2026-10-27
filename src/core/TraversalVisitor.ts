@@ -18,11 +18,15 @@ export enum TraversalVisitorCommandName {
   SKIP_REMAINING_CHILDREN = 'SKIP_REMAINING_CHILDREN',
 }
 
-export type TraversalVisitorCommandArguments<RW_TTP extends VertexTypes> = {
+/** Rewritten data and discovery hints have independent domains. */
+export type TraversalVisitorCommandArguments<
+  RW_TTP extends VertexTypes,
+  SourceHint = RW_TTP['VertexHint'],
+> = {
   [TraversalVisitorCommandName.NOOP]: never;
   [TraversalVisitorCommandName.DEFER_WORK_COMPLETION]: never;
   [TraversalVisitorCommandName.REWRITE_CHILD_HINTS]: {
-    newHints: RW_TTP['VertexHint'][];
+    newHints: SourceHint[];
   };
   [TraversalVisitorCommandName.PAUSE_TRAVERSAL]: never;
   [TraversalVisitorCommandName.DELETE_TREE_SUBTREE]: never;
@@ -39,12 +43,18 @@ export type TraversalVisitorCommandArguments<RW_TTP extends VertexTypes> = {
 export type TraversalVisitorCommand<
   RW_TTP extends VertexTypes,
   T extends TraversalVisitorCommandName = TraversalVisitorCommandName,
+  SourceHint = RW_TTP['VertexHint'],
 > = {
   [Name in T]: { commandName: Name } & ([
-    TraversalVisitorCommandArguments<RW_TTP>[Name],
+    TraversalVisitorCommandArguments<RW_TTP, SourceHint>[Name],
   ] extends [never]
     ? { commandArguments?: never }
-    : { commandArguments: TraversalVisitorCommandArguments<RW_TTP>[Name] });
+    : {
+        commandArguments: TraversalVisitorCommandArguments<
+          RW_TTP,
+          SourceHint
+        >[Name];
+      });
 }[T];
 
 /** Prevent callback returns from widening the phase inferred from a registration key. */
@@ -66,6 +76,7 @@ export type TraversalVisitorResult<
   RW_TTP extends VertexTypes,
   Phase extends string = string,
   Family extends 'tree' | 'dag' = 'tree' | 'dag',
+  SourceHint = RW_TTP['VertexHint'],
 > =
   | {
       commands?: TraversalVisitorCommand<
@@ -76,7 +87,8 @@ export type TraversalVisitorResult<
             : TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE)
         | ([Phase] extends ['PRE_ORDER' | 'LEVEL_ORDER' | 'ON_WORK_READY']
             ? HintCommand
-            : never)
+            : never),
+        SourceHint
       >[];
     }
   | ([Phase] extends ['ON_WORK_READY']
@@ -84,7 +96,8 @@ export type TraversalVisitorResult<
           commands: [
             TraversalVisitorCommand<
               RW_TTP,
-              TraversalVisitorCommandName.DEFER_WORK_COMPLETION
+              TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+              SourceHint
             >,
           ];
         }
@@ -176,7 +189,12 @@ export type TreeVisitor<
   Phase extends string = string,
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> = TraversalVisitorResult<RW_TTP, Phase, 'tree'> extends infer RESULT
+> = TraversalVisitorResult<
+  RW_TTP,
+  Phase,
+  'tree',
+  TTP['VertexHint']
+> extends infer RESULT
   ? (
       vertex: Vertex<TTP | RW_TTP>,
       options: TreeVisitorContext<Phase, TTP, RW_TTP>,

@@ -5,6 +5,7 @@ import type { Vertex } from './Vertex';
 import type { VertexTypes } from './TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
+  TraversalVisitorCommandName,
   TreeVisitorContext,
   TreeVisitorRecord,
 } from './TraversalVisitor';
@@ -38,7 +39,11 @@ export function* executeVisitors<
     chainState: unknown,
   ) => TreeVisitorContext<ORDER, TTP, RW_TTP>;
   executeCommands: (
-    commands: TraversalVisitorCommand<RW_TTP>[],
+    commands: TraversalVisitorCommand<
+      RW_TTP,
+      TraversalVisitorCommandName,
+      TTP['VertexHint']
+    >[],
   ) => VisitorCommandResult;
   isHalted: () => boolean;
   isDeleted: () => boolean;
@@ -85,7 +90,12 @@ export function* executeVisitors<
         );
         chain.submit({
           ok: true,
-          value: result as import('./graph/types').VisitResult<RW_TTP>,
+          value: result as import('./graph/types').VisitResult<
+            RW_TTP,
+            never,
+            'tree' | 'dag',
+            TTP['VertexHint']
+          >,
         });
         state.visitorIndex++;
         break;

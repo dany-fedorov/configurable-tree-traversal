@@ -2,6 +2,7 @@ import type { MutableRef } from '@core/CTTRef';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
+  TraversalVisitorCommandName,
   VisitorRegistrationMetadata,
 } from '@core/TraversalVisitor';
 import type { Vertex } from '@core/Vertex';
@@ -28,7 +29,14 @@ export type VisitorChainPoll<
       recordIndex: number;
       metadata: VisitorChainMetadata<T | R>;
     }
-  | { kind: 'COMMANDS'; commands: TraversalVisitorCommand<R>[] }
+  | {
+      kind: 'COMMANDS';
+      commands: TraversalVisitorCommand<
+        R,
+        TraversalVisitorCommandName,
+        T['VertexHint']
+      >[];
+    }
   | { kind: 'WAIT' | 'PAUSED' | 'DONE' };
 
 export type VisitorBatchCommit = {
@@ -49,4 +57,7 @@ export type VisitorChainInput<
   order?: string;
 };
 
-export type VisitorOutcome<R extends VertexTypes> = Outcome<VisitResult<R>>;
+export type VisitorOutcome<
+  R extends VertexTypes,
+  SourceHint = R['VertexHint'],
+> = Outcome<VisitResult<R, never, 'tree' | 'dag', SourceHint>>;

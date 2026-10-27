@@ -19,7 +19,8 @@ export type VisitResult<
   R extends VertexTypes,
   ORDER extends string = never,
   Family extends 'tree' | 'dag' = 'tree' | 'dag',
-> = TraversalVisitorResult<R, ORDER, Family> | undefined | void;
+  SourceHint = R['VertexHint'],
+> = TraversalVisitorResult<R, ORDER, Family, SourceHint> | undefined | void;
 
 export type HintVertexId<ID = unknown> = { vertexId: ID };
 

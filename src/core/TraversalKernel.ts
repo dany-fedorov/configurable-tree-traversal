@@ -948,7 +948,10 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       case 'VISIT': {
         const runtime = this.chains.get(call.owner.id)!;
         runtime.machine.submit(
-          reply.outcome as import('@core/visitors/types').VisitorOutcome<R>,
+          reply.outcome as import('@core/visitors/types').VisitorOutcome<
+            R,
+            T['VertexHint']
+          >,
         );
         runtime.state.waitingFor = 'none';
         runtime.state.position += 1;

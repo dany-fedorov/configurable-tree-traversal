@@ -67,6 +67,12 @@ new GraphWalk({
 
 An earlier visitor can rewrite the current property before `rewrite` runs; children can remain unchanged. `ObjectCurrentVertexTypes<InputTypes, OutputTypes>` therefore closes keys and values **independently** over both domains, retaining the original metadata alternatives. An input key with an output value, or an output key with an input value, is valid. A union of complete input/output records would incorrectly exclude these hybrids. Neither narrowing the key nor narrowing metadata proves an input-only/output-only value. This applies to callback properties, `vertex`, live refs/tree, previous-phase refs, key paths, classifiers, assemblers and object-source parent contexts. `originalTreeView` stays input-typed. Generic tree APIs retain their configured domains; explicitly use the current-domain helper when composing an object binder with a generic traversal.
 
+Discovery hints belong to the source input domain: `REWRITE_CHILD_HINTS` accepts `T['VertexHint'][]` in tree and DAG visitors, including async visitors, registration groups and `rewriteObject` options. Rewriting vertex data to `R` does not admit `R['VertexHint']`. `resolveChild`, object `resolveVertexHook` and `getChildrenOfProperty` still resolve input records; retained original views therefore remain truthful. If discovery needs another hint kind, declare it in the source input union first. For object sources that means extending `InK`/`InV`, and original views then reflect that declared union.
+
+A composed source must accept the traversal's full current context. Source callback properties are checked contravariantly with strict function checking: an input-only `ObjectTreeSource<In, InK, InV>` cannot serve a traversal that rewrites to a broader domain. Configure its `OutK`/`OutV` to match, and use `ObjectCurrentVertexTypes<Input, Output>` for the traversal and binder's live data. For custom sources, explicitly declare `TreeSource<T, R>` / `DagDiscoverySource<T, R, ID>` (or their async counterparts) when standalone callbacks do not provide enough inference. Matching sources and binders compose without assertions.
+
+The shared algebra keeps its standalone default while accepting a trailing `SourceHint`: `TraversalVisitorCommandArguments<R, SourceHint = R['VertexHint']>`, `TraversalVisitorCommand<R, Name, SourceHint = R['VertexHint']>`, `TraversalVisitorResult<R, Phase, Family, SourceHint = R['VertexHint']>`. Concrete tree/DAG visitors select `T['VertexHint']` automatically. Existing generic positions, including trailing graph IDs, remain unchanged.
+
 `ObjectPropertyPatch<OutputTypes>` is `Partial<Pick<OutputTypes['VertexData'], 'key' | 'value'>>`. Unknown own fields, including symbols and non-enumerable fields, throw `TypeError`; metadata already on a property survives supported patches. An absent field differs from an own field containing undefined. A present `rewrite` must be a non-null object. For arbitrary full payload replacement, use `REWRITE_VERTEX_DATA` with `newData`. Assemblers and patch fields retain output types; bound commands emit the wider current domain. `ObjectMutationCommands<OutputTypes, InputTypes = OutputTypes>` keeps output first and appends input.
 
 <!-- standalone -->
@@ -110,6 +116,126 @@ if (result.getOutput() !== 'changed')
 ```
 
 The renamed `ObjectRewriteCallback`, `ObjectRewriteContext`, and `ObjectRewriteInput` carry both domains. `ObjectTreeSource.createRootPropertyMapper(rootKey?)` returns the callback accepted by `getRootPropertyFromInputObject`; `getChildrenOfPropertyDefault` remains a direct getter. The intentional static `createObjectMutationBinder` alias remains.
+
+A declared union allows both hint kinds to be discovered, independently of output-only value patches:
+
+<!-- standalone -->
+
+```ts
+import {
+  rewriteObject,
+  DepthFirstPhase,
+  TraversalVisitorCommandName as Command,
+} from 'configurable-tree-traversal';
+
+const extra = { key: 'output' as const, value: 'discovered' };
+let observedHint: unknown;
+const result = rewriteObject<
+  number,
+  'input' | 'output',
+  number | string,
+  unknown,
+  'output',
+  string
+>(0, {
+  getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+  getChildrenOfProperty: () => [],
+  retainOriginalTreeStructure: true,
+  resolveVertexHook(hint, context) {
+    const inputValue: number | string = hint.value;
+    const originalValue: number | string = context
+      .originalTreeView!.getRoot()!
+      .getValue()
+      .getData().value;
+    if (inputValue !== 'discovered' || originalValue !== 0) {
+      throw new Error('Expected declared input hint and original root');
+    }
+    observedHint = hint;
+    return { kind: 'useDefault' };
+  },
+  visitors: {
+    [DepthFirstPhase.PRE_ORDER]: (_vertex, context) =>
+      context.isTreeRoot
+        ? {
+            commands: [
+              {
+                commandName: Command.REWRITE_CHILD_HINTS,
+                commandArguments: { newHints: [extra] },
+              },
+            ],
+          }
+        : undefined,
+  },
+});
+if (observedHint !== extra) throw new Error('Expected shared hint identity');
+const tree = result.traversalRunner.getResolvedTreeView();
+const child = tree.getChildrenOf(tree.getRoot()!)![0]!;
+if (child.getValue().getData().value !== 'discovered') {
+  throw new Error('Expected the declared union hint to resolve');
+}
+```
+
+With TypeScript 4.7/4.9, an unannotated sorter inside an object spread can be contextualized as `unknown[]` before source inference. Previously this could silently widen visitor data to `unknown`; strict source composition now rejects it. Keep a sorter directly on the options object for contextual inference, or use a generic hint-preserving sorter or an explicit source hint domain when spreading it:
+
+<!-- standalone -->
+
+```ts
+import {
+  traverseTreeDepthFirst,
+  TraversalVisitorCommandName as Command,
+  type TreeSource,
+  type VertexTypes,
+} from 'configurable-tree-traversal';
+
+type Input = VertexTypes<number, number | 'extra'>;
+type Output = VertexTypes<string, boolean>;
+const source: TreeSource<Input, Output> = {
+  resolveRoot: () => ({
+    kind: 'found',
+    vertex: { vertexContent: { $data: 0, $childHints: [] } },
+  }),
+  resolveChild: (hint) => ({
+    kind: 'found',
+    vertex: {
+      vertexContent: { $data: hint === 'extra' ? 2 : hint, $childHints: [] },
+    },
+  }),
+};
+const preserveHints = <Hint,>(hints: Hint[]) => hints.reverse();
+const declaredHints = (hints: Input['VertexHint'][]) => hints.reverse();
+const discoveryHints: Input['VertexHint'][] = [1, 'extra'];
+const runner = traverseTreeDepthFirst({
+  traversableTree: source,
+  ...{ sortChildrenHints: preserveHints },
+  visitors: {
+    PRE_ORDER: (_vertex, context) =>
+      context.isTreeRoot
+        ? {
+            commands: [
+              {
+                commandName: Command.REWRITE_VERTEX_DATA,
+                commandArguments: { newData: 'changed' },
+              },
+              {
+                commandName: Command.REWRITE_CHILD_HINTS,
+                commandArguments: { newHints: discoveryHints },
+              },
+            ],
+          }
+        : undefined,
+  },
+});
+const value: number | string = runner
+  .getResolvedTreeView()
+  .getRoot()!
+  .getValue()
+  .getData();
+if (value !== 'changed') throw new Error('Expected rewritten data');
+traverseTreeDepthFirst({
+  traversableTree: source,
+  ...{ sortChildrenHints: declaredHints },
+});
+```
 
 ## Deletion, local expansion and declarations
 

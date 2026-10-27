@@ -284,9 +284,9 @@ new DagTraversal({ traversableGraph: source, completedWork: new Set([42]) });
 traverseDag({ traversableGraph: source, completedWork: new Set([42]) });
 // @ts-expect-error Single-options helpers cannot seed wrong-domain completed work.
 traverseDag({ traversableGraph: source, completedWork: new Set([42]) });
-// @ts-expect-error Inferred async constructors cannot seed wrong-domain completed work.
 new AsyncDagTraversal({
   traversableGraph: asyncSource,
+  // @ts-expect-error Inferred async constructors cannot seed wrong-domain completed work.
   completedWork: new Set([42]),
 });
 traverseDagAsync({

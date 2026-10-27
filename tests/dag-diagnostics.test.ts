@@ -34,7 +34,7 @@ function check(error: unknown) {
 }
 
 test('sync stalls distinguish unknown prerequisites, cycle members and downstream work', () => {
-  const runner = new DagTraversal({
+  const runner = new DagTraversal<VertexTypes<string, string>>({
     traversableGraph: graphAdapter(fixture),
   }).createRunner();
   try {
@@ -46,7 +46,7 @@ test('sync stalls distinguish unknown prerequisites, cycle members and downstrea
 });
 
 test('async stalls report the same detached diagnostic contract', async () => {
-  const runner = new AsyncDagTraversal({
+  const runner = new AsyncDagTraversal<VertexTypes<string, string>>({
     traversableGraph: graphAdapter(fixture),
   }).createRunner();
   await runner.run().then(() => {
@@ -55,7 +55,7 @@ test('async stalls report the same detached diagnostic contract', async () => {
 });
 
 test('reports a missing prerequisite separately from its blocked vertex', () => {
-  const runner = new DagTraversal({
+  const runner = new DagTraversal<VertexTypes<string, string>>({
     traversableGraph: graphAdapter({
       root: { children: ['task'], dependencies: [] },
       task: { children: [], dependencies: ['absent'] },

@@ -1,6 +1,7 @@
 import { inspectInternalDagState } from './internal-runner-fixtures';
 import { makeDagInspection } from '../src/traversals/dag-traversal/lib/DagInspection';
 import {
+  type VertexTypes,
   AsyncDagTraversal,
   DagTraversal,
   DagVisitorPhase as Order,
@@ -223,7 +224,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} marks only locally open completion discovery`, async () => {
     let calls = 0;
-    const traversal = new Constructor({
+    const traversal = new Constructor<VertexTypes<string, string>>({
       traversableGraph: {
         resolveRoot: () => ({
           kind: 'found' as const,
@@ -441,7 +442,7 @@ test('a closed vertex does not inherit global discovery incompleteness from anot
   const admitted = new Promise<void>((resolve) => {
     pending = resolve;
   });
-  const runner = new AsyncDagTraversal({
+  const runner = new AsyncDagTraversal<VertexTypes<string, string>>({
     concurrency: 1,
     traversableGraph: {
       resolveRoot: async () => ({

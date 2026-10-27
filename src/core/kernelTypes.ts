@@ -19,7 +19,10 @@ import type {
   TraversalIterableConfigInput,
   TraversalRunnerIterableConfig,
 } from '@core/TraversalRunnerIterableConfig';
-import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
+import type {
+  TraversalVisitorCommand,
+  TraversalVisitorCommandName,
+} from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { RegistrationMetadata } from '@core/visitors/types';
 import type { InOrderOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
@@ -82,7 +85,11 @@ export type ChainState<T extends VertexTypes, R extends VertexTypes = T> = {
   group: 'concurrent' | 'sequential';
   position: number;
   waitingFor: 'none' | 'callback' | 'batch';
-  commands: TraversalVisitorCommand<R>[];
+  commands: TraversalVisitorCommand<
+    R,
+    TraversalVisitorCommandName,
+    T['VertexHint']
+  >[];
   metadata: VisitMetadata<T | R>;
   config: ResolvedTraversalExecutionOptions<VisitPhase>;
 };

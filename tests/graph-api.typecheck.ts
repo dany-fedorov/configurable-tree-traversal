@@ -96,7 +96,7 @@ const dagVisitor: DagVisitor<Input, Output, DagVisitorPhase.ON_WORK_READY> = (
     commands: [
       {
         commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
-        commandArguments: { newHints: [1, 2] },
+        commandArguments: { newHints: ['one', 'two'] },
       },
     ],
   };

@@ -10,7 +10,12 @@ export type AsyncTreeVisitor<
   Phase extends string = string,
   T extends VertexTypes = VertexTypes,
   R extends VertexTypes = T,
-> = TraversalVisitorResult<R, Phase, 'tree'> extends infer RESULT
+> = TraversalVisitorResult<
+  R,
+  Phase,
+  'tree',
+  T['VertexHint']
+> extends infer RESULT
   ? (
       vertex: Vertex<T | R>,
       options: TreeVisitorContext<Phase, T, R>,

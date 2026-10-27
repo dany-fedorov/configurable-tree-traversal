@@ -491,6 +491,7 @@ try {
     'supported-exports',
     'uniform-api',
     'rewrite-output',
+    'source-hint-contracts',
     'execution-capabilities',
     'idiomatic-execution',
     'idiomatic-diagnostics',

@@ -140,7 +140,7 @@ export function bindGraphSource<
 
 export type BoundVisit<T extends VertexTypes, R extends VertexTypes = T> = (
   call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>,
-) => MaybePromise<VisitResult<R>>;
+) => MaybePromise<VisitResult<R, never, 'tree' | 'dag', T['VertexHint']>>;
 
 export function createCallbackBindings<
   T extends VertexTypes,
