@@ -92,16 +92,3 @@ export type TreeSource<
     options: TreeChildResolutionContext<TTP, RW_TTP>,
   ): TreeVertexResolution<TTP>;
 };
-
-export abstract class AbstractTreeSource<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
-> implements TreeSource<TTP, RW_TTP>
-{
-  abstract resolveRoot(): TreeVertexResolution<TTP>;
-
-  abstract resolveChild(
-    vertexHint: TTP['VertexHint'],
-    options: TreeChildResolutionContext<TTP, RW_TTP>,
-  ): TreeVertexResolution<TTP>;
-}

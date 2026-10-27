@@ -1,5 +1,5 @@
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
-import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
+import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
 import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
 import type { VisitorRecord } from '@core/graph/types';
 import type { VisitorInputs } from '@core/TraversalVisitor';
@@ -16,9 +16,7 @@ export type AsyncBreadthFirstTraversalVisitors<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
-  [K in BreadthFirstPhase]: VisitorRecord<
-    AsyncTraversalVisitor<K, TTP, RW_TTP>
-  >[];
+  [K in BreadthFirstPhase]: VisitorRecord<AsyncTreeVisitor<K, TTP, RW_TTP>>[];
 };
 
 export type AsyncBreadthFirstTreeResolvedOptions<

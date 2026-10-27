@@ -1,5 +1,5 @@
 import { assertPublicOptions } from '@core/assertPublicOptions';
-import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
+import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
 import type {
@@ -58,68 +58,64 @@ export class AsyncBreadthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends BreadthFirstPhase>(
-    order: ORDER,
-    visitor: AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
+  addVisitorFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
+    visitor: AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<AsyncTreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] = appendVisitorDefinition<
-      AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
-    >(
-      this.visitors[order] as VisitorRecord<
-        AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
+    )[phase] = appendVisitorDefinition<AsyncTreeVisitor<Phase, TTP, RW_TTP>>(
+      this.visitors[phase] as VisitorRecord<
+        AsyncTreeVisitor<Phase, TTP, RW_TTP>
       >[],
       { visitor, ...options },
     );
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends BreadthFirstPhase>(
-    order: ORDER,
+  addVisitorGroupFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
     group: VisitorGroupDefinition<
-      AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
+      AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>
     >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<AsyncTreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] = appendVisitorGroup<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>(
-      this.visitors[order] as VisitorRecord<
-        AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
+    )[phase] = appendVisitorGroup<AsyncTreeVisitor<Phase, TTP, RW_TTP>>(
+      this.visitors[phase] as VisitorRecord<
+        AsyncTreeVisitor<Phase, TTP, RW_TTP>
       >[],
       group,
     );
     return this;
   }
 
-  listVisitorsFor<ORDER extends BreadthFirstPhase>(
-    order: ORDER,
-  ): AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
-    return copyVisitorRecords(this.visitors[order]);
+  listVisitorsFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
+  ): AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>[Phase] {
+    return copyVisitorRecords(this.visitors[phase]);
   }
 
-  setVisitorsFor<ORDER extends BreadthFirstPhase>(
-    order: ORDER,
+  setVisitorsFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
     input: VisitorPhaseInput<
-      AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
+      AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>
     >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<AsyncTreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] =
-      normalizeVisitorDefinitions<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>(
-        input,
-      );
+    )[phase] =
+      normalizeVisitorDefinitions<AsyncTreeVisitor<Phase, TTP, RW_TTP>>(input);
     return this;
   }
 
@@ -134,8 +130,8 @@ export class AsyncBreadthFirstTreeTraversal<
     visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>,
   ): AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP> {
     return Object.fromEntries(
-      Object.entries(visitors).map(([order, records]) => [
-        order,
+      Object.entries(visitors).map(([phase, records]) => [
+        phase,
         sortVisitorRecords(records),
       ]),
     ) as AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;

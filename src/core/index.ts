@@ -1,8 +1,10 @@
-export type { AsyncCoreExecution } from './AsyncCoreExecution';
 export type { AsyncTreeSource } from './AsyncTraversableTree';
-export type { AsyncTraversalVisitor } from './AsyncTraversalVisitor';
+export type { AsyncTreeVisitor } from './AsyncTraversalVisitor';
 export type { AsyncChildHintSorter, ChildHintSorter } from './ChildHintSorter';
-export type { CoreInspection, InspectionFilters } from './CoreInspection';
+export type {
+  TreeDagExecutionInspection,
+  InspectionFilters,
+} from './CoreInspection';
 export { MutableRef } from './CTTRef';
 export { DagDiscoveryCycleError } from './errors/DagDiscoveryCycleError';
 export { DagTraversalStallError } from './errors/DagTraversalStallError';
@@ -27,8 +29,8 @@ export type {
   MutationCommand,
   MutationCommands,
   MutationCommandBuilder,
-  MutationCommandBinder,
-  MutationCommandBinderFactory,
+  TreeMutationCommandBinder,
+  TreeMutationCommandBinderFactory,
 } from './MakeMutationCommandFunctionFactory';
 export type { ResolvedGraph, OriginalGraphView } from './ResolvedGraph';
 export { TreeVertexRecord, ResolvedTreeStore } from './ResolvedTree';
@@ -46,7 +48,6 @@ export type {
   DagDiscoverySource,
   AsyncDagDiscoverySource,
 } from './TraversableGraph';
-export { AbstractTreeSource } from './TraversableTree';
 export type {
   TreeChildResolutionContext,
   DagVertexFound,
@@ -59,17 +60,12 @@ export type {
   TreeVertexResolution,
   TreeSource,
 } from './TraversableTree';
-export { TreeTraversal } from './Traversal';
 export type {
   TraversalExecutionState,
   SyncTraversalExecution,
   AsyncTraversalExecution,
 } from './TraversalExecution';
-export {
-  TraversalRunnerStatus,
-  TreeTraversalIterable,
-  TreeTraversalRunner,
-} from './TraversalRunner';
+export { TraversalRunnerStatus } from './TraversalRunner';
 export type {
   TreeTraversalEvent,
   TraversalStopReason,
@@ -93,8 +89,8 @@ export type {
   VisitorPhaseInput,
   VisitorGroupMetadata,
   VisitorRegistrationMetadata,
-  TraversalVisitorRecord,
-  TraversalVisitor,
+  TreeVisitorRecord,
+  TreeVisitor,
 } from './TraversalVisitor';
 export type { VertexTypes } from './TreeTypeParameters';
 export { Vertex } from './Vertex';

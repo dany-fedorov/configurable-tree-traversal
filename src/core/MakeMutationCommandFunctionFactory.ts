@@ -1,6 +1,6 @@
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
-  TraversalVisitor,
+  TreeVisitor,
   TraversalVisitorCommand,
 } from '@core/TraversalVisitor';
 import type { TraversalVisitorCommandName } from '@core/TraversalVisitor';
@@ -30,20 +30,20 @@ export type MutationCommandBuilder<
   RewriteInput = OUT_TTP['VertexData'],
 > = (request?: MutationRequest<RewriteInput>) => MutationCommand<OUT_TTP>;
 
-export type MutationCommandBinder<
-  ORDER extends string,
+export type TreeMutationCommandBinder<
+  Phase extends string,
   IN_TTP extends VertexTypes,
   OUT_TTP extends VertexTypes,
   RewriteInput = OUT_TTP['VertexData'],
 > = (
-  ...visitorArguments: Parameters<TraversalVisitor<ORDER, IN_TTP, OUT_TTP>>
+  ...visitorArguments: Parameters<TreeVisitor<Phase, IN_TTP, OUT_TTP>>
 ) => MutationCommands<OUT_TTP, RewriteInput>;
 
-export type MutationCommandBinderFactory<Configuration = unknown> = <
-  ORDER extends string,
+export type TreeMutationCommandBinderFactory<Configuration = unknown> = <
+  Phase extends string,
   IN_TTP extends VertexTypes,
   OUT_TTP extends VertexTypes,
   RewriteInput = OUT_TTP['VertexData'],
 >(
   options?: Configuration,
-) => MutationCommandBinder<ORDER, IN_TTP, OUT_TTP, RewriteInput>;
+) => TreeMutationCommandBinder<Phase, IN_TTP, OUT_TTP, RewriteInput>;

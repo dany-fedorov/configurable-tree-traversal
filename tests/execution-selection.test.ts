@@ -6,7 +6,7 @@ import { DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS } fr
 import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
 import { makeEffectiveDagTraversalRunnerIterableConfig as makeDAG } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerIterableConfig';
 import { makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
-import type { CoreInspection, Vertex } from '../src';
+import type { TreeDagExecutionInspection, Vertex } from '../src';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -34,7 +34,7 @@ type Runner = {
     config?: unknown,
   ): Generator<Event> | AsyncGenerator<Event, void, unknown>;
   run(config?: unknown): unknown;
-  inspect(): CoreInspection;
+  inspect(): TreeDagExecutionInspection;
 };
 const tree = {
   resolveRoot: () => ({

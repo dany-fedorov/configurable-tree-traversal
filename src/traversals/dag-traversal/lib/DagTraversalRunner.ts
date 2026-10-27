@@ -1,4 +1,4 @@
-import type { CoreInspection } from '@core/CoreInspection';
+import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
 import {
   bindGraphSource,
@@ -61,7 +61,7 @@ export interface DagTraversalRunner<
 > extends SyncTraversalExecution<
     DagVisitorPhase,
     DagEvent<T | R, ID>,
-    CoreInspection,
+    TreeDagExecutionInspection,
     'workCompleted' | 'subgraphCompleted'
   > {
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
@@ -355,7 +355,7 @@ export class InternalDagTraversalRunner<
     return ref === this.state.traversalRootVertexRef;
   }
 
-  inspect(): CoreInspection {
+  inspect(): TreeDagExecutionInspection {
     return deepFreeze({
       ...this.kernel.inspect(),
       inFlightCallbackCount: this.runtimeState.inFlightCallbackCount,

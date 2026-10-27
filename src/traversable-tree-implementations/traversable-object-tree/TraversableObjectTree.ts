@@ -3,8 +3,8 @@ import {
   assertNoTreeMetadata,
   normalizeSourceResult,
 } from '@core/drivers/normalizeSourceResult';
-import {
-  AbstractTreeSource,
+import type {
+  TreeSource,
   TreeVertexFound,
   TreeChildResolutionContext,
   TreeVertexResolution,
@@ -32,13 +32,15 @@ export class ObjectTreeSource<
   InV = TraversableObject<TraversableObjectPropKey, unknown> | unknown,
   OutK extends TraversableObjectPropKey = InK,
   OutV = InV,
-> extends AbstractTreeSource<
-  ObjectTreeVertexTypes<InK, InV>,
-  ObjectCurrentVertexTypes<
-    ObjectTreeVertexTypes<InK, InV>,
-    ObjectTreeVertexTypes<OutK, OutV>
-  >
-> {
+> implements
+    TreeSource<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
+    >
+{
   private readonly icfg: ObjectTreeResolvedOptions<In, InK, InV, OutK, OutV>;
   public readonly rootObject: In;
   private readonly cycleStateByResolvedTree = new WeakMap<
@@ -61,7 +63,6 @@ export class ObjectTreeSource<
     rootObject: In,
     options?: ObjectTreeOptions<In, InK, InV, OutK, OutV>,
   ) {
-    super();
     this.rootObject = rootObject;
     if (options && 'makeVertexHook' in options) {
       throw new TypeError(

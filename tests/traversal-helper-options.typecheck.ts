@@ -20,8 +20,8 @@ import type {
   AsyncBreadthFirstTreeRunner,
   DagTraversalRunner,
   AsyncDagTraversalRunner,
-  TraversalVisitor,
-  AsyncTraversalVisitor,
+  TreeVisitor,
+  AsyncTreeVisitor,
   DagVisitor,
   AsyncDagVisitor,
 } from '../src';
@@ -29,10 +29,10 @@ import type {
 type T = VertexTypes<string, string>;
 declare const tree: TreeSource<T>;
 declare const graph: DagDiscoverySource<T>;
-const common: TraversalVisitor<string, T, T> = () => ({
+const common: TreeVisitor<string, T, T> = () => ({
   commands: [{ commandName: C.NOOP }],
 });
-const asyncCommon: AsyncTraversalVisitor<string, T, T> = async () => ({
+const asyncCommon: AsyncTreeVisitor<string, T, T> = async () => ({
   commands: [{ commandName: C.NOOP }],
 });
 const dagCommon: DagVisitor<T> = () => ({
@@ -148,7 +148,7 @@ traverseDagAsync({
     },
   },
 });
-declare const preOnly: TraversalVisitor<F.PRE_ORDER, T, T>;
+declare const preOnly: TreeVisitor<F.PRE_ORDER, T, T>;
 declare const readyOnly: DagVisitor<T, T, D.ON_WORK_READY>;
 // @ts-expect-error Canonical DAG sources are exclusive.
 traverseDag<T>({ traversableGraph: graph, traversableTree: tree });

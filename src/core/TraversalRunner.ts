@@ -1,18 +1,15 @@
-import type { CoreInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
-import type { SyncTraversalExecution } from '@core/TraversalExecution';
-import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 
 export type TreeTraversalEvent<
-  ORDER extends string,
+  Phase extends string,
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
   vertex: Vertex<TTP | RW_TTP>;
   vertexRef: MutableRef<Vertex<TTP | RW_TTP>>;
-  phase: ORDER;
+  phase: Phase;
   isTreeRoot: boolean;
   isTraversalRoot: boolean;
 };
@@ -30,40 +27,4 @@ export enum TraversalRunnerStatus {
   HALTED = 'HALTED',
   FINISHED = 'FINISHED',
   FAILED = 'FAILED',
-}
-
-export abstract class TreeTraversalIterable<
-  ORDER extends string,
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
-> implements Iterable<TreeTraversalEvent<ORDER, TTP, RW_TTP>>
-{
-  abstract [Symbol.iterator](): Iterator<
-    TreeTraversalEvent<ORDER, TTP, RW_TTP>
-  >;
-}
-
-/** Historical sync tree-only base; DAG and walking runners expose execution capabilities. */
-export abstract class TreeTraversalRunner<
-  ORDER extends string,
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
-> implements
-    SyncTraversalExecution<ORDER, TreeTraversalEvent<ORDER, TTP, RW_TTP>>
-{
-  abstract getStatus(): TraversalRunnerStatus;
-
-  abstract getStopReason(): TraversalStopReason | null;
-
-  abstract isHalted(): boolean;
-
-  abstract inspect(): CoreInspection;
-
-  abstract requestPause(): boolean;
-
-  abstract run: (config?: TraversalExecutionOptions<ORDER, ORDER>) => this;
-
-  abstract iterateEvents: (
-    config?: TraversalExecutionOptions<ORDER, ORDER>,
-  ) => Generator<TreeTraversalEvent<ORDER, TTP, RW_TTP>, void, unknown>;
 }

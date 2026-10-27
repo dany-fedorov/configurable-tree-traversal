@@ -26,7 +26,7 @@ import type {
   VertexContent,
   VertexContentInput,
   VisitorRegistrationMetadata,
-  TraversalVisitor,
+  TreeVisitor,
   DagVisitor,
   DagSettlementOutcome,
   DagWorkState,
@@ -63,7 +63,7 @@ const graph: DagDiscoverySource<T> = {
   resolveChild: () => omitted,
   resolvePrerequisite: () => lookup,
 };
-const common: TraversalVisitor<string, T, T> = (_vertex, options) => {
+const common: TreeVisitor<string, T, T> = (_vertex, options) => {
   const metadata: VisitorRegistrationMetadata = options.registration;
   // @ts-expect-error callback context exposes metadata, not executable records
   metadata.visitor;
@@ -305,18 +305,16 @@ if (vertexRef) {
   const hostId: unknown = resolved.getVertexId(vertexRef);
   void [referenceId, hostId];
 }
-const hookResult: ObjectVertexHookResult<ObjectTreeVertexTypes<string, number>> =
-  { kind: 'useDefault' };
+const hookResult: ObjectVertexHookResult<
+  ObjectTreeVertexTypes<string, number>
+> = { kind: 'useDefault' };
 new ObjectTreeSource({ a: 1 }, { resolveVertexHook: () => hookResult });
 // @ts-expect-error Preferred object options use the tagged resolution hook.
 new ObjectTreeSource({ a: 1 }, { makeVertexHook: () => ({ returnMe: null }) });
 type Prop = ObjectTreeVertexTypes<string, number | undefined>;
 const objectPatch: ObjectPropertyPatch<Prop> = { value: undefined };
 const objectFactory = ObjectTreeSource.createObjectMutationBinder<Prop, Prop>();
-const objectVisitor: TraversalVisitor<F.POST_ORDER, Prop, Prop> = (
-  v,
-  options,
-) => {
+const objectVisitor: TreeVisitor<F.POST_ORDER, Prop, Prop> = (v, options) => {
   const { makeMutationCommand } = objectFactory(v, options);
   makeMutationCommand({ rewrite: objectPatch });
   makeMutationCommand({ rewrite: { key: 'renamed' } });

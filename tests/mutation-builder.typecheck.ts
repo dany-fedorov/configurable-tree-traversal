@@ -2,7 +2,7 @@ import {
   ObjectTreeSource,
   TraversalVisitorCommandName,
   type MutationCommandBuilder,
-  type MutationCommandBinderFactory,
+  type TreeMutationCommandBinderFactory,
   type VertexTypes,
   type ObjectTreeVertexTypes,
 } from '../src';
@@ -58,7 +58,7 @@ replace({ rewrite: { value: 3 } });
 // @ts-expect-error Generic replacement must match the output value type.
 replace({ rewrite: { key: 'replacement', value: 'wrong' } });
 
-declare const genericFactory: MutationCommandBinderFactory;
+declare const genericFactory: TreeMutationCommandBinderFactory;
 const genericVisitorFactory = genericFactory<'post', Input, Output>();
 declare const genericArgs: Parameters<typeof genericVisitorFactory>;
 const genericBuilder = genericVisitorFactory(

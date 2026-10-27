@@ -7,12 +7,12 @@ import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
   TraversalVisitorCommandName as Command,
   type TraversalVisitorCommand,
-  type TraversalVisitorRecord,
+  type TreeVisitorRecord,
 } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
 
 type Tree = VertexTypes<string, string>;
-type Record = TraversalVisitorRecord<'ORDER', Tree, Tree>;
+type Record = TreeVisitorRecord<'ORDER', Tree, Tree>;
 
 test('yields for an external halt after the first callback batch', () => {
   const vertexRef = new MutableRef(

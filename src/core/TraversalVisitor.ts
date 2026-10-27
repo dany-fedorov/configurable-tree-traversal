@@ -56,18 +56,18 @@ type CommonCommand = Exclude<
 
 export type TraversalVisitorResult<
   RW_TTP extends VertexTypes,
-  ORDER extends string = string,
+  Phase extends string = string,
 > =
   | {
       commands?: TraversalVisitorCommand<
         RW_TTP,
         | CommonCommand
-        | ([ORDER] extends ['PRE_ORDER' | 'LEVEL_ORDER' | 'ON_WORK_READY']
+        | ([Phase] extends ['PRE_ORDER' | 'LEVEL_ORDER' | 'ON_WORK_READY']
             ? HintCommand
             : never)
       >[];
     }
-  | ([ORDER] extends ['ON_WORK_READY']
+  | ([Phase] extends ['ON_WORK_READY']
       ? {
           commands: [
             TraversalVisitorCommand<
@@ -79,7 +79,7 @@ export type TraversalVisitorResult<
       : never);
 
 export type TreeVisitorContext<
-  ORDER extends string,
+  Phase extends string,
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
@@ -93,7 +93,7 @@ export type TreeVisitorContext<
   vertexRef: MutableRef<Vertex<TTP | RW_TTP>>;
   visitorChainState: unknown;
   registration: VisitorRegistrationMetadata;
-  phase: ORDER;
+  phase: Phase;
 };
 
 export type CommandCommitMode = 'afterEachVisitor' | 'afterGroup';
@@ -144,11 +144,11 @@ export type VisitorRegistrationMetadata = Readonly<
   }
 >;
 
-export type TraversalVisitorRecord<
-  ORDER extends string,
+export type TreeVisitorRecord<
+  Phase extends string,
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
-> = VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>;
+> = VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>;
 
 export const DEFAULT_VISITOR_PRIORITY = 100;
 
@@ -160,14 +160,14 @@ export const DEFAULT_VISITOR_FN_OPTIONS = deepFreeze({
 // Resolve the result before constructing the callback so TypeScript compares
 // concrete return contracts structurally across phases (broad common results
 // remain assignable to a narrower phase's superset of allowed commands).
-export type TraversalVisitor<
-  ORDER extends string = string,
+export type TreeVisitor<
+  Phase extends string = string,
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> = TraversalVisitorResult<RW_TTP, ORDER> extends infer RESULT
+> = TraversalVisitorResult<RW_TTP, Phase> extends infer RESULT
   ? (
       vertex: Vertex<TTP | RW_TTP>,
-      options: TreeVisitorContext<ORDER, TTP, RW_TTP>,
+      options: TreeVisitorContext<Phase, TTP, RW_TTP>,
     ) => RESULT | undefined | void
   : never;
 

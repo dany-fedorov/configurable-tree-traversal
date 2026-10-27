@@ -11,7 +11,7 @@ import {
   type VisitorPhaseInput,
   type VisitorGroupMember,
   type DagVisitor,
-  type TraversalVisitor,
+  type TreeVisitor,
   type DagDiscoverySource,
   type TreeSource,
   traverseDag,
@@ -54,7 +54,7 @@ const visitors = { [D.ON_WORK_READY]: ready };
 }
 traverseDag({ traversableGraph, visitors });
 traverseDagAsync({ traversableGraph, visitors });
-const treeCommon: TraversalVisitor<string, T, T> = () => undefined;
+const treeCommon: TreeVisitor<string, T, T> = () => undefined;
 const dfs = { [F.PRE_ORDER]: { groups: [{ visitors: [treeCommon] }] } };
 {
   const t = new DepthFirstTreeTraversal({ traversableTree, visitors: dfs });

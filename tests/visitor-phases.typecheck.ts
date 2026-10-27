@@ -308,7 +308,7 @@ void broadResult;
 
 // Pre-typed callbacks must not hide an invalid phase behind a broader registration.
 declare const ready: DagVisitor<T, T, D.ON_WORK_READY>;
-declare const pre: import('../src').TraversalVisitor<F.PRE_ORDER, T, T>;
+declare const pre: import('../src').TreeVisitor<F.PRE_ORDER, T, T>;
 for (const traversal of [
   new DagTraversal<T>(graph),
   new AsyncDagTraversal<T>(graph),
@@ -556,11 +556,7 @@ declare const asyncReady: import('../src').AsyncDagVisitor<
   T,
   D.ON_WORK_READY
 >;
-declare const asyncPre: import('../src').AsyncTraversalVisitor<
-  F.PRE_ORDER,
-  T,
-  T
->;
+declare const asyncPre: import('../src').AsyncTreeVisitor<F.PRE_ORDER, T, T>;
 const asyncDag = new AsyncDagTraversal<T>(graph);
 const asyncDfs = new AsyncDepthFirstTreeTraversal<T>(tree);
 asyncDag.addVisitorFor(D.ON_WORK_READY, asyncReady);
@@ -596,9 +592,10 @@ traverseTreeDepthFirstAsync({
   // @ts-expect-error Async helper maps preserve phases of pre-typed callbacks.
   visitors: { POST_ORDER: asyncPre },
 });
-const defaultTreeVisitor: import('../src').TraversalVisitor = () => ({
+const defaultTreeVisitor: import('../src').TreeVisitor = () => ({
   commands: [{ commandName: C.NOOP }],
 });
-const defaultAsyncVisitor: import('../src').AsyncTraversalVisitor =
-  async () => ({ commands: [{ commandName: C.NOOP }] });
+const defaultAsyncVisitor: import('../src').AsyncTreeVisitor = async () => ({
+  commands: [{ commandName: C.NOOP }],
+});
 void [defaultTreeVisitor, defaultAsyncVisitor];

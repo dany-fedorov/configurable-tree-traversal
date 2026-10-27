@@ -4,7 +4,7 @@ import {
   DepthFirstPhase,
   GraphWalkPhase,
   type AsyncGraphWalkSource,
-  type ExecutionInspection,
+  type EmissionKind,
   type SyncTraversalExecution,
   type AsyncTraversalExecution,
   type TraversalExecutionState,
@@ -45,21 +45,21 @@ const source: AsyncGraphWalkSource<Code, Reference, string> = {
   },
 };
 // Both tree/DAG and walking runners fit the common inspection contract.
-function snapshot(state: TraversalExecutionState<ExecutionInspection>) {
+function snapshot(state: TraversalExecutionState) {
   return state.inspect();
 }
 // Keep Phase generic; widening to string would grant unsupported phases.
 function runSync<Phase extends string, Event>(
-  execution: SyncTraversalExecution<Phase, Event, ExecutionInspection>,
-  phase: Phase,
+  execution: SyncTraversalExecution<Phase, Event>,
+  eventKind: EmissionKind<Phase>,
 ) {
-  return execution.run({ emitEvents: [phase] });
+  return execution.run({ emitEvents: [eventKind] });
 }
 function runAsync<Phase extends string, Event>(
-  execution: AsyncTraversalExecution<Phase, Event, ExecutionInspection>,
-  phase: Phase,
+  execution: AsyncTraversalExecution<Phase, Event>,
+  eventKind: EmissionKind<Phase>,
 ) {
-  return execution.run({ emitEvents: [phase] });
+  return execution.run({ emitEvents: [eventKind] });
 }
 const tree: TreeSource<VertexTypes<string, string>> = {
   resolveRoot: () => ({

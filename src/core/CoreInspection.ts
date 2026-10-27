@@ -71,5 +71,5 @@ export type KernelInspection = Readonly<{
 export type DriverInspection = KernelInspection &
   Readonly<{ inFlightCallbackCount: number }>;
 
-export type CoreInspection = DriverInspection &
+export type TreeDagExecutionInspection = DriverInspection &
   Readonly<{ bufferedEventCount: number }>;

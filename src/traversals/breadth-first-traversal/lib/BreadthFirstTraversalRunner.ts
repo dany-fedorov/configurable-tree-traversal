@@ -1,4 +1,4 @@
-import type { CoreInspection } from '@core/CoreInspection';
+import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
 import {
   bindTreeSource,
@@ -15,7 +15,6 @@ import { TraversalKernel } from '@core/TraversalKernel';
 import type {
   TraversalStopReason,
   TreeTraversalEvent,
-  TreeTraversalRunner,
 } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
@@ -46,7 +45,8 @@ export interface BreadthFirstTreeRunner<
   RW_TTP extends VertexTypes = TTP,
 > extends SyncTraversalExecution<
     BreadthFirstPhase,
-    TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>
+    TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>,
+    TreeDagExecutionInspection
   > {
   getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
@@ -58,7 +58,7 @@ export interface BreadthFirstTreeRunner<
 export class InternalBreadthFirstTreeRunner<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> implements TreeTraversalRunner<BreadthFirstPhase, TTP, RW_TTP>
+> implements BreadthFirstTreeRunner<TTP, RW_TTP>
 {
   private icfg: BreadthFirstTreeResolvedOptions<TTP, RW_TTP>;
   private state: BreadthFirstTraversalRunnerState<TTP, RW_TTP>;
@@ -205,7 +205,7 @@ export class InternalBreadthFirstTreeRunner<
     return this.getResolvedTreeStore().getResolvedGraph();
   }
 
-  inspect(): CoreInspection {
+  inspect(): TreeDagExecutionInspection {
     return deepFreeze({
       ...this.kernel.inspect(),
       inFlightCallbackCount: this.runtimeState.inFlightCallbackCount,

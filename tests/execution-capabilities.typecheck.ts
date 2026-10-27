@@ -12,14 +12,11 @@ import {
   DagVisitorPhase as DAG,
   DepthFirstPhase as DFS,
   TraversalRunnerStatus,
-  type CoreInspection,
+  type TreeDagExecutionInspection,
   type ExecutionInspection,
   type TraversalExecutionState,
-  type AsyncCoreExecution,
   type AsyncTraversalExecution,
   type SyncTraversalExecution,
-  type TreeTraversalRunner,
-  type TreeTraversalIterable,
   type TreeSource,
   type VertexTypes,
 } from '../src';
@@ -34,14 +31,18 @@ const tree: TreeSource<Tree> = {
 };
 const dfs = new AsyncDepthFirstTreeTraversal({ traversableTree: tree });
 const concrete = dfs.createRunner();
-const common: AsyncCoreExecution<unknown> = concrete;
+const common: AsyncTraversalExecution<never, unknown> = concrete;
 common.run();
 common.run({ emitEvents: [], visitorPhases: 'all' });
 // @ts-expect-error Erasing the execution family cannot grant DAG phases.
 common.run({ emitEvents: ['ON_WORK_READY'] });
 // @ts-expect-error Erasing the execution family cannot grant even DFS phases.
 common.iterateEvents({ visitorPhases: { include: [DFS.PRE_ORDER] } });
-const precise: AsyncTraversalExecution<DFS, unknown> = concrete;
+const precise: AsyncTraversalExecution<
+  DFS,
+  unknown,
+  TreeDagExecutionInspection
+> = concrete;
 precise.run({ emitEvents: [DFS.PRE_ORDER] });
 precise.inspect();
 precise.requestPause();
@@ -55,49 +56,65 @@ precise.run({ emitEvents: ['workCompleted'] });
 const unsafeConcrete: AsyncTraversalExecution<DFS | DAG, unknown> = concrete;
 // @ts-expect-error Function parameter variance prevents unsafe widening through an abstraction.
 const unsafeAbstract: AsyncTraversalExecution<DFS | DAG, unknown> = precise;
-// @ts-expect-error Historical name must also prevent unsafe phase widening.
-const unsafeHistorical: AsyncCoreExecution<unknown, DFS | DAG> = precise;
+// @ts-expect-error Erasing the family cannot recover broader execution phases.
+const unsafeWidenedCapability: AsyncTraversalExecution<DFS | DAG, unknown> =
+  common;
 // @ts-expect-error Concrete API still rejects another family's phase.
 concrete.iterateEvents({ emitEvents: [BFS.LEVEL_ORDER] });
 
 const syncConcrete = new DepthFirstTreeTraversal({
   traversableTree: tree,
 }).createRunner();
-const sync: TreeTraversalRunner<DFS, Tree, Tree> = syncConcrete;
+const sync: SyncTraversalExecution<
+  DFS,
+  import('../src').TreeTraversalEvent<DFS, Tree, Tree>,
+  TreeDagExecutionInspection
+> = syncConcrete;
 sync.inspect();
 sync.isHalted();
 sync.requestPause();
 const syncReturn: IteratorResult<unknown, void> = sync
   .iterateEvents()
   .return(undefined);
-const historical: TreeTraversalIterable<DFS, Tree, Tree> = sync.iterateEvents();
+const treeEvents: Iterable<
+  import('../src').TreeTraversalEvent<DFS, Tree, Tree>
+> = sync.iterateEvents();
 const syncPrecise: SyncTraversalExecution<DFS, unknown> = sync;
 const syncRun: typeof syncPrecise = syncPrecise.run();
 // @ts-expect-error Sync abstraction rejects DAG phases.
 syncPrecise.run({ emitEvents: ['workCompleted'] });
 // @ts-expect-error Sync capability must reject unsafe phase widening.
 const unsafeSync: SyncTraversalExecution<DFS | DAG, unknown> = syncPrecise;
-// @ts-expect-error Historical sync class must reject unsafe phase widening.
-const unsafeSyncHistorical: TreeTraversalRunner<DFS | DAG, Tree, Tree> = sync;
+// @ts-expect-error Sync family capability must reject unsafe phase widening.
+const unsafeWidenedSyncCapability: SyncTraversalExecution<DFS | DAG, unknown> =
+  sync;
 // @ts-expect-error Concrete sync source cannot be widened either.
 const unsafeSyncConcrete: SyncTraversalExecution<DFS | DAG, unknown> =
   syncConcrete;
-const breadth: SyncTraversalExecution<BFS, unknown> =
-  new BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
+const breadth: SyncTraversalExecution<
+  BFS,
+  unknown,
+  TreeDagExecutionInspection
+> = new BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
 const dag: SyncTraversalExecution<
   DAG,
   unknown,
-  CoreInspection,
+  TreeDagExecutionInspection,
   'workCompleted' | 'subgraphCompleted'
 > = new DagTraversal({
   traversableTree: tree,
 }).createRunner();
-const asyncBreadth: AsyncTraversalExecution<BFS, unknown> =
-  new AsyncBreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
+const asyncBreadth: AsyncTraversalExecution<
+  BFS,
+  unknown,
+  TreeDagExecutionInspection
+> = new AsyncBreadthFirstTreeTraversal({
+  traversableTree: tree,
+}).createRunner();
 const asyncDag: AsyncTraversalExecution<
   DAG,
   unknown,
-  CoreInspection,
+  TreeDagExecutionInspection,
   'workCompleted' | 'subgraphCompleted'
 > = new AsyncDagTraversal({
   traversableTree: tree,
@@ -119,12 +136,12 @@ void [
   asyncRun,
   syncReturn,
   syncRun,
-  historical,
+  treeEvents,
   unsafeConcrete,
   unsafeAbstract,
-  unsafeHistorical,
+  unsafeWidenedCapability,
   unsafeSync,
-  unsafeSyncHistorical,
+  unsafeWidenedSyncCapability,
   unsafeSyncConcrete,
 ];
 
@@ -141,9 +158,9 @@ function paused(state: TraversalExecutionState<ExecutionInspection>): boolean {
   const inspection = state.inspect();
   return state.isHalted() && inspection.status === TraversalRunnerStatus.HALTED;
 }
-const oldShape: CoreInspection = syncConcrete.inspect();
+const treeDagInspection: TreeDagExecutionInspection = syncConcrete.inspect();
 paused(syncConcrete);
-void oldShape;
+void treeDagInspection;
 
 const observedSync: SyncTraversalExecution<DFS, unknown, ExecutionInspection> =
   syncConcrete;
@@ -184,7 +201,7 @@ const commonAsyncDag: AsyncTraversalExecution<
   ExecutionInspection,
   'workCompleted' | 'subgraphCompleted'
 > = asyncDag;
-const oldInspections: CoreInspection[] = [
+const detailedInspections: TreeDagExecutionInspection[] = [
   syncConcrete.inspect(),
   concrete.inspect(),
   breadth.inspect(),
@@ -192,7 +209,7 @@ const oldInspections: CoreInspection[] = [
   asyncBreadth.inspect(),
   asyncDag.inspect(),
 ];
-void oldInspections;
+void detailedInspections;
 paused(commonBreadth);
 paused(commonDag);
 paused(commonAsyncBreadth);
@@ -216,11 +233,9 @@ const commonAsyncWalking: AsyncTraversalExecution<
 paused(commonWalking);
 paused(commonAsyncWalking);
 // @ts-expect-error Walking does not promise detailed old tree/DAG inspection.
-const oldWalkingInspection: CoreInspection = walking.inspect();
-// @ts-expect-error Default inspection remains CoreInspection for existing callers.
-const oldWalkingCapability: SyncTraversalExecution<WALK, unknown> = walking;
-// @ts-expect-error Default async inspection remains CoreInspection.
-const oldAsyncWalkingCapability: AsyncTraversalExecution<WALK, unknown> =
+const invalidWalkingDetail: TreeDagExecutionInspection = walking.inspect();
+const walkingCapability: SyncTraversalExecution<WALK, unknown> = walking;
+const asyncWalkingCapability: AsyncTraversalExecution<WALK, unknown> =
   asyncWalking;
 // @ts-expect-error A common-inspection walker cannot accept tree phases.
 const unsafeWalking: SyncTraversalExecution<
@@ -237,9 +252,9 @@ const unsafeAsyncWalking: AsyncTraversalExecution<
 const walkingClose: void = walking.close();
 const asyncWalkingClose: Promise<void> = asyncWalking.close();
 void [
-  oldWalkingInspection,
-  oldWalkingCapability,
-  oldAsyncWalkingCapability,
+  invalidWalkingDetail,
+  walkingCapability,
+  asyncWalkingCapability,
   unsafeWalking,
   unsafeAsyncWalking,
   walkingClose,

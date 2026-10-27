@@ -1,7 +1,7 @@
 import type { ObjectCurrentVertexTypes } from './ObjectCurrentVertexTypes';
 import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversalVisitor } from '@core/TraversalVisitor';
+import type { TreeVisitor } from '@core/TraversalVisitor';
 import type { ObjectCompositeClassification } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
 import type { MutableRef } from '@core/CTTRef';
 import type { Vertex } from '@core/Vertex';
@@ -30,7 +30,7 @@ export type ObjectMutationOptions<
     >['VertexData'][],
     vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
     visitorArguments: Parameters<
-      TraversalVisitor<
+      TreeVisitor<
         string,
         InputTypes,
         ObjectCurrentVertexTypes<InputTypes, OutputTypes>
@@ -45,7 +45,7 @@ export type ObjectMutationOptions<
     >['VertexData'][],
     vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
     visitorArguments: Parameters<
-      TraversalVisitor<
+      TreeVisitor<
         string,
         InputTypes,
         ObjectCurrentVertexTypes<InputTypes, OutputTypes>
@@ -85,7 +85,7 @@ export type ObjectMutationBinder<
   OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
 > = (
   ...visitorArguments: Parameters<
-    TraversalVisitor<
+    TreeVisitor<
       string,
       InputTypes,
       ObjectCurrentVertexTypes<InputTypes, OutputTypes>
@@ -124,7 +124,7 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
 
     return function bindObjectMutation(
       ...visitorArguments: Parameters<
-        TraversalVisitor<
+        TreeVisitor<
           string,
           InputTypes,
           ObjectCurrentVertexTypes<InputTypes, OutputTypes>

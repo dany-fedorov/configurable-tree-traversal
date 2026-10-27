@@ -1,10 +1,7 @@
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { MutableRef } from '@core/CTTRef';
-import {
-  AbstractTreeSource,
-  TreeVertexResolution,
-} from '@core/TraversableTree';
+import type { TreeSource, TreeVertexResolution } from '@core/TraversableTree';
 import type { ResolvedTreeVertexTypes } from '@core/ResolvedTreeVertexTypes';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
@@ -92,14 +89,13 @@ export type GetPathToOptions = {
   noSelf?: boolean;
 };
 
-export class ResolvedTreeStore<
-  TTP extends VertexTypes,
-> extends AbstractTreeSource<ResolvedTreeVertexTypes<TTP>> {
+export class ResolvedTreeStore<TTP extends VertexTypes>
+  implements TreeSource<ResolvedTreeVertexTypes<TTP>>
+{
   private readonly store: GraphStore<TTP>;
   private readonly readOnly: ResolvedTreeView<TTP>;
 
   constructor(/*config: ResolvedTreeConfig<TTP, RW_TTP>*/) {
-    super();
     this.store = new GraphStore<TTP>('tree');
     registerTreeGraphStore(this, this.store);
     this.readOnly = Object.freeze({

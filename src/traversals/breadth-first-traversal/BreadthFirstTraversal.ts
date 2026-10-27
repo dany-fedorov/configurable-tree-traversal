@@ -1,9 +1,8 @@
 import { assertPublicOptions } from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
-import { TreeTraversal } from '@core/Traversal';
 import type {
   NoInferPhase,
-  TraversalVisitor,
+  TreeVisitor,
   TraversalVisitorFunctionOptions,
   VisitorGroupDefinition,
   VisitorPhaseInput,
@@ -33,12 +32,11 @@ import type { BreadthFirstTraversalVisitors } from './lib/BreadthFirstTraversalV
 export class BreadthFirstTreeTraversal<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> extends TreeTraversal<BreadthFirstPhase, TTP, RW_TTP> {
+> {
   private icfg: BreadthFirstTreeResolvedOptions<TTP, RW_TTP>;
   private visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
 
   constructor(icfgInput: BreadthFirstTreeOptions<TTP, RW_TTP>) {
-    super();
     assertPublicOptions(icfgInput);
     this.icfg = mergeBreadthFirstTraversalInstanceConfigs(
       BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as BreadthFirstTreeResolvedOptions<
@@ -60,64 +58,58 @@ export class BreadthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends BreadthFirstPhase>(
-    order: ORDER,
-    visitor: TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
+  addVisitorFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
+    visitor: TreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] = appendVisitorDefinition<TraversalVisitor<ORDER, TTP, RW_TTP>>(
-      this.visitors[order] as VisitorRecord<
-        TraversalVisitor<ORDER, TTP, RW_TTP>
-      >[],
+    )[phase] = appendVisitorDefinition<TreeVisitor<Phase, TTP, RW_TTP>>(
+      this.visitors[phase] as VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[],
       { visitor, ...options },
     );
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends BreadthFirstPhase>(
-    order: ORDER,
+  addVisitorGroupFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
     group: VisitorGroupDefinition<
-      TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
+      TreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>
     >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] = appendVisitorGroup<TraversalVisitor<ORDER, TTP, RW_TTP>>(
-      this.visitors[order] as VisitorRecord<
-        TraversalVisitor<ORDER, TTP, RW_TTP>
-      >[],
+    )[phase] = appendVisitorGroup<TreeVisitor<Phase, TTP, RW_TTP>>(
+      this.visitors[phase] as VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[],
       group,
     );
     return this;
   }
 
-  listVisitorsFor<ORDER extends BreadthFirstPhase>(
-    order: ORDER,
-  ): BreadthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
-    return copyVisitorRecords(this.visitors[order]);
+  listVisitorsFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
+  ): BreadthFirstTraversalVisitors<TTP, RW_TTP>[Phase] {
+    return copyVisitorRecords(this.visitors[phase]);
   }
 
-  setVisitorsFor<ORDER extends BreadthFirstPhase>(
-    order: ORDER,
-    input: VisitorPhaseInput<
-      TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
-    >,
+  setVisitorsFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
+    input: VisitorPhaseInput<TreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>>,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] =
-      normalizeVisitorDefinitions<TraversalVisitor<ORDER, TTP, RW_TTP>>(input);
+    )[phase] =
+      normalizeVisitorDefinitions<TreeVisitor<Phase, TTP, RW_TTP>>(input);
     return this;
   }
 

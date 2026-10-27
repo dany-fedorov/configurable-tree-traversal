@@ -310,7 +310,7 @@ try {
     path.join(consumer, 'consumer.ts'),
     `
     import { AsyncBreadthFirstTreeTraversal, AsyncDagTraversal, AsyncDepthFirstTreeTraversal, DepthFirstTreeTraversal, DepthFirstPhase, BreadthFirstTreeTraversal, DagTraversal, DagVisitorPhase, ObjectTreeSource, TraversalRunnerStatus, TraversalVisitorCommandName, core, objectRewrite, rewriteObject, traverseTreeBreadthFirstAsync, traverseDag, traverseDagAsync, traverseTreeDepthFirst, traverseTreeDepthFirstAsync } from 'configurable-tree-traversal';
-    import type { AsyncDagDiscoverySource, ChildSlot, CoreInspection, StructuralChildEdge, ResolvedGraphVertex, ResolvedVertexStatus, HintVertexId, MaybePromise, ResolvedGraph, TreeTraversalRunner, DagDiscoverySource, TreeSource, VertexTypes, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
+    import type { AsyncDagDiscoverySource, ChildSlot, TreeDagExecutionInspection, StructuralChildEdge, ResolvedGraphVertex, ResolvedVertexStatus, HintVertexId, MaybePromise, ResolvedGraph, DepthFirstTreeRunner, DagDiscoverySource, TreeSource, VertexTypes, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
     import type { ChildSlot as CoreChildSlot, StructuralChildEdge as CoreGraphEdge, ResolvedGraphVertex as CoreGraphVertex, ResolvedVertexStatus as CoreGraphVertexStatus, HintVertexId as CoreHintVertexId, MaybePromise as CoreMaybePromise, VertexId as CoreVertexId } from 'configurable-tree-traversal/core';
     import type { TraversalExecutionOptions, DepthFirstTreeOptions, DepthFirstTreeOptionsPatch } from 'configurable-tree-traversal';
     import { TraversalVisitorCommandName as Command } from 'configurable-tree-traversal';
@@ -351,7 +351,7 @@ try {
     abstractTraversal.configure({ traversalRunnerInternalObjects: {} });
     // @ts-expect-error builder state is private
     abstractTraversal.icfg;
-    const runnerInterface: TreeTraversalRunner<DepthFirstPhase, Tree, Tree> = abstractTraversal.createRunner();
+    const runnerInterface: DepthFirstTreeRunner<Tree, Tree> = abstractTraversal.createRunner();
     // @ts-expect-error raw engine state is private
     abstractTraversal.createRunner().state;
     // @ts-expect-error runners are capabilities and expose no normalized constructor
@@ -408,7 +408,7 @@ try {
     // @ts-expect-error tree visitor return types remain narrow
     abstractTraversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => ({ commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] }));
     void [subpathSummary, state, settlement, asyncSettlement];
-    const inspection: CoreInspection = asyncDag.inspect();
+    const inspection: TreeDagExecutionInspection = asyncDag.inspect();
     const publicTypes: [VertexId, HintVertexId, MaybePromise<string>, ResolvedVertexStatus, StructuralChildEdge<Tree> | null, ChildSlot<Tree> | null, ResolvedGraphVertex<Tree> | null, CoreVertexId, CoreHintVertexId, CoreMaybePromise<string>, CoreGraphVertexStatus, CoreGraphEdge<Tree> | null, CoreChildSlot<Tree> | null, CoreGraphVertex<Tree> | null] = ['id', { vertexId: 'id' }, 'value', 'READY', null, null, null, 'core-id', { vertexId: 'core-id' }, Promise.resolve('value'), 'COMPLETE', null, null, null];
     const asyncRuns: Promise<unknown>[] = [
       asyncDepth.run(), asyncBreadth.run(), asyncDag.run(),
@@ -492,6 +492,7 @@ try {
     'uniform-api',
     'rewrite-output',
     'execution-capabilities',
+    'idiomatic-execution',
     'graph-id-types',
     'dag-preparation',
     'dag-milestone-diagnostics',

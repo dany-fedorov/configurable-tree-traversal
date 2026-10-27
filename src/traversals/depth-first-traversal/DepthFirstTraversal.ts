@@ -1,9 +1,8 @@
 import { assertPublicOptions } from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
-import { TreeTraversal } from '@core/Traversal';
 import type {
   NoInferPhase,
-  TraversalVisitor,
+  TreeVisitor,
   TraversalVisitorFunctionOptions,
   VisitorGroupDefinition,
   VisitorPhaseInput,
@@ -35,13 +34,12 @@ import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/Dep
 export class DepthFirstTreeTraversal<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
-> extends TreeTraversal<DepthFirstPhase, TTP, RW_TTP> {
+> {
   private icfg: DepthFirstTreeResolvedOptions<TTP, RW_TTP>;
 
   private visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
 
   constructor(icfgInput: DepthFirstTreeOptions<TTP, RW_TTP>) {
-    super();
     assertPublicOptions(icfgInput);
     this.icfg = mergeInstanceConfigs(
       DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as DepthFirstTreeResolvedOptions<
@@ -63,64 +61,58 @@ export class DepthFirstTreeTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends DepthFirstPhase>(
-    order: ORDER,
-    visitor: TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
+  addVisitorFor<Phase extends DepthFirstPhase>(
+    phase: Phase,
+    visitor: TreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] = appendVisitorDefinition<TraversalVisitor<ORDER, TTP, RW_TTP>>(
-      this.visitors[order] as VisitorRecord<
-        TraversalVisitor<ORDER, TTP, RW_TTP>
-      >[],
+    )[phase] = appendVisitorDefinition<TreeVisitor<Phase, TTP, RW_TTP>>(
+      this.visitors[phase] as VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[],
       { visitor, ...options },
     );
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends DepthFirstPhase>(
-    order: ORDER,
+  addVisitorGroupFor<Phase extends DepthFirstPhase>(
+    phase: Phase,
     group: VisitorGroupDefinition<
-      TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
+      TreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>
     >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] = appendVisitorGroup<TraversalVisitor<ORDER, TTP, RW_TTP>>(
-      this.visitors[order] as VisitorRecord<
-        TraversalVisitor<ORDER, TTP, RW_TTP>
-      >[],
+    )[phase] = appendVisitorGroup<TreeVisitor<Phase, TTP, RW_TTP>>(
+      this.visitors[phase] as VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[],
       group,
     );
     return this;
   }
 
-  listVisitorsFor<ORDER extends DepthFirstPhase>(
-    order: ORDER,
-  ): DepthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
-    return copyVisitorRecords(this.visitors[order]);
+  listVisitorsFor<Phase extends DepthFirstPhase>(
+    phase: Phase,
+  ): DepthFirstTraversalVisitors<TTP, RW_TTP>[Phase] {
+    return copyVisitorRecords(this.visitors[phase]);
   }
 
-  setVisitorsFor<ORDER extends DepthFirstPhase>(
-    order: ORDER,
-    input: VisitorPhaseInput<
-      TraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
-    >,
+  setVisitorsFor<Phase extends DepthFirstPhase>(
+    phase: Phase,
+    input: VisitorPhaseInput<TreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>>,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<TraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] =
-      normalizeVisitorDefinitions<TraversalVisitor<ORDER, TTP, RW_TTP>>(input);
+    )[phase] =
+      normalizeVisitorDefinitions<TreeVisitor<Phase, TTP, RW_TTP>>(input);
     return this;
   }
 

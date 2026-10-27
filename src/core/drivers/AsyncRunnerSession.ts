@@ -2,8 +2,8 @@ import {
   getTraversalExecutionPhases,
   detachTraversalExecutionOptions,
 } from '@core/normalizeTraversalExecutionOptions';
-import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
-import type { CoreInspection } from '@core/CoreInspection';
+import type { AsyncTraversalExecution } from '@core/TraversalExecution';
+import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
@@ -39,9 +39,10 @@ const done = Object.freeze({ done: true, value: undefined }) as IteratorResult<
 
 export class AsyncRunnerSession<E>
   implements
-    AsyncCoreExecution<
-      E,
+    AsyncTraversalExecution<
       VisitOrder,
+      E,
+      TreeDagExecutionInspection,
       import('../TraversalRunnerIterableConfig').EmissionKind<VisitOrder>
     >
 {
@@ -81,7 +82,7 @@ export class AsyncRunnerSession<E>
     return true;
   }
 
-  public inspect(): CoreInspection {
+  public inspect(): TreeDagExecutionInspection {
     return Object.freeze({
       ...this.control.inspect(),
       status: this.getStatus(),

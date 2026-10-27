@@ -1,5 +1,4 @@
-import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
-import type { CoreInspection } from '@core/CoreInspection';
+import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
 import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import {
@@ -44,7 +43,8 @@ export interface AsyncBreadthFirstTreeRunner<
   RW_TTP extends VertexTypes = TTP,
 > extends AsyncTraversalExecution<
     BreadthFirstPhase,
-    TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>
+    TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>,
+    TreeDagExecutionInspection
   > {
   getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
@@ -65,9 +65,10 @@ export class InternalAsyncBreadthFirstTreeRunner<
   >;
   private iterableConfig: BreadthFirstTraversalRunnerIterableConfig =
     makeEffectiveBreadthFirstTraversalRunnerIterableConfig();
-  private readonly execution: AsyncCoreExecution<
+  private readonly execution: AsyncTraversalExecution<
+    BreadthFirstPhase,
     Event<TTP, RW_TTP>,
-    BreadthFirstPhase
+    TreeDagExecutionInspection
   >;
 
   constructor(icfgInput: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>) {
@@ -184,7 +185,7 @@ export class InternalAsyncBreadthFirstTreeRunner<
     return this.execution.isHalted();
   }
 
-  inspect(): CoreInspection {
+  inspect(): TreeDagExecutionInspection {
     return this.execution.inspect();
   }
 

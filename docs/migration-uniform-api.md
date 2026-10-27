@@ -40,7 +40,7 @@ The walking family is additive: use `GraphWalk`, `AsyncGraphWalk`, `walkGraph` o
 
 Defaults are BFS, unique vertices (`once`), vertex-only emission and serial execution. `simplePaths`/`walks` require depth or candidate-read-attempt bounds; always inspect `summary().outcome`. A supplied `configure` limits record replaces the old record, with merged validation before mutation. The first accepted resolution wins even after omission; this intentionally differs from DAG milestone omission. Walking explicit emission selectors narrow at delivery, including buffered records, without changing tree/DAG admission semantics. Consumer iterator return pauses; walking runner close is terminal disposal. Closing a failed walker rethrows its exact error without repeated cleanup; overlapping async closes share a promise. See the [full walking contract](reference.md#general-graph-walking).
 
-The shared execution interfaces add a defaulted inspection parameter, preserving `CoreInspection` for existing code. `TraversalExecutionState<ExecutionInspection>` accepts all families; `SyncTraversalExecution<Phase, Event, ExecutionInspection>` and its async counterpart keep phase safety while generalizing inspection. Choose `GraphWalkInspection` for walking detail; old two-parameter wrappers still expect tree/DAG inspection. No common source interface, DAG settlement, concurrency option or durable checkpoint is added to walking.
+The shared execution interfaces default inspection to `ExecutionInspection`. `TraversalExecutionState` accepts all families; `SyncTraversalExecution<Phase, Event>` and its async counterpart preserve each family's phase and event contracts. Choose `TreeDagExecutionInspection` for tree/DAG detail or `GraphWalkInspection` for walking detail. The emitted-kind default is `EmissionKind<Phase>`, so DAG emission selects `workCompleted`/`subgraphCompleted` while callbacks select readiness phases. No common source interface, DAG settlement, concurrency option or durable checkpoint is added to walking.
 
 ## Configuration and diagnostic follow-up
 
@@ -50,7 +50,7 @@ DAG configure source checks now match construction: ignore inherited keys and ow
 
 `defineDagFragment` and definition validation during instantiation now throw `DagFragmentValidationError<ID = unknown> extends TypeError` with structured `issues`; successful values remain direct fragments/instances. Malformed shapes, port errors and mapping collisions remain ordinary `TypeError`s, and caller exceptions propagate exactly. `DagTraversalStallError<ID = unknown>` supports explicit typed diagnostic annotations and construction. Neither error infers ID types from arbitrary catches. Both DAG runner families now expose synchronous `inspectMilestones()` alongside the existing free function and session method.
 
-`TreeTraversal` / `TreeTraversalRunner` are tree-only bases; use execution capabilities for cross-family wrappers. The common `ExecutionInspection.kind` remains an open string for structural implementations. Tree/DAG iterators may deliver previously buffered events on resume even when the new selector excludes their phase, so their return types remain broad. Walking selects at delivery and narrows accordingly.
+Empty tree builder, runner, iterable and source bases are removed; use concrete builders, execution capabilities, standard `Iterable` and structural `TreeSource` implementations. The common `ExecutionInspection.kind` remains an open string for structural implementations. Tree/DAG iterators may deliver previously buffered events on resume even when the new selector excludes their phase, so their return types remain broad. Walking selects at delivery and narrows accordingly.
 
 Built-in object and resolved-tree adapter methods return tagged `found`/`omitted` results directly. Custom sources and object hooks use tagged results; see [abstract trees](reference.md#abstract-trees). Family-specific root flags and omission-preserving definition slots keep their distinct meanings. For choosing preparation versus execution and dispatch, see the [workflow decision table](agent-workflows.md#discover-the-graph).
 
@@ -126,7 +126,7 @@ import {
   ObjectTreeSource,
   traverseTreeDepthFirst,
   type VisitorPhaseInput,
-  type TraversalVisitor,
+  type TreeVisitor,
   type ObjectTreeVertexTypes,
 } from 'configurable-tree-traversal';
 
@@ -134,7 +134,7 @@ type Tree = ObjectTreeVertexTypes<string, number>;
 const source = new ObjectTreeSource<number, string, number>(1);
 const calls: string[] = [];
 const definition: VisitorPhaseInput<
-  TraversalVisitor<Order.POST_ORDER, Tree, Tree>
+  TreeVisitor<Order.POST_ORDER, Tree, Tree>
 > = {
   groups: [
     {
@@ -183,7 +183,7 @@ Explicit groups run in array order, sorting priority only inside a group. Policy
 
 Registration keys, configuration visitor maps, helper maps, and `options.phase` now infer the actual phase. Deferral is restricted to `ON_WORK_READY`; hint rewrites are restricted to `PRE_ORDER`, `LEVEL_ORDER`, and `ON_WORK_READY`. Runtime validation remains for JavaScript/unsafe casts, including eager-discovery topology restrictions.
 
-General `TraversalVisitor` and `DagVisitor` aliases remain usable for callbacks returning common commands, across add/configure/set/helper entry points. Give phase-specific callbacks an appropriate phase parameter instead of widening a forbidden command to the whole traversal order union.
+General `TreeVisitor` and `DagVisitor` aliases remain usable for callbacks returning common commands, across add/configure/set/helper entry points. Give phase-specific callbacks an appropriate phase parameter instead of widening a forbidden command to the whole traversal order union.
 
 The callback context's `options.registration` is now a readonly, phase-neutral `VisitorRegistrationMetadata` view: `addedIndex`, `priority`, `commandCommitMode`, and optional `visitorGroup`. Its supported TypeScript contract has no executable `.visitor`. If you previously invoked `options.registration.visitor`, retain your own callback reference or retrieve full typed records using `traversal.listVisitorsFor(order)`. Configuration, listing, and replacement APIs still expose full callback records. The runtime object may retain `.visitor` for existing JavaScript callers.
 
@@ -323,7 +323,7 @@ DAG events add committed `kind: 'workCompleted'` / `'subgraphCompleted'` with no
 
 ## Family-safe execution and cooperative pause
 
-Use `SyncTraversalExecution<Phase, Event>` and `AsyncTraversalExecution<Phase, Event>` for reusable wrappers, preserving family enums and precise closeable generators. `TraversalExecutionState` supplies inspection/status/stop/pause without execution ownership. Historical `AsyncCoreExecution<Event, Phase = never>` now permits no explicit phase names when Phase is erased; add the intended family Phase instead of widening to string. `TreeTraversalRunner` includes inspection and closeable iteration; `TreeTraversalIterable` remains tree-scoped.
+Use `SyncTraversalExecution<Phase, Event>` and `AsyncTraversalExecution<Phase, Event>` for reusable wrappers, preserving family enums and precise closeable generators. `TraversalExecutionState` supplies inspection/status/stop/pause without execution ownership. The redundant `AsyncCoreExecution`, `TreeTraversal`, `TreeTraversalRunner`, `TreeTraversalIterable` and `AbstractTreeSource` exports are removed. Keep `TreeTraversalEvent` for tree events. Use `TreeVisitor`, `AsyncTreeVisitor` and `TreeVisitorRecord` for tree-only callbacks and records.
 
 All eight runner interfaces have `requestPause(): boolean`: true records a new request only while RUNNING. Other states and repeated requests return false, without acquiring an iterator, driving discovery, or throwing stored failures. A request is acknowledged at HALTED/paused after admitted chains drain; callbacks are not canceled. A suspended iterator may need next/return to drive the boundary. Resume preserves committed events/work and does not replay discovery.
 
@@ -367,7 +367,7 @@ Use `MutableRef<T>.getValue()` / `.setValue(value)` in place of `CTTRef.unref()`
 
 Replace `saveNotMutatedResolvedTree` / `saveNotMutatedResolvedGraph` with `retainOriginalTreeStructure` / `retainOriginalGraphStructure`, and context fields `notMutatedResolvedTree` / `notMutatedResolvedGraph` with `originalTreeView` / `originalGraphView`. The graph type is `OriginalGraphView`. Original-tree contexts expose `ResolvedTreeView` without storage mutators. Retention grows during discovery and shares payloads; it does not capture frozen deep data or a complete snapshot before discovery.
 
-Replace `makeMutationCommandFactory` with `createObjectMutationBinder`. Its configured stage is `ObjectMutationBinder`, its bound stage `ObjectMutationCommands`, its patch `ObjectPropertyPatch`, and configuration `ObjectMutationOptions`. Classifier flags use `ObjectCompositeClassification`. Generic stages use `MutationCommandBinderFactory`, `MutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`. Classifiers, custom assemblers, reference-keyed `assembledMap`, falsy values, symbol property keys, and patch-presence semantics are preserved.
+Replace `makeMutationCommandFactory` with `createObjectMutationBinder`. Its configured stage is `ObjectMutationBinder`, its bound stage `ObjectMutationCommands`, its patch `ObjectPropertyPatch`, and configuration `ObjectMutationOptions`. Classifier flags use `ObjectCompositeClassification`. Generic stages use `TreeMutationCommandBinderFactory`, `TreeMutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`. Classifiers, custom assemblers, reference-keyed `assembledMap`, falsy values, symbol property keys, and patch-presence semantics are preserved.
 
 The root `rewriteObject` export is now directly callable; use `objectRewrite` for the module namespace. Root/subpath callables retain identity under both CJS and ESM. `rewriteObjectAs` remains an assertion, and default output remains unknown.
 

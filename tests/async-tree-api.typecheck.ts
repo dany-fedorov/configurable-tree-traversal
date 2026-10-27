@@ -5,9 +5,9 @@ import {
   DepthFirstPhase,
   TraversalVisitorCommandName,
   type AsyncBreadthFirstTreeOptions,
-  type AsyncCoreExecution,
+  type AsyncTraversalExecution,
   type AsyncDepthFirstTreeOptions,
-  type AsyncTraversalVisitor,
+  type AsyncTreeVisitor,
   type AsyncTreeSource,
   type VertexTypes,
 } from '../src';
@@ -48,7 +48,7 @@ const config: AsyncDepthFirstTreeOptions<Input, Output> = {
 };
 
 const traversal = new AsyncDepthFirstTreeTraversal<Input, Output>(config);
-const visitor: AsyncTraversalVisitor<DepthFirstPhase, Input, Output> = async (
+const visitor: AsyncTreeVisitor<DepthFirstPhase, Input, Output> = async (
   _vertex,
   options,
 ) => {
@@ -72,7 +72,8 @@ traversal.setVisitorsFor(
   traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER),
 );
 const runner = traversal.createRunner();
-const execution: AsyncCoreExecution<
+const execution: AsyncTraversalExecution<
+  DepthFirstPhase,
   ReturnType<typeof runner.iterateEvents> extends AsyncGenerator<infer E>
     ? E
     : never
@@ -90,7 +91,7 @@ const breadthConfig: AsyncBreadthFirstTreeOptions<Input, Output> = {
 const breadthTraversal = new AsyncBreadthFirstTreeTraversal<Input, Output>(
   breadthConfig,
 );
-const breadthVisitor: AsyncTraversalVisitor<
+const breadthVisitor: AsyncTreeVisitor<
   BreadthFirstPhase,
   Input,
   Output
@@ -108,7 +109,8 @@ breadthTraversal.setVisitorsFor(
   breadthTraversal.listVisitorsFor(BreadthFirstPhase.LEVEL_ORDER),
 );
 const breadthRunner = breadthTraversal.createRunner();
-const breadthExecution: AsyncCoreExecution<
+const breadthExecution: AsyncTraversalExecution<
+  BreadthFirstPhase,
   ReturnType<typeof breadthRunner.iterateEvents> extends AsyncGenerator<infer E>
     ? E
     : never

@@ -25,7 +25,7 @@ The old `./*` and `./*.js` export routes are removed. This blocks **all unlisted
 
 | Removed surface                                                                                                                                                 | Migration and reason                                                                                                                                                                                                                         |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runner runtime constructors, normalized constructor inputs                                                                                                      | Use builder `.createRunner()` or prepared DAG factories. All eight concrete runner names are capability **interfaces**, not constructable values. Tree-only abstract `TreeTraversalRunner` remains a public base.                            |
+| Runner runtime constructors, normalized constructor inputs                                                                                                      | Use builder `.createRunner()` or prepared DAG factories. All eight concrete runner names are capability **interfaces**, not constructable values. Redundant runtime builder/runner/iterable bases are removed.                            |
 | Public `icfg`, `state`, `curGenerator`, visitor/container fields; `traversalRunnerInternalObjects` injection                                                    | Use registration/configuration methods, `inspect()`, `summary()`, safe views and public factories. Raw-state injection rejects; no public restoration constructor exists.                                                                    |
 | Kernels, `runSync`, deep `runAsync`/`createAsyncDriver`, effect protocols, queue policies, raw graph stores, state bridges, normalized defaults/merge functions | Private implementation. Execute through a runner's `run()` or `iterateEvents()`. Deep `runAsync` was a driver alias, not the counterpart of `runSync`.                                                                                       |
 | Internal `WalkLink`, `WalkOperation`, `DagInspectionSnapshot` and normalized option types                                                                       | Use `GraphWalkLink`, public `GraphWalkOperation`, `DagMilestoneSnapshot`, and family input options. `GraphWalkOperation` still describes all nine diagnostic operations; predicate labels are now `shouldFollowEdge` / `shouldExpandVertex`. |
@@ -45,7 +45,7 @@ Namespaces `core`, `depthFirstTraversal`, `breadthFirstTraversal`, `dagTraversal
 | `CollectionSource`                                                           | `MaterializedDagSource`                                                                                |
 | `GraphSelectors`, `AsyncGraphSelectors`                                      | `DagRecordSelectors`, `AsyncDagRecordSelectors`                                                        |
 | `ForestSelectors`, `AsyncForestSelectors`                                    | `DagRootSelectors`, `AsyncDagRootSelectors`                                                            |
-| `TraversableTree`, `AsyncTraversableTree`, `AbstractTraversableTree`         | `TreeSource`, `AsyncTreeSource`, `AbstractTreeSource`                                                  |
+| `TraversableTree`, `AsyncTraversableTree`, `AbstractTraversableTree`         | `TreeSource`, `AsyncTreeSource`; implement these structurally                                                  |
 | `TraversableGraph`, `AsyncTraversableGraph`                                  | `DagDiscoverySource`, `AsyncDagDiscoverySource`                                                        |
 | `TraversableObjectTree`, `TreeTypeParameters`                                | `ObjectTreeSource`, `VertexTypes`                                                                      |
 | Source `makeRoot`, `makeVertex`                                              | `resolveRoot`, `resolveChild`                                                                          |
@@ -69,7 +69,7 @@ For lazy fetching, implement the source protocol. `resolveChild` consumes an opa
 | `BreadthFirstTraversalRunner`, `AsyncBreadthFirstTraversalRunner`                                        | `BreadthFirstTreeRunner`, `AsyncBreadthFirstTreeRunner` interfaces                                     |
 | `traverseDepthFirst`, `traverseDepthFirstAsync`                                                          | `traverseTreeDepthFirst`, `traverseTreeDepthFirstAsync`                                                |
 | `traverseBreadthFirst`, `traverseBreadthFirstAsync`                                                      | `traverseTreeBreadthFirst`, `traverseTreeBreadthFirstAsync`                                            |
-| `Traversal`, `TraversalRunner`, `TraversalRunnerIterable`, `TraversalRunnerIteratorResultContent`        | `TreeTraversal`, `TreeTraversalRunner`, `TreeTraversalIterable`, `TreeTraversalEvent`                  |
+| `Traversal`, `TraversalRunner`, `TraversalRunnerIterable`, `TraversalRunnerIteratorResultContent`        | Use concrete builders, execution capabilities, standard `Iterable`, and `TreeTraversalEvent`                  |
 | Builder `makeRunner`                                                                                     | `createRunner`                                                                                         |
 | `DagCoordinator`, `AsyncDagCoordinator`                                                                  | `DagWorkSession`, `AsyncDagWorkSession`                                                                |
 | `coordinateDag`, `coordinateDagAsync`                                                                    | `createDagWorkSession`, `createAsyncDagWorkSession`                                                    |
@@ -173,7 +173,7 @@ Original structure grows during discovery, retains topology/hints independently 
 | `TO_MakeMutationCommandFunctionFactoryConfiguration`, `TO_IsCompositeAssertionsMixin` | `ObjectMutationOptions`, `ObjectCompositeClassification`             |
 | `TO_MakeMutationCommandFunctionFactory`, `TO_MakeMutationCommandFunctionFactory_2`    | `ObjectMutationBinderFactory`, `ObjectMutationBinder`                |
 | `TO_MakeMutationCommandFactoryResult`, `TO_MutationPropertyPatch`                     | `ObjectMutationCommands`, `ObjectPropertyPatch`                      |
-| `MakeMutationCommandFunctionFactory`, `MakeMutationCommandFunctionFactory_2`          | `MutationCommandBinderFactory`, `MutationCommandBinder`              |
+| `MakeMutationCommandFunctionFactory`, `MakeMutationCommandFunctionFactory_2`          | `TreeMutationCommandBinderFactory`, `TreeMutationCommandBinder`              |
 | `MakeMutationCommandFunction`, `MakeMutationCommandFunctionInput`                     | `MutationCommandBuilder`, `MutationRequest`                          |
 | `MakeMutationCommandFunctionResult`, `MakeMutationCommandFactoryResult`               | `MutationCommand`, `MutationCommands`                                |
 | Root namespace `rewriteObject`                                                        | Callable `rewriteObject`; module namespace `objectRewrite`           |
@@ -253,3 +253,11 @@ if (runner.summary().awaitingSettlement[0]!.vertexId !== 'review') {
 ```
 
 Retired compatibility routes are removed: legacy vertex content/access, untagged source results, boolean settlement outcomes, the `DEFER_READY` sentinel, old object hooks, execution/registration aliases, identity getter aliases, positional helper overloads and the old hint-rewrite command. Use the canonical replacements in this guide. JavaScript policy requests reject before discovery or configuration changes.
+
+## Generic execution and tree callbacks
+
+`TraversalExecutionState`, `SyncTraversalExecution` and `AsyncTraversalExecution` default to `ExecutionInspection`. Their emission default is `EmissionKind<Phase>`; DAG event selectors accept committed event names while callback selectors retain readiness phases. Concrete tree/DAG runners explicitly return `TreeDagExecutionInspection` (formerly `CoreInspection`); walking runners return `GraphWalkInspection`.
+
+`AsyncCoreExecution`, `TreeTraversal`, `TreeTraversalRunner`, `TreeTraversalIterable` and `AbstractTreeSource` are removed. Use execution capabilities for wrappers, concrete builders, `Iterable<TreeTraversalEvent<...>>` for tree iteration, and structural `TreeSource` implementations.
+
+Tree-only callback names are `TreeVisitor`, `AsyncTreeVisitor`, `TreeVisitorRecord`, `TreeMutationCommandBinder` and `TreeMutationCommandBinderFactory` (formerly `TraversalVisitor`, `AsyncTraversalVisitor`, `TraversalVisitorRecord`, `MutationCommandBinder` and `MutationCommandBinderFactory`). Shared command/result algebra, visitor registration policies and `MutationCommandBuilder` remain generic.

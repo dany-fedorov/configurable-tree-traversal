@@ -1,4 +1,4 @@
-import type { CoreInspection } from '@core/CoreInspection';
+import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
 import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import {
@@ -63,7 +63,7 @@ export interface AsyncDagTraversalRunner<
 > extends AsyncTraversalExecution<
     DagVisitorPhase,
     DagEvent<T | R, ID>,
-    CoreInspection,
+    TreeDagExecutionInspection,
     'workCompleted' | 'subgraphCompleted'
   > {
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
@@ -318,7 +318,7 @@ export class InternalAsyncDagTraversalRunner<
     return this.execution.isHalted();
   }
 
-  inspect(): CoreInspection {
+  inspect(): TreeDagExecutionInspection {
     return this.execution.inspect();
   }
 

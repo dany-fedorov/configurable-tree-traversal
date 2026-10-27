@@ -67,13 +67,38 @@ for (const module of [
   }
 }
 
-
 assert.equal('getGraphStore' in new root.ResolvedTreeStore(), false);
-console.log('Verified packed CJS/ESM denial for 26 internal paths and curated public runtime namespaces.');
+console.log(
+  'Verified packed CJS/ESM denial for 26 internal paths and curated public runtime namespaces.',
+);
 
 for (const Constructor of [root.DagTraversal, root.AsyncDagTraversal]) {
-  const runner = new Constructor(root.materializeDagSourceFromRecords([{ id: 'a' }], { id: item => item.id })).createRunner();
+  const runner = new Constructor(
+    root.materializeDagSourceFromRecords([{ id: 'a' }], {
+      id: (item) => item.id,
+    }),
+  ).createRunner();
   assert.equal('inspectDagState' in runner, false);
   await runner.run();
-  assert.equal(root.inspectDagMilestones(runner).explain({ vertexId: 'a', milestone: 'subgraphCompletion' }).satisfied, true);
+  assert.equal(
+    root
+      .inspectDagMilestones(runner)
+      .explain({ vertexId: 'a', milestone: 'subgraphCompletion' }).satisfied,
+    true,
+  );
+}
+
+for (const name of [
+  'TreeTraversal',
+  'TreeTraversalRunner',
+  'TreeTraversalIterable',
+  'AbstractTreeSource',
+]) {
+  for (const entry of [
+    'configurable-tree-traversal',
+    'configurable-tree-traversal/core',
+  ]) {
+    assert.equal(name in require(entry), false);
+    assert.equal(name in (await import(entry)), false);
+  }
 }

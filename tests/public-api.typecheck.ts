@@ -15,9 +15,9 @@ import {
   traverseTreeDepthFirst,
   traverseTreeDepthFirstAsync,
   Vertex,
-  type AsyncCoreExecution,
+  type AsyncTraversalExecution,
   type ChildSlot,
-  type CoreInspection,
+  type TreeDagExecutionInspection,
   type DagDiscoverySource,
   type HintVertexId,
   type MaybePromise,
@@ -26,7 +26,7 @@ import {
   type ResolvedVertexStatus,
   type StructuralChildEdge,
   type TreeSource,
-  type TreeTraversalRunner,
+  type DepthFirstTreeRunner,
   type VertexId,
   type VertexTypes,
 } from '../src';
@@ -87,7 +87,7 @@ for (const event of concreteRunner.iterateEvents()) {
   void data;
 }
 
-const interfaceRunner: TreeTraversalRunner<DepthFirstPhase, Tree, Tree> =
+const interfaceRunner: DepthFirstTreeRunner<Tree, Tree> =
   traversal.createRunner();
 interfaceRunner.iterateEvents();
 interfaceRunner.run({ emitEvents: [] });
@@ -129,13 +129,14 @@ const dagResult: ReturnType<DagTraversal<Tree>['createRunner']> = traverseDag({
 const asyncDagResult: Promise<
   ReturnType<AsyncDagTraversal<Tree>['createRunner']>
 > = traverseDagAsyncFromDagSubpath({ traversableGraph: graph });
-const asyncExecution: AsyncCoreExecution<unknown> = new AsyncDagTraversal({
-  traversableGraph: graph,
-}).createRunner();
+const asyncExecution: AsyncTraversalExecution<DagVisitorPhase, unknown> =
+  new AsyncDagTraversal({
+    traversableGraph: graph,
+  }).createRunner();
 const resolvedGraph: ResolvedGraph<Tree> = dagResult.getResolvedGraph();
 const rootRef = resolvedGraph.getRoot();
 const children = rootRef === null ? null : resolvedGraph.getChildrenOf(rootRef);
-const inspection: CoreInspection = dagResult.inspect();
+const inspection: TreeDagExecutionInspection = dagResult.inspect();
 const oneSink: boolean = hasSingleSinkFromDagSubpath(resolvedGraph);
 const order: DagVisitorPhase = DagVisitorPhase.ON_WORK_READY;
 const publicTypes: [

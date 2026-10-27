@@ -6,7 +6,7 @@ import type { VertexTypes } from './TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
   TreeVisitorContext,
-  TraversalVisitorRecord,
+  TreeVisitorRecord,
 } from './TraversalVisitor';
 import { VisitorChain } from './visitors/VisitorChain';
 import type { VisitorChainPoll } from './visitors/types';
@@ -31,10 +31,10 @@ export function* executeVisitors<
   RW_TTP extends VertexTypes,
 >(input: {
   vertexRef: MutableRef<Vertex<TTP | RW_TTP>>;
-  records: TraversalVisitorRecord<ORDER, TTP, RW_TTP>[];
+  records: TreeVisitorRecord<ORDER, TTP, RW_TTP>[];
   state: VisitorExecutionState<TTP | RW_TTP>;
   getOptions: (
-    record: TraversalVisitorRecord<ORDER, TTP, RW_TTP>,
+    record: TreeVisitorRecord<ORDER, TTP, RW_TTP>,
     chainState: unknown,
   ) => TreeVisitorContext<ORDER, TTP, RW_TTP>;
   executeCommands: (
@@ -121,8 +121,8 @@ export function sortVisitorRecords<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 >(
-  records: TraversalVisitorRecord<ORDER, TTP, RW_TTP>[],
-): TraversalVisitorRecord<ORDER, TTP, RW_TTP>[];
+  records: TreeVisitorRecord<ORDER, TTP, RW_TTP>[],
+): TreeVisitorRecord<ORDER, TTP, RW_TTP>[];
 export function sortVisitorRecords<
   R extends readonly { addedIndex: number; priority: number }[],
 >(records: R): R[number][];

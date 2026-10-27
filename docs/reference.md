@@ -983,7 +983,7 @@ For an ordering boundary, use `{ groups: [{ visitors: [...], commandCommitMode: 
 
 Constructor/configure maps, helper maps, and `setVisitorsFor(order, input)` share `VisitorPhaseInput<F>`: a callback, `{ visitor, priority?, commandCommitMode? }`, a readonly flat array of definitions, or explicit groups. `addVisitorFor` remains callback/options shorthand; `addVisitorGroupFor(order, group)` appends a group. An individual append after explicit groups joins a final implicit flat group. `listVisitorsFor` returns normalized typed records accepted by `setVisitorsFor`, preserving groups. All eight builders return mutable detached arrays containing copied records: editing a query never changes registrations, future runners, or prior snapshots. Callback closures remain shared references; frozen group metadata/identity is retained for list/set round trips. Apply changes through `setVisitorsFor`, `addVisitorFor`/`addVisitorGroupFor`, or `configure`. Raw registration fields are private. To regroup records, project `{ visitor, priority }` and set the new group policy. Caller definitions have no `addedIndex` policy. Query records retain descriptive indexes; registering them assigns fresh indexes and retains callback/group identity. See the [complete shared-definition example](migration-uniform-api.md#shared-visitor-definitions-and-ordered-groups). Concrete sync/async receivers retain phase inference; narrow mixed receiver unions before inline registration.
 
-The actual phase is inferred in registration, configuration records, and helper maps, including `options.phase`. Reusable callbacks typed with general `TraversalVisitor`/`DagVisitor` aliases can return common commands across entry points. `options.registration` exposes readonly, phase-neutral `VisitorRegistrationMetadata` (`addedIndex`, `priority`, `commandCommitMode`, and optional `visitorGroup`). It has no callable `visitor` in the supported TypeScript context; retain your callback reference or retrieve full typed records with `listVisitorsFor()`. Full records remain in configuration/list/set APIs; see the [migration guide](migration-uniform-api.md#phase-aware-visitors).
+The actual phase is inferred in registration, configuration records, and helper maps, including `options.phase`. Reusable callbacks typed with general `TreeVisitor`/`DagVisitor` aliases can return common commands across entry points. `options.registration` exposes readonly, phase-neutral `VisitorRegistrationMetadata` (`addedIndex`, `priority`, `commandCommitMode`, and optional `visitorGroup`). It has no callable `visitor` in the supported TypeScript context; retain your callback reference or retrieve full typed records with `listVisitorsFor()`. Full records remain in configuration/list/set APIs; see the [migration guide](migration-uniform-api.md#phase-aware-visitors).
 
 `TreeVisitorContext` includes `resolvedTree`; `DagVisitorContext` supplies `resolvedGraph`. Both include `vertexRef`, `phase`, root flags, and per-phase indices. `phaseVisitIndex` and `visitorIndex` start at zero. `previousPhaseVertexRef` points to the preceding vertex for that phase, or `null` on its first visit. Chain state starts at `null` for each visit. Each runner takes a snapshot of the configured visitor records and in-order configuration. Configuration copies include nested in-order ranges and iteration filter arrays. Normalized defaults are private; use source-required family `Options` or source-preserving `OptionsPatch` with `configure()` to customize future runners.
 
@@ -1048,11 +1048,11 @@ Tree and DAG emission uses the selector retained by each admitted visitor chain.
 
 Root flags describe family-specific boundaries. Tree `isTreeRoot` and DAG `isGraphRoot` identify the resolved container root; `isTraversalRoot` identifies the chosen traversal start, which can differ when traversing a subtree. Synthetic graph holders are bookkeeping and hidden from public events. Walking uses `via: null` for an entry occurrence; under route policies, the same ID reached through a link has a non-null `via`. These meanings do not imply a shared root flag.
 
-The six tree/DAG runners use the same explicit transition-state model. Synchronous runners execute its callback requests inline; asynchronous runners delegate iteration and `run()` to one shared `AsyncCoreExecution` session with serialized state commits, finite callback limiting when configured, and one iterator lease. Calling `run()` while an iterator owns that session rejects rather than starting a second execution.
+The six tree/DAG runners use the same explicit transition-state model. Synchronous runners execute its callback requests inline; asynchronous runners delegate iteration and `run()` to one shared internal async session with serialized state commits, finite callback limiting when configured, and one iterator lease. Calling `run()` while an iterator owns that session rejects rather than starting a second execution.
 
-For tree/DAG wrappers, use `TraversalExecutionState` (`getStatus`, `getStopReason`, `isHalted`, `inspect`, `requestPause`), `SyncTraversalExecution<Phase, Event>`, or `AsyncTraversalExecution<Phase, Event>`. Run returns this / Promise of this; iterators are closeable `Generator<Event, void, unknown>` / `AsyncGenerator<Event, void, unknown>`. Preserve the family's phase enum: a DFS abstraction rejects DAG phases and cannot widen to accept them. Historical `AsyncCoreExecution<Event, Phase = never>` remains available; its erased default permits no explicit phase names. Specify Phase when selecting phases. `TreeTraversal` and `TreeTraversalRunner` are historical tree-only abstract bases, not common bases for DAG or walking builders/runners. Use the execution capability interfaces for generic wrappers. `TreeTraversalRunner` exposes the same sync capabilities; historical `TreeTraversalIterable` imports remain supported.
+For reusable wrappers, use `TraversalExecutionState` (`getStatus`, `getStopReason`, `isHalted`, `inspect`, `requestPause`), `SyncTraversalExecution<Phase, Event>`, or `AsyncTraversalExecution<Phase, Event>`. Run returns this / Promise of this; iterators are closeable `Generator<Event, void, unknown>` / `AsyncGenerator<Event, void, unknown>`. Preserve the family's phase enum: a DFS abstraction rejects DAG phases and cannot widen to accept them. The emitted-kind default is `EmissionKind<Phase>`: DAG emission accepts committed `workCompleted`/`subgraphCompleted` names, and visitor selection accepts `ON_WORK_READY`/`ON_SUBGRAPH_READY`.
 
-Walking runners share the public execution capabilities with a default-preserving inspection parameter: `TraversalExecutionState<Inspection = CoreInspection>`, `SyncTraversalExecution<Phase, Event, Inspection = CoreInspection>`, and the async counterpart. Existing two-parameter code retains detailed `CoreInspection`. Walkers use `GraphWalkInspection`; choose `ExecutionInspection` explicitly for a wrapper accepting every family. Its common fields are status, stop reason, pause request, kind, execution mode, in-flight callback count and buffered event count. Generalizing inspection never widens supported phases or gives walking a tree/DAG frame shape.
+All three capabilities default inspection to `ExecutionInspection`, which accepts tree, DAG and walking runners. Its common fields are status, stop reason, pause request, kind, execution mode, in-flight callback count and buffered event count. Concrete tree/DAG runners explicitly expose `TreeDagExecutionInspection`; walkers expose `GraphWalkInspection`. Generalizing inspection never widens supported phases or promises another family's detailed fields. Concrete builders implement their public contracts directly; sources implement `TreeSource` structurally. `TreeTraversalEvent` remains the tree event record.
 
 <!-- standalone -->
 
@@ -1062,21 +1062,21 @@ import {
   GraphWalkPhase,
   DepthFirstTreeTraversal,
   DepthFirstPhase,
-  type ExecutionInspection,
+  type EmissionKind,
   type TraversalExecutionState,
   type SyncTraversalExecution,
   type TreeSource,
   type VertexTypes,
 } from 'configurable-tree-traversal';
 
-function observe(state: TraversalExecutionState<ExecutionInspection>) {
+function observe(state: TraversalExecutionState) {
   return state.inspect().status;
 }
 function drive<Phase extends string, Event>(
-  runner: SyncTraversalExecution<Phase, Event, ExecutionInspection>,
-  phase: Phase,
+  runner: SyncTraversalExecution<Phase, Event>,
+  eventKind: EmissionKind<Phase>,
 ) {
-  return runner.run({ emitEvents: [phase] });
+  return runner.run({ emitEvents: [eventKind] });
 }
 const tree: TreeSource<VertexTypes<string, string>> = {
   resolveRoot: () => ({
@@ -1138,7 +1138,7 @@ Set `assembleCompositesBeforeRewrite: true` to receive `assembledComposite` alon
 
 The helper owns its source. `traversableTree` is forbidden in inline and pretyped options; JavaScript presence, including present `undefined`, rejects before source, rewrite or conversion callbacks. Remove that field, or use a traversal directly for a custom source.
 
-`createObjectMutationBinder(options)` returns an `ObjectMutationBinder`; binding a vertex and context returns `ObjectMutationCommands`. Its `makeMutationCommand` builder consumes a `MutationRequest<ObjectPropertyPatch<Output>>`. `ObjectMutationOptions` retains classifiers, assemblers, and `assembledMap`, keyed by reference identity. `ObjectCompositeClassification` names the bound array/object/composite flags. Generic stages are `MutationCommandBinderFactory`, `MutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`.
+`createObjectMutationBinder(options)` returns an `ObjectMutationBinder`; binding a vertex and context returns `ObjectMutationCommands`. Its `makeMutationCommand` builder consumes a `MutationRequest<ObjectPropertyPatch<Output>>`. `ObjectMutationOptions` retains classifiers, assemblers, and `assembledMap`, keyed by reference identity. `ObjectCompositeClassification` names the bound array/object/composite flags. Generic stages are `TreeMutationCommandBinderFactory`, `TreeMutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`.
 
 Generic `MutationCommandBuilder<Output, RewriteInput = Output['VertexData']>` requires complete replacement data by default. Object helpers explicitly accept `ObjectPropertyPatch<Output>` (`Partial<Pick<Output['VertexData'], 'key' | 'value'>>`), so key-only and value-only patches remain typed. Omit `rewrite` for no patch; a present `rewrite: undefined`, null, or primitive throws TypeError before mutation. `{ rewrite: { value: undefined } }` sets an undefined value when the output type permits it. User assembler errors propagate exactly. Unknown own patch fields, including non-enumerable string or symbol keys, throw TypeError. Existing payload metadata is retained; use `REWRITE_VERTEX_DATA` for full payload replacement.
 

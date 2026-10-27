@@ -6,17 +6,13 @@ import {
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
   type CommandCommitMode,
-  type TraversalVisitor,
+  type TreeVisitor,
   type VertexTypes,
 } from '../src';
 
 type Node = { $data: string; $childHints: Node[] };
 type Tree = VertexTypes<string, Node>;
-type Visitor = TraversalVisitor<
-  DepthFirstPhase | BreadthFirstPhase,
-  Tree,
-  Tree
->;
+type Visitor = TreeVisitor<DepthFirstPhase | BreadthFirstPhase, Tree, Tree>;
 const root: Node = { $data: 'root', $childHints: [] };
 const adapter = {
   resolveRoot: () => ({

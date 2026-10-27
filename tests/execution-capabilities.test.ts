@@ -1,3 +1,5 @@
+import * as publicApi from '../src';
+import * as publicCore from '../src/core';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -263,7 +265,9 @@ test('async pause drains admitted chains and retains undelivered events for the 
   const pending = owner.next();
   await Promise.all([startedA.promise, startedB.promise]);
   expect(runner.requestPause()).toBe(true);
-  await expect(runner.iterateEvents().next()).rejects.toThrow(/active iterator/);
+  await expect(runner.iterateEvents().next()).rejects.toThrow(
+    /active iterator/,
+  );
   finishA.resolve();
   expect((await pending).value?.vertex.getData()).toBe('A');
   expect(runner.getStatus()).toBe(Status.RUNNING);
@@ -343,3 +347,15 @@ test.each(queuedSourceFamilies)(
     expect(runner.getStatus()).toBe(Status.FINISHED);
   },
 );
+
+test('public namespaces omit retired empty runtime bases', () => {
+  for (const name of [
+    'TreeTraversal',
+    'TreeTraversalRunner',
+    'TreeTraversalIterable',
+    'AbstractTreeSource',
+  ]) {
+    expect(publicApi).not.toHaveProperty(name);
+    expect(publicCore).not.toHaveProperty(name);
+  }
+});

@@ -1,5 +1,4 @@
-import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
-import type { CoreInspection } from '@core/CoreInspection';
+import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import type { MutableRef } from '@core/CTTRef';
 import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import {
@@ -41,7 +40,8 @@ export interface AsyncDepthFirstTreeRunner<
   RW_TTP extends VertexTypes = TTP,
 > extends AsyncTraversalExecution<
     DepthFirstPhase,
-    TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>
+    TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>,
+    TreeDagExecutionInspection
   > {
   getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
@@ -61,9 +61,10 @@ export class InternalAsyncDepthFirstTreeRunner<
     TTP,
     RW_TTP
   >;
-  private readonly execution: AsyncCoreExecution<
+  private readonly execution: AsyncTraversalExecution<
+    DepthFirstPhase,
     Event<TTP, RW_TTP>,
-    DepthFirstPhase
+    TreeDagExecutionInspection
   >;
 
   constructor(icfgInput: AsyncDepthFirstTreeResolvedOptions<TTP, RW_TTP>) {
@@ -179,7 +180,7 @@ export class InternalAsyncDepthFirstTreeRunner<
     return this.execution.isHalted();
   }
 
-  inspect(): CoreInspection {
+  inspect(): TreeDagExecutionInspection {
     return this.execution.inspect();
   }
 

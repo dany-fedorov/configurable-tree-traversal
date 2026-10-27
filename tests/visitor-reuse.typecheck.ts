@@ -18,8 +18,8 @@ import {
 } from '../src';
 import type {
   VertexTypes,
-  TraversalVisitor,
-  AsyncTraversalVisitor,
+  TreeVisitor,
+  AsyncTreeVisitor,
   DagVisitor,
   AsyncDagVisitor,
   TreeSource,
@@ -29,10 +29,10 @@ import type {
 type T = VertexTypes<string, string>;
 declare const tree: { traversableTree: TreeSource<T> };
 declare const graph: { traversableGraph: DagDiscoverySource<T> };
-const commonTree: TraversalVisitor<string, T, T> = () => ({
+const commonTree: TreeVisitor<string, T, T> = () => ({
   commands: [{ commandName: C.NOOP }],
 });
-const asyncCommonTree: AsyncTraversalVisitor<string, T, T> = async () => ({
+const asyncCommonTree: AsyncTreeVisitor<string, T, T> = async () => ({
   commands: [{ commandName: C.NOOP }],
 });
 const commonDag: DagVisitor<T> = () => ({
@@ -115,7 +115,7 @@ traverseTreeBreadthFirstAsync({
 });
 
 // Callback contexts expose readonly registration metadata, not a callable entry.
-const inspectTree: TraversalVisitor<string, T, T> = (_vertex, options) => {
+const inspectTree: TreeVisitor<string, T, T> = (_vertex, options) => {
   const metadata: import('../src').VisitorRegistrationMetadata =
     options.registration;
   void [
@@ -129,7 +129,7 @@ const inspectTree: TraversalVisitor<string, T, T> = (_vertex, options) => {
   // @ts-expect-error Context metadata is readonly.
   options.registration.priority = 1;
 };
-const inspectAsyncTree: AsyncTraversalVisitor<string, T, T> = async (
+const inspectAsyncTree: AsyncTreeVisitor<string, T, T> = async (
   _vertex,
   options,
 ) => {
@@ -202,15 +202,15 @@ bfs.setVisitorsFor(B.LEVEL_ORDER, bfs.listVisitorsFor(B.LEVEL_ORDER));
 asyncBfs.setVisitorsFor(B.LEVEL_ORDER, asyncBfs.listVisitorsFor(B.LEVEL_ORDER));
 
 // Explicitly typed common-command records are reusable too.
-const commonTreeRecord: import('../src').TraversalVisitorRecord<string, T, T> =
+const commonTreeRecord: import('../src').TreeVisitorRecord<string, T, T> =
   record(commonTree);
 dfs.configure({ visitors: { [F.PRE_ORDER]: [commonTreeRecord] } });
 dfs.setVisitorsFor(F.PRE_ORDER, [commonTreeRecord]);
 bfs.configure({ visitors: { [B.LEVEL_ORDER]: [commonTreeRecord] } });
 bfs.setVisitorsFor(B.LEVEL_ORDER, [commonTreeRecord]);
 
-// The exported abstract tree contract uses the same consumer/producer rules.
-declare const abstractDfs: import('../src').TreeTraversal<F, T, T>;
+// The concrete tree builder contract uses the same consumer/producer rules.
+declare const abstractDfs: import('../src').DepthFirstTreeTraversal<T, T>;
 abstractDfs.addVisitorFor(F.PRE_ORDER, commonTree, {
   commandCommitMode: 'afterGroup' as const,
 });
@@ -218,5 +218,5 @@ abstractDfs.setVisitorsFor(
   F.PRE_ORDER,
   abstractDfs.listVisitorsFor(F.PRE_ORDER),
 );
-// @ts-expect-error Abstract lookup also preserves potentially phase-specific callbacks.
+// @ts-expect-error Builder lookup also preserves potentially phase-specific callbacks.
 abstractDfs.setVisitorsFor(F.POST_ORDER, abstractDfs.listVisitorsFor(dfsPhase));

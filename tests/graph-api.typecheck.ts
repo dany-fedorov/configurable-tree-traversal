@@ -1,4 +1,4 @@
-import type { AsyncTraversalVisitor } from '../src/core/AsyncTraversalVisitor';
+import type { AsyncTreeVisitor } from '../src/core/AsyncTraversalVisitor';
 import { MutableRef } from '../src/core/CTTRef';
 import type {
   AsyncDagDiscoverySource,
@@ -71,7 +71,7 @@ const tree: TreeSource<Input, Output> = {
 };
 const asyncTree: AsyncTreeSource<Input, Output> = tree;
 
-const plainTreeVisitor: AsyncTraversalVisitor<'ORDER', Input, Output> = () => ({
+const plainTreeVisitor: AsyncTreeVisitor<'ORDER', Input, Output> = () => ({
   commands: [
     {
       commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
@@ -79,7 +79,7 @@ const plainTreeVisitor: AsyncTraversalVisitor<'ORDER', Input, Output> = () => ({
     },
   ],
 });
-const promisedTreeVisitor: AsyncTraversalVisitor<
+const promisedTreeVisitor: AsyncTreeVisitor<
   'ORDER',
   Input,
   Output
