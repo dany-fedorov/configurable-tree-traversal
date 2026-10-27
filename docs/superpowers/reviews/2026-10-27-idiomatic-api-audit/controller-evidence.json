@@ -1,0 +1,22 @@
+{
+  "reviewBaseline": "95fd35852a296d35aaf13c2b47a38e087dd880d6",
+  "model": "gpt-6-astra",
+  "reasoningEffort": "high",
+  "agent": "/root/idiomatic_api_review",
+  "freshBuildExit": 0,
+  "freshCensusExit": 0,
+  "runtimeRoutesWithCjsEsmNamesAndIdentity": 9,
+  "originalDraftsPreserved": 18,
+  "implementationUnchanged": true,
+  "probe": {
+    "strictCompiler": "4.9.5",
+    "skipLibCheck": false,
+    "compileExit": 0,
+    "executionExit": 0,
+    "output": [
+      "typed patch requested note=new; actual note= old",
+      "rewrite value declared number; actual type= string",
+      "rewrite context vertex declared input; actual type= string"
+    ]
+  }
+}

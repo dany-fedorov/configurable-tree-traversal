@@ -1,0 +1,198 @@
+[
+  {
+    "entry": ".",
+    "role": "runtime",
+    "bindings": [
+      "AbstractTreeSource",
+      "AsyncBreadthFirstTreeTraversal",
+      "AsyncDagTraversal",
+      "AsyncDepthFirstTreeTraversal",
+      "AsyncGraphWalk",
+      "BreadthFirstPhase",
+      "BreadthFirstTreeTraversal",
+      "DEFER_READY",
+      "DagDiscoveryCycleError",
+      "DagFragmentValidationError",
+      "DagTraversal",
+      "DagTraversalStallError",
+      "DagVisitorPhase",
+      "DepthFirstPhase",
+      "DepthFirstTreeTraversal",
+      "GraphWalk",
+      "GraphWalkPhase",
+      "MutableRef",
+      "ObjectTreeSource",
+      "ResolvedTreeStore",
+      "TraversalRunnerStatus",
+      "TraversalVisitorCommandName",
+      "TreeTraversal",
+      "TreeTraversalIterable",
+      "TreeTraversalRunner",
+      "TreeVertexRecord",
+      "Vertex",
+      "breadthFirstTraversal",
+      "composeDag",
+      "core",
+      "createAsyncDagWorkSession",
+      "createDagWorkSession",
+      "createObjectMutationBinder",
+      "dagTraversal",
+      "defineDag",
+      "defineDagFragment",
+      "depthFirstTraversal",
+      "diffDagDefinitions",
+      "filterAsyncDagDataVisitor",
+      "filterDagDataVisitor",
+      "graphWalk",
+      "hasSingleStructuralSink",
+      "inspectDagMilestones",
+      "instantiateDagFragment",
+      "materializeDagSourceFromRecords",
+      "materializeDagSourceFromRecordsAsync",
+      "materializeDagSourceFromRoots",
+      "materializeDagSourceFromRootsAsync",
+      "materializeWalkSourceFromDagDefinition",
+      "materializeWalkSourceFromRecords",
+      "materializeWalkSourceFromRecordsAsync",
+      "objectRewrite",
+      "prepareDag",
+      "prepareDagAsync",
+      "prepareDagDefinition",
+      "reviseDag",
+      "rewriteObject",
+      "rewriteObjectAs",
+      "traversableObjectTree",
+      "traverseDag",
+      "traverseDagAsync",
+      "traverseTreeBreadthFirst",
+      "traverseTreeBreadthFirstAsync",
+      "traverseTreeDepthFirst",
+      "traverseTreeDepthFirstAsync",
+      "walkGraph",
+      "walkGraphAsync"
+    ],
+    "esmCjsNamesAndIdentityMatch": true
+  },
+  {
+    "entry": "./package.json",
+    "role": "metadata"
+  },
+  {
+    "entry": "./core",
+    "role": "runtime",
+    "bindings": [
+      "AbstractTreeSource",
+      "DagDiscoveryCycleError",
+      "DagTraversalStallError",
+      "MutableRef",
+      "ResolvedTreeStore",
+      "TraversalRunnerStatus",
+      "TraversalVisitorCommandName",
+      "TreeTraversal",
+      "TreeTraversalIterable",
+      "TreeTraversalRunner",
+      "TreeVertexRecord",
+      "Vertex"
+    ],
+    "esmCjsNamesAndIdentityMatch": true
+  },
+  {
+    "entry": "./traversals/depth-first-traversal",
+    "role": "runtime",
+    "bindings": [
+      "AsyncDepthFirstTreeTraversal",
+      "DepthFirstPhase",
+      "DepthFirstTreeTraversal",
+      "traverseTreeDepthFirst",
+      "traverseTreeDepthFirstAsync"
+    ],
+    "esmCjsNamesAndIdentityMatch": true
+  },
+  {
+    "entry": "./traversals/breadth-first-traversal",
+    "role": "runtime",
+    "bindings": [
+      "AsyncBreadthFirstTreeTraversal",
+      "BreadthFirstPhase",
+      "BreadthFirstTreeTraversal",
+      "traverseTreeBreadthFirst",
+      "traverseTreeBreadthFirstAsync"
+    ],
+    "esmCjsNamesAndIdentityMatch": true
+  },
+  {
+    "entry": "./traversals/dag-traversal",
+    "role": "runtime",
+    "bindings": [
+      "AsyncDagTraversal",
+      "DEFER_READY",
+      "DagDiscoveryCycleError",
+      "DagFragmentValidationError",
+      "DagTraversal",
+      "DagTraversalStallError",
+      "DagVisitorPhase",
+      "composeDag",
+      "createAsyncDagWorkSession",
+      "createDagWorkSession",
+      "defineDag",
+      "defineDagFragment",
+      "diffDagDefinitions",
+      "filterAsyncDagDataVisitor",
+      "filterDagDataVisitor",
+      "hasSingleStructuralSink",
+      "inspectDagMilestones",
+      "instantiateDagFragment",
+      "prepareDag",
+      "prepareDagAsync",
+      "prepareDagDefinition",
+      "reviseDag",
+      "traverseDag",
+      "traverseDagAsync"
+    ],
+    "esmCjsNamesAndIdentityMatch": true
+  },
+  {
+    "entry": "./traversals/graph-walk",
+    "role": "runtime",
+    "bindings": [
+      "AsyncGraphWalk",
+      "GraphWalk",
+      "GraphWalkPhase",
+      "materializeWalkSourceFromDagDefinition",
+      "materializeWalkSourceFromRecords",
+      "materializeWalkSourceFromRecordsAsync",
+      "walkGraph",
+      "walkGraphAsync"
+    ],
+    "esmCjsNamesAndIdentityMatch": true
+  },
+  {
+    "entry": "./traversable-tree-implementations/traversable-object-tree",
+    "role": "runtime",
+    "bindings": [
+      "ObjectTreeSource",
+      "createObjectMutationBinder"
+    ],
+    "esmCjsNamesAndIdentityMatch": true
+  },
+  {
+    "entry": "./tools/rewrite-object",
+    "role": "runtime",
+    "bindings": [
+      "rewriteObject",
+      "rewriteObjectAs"
+    ],
+    "esmCjsNamesAndIdentityMatch": true
+  },
+  {
+    "entry": "./sources",
+    "role": "runtime",
+    "bindings": [
+      "materializeDagSourceFromRecords",
+      "materializeDagSourceFromRecordsAsync",
+      "materializeDagSourceFromRoots",
+      "materializeDagSourceFromRootsAsync"
+    ],
+    "esmCjsNamesAndIdentityMatch": true
+  }
+]

@@ -1,0 +1,78 @@
+{
+  "groups": {
+    "bindings": {
+      "expected": 534,
+      "reviewed": 534,
+      "dispositions": {
+        "redesign": 104,
+        "remove": 20,
+        "rename": 32,
+        "retain": 378,
+        "signature-support": 0
+      }
+    },
+    "declarations": {
+      "expected": 318,
+      "reviewed": 318,
+      "dispositions": {
+        "redesign": 46,
+        "remove": 16,
+        "rename": 16,
+        "retain": 192,
+        "signature-support": 48
+      }
+    },
+    "declaredMembers": {
+      "expected": 897,
+      "reviewed": 897,
+      "dispositions": {
+        "redesign": 16,
+        "remove": 51,
+        "rename": 20,
+        "retain": 722,
+        "signature-support": 88
+      }
+    },
+    "instanceMembers": {
+      "expected": 1085,
+      "reviewed": 1085,
+      "dispositions": {
+        "redesign": 39,
+        "remove": 76,
+        "rename": 23,
+        "retain": 753,
+        "signature-support": 194
+      }
+    },
+    "staticMembers": {
+      "expected": 3,
+      "reviewed": 3,
+      "dispositions": {
+        "redesign": 0,
+        "remove": 0,
+        "rename": 1,
+        "retain": 2,
+        "signature-support": 0
+      }
+    }
+  },
+  "findingIds": [
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05",
+    "F06",
+    "F07",
+    "F08",
+    "F09",
+    "F10",
+    "F11",
+    "F12",
+    "F13",
+    "F14",
+    "F15"
+  ],
+  "reportSha256": "e3707704e781562986c9f86c7679673c86204d3380230394c354f1a8e955ac64",
+  "completeInventoryCoverage": true
+}

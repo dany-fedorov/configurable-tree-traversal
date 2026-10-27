@@ -1,0 +1,179 @@
+{
+  "sourceReferencesChecked": 43,
+  "allFilesExistAndLinesInRange": true,
+  "references": [
+    {
+      "path": "src/core/AsyncCoreExecution.ts",
+      "line": 5
+    },
+    {
+      "path": "src/core/AsyncTraversalVisitor.ts",
+      "line": 9
+    },
+    {
+      "path": "src/core/CTTRef.ts",
+      "line": 24
+    },
+    {
+      "path": "src/core/CoreInspection.ts",
+      "line": 37
+    },
+    {
+      "path": "src/core/MakeMutationCommandFunctionFactory.ts",
+      "line": 33
+    },
+    {
+      "path": "src/core/ResolvedGraph.ts",
+      "line": 17
+    },
+    {
+      "path": "src/core/ResolvedTree.ts",
+      "line": 159
+    },
+    {
+      "path": "src/core/ResolvedTree.ts",
+      "line": 247
+    },
+    {
+      "path": "src/core/ResolvedTreeTypeParameters.ts",
+      "line": 5
+    },
+    {
+      "path": "src/core/TraversableTree.ts",
+      "line": 104
+    },
+    {
+      "path": "src/core/TraversableTree.ts",
+      "line": 54
+    },
+    {
+      "path": "src/core/Traversal.ts",
+      "line": 13
+    },
+    {
+      "path": "src/core/TraversalExecution.ts",
+      "line": 10
+    },
+    {
+      "path": "src/core/TraversalKernel.ts",
+      "line": 1206
+    },
+    {
+      "path": "src/core/TraversalKernel.ts",
+      "line": 1232
+    },
+    {
+      "path": "src/core/TraversalKernel.ts",
+      "line": 610
+    },
+    {
+      "path": "src/core/TraversalRunner.ts",
+      "line": 35
+    },
+    {
+      "path": "src/core/TraversalRunnerIterableConfig.ts",
+      "line": 20
+    },
+    {
+      "path": "src/core/TraversalRunnerIterableConfig.ts",
+      "line": 30
+    },
+    {
+      "path": "src/core/TraversalVisitor.ts",
+      "line": 14
+    },
+    {
+      "path": "src/core/TraversalVisitor.ts",
+      "line": 15
+    },
+    {
+      "path": "src/core/TraversalVisitor.ts",
+      "line": 17
+    },
+    {
+      "path": "src/core/TraversalVisitor.ts",
+      "line": 18
+    },
+    {
+      "path": "src/core/TraversalVisitor.ts",
+      "line": 181
+    },
+    {
+      "path": "src/core/Vertex.ts",
+      "line": 9
+    },
+    {
+      "path": "src/core/graph/types.ts",
+      "line": 25
+    },
+    {
+      "path": "src/core/scheduling/GraphScheduling.ts",
+      "line": 326
+    },
+    {
+      "path": "src/core/scheduling/GraphScheduling.ts",
+      "line": 546
+    },
+    {
+      "path": "src/core/scheduling/GraphScheduling.ts",
+      "line": 667
+    },
+    {
+      "path": "src/core/scheduling/GraphScheduling.ts",
+      "line": 766
+    },
+    {
+      "path": "src/sources/materialize.ts",
+      "line": 42
+    },
+    {
+      "path": "src/sources/types.ts",
+      "line": 6
+    },
+    {
+      "path": "src/tools/rewrite-object/rewriteObject.ts",
+      "line": 26
+    },
+    {
+      "path": "src/traversable-tree-implementations/traversable-object-tree/TraversableObjectTree.ts",
+      "line": 95
+    },
+    {
+      "path": "src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectTTP.ts",
+      "line": 5
+    },
+    {
+      "path": "src/traversable-tree-implementations/traversable-object-tree/lib/getRootPropertyFromInputObjectDefault.ts",
+      "line": 5
+    },
+    {
+      "path": "src/traversable-tree-implementations/traversable-object-tree/lib/makeMutationCommandFactory.ts",
+      "line": 44
+    },
+    {
+      "path": "src/traversals/dag-traversal/dagFragments.ts",
+      "line": 155
+    },
+    {
+      "path": "src/traversals/dag-traversal/lib/DagDefinition.ts",
+      "line": 27
+    },
+    {
+      "path": "src/traversals/dag-traversal/lib/DagProgress.ts",
+      "line": 3
+    },
+    {
+      "path": "src/traversals/dag-traversal/lib/DagRevision.ts",
+      "line": 18
+    },
+    {
+      "path": "src/traversals/dag-traversal/lib/DagTraversalInstanceConfig.ts",
+      "line": 17
+    },
+    {
+      "path": "src/traversals/graph-walk/walkSourceFromDag.ts",
+      "line": 84
+    }
+  ],
+  "scope": "Citation targets, not automatic semantic verification. Controller evaluates substantive findings separately."
+}
