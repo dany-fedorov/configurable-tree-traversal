@@ -28,7 +28,7 @@ const graph: DagDiscoverySource<Input, Output> = {
     kind: 'found' as const,
     vertex: {
       vertexContent: { $data: { input: 'root' }, $childHints: ['child'] },
-      vertexId: { kind: 'missing' },
+      vertexId: undefined,
       dependsOnWork: [null, NaN],
     },
   }),

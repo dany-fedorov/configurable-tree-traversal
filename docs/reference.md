@@ -627,12 +627,12 @@ Live W is satisfied only after work commits (including accepted seeds); live C r
 
 `blockers` is a flat causal graph. Constraint records come first in breadth-first order; terminal facts then follow visited-milestone order. Only unmet original constraints reachable from the target appear, and traversal stops at satisfied milestones. The `DagBlocker<ID>` tagged union is:
 
-| `kind`              | Fields and meaning                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------- | ------- | ---------- | ----------------------------------------------------------------------- |
-| `constraint`        | Original `waiter`, `prerequisite`, `reason`, plus `waiterStatus` and `prerequisiteStatus`                     |
-| `unfinishedWork`    | Work `target` and `work: 'pending'                                                                            | 'ready' | 'visiting' | 'deferred'`; a reachable unfinished W with no unmet outgoing constraint |
+| `kind`              | Fields and meaning |
+| ------------------- | ------------------ |
+| `constraint`        | Original `waiter`, `prerequisite`, `reason`, plus `waiterStatus` and `prerequisiteStatus` |
+| `unfinishedWork`    | Work `target` and `work: 'pending' \| 'ready' \| 'visiting' \| 'deferred'`; a reachable unfinished W with no unmet outgoing constraint |
 | `discoveryOpen`     | Completion `target`; this vertex's expansion is unprepared/open, so retained children are not yet fully known |
-| `completionPending` | Completion `target`; W and retained children are complete and expansion is closed, but C has not committed    |
+| `completionPending` | Completion `target`; W and retained children are complete and expansion is closed, but C has not committed |
 
 Endpoint status is `{ kind: 'live', work: DagWorkState, satisfied: boolean }` or `{ kind: 'omitted' | 'deleted' | 'unresolved' }`. Thus an unsatisfied C endpoint can explicitly have `work: 'completed', satisfied: false`. Omitted endpoints satisfy their milestones and do not appear as blockers. Unresolved endpoints are unknown identities, even when global discovery is complete; during partial discovery they are not proof of a missing source vertex. `discoveryOpen` uses local expansion state, independently of global `discoveryComplete`. A closed leaf does not acquire that blocker because another lookup is pending.
 

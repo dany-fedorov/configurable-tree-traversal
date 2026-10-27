@@ -14,19 +14,20 @@ for (const [api, other] of [
   [esm, cjs],
 ]) {
   const { TraversalVisitorCommandName: Command, DagVisitorPhase: Order } = api;
-  const legacyVertex = new api.core.Vertex({
-    $data: 'legacy',
-    $childHints: [],
+  const data = { label: 'canonical' };
+  const childHints = [];
+  const vertex = new api.core.Vertex({ $data: data, $childHints: childHints });
+  assert(vertex instanceof other.core.Vertex);
+  assert.deepEqual({ ...vertex }, { $data: data, $childHints: childHints });
+  assert.deepEqual(JSON.parse(JSON.stringify(vertex)), {
+    $data: data,
+    $childHints: childHints,
   });
-  assert(legacyVertex instanceof other.core.Vertex);
-  assert.deepEqual({ ...legacyVertex }, { $data: 'legacy', $childHints: [] });
-  assert.deepEqual(JSON.parse(JSON.stringify(legacyVertex)), {
-    $data: 'legacy',
-    $childHints: [],
-  });
-  assert.equal(legacyVertex.$data, legacyVertex.$data);
-  assert.equal(legacyVertex.$childHints, legacyVertex.$childHints);
-  assert.equal(legacyVertex.clone({ $data: undefined }).getData(), undefined);
+  assert.equal(vertex.$data, data);
+  assert.equal(vertex.$childHints, childHints);
+  assert.equal('$d' in vertex, false);
+  assert.equal('$c' in vertex, false);
+  assert.equal(vertex.clone({ $data: undefined }).getData(), undefined);
   assert.throws(() => new api.core.Vertex({ $data: '', $c: [] }), TypeError);
   assert.throws(() => new api.core.Vertex({ $d: 'old', $c: [] }), TypeError);
 
@@ -81,7 +82,14 @@ for (const [api, other] of [
       const context = view.getResolutionContextOf(child);
       context.depth = 100;
       assert.notEqual(view.getResolutionContextOf(child).depth, 100);
-      assert.equal(root.getRefId(), root.getRefId());
+      const rootRefId = root.getRefId();
+      const originalValue = root.getValue();
+      const replacement = originalValue.clone({ $data: 'replacement' });
+      root.setValue(replacement);
+      assert.equal(root.getValue(), replacement);
+      assert.equal(root.getRefId(), rootRefId);
+      assert.equal('getId' in root, false);
+      root.setValue(originalValue);
 
       assert.deepEqual(
         visits,
@@ -242,7 +250,10 @@ for (const [api, other] of [
     const graph = external.getResolvedGraph();
     const ref = graph.getVertexRefById(undefined);
     assert.equal(ref, graph.getVertexRefById(undefined));
-    assert.equal(graph.getVertexId(ref), graph.getVertexId(ref));
+    assert(ref);
+    assert.equal(graph.getVertexId(ref), undefined);
+    assert.equal('getIdOf' in graph, false);
+    assert.equal('getVertexById' in graph, false);
     const saved = external.originalGraphView;
     const savedRef = saved.getVertexRefById(undefined);
     assert.equal(saved.getVertexId(savedRef), undefined);
