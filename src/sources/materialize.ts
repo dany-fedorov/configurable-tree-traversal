@@ -49,7 +49,7 @@ export function materializedSource<Item, ID>(
           dependsOnWork: [],
           dependsOnSubgraphCompletion: [],
         }),
-      resolveChild: (id) => {
+      resolveChild: (id: ID) => {
         const record = records.get(id);
         if (record === undefined)
           throw new TypeError('Structural child is absent from the collection');

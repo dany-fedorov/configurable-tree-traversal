@@ -492,6 +492,7 @@ try {
     'uniform-api',
     'rewrite-output',
     'source-hint-contracts',
+    'materialized-rewrite-capability',
     'execution-capabilities',
     'idiomatic-execution',
     'idiomatic-diagnostics',

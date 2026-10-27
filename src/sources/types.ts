@@ -1,10 +1,21 @@
-import type { DagDiscoverySource } from '@core/TraversableGraph';
+import type {
+  DagDiscoverySource,
+  DagChildResolutionContext,
+} from '@core/TraversableGraph';
+import type { DagVertexResolution } from '@core/TraversableTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
 
 /** Materialized input envelopes can be spread into ordinary DAG traversal options. */
 export type MaterializedDagInput<Item, ID> = {
-  traversableGraph: DagDiscoverySource<
+  traversableGraph: {
+    /** Captured catalog lookup accepts any rewritten live-data domain. */
+    resolveChild: <R extends VertexTypes>(
+      hint: ID,
+      options: DagChildResolutionContext<VertexTypes<Item, ID>, R, ID>,
+    ) => DagVertexResolution<VertexTypes<Item, ID>, ID>;
+  } & DagDiscoverySource<
+    // Keep the input specialization last for ordinary TypeScript 4.x inference.
     VertexTypes<Item, ID>,
     VertexTypes<Item, ID>,
     ID

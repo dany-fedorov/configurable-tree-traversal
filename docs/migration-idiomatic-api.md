@@ -30,6 +30,42 @@ The canonical API has one spelling for each supported operation. Removed exports
 
 The four names are `materializeDagInputFromRecords`, `materializeDagInputFromRoots`, `materializeDagInputFromRecordsAsync`, and `materializeDagInputFromRootsAsync`. Async materialization awaits input/selector I/O once and returns the same envelope containing a synchronous reusable discovery source. Standalone protocols remain `DagDiscoverySource` / `AsyncDagDiscoverySource`.
 
+Materialized catalog lookup ignores the current live context. Its source can therefore be composed with a disjoint rewrite-data domain without reconfiguring the materializer: `DagTraversal<VertexTypes<Item, ID>, Output, ID>` and its async/helper counterparts accept the returned envelope directly or by spread. Ordinary construction without explicit rewrite types still infers Item and ID precisely. The source continues to resolve input items and ID hints; original views retain Item. This capability is specific to context-independent lookup. A custom source whose hooks require input-only live data must still be configured for the traversal's full live context.
+
+<!-- standalone -->
+
+```ts
+import {
+  DagTraversal,
+  materializeDagInputFromRecords,
+  TraversalVisitorCommandName as Command,
+  type VertexTypes,
+} from 'configurable-tree-traversal';
+
+type Item = { id: string };
+type Input = VertexTypes<Item, string>;
+type Output = VertexTypes<string, string>;
+const item: Item = { id: 'task' };
+const input = materializeDagInputFromRecords([item], { id: item => item.id });
+const runner = new DagTraversal<Input, Output, string>({
+  ...input,
+  retainOriginalGraphStructure: true,
+  visitors: {
+    ON_WORK_READY: () => ({ commands: [{
+      commandName: Command.REWRITE_VERTEX_DATA,
+      commandArguments: { newData: 'artifact' },
+    }] }),
+  },
+}).createRunner().run();
+const current: Item | string = runner.getResolvedGraph()
+  .getVertexRefById('task')!.getValue().getData();
+const original: Item = runner.originalGraphView!
+  .getVertexRefById('task')!.getValue().getData();
+if (current !== 'artifact' || original !== item) {
+  throw new Error('Expected rewritten data with the original input identity');
+}
+```
+
 Walking factories `materializeWalkSourceFromRecords`, `materializeWalkSourceFromRecordsAsync` and `materializeWalkSourceFromDagDefinition` return actual `GraphWalkSource` protocols. Keep those names and pass their result under walking `source`.
 
 <!-- standalone -->
