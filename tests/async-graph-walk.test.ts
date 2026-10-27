@@ -162,7 +162,7 @@ it('registration and configure changes snapshot async callbacks and detach liste
   expect(walk.setVisitorsFor(Phase.VERTEX, [])).toBe(walk);
   expect(
     walk.addVisitorGroupFor(Phase.VERTEX, {
-      commandCommitMode: 'afterGroup',
+      commandCommitMode: 'afterGroup' as const,
       visitors: [
         async () => {
           calls.push('group:first');

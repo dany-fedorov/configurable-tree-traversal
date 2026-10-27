@@ -10,7 +10,7 @@ for (const name of [
   'AsyncDagTraversal',
   'DepthFirstTreeTraversal',
   'DagTraversalStallError',
-  'DEFER_READY',
+  'TraversalVisitorCommandName',
   'core',
   'dagTraversal',
   'rewriteObject',
@@ -43,7 +43,10 @@ for (const api of [cjs, esm]) {
     },
   });
   const tree = {
-    resolveRoot: () => ({ vertexContent: { $data: 'root', $childHints: [] } }),
+    resolveRoot: () => ({
+      kind: 'found',
+      vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+    }),
     resolveChild: () => ({ kind: 'omitted' }),
   };
   // Both helpers reject presence before any source/rewrite/conversion callback.
@@ -352,8 +355,11 @@ for (const api of [cjs, esm]) {
       const own = new TreeTraversal({
         traversableGraph: {
           resolveRoot: () => ({
-            vertexId: instance.vertexId,
-            vertexContent: instance.vertexContent,
+            kind: 'found',
+            vertex: {
+              vertexId: instance.vertexId,
+              vertexContent: instance.vertexContent,
+            },
           }),
           resolveChild: () => found('unused'),
         },
@@ -365,10 +371,13 @@ for (const api of [cjs, esm]) {
       const failedGetter = new TreeTraversal({
         traversableGraph: {
           resolveRoot: () => ({
-            get vertexId() {
-              throw error;
+            kind: 'found',
+            vertex: {
+              get vertexId() {
+                throw error;
+              },
+              vertexContent: { $data: '', $childHints: [] },
             },
-            vertexContent: { $data: '', $childHints: [] },
           }),
           resolveChild: () => found('unused'),
         },

@@ -76,21 +76,36 @@ function createInspection(
     traversableGraph: {
       resolveRoot: () => {
         counters.root++;
-        return { vertexContent: { $d: 'catalog', $c: fixture.ids } };
+        return {
+          kind: 'found',
+          vertex: {
+            vertexContent: { $data: 'catalog', $childHints: fixture.ids },
+          },
+        };
       },
       resolveChild: (id) => {
         counters.vertex++;
         return {
-          vertexId: id,
-          dependsOnWork: fixture.prerequisites[indexes.get(id)],
-          vertexContent: { $d: id, $c: [] },
+          kind: 'found',
+          vertex: {
+            vertexId: id,
+            dependsOnWork: fixture.prerequisites[indexes.get(id)],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         };
       },
     },
   });
   traversal.addVisitorFor(library.DagVisitorPhase.ON_WORK_READY, () => {
     if (counters.ready++ === 0) onFirstReady();
-    return library.DEFER_READY;
+    return {
+      commands: [
+        {
+          commandName:
+            library.TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+        },
+      ],
+    };
   });
   return { runner: traversal.createRunner(), counters };
 }

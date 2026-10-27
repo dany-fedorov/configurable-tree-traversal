@@ -33,11 +33,11 @@ test('caller option arrays are copied for each effective configuration', () => {
   const enable = [DepthOrder.PRE_ORDER];
   const disable = [DepthOrder.POST_ORDER];
   const options = depthConfig({
-    enableVisitorFunctionsFor: enable,
-    disableVisitorFunctionsFor: disable,
+    visitorPhases: { include: enable },
   });
   enable.length = 0;
+  const excluded = depthConfig({ visitorPhases: { exclude: disable } });
   disable.length = 0;
   expect(options.enableVisitorFunctionsFor).toEqual([DepthOrder.PRE_ORDER]);
-  expect(options.disableVisitorFunctionsFor).toEqual([DepthOrder.POST_ORDER]);
+  expect(excluded.disableVisitorFunctionsFor).toEqual([DepthOrder.POST_ORDER]);
 });

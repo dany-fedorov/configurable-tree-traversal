@@ -6,7 +6,6 @@ import type {
   DagVertexResolution,
   TreeVertexResolution,
 } from '@core/TraversableTree';
-import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult, TreeSource } from '@core/TraversableTree';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
@@ -112,7 +111,8 @@ export function bindGraphSource<
     throw new TypeError('Graph source binding requires a graph-mode container');
   }
   const bound: BoundSource<T, R> = {
-    resolveRoot: () => mapSourceResult(adapter.resolveRoot(), normalizeVertexResult),
+    resolveRoot: () =>
+      mapSourceResult(adapter.resolveRoot(), normalizeVertexResult),
     resolveChild: (context) =>
       mapSourceResult(
         adapter.resolveChild(asInputHint<T, R>(context.vertexHint), {
@@ -140,7 +140,7 @@ export function bindGraphSource<
 
 export type BoundVisit<T extends VertexTypes, R extends VertexTypes = T> = (
   call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>,
-) => MaybePromise<VisitResult<R> | typeof DEFER_READY>;
+) => MaybePromise<VisitResult<R>>;
 
 export function createCallbackBindings<
   T extends VertexTypes,

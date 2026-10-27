@@ -54,13 +54,13 @@ export function* executeVisitors<
       ({
         addedIndex,
         priority,
-        resolutionStyle,
+
         commandCommitMode,
         visitorGroup,
       }) => ({
         addedIndex,
         priority,
-        resolutionStyle,
+
         commandCommitMode,
         visitorGroup,
       }),
@@ -78,8 +78,7 @@ export function* executeVisitors<
     switch (action.kind) {
       case 'VISIT': {
         const record = records[action.recordIndex]!;
-        state.visitorIndex =
-          action.metadata.visitorIndex;
+        state.visitorIndex = action.metadata.visitorIndex;
         const result = record.visitor(
           action.ref.getValue(),
           input.getOptions(record, action.metadata.visitorChainState),

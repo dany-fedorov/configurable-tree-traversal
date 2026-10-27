@@ -1,3 +1,4 @@
+import { TraversalVisitorCommandName as VisitorCommand } from 'configurable-tree-traversal';
 import {
   materializeDagSourceFromRecords,
   materializeDagSourceFromRoots,
@@ -12,7 +13,6 @@ import {
   DagTraversal,
   AsyncDagTraversal,
   DagVisitorPhase,
-  DEFER_READY,
 } from 'configurable-tree-traversal';
 import type {
   MaterializedDagSource,
@@ -151,13 +151,19 @@ traversal.addVisitorFor(
     // @ts-expect-error A type guard narrows data, not the heterogeneous graph.
     const invalid: Task = options.vertexRef.getValue().getData();
     void [narrowed, context, invalid];
-    return DEFER_READY;
+    return {
+      commands: [
+        { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+      ],
+    };
   }),
 );
 traversal.addVisitorFor(
   DagVisitorPhase.ON_SUBGRAPH_READY,
-  // @ts-expect-error Completion phase cannot defer work through a filter.
-  filterDagDataVisitor(isTask, () => DEFER_READY),
+  filterDagDataVisitor(isTask, () => ({
+    // @ts-expect-error Completion phase cannot defer work through a filter.
+    commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+  })),
 );
 for (const event of traversal.createRunner().iterateEvents()) inspect(event);
 
@@ -166,9 +172,10 @@ async function checkAsync() {
     await asyncSource,
   );
   if (result.kind !== 'valid') return;
-  const session: AsyncDagWorkSession<ID> = await result.dag.createAsyncWorkSession({
-    concurrency: 2,
-  });
+  const session: AsyncDagWorkSession<ID> =
+    await result.dag.createAsyncWorkSession({
+      concurrency: 2,
+    });
   const coordinator: AsyncDagWorkSession<ID> = createAsyncDagWorkSession(
     await result.dag.createAsyncRunner({
       workCompletion: 'externalSettlement',
@@ -181,8 +188,12 @@ async function checkAsync() {
     DagVisitorPhase.ON_WORK_READY,
     filterAsyncDagDataVisitor(isTask, async (data, options) => {
       const task: Task = data;
-      const context: DagVisitorContext<T, T, DagVisitorPhase.ON_WORK_READY, ID> =
-        options;
+      const context: DagVisitorContext<
+        T,
+        T,
+        DagVisitorPhase.ON_WORK_READY,
+        ID
+      > = options;
       void [task, context];
     }),
   );
@@ -190,8 +201,11 @@ async function checkAsync() {
     inspect(event);
 }
 
-// @ts-expect-error Graph selectors accept IDs as structural children.
-materializeDagSourceFromRecords(items, { id: (item) => item.id, children: () => items });
+materializeDagSourceFromRecords(items, {
+  // @ts-expect-error Graph selectors accept IDs as structural children.
+  id: (item) => item.id,
+  children: () => items,
+});
 // @ts-expect-error Preparation cannot accept completed execution facts.
 prepareDag({ ...source, completedWork: new Set<ID>() });
 void [cjsIdentity, factoryIdentity, explicitIdentity, forest, checkAsync];

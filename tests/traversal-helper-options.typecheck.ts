@@ -99,7 +99,10 @@ const dag: DagTraversalRunner<T, T> = traverseDag({
 });
 const adag: Promise<AsyncDagTraversalRunner<T, T>> = traverseDagAsync({
   traversableTree: tree,
-  visitors: { [D.ON_WORK_READY]: asyncDagCommon, [D.ON_SUBGRAPH_READY]: asyncDagCommon },
+  visitors: {
+    [D.ON_WORK_READY]: asyncDagCommon,
+    [D.ON_SUBGRAPH_READY]: asyncDagCommon,
+  },
 });
 traverseTreeDepthFirst({
   traversableTree: tree,
@@ -212,7 +215,9 @@ traverseDag<T>({
   traversableGraph: graph,
   visitors: {
     // @ts-expect-error ON_SUBGRAPH_READY cannot defer.
-    [D.ON_SUBGRAPH_READY]: () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
+    [D.ON_SUBGRAPH_READY]: () => ({
+      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+    }),
   },
 });
 traverseDagAsync<T>({
@@ -228,7 +233,9 @@ traverseTreeBreadthFirst<T>({
   traversableTree: tree,
   visitors: {
     // @ts-expect-error BFS cannot defer work.
-    [B.LEVEL_ORDER]: () => ({ commands: [{ commandName: C.DEFER_WORK_COMPLETION }] }),
+    [B.LEVEL_ORDER]: () => ({
+      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+    }),
   },
 });
 traverseTreeBreadthFirstAsync<T>({
@@ -243,7 +250,7 @@ traverseTreeBreadthFirstAsync<T>({
 traverseDag<T>({
   traversableGraph: graph,
   visitors: {
-    [D.ON_WORK_READY]: [{ visitor: dagCommon, priority: 1, addedIndex: 0 }],
+    [D.ON_WORK_READY]: [{ visitor: dagCommon, priority: 1 }],
   },
 });
 void [dfs, adfs, bfs, abfs, dag, adag];
@@ -252,10 +259,14 @@ void [dfs, adfs, bfs, abfs, dag, adag];
 // wrappers with one shared signature when choosing between sync and async.
 declare const chooseAsync: boolean;
 const selectedDfs = chooseAsync
-  ? (source: TreeSource<T>) => traverseTreeDepthFirstAsync(source, null)
-  : (source: TreeSource<T>) => traverseTreeDepthFirst(source, null);
+  ? (source: TreeSource<T>) =>
+      traverseTreeDepthFirstAsync({ traversableTree: source })
+  : (source: TreeSource<T>) =>
+      traverseTreeDepthFirst({ traversableTree: source });
 const selectedBfs = chooseAsync
-  ? (source: TreeSource<T>) => traverseTreeBreadthFirstAsync(source, null)
-  : (source: TreeSource<T>) => traverseTreeBreadthFirst(source, null);
+  ? (source: TreeSource<T>) =>
+      traverseTreeBreadthFirstAsync({ traversableTree: source })
+  : (source: TreeSource<T>) =>
+      traverseTreeBreadthFirst({ traversableTree: source });
 selectedDfs(tree);
 selectedBfs(tree);

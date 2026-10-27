@@ -18,8 +18,8 @@ function makeRef(
 ): MutableRef<Vertex<TestTTP>> {
   return new MutableRef(
     new Vertex<TestTTP>({
-      $d: { label },
-      $c: children,
+      $data: { label },
+      $childHints: children,
     }),
   );
 }
@@ -57,12 +57,12 @@ function setResolved(
 describe('Vertex', () => {
   test('clone preserves explicitly rewritten null and undefined data', () => {
     const vertex = new Vertex<NullableDataTTP>({
-      $d: 'before',
-      $c: [],
+      $data: 'before',
+      $childHints: [],
     });
 
-    expect(vertex.clone({ $d: null }).getData()).toBeNull();
-    expect(vertex.clone({ $d: undefined }).getData()).toBeUndefined();
+    expect(vertex.clone({ $data: null }).getData()).toBeNull();
+    expect(vertex.clone({ $data: undefined }).getData()).toBeUndefined();
     expect(vertex.clone().getData()).toBe('before');
   });
 });
@@ -160,7 +160,7 @@ describe('ResolvedTreeStore', () => {
     expect(tree.getRoot()).toBeNull();
     expect(tree.has(rootRef)).toBe(false);
     expect(tree.has(childRef)).toBe(false);
-    expect(tree.resolveRoot().vertexContent).toBeNull();
+    expect(tree.resolveRoot()).toEqual({ kind: 'omitted' });
   });
 
   test('deleting a wide root subtree does not exceed argument limits', () => {

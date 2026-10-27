@@ -6,17 +6,23 @@ import {
 import type { InOrderOptions as InOrderConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import { traversalInternals } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: Node[] };
+type Node = { $data: string; $childHints: Node[] };
 type Tree = VertexTypes<string, Node>;
 const root: Node = {
-  $d: 'root',
-  $c: ['a', 'b', 'c'].map(($d) => ({ $d, $c: [] })),
+  $data: 'root',
+  $childHints: ['a', 'b', 'c'].map(($data) => ({ $data, $childHints: [] })),
 };
 const create = (inOrder: Partial<InOrderConfig> = {}) =>
   new DepthFirstTreeTraversal<Tree>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: root }),
-      resolveChild: (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: root },
+      }),
+      resolveChild: (hint) => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: hint },
+      }),
     },
     inOrder,
   });

@@ -467,13 +467,13 @@ export class InternalDagTraversalRunner<
       ({
         addedIndex,
         priority,
-        resolutionStyle,
+
         commandCommitMode,
         visitorGroup,
       }) => ({
         addedIndex,
         priority,
-        resolutionStyle,
+
         commandCommitMode,
         visitorGroup,
       }),

@@ -53,14 +53,11 @@ export type PrerequisiteMissing = { kind: 'missing' };
 
 export type DagVertexResolution<T extends VertexTypes, ID = unknown> =
   | DagVertexFound<T, ID>
-  | DagVertexOmitted<ID>
-  /** @deprecated Return a tagged found or omitted result. */
-  | MakeVertexResult<T, ID>;
+  | DagVertexOmitted<ID>;
 
 export type DagPrerequisiteResolution<T extends VertexTypes, ID = unknown> =
   | DagVertexResolution<T, ID>
-  | PrerequisiteMissing
-  | undefined;
+  | PrerequisiteMissing;
 
 /** Graph identity and prerequisites are unsupported by tree sources. */
 type TreeMetadataRestrictions = {
@@ -69,10 +66,6 @@ type TreeMetadataRestrictions = {
   dependsOnSubgraphCompletion?: never;
   satisfiesDependencies?: never;
 };
-
-/** @deprecated Return a tagged tree found or omitted result. */
-export type MakeTreeVertexResult<T extends VertexTypes> =
-  TreeMetadataRestrictions & { vertexContent: VertexContentInput<T> | null };
 
 export type TreeVertexFound<T extends VertexTypes> =
   TreeMetadataRestrictions & {
@@ -86,8 +79,7 @@ export type TreeVertexOmitted = TreeMetadataRestrictions & {
 
 export type TreeVertexResolution<T extends VertexTypes> =
   | TreeVertexFound<T>
-  | TreeVertexOmitted
-  | MakeTreeVertexResult<T>;
+  | TreeVertexOmitted;
 
 export type TreeSource<
   TTP extends VertexTypes,

@@ -17,10 +17,16 @@ const deferReady = () => ({
 });
 const rootOnly = {
   resolveRoot: () => ({
-    vertexId: 'root',
-    vertexContent: { $data: 'root', $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'root',
+      vertexContent: { $data: 'root', $childHints: [] },
+    },
   }),
-  resolveChild: () => ({ vertexContent: null }),
+  resolveChild: () => ({
+    kind: 'omitted' as const,
+    satisfiesDependencies: true as const,
+  }),
 };
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
@@ -30,18 +36,24 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       traversableGraph: {
         resolveRoot: () => ({
-          vertexContent: {
-            $data: '',
-            $childHints: ['parent', 'work', 'complete'],
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: {
+              $data: '',
+              $childHints: ['parent', 'work', 'complete'],
+            },
           },
         }),
         resolveChild: (id) => ({
-          vertexId: id,
-          dependsOnWork: id === 'work' ? ['parent'] : [],
-          dependsOnSubgraphCompletion: id === 'complete' ? ['parent'] : [],
-          vertexContent: {
-            $data: id,
-            $childHints: id === 'parent' ? ['child'] : [],
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnWork: id === 'work' ? ['parent'] : [],
+            dependsOnSubgraphCompletion: id === 'complete' ? ['parent'] : [],
+            vertexContent: {
+              $data: id,
+              $childHints: id === 'parent' ? ['child'] : [],
+            },
           },
         }),
       },
@@ -53,7 +65,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(runner.settle('parent', { kind: 'workCompleted' }, generation)).toBe(
       true,
     );
-    expect(runner.settle('parent', { ok: true }, generation)).toBe(false);
+    expect(runner.settle('parent', { kind: 'workCompleted' }, generation)).toBe(
+      false,
+    );
     expect(runner.settle('parent', { kind: 'workCompleted' }, generation)).toBe(
       false,
     );
@@ -85,9 +99,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       expect(
         runner.settle('root', { kind: 'traversalFailed', error }, generation),
       ).toBe(true);
-      expect(runner.settle('root', { ok: false, error }, generation)).toBe(
-        false,
-      );
+      expect(
+        runner.settle('root', { kind: 'traversalFailed', error }, generation),
+      ).toBe(false);
       expect(
         runner.settle('root', { kind: 'traversalFailed', error }, generation),
       ).toBe(false);
@@ -103,7 +117,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ).toThrow(/Conflicting/);
       if (typeof error === 'number' && error === 0) {
         expect(() =>
-          runner.settle('root', { ok: false, error: -error }, generation),
+          runner.settle(
+            'root',
+            { kind: 'traversalFailed', error: -error },
+            generation,
+          ),
         ).toThrow(/Conflicting/);
       }
       expect(runner.getStatus()).toBe(Status.FAILED);
@@ -116,7 +134,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   );
 
   test.each([true, false])(
-    `${Constructor.name} canonical replay matches legacy feedback %p`,
+    `${Constructor.name} tagged replay retains completion and exact failure equality %p`,
     async (ok) => {
       const traversal = new Constructor<G>({ traversableGraph: rootOnly });
       traversal.addVisitorFor(Order.ON_WORK_READY, deferReady);
@@ -126,7 +144,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const error = {};
       runner.settle(
         'root',
-        ok ? { ok: true } : { ok: false, error },
+        ok ? { kind: 'workCompleted' } : { kind: 'traversalFailed', error },
         generation,
       );
       expect(
@@ -187,7 +205,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversal = new Constructor<G>({
       traversableGraph: {
         ...rootOnly,
-        resolveRoot: () => ({ ...rootOnly.resolveRoot(), vertexId: id }),
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: { ...rootOnly.resolveRoot().vertex, vertexId: id },
+        }),
       },
     });
     traversal.addVisitorFor(Order.ON_WORK_READY, deferReady);
@@ -219,12 +240,18 @@ test('canonical async settlement wakes W consumers while physical callbacks reta
     syntheticRoot: true,
     traversableGraph: {
       resolveRoot: () => ({
-        vertexContent: { $data: '', $childHints: ['a', 'b', 'c'] },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: '', $childHints: ['a', 'b', 'c'] },
+        },
       }),
       resolveChild: (id) => ({
-        vertexId: id,
-        dependsOnWork: id === 'c' ? ['a'] : [],
-        vertexContent: { $data: id, $childHints: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: id,
+          dependsOnWork: id === 'c' ? ['a'] : [],
+          vertexContent: { $data: id, $childHints: [] },
+        },
       }),
     },
   });

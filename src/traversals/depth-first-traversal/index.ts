@@ -14,6 +14,4 @@ export type {
 export { DepthFirstPhase } from './lib/DepthFirstTraversalOrder';
 export type { DepthFirstTreeRunner } from './lib/DepthFirstTraversalRunner';
 export { traverseTreeDepthFirst } from './traverseDepthFirst';
-export type { DepthFirstTraversalVisitorsSimple } from './traverseDepthFirst';
 export { traverseTreeDepthFirstAsync } from './traverseDepthFirstAsync';
-export type { AsyncDepthFirstTraversalVisitorsSimple } from './traverseDepthFirstAsync';

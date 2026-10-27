@@ -10,13 +10,19 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'a',
-          vertexContent: { $data: 'a', $childHints: ['b'] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'a',
+            vertexContent: { $data: 'a', $childHints: ['b'] },
+          },
         }),
         resolveChild: (id) => ({
-          vertexId: id,
-          dependsOnWork: ['a'],
-          vertexContent: { $data: id, $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnWork: ['a'],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         }),
       },
       workCompletion: 'externalSettlement',
@@ -90,14 +96,20 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         syntheticRoot: true,
         traversableGraph: {
           resolveRoot: () => ({
-            vertexContent: {
-              $data: 'hidden',
-              $childHints: ['0', '1', '2', '3'],
+            kind: 'found' as const,
+            vertex: {
+              vertexContent: {
+                $data: 'hidden',
+                $childHints: ['0', '1', '2', '3'],
+              },
             },
           }),
           resolveChild: (index) => ({
-            vertexId: ids[Number(index)],
-            vertexContent: { $data: index, $childHints: [] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: ids[Number(index)],
+              vertexContent: { $data: index, $childHints: [] },
+            },
           }),
         },
         workCompletion: 'externalSettlement',
@@ -141,10 +153,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'a',
-          vertexContent: { $data: 'a', $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'a',
+            vertexContent: { $data: 'a', $childHints: [] },
+          },
         }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveChild: () => ({
+          kind: 'omitted' as const,
+          satisfiesDependencies: true as const,
+        }),
       },
       workCompletion: 'externalSettlement',
     }).createRunner();
@@ -162,7 +180,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(runner.summary().activeVisitorVertexIds).toEqual([]);
     expect(runner.summary().completedWorkIds).toEqual([]);
     expect(runner.summary().vertices.get('a')).toMatchObject({
-      vertexId: 'a', work: 'deferred', subgraphComplete: false,
+      vertexId: 'a',
+      work: 'deferred',
+      subgraphComplete: false,
     });
     await expect(async () => runner.prepare()).rejects.toBe(null);
   });
@@ -182,12 +202,18 @@ test('async frontier excludes running and queued work until chains defer', async
     discovery: 'eager',
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'a',
-        vertexContent: { $data: 'a', $childHints: ['b'] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'a',
+          vertexContent: { $data: 'a', $childHints: ['b'] },
+        },
       }),
       resolveChild: () => ({
-        vertexId: 'b',
-        vertexContent: { $data: 'b', $childHints: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'b',
+          vertexContent: { $data: 'b', $childHints: [] },
+        },
       }),
     },
     workCompletion: 'externalSettlement',
@@ -214,15 +240,21 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'root',
-          vertexContent: {
-            $data: 'root',
-            $childHints: ['deleted', 'deferred'],
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            vertexContent: {
+              $data: 'root',
+              $childHints: ['deleted', 'deferred'],
+            },
           },
         }),
         resolveChild: (id) => ({
-          vertexId: id,
-          vertexContent: { $data: id, $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            vertexContent: { $data: id, $childHints: [] },
+          },
         }),
       },
     })

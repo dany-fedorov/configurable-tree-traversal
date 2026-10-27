@@ -9,8 +9,8 @@ const entries = [root, cjs, walking, cjsWalking, root.graphWalk, cjs.graphWalk];
 const Phase = root.GraphWalkPhase;
 const Command = root.TraversalVisitorCommandName;
 assert.equal(Command, cjs.TraversalVisitorCommandName);
-assert.equal(typeof root.DEFER_READY, 'symbol');
-assert.equal(root.DEFER_READY, cjs.DEFER_READY);
+assert.equal('DEFER_READY' in root, false);
+assert.equal(root.TraversalVisitorCommandName, cjs.TraversalVisitorCommandName);
 assert.equal(root.graphWalk, cjs.graphWalk);
 for (const entry of entries) {
   for (const name of [

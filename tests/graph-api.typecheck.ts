@@ -25,9 +25,12 @@ type Output = VertexTypes<{ output: number }, number>;
 
 const graph: DagDiscoverySource<Input, Output> = {
   resolveRoot: () => ({
-    vertexContent: { $d: { input: 'root' }, $c: ['child'] },
-    vertexId: undefined,
-    dependsOnWork: [null, NaN],
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: { input: 'root' }, $childHints: ['child'] },
+      vertexId: { kind: 'missing' },
+      dependsOnWork: [null, NaN],
+    },
   }),
   resolveChild: (hint, options) => {
     const resolved: ResolvedGraph<Input | Output> = options.resolvedGraph;
@@ -35,17 +38,24 @@ const graph: DagDiscoverySource<Input, Output> = {
     void [resolved, input, options.originalGraphView];
     // @ts-expect-error Graph callbacks do not receive the tree facade.
     options.resolvedTree;
-    return { vertexContent: null, vertexId: hint };
+    return {
+      kind: 'omitted' as const,
+      satisfiesDependencies: true as const,
+      vertexId: hint,
+    };
   },
   getVertexIdFromHint: (hint): HintVertexId => ({ vertexId: hint }),
   resolvePrerequisite: (id) =>
     typeof id === 'string'
       ? {
-          vertexId: id,
-          dependsOnSubgraphCompletion: [null],
-          vertexContent: { $d: { input: id }, $c: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnSubgraphCompletion: [null],
+            vertexContent: { $data: { input: id }, $childHints: [] },
+          },
         }
-      : undefined,
+      : { kind: 'missing' },
 };
 
 const asyncGraph: AsyncDagDiscoverySource<Input, Output> = {
@@ -53,8 +63,11 @@ const asyncGraph: AsyncDagDiscoverySource<Input, Output> = {
   resolvePrerequisite: (id) => Promise.resolve(graph.resolvePrerequisite!(id)),
 };
 const tree: TreeSource<Input, Output> = {
-  resolveRoot: () => ({ vertexContent: { $d: { input: 'root' }, $c: [] } }),
-  resolveChild: () => ({ vertexContent: null }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: { input: 'root' }, $childHints: [] } },
+  }),
+  resolveChild: () => ({ kind: 'omitted' as const }),
 };
 const asyncTree: AsyncTreeSource<Input, Output> = tree;
 
@@ -82,8 +95,7 @@ const dagVisitor: DagVisitor<Input, Output, DagVisitorPhase.ON_WORK_READY> = (
   return {
     commands: [
       {
-        commandName:
-          TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+        commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
         commandArguments: { newHints: [1, 2] },
       },
     ],
@@ -109,11 +121,7 @@ const invalidRewriteVisitor: DagVisitor<Input, Output> = () => ({
   ],
 });
 
-declare const asyncOptions: TreeVisitorContext<
-  'ORDER',
-  Input,
-  Output
->;
+declare const asyncOptions: TreeVisitorContext<'ORDER', Input, Output>;
 const asyncVisitorMetadata: import('../src').VisitorRegistrationMetadata =
   asyncOptions.registration;
 
@@ -167,7 +175,7 @@ new AsyncDagTraversal<Input, Output>({
 });
 
 const ref = new MutableRef(
-  new Vertex<Input>({ $d: { input: 'vertex' }, $c: [] }),
+  new Vertex<Input>({ $data: { input: 'vertex' }, $childHints: [] }),
 );
 void [
   asyncGraph,

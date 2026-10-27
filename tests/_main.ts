@@ -198,7 +198,7 @@
 //         console.log(
 //           // options.vertexRef,
 //           // '------------------------------\n',
-//           // options.vertexRef.getId(),
+//           // options.vertexRef.getRefId(),
 //           p.map((ps) => ps.getValue().getData().key),
 //           typeof vertex.getData().value === 'object'
 //             ? 'OBJECT'
@@ -206,7 +206,7 @@
 //           // '\n<---------\n',
 //           // options.previousPhaseVertexRef === null
 //           //   ? 'NONE'
-//           //   : options.previousPhaseVertexRef.getId(),
+//           //   : options.previousPhaseVertexRef.getRefId(),
 //           // options.previousPhaseVertexRef === null
 //           //   ? 'NONE'
 //           //   : options.resolvedTree

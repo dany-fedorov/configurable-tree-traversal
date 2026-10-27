@@ -46,8 +46,6 @@ export class GraphStore<T extends VertexTypes>
       getVertexRefs: () => Array.from(this.entries.keys()),
       getVertexRefById,
       getVertexId,
-      getVertexById: getVertexRefById,
-      getIdOf: getVertexId,
       getStatusOf: (ref: VertexRef<T>) => this.entries.get(ref)?.status ?? null,
       getParentsOf: (ref: VertexRef<T>) => this.getParents(ref),
       getChildrenOf: (ref: VertexRef<T>) => this.getChildren(ref),
@@ -114,7 +112,8 @@ export class GraphStore<T extends VertexTypes>
       ref: input.ref,
       id: input.id,
       dependsOnWork: input.dependsOnWork.slice(),
-      dependsOnSubgraphCompletion: input.dependsOnSubgraphCompletion?.slice() ?? [],
+      dependsOnSubgraphCompletion:
+        input.dependsOnSubgraphCompletion?.slice() ?? [],
       depth: input.depth,
       status: 'DISCOVERED',
       incoming: [],

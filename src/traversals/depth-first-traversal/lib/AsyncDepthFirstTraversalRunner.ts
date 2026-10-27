@@ -140,13 +140,13 @@ export class InternalAsyncDepthFirstTreeRunner<
             ({
               addedIndex,
               priority,
-              resolutionStyle,
+
               commandCommitMode,
               visitorGroup,
             }) => ({
               addedIndex,
               priority,
-              resolutionStyle,
+
               commandCommitMode,
               visitorGroup,
             }),

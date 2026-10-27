@@ -51,16 +51,18 @@ const dag = new DagTraversal<T>({
 dag.addVisitorFor(D.ON_WORK_READY, commonDag);
 dag.configure({ visitors: { [D.ON_WORK_READY]: [record(commonDag)] } });
 dag.setVisitorsFor(D.ON_WORK_READY, [record(commonDag)]);
-traverseDag(graph, { onReadyVisitor: commonDag });
+traverseDag({ ...graph, visitors: { ON_WORK_READY: commonDag } });
 
 const asyncDag = new AsyncDagTraversal<T>({
   ...graph,
   visitors: { [D.ON_WORK_READY]: [record(asyncCommonDag)] },
 });
 asyncDag.addVisitorFor(D.ON_WORK_READY, asyncCommonDag);
-asyncDag.configure({ visitors: { [D.ON_WORK_READY]: [record(asyncCommonDag)] } });
+asyncDag.configure({
+  visitors: { [D.ON_WORK_READY]: [record(asyncCommonDag)] },
+});
 asyncDag.setVisitorsFor(D.ON_WORK_READY, [record(asyncCommonDag)]);
-traverseDagAsync(graph, { onReadyVisitor: asyncCommonDag });
+traverseDagAsync({ ...graph, visitors: { ON_WORK_READY: asyncCommonDag } });
 
 const dfs = new DepthFirstTreeTraversal<T>({
   ...tree,
@@ -69,7 +71,10 @@ const dfs = new DepthFirstTreeTraversal<T>({
 dfs.addVisitorFor(F.PRE_ORDER, commonTree);
 dfs.configure({ visitors: { [F.PRE_ORDER]: [record(commonTree)] } });
 dfs.setVisitorsFor(F.PRE_ORDER, [record(commonTree)]);
-traverseTreeDepthFirst(tree.traversableTree, { preOrderVisitor: commonTree });
+traverseTreeDepthFirst({
+  traversableTree: tree.traversableTree,
+  visitors: { PRE_ORDER: commonTree },
+});
 
 const asyncDfs = new AsyncDepthFirstTreeTraversal<T>({
   ...tree,
@@ -78,8 +83,9 @@ const asyncDfs = new AsyncDepthFirstTreeTraversal<T>({
 asyncDfs.addVisitorFor(F.PRE_ORDER, asyncCommonTree);
 asyncDfs.configure({ visitors: { [F.PRE_ORDER]: [record(asyncCommonTree)] } });
 asyncDfs.setVisitorsFor(F.PRE_ORDER, [record(asyncCommonTree)]);
-traverseTreeDepthFirstAsync(tree.traversableTree, {
-  preOrderVisitor: asyncCommonTree,
+traverseTreeDepthFirstAsync({
+  traversableTree: tree.traversableTree,
+  visitors: { PRE_ORDER: asyncCommonTree },
 });
 
 const bfs = new BreadthFirstTreeTraversal<T>({
@@ -89,7 +95,10 @@ const bfs = new BreadthFirstTreeTraversal<T>({
 bfs.addVisitorFor(B.LEVEL_ORDER, commonTree);
 bfs.configure({ visitors: { [B.LEVEL_ORDER]: [record(commonTree)] } });
 bfs.setVisitorsFor(B.LEVEL_ORDER, [record(commonTree)]);
-traverseTreeBreadthFirst(tree.traversableTree, commonTree);
+traverseTreeBreadthFirst({
+  traversableTree: tree.traversableTree,
+  visitors: { LEVEL_ORDER: commonTree },
+});
 
 const asyncBfs = new AsyncBreadthFirstTreeTraversal<T>({
   ...tree,
@@ -100,7 +109,10 @@ asyncBfs.configure({
   visitors: { [B.LEVEL_ORDER]: [record(asyncCommonTree)] },
 });
 asyncBfs.setVisitorsFor(B.LEVEL_ORDER, [record(asyncCommonTree)]);
-traverseTreeBreadthFirstAsync(tree.traversableTree, asyncCommonTree);
+traverseTreeBreadthFirstAsync({
+  traversableTree: tree.traversableTree,
+  visitors: { LEVEL_ORDER: asyncCommonTree },
+});
 
 // Callback contexts expose readonly registration metadata, not a callable entry.
 const inspectTree: TraversalVisitor<string, T, T> = (_vertex, options) => {
@@ -110,7 +122,7 @@ const inspectTree: TraversalVisitor<string, T, T> = (_vertex, options) => {
     metadata.addedIndex,
     metadata.priority,
     metadata.commandCommitMode,
-    metadata.resolutionStyle,
+    metadata.commandCommitMode,
   ];
   // @ts-expect-error Context metadata is not an executable visitor record.
   options.registration.visitor;
@@ -133,9 +145,16 @@ const inspectAsyncDag: AsyncDagVisitor<T> = async (_vertex, options) => {
   options.registration.visitor;
 };
 // Complete records remain available to the host, with phase-specific callbacks.
-const listed: DagVisitor<T, T, D.ON_WORK_READY> = dag.listVisitorsFor(D.ON_WORK_READY)[0]!
-  .visitor;
-void [inspectTree, inspectAsyncTree, inspectDagVisitor, inspectAsyncDag, listed];
+const listed: DagVisitor<T, T, D.ON_WORK_READY> = dag.listVisitorsFor(
+  D.ON_WORK_READY,
+)[0]!.visitor;
+void [
+  inspectTree,
+  inspectAsyncTree,
+  inspectDagVisitor,
+  inspectAsyncDag,
+  listed,
+];
 
 // Reading with a union key preserves the union of executable phase records.
 // Each concrete family is checked separately so sync/async incompatibility
@@ -148,14 +167,23 @@ dag.setVisitorsFor(D.ON_SUBGRAPH_READY, dagRecords);
 // @ts-expect-error The producer may contain callbacks requiring an initial phase.
 dag.configure({ visitors: { [D.ON_SUBGRAPH_READY]: dagRecords } });
 dag.setVisitorsFor(D.ON_WORK_READY, dag.listVisitorsFor(D.ON_WORK_READY));
-dag.setVisitorsFor(D.ON_SUBGRAPH_READY, dag.listVisitorsFor(D.ON_SUBGRAPH_READY));
+dag.setVisitorsFor(
+  D.ON_SUBGRAPH_READY,
+  dag.listVisitorsFor(D.ON_SUBGRAPH_READY),
+);
 const asyncDagRecords = asyncDag.listVisitorsFor(dagPhase);
 // @ts-expect-error The producer may contain callbacks requiring an initial phase.
 asyncDag.setVisitorsFor(D.ON_SUBGRAPH_READY, asyncDagRecords);
 // @ts-expect-error The producer may contain callbacks requiring an initial phase.
 asyncDag.configure({ visitors: { [D.ON_SUBGRAPH_READY]: asyncDagRecords } });
-asyncDag.setVisitorsFor(D.ON_WORK_READY, asyncDag.listVisitorsFor(D.ON_WORK_READY));
-asyncDag.setVisitorsFor(D.ON_SUBGRAPH_READY, asyncDag.listVisitorsFor(D.ON_SUBGRAPH_READY));
+asyncDag.setVisitorsFor(
+  D.ON_WORK_READY,
+  asyncDag.listVisitorsFor(D.ON_WORK_READY),
+);
+asyncDag.setVisitorsFor(
+  D.ON_SUBGRAPH_READY,
+  asyncDag.listVisitorsFor(D.ON_SUBGRAPH_READY),
+);
 const dfsRecords = dfs.listVisitorsFor(dfsPhase);
 // @ts-expect-error The producer may contain callbacks requiring an initial phase.
 dfs.setVisitorsFor(F.POST_ORDER, dfsRecords);
@@ -184,7 +212,7 @@ bfs.setVisitorsFor(B.LEVEL_ORDER, [commonTreeRecord]);
 // The exported abstract tree contract uses the same consumer/producer rules.
 declare const abstractDfs: import('../src').TreeTraversal<F, T, T>;
 abstractDfs.addVisitorFor(F.PRE_ORDER, commonTree, {
-  commandCommitMode: 'afterGroup',
+  commandCommitMode: 'afterGroup' as const,
 });
 abstractDfs.setVisitorsFor(
   F.PRE_ORDER,

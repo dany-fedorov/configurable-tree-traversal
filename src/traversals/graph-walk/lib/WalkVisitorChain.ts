@@ -37,7 +37,6 @@ export class WalkVisitorChain<
       addedIndex: record.addedIndex,
       priority: record.priority,
       commandCommitMode: record.commandCommitMode,
-      resolutionStyle: record.resolutionStyle,
       visitorGroup: record.visitorGroup,
     };
     return record.visitor(this.event(), {

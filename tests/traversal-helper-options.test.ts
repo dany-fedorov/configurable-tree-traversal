@@ -310,44 +310,26 @@ test('canonical commands reach the traversal runner', async () => {
   ).toBe(TraversalRunnerStatus.HALTED);
 });
 
-test('legacy calls retain arity interpretation, null visitors, and source precedence', async () => {
+test('helpers reject positional calls even when source and options fields overlap', () => {
   const legacy = {
     ...source('argument'),
     traversableTree: source('extra-field'),
     visitors: {},
   };
-  const config = { traversableTree: source('config') };
-  const root = (runner: {
-    getResolvedGraph(): {
-      getRoot(): { getValue(): { getData(): unknown } } | null;
-    };
-  }) => runner.getResolvedGraph().getRoot()?.getValue().getData();
-  expect(root(traverseTreeDepthFirst(legacy, null, config))).toBe('config');
-  expect(root(traverseTreeBreadthFirst(legacy, null, config))).toBe('config');
-  expect(root(await traverseTreeDepthFirstAsync(legacy, null, config))).toBe(
-    'config',
-  );
-  expect(root(await traverseTreeBreadthFirstAsync(legacy, null, config))).toBe(
-    'config',
-  );
-  expect(
-    root(
-      traverseDag(
-        { traversableGraph: source('argument'), visitors: {} } as never,
-        null,
-        { traversableGraph: source('config') } as never,
-      ),
-    ),
-  ).toBe('argument');
-  expect(
-    root(
-      await traverseDagAsync(
-        { traversableGraph: source('argument'), visitors: {} } as never,
-        null,
-        { traversableGraph: source('config') } as never,
-      ),
-    ),
-  ).toBe('argument');
+  for (const helper of [
+    traverseTreeDepthFirst,
+    traverseTreeBreadthFirst,
+    traverseTreeDepthFirstAsync,
+    traverseTreeBreadthFirstAsync,
+    traverseDag,
+    traverseDagAsync,
+  ]) {
+    expect(() =>
+      (helper as unknown as (...args: unknown[]) => unknown)(legacy, null, {
+        traversableTree: source('config'),
+      }),
+    ).toThrow(TypeError);
+  }
 });
 
 test('canonical helpers preserve exact source failures', async () => {

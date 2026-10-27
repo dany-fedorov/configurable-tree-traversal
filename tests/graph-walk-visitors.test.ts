@@ -20,9 +20,9 @@ it('runs mixed callbacks with emissions suppressed and unchanged source discover
       `e:${event.source.vertexId}:${event.edge.outgoingIndex}:${event.target.kind}`,
     );
   });
-  expect([...traversal.createRunner().iterateEvents({ emitEvents: [] })]).toEqual(
-    [],
-  );
+  expect([
+    ...traversal.createRunner().iterateEvents({ emitEvents: [] }),
+  ]).toEqual([]);
   expect(seen).toEqual([
     'v:A',
     'v:E',
@@ -61,7 +61,7 @@ it('halts after its group and resumes only the remaining callbacks', () => {
   const seen: string[] = [];
   const traversal = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
   traversal.addVisitorGroupFor(Phase.VERTEX, {
-    commandCommitMode: 'afterGroup',
+    commandCommitMode: 'afterGroup' as const,
     visitors: [
       () => {
         seen.push('first');
@@ -210,7 +210,10 @@ it('keeps previous configuration after invalid phase/group/merged-bound patches'
           groups: [
             {
               visitors: [
-                { visitor: () => undefined, commandCommitMode: 'afterGroup' },
+                {
+                  visitor: () => undefined,
+                  commandCommitMode: 'afterGroup' as const,
+                },
               ],
             },
           ],
@@ -221,9 +224,9 @@ it('keeps previous configuration after invalid phase/group/merged-bound patches'
     { strategy: 'depthFirst', visitors: { edge: { groups: null } } },
   ])
     expect(() => t.configure(patch as never)).toThrow(TypeError);
-  expect(() => t.addVisitorFor('ON_WORK_READY' as Phase, () => undefined)).toThrow(
-    TypeError,
-  );
+  expect(() =>
+    t.addVisitorFor('ON_WORK_READY' as Phase, () => undefined),
+  ).toThrow(TypeError);
   expect(() =>
     t.addVisitorGroupFor(Phase.VERTEX, { visitors: null } as never),
   ).toThrow(TypeError);
@@ -261,7 +264,7 @@ it('validates the whole command batch before applying HALT', () => {
   const seen: string[] = [];
   const t = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
   t.addVisitorGroupFor(Phase.VERTEX, {
-    commandCommitMode: 'afterGroup',
+    commandCommitMode: 'afterGroup' as const,
     visitors: [
       () => ({ commands: [{ commandName: C.PAUSE_TRAVERSAL }] }),
       () => {
@@ -332,7 +335,7 @@ it('captures buffered command names before a later group callback mutates caller
   const seen: string[] = [];
   const t = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
   t.addVisitorGroupFor(Phase.VERTEX, {
-    commandCommitMode: 'afterGroup',
+    commandCommitMode: 'afterGroup' as const,
     visitors: [
       () => ({ commands: [command] }),
       () => {

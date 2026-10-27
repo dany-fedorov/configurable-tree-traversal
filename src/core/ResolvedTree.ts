@@ -3,7 +3,7 @@ import type { Vertex } from '@core/Vertex';
 import type { MutableRef } from '@core/CTTRef';
 import {
   AbstractTreeSource,
-  MakeTreeVertexResult,
+  TreeVertexResolution,
 } from '@core/TraversableTree';
 import type { ResolvedTreeTypeParameters } from '@core/ResolvedTreeTypeParameters';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
@@ -244,26 +244,32 @@ export class ResolvedTreeStore<
     return straightPath;
   }
 
-  resolveRoot(): MakeTreeVertexResult<ResolvedTreeTypeParameters<TTP>> {
+  resolveRoot(): TreeVertexResolution<ResolvedTreeTypeParameters<TTP>> {
     const root = this.getRoot();
     if (root === null) {
-      return { vertexContent: null };
+      return { kind: 'omitted' };
     }
     return {
-      vertexContent: {
-        $data: root,
-        $childHints: this.getChildrenOf(root) ?? [],
+      kind: 'found',
+      vertex: {
+        vertexContent: {
+          $data: root,
+          $childHints: this.getChildrenOf(root) ?? [],
+        },
       },
     };
   }
 
   resolveChild(
     vertexHint: ResolvedTreeTypeParameters<TTP>['VertexHint'],
-  ): MakeTreeVertexResult<ResolvedTreeTypeParameters<TTP>> {
+  ): TreeVertexResolution<ResolvedTreeTypeParameters<TTP>> {
     return {
-      vertexContent: {
-        $data: vertexHint,
-        $childHints: this.getChildrenOf(vertexHint) ?? [],
+      kind: 'found',
+      vertex: {
+        vertexContent: {
+          $data: vertexHint,
+          $childHints: this.getChildrenOf(vertexHint) ?? [],
+        },
       },
     };
   }

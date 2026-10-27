@@ -6,7 +6,6 @@ import {
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
   TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
   type TraversalVisitorCommand,
   type TraversalVisitorRecord,
 } from '../src/core/TraversalVisitor';
@@ -16,7 +15,9 @@ type Tree = VertexTypes<string, string>;
 type Record = TraversalVisitorRecord<'ORDER', Tree, Tree>;
 
 test('yields for an external halt after the first callback batch', () => {
-  const vertexRef = new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+  const vertexRef = new MutableRef(
+    new Vertex<Tree>({ $data: 'root', $childHints: [] }),
+  );
   const calls: string[] = [];
   let halted = false;
   let firstBatch = true;
@@ -26,7 +27,7 @@ test('yields for an external halt after the first callback batch', () => {
       {
         addedIndex: 0,
         priority: 100,
-        resolutionStyle: Style.SEQUENTIAL,
+        commandCommitMode: 'afterEachVisitor' as const,
         visitor: () => {
           calls.push('sequential');
         },
@@ -56,7 +57,9 @@ test('yields for an external halt after the first callback batch', () => {
 });
 
 test('synchronously drives grouped callbacks while retaining halt metadata', () => {
-  const vertexRef = new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+  const vertexRef = new MutableRef(
+    new Vertex<Tree>({ $data: 'root', $childHints: [] }),
+  );
   const calls: unknown[] = [];
   const commandBatches: TraversalVisitorCommand<Tree>[][] = [];
   let halted = false;
@@ -64,7 +67,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     {
       addedIndex: 0,
       priority: 100,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: (_vertex, options) => {
         calls.push(['sequential', options.visitorChainState]);
       },
@@ -72,7 +75,7 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     {
       addedIndex: 1,
       priority: 100,
-      resolutionStyle: Style.CONCURRENT,
+      commandCommitMode: 'afterGroup' as const,
       visitor: (_vertex, options) => {
         calls.push(['concurrent', options.visitorChainState]);
         return {
@@ -153,14 +156,16 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
   });
 });
 
-test('validates all styles before invoking a compatibility callback', () => {
-  const vertexRef = new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+test('validates all command commit modes before invoking a compatibility callback', () => {
+  const vertexRef = new MutableRef(
+    new Vertex<Tree>({ $data: 'root', $childHints: [] }),
+  );
   const calls: string[] = [];
   const records: Record[] = [
     {
       addedIndex: 0,
       priority: 100,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: () => {
         calls.push('valid');
       },
@@ -168,7 +173,7 @@ test('validates all styles before invoking a compatibility callback', () => {
     {
       addedIndex: 1,
       priority: 100,
-      resolutionStyle: 'ASYNC' as Style,
+      commandCommitMode: 'ASYNC' as import('../src').CommandCommitMode,
       visitor: () => {
         calls.push('invalid');
       },
@@ -188,7 +193,9 @@ test('validates all styles before invoking a compatibility callback', () => {
     isDeleted: () => false,
   });
 
-  expect(() => execution.next()).toThrow(/unknown visitor resolution style/i);
+  expect(() => execution.next()).toThrow(
+    /unknown visitor command commit mode/i,
+  );
   expect(calls).toEqual([]);
 });
 
@@ -197,19 +204,19 @@ test('sortVisitorRecords returns priority and registration order copies', () => 
   const late = {
     addedIndex: 2,
     priority: 100,
-    resolutionStyle: Style.SEQUENTIAL,
+    commandCommitMode: 'afterEachVisitor' as const,
     visitor,
   };
   const high = {
     addedIndex: 1,
     priority: 200,
-    resolutionStyle: Style.SEQUENTIAL,
+    commandCommitMode: 'afterEachVisitor' as const,
     visitor,
   };
   const early = {
     addedIndex: 0,
     priority: 100,
-    resolutionStyle: Style.SEQUENTIAL,
+    commandCommitMode: 'afterEachVisitor' as const,
     visitor,
   };
 

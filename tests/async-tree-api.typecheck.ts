@@ -17,12 +17,15 @@ type Output = VertexTypes<{ output: number }, number>;
 
 const tree: AsyncTreeSource<Input, Output> = {
   resolveRoot: async () => ({
-    vertexContent: { $d: { input: 'root' }, $c: ['child'] },
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: { input: 'root' }, $childHints: ['child'] },
+    },
   }),
   resolveChild: (hint, options) => {
     const input: string = hint;
     void [input, options.resolvedTree, options.originalTreeView];
-    return Promise.resolve({ vertexContent: null });
+    return Promise.resolve({ kind: 'omitted' as const });
   },
 };
 

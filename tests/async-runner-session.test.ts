@@ -7,7 +7,6 @@ import type {
   SessionProgress,
 } from '../src/core/kernelTypes';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import type { TraversalRunnerIterableConfig } from '../src/core/TraversalRunnerIterableConfig';
 import { eventLoopTurn } from './helpers/graph-fixtures';
 
 const inspection: DriverInspection = Object.freeze({
@@ -23,9 +22,6 @@ const inspection: DriverInspection = Object.freeze({
   executionOptions: Object.freeze({
     emitEvents: Object.freeze([]),
     visitorPhases: 'all' as const,
-    iterateOver: Object.freeze<VisitOrder[]>([]),
-    enableVisitorFunctionsFor: null,
-    disableVisitorFunctionsFor: null,
   }),
   readyVisits: Object.freeze([]),
   frames: Object.freeze([]),
@@ -40,7 +36,7 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
   public readonly modes: string[] = [];
   public readonly acknowledged: number[] = [];
   public readonly resumedWith: (
-    | Partial<TraversalRunnerIterableConfig<VisitOrder>>
+    | import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitOrder>
     | undefined
   )[] = [];
   public advanceCount = 0;
@@ -94,7 +90,7 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
   }
 
   public resume(
-    config?: Partial<TraversalRunnerIterableConfig<VisitOrder>>,
+    config?: import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitOrder>,
   ): void {
     this.resumedWith.push(config);
     this.pauseRequested = false;

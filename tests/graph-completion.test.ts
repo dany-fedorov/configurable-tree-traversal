@@ -11,7 +11,7 @@ function result(
   dependsOnWork: readonly unknown[] = [],
 ): MakeVertexResult<TestGraph> {
   return {
-    vertexContent: { $d: id, $c: hints },
+    vertexContent: { $data: id, $childHints: hints },
     vertexId: id,
     dependsOnWork,
   };

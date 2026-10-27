@@ -14,10 +14,16 @@ test('BFS resolves one queued child at the next visit boundary', () => {
   const calls: string[] = [];
   const traversal = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: ['A', 'B'] } },
+      }),
       resolveChild: (hint) => {
         calls.push(hint);
-        return { vertexContent: { $d: hint, $c: [] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        };
       },
     },
   });
@@ -35,7 +41,12 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
     traversableTree: {
       resolveRoot: () => {
         trace.push('adapter:root');
-        return { vertexContent: { $d: 'root', $c: ['left', 'right'] } };
+        return {
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'root', $childHints: ['left', 'right'] },
+          },
+        };
       },
       resolveChild: (hint, { resolutionContext, resolvedTree }) => {
         const root = resolvedTree.getRoot();
@@ -48,7 +59,10 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
             ...(resolved?.map((ref) => ref.getValue().getData()) ?? []),
           ].join(',')}`,
         );
-        return { vertexContent: { $d: hint, $c: [] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        };
       },
     },
   });
@@ -56,10 +70,7 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
   for (const order of Object.values(DepthFirstPhase)) {
     traversal.addVisitorFor(order, (vertex) => {
       trace.push(`visitor:${order}:${vertex.getData()}`);
-      if (
-        order === DepthFirstPhase.IN_ORDER &&
-        vertex.getData() === 'root'
-      ) {
+      if (order === DepthFirstPhase.IN_ORDER && vertex.getData() === 'root') {
         return {
           commands: [
             {
@@ -117,10 +128,10 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
 test('ResolvedTreeStore retains supplied records and their child arrays', () => {
   const tree = new ResolvedTreeStore<TestGraph>();
   const rootRef = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'root', $c: ['child'] }),
+    new Vertex<TestGraph>({ $data: 'root', $childHints: ['child'] }),
   );
   const childRef = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'child', $c: [] }),
+    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
   );
   const children = [childRef];
   const suppliedRecord = new TreeVertexRecord<TestGraph>({

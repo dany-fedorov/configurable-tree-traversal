@@ -1,3 +1,4 @@
+import { treeResolution } from './source-result-fixtures';
 import {
   DepthFirstPhase,
   DepthFirstTreeTraversal,
@@ -20,7 +21,13 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
       resolveRoot: () => {
         trace.push('adapter:root');
         return {
-          vertexContent: { $d: 'root', $c: ['left', 'missing', 'right'] },
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: {
+              $data: 'root',
+              $childHints: ['left', 'missing', 'right'],
+            },
+          },
         };
       },
       resolveChild: (hint, { resolutionContext, resolvedTree }) => {
@@ -36,9 +43,9 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
                   .join(',')
           }`,
         );
-        return {
-          vertexContent: hint === 'missing' ? null : { $d: hint, $c: [] },
-        };
+        return treeResolution(
+          hint === 'missing' ? null : { $data: hint, $childHints: [] },
+        );
       },
     },
   });
@@ -124,8 +131,11 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
   const visits: string[] = [];
   const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+      }),
+      resolveChild: () => ({ kind: 'omitted' as const }),
     },
   });
   traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => ({
@@ -162,11 +172,15 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
 test('DFS can traverse a completed injected resolved-tree container again', () => {
   const adapter = {
     resolveRoot: () => ({
-      vertexContent: { $d: 'root', $c: ['missing', 'child'] },
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: 'root', $childHints: ['missing', 'child'] },
+      },
     }),
-    resolveChild: (hint: string) => ({
-      vertexContent: hint === 'missing' ? null : { $d: hint, $c: [] },
-    }),
+    resolveChild: (hint: string) =>
+      treeResolution(
+        hint === 'missing' ? null : { $data: hint, $childHints: [] },
+      ),
   };
   const first = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: adapter,
@@ -228,9 +242,15 @@ test('deleting the current vertex still advances visitor metadata for its siblin
   const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
       resolveRoot: () => ({
-        vertexContent: { $d: 'root', $c: ['deleted', 'sibling'] },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: 'root', $childHints: ['deleted', 'sibling'] },
+        },
       }),
-      resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveChild: (hint) => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+      }),
     },
   });
   traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex, options) => {
@@ -256,8 +276,14 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
   const hints = ['first'];
   const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['original'] } }),
-      resolveChild: (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: ['original'] } },
+      }),
+      resolveChild: (hint) => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+      }),
     },
   });
   traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) =>
@@ -265,8 +291,7 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
       ? {
           commands: [
             {
-              commandName:
-                TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+              commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
               commandArguments: { newHints: hints },
             },
           ],
@@ -289,13 +314,16 @@ test('hint rewrites clone the command payload before a later visitor mutates it'
 test('disabled visitor execution leaves injected per-order state unchanged', () => {
   const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+      }),
+      resolveChild: () => ({ kind: 'omitted' as const }),
     },
   });
   const seed = runnerInternals(traversal.createRunner()).state;
   const previous = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'previous', $c: [] }),
+    new Vertex<TestGraph>({ $data: 'previous', $childHints: [] }),
   );
   seed.visitorsState[DepthFirstPhase.PRE_ORDER] = {
     phaseVisitIndex: 41,
@@ -338,10 +366,16 @@ test.each(['sorter', 'resolver', 'visitor'] as const)(
     const failure = new Error(`${failureAt} failed`);
     const traversal = new DepthFirstTreeTraversal<TestGraph>({
       traversableTree: {
-        resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: 'root', $childHints: ['child'] } },
+        }),
         resolveChild: () => {
           if (failureAt === 'resolver') throw failure;
-          return { vertexContent: { $d: 'child', $c: [] } };
+          return {
+            kind: 'found' as const,
+            vertex: { vertexContent: { $data: 'child', $childHints: [] } },
+          };
         },
       },
       sortChildrenHints:

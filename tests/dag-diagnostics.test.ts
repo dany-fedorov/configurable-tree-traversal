@@ -127,16 +127,22 @@ test('diagnoses a deep dependency chain without using the call stack', () => {
   >({
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'root',
-        vertexContent: {
-          $d: 'root',
-          $c: Array.from({ length: count }, (_, i) => i),
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'root',
+          vertexContent: {
+            $data: 'root',
+            $childHints: Array.from({ length: count }, (_, i) => i),
+          },
         },
       }),
       resolveChild: (id: number) => ({
-        vertexId: id,
-        dependsOnWork: [id === count - 1 ? id : id + 1],
-        vertexContent: { $d: 'task', $c: [] as number[] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: id,
+          dependsOnWork: [id === count - 1 ? id : id + 1],
+          vertexContent: { $data: 'task', $childHints: [] as number[] },
+        },
       }),
     },
   }).createRunner();
@@ -157,13 +163,19 @@ test('scheduler diagnostics preserve arbitrary missing and cyclic IDs', () => {
   const runner = new DagTraversal({
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'root',
-        vertexContent: { $d: 'root', $c: ids },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'root',
+          vertexContent: { $data: 'root', $childHints: ids },
+        },
       }),
       resolveChild: (id: unknown) => ({
-        vertexId: id,
-        dependsOnWork: [id, 'missing'],
-        vertexContent: { $d: 'task', $c: [] as unknown[] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: id,
+          dependsOnWork: [id, 'missing'],
+          vertexContent: { $data: 'task', $childHints: [] as unknown[] },
+        },
       }),
     },
   }).createRunner();
@@ -188,13 +200,22 @@ test('keeps undefined first when its cycle was discovered first', () => {
   const runner = new DagTraversal({
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'root',
-        vertexContent: { $d: 'root', $c: [undefined, 'b'] as unknown[] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'root',
+          vertexContent: {
+            $data: 'root',
+            $childHints: [undefined, 'b'] as unknown[],
+          },
+        },
       }),
       resolveChild: (id: unknown) => ({
-        vertexId: id,
-        dependsOnWork: [id === undefined ? 'b' : undefined],
-        vertexContent: { $d: 'task', $c: [] as unknown[] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: id,
+          dependsOnWork: [id === undefined ? 'b' : undefined],
+          vertexContent: { $data: 'task', $childHints: [] as unknown[] },
+        },
       }),
     },
   }).createRunner();

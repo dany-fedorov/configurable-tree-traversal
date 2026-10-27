@@ -14,13 +14,19 @@ import {
 type G = VertexTypes<string, string>;
 const graph = {
   resolveRoot: () => ({
-    vertexId: 'A',
-    vertexContent: { $data: 'A', $childHints: ['B'] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'A',
+      vertexContent: { $data: 'A', $childHints: ['B'] },
+    },
   }),
   resolveChild: () => ({
-    vertexId: 'B',
-    dependsOnWork: ['A'],
-    vertexContent: { $data: 'B', $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'B',
+      dependsOnWork: ['A'],
+      vertexContent: { $data: 'B', $childHints: [] },
+    },
   }),
 };
 type Policy = 'externalSettlement' | 'visitorReturn';

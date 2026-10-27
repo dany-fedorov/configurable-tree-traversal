@@ -18,32 +18,36 @@ function graph(
   children: Record<string, string[]>,
 ): DagDiscoverySource<TestGraph> {
   const result = (id: string) => ({
-    vertexId: id,
-    vertexContent: { $d: id, $c: children[id] ?? [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: id,
+      vertexContent: { $data: id, $childHints: children[id] ?? [] },
+    },
   });
   return {
-    resolveRoot: () => (root === null ? { vertexContent: null } : result(root)),
+    resolveRoot: () =>
+      root === null
+        ? { kind: 'omitted' as const, satisfiesDependencies: true as const }
+        : result(root),
     resolveChild: (hint) => result(hint),
     getVertexIdFromHint: (hint) => ({ vertexId: hint }),
   };
 }
 
-test('DAG helpers register visitors and keep their explicit source authoritative', () => {
+test('DAG helpers register visitors and visit their configured source', () => {
   const visits: string[] = [];
   const explicit = graph('root', { root: [] });
-  const override = graph('wrong', { wrong: [] });
-  const runner = traverseDag(
-    { traversableGraph: explicit },
-    {
-      onReadyVisitor: (vertex) => {
+  const runner = traverseDag({
+    ...{ traversableGraph: explicit },
+    visitors: {
+      ON_WORK_READY: (vertex) => {
         visits.push(`ready:${vertex.getData()}`);
       },
-      onCompleteVisitor: (vertex) => {
+      ON_SUBGRAPH_READY: (vertex) => {
         visits.push(`complete:${vertex.getData()}`);
       },
     },
-    { traversableGraph: override } as never,
-  );
+  });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(visits).toEqual(['ready:root', 'complete:root']);
@@ -51,12 +55,9 @@ test('DAG helpers register visitors and keep their explicit source authoritative
   expect(dagTraversal.DagVisitorPhase).toBe(DagVisitorPhase);
 });
 
-test('async DAG helper accepts a null visitor set and returns a finished runner', async () => {
+test('async DAG helper accepts omitted visitors and returns a finished runner', async () => {
   const explicit = graph('root', { root: [] });
-  const override = graph('wrong', { wrong: [] });
-  const runner = await traverseDagAsync({ traversableGraph: explicit }, null, {
-    traversableGraph: override,
-  } as never);
+  const runner = await traverseDagAsync({ ...{ traversableGraph: explicit } });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(runner.getResolvedGraph().getRoot()?.getValue().getData()).toBe(
@@ -66,53 +67,51 @@ test('async DAG helper accepts a null visitor set and returns a finished runner'
 
 test('async DAG helper registers its completion visitor', async () => {
   const visits: string[] = [];
-  const runner = await traverseDagAsync(
-    { traversableGraph: graph('root', { root: [] }) },
-    {
-      onCompleteVisitor: async (vertex) => {
+  const runner = await traverseDagAsync({
+    ...{ traversableGraph: graph('root', { root: [] }) },
+    visitors: {
+      ON_SUBGRAPH_READY: async (vertex) => {
         visits.push(vertex.getData());
       },
     },
-  );
+  });
 
   expect(visits).toEqual(['root']);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });
 
 test('async DAG helper returns a halted runner when its visitor requests halt', async () => {
-  const runner = await traverseDagAsync(
-    { traversableGraph: graph('root', { root: ['leaf'], leaf: [] }) },
-    {
-      onReadyVisitor: async () => ({
+  const runner = await traverseDagAsync({
+    ...{ traversableGraph: graph('root', { root: ['leaf'], leaf: [] }) },
+    visitors: {
+      ON_WORK_READY: async () => ({
         commands: [
           { commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL },
         ],
       }),
     },
-  );
+  });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.HALTED);
   expect(hasSingleStructuralSink(runner.getResolvedGraph())).toBe(true);
 });
 
 test('hasSingleStructuralSink counts the currently resolved discovery graph', () => {
-  const empty = traverseDag({ traversableGraph: graph(null, {}) }, null);
-  const fork = traverseDag(
-    {
+  const empty = traverseDag({ ...{ traversableGraph: graph(null, {}) } });
+  const fork = traverseDag({
+    ...{
       traversableGraph: graph('root', {
         root: ['left', 'right'],
         left: [],
         right: [],
       }),
     },
-    null,
-  );
-  const chain = traverseDag(
-    {
+  });
+  const chain = traverseDag({
+    ...{
       traversableGraph: graph('root', { root: ['leaf'], leaf: [] }),
     },
-    null,
-  );
+  });
 
   expect(hasSingleStructuralSink(empty.getResolvedGraph())).toBe(false);
   expect(hasSingleStructuralSink(fork.getResolvedGraph())).toBe(false);

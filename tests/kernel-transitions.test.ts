@@ -10,10 +10,7 @@ import type { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -41,7 +38,7 @@ function makeKernel(
       ON_WORK_READY: Array.from({ length: visitorCount }, (_, addedIndex) => ({
         addedIndex,
         priority: 100,
-        resolutionStyle: Style.SEQUENTIAL,
+        commandCommitMode: 'afterEachVisitor' as const,
       })),
       ...(options.includeCompletion
         ? {
@@ -49,7 +46,7 @@ function makeKernel(
               {
                 addedIndex: 0,
                 priority: 100,
-                resolutionStyle: Style.SEQUENTIAL,
+                commandCommitMode: 'afterEachVisitor' as const,
               },
             ],
           }
@@ -170,7 +167,7 @@ test('steps from an owned root request through visit and event backpressure', ()
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'root', $c: [] },
+        vertexContent: { $data: 'root', $childHints: [] },
       },
     }),
   );
@@ -228,16 +225,14 @@ test('resume copies every optional filter shape without retaining caller arrays'
   const { kernel } = makeKernel();
   kernel.resume({});
   kernel.resume({
-    iterateOver: ['ON_SUBGRAPH_READY'],
-    enableVisitorFunctionsFor: ['ON_WORK_READY'],
-    disableVisitorFunctionsFor: ['ON_SUBGRAPH_READY'],
+    emitEvents: ['subgraphCompleted'],
+    visitorPhases: { include: ['ON_WORK_READY'] },
   });
   const configured = kernel.inspect().executionOptions;
   kernel.resume({});
   expect(kernel.inspect().executionOptions).toEqual(configured);
   kernel.resume({
-    enableVisitorFunctionsFor: null,
-    disableVisitorFunctionsFor: null,
+    visitorPhases: 'all',
   });
   expect(kernel.inspect().executionOptions).toEqual({
     emitEvents: ['subgraphCompleted'],
@@ -265,7 +260,7 @@ test.each(['advanceChains', 'admitEligibleVisit', 'admitExpansion'] as const)(
 test('private invalidation removes frames and boundaries and is idempotent', () => {
   const { kernel } = makeKernel();
   const vertexRef = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'removed', $c: [] }),
+    new Vertex<TestGraph>({ $data: 'removed', $childHints: [] }),
   );
   const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
   const fields = kernel as unknown as {
@@ -311,7 +306,7 @@ test('detects a running chain when deciding whether a halt can settle', () => {
 test('kernel inspection maps breadth-first policy frames', () => {
   const kernel = makeBreadthKernel();
   const vertexRef = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'parent', $c: [] }),
+    new Vertex<TestGraph>({ $data: 'parent', $childHints: [] }),
   );
   const fields = kernel as unknown as {
     breadthFirstPolicy: {
@@ -329,7 +324,7 @@ test('kernel inspection maps breadth-first policy frames', () => {
   );
   expect(kernel.inspect().frames).toEqual([
     expect.objectContaining({
-      vertexRefId: vertexRef.getId(),
+      vertexRefId: vertexRef.getRefId(),
       stage: 'resolve',
     }),
   ]);
@@ -343,14 +338,14 @@ test('kernel inspection maps breadth-first policy frames', () => {
   ).scheduling;
   scheduling.eligible.push({ ref: vertexRef, order: 'ON_SUBGRAPH_READY' });
   expect(kernel.inspect().readyVisits).toEqual([
-    { vertexRefId: vertexRef.getId(), order: 'LEVEL_ORDER' },
+    { vertexRefId: vertexRef.getRefId(), order: 'LEVEL_ORDER' },
   ]);
 });
 
 test('kernel inspection reports a depth-first child-wait frame index', () => {
   const kernel = makeDepthKernel();
   const vertexRef = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'parent', $c: ['child'] }),
+    new Vertex<TestGraph>({ $data: 'parent', $childHints: ['child'] }),
   );
   const policy = (
     kernel as unknown as {
@@ -386,7 +381,7 @@ test.each(['identify', 'resolve'] as const)(
     const { kernel } = makeKernel();
     const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
     const vertexRef = new MutableRef(
-      new Vertex<TestGraph>({ $d: 'parent', $c: ['child'] }),
+      new Vertex<TestGraph>({ $data: 'parent', $childHints: ['child'] }),
     );
     const fields = kernel as unknown as {
       frames: Map<number, object>;
@@ -433,7 +428,7 @@ test('reports an incomplete-work DAG stall without dependency ids', () => {
   ).scheduling;
   const vertexRef = scheduling.acceptRoot({
     vertexId: 'incomplete',
-    vertexContent: { $d: 'incomplete', $c: [] },
+    vertexContent: { $data: 'incomplete', $childHints: [] },
   })!;
   scheduling.takeReady();
   scheduling.markPreVisited(vertexRef);
@@ -512,7 +507,7 @@ test('commits a halting command batch once and resumes at the next visitor', () 
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $d: 'root', $c: [] } },
+      value: { vertexContent: { $data: 'root', $childHints: [] } },
     }),
   );
   const first = kernel.poll('drive');
@@ -561,7 +556,9 @@ test('disables an unexpanded subtree without failing its current chain', () => {
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $d: 'root', $c: ['never-resolved'] } },
+      value: {
+        vertexContent: { $data: 'root', $childHints: ['never-resolved'] },
+      },
     }),
   );
   const visit = kernel.poll('drive');
@@ -591,7 +588,7 @@ test('drains an already started chain before reporting HALTED', () => {
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $d: 'root', $c: [] } },
+      value: { vertexContent: { $data: 'root', $childHints: [] } },
     }),
   );
   const first = kernel.poll('drive');
@@ -637,7 +634,7 @@ test('does not hide a submitted live failure behind a halt request', () => {
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $d: 'root', $c: [] } },
+      value: { vertexContent: { $data: 'root', $childHints: [] } },
     }),
   );
   const visit = kernel.poll('drive');
@@ -664,7 +661,7 @@ test('delivers an event committed from an earlier reply before a later failure',
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'root', $c: ['a', 'b'] },
+        vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
       },
     }),
   );
@@ -690,7 +687,7 @@ test('delivers an event committed from an earlier reply before a later failure',
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'a', vertexContent: { $d: 'a', $c: [] } },
+      value: { vertexId: 'a', vertexContent: { $data: 'a', $childHints: [] } },
     },
   });
   const makeB = kernel.poll('drive');
@@ -702,7 +699,7 @@ test('delivers an event committed from an earlier reply before a later failure',
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'b', vertexContent: { $d: 'b', $c: [] } },
+      value: { vertexId: 'b', vertexContent: { $data: 'b', $childHints: [] } },
     },
   });
   const visitA = kernel.poll('drive');
@@ -745,7 +742,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'root', $c: ['a', 'b'] },
+        vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
       },
     }),
   );
@@ -770,7 +767,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       value: {
         vertexId: 'a',
         dependsOnWork: ['root'],
-        vertexContent: { $d: 'a', $c: [] },
+        vertexContent: { $data: 'a', $childHints: [] },
       },
     },
   });
@@ -786,7 +783,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       value: {
         vertexId: 'b',
         dependsOnWork: ['a'],
-        vertexContent: { $d: 'b', $c: [] },
+        vertexContent: { $data: 'b', $childHints: [] },
       },
     },
   });
@@ -848,7 +845,7 @@ test('retains every started-chain event in FIFO order while halting', () => {
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'root', $c: ['a', 'b'] },
+        vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
       },
     }),
   );
@@ -874,7 +871,7 @@ test('retains every started-chain event in FIFO order while halting', () => {
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'a', vertexContent: { $d: 'a', $c: [] } },
+      value: { vertexId: 'a', vertexContent: { $data: 'a', $childHints: [] } },
     },
   });
   const makeB = kernel.poll('drive');
@@ -886,7 +883,7 @@ test('retains every started-chain event in FIFO order while halting', () => {
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'b', vertexContent: { $d: 'b', $c: [] } },
+      value: { vertexId: 'b', vertexContent: { $data: 'b', $childHints: [] } },
     },
   });
   const visitA = kernel.poll('drive');

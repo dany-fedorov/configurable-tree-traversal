@@ -27,12 +27,18 @@ const edge: DagWaitEdge<ID> = {
 const sameEdge: CoreEdge<ID> = edge;
 const source: DagDiscoverySource<G, G, ID> = {
   resolveRoot: () => ({
-    vertexId: 'root',
-    vertexContent: { $data: '', $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'root',
+      vertexContent: { $data: '', $childHints: [] },
+    },
   }),
   resolveChild: (vertexId) => ({
-    vertexId,
-    vertexContent: { $data: '', $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId,
+      vertexContent: { $data: '', $childHints: [] },
+    },
   }),
 };
 for (const Constructor of [

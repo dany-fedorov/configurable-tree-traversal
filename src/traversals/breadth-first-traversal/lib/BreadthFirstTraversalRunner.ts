@@ -151,13 +151,13 @@ export class InternalBreadthFirstTreeRunner<
           ({
             addedIndex,
             priority,
-            resolutionStyle,
+
             commandCommitMode,
             visitorGroup,
           }) => ({
             addedIndex,
             priority,
-            resolutionStyle,
+
             commandCommitMode,
             visitorGroup,
           }),

@@ -24,7 +24,7 @@ function setup() {
         {
           addedIndex: 0,
           priority: 100,
-          commandCommitMode: 'afterEachVisitor',
+          commandCommitMode: 'afterEachVisitor' as const,
         },
       ],
     },
@@ -119,7 +119,10 @@ test('inspection detaches and freezes populated chain and frame records', () => 
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'private-root-data', $c: ['private-hint'] },
+        vertexContent: {
+          $data: 'private-root-data',
+          $childHints: ['private-hint'],
+        },
       },
     },
   });

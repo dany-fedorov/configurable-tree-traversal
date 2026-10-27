@@ -40,16 +40,22 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             ...(seeded ? { completedWork: new Set(['root', 'child']) } : {}),
             traversableGraph: {
               resolveRoot: () => ({
-                vertexId: 'root',
-                dependsOnWork: completion ? [] : ['child'],
-                vertexContent: { $data: 'root', $childHints: ['child'] },
+                kind: 'found' as const,
+                vertex: {
+                  vertexId: 'root',
+                  dependsOnWork: completion ? [] : ['child'],
+                  vertexContent: { $data: 'root', $childHints: ['child'] },
+                },
               }),
               resolveChild: () => ({
-                vertexId: 'child',
-                ...(completion
-                  ? { dependsOnSubgraphCompletion: ['root'] }
-                  : { dependsOnWork: ['root'] }),
-                vertexContent: { $data: 'child', $childHints: [] },
+                kind: 'found' as const,
+                vertex: {
+                  vertexId: 'child',
+                  ...(completion
+                    ? { dependsOnSubgraphCompletion: ['root'] }
+                    : { dependsOnWork: ['root'] }),
+                  vertexContent: { $data: 'child', $childHints: [] },
+                },
               }),
             },
           }).createRunner();
@@ -93,16 +99,22 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       discovery: 'eager',
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'root',
-          dependsOnWork: ['missing-work'],
-          dependsOnSubgraphCompletion: ['missing-completion'],
-          vertexContent: { $data: 'root', $childHints: ['a', 'b', 'c'] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            dependsOnWork: ['missing-work'],
+            dependsOnSubgraphCompletion: ['missing-completion'],
+            vertexContent: { $data: 'root', $childHints: ['a', 'b', 'c'] },
+          },
         }),
         resolveChild: (id) => ({
-          vertexId: id,
-          dependsOnWork: id === 'a' ? ['b', 'b'] : id === 'b' ? ['a'] : [],
-          dependsOnSubgraphCompletion: id === 'c' ? ['c'] : [],
-          vertexContent: { $data: id, $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnWork: id === 'a' ? ['b', 'b'] : id === 'b' ? ['a'] : [],
+            dependsOnSubgraphCompletion: id === 'c' ? ['c'] : [],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         }),
       },
     }).createRunner();
@@ -120,14 +132,38 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           'subgraphCompletionDependency',
         ),
         edge('root', 'subgraphCompletion', 'root', 'work', 'ownWork'),
-        edge('root', 'subgraphCompletion', 'a', 'subgraphCompletion', 'structuralChild'),
-        edge('root', 'subgraphCompletion', 'b', 'subgraphCompletion', 'structuralChild'),
-        edge('root', 'subgraphCompletion', 'c', 'subgraphCompletion', 'structuralChild'),
+        edge(
+          'root',
+          'subgraphCompletion',
+          'a',
+          'subgraphCompletion',
+          'structuralChild',
+        ),
+        edge(
+          'root',
+          'subgraphCompletion',
+          'b',
+          'subgraphCompletion',
+          'structuralChild',
+        ),
+        edge(
+          'root',
+          'subgraphCompletion',
+          'c',
+          'subgraphCompletion',
+          'structuralChild',
+        ),
         edge('a', 'work', 'b', 'work', 'workDependency'),
         edge('a', 'subgraphCompletion', 'a', 'work', 'ownWork'),
         edge('b', 'work', 'a', 'work', 'workDependency'),
         edge('b', 'subgraphCompletion', 'b', 'work', 'ownWork'),
-        edge('c', 'work', 'c', 'subgraphCompletion', 'subgraphCompletionDependency'),
+        edge(
+          'c',
+          'work',
+          'c',
+          'subgraphCompletion',
+          'subgraphCompletionDependency',
+        ),
         edge('c', 'subgraphCompletion', 'c', 'work', 'ownWork'),
       ],
     });
@@ -138,12 +174,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       traversableGraph: {
         resolveRoot: () => ({
-          vertexContent: { $data: 'holder', $childHints: ['a', 'b'] },
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'holder', $childHints: ['a', 'b'] },
+          },
         }),
         resolveChild: (id) => ({
-          vertexId: id,
-          dependsOnWork: [id === 'a' ? 'b' : 'a'],
-          vertexContent: { $data: id, $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnWork: [id === 'a' ? 'b' : 'a'],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         }),
       },
     }).createRunner();
@@ -189,14 +231,20 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       discovery: 'eager',
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: root,
-          dependsOnWork: [root],
-          vertexContent: { $data: '', $childHints: ids },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: root,
+            dependsOnWork: [root],
+            vertexContent: { $data: '', $childHints: ids },
+          },
         }),
         resolveChild: (id) => ({
-          vertexId: id,
-          dependsOnWork: [id, id],
-          vertexContent: { $data: '', $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnWork: [id, id],
+            vertexContent: { $data: '', $childHints: [] },
+          },
         }),
       },
     }).createRunner();
@@ -205,7 +253,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       edge(root, 'work', root, 'work', 'workDependency'),
       edge(root, 'subgraphCompletion', root, 'work', 'ownWork'),
       ...ids.map((id) =>
-        edge(root, 'subgraphCompletion', id, 'subgraphCompletion', 'structuralChild'),
+        edge(
+          root,
+          'subgraphCompletion',
+          id,
+          'subgraphCompletion',
+          'structuralChild',
+        ),
       ),
       ...ids.flatMap((id) => [
         edge(id, 'work', id, 'work', 'workDependency'),
@@ -214,7 +268,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     ];
     expect(error.diagnostics).toMatchObject({
       dependencyEdges: expected,
-      dependencyCycleComponents: [[root], [twin], [symbol], [undefined], [NaN], [0]],
+      dependencyCycleComponents: [
+        [root],
+        [twin],
+        [symbol],
+        [undefined],
+        [NaN],
+        [0],
+      ],
     });
     const first = runner.summary().diagnostics!;
     const second = runner.summary().diagnostics!;
@@ -271,7 +332,9 @@ test('manual labelled diagnostics copy arrays, edges and both milestone records'
   expect(edges).not.toBe(input.dependencyEdges);
   expect(edges[0]).not.toBe(input.dependencyEdges[0]);
   expect(edges[0]!.waiter).not.toBe(input.dependencyEdges[0]!.waiter);
-  expect(edges[0]!.prerequisite).not.toBe(input.dependencyEdges[0]!.prerequisite);
+  expect(edges[0]!.prerequisite).not.toBe(
+    input.dependencyEdges[0]!.prerequisite,
+  );
   input.dependencyEdges[0]!.waiter.vertexId = 'changed';
   input.dependencyEdges[0]!.prerequisite.milestone = 'subgraphCompletion';
   input.dependencyEdges.length = 0;
@@ -287,14 +350,20 @@ test('public preparation diagnoses a 10k-node dependency chain without recursion
   const runner = new DagTraversal<Numeric, Numeric, number>({
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 0,
-        dependsOnWork: [1],
-        vertexContent: { $data: 0, $childHints: [1] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 0,
+          dependsOnWork: [1],
+          vertexContent: { $data: 0, $childHints: [1] },
+        },
       }),
       resolveChild: (id) => ({
-        vertexId: id,
-        dependsOnWork: [id + 1],
-        vertexContent: { $data: id, $childHints: id < 9999 ? [id + 1] : [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: id,
+          dependsOnWork: [id + 1],
+          vertexContent: { $data: id, $childHints: id < 9999 ? [id + 1] : [] },
+        },
       }),
     },
   }).createRunner();

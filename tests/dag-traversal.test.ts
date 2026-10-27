@@ -21,11 +21,14 @@ function graphAdapter(
   const make = (id: string) => {
     const node = nodes[id]!;
     return {
-      vertexContent: { $d: node.id, $c: node.children },
-      vertexId: node.id,
-      ...(node.dependsOnWork === undefined
-        ? {}
-        : { dependsOnWork: node.dependsOnWork }),
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: node.id, $childHints: node.children },
+        vertexId: node.id,
+        ...(node.dependsOnWork === undefined
+          ? {}
+          : { dependsOnWork: node.dependsOnWork }),
+      },
     };
   };
   return {
@@ -44,7 +47,7 @@ test('visits a shared join once after both prerequisites', () => {
   ].map(({ vertex }) => vertex.getData());
   expect(values).toEqual(['root', 'A', 'B', 'join']);
   const graph = runner.getResolvedGraph();
-  const join = graph.getVertexById('join')!;
+  const join = graph.getVertexRefById('join')!;
   expect(graph.getParentsOf(join)).toHaveLength(3);
   expect(graph.getStatusOf(join)).toBe('COMPLETE');
 });
@@ -92,8 +95,14 @@ test('distinguishes graph root from the retained traversal root', () => {
 test('finishes an empty graph', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveRoot: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
+      resolveChild: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
     },
   }).createRunner();
 
@@ -128,13 +137,19 @@ test('reports hostile object dependency ids without coercing them', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: {
       resolveRoot: () => ({
-        vertexContent: { $d: 'root', $c: ['blocked'] },
-        vertexId: 'root',
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: 'root', $childHints: ['blocked'] },
+          vertexId: 'root',
+        },
       }),
       resolveChild: () => ({
-        vertexContent: { $d: 'blocked', $c: [] },
-        vertexId: 'blocked',
-        dependsOnWork: [hostileId],
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: 'blocked', $childHints: [] },
+          vertexId: 'blocked',
+          dependsOnWork: [hostileId],
+        },
       }),
     },
   }).createRunner();
@@ -169,25 +184,39 @@ test('rejects discovery cycles found through known-id hints', () => {
 test('omission satisfies dependents without retaining the omitted vertex', () => {
   const adapter: DagDiscoverySource<TestGraph> = {
     resolveRoot: () => ({
-      vertexContent: { $d: 'root', $c: ['missing', 'dependent'] },
-      vertexId: 'root',
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: 'root', $childHints: ['missing', 'dependent'] },
+        vertexId: 'root',
+      },
     }),
     resolveChild: (hint) =>
       hint === 'missing'
-        ? { vertexContent: null, vertexId: 'missing' }
+        ? {
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+            vertexId: 'missing',
+          }
         : {
-            vertexContent: { $d: 'dependent', $c: [] },
-            vertexId: 'dependent',
-            dependsOnWork: ['missing'],
+            kind: 'found' as const,
+            vertex: {
+              vertexContent: { $data: 'dependent', $childHints: [] },
+              vertexId: 'dependent',
+              dependsOnWork: ['missing'],
+            },
           },
   };
   const runner = new DagTraversal<TestGraph>({ traversableGraph: adapter })
     .createRunner()
     .run();
 
-  expect(runner.getResolvedGraph().getVertexById('missing')).toBeNull();
+  expect(runner.getResolvedGraph().getVertexRefById('missing')).toBeNull();
   expect(
-    runner.getResolvedGraph().getVertexById('dependent')!.getValue().getData(),
+    runner
+      .getResolvedGraph()
+      .getVertexRefById('dependent')!
+      .getValue()
+      .getData(),
   ).toBe('dependent');
 });
 
@@ -224,12 +253,12 @@ test('applies rewrite, disable, and delete commands with tombstones', () => {
   const runner = traversal.createRunner().run();
   const graph = runner.getResolvedGraph();
 
-  expect(graph.getVertexById('rewrite')!.getValue().getData()).toBe(
+  expect(graph.getVertexRefById('rewrite')!.getValue().getData()).toBe(
     'rewritten',
   );
-  expect(graph.getVertexById('hidden')).toBeNull();
-  expect(graph.getVertexById('deleted')).toBeNull();
-  expect(graph.getVertexById('late')).toBeNull();
+  expect(graph.getVertexRefById('hidden')).toBeNull();
+  expect(graph.getVertexRefById('deleted')).toBeNull();
+  expect(graph.getVertexRefById('late')).toBeNull();
 });
 
 test('rewrites hints at ON_WORK_READY and rejects the same command at ON_SUBGRAPH_READY', () => {
@@ -245,7 +274,7 @@ test('rewrites hints at ON_WORK_READY and rejects the same command at ON_SUBGRAP
       ? {
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+              commandName: Command.REWRITE_CHILD_HINTS,
               commandArguments: { newHints: ['replacement'] },
             },
           ],
@@ -253,8 +282,10 @@ test('rewrites hints at ON_WORK_READY and rejects the same command at ON_SUBGRAP
       : undefined,
   );
   const runner = traversal.createRunner().run();
-  expect(runner.getResolvedGraph().getVertexById('old')).toBeNull();
-  expect(runner.getResolvedGraph().getVertexById('replacement')).not.toBeNull();
+  expect(runner.getResolvedGraph().getVertexRefById('old')).toBeNull();
+  expect(
+    runner.getResolvedGraph().getVertexRefById('replacement'),
+  ).not.toBeNull();
 
   const invalid = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter({ root: { id: 'root', children: [] } }),
@@ -265,7 +296,7 @@ test('rewrites hints at ON_WORK_READY and rejects the same command at ON_SUBGRAP
       ({
         commands: [
           {
-            commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+            commandName: Command.REWRITE_CHILD_HINTS,
             commandArguments: { newHints: [] },
           },
         ],
@@ -300,8 +331,8 @@ test('captures a structural graph snapshot before rewrite and delete', () => {
   const runner = traversal.createRunner().run();
   const snapshot = runner.originalGraphView;
 
-  expect(runner.getResolvedGraph().getVertexById('child')).toBeNull();
-  const child = snapshot!.getVertexById('child')!;
+  expect(runner.getResolvedGraph().getVertexRefById('child')).toBeNull();
+  const child = snapshot!.getVertexRefById('child')!;
   expect(child.getValue().getData()).toBe('child');
   expect(snapshot!.getParentsOf(child)).toHaveLength(1);
   expect('getStatusOf' in snapshot!).toBe(false);
@@ -343,13 +374,21 @@ test('tree source receives a real tree context and graph visitors', () => {
   let sawParent = false;
   const tree: TreeSource<Tree> = {
     resolveRoot: () => ({
-      vertexContent: { $d: 'root', $c: [nodes.child] },
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: 'root', $childHints: [nodes.child] },
+      },
     }),
     resolveChild: (hint, options) => {
       sawParent = options.resolvedTree.has(
         options.resolutionContext.parentVertexRef,
       );
-      return { vertexContent: { $d: hint.name, $c: hint.children } };
+      return {
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: hint.name, $childHints: hint.children },
+        },
+      };
     },
   };
   const traversal = new DagTraversal<Tree>({ traversableTree: tree });
@@ -379,10 +418,16 @@ test('runs ObjectTreeSource with its real ancestor context', () => {
 test('tree source rejects graph metadata', () => {
   const tree = {
     resolveRoot: () => ({
-      vertexContent: { $d: 'root', $c: [] },
-      vertexId: 'root',
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: 'root', $childHints: [] },
+        vertexId: 'root',
+      },
     }),
-    resolveChild: () => ({ vertexContent: null }),
+    resolveChild: () => ({
+      kind: 'omitted' as const,
+      satisfiesDependencies: true as const,
+    }),
   };
   const runner = new DagTraversal<TestGraph>({
     // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
@@ -398,12 +443,18 @@ test.each([false, true])(
     const hints = ['b', 'a'];
     const adapter: DagDiscoverySource<TestGraph> = {
       resolveRoot: () => ({
-        vertexContent: { $d: 'root', $c: hints },
-        vertexId: 'root',
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: 'root', $childHints: hints },
+          vertexId: 'root',
+        },
       }),
       resolveChild: (hint) => ({
-        vertexContent: { $d: hint, $c: [] },
-        vertexId: hint,
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: hint, $childHints: [] },
+          vertexId: hint,
+        },
       }),
       ...(identifyHints
         ? { getVertexIdFromHint: (hint: string) => ({ vertexId: hint }) }
@@ -445,7 +496,7 @@ test('tracks visitor metadata and concurrent-to-sequential chain state', () => {
         },
       ],
     }),
-    { commandCommitMode: 'afterGroup' },
+    { commandCommitMode: 'afterGroup' as const },
   );
   traversal.addVisitorFor(Order.ON_WORK_READY, (vertex, options) => {
     seen.push([
@@ -493,9 +544,9 @@ test('tombstones deleted ids and closes later arrivals', () => {
       : undefined,
   );
   const graph = traversal.createRunner().run().getResolvedGraph();
-  const survivor = graph.getVertexById('survivor')!;
+  const survivor = graph.getVertexRefById('survivor')!;
 
-  expect(graph.getVertexById('victim')).toBeNull();
+  expect(graph.getVertexRefById('victim')).toBeNull();
   expect(graph.get(survivor)!.slots).toEqual([
     { kind: 'deleted', hint: 'victim' },
   ]);
@@ -533,8 +584,15 @@ test('rejects thenables and retains callback failures', () => {
 
   const promised = new DagTraversal<TestGraph>({
     traversableGraph: {
-      resolveRoot: () => Promise.resolve({ vertexContent: null }) as never,
-      resolveChild: () => ({ vertexContent: null }),
+      resolveRoot: () =>
+        Promise.resolve({
+          kind: 'omitted' as const,
+          satisfiesDependencies: true as const,
+        }) as never,
+      resolveChild: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
     },
   }).createRunner();
   expect(() => promised.run()).toThrow(/synchronous.*thenable/i);

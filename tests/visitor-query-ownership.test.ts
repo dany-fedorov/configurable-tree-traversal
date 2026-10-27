@@ -1,4 +1,3 @@
-import { TraversalVisitorFunctionResolutionStyle as Style } from '../src/core/TraversalVisitor';
 import {
   DepthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
@@ -17,13 +16,22 @@ type T = { VertexData: string; VertexHint: string };
 type Shape = 'empty' | 'single' | 'flat' | 'grouped';
 const traversableTree = {
   resolveRoot: () => ({
-    vertexContent: { $data: 'root', $childHints: [] as string[] },
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: 'root', $childHints: [] as string[] },
+    },
   }),
-  resolveChild: () => ({ vertexContent: null }),
+  resolveChild: () => ({ kind: 'omitted' as const }),
 };
 const traversableGraph = {
-  resolveRoot: () => ({ vertexId: 'root', ...traversableTree.resolveRoot() }),
-  resolveChild: () => ({ vertexContent: null }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexId: 'root', ...traversableTree.resolveRoot().vertex },
+  }),
+  resolveChild: () => ({
+    satisfiesDependencies: true as const,
+    kind: 'omitted' as const,
+  }),
 };
 
 function definitions(calls: string[], shape: Shape) {
@@ -273,7 +281,7 @@ for (const { name, create } of families) {
         if (field === 'priority') records[1]!.priority = -100;
         if (field === 'mode') {
           records[1]!.commandCommitMode = 'afterEachVisitor';
-          records[1]!.resolutionStyle = Style.SEQUENTIAL;
+          records[1]!.commandCommitMode = 'afterEachVisitor';
         }
         await traversal.run();
         expect(calls).toEqual(['high:root', 'middle:high', 'low:high']);
@@ -285,7 +293,7 @@ for (const { name, create } of families) {
         }
         expect(earlier[1]!.priority).toBe(20);
         expect(earlier[1]!.commandCommitMode).toBe('afterGroup');
-        expect(earlier[1]!.resolutionStyle).toBe(Style.CONCURRENT);
+        expect(earlier[1]!.commandCommitMode).toBe('afterGroup');
         if (field === 'callback')
           expect(fresh[1]!.visitor).not.toBe(records[1]!.visitor);
         expect(fresh[1]!.priority).toBe(20);

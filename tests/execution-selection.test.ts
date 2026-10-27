@@ -6,10 +6,7 @@ import { DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS } fr
 import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
 import { makeEffectiveDagTraversalRunnerIterableConfig as makeDAG } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerIterableConfig';
 import { makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
-import type {
-  CoreInspection,
-  Vertex,
-} from '../src';
+import type { CoreInspection, Vertex } from '../src';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -40,12 +37,22 @@ type Runner = {
   inspect(): CoreInspection;
 };
 const tree = {
-  resolveRoot: () => ({ vertexContent: { $data: 'root', $childHints: [] } }),
-  resolveChild: (_hint: string) => ({ vertexContent: null }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+  }),
+  resolveChild: (_hint: string) => ({ kind: 'omitted' as const }),
 };
 const graph = {
   ...tree,
-  resolveRoot: () => ({ ...tree.resolveRoot(), vertexId: 'root' }),
+  resolveChild: () => ({
+    kind: 'omitted' as const,
+    satisfiesDependencies: true as const,
+  }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { ...tree.resolveRoot().vertex, vertexId: 'root' },
+  }),
 };
 const families = [
   {
@@ -130,7 +137,7 @@ describe.each(families)('$name execution selection', (family) => {
     },
   );
 
-  test('public legacy helper results and defaults remain reusable runner inputs', async () => {
+  test('private normalized defaults reject as public inputs and leave the runner reusable', async () => {
     const configs =
       family.phase === DFS.PRE_ORDER
         ? [makeDFS(), defaultDFS]
@@ -139,9 +146,11 @@ describe.each(families)('$name execution selection', (family) => {
         : [makeDAG(), defaultDAG];
     for (const config of configs) {
       const { runner, calls } = create(family);
-      expect(await events(runner, config)).toContain(
-        emissionKind(family.phase),
-      );
+      await expect(events(runner, config)).rejects.toThrow(TypeError);
+      expect(calls).toEqual([]);
+      expect(
+        await events(runner, { emitEvents: [emissionKind(family.phase)] }),
+      ).toEqual([emissionKind(family.phase)]);
       expect(calls).toEqual(['root']);
     }
   });
@@ -162,12 +171,18 @@ describe.each(families)('$name execution selection', (family) => {
     }
   });
 
-  test('legacy non-null enable wins over contradictory disable', async () => {
+  test('rejects legacy enable/disable policies atomically', async () => {
     const { runner, calls } = create(family);
-    await runner.run({
-      enableVisitorFunctionsFor: [family.phase],
-      disableVisitorFunctionsFor: [family.phase],
-    });
+    await expect(
+      Promise.resolve().then(() =>
+        runner.run({
+          enableVisitorFunctionsFor: [family.phase],
+          disableVisitorFunctionsFor: [family.phase],
+        }),
+      ),
+    ).rejects.toThrow(TypeError);
+    expect(calls).toEqual([]);
+    await runner.run({ visitorPhases: { include: [family.phase] } });
     expect(calls).toEqual(['root']);
   });
 
@@ -195,13 +210,13 @@ describe.each(families)('$name execution selection', (family) => {
     });
   });
 
-  test('legacy patches retain dormant disable until enable is cleared', async () => {
+  test('explicit selection patches replace the prior policy while draining admitted callbacks', async () => {
     const { runner, calls } = create(family, true);
+    await runner.run({ visitorPhases: { include: [family.phase] } });
     await runner.run({
-      enableVisitorFunctionsFor: [family.phase],
-      disableVisitorFunctionsFor: [family.phase],
+      visitorPhases: { exclude: [family.phase] },
+      emitEvents: [],
     });
-    await runner.run({ enableVisitorFunctionsFor: null, iterateOver: [] });
     expect(calls).toEqual(['root', 'continued']);
     expect(runner.inspect().executionOptions).toMatchObject({
       emitEvents: [],
@@ -209,12 +224,12 @@ describe.each(families)('$name execution selection', (family) => {
     });
   });
 
-  test('a disable-only legacy patch retains the prior enable selection', async () => {
+  test('an exclude patch replaces a previous include selection', async () => {
     const { runner } = create(family, true);
-    await runner.run({ enableVisitorFunctionsFor: [family.phase] });
-    await runner.run({ disableVisitorFunctionsFor: [family.phase] });
+    await runner.run({ visitorPhases: { include: [family.phase] } });
+    await runner.run({ visitorPhases: { exclude: [family.phase] } });
     expect(runner.inspect().executionOptions).toMatchObject({
-      visitorPhases: { include: [family.phase] },
+      visitorPhases: { exclude: [family.phase] },
     });
     expect(runner.inspect().executionOptions).not.toHaveProperty('iterateOver');
     expect(runner.inspect().executionOptions).not.toHaveProperty(
@@ -374,11 +389,11 @@ describe.each(families)('$name execution selection', (family) => {
     expect(calls).toEqual(['root', 'continued']);
   });
 
-  test('unrelated aliases coexist and omitted fields retain defaults', async () => {
+  test('independent canonical selectors coexist and omitted fields retain defaults', async () => {
     const { runner, calls } = create(family);
     expect(
       await events(runner, {
-        iterateOver: [family.phase],
+        emitEvents: [emissionKind(family.phase)],
         visitorPhases: { exclude: [] },
       }),
     ).toEqual([emissionKind(family.phase)]);
@@ -393,6 +408,10 @@ function checkHelper<ORDER extends string>(
     previous?: TraversalRunnerIterableConfig<ORDER>,
   ) => TraversalRunnerIterableConfig<ORDER>,
 ) {
+  const included = make({ visitorPhases: { include: [phase] } });
+  expect(make({ emitEvents: [] }, included).enableVisitorFunctionsFor).toEqual([
+    phase,
+  ]);
   const emit = [emissionKind(phase)];
   const exclude = [phase];
   const initial = make({ emitEvents: emit, visitorPhases: { exclude } });

@@ -13,7 +13,9 @@ import type { TestGraph } from './helpers/graph-fixtures';
 import { runnerInternals } from './internal-runner-fixtures';
 
 function ref(data: string, hints: string[] = []) {
-  return new MutableRef(new Vertex<TestGraph>({ $d: data, $c: hints }));
+  return new MutableRef(
+    new Vertex<TestGraph>({ $data: data, $childHints: hints }),
+  );
 }
 
 function context(
@@ -49,8 +51,8 @@ test('structural graph snapshots validate staging and expose detached topology',
     stagedA.snapshotRef,
     stagedB.snapshotRef,
   ]);
-  expect(snapshot.graph.getVertexById('A')).toBe(stagedA.snapshotRef);
-  expect(snapshot.graph.getIdOf(stagedA.snapshotRef)).toBe('A');
+  expect(snapshot.graph.getVertexRefById('A')).toBe(stagedA.snapshotRef);
+  expect(snapshot.graph.getVertexId(stagedA.snapshotRef)).toBe('A');
 
   const edgeB = snapshot.stageEdge(root, 1, b);
   const edgeA = snapshot.stageEdge(root, 0, a);
@@ -76,10 +78,10 @@ test('structural graph snapshots validate staging and expose detached topology',
 
   const unknown = ref('unknown');
   expect(snapshot.graph.has(unknown)).toBe(false);
-  expect(snapshot.graph.getVertexById('unknown')).toBeNull();
+  expect(snapshot.graph.getVertexRefById('unknown')).toBeNull();
   expect(snapshot.graph.getParentsOf(unknown)).toBeNull();
   expect(snapshot.graph.getChildrenOf(unknown)).toBeNull();
-  expect(() => snapshot.graph.getIdOf(unknown)).toThrow(/unknown/i);
+  expect(() => snapshot.graph.getVertexId(unknown)).toThrow(/unknown/i);
   expect(() => snapshot.graph.getPathsTo(unknown)).toThrow(/unknown/i);
   expect(() => snapshot.stageVertex(root, 'other')).toThrow(/reference/i);
   expect(() => snapshot.stageVertex(unknown, 'A')).toThrow(/id/i);
@@ -137,8 +139,8 @@ test('small vertex and identity helpers report their remaining cases', () => {
 test('depth runner leaf checks include explicit subtree disabling', () => {
   const runner = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ kind: 'omitted' as const }),
+      resolveChild: () => ({ kind: 'omitted' as const }),
     },
   }).createRunner();
   const leaf = ref('leaf');

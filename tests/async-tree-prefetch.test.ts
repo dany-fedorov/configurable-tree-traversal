@@ -5,10 +5,7 @@ import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContain
 import type { VertexRef } from '../src/core/graph/types';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
@@ -43,7 +40,7 @@ function setup(options: {
               (_, addedIndex) => ({
                 addedIndex,
                 priority: 100,
-                resolutionStyle: Style.SEQUENTIAL,
+                commandCommitMode: 'afterEachVisitor' as const,
               }),
             ),
           },
@@ -72,7 +69,7 @@ function setup(options: {
 
 test('captures prefetched sibling rejection and surfaces it in slot order', async () => {
   const childA = deferred<{
-    vertexContent: { $d: string; $c: string[] };
+    vertexContent: { $data: string; $childHints: string[] };
   }>();
   const siblingError = new Error('B failed');
   const invoked: string[] = [];
@@ -86,7 +83,9 @@ test('captures prefetched sibling rejection and surfaces it in slot order', asyn
           if (call.kind === 'MAKE_ROOT') {
             return {
               kind: call.kind,
-              value: { vertexContent: { $d: 'root', $c: ['A', 'B'] } },
+              value: {
+                vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
+              },
             };
           }
           if (call.kind === 'MAKE_VERTEX') {
@@ -113,7 +112,7 @@ test('captures prefetched sibling rejection and surfaces it in slot order', asyn
     expect(errors).toEqual([]);
     expect(kernel.getStatus()).toBe(TraversalRunnerStatus.RUNNING);
 
-    childA.resolve({ vertexContent: { $d: 'A', $c: [] } });
+    childA.resolve({ vertexContent: { $data: 'A', $childHints: [] } });
     trace.push((await childEvent).value!.vertex.getData());
     await expect(iterator.next()).rejects.toBe(siblingError);
     expect(trace).toEqual(['root', 'A']);
@@ -124,7 +123,9 @@ test('captures prefetched sibling rejection and surfaces it in slot order', asyn
 });
 
 test('settle stores a child outcome without admitting its visitor chain', async () => {
-  const child = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const child = deferred<{
+    vertexContent: { $data: string; $childHints: string[] };
+  }>();
   const visits: string[] = [];
   const { driver } = setup({
     visitorCount: 1,
@@ -133,7 +134,7 @@ test('settle stores a child outcome without admitting its visitor chain', async 
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['child'] } },
+            value: { vertexContent: { $data: 'root', $childHints: ['child'] } },
           };
         }
         if (call.kind === 'MAKE_VERTEX') {
@@ -158,7 +159,7 @@ test('settle stores a child outcome without admitting its visitor chain', async 
   expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
   expect(visits).toEqual(['root']);
 
-  child.resolve({ vertexContent: { $d: 'child', $c: [] } });
+  child.resolve({ vertexContent: { $data: 'child', $childHints: [] } });
   await eventLoopTurn();
   expect(driver.advance('settle')).toEqual({ kind: 'WAIT' });
   expect(visits).toEqual(['root']);
@@ -169,7 +170,9 @@ test('settle stores a child outcome without admitting its visitor chain', async 
 
 test('the limiter includes promised sorting and prefetched child resolution', async () => {
   const sorted = deferred<string[]>();
-  const child = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const child = deferred<{
+    vertexContent: { $data: string; $childHints: string[] };
+  }>();
   const started: string[] = [];
   const { driver, session } = setup({
     concurrency: 1,
@@ -180,7 +183,7 @@ test('the limiter includes promised sorting and prefetched child resolution', as
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['child'] } },
+            value: { vertexContent: { $data: 'root', $childHints: ['child'] } },
           };
         }
         if (call.kind === 'SORT_HINTS')
@@ -202,7 +205,7 @@ test('the limiter includes promised sorting and prefetched child resolution', as
   await eventLoopTurn();
   expect(started).toEqual(['MAKE_ROOT', 'SORT_HINTS', 'MAKE_VERTEX']);
   expect(driver.inspect().inFlightCallbackCount).toBe(1);
-  child.resolve({ vertexContent: { $d: 'child', $c: [] } });
+  child.resolve({ vertexContent: { $data: 'child', $childHints: [] } });
   await expect(next).resolves.toMatchObject({ done: false });
 });
 
@@ -218,7 +221,9 @@ test.each(['SORT_HINTS', 'HINT_ID'] as const)(
           if (call.kind === 'MAKE_ROOT') {
             return {
               kind: call.kind,
-              value: { vertexContent: { $d: 'root', $c: ['child'] } },
+              value: {
+                vertexContent: { $data: 'root', $childHints: ['child'] },
+              },
             };
           }
           if (call.kind === failedKind) {
@@ -235,7 +240,9 @@ test.each(['SORT_HINTS', 'HINT_ID'] as const)(
 );
 
 test('stores a child rejection while halted and surfaces it after resume', async () => {
-  const child = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const child = deferred<{
+    vertexContent: { $data: string; $childHints: string[] };
+  }>();
   const error = new Error('stored child failure');
   const { kernel, session } = setup({
     bindings: {
@@ -243,7 +250,7 @@ test('stores a child rejection while halted and surfaces it after resume', async
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['child'] } },
+            value: { vertexContent: { $data: 'root', $childHints: ['child'] } },
           };
         }
         if (call.kind === 'MAKE_VERTEX')
@@ -278,7 +285,9 @@ test('runs promised hint identity hooks through the shared limit before resolver
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['A', 'B'] } },
+            value: {
+              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
+            },
           };
         }
         if (call.kind === 'HINT_ID') {
@@ -293,7 +302,12 @@ test('runs promised hint identity hooks through the shared limit before resolver
         if (call.kind === 'MAKE_VERTEX') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: call.context.vertexHint, $c: [] } },
+            value: {
+              vertexContent: {
+                $data: call.context.vertexHint,
+                $childHints: [],
+              },
+            },
           };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -312,7 +326,7 @@ test('runs promised hint identity hooks through the shared limit before resolver
   expect(calls.slice(0, 3)).toEqual(['MAKE_ROOT:', 'HINT_ID:A', 'HINT_ID:B']);
   await expect(childEvent).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'A' } },
+    value: { vertex: { $data: 'A' } },
   });
 });
 
@@ -327,7 +341,7 @@ test('known async hint identities are consumed without invoking a resolver', asy
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['root'] },
+              vertexContent: { $data: 'root', $childHints: ['root'] },
             },
           };
         }
@@ -352,9 +366,9 @@ test('known async hint identities are consumed without invoking a resolver', asy
 });
 
 const earlierIdentityCases: Array<
-  [string, { $d: string; $c: string[] } | null]
+  [string, { $data: string; $childHints: string[] } | null]
 > = [
-  ['live', { $d: 'A', $c: [] }],
+  ['live', { $data: 'A', $childHints: [] }],
   ['omitted', null],
 ];
 
@@ -371,7 +385,7 @@ test.each(earlierIdentityCases)(
               kind: call.kind,
               value: {
                 vertexId: 'root',
-                vertexContent: { $d: 'root', $c: ['A', 'B'] },
+                vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
               },
             };
           }
@@ -390,7 +404,7 @@ test.each(earlierIdentityCases)(
                   ? { vertexId: 'A', vertexContent: firstContent }
                   : {
                       vertexId: 'B',
-                      vertexContent: { $d: 'B', $c: ['A'] },
+                      vertexContent: { $data: 'B', $childHints: ['A'] },
                     },
             };
           }
@@ -412,7 +426,7 @@ test('uses rewritten hints when admitting child prefetch', async () => {
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['old'] } },
+            value: { vertexContent: { $data: 'root', $childHints: ['old'] } },
           };
         }
         if (call.kind === 'VISIT') {
@@ -422,7 +436,7 @@ test('uses rewritten hints when admitting child prefetch', async () => {
                 value: {
                   commands: [
                     {
-                      commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+                      commandName: Command.REWRITE_CHILD_HINTS,
                       commandArguments: { newHints: ['new'] },
                     },
                   ],
@@ -434,7 +448,12 @@ test('uses rewritten hints when admitting child prefetch', async () => {
           resolvedHints.push(call.context.vertexHint);
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: call.context.vertexHint, $c: [] } },
+            value: {
+              vertexContent: {
+                $data: call.context.vertexHint,
+                $childHints: [],
+              },
+            },
           };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -448,7 +467,9 @@ test('uses rewritten hints when admitting child prefetch', async () => {
 });
 
 test('at limit one a settled first child admits its queued sibling before acknowledgment', async () => {
-  const first = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const first = deferred<{
+    vertexContent: { $data: string; $childHints: string[] };
+  }>();
   const calls: string[] = [];
   const { session } = setup({
     concurrency: 1,
@@ -457,7 +478,9 @@ test('at limit one a settled first child admits its queued sibling before acknow
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['A', 'B'] } },
+            value: {
+              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
+            },
           };
         }
         if (call.kind === 'MAKE_VERTEX') {
@@ -467,7 +490,7 @@ test('at limit one a settled first child admits its queued sibling before acknow
             value:
               call.context.vertexHint === 'A'
                 ? first.promise
-                : { vertexContent: { $d: 'B', $c: [] } },
+                : { vertexContent: { $data: 'B', $childHints: [] } },
           };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -479,14 +502,16 @@ test('at limit one a settled first child admits its queued sibling before acknow
   const child = iterator.next();
   await eventLoopTurn();
   expect(calls).toEqual(['A']);
-  first.resolve({ vertexContent: { $d: 'A', $c: [] } });
+  first.resolve({ vertexContent: { $data: 'A', $childHints: [] } });
   await expect(child).resolves.toMatchObject({ done: false });
   await eventLoopTurn();
   expect(calls).toEqual(['A', 'B']);
 });
 
 test('breadth-first frames prefetch sorted siblings and consume them in queue order', async () => {
-  const first = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const first = deferred<{
+    vertexContent: { $data: string; $childHints: string[] };
+  }>();
   const calls: string[] = [];
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
@@ -523,7 +548,9 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['A', 'B'] } },
+            value: {
+              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
+            },
           };
         }
         if (call.kind === 'SORT_HINTS') {
@@ -539,7 +566,7 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
             value:
               call.context.vertexHint === 'B'
                 ? first.promise
-                : { vertexContent: { $d: 'A', $c: [] } },
+                : { vertexContent: { $data: 'A', $childHints: [] } },
           };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -553,14 +580,14 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
   const child = iterator.next();
   await eventLoopTurn();
   expect(calls).toEqual(['B', 'A']);
-  first.resolve({ vertexContent: { $d: 'B', $c: [] } });
+  first.resolve({ vertexContent: { $data: 'B', $childHints: [] } });
   await expect(child).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'B' }, order: 'LEVEL_ORDER' },
+    value: { vertex: { $data: 'B' }, order: 'LEVEL_ORDER' },
   });
   await expect(iterator.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'A' }, order: 'LEVEL_ORDER' },
+    value: { vertex: { $data: 'A' }, order: 'LEVEL_ORDER' },
   });
   expect(driver.inspect().readyVisits).toEqual([]);
   expect(driver.inspect().frames).toEqual([]);
@@ -572,7 +599,9 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
 });
 
 test('breadth-first settle does not admit a resolved child visitor', async () => {
-  const child = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const child = deferred<{
+    vertexContent: { $data: string; $childHints: string[] };
+  }>();
   const visits: string[] = [];
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
@@ -593,7 +622,11 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
     stateBridge,
     visitorMetadata: {
       LEVEL_ORDER: [
-        { addedIndex: 0, priority: 100, commandCommitMode: 'afterEachVisitor' },
+        {
+          addedIndex: 0,
+          priority: 100,
+          commandCommitMode: 'afterEachVisitor' as const,
+        },
       ],
     },
     iterableConfig: {
@@ -613,7 +646,7 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['child'] } },
+            value: { vertexContent: { $data: 'root', $childHints: ['child'] } },
           };
         }
         if (call.kind === 'MAKE_VERTEX') {
@@ -639,7 +672,7 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
   expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
   expect(visits).toEqual(['root']);
 
-  child.resolve({ vertexContent: { $d: 'child', $c: [] } });
+  child.resolve({ vertexContent: { $data: 'child', $childHints: [] } });
   await eventLoopTurn();
   expect(driver.advance('settle')).toEqual({ kind: 'WAIT' });
   expect(visits).toEqual(['root']);
@@ -685,7 +718,7 @@ test('breadth-first closes an unsorted empty async frame', async () => {
             throw new Error(`Unexpected ${call.kind}`);
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: [] } },
+            value: { vertexContent: { $data: 'root', $childHints: [] } },
           };
         },
       },
@@ -734,7 +767,9 @@ test('breadth-first surfaces a prefetched resolver rejection', async () => {
           if (call.kind === 'MAKE_ROOT') {
             return {
               kind: call.kind,
-              value: { vertexContent: { $d: 'root', $c: ['child'] } },
+              value: {
+                vertexContent: { $data: 'root', $childHints: ['child'] },
+              },
             };
           }
           if (call.kind === 'MAKE_VERTEX') {

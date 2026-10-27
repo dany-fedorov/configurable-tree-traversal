@@ -9,13 +9,16 @@ import {
 } from '../src';
 import { runnerInternals } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: Node[] };
+type Node = { $data: string; $childHints: Node[] };
 type TestTTP = VertexTypes<string, Node>;
 
-const node = ($d: string, ...$c: Node[]): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: Node[]): Node => ({
+  $data,
+  $childHints,
+});
 
 function makeRef(data: string): MutableRef<Vertex<TestTTP>> {
-  return new MutableRef(new Vertex<TestTTP>({ $d: data, $c: [] }));
+  return new MutableRef(new Vertex<TestTTP>({ $data: data, $childHints: [] }));
 }
 
 function makeResolved(
@@ -44,8 +47,11 @@ function makeSavingContainer() {
   return runnerInternals(
     new DepthFirstTreeTraversal<TestTTP>({
       traversableTree: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: (hint) => ({ vertexContent: hint }),
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: (hint) => ({
+          kind: 'found' as const,
+          vertex: { vertexContent: hint },
+        }),
       },
       retainOriginalTreeStructure: true,
     }).createRunner(),
@@ -60,12 +66,18 @@ describe('resolved-tree public fallbacks', () => {
     expect(tree.getChildrenOf(unresolvedRef)).toBeNull();
     expect(tree.getResolutionContextOf(unresolvedRef)).toBeNull();
     expect(tree.resolveChild(unresolvedRef)).toEqual({
-      vertexContent: { $data: unresolvedRef, $childHints: [] },
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: unresolvedRef, $childHints: [] },
+      },
     });
 
     tree.setRoot(unresolvedRef);
     expect(tree.resolveRoot()).toEqual({
-      vertexContent: { $data: unresolvedRef, $childHints: [] },
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: unresolvedRef, $childHints: [] },
+      },
     });
   });
 

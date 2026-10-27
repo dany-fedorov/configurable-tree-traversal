@@ -11,13 +11,22 @@ import {
   runnerInternals,
 } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: Node[] };
+type Node = { $data: string; $childHints: Node[] };
 type Tree = VertexTypes<string, Node>;
 
-const node = ($d: string, ...$c: Node[]): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: Node[]): Node => ({
+  $data,
+  $childHints,
+});
 const adapter = (root: Node): TreeSource<Tree> => ({
-  resolveRoot: () => ({ vertexContent: root }),
-  resolveChild: (hint) => ({ vertexContent: hint }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: root },
+  }),
+  resolveChild: (hint) => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: hint },
+  }),
 });
 const ref = (data: string) => new MutableRef(new Vertex<Tree>(node(data)));
 const context = (

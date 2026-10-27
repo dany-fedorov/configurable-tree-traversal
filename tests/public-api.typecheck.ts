@@ -44,17 +44,31 @@ import {
   traverseDagAsync as traverseDagAsyncFromDagSubpath,
 } from '../src/traversals/dag-traversal';
 
-type Node = { $d: string; $c: (Node | null)[] };
+type Node = { $data: string; $childHints: (Node | null)[] };
 type Tree = VertexTypes<string, Node | null>;
-
-const root: Node = { $d: 'root', $c: [{ $d: 'leaf', $c: [] }] };
+const root: Node = {
+  $data: 'root',
+  $childHints: [{ $data: 'leaf', $childHints: [] }],
+};
 const tree: TreeSource<Tree> = {
-  resolveRoot: () => ({ vertexContent: root }),
-  resolveChild: (hint) => ({ vertexContent: hint }),
+  resolveRoot: () => ({ kind: 'found', vertex: { vertexContent: root } }),
+  resolveChild: (hint) =>
+    hint === null
+      ? { kind: 'omitted' }
+      : { kind: 'found', vertex: { vertexContent: hint } },
 };
 const graph: DagDiscoverySource<Tree> = {
-  resolveRoot: () => ({ vertexId: 'root', vertexContent: root }),
-  resolveChild: (hint) => ({ vertexId: hint?.$d, vertexContent: hint }),
+  resolveRoot: () => ({
+    kind: 'found',
+    vertex: { vertexId: 'root', vertexContent: root },
+  }),
+  resolveChild: (hint) =>
+    hint === null
+      ? { kind: 'omitted', satisfiesDependencies: true }
+      : {
+          kind: 'found',
+          vertex: { vertexId: hint.$data, vertexContent: hint },
+        },
 };
 
 const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
@@ -79,10 +93,13 @@ interfaceRunner.iterateEvents();
 interfaceRunner.run({ emitEvents: [] });
 const failedStatus: TraversalRunnerStatus = TraversalRunnerStatus.FAILED;
 
-const convenienceRunner = traverseTreeDepthFirst(tree, {
-  postOrderVisitor: (vertex) => {
-    const data: string = vertex.getData();
-    void data;
+const convenienceRunner = traverseTreeDepthFirst({
+  traversableTree: tree,
+  visitors: {
+    POST_ORDER: (vertex) => {
+      const data: string = vertex.getData();
+      void data;
+    },
   },
 });
 const convenienceData: string = convenienceRunner
@@ -102,17 +119,16 @@ for (const event of objectRunner.iterateEvents()) {
 
 const asyncDepthResult: Promise<
   ReturnType<AsyncDepthFirstTreeTraversal<Tree>['createRunner']>
-> = traverseTreeDepthFirstAsync(tree, null);
+> = traverseTreeDepthFirstAsync({ traversableTree: tree });
 const asyncBreadthResult: Promise<
   ReturnType<AsyncBreadthFirstTreeTraversal<Tree>['createRunner']>
-> = traverseTreeBreadthFirstAsync(tree, null);
-const dagResult: ReturnType<DagTraversal<Tree>['createRunner']> = traverseDag(
-  { traversableGraph: graph },
-  null,
-);
+> = traverseTreeBreadthFirstAsync({ traversableTree: tree });
+const dagResult: ReturnType<DagTraversal<Tree>['createRunner']> = traverseDag({
+  traversableGraph: graph,
+});
 const asyncDagResult: Promise<
   ReturnType<AsyncDagTraversal<Tree>['createRunner']>
-> = traverseDagAsyncFromDagSubpath({ traversableGraph: graph }, null);
+> = traverseDagAsyncFromDagSubpath({ traversableGraph: graph });
 const asyncExecution: AsyncCoreExecution<unknown> = new AsyncDagTraversal({
   traversableGraph: graph,
 }).createRunner();
@@ -176,13 +192,15 @@ void [
   publicTypes,
 ];
 
-// Canonical content is descriptive; input boundaries preserve legacy shapes.
+// Canonical inputs reject retired content spelling.
 const canonicalContent: import('../src').VertexContent<Tree> = {
   $data: 'canonical',
   $childHints: [],
 };
-const legacyContent: Extract<import('../src').VertexContentInput<Tree>, { $d: unknown }> = {
+const legacyContent: import('../src').VertexContentInput<Tree> = {
+  // @ts-expect-error Legacy content has been removed.
   $d: 'legacy',
+  // @ts-expect-error Legacy content has been removed.
   $c: [],
 };
 const canonicalInput: import('../src/core').VertexContentInput<Tree> =
@@ -191,9 +209,11 @@ const legacyInput: import('../src').VertexContentInput<Tree> = legacyContent;
 const canonicalVertex = new Vertex<Tree>(canonicalInput);
 const copiedVertex = new Vertex<Tree>(canonicalVertex);
 const canonicalData: string = canonicalVertex.$data;
+// @ts-expect-error Legacy accessors have been removed.
 const legacyData: string = canonicalVertex.$d;
 const canonicalHints: Array<Node | null> = canonicalVertex.$childHints;
 canonicalVertex.clone({ $data: 'changed', $childHints: [] });
+// @ts-expect-error Legacy clone patches have been removed.
 canonicalVertex.clone({ $d: 'changed', $c: [] });
 const cloneFromVertex: Vertex<Tree> = canonicalVertex.clone(copiedVertex);
 void cloneFromVertex;
@@ -215,20 +235,21 @@ void canonicalHints;
 void canonicalVertex;
 void legacyInput;
 
-// @ts-expect-error Content inputs cannot mix canonical data with legacy hints.
 const mixedContent: import('../src').VertexContentInput<Tree> = {
   $data: 'root',
+  // @ts-expect-error Content inputs cannot mix canonical data with legacy hints.
   $c: [],
 };
-// @ts-expect-error Complete canonical content cannot carry legacy data as well.
 const duplicateContent: import('../src').VertexContentInput<Tree> = {
   $data: 'root',
   $childHints: [],
+  // @ts-expect-error Complete canonical content cannot carry legacy data as well.
   $d: 'root',
 };
-// @ts-expect-error Complete legacy content cannot carry canonical hints as well.
 const duplicateLegacy: import('../src').VertexContentInput<Tree> = {
+  // @ts-expect-error Complete legacy content cannot carry canonical hints as well.
   $d: 'root',
+  // @ts-expect-error Complete legacy content cannot carry canonical hints as well.
   $c: [],
   $childHints: [],
 };

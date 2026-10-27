@@ -1,8 +1,8 @@
+import { TraversalVisitorCommandName as VisitorCommand } from '../src';
 import {
   DagTraversal,
   AsyncDagTraversal,
   DagVisitorPhase as Order,
-  DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
   filterDagDataVisitor,
@@ -97,7 +97,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const after: string[] = [];
     traversal.addVisitorFor(
       Order.ON_WORK_READY,
-      filterDagDataVisitor(isTask, () => DEFER_READY),
+      filterDagDataVisitor(isTask, () => ({
+        commands: [
+          { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+        ],
+      })),
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, (_, options) => {
       after.push(options.resolvedGraph.getVertexId(options.vertexRef));
@@ -108,7 +112,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(runner.summary().deferredWorkIds).toEqual(['task']);
     runner.settle(
       'task',
-      { ok: true },
+      { kind: 'workCompleted' },
       runner.summary().awaitingSettlement[0]!.generation,
     );
     await runner.run();
@@ -182,17 +186,26 @@ test('async filtering preserves deferral after awaited host work', async () => {
   });
   traversal.addVisitorFor(
     Order.ON_WORK_READY,
-    filterAsyncDagDataVisitor(isTask, async (): Promise<typeof DEFER_READY> => {
-      await Promise.resolve();
-      return DEFER_READY;
-    }),
+    filterAsyncDagDataVisitor(
+      isTask,
+      async (): Promise<{
+        commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION }];
+      }> => {
+        await Promise.resolve();
+        return {
+          commands: [
+            { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+          ],
+        };
+      },
+    ),
   );
   const runner = traversal.createRunner();
   await runner.run();
   expect(runner.summary().deferredWorkIds).toEqual(['task']);
   runner.settle(
     'task',
-    { ok: true },
+    { kind: 'workCompleted' },
     runner.summary().awaitingSettlement[0]!.generation,
   );
   await runner.run();

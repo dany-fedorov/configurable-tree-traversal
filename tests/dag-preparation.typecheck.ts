@@ -13,12 +13,18 @@ type G = VertexTypes<string, string>;
 type ID = 'a' | 'b';
 const source: DagDiscoverySource<G, G, ID> = {
   resolveRoot: () => ({
-    vertexId: 'a',
-    vertexContent: { $data: 'a', $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'a',
+      vertexContent: { $data: 'a', $childHints: [] },
+    },
   }),
   resolveChild: () => ({
-    vertexId: 'b',
-    vertexContent: { $data: 'b', $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'b',
+      vertexContent: { $data: 'b', $childHints: [] },
+    },
   }),
 };
 const sync: DagTraversalRunner<G, G, ID> = new DagTraversal<G, G, ID>({

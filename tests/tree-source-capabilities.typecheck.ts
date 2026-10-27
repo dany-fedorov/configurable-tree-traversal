@@ -1,4 +1,3 @@
-import type { MakeTreeVertexResult } from '../src/core/TraversableTree';
 import { ObjectTreeSource } from '../src';
 import { rewriteObject } from '../src/tools/rewrite-object/rewriteObject';
 import type {
@@ -20,7 +19,8 @@ const found: TreeVertexFound<T> = {
   vertex: { vertexContent: content },
 };
 const omitted: TreeVertexOmitted = { kind: 'omitted' };
-const legacy: MakeTreeVertexResult<T> = { vertexContent: null };
+// @ts-expect-error Untagged tree source resolutions are retired.
+const legacy: TreeVertexResolution<T> = { vertexContent: null };
 const source: TreeVertexResolution<T> = found;
 const tree: TreeSource<T> = {
   resolveRoot: () => source,
@@ -50,7 +50,10 @@ const graph: DagDiscoverySource<T> = {
 const graphResult: DagVertexResolution<T> = graph.resolveRoot();
 void [tree, asyncTree, hook, graphResult];
 
-const vertexIdlegacy = () => ({ vertexContent: content, vertexId: undefined });
+const vertexIdlegacy = () => ({
+  kind: 'found' as const,
+  vertex: { vertexContent: content, vertexId: undefined },
+});
 const badvertexIdlegacy: TreeSource<T> = {
   // @ts-expect-error vertexId is not a tree legacy capability, even on pretyped functions.
   resolveRoot: vertexIdlegacy,
@@ -92,7 +95,10 @@ const asyncBadvertexIdomitted: AsyncTreeSource<T> = {
   resolveChild: () => omitted,
 };
 void [badvertexIdomitted, asyncBadvertexIdomitted];
-const dependsOnlegacy = () => ({ vertexContent: content, dependsOnWork: [] });
+const dependsOnlegacy = () => ({
+  kind: 'found' as const,
+  vertex: { vertexContent: content, dependsOnWork: [] },
+});
 const baddependsOnlegacy: TreeSource<T> = {
   // @ts-expect-error dependsOnWork is not a tree legacy capability, even on pretyped functions.
   resolveRoot: dependsOnlegacy,
@@ -135,8 +141,11 @@ const asyncBaddependsOnomitted: AsyncTreeSource<T> = {
 };
 void [baddependsOnomitted, asyncBaddependsOnomitted];
 const dependsOnCompletelegacy = () => ({
-  vertexContent: content,
-  dependsOnSubgraphCompletion: [],
+  kind: 'found' as const,
+  vertex: {
+    vertexContent: content,
+    dependsOnSubgraphCompletion: [],
+  },
 });
 const baddependsOnCompletelegacy: TreeSource<T> = {
   // @ts-expect-error dependsOnSubgraphCompletion is not a tree legacy capability, even on pretyped functions.

@@ -1,5 +1,4 @@
 import { getVisitorBatchEnds } from './getVisitorBatchEnds';
-import { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import { normalizeVisitorOptions } from './normalizeVisitorOptions';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -12,10 +11,7 @@ import type {
   VisitorOutcome,
 } from '@core/visitors/types';
 
-export class VisitorChain<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> {
+export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
   private readonly canDeferReady: boolean;
   private readonly ref: VisitorChainInput<T, R>['ref'];
   private readonly batchEnds: boolean[];
@@ -32,7 +28,8 @@ export class VisitorChain<
 
   constructor(input: VisitorChainInput<T, R>) {
     this.ref = input.ref;
-    this.canDeferReady = input.family === 'dag' && input.order === 'ON_WORK_READY';
+    this.canDeferReady =
+      input.family === 'dag' && input.order === 'ON_WORK_READY';
     this.metadata = {
       ...input.metadata,
       visitorIndex: 0,
@@ -60,10 +57,7 @@ export class VisitorChain<
     }
 
     if (this.position < this.batchEnds.length) {
-      return this.emitVisit(
-        this.position,
-        this.metadata.visitorChainState,
-      );
+      return this.emitVisit(this.position, this.metadata.visitorChainState);
     }
 
     this.done = true;
@@ -81,19 +75,16 @@ export class VisitorChain<
 
     this.awaitingOutcome = false;
     this.metadata.visitorIndex++;
-    const value =
-      outcome.value === DEFER_READY
-        ? {
-            commands: [
-              { commandName: TraversalVisitorCommandName.DEFER_WORK_COMPLETION as const },
-            ],
-          }
-        : outcome.value;
+    const value = outcome.value;
+    if (typeof value === 'symbol') {
+      throw new TypeError('Invalid visitor result; use canonical commands');
+    }
     const commands = value?.commands ?? [];
     if (
       commands.some(
         (command) =>
-          command.commandName === TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+          command.commandName ===
+          TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
       )
     ) {
       if (commands.length !== 1)
@@ -121,9 +112,7 @@ export class VisitorChain<
       (command) =>
         command.commandName === TraversalVisitorCommandName.PAUSE_TRAVERSAL,
     );
-    if (
-      Object.prototype.hasOwnProperty.call(result, 'visitorChainState')
-    ) {
+    if (Object.prototype.hasOwnProperty.call(result, 'visitorChainState')) {
       this.metadata.visitorChainState = result.visitorChainState;
     }
     this.pendingCommands = null;

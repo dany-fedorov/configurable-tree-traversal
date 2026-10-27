@@ -179,8 +179,7 @@ describe('object rewriting', () => {
         return {
           commands: [
             {
-              commandName:
-                TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+              commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
               commandArguments: {
                 newHints: [{ key: 'back', value: input }],
               },
@@ -246,10 +245,14 @@ describe('object rewriting', () => {
     const tree = new ObjectTreeSource(input);
 
     expect(() =>
-      new DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().run(),
+      new DepthFirstTreeTraversal({ traversableTree: tree })
+        .createRunner()
+        .run(),
     ).not.toThrow();
     expect(() =>
-      new DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().run(),
+      new DepthFirstTreeTraversal({ traversableTree: tree })
+        .createRunner()
+        .run(),
     ).not.toThrow();
   });
 });

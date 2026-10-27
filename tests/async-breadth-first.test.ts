@@ -1,3 +1,4 @@
+import { treeResolution } from './source-result-fixtures';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
@@ -14,9 +15,12 @@ import {
   runnerInternals,
 } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: (Node | null)[] };
+type Node = { $data: string; $childHints: (Node | null)[] };
 type Tree = VertexTypes<string, Node | null>;
-const node = ($d: string, ...$c: (Node | null)[]): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: (Node | null)[]): Node => ({
+  $data,
+  $childHints,
+});
 
 function traversal(
   root: Node | null = node('root', node('A'), node('B')),
@@ -24,8 +28,8 @@ function traversal(
 ) {
   return new AsyncBreadthFirstTreeTraversal<Tree>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: root }),
-      resolveChild: async (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => treeResolution(root),
+      resolveChild: async (hint) => treeResolution(hint),
     },
     concurrency,
   });
@@ -41,11 +45,20 @@ async function values(runner: {
 }
 
 test('accepts prefetched children in dequeue order rather than settlement order', async () => {
-  const first = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
-  const second = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const first = deferred<{
+    kind: 'found';
+    vertex: { vertexContent: { $data: string; $childHints: string[] } };
+  }>();
+  const second = deferred<{
+    kind: 'found';
+    vertex: { vertexContent: { $data: string; $childHints: string[] } };
+  }>();
   const runner = new AsyncBreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: ['A', 'B'] } },
+      }),
       resolveChild: (hint) => (hint === 'A' ? first.promise : second.promise),
     },
     concurrency: 2,
@@ -55,8 +68,14 @@ test('accepts prefetched children in dequeue order rather than settlement order'
   expect((await iterator.next()).value?.vertex.getData()).toBe('root');
   const result = iterator.next();
   await eventLoopTurn();
-  second.resolve({ vertexContent: { $d: 'B', $c: [] } });
-  first.resolve({ vertexContent: { $d: 'A', $c: [] } });
+  second.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'B', $childHints: [] } },
+  });
+  first.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'A', $childHints: [] } },
+  });
 
   expect((await result).value?.vertex.getData()).toBe('A');
   expect((await iterator.next()).value?.vertex.getData()).toBe('B');
@@ -105,10 +124,13 @@ test('rejects graph metadata returned by an asynchronous tree source', async () 
     traversableTree: {
       // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
       resolveRoot: async () => ({
-        vertexContent: { $d: 'root', $c: [] },
-        vertexId: 'root',
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: 'root', $childHints: [] },
+          vertexId: 'root',
+        },
       }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveChild: () => ({ kind: 'omitted' as const }),
     },
   }).createRunner();
 
@@ -119,10 +141,16 @@ test('deleting the root skips prefetched children and clears the tree root', asy
   const calls: string[] = [];
   const t = new AsyncBreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['hidden'] } }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: ['hidden'] } },
+      }),
       resolveChild: async (hint) => {
         calls.push(hint);
-        return { vertexContent: { $d: hint, $c: [] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        };
       },
     },
     concurrency: 2,
@@ -173,7 +201,10 @@ test('preserves paused visitor outcomes through repeated resumptions', async () 
 });
 
 test('retains prefetched outcomes settled during halt and resumes in dequeue order', async () => {
-  type Result = { vertexContent: { $d: string; $c: string[] } };
+  type Result = {
+    kind: 'found';
+    vertex: { vertexContent: { $data: string; $childHints: string[] } };
+  };
   const pending = {
     A: deferred<Result>(),
     B: deferred<Result>(),
@@ -183,7 +214,10 @@ test('retains prefetched outcomes settled during halt and resumes in dequeue ord
   const traversal = new AsyncBreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
       resolveRoot: () => ({
-        vertexContent: { $d: 'root', $c: ['A', 'B', 'C'] },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: 'root', $childHints: ['A', 'B', 'C'] },
+        },
       }),
       resolveChild: (hint) => {
         calls.push(hint);
@@ -204,12 +238,21 @@ test('retains prefetched outcomes settled during halt and resumes in dequeue ord
   const halted = iterator.next();
   await eventLoopTurn();
   expect(calls).toEqual(['A', 'B', 'C']);
-  pending.A.resolve({ vertexContent: { $d: 'A', $c: [] } });
+  pending.A.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'A', $childHints: [] } },
+  });
   expect(await halted).toEqual({ done: true, value: undefined });
   expect(runner.getStatus()).toBe(Status.HALTED);
 
-  pending.C.resolve({ vertexContent: { $d: 'C', $c: [] } });
-  pending.B.resolve({ vertexContent: { $d: 'B', $c: [] } });
+  pending.C.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'C', $childHints: [] } },
+  });
+  pending.B.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'B', $childHints: [] } },
+  });
   await eventLoopTurn();
 
   await expect(values(runner)).resolves.toEqual(['A', 'B', 'C']);
@@ -301,7 +344,7 @@ test('snapshots builder configuration and reuses injected tree storage and state
       resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      resolveChild: (hint) => ({ vertexContent: hint }),
+      resolveChild: (hint) => treeResolution(hint),
     },
     traversalRunnerInternalObjects: {
       resolvedTreesContainer: runnerInternals(first).resolvedTreesContainer,
@@ -310,9 +353,8 @@ test('snapshots builder configuration and reuses injected tree storage and state
   }).configure({ sortChildrenHints: async (hints) => hints.reverse() });
   t.setVisitorsFor(Order.LEVEL_ORDER, [
     {
-      addedIndex: 10,
       priority: 1,
-      commandCommitMode: 'afterEachVisitor',
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: async (vertex) => {
         visitors.push(vertex.getData());
       },
@@ -346,7 +388,7 @@ test.each([null, undefined])(
         resolveRoot: async () => {
           throw failure;
         },
-        resolveChild: () => ({ vertexContent: null }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
     }).createRunner();
     await expect(runner.run()).rejects.toBe(failure);
@@ -407,8 +449,11 @@ test('matches synchronous BFS for timing-independent generated trees', async () 
       );
     const root = make(4, 'root');
     const tree = {
-      resolveRoot: () => ({ vertexContent: root }),
-      resolveChild: (hint: Node | null) => ({ vertexContent: hint }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: root },
+      }),
+      resolveChild: (hint: Node | null) => treeResolution(hint),
     };
     const expected = Array.from(
       new BreadthFirstTreeTraversal<Tree>({ traversableTree: tree })

@@ -1,3 +1,4 @@
+import { treeResolution } from './source-result-fixtures';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
@@ -15,9 +16,12 @@ import {
   runnerInternals,
 } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: (Node | null)[] };
+type Node = { $data: string; $childHints: (Node | null)[] };
 type Tree = VertexTypes<string, Node | null>;
-const node = ($d: string, ...$c: (Node | null)[]): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: (Node | null)[]): Node => ({
+  $data,
+  $childHints,
+});
 
 function traversal(
   root: Node | null = node('root', node('A'), node('B')),
@@ -25,8 +29,8 @@ function traversal(
 ) {
   return new AsyncDepthFirstTreeTraversal<Tree>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: root }),
-      resolveChild: async (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => treeResolution(root),
+      resolveChild: async (hint) => treeResolution(hint),
     },
     concurrency,
   });
@@ -46,8 +50,14 @@ async function values(
 test('exposes asynchronous depth-first post-order traversal', async () => {
   const traversal = new AsyncDepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
-      resolveChild: async (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: ['A', 'B'] } },
+      }),
+      resolveChild: async (hint) => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+      }),
     },
     concurrency: 2,
   });
@@ -236,9 +246,8 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
   const seen: string[] = [];
   t.setVisitorsFor(Order.PRE_ORDER, [
     {
-      addedIndex: 10,
       priority: 100,
-      commandCommitMode: 'afterEachVisitor',
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: async () => {
         seen.push('first');
       },
@@ -278,7 +287,7 @@ test('reuses injected tree storage and state objects', async () => {
       resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      resolveChild: (hint) => ({ vertexContent: hint }),
+      resolveChild: (hint) => treeResolution(hint),
     },
     traversalRunnerInternalObjects: {
       resolvedTreesContainer: runnerInternals(first).resolvedTreesContainer,
@@ -304,7 +313,7 @@ test.each([null, undefined])(
         resolveRoot: async () => {
           throw failure;
         },
-        resolveChild: () => ({ vertexContent: null }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
     }).createRunner();
     await expect(runner.run()).rejects.toBe(failure);
@@ -384,8 +393,11 @@ test('matches synchronous DFS for timing-independent generated trees', async () 
       );
     const root = make(4, 'root');
     const tree = {
-      resolveRoot: () => ({ vertexContent: root }),
-      resolveChild: (hint: Node | null) => ({ vertexContent: hint }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: root },
+      }),
+      resolveChild: (hint: Node | null) => treeResolution(hint),
     };
     const sync = new DepthFirstTreeTraversal<Tree>({ traversableTree: tree });
     const asyncTraversal = new AsyncDepthFirstTreeTraversal<Tree>({

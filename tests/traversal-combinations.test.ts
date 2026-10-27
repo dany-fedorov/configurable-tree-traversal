@@ -1,3 +1,4 @@
+import { treeResolution } from './source-result-fixtures';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
@@ -11,14 +12,17 @@ import {
   DepthFirstTreeTraversal,
 } from '../src/traversals/depth-first-traversal';
 
-type Node = { $d: number; $c: Array<Node | null> };
+type Node = { $data: number; $childHints: Array<Node | null> };
 type Tree = VertexTypes<number, Node | null>;
-const node = ($d: number, ...$c: Array<Node | null>): Node => ({ $d, $c });
+const node = ($data: number, ...$childHints: Array<Node | null>): Node => ({
+  $data,
+  $childHints,
+});
 const fixture = () =>
   node(0, node(1, node(2), null, node(3)), node(4, null, node(5)));
 const adapter = (root: Node | null): TreeSource<Tree> => ({
-  resolveRoot: () => ({ vertexContent: root }),
-  resolveChild: (hint) => ({ vertexContent: hint }),
+  resolveRoot: () => treeResolution(root),
+  resolveChild: (hint) => treeResolution(hint),
 });
 
 // A small recursive reference interpreter is deliberately separate from the
@@ -35,7 +39,7 @@ function generatedTree(seed: number): Node {
     if (depth === 5 || id >= 150) return current;
     const width = random() % 5;
     for (let i = 0; i < width; i++)
-      current.$c.push(random() % 6 === 0 ? null : build(depth + 1));
+      current.$childHints.push(random() % 6 === 0 ? null : build(depth + 1));
     return current;
   }
   return build(0);
@@ -46,16 +50,16 @@ function reference(root: Node, prune = (_id: number) => false) {
   const post: number[] = [];
   const levels: number[][] = [];
   function visit(current: Node, depth: number) {
-    pre.push(current.$d);
-    (levels[depth] ?? (levels[depth] = [])).push(current.$d);
-    const children = prune(current.$d) ? [] : current.$c;
-    if (children.length === 0) inside.push(current.$d);
+    pre.push(current.$data);
+    (levels[depth] ?? (levels[depth] = [])).push(current.$data);
+    const children = prune(current.$data) ? [] : current.$childHints;
+    if (children.length === 0) inside.push(current.$data);
     children.forEach((child, index) => {
       if (child !== null) visit(child, depth + 1);
       if (index < children.length - 1 || children.length === 1)
-        inside.push(current.$d);
+        inside.push(current.$data);
     });
-    post.push(current.$d);
+    post.push(current.$data);
   }
   visit(root, 0);
   return { pre, inside, post, breadth: levels.flat() };
@@ -237,7 +241,10 @@ describe.each(['depth', 'breadth'] as const)(
           resolveRoot: () => {
             calls++;
             if (stage === 'root') throw failure;
-            return { vertexContent: node(0, node(1)) };
+            return {
+              kind: 'found' as const,
+              vertex: { vertexContent: node(0, node(1)) },
+            };
           },
           resolveChild: () => {
             calls++;

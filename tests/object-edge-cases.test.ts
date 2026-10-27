@@ -6,7 +6,6 @@ import {
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
 } from '../src';
-import { legacyObjectOptions } from './legacy-object-options';
 
 const { rewriteObject, rewriteObjectAs } = rewriteObjectApi;
 
@@ -138,7 +137,7 @@ describe('object traversal and rewriting edge cases', () => {
     expect(input.boxed.entries).toEqual({ first: 1, second: 2 });
   });
 
-  test('makeVertexHook can prune one property and replace another subtree', () => {
+  test('resolveVertexHook can prune one property and replace another subtree', () => {
     const visited: PropertyKey[] = [];
 
     const { outputAtReturn } = rewriteObject(
@@ -147,24 +146,27 @@ describe('object traversal and rewriting edge cases', () => {
         prune: { hidden: 2 },
         replace: { ignored: 3 },
       },
-      legacyObjectOptions({
-        makeVertexHook: (hint) => {
-          if (hint.key === 'prune') return { returnMe: null };
+      {
+        resolveVertexHook: (hint) => {
+          if (hint.key === 'prune') return { kind: 'omitted' };
           if (hint.key === 'replace') {
             return {
-              returnMe: {
-                $d: { key: 'replacement', value: { visible: 4 } },
-                $c: [{ key: 'visible', value: 4 }],
+              kind: 'found',
+              vertex: {
+                vertexContent: {
+                  $data: { key: 'replacement', value: { visible: 4 } },
+                  $childHints: [{ key: 'visible', value: 4 }],
+                },
               },
             };
           }
-          return {};
+          return { kind: 'useDefault' };
         },
         rewrite: ({ key }, { isTreeRoot }) => {
           if (!isTreeRoot) visited.push(key);
           return undefined;
         },
-      }),
+      },
     );
 
     expect(outputAtReturn).toEqual({ keep: 1, replacement: { visible: 4 } });
@@ -228,9 +230,8 @@ describe('object traversal and rewriting edge cases', () => {
       visitors: {
         [DepthFirstPhase.POST_ORDER]: [
           {
-            addedIndex: 0,
             priority: 200,
-            commandCommitMode: 'afterEachVisitor',
+            commandCommitMode: 'afterEachVisitor' as const,
             visitor: (_vertex, { isTreeRoot }) => {
               if (!isTreeRoot || haltedAtRoot) return undefined;
               haltedAtRoot = true;
@@ -398,20 +399,20 @@ describe('object traversal and rewriting edge cases', () => {
 
   test('a hook that substitutes an ancestor identity is rejected as a cycle', () => {
     const input = { child: { leaf: 1 } };
-    const tree = new ObjectTreeSource(
-      input,
-      legacyObjectOptions({
-        makeVertexHook: (hint) =>
-          hint.key === 'child'
-            ? {
-                returnMe: {
-                  $d: { key: hint.key, value: input },
-                  $c: [{ key: 'again', value: input }],
+    const tree = new ObjectTreeSource(input, {
+      resolveVertexHook: (hint) =>
+        hint.key === 'child'
+          ? {
+              kind: 'found',
+              vertex: {
+                vertexContent: {
+                  $data: { key: hint.key, value: input },
+                  $childHints: [{ key: 'again', value: input }],
                 },
-              }
-            : {},
-      }),
-    );
+              },
+            }
+          : { kind: 'useDefault' },
+    });
     const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
 
     expect(() => traversal.createRunner().run()).toThrow(

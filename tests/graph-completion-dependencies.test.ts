@@ -16,7 +16,10 @@ function setup() {
   const scheduling = new GraphScheduling(container);
   const root = scheduling.acceptRoot({
     vertexId: 'root',
-    vertexContent: { $d: 'root', $c: ['join', 'gate', 'later', 'duplicate'] },
+    vertexContent: {
+      $data: 'root',
+      $childHints: ['join', 'gate', 'later', 'duplicate'],
+    },
   })!;
   scheduling.takeReady();
   scheduling.markPreVisited(root);
@@ -47,7 +50,7 @@ const result = (
   vertexId: id,
   dependsOnWork: [],
   dependsOnSubgraphCompletion: complete,
-  vertexContent: { $d: String(id), $c: [] },
+  vertexContent: { $data: String(id), $childHints: [] },
 });
 
 test('omission releases W and C while a later omitted gate is immediately satisfied', () => {
@@ -57,11 +60,11 @@ test('omission releases W and C while a later omitted gate is immediately satisf
     dependsOnWork: ['gate'],
   });
   expect(scheduling.takeReady()).toBeNull();
-  accept(1, { vertexId: 'gate', vertexContent: null });
+  accept(1, { vertexContent: null, vertexId: 'gate' });
   expect(scheduling.takeReady()).toBe(join);
   const later = accept(2, result('later', ['gate']));
   expect(scheduling.takeReady()).toBe(later);
-  accept(3, { vertexId: 'gate', vertexContent: null });
+  accept(3, { vertexContent: null, vertexId: 'gate' });
   expect(scheduling.takeReady()).toBeNull();
 });
 
@@ -90,7 +93,7 @@ test('deleting a prerequisite cascades C dependents and tombstones later arrival
   expect(container.resolvedGraph.has(later)).toBe(false);
   expect(container.store.getIdState('future')).toEqual({ kind: 'deleted' });
   expect(container.resolvedGraph.getChildrenOf(root)).toEqual([]);
-  expect(container.originalGraphView!.getVertexById('join')).not.toBeNull();
+  expect(container.originalGraphView!.getVertexRefById('join')).not.toBeNull();
 });
 
 test('C prerequisite arrays and inspected work detach from caller and snapshots', () => {
@@ -111,7 +114,9 @@ test('C prerequisite arrays and inspected work detach from caller and snapshots'
 
 test('GraphStore copies completion inputs and keeps empty public vertex shapes unchanged', () => {
   const store = new GraphStore<TestGraph>('dag');
-  const ref = new MutableRef(new Vertex<TestGraph>({ $d: '', $c: [] }));
+  const ref = new MutableRef(
+    new Vertex<TestGraph>({ $data: '', $childHints: [] }),
+  );
   const declared = ['gate'];
   store.insertVertex({
     ref,

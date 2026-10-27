@@ -82,7 +82,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
   /** Narrow detached facts for inspection; never advances any scheduler queue. */
   inspectSchedulingState(): readonly GraphSchedulingState[] {
     return Array.from(this.work.values(), (work) => ({
-      vertexId: this.container.resolvedGraph.getIdOf(work.ref),
+      vertexId: this.container.resolvedGraph.getVertexId(work.ref),
       expansion: work.expansion,
       initialCommitted: work.initialCommitted,
       completionCommitted: work.completionCommitted,
@@ -115,7 +115,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
   /** Validate original declarations, even when a successful seed satisfied them. */
   validateDiscoveredGraph(): void {
     const dependencies = Array.from(this.work.keys(), (ref) => ({
-      id: this.container.resolvedGraph.getIdOf(ref),
+      id: this.container.resolvedGraph.getVertexId(ref),
       missing: this.declaredPrerequisites(ref),
     }));
     const diagnostics = this.diagnoseStall({ dependencies, incomplete: [] });
@@ -143,7 +143,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }
     return this.diagnoseStall({
       dependencies: refs.map((ref) => ({
-        id: this.container.resolvedGraph.getIdOf(ref),
+        id: this.container.resolvedGraph.getVertexId(ref),
         missing: this.declaredPrerequisites(ref),
       })),
       incomplete: [],
@@ -167,7 +167,10 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       if (queued.has(visit.ref)) {
         this.throwInvalidSeed('ready visit is duplicated');
       }
-      if (visit.order !== 'ON_WORK_READY' && visit.order !== 'ON_SUBGRAPH_READY') {
+      if (
+        visit.order !== 'ON_WORK_READY' &&
+        visit.order !== 'ON_SUBGRAPH_READY'
+      ) {
         this.throwInvalidSeed('ready visit has an invalid order');
       }
       queued.set(visit.ref, visit);
@@ -229,7 +232,11 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
           this.throwInvalidSeed('DISCOVERED vertex is inconsistent');
         }
       } else if (status === 'READY') {
-        if (slots !== null || hasUnmet || queuedVisit?.order !== 'ON_WORK_READY') {
+        if (
+          slots !== null ||
+          hasUnmet ||
+          queuedVisit?.order !== 'ON_WORK_READY'
+        ) {
           this.throwInvalidSeed('READY vertex is inconsistent');
         }
       } else if (status === 'PRE_VISITED') {
@@ -781,7 +788,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       if (vertexWork.completionCommitted) continue;
       if (vertexWork.unmet.size > 0 || vertexWork.unmetComplete.size > 0) {
         dependencies.push({
-          id: this.container.resolvedGraph.getIdOf(ref),
+          id: this.container.resolvedGraph.getVertexId(ref),
           missing: Array.from(
             new Set([...vertexWork.unmet, ...vertexWork.unmetComplete]),
           ),
@@ -809,12 +816,12 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     }
     const { edges, cycles } = dependencyMilestones(
       Array.from(this.container.resolvedGraph.getVertexRefs(), (ref) => ({
-        id: this.container.resolvedGraph.getIdOf(ref),
+        id: this.container.resolvedGraph.getVertexId(ref),
         work: this.container.store.getDeclaredDependencies(ref),
         complete: this.container.store.getDeclaredCompleteDependencies(ref),
         children: this.container.resolvedGraph
           .getChildrenOf(ref)!
-          .map((child) => this.container.resolvedGraph.getIdOf(child)),
+          .map((child) => this.container.resolvedGraph.getVertexId(child)),
       })),
     );
     const syntheticId = this.container.syntheticRootId;
@@ -841,7 +848,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         .filter(({ id }) => !cycleMembers.has(id))
         .map(({ id }) => id),
       structurallyIncompleteIds: stall.incomplete.map((ref) =>
-        this.container.resolvedGraph.getIdOf(ref),
+        this.container.resolvedGraph.getVertexId(ref),
       ),
     };
   }
@@ -894,7 +901,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       !this.implicitParentDependency) ||
       context.parentVertexRef === this.container.syntheticRootRef
       ? []
-      : [this.container.resolvedGraph.getIdOf(context.parentVertexRef)];
+      : [this.container.resolvedGraph.getVertexId(context.parentVertexRef)];
   }
 
   private findExistingTreeChild(
@@ -1005,7 +1012,9 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     if (this.eager) this.discoveryExpansion.push(ref);
     if (
       ref === this.container.syntheticRootRef ||
-      this.unusedCompletedWork.delete(this.container.resolvedGraph.getIdOf(ref))
+      this.unusedCompletedWork.delete(
+        this.container.resolvedGraph.getVertexId(ref),
+      )
     ) {
       vertexWork.initialAdmitted = true;
       this.markPreVisited(ref);

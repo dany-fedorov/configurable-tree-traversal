@@ -64,7 +64,10 @@ for (const mode of ['sync', 'async']) {
           );
           await rebuilt.runner.run();
           const reconstructed = rebuilt.runner.summary();
-          assert.deepEqual(reconstructed.readyOrDeferredIds, snapshot.readyOrDeferredIds);
+          assert.deepEqual(
+            reconstructed.readyOrDeferredIds,
+            snapshot.readyOrDeferredIds,
+          );
           assert.deepEqual(reconstructed.counts, snapshot.counts);
           assert.deepEqual(
             [...reconstructed.completedWorkIds].sort(),
@@ -75,7 +78,7 @@ for (const mode of ['sync', 'async']) {
             assert.equal(
               inspection.runner.settle(
                 id,
-                { ok: true },
+                { kind: 'workCompleted' },
                 snapshot.vertices.get(id).generation,
               ),
               true,
@@ -83,7 +86,10 @@ for (const mode of ['sync', 'async']) {
             completed.add(id);
             await inspection.runner.run();
             assert.deepEqual(
-              { readyOrDeferredIds: snapshot.readyOrDeferredIds, counts: snapshot.counts },
+              {
+                readyOrDeferredIds: snapshot.readyOrDeferredIds,
+                counts: snapshot.counts,
+              },
               old,
             );
           }

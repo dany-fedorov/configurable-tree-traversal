@@ -24,7 +24,7 @@ const constructors: [typeof MutableRef, typeof MutableRef] = [
   CoreRef,
 ];
 const id: string = ref.getRefId();
-const oldId: string = ref.getId();
+const oldId: string = ref.getRefId();
 const tree = new ResolvedTreeStore<T>();
 const view: ResolvedTreeView<T> = tree.asReadOnly();
 const coreView: CoreView<T> = view;
@@ -54,9 +54,11 @@ declare const graph: ResolvedGraph<T>;
 declare const snapshot: OriginalGraphView<T>;
 for (const facade of [graph, snapshot]) {
   const vertexId: unknown = facade.getVertexId(ref);
-  const oldVertexId: unknown = facade.getIdOf(ref);
+  const oldVertexId: unknown = facade.getVertexId(ref);
   const byId: MutableRef<Vertex<T>> | null = facade.getVertexRefById(undefined);
-  const oldById: MutableRef<Vertex<T>> | null = facade.getVertexById(Symbol());
+  const oldById: MutableRef<Vertex<T>> | null = facade.getVertexRefById(
+    Symbol(),
+  );
   void [vertexId, oldVertexId, byId, oldById];
 }
 declare const dfs: DepthFirstTreeRunner<T, T>;

@@ -1,3 +1,4 @@
+import { TraversalVisitorCommandName as VisitorCommand } from '../src';
 import { inspectInternalDagState } from './internal-runner-fixtures';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import {
@@ -5,7 +6,6 @@ import {
   DagTraversal,
   DagTraversalStallError,
   DagVisitorPhase as Order,
-  DEFER_READY,
   inspectDagMilestones,
   materializeDagSourceFromRecords,
 } from '../src';
@@ -41,10 +41,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           sourceCalls++;
           if (scenario === 'root source failure') throw failure;
           return {
-            vertexId: 'a',
-            vertexContent: {
-              $data: 'a',
-              $childHints: scenario === 'child source failure' ? ['b'] : [],
+            kind: 'found' as const,
+            vertex: {
+              vertexId: 'a',
+              vertexContent: {
+                $data: 'a',
+                $childHints: scenario === 'child source failure' ? ['b'] : [],
+              },
             },
           };
         },
@@ -52,8 +55,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           sourceCalls++;
           if (scenario === 'child source failure') throw failure;
           return {
-            vertexId: hint,
-            vertexContent: { $data: hint, $childHints: [] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: hint,
+              vertexContent: { $data: hint, $childHints: [] },
+            },
           };
         },
       };
@@ -146,11 +152,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversableTree = {
       resolveRoot: () => {
         calls++;
-        return { vertexContent: { $data: 'root', $childHints: ['child'] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: 'root', $childHints: ['child'] } },
+        };
       },
       resolveChild: (hint: string) => {
         calls++;
-        return { vertexContent: { $data: hint, $childHints: [] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        };
       },
     };
     const runner = new Constructor<G>({ traversableTree }).createRunner();
@@ -283,7 +295,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     });
     const failure = { problem: 'later visitor' };
     traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-      if (vertex.getData().id === 'deferred') return DEFER_READY;
+      if (vertex.getData().id === 'deferred')
+        return {
+          commands: [
+            { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+          ],
+        };
       if (vertex.getData().id === 'failed') throw failure;
       return undefined;
     });
@@ -399,11 +416,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       resolveRoot: () => {
         calls++;
         return {
-          vertexId: 'a',
-          vertexContent: { $data: 'a', $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'a',
+            vertexContent: { $data: 'a', $childHints: [] },
+          },
         };
       },
-      resolveChild: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }),
     };
     const original = new Constructor<G>({ traversableGraph }).createRunner();
     await original.run();
@@ -497,11 +520,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           resolveRoot: () => {
             calls++;
             return {
-              vertexId: 'a',
-              vertexContent: { $data: 'a', $childHints: [] },
+              kind: 'found' as const,
+              vertex: {
+                vertexId: 'a',
+                vertexContent: { $data: 'a', $childHints: [] },
+              },
             };
           },
-          resolveChild: () => ({ vertexContent: null }),
+          resolveChild: () => ({
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+          }),
         };
         const traversal = (
           Constructor === DagTraversal
@@ -572,10 +601,16 @@ test('retaining a terminal observation again preserves an immutable metadata des
   const runner = new DagTraversal<G>({
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'a',
-        vertexContent: { $data: 'a', $childHints: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'a',
+          vertexContent: { $data: 'a', $childHints: [] },
+        },
       }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }),
     },
   }).createRunner();
   runner.run();

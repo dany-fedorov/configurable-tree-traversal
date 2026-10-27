@@ -19,7 +19,7 @@ export function getTraversalExecutionPhases(
   return phasesByKind[kind];
 }
 
-/** Capture recognized own fields once, including non-enumerable aliases. */
+/** Capture recognized own fields once, including non-enumerable fields. */
 function readExecutionOptions<ORDER extends string>(
   input?: TraversalIterableConfigInput<ORDER>,
 ): TraversalIterableConfigInput<ORDER> {
@@ -31,13 +31,7 @@ function readExecutionOptions<ORDER extends string>(
   }
   if (input === undefined) return {};
   const result: Record<string, unknown> = {};
-  const keys = [
-    'emitEvents',
-    'iterateOver',
-    'visitorPhases',
-    'enableVisitorFunctionsFor',
-    'disableVisitorFunctionsFor',
-  ];
+  const keys = ['emitEvents', 'visitorPhases'];
   if (Object.getOwnPropertyNames(input).some((key) => !keys.includes(key))) {
     throw new TypeError('Unknown execution option');
   }
@@ -56,19 +50,6 @@ export function normalizeTraversalExecutionOptions<ORDER extends string>(
   previous?: ResolvedTraversalExecutionOptions<ORDER>,
 ): ResolvedTraversalExecutionOptions<ORDER> {
   const config = readExecutionOptions(input);
-  const has = (key: string) =>
-    Object.prototype.hasOwnProperty.call(config, key);
-  if (has('emitEvents') && has('iterateOver')) {
-    throw new TypeError('emitEvents and iterateOver cannot be combined');
-  }
-  if (
-    has('visitorPhases') &&
-    (has('enableVisitorFunctionsFor') || has('disableVisitorFunctionsFor'))
-  ) {
-    throw new TypeError(
-      'visitorPhases and legacy visitor selectors cannot be combined',
-    );
-  }
   function copyPhases(value: unknown): ORDER[] {
     if (!Array.isArray(value)) {
       throw new TypeError(
@@ -104,8 +85,6 @@ export function normalizeTraversalExecutionOptions<ORDER extends string>(
     }
     return copy as EmissionKind<ORDER>[];
   }
-  if (config.iterateOver !== undefined)
-    emitEvents = copyPhases(config.iterateOver).map(emissionKind);
   if (config.visitorPhases !== undefined) {
     const selection = config.visitorPhases;
     enable = null;
@@ -140,18 +119,6 @@ export function normalizeTraversalExecutionOptions<ORDER extends string>(
       else disable = copyPhases(selection.exclude);
     }
   }
-  if (config.enableVisitorFunctionsFor !== undefined) {
-    enable =
-      config.enableVisitorFunctionsFor === null
-        ? null
-        : copyPhases(config.enableVisitorFunctionsFor);
-  }
-  if (config.disableVisitorFunctionsFor !== undefined) {
-    disable =
-      config.disableVisitorFunctionsFor === null
-        ? null
-        : copyPhases(config.disableVisitorFunctionsFor);
-  }
   const visitorPhases: VisitorPhaseSelection<ORDER> =
     enable !== null
       ? { include: enable.slice() }
@@ -169,35 +136,36 @@ export function normalizeTraversalExecutionOptions<ORDER extends string>(
   };
 }
 
-/** A validated patch retains supplied legacy fields rather than filling defaults.
- * Later ownership checks and kernel resume only see detached data, never caller getters.
- */
+/** Detach supplied canonical fields before changing runner state. */
 export function detachTraversalExecutionOptions<ORDER extends string>(
   phases: readonly ORDER[],
   input: TraversalIterableConfigInput<ORDER>,
 ): TraversalIterableConfigInput<ORDER> {
   const config = readExecutionOptions(input);
   const effective = normalizeTraversalExecutionOptions(phases, config);
-  const patch: {
-    emitEvents?: readonly EmissionKind<ORDER>[];
-    enableVisitorFunctionsFor?: readonly ORDER[] | null;
-    disableVisitorFunctionsFor?: readonly ORDER[] | null;
-  } = {};
-  if (config.emitEvents !== undefined || config.iterateOver !== undefined) {
-    patch.emitEvents = effective.emitEvents;
-  }
-  if (config.visitorPhases !== undefined) {
-    patch.enableVisitorFunctionsFor = effective.enableVisitorFunctionsFor;
-    patch.disableVisitorFunctionsFor = effective.disableVisitorFunctionsFor;
-  } else {
-    if (config.enableVisitorFunctionsFor !== undefined) {
-      patch.enableVisitorFunctionsFor = effective.enableVisitorFunctionsFor;
-    }
-    if (config.disableVisitorFunctionsFor !== undefined) {
-      patch.disableVisitorFunctionsFor = effective.disableVisitorFunctionsFor;
-    }
-  }
-  return patch;
+  return {
+    ...(config.emitEvents === undefined
+      ? {}
+      : { emitEvents: effective.emitEvents }),
+    ...(config.visitorPhases === undefined
+      ? {}
+      : { visitorPhases: effective.visitorPhases }),
+  };
+}
+
+/** Convert private scheduler gates back to canonical selection input. */
+export function executionOptionsFromPhaseGates<ORDER extends string>(
+  config: TraversalRunnerIterableConfig<ORDER>,
+): TraversalIterableConfigInput<ORDER> {
+  return {
+    emitEvents: config.iterateOver.map(emissionKind),
+    visitorPhases:
+      config.enableVisitorFunctionsFor !== null
+        ? { include: config.enableVisitorFunctionsFor }
+        : config.disableVisitorFunctionsFor !== null
+        ? { exclude: config.disableVisitorFunctionsFor }
+        : 'all',
+  };
 }
 
 /** Translate resolved selections for internal phase-gate consumers. */

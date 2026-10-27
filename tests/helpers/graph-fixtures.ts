@@ -21,9 +21,12 @@ export function graphAdapter(nodes: GraphFixture = diamond) {
     const entry = nodes[id];
     if (entry === undefined) throw new Error(`Unknown fixture id: ${id}`);
     return {
-      vertexId: id,
-      dependsOnWork: entry.dependencies.slice(),
-      vertexContent: { $d: id, $c: entry.children.slice() },
+      kind: 'found' as const,
+      vertex: {
+        vertexId: id,
+        dependsOnWork: entry.dependencies.slice(),
+        vertexContent: { $data: id, $childHints: entry.children.slice() },
+      },
     };
   }
   return { resolveRoot: () => result('root'), resolveChild: result };

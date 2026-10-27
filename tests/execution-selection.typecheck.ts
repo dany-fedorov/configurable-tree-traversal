@@ -52,14 +52,26 @@ export function executionSelectionTypes() {
   const dag = [
     new DagTraversal({
       traversableGraph: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveRoot: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
       },
     }).createRunner(),
     new AsyncDagTraversal({
       traversableGraph: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveRoot: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
       },
     }).createRunner(),
   ];

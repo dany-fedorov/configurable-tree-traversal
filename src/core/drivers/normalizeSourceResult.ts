@@ -14,7 +14,10 @@ export function assertNoTreeMetadata(
   if (
     Object.prototype.hasOwnProperty.call(result, 'vertexId') ||
     Object.prototype.hasOwnProperty.call(result, 'dependsOnWork') ||
-    Object.prototype.hasOwnProperty.call(result, 'dependsOnSubgraphCompletion') ||
+    Object.prototype.hasOwnProperty.call(
+      result,
+      'dependsOnSubgraphCompletion',
+    ) ||
     Object.prototype.hasOwnProperty.call(result, 'satisfiesDependencies')
   ) {
     throw new TypeError(`${sourceName} results cannot include graph metadata`);
@@ -32,22 +35,19 @@ function assertOwnGraphIdentity(result: object): void {
 }
 
 /** Normalize adapter vocabulary before any scheduling or identity decisions. */
-export function normalizeSourceResult<
-  T extends VertexTypes,
-  ID = unknown,
->(
+export function normalizeSourceResult<T extends VertexTypes, ID = unknown>(
   result: DagPrerequisiteResolution<T, ID> | TreeVertexResolution<T>,
   prerequisite: boolean,
   treeSourceName?: string,
 ): MakeVertexResult<T> | undefined {
-  if (result === undefined && prerequisite) return undefined;
   if (result === null || typeof result !== 'object') {
     throw new TypeError('Invalid source resolution result');
   }
   if (treeSourceName !== undefined)
     assertNoTreeMetadata(result, treeSourceName);
   else assertOwnGraphIdentity(result);
-  if (!('kind' in result)) return result;
+  if (!('kind' in result))
+    throw new TypeError('Source results require a canonical kind tag');
   switch (result.kind) {
     case 'found': {
       const vertex = result.vertex;

@@ -14,8 +14,8 @@ type GraphTTP = VertexTypes<
 function ref(label: string, hints: string[] = []) {
   return new MutableRef(
     new Vertex<GraphTTP>({
-      $d: { label, nested: { count: 1 } },
-      $c: hints,
+      $data: { label, nested: { count: 1 } },
+      $childHints: hints,
     }),
   );
 }
@@ -64,8 +64,8 @@ test('the original graph retains first-accepted content and shared topology', ()
   const savedShared = refs.get(shared)!;
   shared.setValue(
     shared.getValue().clone({
-      $d: { label: 'rewritten', nested: { count: 2 } },
-      $c: ['active-only'],
+      $data: { label: 'rewritten', nested: { count: 2 } },
+      $childHints: ['active-only'],
     }),
   );
   container.deleteVertices(new Set([shared]));
@@ -112,8 +112,8 @@ test('tree acceptance uses supplied graph ids and dependencies', () => {
   const treeContainer = runnerInternals(
     new DepthFirstTreeTraversal<GraphTTP>({
       traversableTree: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
     }).createRunner(),
   ).resolvedTreesContainer;
@@ -136,25 +136,27 @@ test('tree acceptance uses supplied graph ids and dependencies', () => {
   const snapshot = container.originalGraphView!;
   const savedRoot = container.originalGraphRefsMap!.get(root)!;
   const savedChild = container.originalGraphRefsMap!.get(child)!;
-  expect(container.resolvedGraph.getIdOf(root)).toBe('accepted-root');
-  expect(container.resolvedGraph.getVertexById('accepted-root')).toBe(root);
-  expect(container.resolvedGraph.getIdOf(child)).toBe('accepted-child');
-  expect(container.resolvedGraph.getVertexById('accepted-child')).toBe(child);
+  expect(container.resolvedGraph.getVertexId(root)).toBe('accepted-root');
+  expect(container.resolvedGraph.getVertexRefById('accepted-root')).toBe(root);
+  expect(container.resolvedGraph.getVertexId(child)).toBe('accepted-child');
+  expect(container.resolvedGraph.getVertexRefById('accepted-child')).toBe(
+    child,
+  );
   expect(container.resolvedGraph.get(child)?.dependsOnWork).toEqual([
     'accepted-root',
   ]);
-  expect(snapshot.getIdOf(savedRoot)).toBe('accepted-root');
-  expect(snapshot.getVertexById('accepted-root')).toBe(savedRoot);
-  expect(snapshot.getIdOf(savedChild)).toBe('accepted-child');
-  expect(snapshot.getVertexById('accepted-child')).toBe(savedChild);
+  expect(snapshot.getVertexId(savedRoot)).toBe('accepted-root');
+  expect(snapshot.getVertexRefById('accepted-root')).toBe(savedRoot);
+  expect(snapshot.getVertexId(savedChild)).toBe('accepted-child');
+  expect(snapshot.getVertexRefById('accepted-child')).toBe(savedChild);
 });
 
 test('tree acceptance validates saved parent mappings before graph insertion', () => {
   const treeContainer = runnerInternals(
     new DepthFirstTreeTraversal<GraphTTP>({
       traversableTree: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
       retainOriginalTreeStructure: true,
     }).createRunner(),
@@ -175,15 +177,15 @@ test('tree acceptance validates saved parent mappings before graph insertion', (
     container.acceptVertex(child, 'child', ['root'], context(root, 0)),
   ).toThrow(/not mutated parent ref/i);
   expect(container.resolvedGraph.has(child)).toBe(false);
-  expect(container.resolvedGraph.getVertexById('child')).toBeNull();
+  expect(container.resolvedGraph.getVertexRefById('child')).toBeNull();
   expect(treeContainer.resolvedTree.get(child)).toBeNull();
   expect(container.originalGraphRefsMap!.has(child)).toBe(false);
-  expect(container.originalGraphView!.getVertexById('child')).toBeNull();
+  expect(container.originalGraphView!.getVertexRefById('child')).toBeNull();
 
   savedRefs.set(root, savedRoot);
   container.acceptVertex(child, 'child', ['root'], context(root, 0));
 
-  expect(container.resolvedGraph.getVertexById('child')).toBe(child);
+  expect(container.resolvedGraph.getVertexRefById('child')).toBe(child);
   expect(treeContainer.resolvedTree.get(child)).not.toBeNull();
   expect(container.originalGraphRefsMap!.has(child)).toBe(true);
 });
@@ -192,8 +194,8 @@ function treeEdgeContainer() {
   const treeContainer = runnerInternals(
     new DepthFirstTreeTraversal<GraphTTP>({
       traversableTree: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
       retainOriginalTreeStructure: true,
     }).createRunner(),

@@ -11,21 +11,26 @@ import {
   type VertexContentInput,
   type VertexTypes,
 } from '../src';
-import { legacyObjectOptions } from './legacy-object-options';
 
 type T = VertexTypes<string | undefined, string>;
 
 const source: TreeSource<T> = {
   resolveRoot: () => ({
-    vertexContent: { $data: 'root', $childHints: ['child'] },
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: 'root', $childHints: ['child'] },
+    },
   }),
   resolveChild: (hint) => ({
-    vertexContent: { $data: hint, $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: hint, $childHints: [] },
+    },
   }),
 };
 
 describe('canonical vertex content', () => {
-  test('retains opaque data and hints while exposing legacy access aliases', () => {
+  test('retains opaque data and hints and has only canonical accessors', () => {
     const data = { $d: 'opaque', $childHints: 'also opaque' };
     const hint = { marker: Symbol('hint') };
     const hints = [hint];
@@ -36,30 +41,30 @@ describe('canonical vertex content', () => {
 
     expect(vertex.getData()).toBe(data);
     expect(vertex.$data).toBe(data);
-    expect(vertex.$d).toBe(data);
+    expect('$d' in vertex).toBe(false);
     expect(vertex.getChildrenHints()).toBe(hints);
     expect(vertex.$childHints).toBe(hints);
-    expect(vertex.$c).toBe(hints);
+    expect('$c' in vertex).toBe(false);
     expect(vertex.hasNoChildHints()).toBe(false);
   });
 
-  test('normalizes legacy construction and copies an existing Vertex', () => {
-    const legacy = new Vertex<T>({ $d: 'legacy', $c: ['child'] });
+  test('copies canonical construction and copies an existing Vertex', () => {
+    const legacy = new Vertex<T>({ $data: 'legacy', $childHints: ['child'] });
     const copied = new Vertex<T>(legacy);
     expect(copied.$data).toBe('legacy');
     expect(copied.$childHints).toEqual(['child']);
-    expect(copied.getChildrenHints()).toBe(legacy.$c);
+    expect(copied.getChildrenHints()).toBe(legacy.$childHints);
   });
 
   test.each(['replacement', undefined])(
     'clones an existing Vertex with replacement data %s and unchanged hint identity',
     (data) => {
       const original = new Vertex<T>({
-        $d: 'original',
-        $c: ['original-child'],
+        $data: 'original',
+        $childHints: ['original-child'],
       });
       const hints = ['replacement-child'];
-      const replacement = new Vertex<T>({ $d: data, $c: hints });
+      const replacement = new Vertex<T>({ $data: data, $childHints: hints });
       const clone = original.clone(replacement);
 
       expect(clone.getData()).toBe(data);
@@ -83,11 +88,13 @@ describe('canonical vertex content', () => {
     expect(vertex.getData()).toBe('root');
   });
 
-  test('keeps legacy clone updates including explicitly undefined data', () => {
-    const vertex = new Vertex<T>({ $d: 'root', $c: ['child'] });
-    expect(vertex.clone({ $d: undefined }).getData()).toBeUndefined();
-    expect(vertex.clone({ $c: [] }).hasNoChildHints()).toBe(true);
-    expect(vertex.clone({ $d: 'new', $c: ['next'] }).$data).toBe('new');
+  test('keeps canonical clone updates including explicitly undefined data', () => {
+    const vertex = new Vertex<T>({ $data: 'root', $childHints: ['child'] });
+    expect(vertex.clone({ $data: undefined }).getData()).toBeUndefined();
+    expect(vertex.clone({ $childHints: [] }).hasNoChildHints()).toBe(true);
+    expect(vertex.clone({ $data: 'new', $childHints: ['next'] }).$data).toBe(
+      'new',
+    );
   });
 
   test.each([
@@ -109,7 +116,7 @@ describe('canonical vertex content', () => {
     { $childHints: [], $d: 'new' },
     { $childHints: [], $c: [] },
   ])('rejects mixed clone shapes %#', (content) => {
-    const vertex = new Vertex<T>({ $d: 'root', $c: ['child'] });
+    const vertex = new Vertex<T>({ $data: 'root', $childHints: ['child'] });
     expect(() => vertex.clone(content as never)).toThrow(
       /canonical.*legacy|legacy.*canonical/i,
     );
@@ -170,33 +177,39 @@ describe('canonical vertex content', () => {
       const runner = new TreeTraversal({
         traversableGraph: {
           resolveRoot: () => ({
-            vertexId: rootId,
-            vertexContent: { $data: 'root', $childHints: ['child'] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: rootId,
+              vertexContent: { $data: 'root', $childHints: ['child'] },
+            },
           }),
           resolveChild: (hint) => ({
-            vertexId: childId,
-            vertexContent: { $data: hint, $childHints: [] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: childId,
+              vertexContent: { $data: hint, $childHints: [] },
+            },
           }),
         },
       }).createRunner();
       await runner.run();
       const graph = runner.getResolvedGraph();
-      expect(graph.getVertexById(rootId)?.getValue().getData()).toBe('root');
-      expect(graph.getVertexById(childId)?.getValue().getData()).toBe('child');
+      expect(graph.getVertexRefById(rootId)?.getValue().getData()).toBe('root');
+      expect(graph.getVertexRefById(childId)?.getValue().getData()).toBe(
+        'child',
+      );
     },
   );
 
   test('accepts canonical object-tree hook content without skipping cycle checks', () => {
     const cycle: { child?: unknown } = {};
     cycle.child = cycle;
-    const tree = new ObjectTreeSource(
-      cycle,
-      legacyObjectOptions({
-        makeVertexHook: (hint) => ({
-          returnMe: { $data: hint, $childHints: [] },
-        }),
+    const tree = new ObjectTreeSource(cycle, {
+      resolveVertexHook: (hint) => ({
+        kind: 'found',
+        vertex: { vertexContent: { $data: hint, $childHints: [] } },
       }),
-    );
+    });
     expect(() =>
       new DepthFirstTreeTraversal({ traversableTree: tree })
         .createRunner()

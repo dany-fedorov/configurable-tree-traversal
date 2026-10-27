@@ -16,7 +16,7 @@ function result(
   } = {},
 ): MakeVertexResult<TestGraph> {
   const value: MakeVertexResult<TestGraph> = {
-    vertexContent: { $d: label, $c: options.hints ?? [] },
+    vertexContent: { $data: label, $childHints: options.hints ?? [] },
   };
   if (Object.prototype.hasOwnProperty.call(options, 'id')) {
     value.vertexId = options.id;
@@ -90,7 +90,7 @@ test('scheduling rejects unknown enrollment and duplicate expansion transitions'
   });
   const scheduling = new GraphScheduling(container);
   const unknown = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'unknown', $c: [] }),
+    new Vertex<TestGraph>({ $data: 'unknown', $childHints: [] }),
   );
   expect(() => scheduling.markPreVisited(unknown)).toThrow(/unknown/i);
   container.store.insertVertex({
@@ -150,7 +150,7 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
 
   const second = setup(['child']);
   const childRef = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'child', $c: [] }),
+    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
   );
   second.container.acceptVertex(
     childRef,
@@ -318,7 +318,7 @@ test('deduplicates dependencies with SameValueZero and accepts COMPLETING as sat
   expect(scheduling.takeReady()).toBeNull();
 
   const omittedParent = new MutableRef(
-    rootRef.getValue().clone({ $c: ['missing'] }),
+    rootRef.getValue().clone({ $childHints: ['missing'] }),
   );
   container.acceptVertex(
     omittedParent,
@@ -372,8 +372,10 @@ test('supports null and undefined ids while anonymous null results reserve no id
     result('undefined-live', { id: undefined, dependsOnWork: [] }),
   )!;
 
-  expect(container.resolvedGraph.getVertexById(null)).toBe(nullRef);
-  expect(container.resolvedGraph.getVertexById(undefined)).toBe(undefinedRef);
+  expect(container.resolvedGraph.getVertexRefById(null)).toBe(nullRef);
+  expect(container.resolvedGraph.getVertexRefById(undefined)).toBe(
+    undefinedRef,
+  );
   expect(scheduling.acceptVertex(context(rootRef, 2), omitted())).toBeNull();
   expect(container.resolvedGraph.getVertexRefs()).toEqual([
     rootRef,
@@ -463,8 +465,8 @@ test('uses authoritative hint identities and compares dual ids with SameValueZer
     { vertexId: 0 },
   );
 
-  expect(container.resolvedGraph.getVertexById(undefined)).toBe(hinted);
-  expect(container.resolvedGraph.getVertexById(NaN)).toBe(nan);
+  expect(container.resolvedGraph.getVertexRefById(undefined)).toBe(hinted);
+  expect(container.resolvedGraph.getVertexRefById(NaN)).toBe(nan);
   expect(() =>
     scheduling.acceptVertex(
       context(rootRef, 3),
@@ -484,13 +486,13 @@ test('detects result ids as own properties rather than inherited values', () => 
   const inherited = Object.create({
     vertexId: 'inherited',
   }) as MakeVertexResult<TestGraph>;
-  inherited.vertexContent = { $d: 'root', $c: [] };
+  inherited.vertexContent = { $data: 'root', $childHints: [] };
   inherited.dependsOnWork = ['ignored'];
 
   const rootRef = scheduling.acceptRoot(inherited)!;
 
-  expect(container.resolvedGraph.getVertexById('inherited')).toBeNull();
-  expect(container.resolvedGraph.getIdOf(rootRef)).toBe(rootRef.getId());
+  expect(container.resolvedGraph.getVertexRefById('inherited')).toBeNull();
+  expect(container.resolvedGraph.getVertexId(rootRef)).toBe(rootRef.getRefId());
 });
 
 test('retries generated UUID identities that are already indexed', () => {
@@ -505,7 +507,7 @@ test('retries generated UUID identities that are already indexed', () => {
       result('generated', { dependsOnWork: [] }),
     )!;
 
-    expect(container.resolvedGraph.getIdOf(generated)).toBe(
+    expect(container.resolvedGraph.getVertexId(generated)).toBe(
       'fresh-generated-id',
     );
   } finally {
@@ -589,6 +591,6 @@ test('accepts a hint wrapper only when it carries an own vertexId', () => {
     inheritedHint,
   )!;
 
-  expect(container.resolvedGraph.getVertexById('inherited')).toBeNull();
-  expect(container.resolvedGraph.getIdOf(hinted)).toBe(hinted.getId());
+  expect(container.resolvedGraph.getVertexRefById('inherited')).toBeNull();
+  expect(container.resolvedGraph.getVertexId(hinted)).toBe(hinted.getRefId());
 });

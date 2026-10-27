@@ -14,10 +14,6 @@ export interface ResolvedGraph<T extends VertexTypes, ID = unknown> {
   getVertexRefs(): MutableRef<Vertex<T>>[];
   getVertexRefById(id: ID): MutableRef<Vertex<T>> | null;
   getVertexId(ref: MutableRef<Vertex<T>>): ID;
-  /** @deprecated Use getVertexRefById. */
-  getVertexById(id: ID): MutableRef<Vertex<T>> | null;
-  /** @deprecated Use getVertexId. */
-  getIdOf(ref: MutableRef<Vertex<T>>): ID;
   getStatusOf(ref: MutableRef<Vertex<T>>): ResolvedVertexStatus | null;
   getParentsOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
   getChildrenOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
@@ -34,8 +30,6 @@ export type OriginalGraphView<T extends VertexTypes, ID = unknown> = Pick<
   | 'getVertexRefs'
   | 'getVertexRefById'
   | 'getVertexId'
-  | 'getVertexById'
-  | 'getIdOf'
   | 'getParentsOf'
   | 'getChildrenOf'
   | 'getPathsTo'

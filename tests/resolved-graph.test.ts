@@ -5,13 +5,19 @@ import { Vertex } from '../src/core/Vertex';
 import type { TestGraph } from './helpers/graph-fixtures';
 
 function ref(data: string, hints: string[] = []) {
-  return new MutableRef(new Vertex<TestGraph>({ $d: data, $c: hints }));
+  return new MutableRef(
+    new Vertex<TestGraph>({ $data: data, $childHints: hints }),
+  );
 }
 
 test('rejects a back-edge without damaging accepted topology', () => {
   const store = new GraphStore<TestGraph>('dag');
-  const a = new MutableRef(new Vertex<TestGraph>({ $d: 'A', $c: ['B'] }));
-  const b = new MutableRef(new Vertex<TestGraph>({ $d: 'B', $c: ['A'] }));
+  const a = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'A', $childHints: ['B'] }),
+  );
+  const b = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'B', $childHints: ['A'] }),
+  );
   store.insertVertex({ ref: a, id: 'A', dependsOnWork: [], depth: 0 });
   store.insertVertex({ ref: b, id: 'B', dependsOnWork: ['A'], depth: 1 });
   store.setRoot(a);
@@ -121,12 +127,12 @@ test('validates unknown references and slot operations before mutation', () => {
 
   expect(store.graph.get(unknown)).toBeNull();
   expect(store.graph.has(unknown)).toBe(false);
-  expect(store.graph.getVertexById('missing')).toBeNull();
+  expect(store.graph.getVertexRefById('missing')).toBeNull();
   expect(store.getIdState('missing')).toBeUndefined();
   expect(store.graph.getStatusOf(unknown)).toBeNull();
   expect(store.graph.getParentsOf(unknown)).toBeNull();
   expect(store.graph.getChildrenOf(unknown)).toBeNull();
-  expect(() => store.graph.getIdOf(unknown)).toThrow(/reference/i);
+  expect(() => store.graph.getVertexId(unknown)).toThrow(/reference/i);
   expect(() => store.graph.getPathsTo(unknown)).toThrow(/reference/i);
 });
 
@@ -151,8 +157,8 @@ test('tracks omitted and deleted identity states and terminal slots', () => {
   expect(store.getIdState(undefined)).toEqual({ kind: 'live', ref: parent });
   expect(store.getIdState(NaN)).toEqual({ kind: 'omitted' });
   expect(store.getIdState(null)).toEqual({ kind: 'deleted' });
-  expect(store.graph.getVertexById(undefined)).toBe(parent);
-  expect(store.graph.getVertexById(NaN)).toBeNull();
+  expect(store.graph.getVertexRefById(undefined)).toBe(parent);
+  expect(store.graph.getVertexRefById(NaN)).toBeNull();
   expect(store.graph.get(parent)?.slots.map((slot) => slot.kind)).toEqual([
     'omitted',
     'deleted',
@@ -335,7 +341,9 @@ test('uses authoritative tree records for compatibility graph queries', () => {
   const manuallyAdded = ref('manual');
   store.setTreeRecord(manuallyAdded, rootRecord);
   expect(store.getTreeRecord(manuallyAdded)).toBe(rootRecord);
-  expect(store.graph.getVertexById(manuallyAdded.getId())).toBe(manuallyAdded);
+  expect(store.graph.getVertexRefById(manuallyAdded.getRefId())).toBe(
+    manuallyAdded,
+  );
 });
 
 test('handles deep chains iteratively for cycle checks and paths', () => {
@@ -465,7 +473,7 @@ test('tree records can reinstall tombstoned refs but reject auto-id conflicts', 
   store.setTreeRecord(vertexRef, record);
   store.removeVertices(new Set([vertexRef]));
   store.setTreeRecord(vertexRef, record);
-  expect(store.getIdState(vertexRef.getId())).toEqual({
+  expect(store.getIdState(vertexRef.getRefId())).toEqual({
     kind: 'live',
     ref: vertexRef,
   });

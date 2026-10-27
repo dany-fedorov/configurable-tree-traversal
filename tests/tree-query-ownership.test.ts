@@ -19,12 +19,18 @@ const hint = { label: 'child' };
 const rootData = { label: 'root', nested: { count: 1 } };
 const source = {
   resolveRoot: () => ({
-    vertexContent: { $data: rootData, $childHints: [hint] },
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: rootData, $childHints: [hint] },
+    },
   }),
   resolveChild: (child: Hint) => ({
-    vertexContent: {
-      $data: { label: child.label, nested: { count: 1 } },
-      $childHints: [],
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: {
+        $data: { label: child.label, nested: { count: 1 } },
+        $childHints: [],
+      },
     },
   }),
 };
@@ -139,10 +145,16 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
     const runner = new Constructor({
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'root',
-          vertexContent: { $data: rootData, $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            vertexContent: { $data: rootData, $childHints: [] },
+          },
         }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
       },
     }).createRunner();
     expect(runner.getResolvedTreeView()).toBeNull();

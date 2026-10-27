@@ -98,6 +98,10 @@ export function normalizeVisitorDefinitions<F>(
   input: VisitorPhaseInput<F>,
 ): VisitorRecord<F>[] {
   if (input !== null && typeof input === 'object' && 'groups' in input) {
+    if ('resolutionStyle' in input)
+      throw new TypeError(
+        'resolutionStyle is unsupported; use commandCommitMode',
+      );
     if (!Array.isArray(input.groups))
       throw new TypeError('Visitor groups must be an array');
     let records: VisitorRecord<F>[] = [];
@@ -145,6 +149,10 @@ export function appendVisitorGroup<F>(
   ) {
     throw new TypeError('Visitor group requires a visitors array');
   }
+  if ('resolutionStyle' in input)
+    throw new TypeError(
+      'resolutionStyle is unsupported; use commandCommitMode',
+    );
   const mode = normalizeVisitorOptions({
     commandCommitMode: input.commandCommitMode,
   }).commandCommitMode;

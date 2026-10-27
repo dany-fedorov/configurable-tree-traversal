@@ -1,5 +1,4 @@
 import { DEFAULT_VISITOR_FN_OPTIONS } from '../src/core/TraversalVisitor';
-import { TraversalVisitorFunctionResolutionStyle } from '../src/core/TraversalVisitor';
 import { BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalInstanceConfig';
 import { BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
 import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
@@ -17,17 +16,23 @@ import {
 } from '../src/traversals/depth-first-traversal';
 import { traversalInternals } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: Node[] };
+type Node = { $data: string; $childHints: Node[] };
 type Tree = VertexTypes<string, Node>;
 
 const root: Node = {
-  $d: 'root',
-  $c: ['a', 'b', 'c'].map(($d) => ({ $d, $c: [] })),
+  $data: 'root',
+  $childHints: ['a', 'b', 'c'].map(($data) => ({ $data, $childHints: [] })),
 };
 
 const tree = {
-  resolveRoot: () => ({ vertexContent: root }),
-  resolveChild: (hint: Node) => ({ vertexContent: hint }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: root },
+  }),
+  resolveChild: (hint: Node) => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: hint },
+  }),
 };
 
 function expectRecursivelyFrozen(value: unknown, seen = new Set<object>()) {
@@ -143,7 +148,7 @@ describe('internal traversal defaults', () => {
     const record = {
       addedIndex: 0,
       priority: 100,
-      resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: () => {
         unexpectedVisits += 1;
       },
@@ -170,7 +175,7 @@ describe('internal traversal defaults', () => {
   test('mutating exported visitor options cannot change future visitor priority', () => {
     const mutableDefaults = DEFAULT_VISITOR_FN_OPTIONS as {
       priority: number;
-      resolutionStyle: TraversalVisitorFunctionResolutionStyle;
+      commandCommitMode: import('../src').CommandCommitMode;
     };
     const original = mutableDefaults.priority;
     let mutationError: unknown;
@@ -209,13 +214,13 @@ describe('internal traversal defaults', () => {
     const depthRecord = {
       addedIndex: 0,
       priority: 100,
-      resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: () => undefined,
     };
     const breadthRecord = {
       addedIndex: 0,
       priority: 100,
-      resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: () => undefined,
     };
 

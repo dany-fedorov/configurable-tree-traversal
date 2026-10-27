@@ -267,7 +267,9 @@ it('unopened and closed returns/throws never acquire ownership or change runner 
   const owner = runner.iterateEvents();
   await owner.next();
   await runner.iterateEvents().return(undefined);
-  await expect(runner.iterateEvents().throw('consumer')).rejects.toBe('consumer');
+  await expect(runner.iterateEvents().throw('consumer')).rejects.toBe(
+    'consumer',
+  );
   expect(runner.isHalted()).toBe(false);
   await owner.return(undefined);
   expect(await owner.return(undefined)).toEqual({
@@ -362,7 +364,7 @@ it('retains the admitted async chain across HALT and uses the new lease emission
   const calls: string[] = [];
   const walk = new AsyncGraphWalk({ source: idGraph(['A'], [['A', []]]) });
   walk.addVisitorGroupFor(Phase.VERTEX, {
-    commandCommitMode: 'afterGroup',
+    commandCommitMode: 'afterGroup' as const,
     visitors: [
       async () => {
         calls.push('halt');

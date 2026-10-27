@@ -9,7 +9,9 @@ import type { DagSettlementOutcome as SubpathOutcome } from '../src/traversals/d
 const completed: DagWorkState = 'completed';
 const canonical: DagSettlementOutcome = { kind: 'workCompleted' };
 const fatal: SubpathOutcome = { kind: 'traversalFailed', error: undefined };
+// @ts-expect-error Boolean settlement feedback is retired.
 const legacy: DagSettlementOutcome = { ok: true };
+// @ts-expect-error Boolean failure feedback is retired.
 const legacyFatal: DagSettlementOutcome = { ok: false, error: null };
 // @ts-expect-error Old progress state is replaced, not an alternate business state.
 const succeeded: DagWorkState = 'succeeded';
@@ -19,10 +21,10 @@ const failed: DagWorkState = 'failed';
 const missingError: DagSettlementOutcome = { kind: 'traversalFailed' };
 // @ts-expect-error Tagged and deprecated feedback forms are exclusive.
 const mixed: DagSettlementOutcome = { kind: 'workCompleted', ok: true };
-// @ts-expect-error Conflicting feedback forms are exclusive.
 const conflicting: DagSettlementOutcome = {
   kind: 'traversalFailed',
   error: null,
+  // @ts-expect-error Conflicting feedback forms are exclusive.
   ok: true,
 };
 // @ts-expect-error Completed work carries no traversal error.

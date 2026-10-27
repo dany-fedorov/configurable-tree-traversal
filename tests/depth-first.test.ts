@@ -1,3 +1,4 @@
+import { treeResolution } from './source-result-fixtures';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
@@ -5,9 +6,12 @@ import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
 import { DepthFirstPhase as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 
-type Node = { $d: string; $c: (Node | null)[] };
+type Node = { $data: string; $childHints: (Node | null)[] };
 type TTP = VertexTypes<string, Node | null>;
-const node = ($d: string, ...$c: (Node | null)[]): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: (Node | null)[]): Node => ({
+  $data,
+  $childHints,
+});
 function traversal(
   root: Node | null = node(
     'F',
@@ -16,8 +20,8 @@ function traversal(
   ),
 ) {
   const tree: TreeSource<TTP> = {
-    resolveRoot: () => ({ vertexContent: root }),
-    resolveChild: (hint) => ({ vertexContent: hint }),
+    resolveRoot: () => treeResolution(root),
+    resolveChild: (hint) => treeResolution(hint),
   };
   return new DepthFirstTreeTraversal<TTP>({ traversableTree: tree });
 }
@@ -55,7 +59,7 @@ describe('depth-first traversal', () => {
       'a',
       'b',
     ]);
-    expect(root.$c.map((child) => child?.$d)).toEqual(['b', 'a']);
+    expect(root.$childHints.map((child) => child?.$data)).toEqual(['b', 'a']);
   });
 
   test('completes parents whose last hint resolves to null', () => {
@@ -156,11 +160,11 @@ describe('depth-first traversal', () => {
         ? {
             commands: [
               {
-                commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+                commandName: Command.REWRITE_CHILD_HINTS,
                 commandArguments: { newHints: [node('discard')] },
               },
               {
-                commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+                commandName: Command.REWRITE_CHILD_HINTS,
                 commandArguments: { newHints: [node('new')] },
               },
             ],
@@ -211,14 +215,14 @@ describe('depth-first traversal', () => {
           ],
         };
       },
-      { commandCommitMode: 'afterGroup' },
+      { commandCommitMode: 'afterGroup' as const },
     );
     t.addVisitorFor(
       Order.PRE_ORDER,
       (v) => {
         seen.push(v.getData());
       },
-      { commandCommitMode: 'afterGroup' },
+      { commandCommitMode: 'afterGroup' as const },
     );
     t.addVisitorFor(Order.PRE_ORDER, (v) => {
       seen.push(v.getData());
@@ -297,7 +301,7 @@ test('passes chain state from concurrent commands to the first sequential visito
         },
       ],
     }),
-    { commandCommitMode: 'afterGroup' },
+    { commandCommitMode: 'afterGroup' as const },
   );
   t.addVisitorFor(Order.PRE_ORDER, (_vertex, options) => {
     seen = options.visitorChainState;
@@ -311,9 +315,8 @@ test('retains equal-priority registration order after replacing visitor records'
   const seen: string[] = [];
   t.setVisitorsFor(Order.PRE_ORDER, [
     {
-      addedIndex: 100,
       priority: 100,
-      commandCommitMode: 'afterEachVisitor',
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: () => {
         seen.push('existing');
       },

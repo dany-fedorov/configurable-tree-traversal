@@ -3,7 +3,6 @@ import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContain
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import { TraversalVisitorFunctionResolutionStyle as Style } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
@@ -23,17 +22,26 @@ type TestGraph = VertexTypes<string, string>;
 function source(): DagDiscoverySource<TestGraph> {
   return {
     resolveRoot: () => ({
-      vertexContent: { $d: 'root', $c: [] },
-      vertexId: 'root',
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: 'root', $childHints: [] },
+        vertexId: 'root',
+      },
     }),
-    resolveChild: () => ({ vertexContent: null }),
+    resolveChild: () => ({
+      kind: 'omitted' as const,
+      satisfiesDependencies: true as const,
+    }),
   };
 }
 
 function treeSource(): TreeSource<TestGraph> {
   return {
-    resolveRoot: () => ({ vertexContent: { $d: 'root', $c: [] } }),
-    resolveChild: () => ({ vertexContent: null }),
+    resolveRoot: () => ({
+      kind: 'found' as const,
+      vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+    }),
+    resolveChild: () => ({ kind: 'omitted' as const }),
   };
 }
 
@@ -133,7 +141,7 @@ test('configure copies visitor arrays and preserves existing registrations', () 
     {
       addedIndex: 0,
       priority: 1,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: () => void calls.push('complete'),
     },
   ];
@@ -178,7 +186,7 @@ test('exports recursively frozen defaults without sharing effective arrays', () 
   traversalInternals(first).icfg.visitors[Order.ON_WORK_READY].push({
     addedIndex: 0,
     priority: 1,
-    resolutionStyle: Style.SEQUENTIAL,
+    commandCommitMode: 'afterEachVisitor' as const,
     visitor: () => undefined,
   });
   expect(
@@ -213,7 +221,7 @@ test('accepts an initial or empty quiescent halted injected state', () => {
 
 test('rejects a stale traversal root for an empty halted seed atomically', () => {
   const staleRoot = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'stale-root', $c: [] }),
+    new Vertex<TestGraph>({ $data: 'stale-root', $childHints: [] }),
   );
   const state = new DagTraversalRunnerState<TestGraph>({
     status: Status.HALTED,
@@ -251,10 +259,14 @@ function haltedSeed() {
     saveOriginal: false,
   });
   const root = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'root', $c: ['A', 'B'] }),
+    new Vertex<TestGraph>({ $data: 'root', $childHints: ['A', 'B'] }),
   );
-  const a = new MutableRef(new Vertex<TestGraph>({ $d: 'A', $c: ['C'] }));
-  const b = new MutableRef(new Vertex<TestGraph>({ $d: 'B', $c: [] }));
+  const a = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'A', $childHints: ['C'] }),
+  );
+  const b = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'B', $childHints: [] }),
+  );
   container.acceptRoot(root, 'root');
   container.store.prepareSlots(root, ['A', 'B']);
   container.acceptVertex(a, 'A', ['root'], {
@@ -302,7 +314,9 @@ function acceptDetached(
   id: string,
   dependsOnWork: string[],
 ) {
-  const vertexRef = new MutableRef(new Vertex<TestGraph>({ $d: id, $c: [] }));
+  const vertexRef = new MutableRef(
+    new Vertex<TestGraph>({ $data: id, $childHints: [] }),
+  );
   seed.container.acceptVertex(vertexRef, id, dependsOnWork, {
     depth: 1,
     parentVertex: seed.root.getValue(),
@@ -324,8 +338,11 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
       resolveChild: (hint) => {
         resolutions.push(hint);
         return {
-          vertexContent: { $d: hint, $c: [] },
-          vertexId: hint,
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: hint, $childHints: [] },
+            vertexId: hint,
+          },
         };
       },
     },
@@ -337,7 +354,7 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
 
   expect(runner.inspect().readyVisits).toEqual([
     {
-      vertexRefId: state.readyVisits[0]!.vertexRef.getId(),
+      vertexRefId: state.readyVisits[0]!.vertexRef.getRefId(),
       order: Order.ON_WORK_READY,
     },
   ]);
@@ -357,12 +374,12 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
   const graph = runner.getResolvedGraph();
   expect(
     graph
-      .getChildrenOf(graph.getVertexById('root')!)!
+      .getChildrenOf(graph.getVertexRefById('root')!)!
       .map((ref) => ref.getValue().getData()),
   ).toEqual(['A', 'B']);
   expect(
     graph
-      .getChildrenOf(graph.getVertexById('A')!)!
+      .getChildrenOf(graph.getVertexRefById('A')!)!
       .map((ref) => ref.getValue().getData()),
   ).toEqual(['C']);
 });
@@ -372,7 +389,7 @@ test.each([
     'missing ready ref',
     (seed: ReturnType<typeof haltedSeed>) => {
       seed.state.readyVisits[0]!.vertexRef = new MutableRef(
-        new Vertex<TestGraph>({ $d: 'missing', $c: [] }),
+        new Vertex<TestGraph>({ $data: 'missing', $childHints: [] }),
       );
     },
   ],
@@ -535,7 +552,9 @@ test.each([
     'unknown expansion',
     (seed: ReturnType<typeof haltedSeed>) => {
       seed.state.expansionQueue = [
-        new MutableRef(new Vertex<TestGraph>({ $d: 'missing', $c: [] })),
+        new MutableRef(
+          new Vertex<TestGraph>({ $data: 'missing', $childHints: [] }),
+        ),
       ];
     },
   ],
@@ -588,7 +607,9 @@ test('rejects injected work for an empty graph', () => {
     status: Status.HALTED,
     readyVisits: [
       {
-        vertexRef: new MutableRef(new Vertex<TestGraph>({ $d: 'x', $c: [] })),
+        vertexRef: new MutableRef(
+          new Vertex<TestGraph>({ $data: 'x', $childHints: [] }),
+        ),
         order: Order.ON_WORK_READY,
       },
     ],
@@ -615,8 +636,11 @@ test.each([
         throw new Error('must not resolve root');
       },
       resolveChild: (hint) => ({
-        vertexId: hint,
-        vertexContent: { $d: hint, $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: hint,
+          vertexContent: { $data: hint, $childHints: [] },
+        },
       }),
     },
     traversalRunnerInternalObjects: {
@@ -642,8 +666,11 @@ test('restores discovered work blocked by a missing dependency', () => {
         throw new Error('must not resolve root');
       },
       resolveChild: (hint) => ({
-        vertexId: hint,
-        vertexContent: { $d: hint, $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: hint,
+          vertexContent: { $data: hint, $childHints: [] },
+        },
       }),
     },
     traversalRunnerInternalObjects: {
@@ -701,8 +728,8 @@ test('rejects incompatible and active injected objects', () => {
   expect(() =>
     createInternalDagTraversalRunner<TestGraph>({
       traversableTree: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
       traversalRunnerInternalObjects: {
         resolvedGraphsContainer: treeContainer,

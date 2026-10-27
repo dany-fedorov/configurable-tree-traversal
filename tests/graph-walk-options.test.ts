@@ -54,8 +54,11 @@ describe('walking configuration snapshots', () => {
           .revisit,
       ).toBe(revisit);
       expect(
-        normalizeWalkOptions({ source, revisit, limits: { maxCandidateReadAttempts: 0 } })
-          .revisit,
+        normalizeWalkOptions({
+          source,
+          revisit,
+          limits: { maxCandidateReadAttempts: 0 },
+        }).revisit,
       ).toBe(revisit);
     }
     const unbounded = normalizeWalkOptions({ source });
@@ -77,7 +80,11 @@ describe('walking configuration snapshots', () => {
   test.each([-1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1, '1', null])(
     'rejects invalid bounds %p',
     (value) => {
-      for (const key of ['maxDepth', 'maxCandidateReadAttempts', 'maxAdmittedTargets']) {
+      for (const key of [
+        'maxDepth',
+        'maxCandidateReadAttempts',
+        'maxAdmittedTargets',
+      ]) {
         expect(() =>
           normalizeWalkOptions({ source, limits: { [key]: value } }),
         ).toThrow(TypeError);
@@ -127,7 +134,7 @@ describe('walking configuration snapshots', () => {
   });
 
   test('uses shared selector validation and field-wise legacy patches', () => {
-    const config = normalizeWalkOptions({ source, iterateOver: [Phase.EDGE] });
+    const config = normalizeWalkOptions({ source, emitEvents: [Phase.EDGE] });
     expect(config.execution.emitEvents).toEqual([Phase.EDGE]);
     const patched = normalizeWalkOptions(
       { visitorPhases: { exclude: [Phase.PATH] } },
@@ -303,7 +310,10 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
   test(`${Factory.name} rejects unknown options and limit keys before discovery and preserves configuration`, async () => {
     const roots = jest.fn(() => []);
     const lazy = { roots, outgoing: () => [] };
-    const traversal = new Factory({ source: lazy, limits: { maxCandidateReadAttempts: 0 } });
+    const traversal = new Factory({
+      source: lazy,
+      limits: { maxCandidateReadAttempts: 0 },
+    });
     for (const key of ['stratgey', Symbol('option')]) {
       const bad = Object.defineProperty({}, key, { value: 'depthFirst' });
       expect(
@@ -319,7 +329,9 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
         }),
     ).toThrow(TypeError);
     expect(() =>
-      traversal.configure({ limits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never }),
+      traversal.configure({
+        limits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never,
+      }),
     ).toThrow(TypeError);
     expect(roots).not.toHaveBeenCalled();
     await traversal.createRunner().run();
@@ -378,18 +390,21 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
   );
 }
 
-
 it.each(['followEdge', 'expandVertex'])(
   'rejects removed predicate option %s instead of retaining an alias',
   (key) => {
     const source = { roots: () => [], outgoing: () => [] };
-    expect(() => new GraphWalk({ source, [key]: () => true } as never)).toThrow(TypeError);
+    expect(() => new GraphWalk({ source, [key]: () => true } as never)).toThrow(
+      TypeError,
+    );
   },
 );
 it.each(['maxSteps', 'maxOccurrences'])(
   'rejects removed walking limit %s instead of retaining an alias',
   (key) => {
     const source = { roots: () => [], outgoing: () => [] };
-    expect(() => new GraphWalk({ source, limits: { [key]: 1 } } as never)).toThrow(TypeError);
+    expect(
+      () => new GraphWalk({ source, limits: { [key]: 1 } } as never),
+    ).toThrow(TypeError);
   },
 );

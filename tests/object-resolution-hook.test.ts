@@ -13,7 +13,6 @@ import {
   rewriteObject,
   type RewriteObjectOptions,
 } from '../src/tools/rewrite-object/rewriteObject';
-import { legacyObjectOptions } from './legacy-object-options';
 
 type Options = RewriteObjectOptions<
   unknown,
@@ -129,66 +128,41 @@ test.each([
     );
 });
 
-test('active canonical and legacy hooks conflict; disabled legacy hooks remain compatible', () => {
-  const canonical = () => ({ kind: 'useDefault' as const });
-  expect(() =>
-    rewriteObject(
-      { a: 1 },
-      legacyObjectOptions({
-        resolveVertexHook: canonical,
-        makeVertexHook: () => ({}),
-      }) as Options,
-    ),
-  ).toThrow(TypeError);
-  for (const makeVertexHook of [undefined, null]) {
-    expect(
-      rewriteObject(
-        { a: 1 },
-        legacyObjectOptions({
-          resolveVertexHook: canonical,
-          makeVertexHook,
-        }) as Options,
-      ).outputAtReturn,
-    ).toEqual({ a: 1 });
-  }
-});
-
-test('legacy returnMe and canonical results reconstruct equivalent output', () => {
-  const content = { $data: { key: 'changed', value: 4 }, $childHints: [] };
-  const legacy = rewriteObject(
-    { a: 1, skip: 2 },
-    legacyObjectOptions({
-      makeVertexHook: (hint) => ({
-        returnMe: hint.key === 'skip' ? null : content,
-      }),
-    }),
-  ).outputAtReturn;
-  const canonical = rewriteWithHook({ a: 1, skip: 2 }, (hint) =>
-    hint.key === 'skip'
-      ? { kind: 'omitted' }
-      : { kind: 'found', vertex: { vertexContent: content } },
-  );
-  expect(canonical).toEqual({ changed: 4 });
-  expect(canonical).toEqual(legacy);
-});
-
-test.each(['resolveVertexHook', 'makeVertexHook'] as const)(
-  'rewriteObject captures the %s configuration getter once',
-  (name) => {
-    let reads = 0;
-    const options = Object.defineProperty({}, name, {
-      get() {
-        reads += 1;
-        if (reads > 1) throw new Error('configuration read twice');
-        return name === 'resolveVertexHook'
-          ? () => ({ kind: 'omitted' })
-          : () => ({ returnMe: null });
-      },
-    });
-    expect(rewriteObject({ a: 1 }, options).outputAtReturn).toEqual({});
-    expect(reads).toBe(1);
+test.each([undefined, null, () => ({})])(
+  'rejects retired makeVertexHook by presence: %p',
+  (makeVertexHook) => {
+    expect(() =>
+      rewriteObject({ a: 1 }, {
+        resolveVertexHook: () => ({ kind: 'useDefault' }),
+        makeVertexHook,
+      } as never),
+    ).toThrow(TypeError);
   },
 );
+
+test('canonical found and omitted hook results reconstruct output', () => {
+  const content = { $data: { key: 'changed', value: 4 }, $childHints: [] };
+  expect(
+    rewriteWithHook({ a: 1, skip: 2 }, (hint) =>
+      hint.key === 'skip'
+        ? { kind: 'omitted' }
+        : { kind: 'found', vertex: { vertexContent: content } },
+    ),
+  ).toEqual({ changed: 4 });
+});
+
+test('rewriteObject captures the canonical hook configuration getter once', () => {
+  let reads = 0;
+  const options = Object.defineProperty({}, 'resolveVertexHook', {
+    get() {
+      reads++;
+      if (reads > 1) throw new Error('configuration read twice');
+      return () => ({ kind: 'omitted' });
+    },
+  });
+  expect(rewriteObject({ a: 1 }, options).outputAtReturn).toEqual({});
+  expect(reads).toBe(1);
+});
 
 test.each([undefined, null, false, Symbol('hook failure')])(
   'preserves exact hook/result accessor failure %p',
@@ -221,21 +195,16 @@ test.each([
   'dependsOnWork',
   'dependsOnSubgraphCompletion',
   'satisfiesDependencies',
-])('legacy hook cannot discard %s metadata before default/pruning', (field) => {
-  for (const returnMe of [undefined, null]) {
-    expect(() =>
-      rewriteObject(
-        { a: 1 },
-        legacyObjectOptions({
-          makeVertexHook: () => ({
-            ...(returnMe === undefined ? {} : { returnMe }),
-            [field]: undefined,
-          }),
-        }),
-      ),
-    ).toThrow(/graph metadata/i);
-  }
-});
+])(
+  'canonical hook cannot discard %s metadata before default/pruning',
+  (field) => {
+    for (const kind of ['useDefault', 'omitted']) {
+      expect(() =>
+        rewriteWithHook({ a: 1 }, () => ({ kind, [field]: undefined })),
+      ).toThrow(/graph metadata/i);
+    }
+  },
+);
 
 test('rejects a nonfunction canonical hook before traversal', () => {
   expect(() =>

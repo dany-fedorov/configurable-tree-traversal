@@ -51,7 +51,7 @@ for (const TreeTraversal of [
     for (const id of [root, undefined, NaN]) {
       const ref = graph.getVertexRefById(id)!;
       expect(graph.getVertexId(ref)).toBe(id);
-      expect(graph.getIdOf(ref)).toBe(id);
+      expect(graph.getVertexId(ref)).toBe(id);
       expect(snapshot.getVertexId(snapshot.getVertexRefById(id)!)).toBe(id);
       const generation = runner.summary().vertices.get(id)!.generation!;
       expect(() =>
@@ -76,26 +76,26 @@ class InheritedIdResult {
 }
 
 for (const asynchronous of [false, true]) {
-  for (const shape of ['tagged', 'legacy'] as const) {
+  for (const shape of ['tagged'] as const) {
     for (const callback of ['root', 'hint', 'prerequisite'] as const) {
       test(`${
         asynchronous ? 'async' : 'sync'
       } ${shape} ${callback} rejects an inherited ID before generated or prerequisite fallback`, async () => {
         const inherited = new InheritedIdResult();
-        const result = () =>
-          shape === 'tagged'
-            ? { kind: 'found' as const, vertex: inherited }
-            : inherited;
+        const result = () => ({ kind: 'found' as const, vertex: inherited });
         const source: DagDiscoverySource<NumericTask, NumericTask, number> = {
           resolveRoot: () =>
             callback === 'root'
               ? result()
               : {
-                  vertexId: 1,
-                  dependsOnWork: callback === 'prerequisite' ? [42] : [],
-                  vertexContent: {
-                    $data: 'root',
-                    $childHints: callback === 'hint' ? [42] : [],
+                  kind: 'found' as const,
+                  vertex: {
+                    vertexId: 1,
+                    dependsOnWork: callback === 'prerequisite' ? [42] : [],
+                    vertexContent: {
+                      $data: 'root',
+                      $childHints: callback === 'hint' ? [42] : [],
+                    },
                   },
                 },
           resolveChild: result,
@@ -128,7 +128,7 @@ for (const TreeTraversal of [
   DagTraversal<Task, Task, TaskId>,
   AsyncDagTraversal<Task, Task, TaskId>,
 ]) {
-  for (const shape of ['tagged', 'legacy'] as const) {
+  for (const shape of ['tagged'] as const) {
     test.each([42, undefined])(
       `${TreeTraversal.name} ${shape} accepts an own getter ID %p`,
       async (id) => {
@@ -140,11 +140,10 @@ for (const TreeTraversal of [
         };
         const runner = new TreeTraversal({
           traversableGraph: {
-            resolveRoot: () =>
-              shape === 'tagged' ? { kind: 'found', vertex } : vertex,
+            resolveRoot: () => ({ kind: 'found', vertex }),
             resolveChild: () => ({
+              satisfiesDependencies: true as const,
               kind: 'omitted',
-              satisfiesDependencies: true,
             }),
           },
         }).createRunner();
@@ -167,11 +166,10 @@ for (const TreeTraversal of [
         };
         const runner = new TreeTraversal({
           traversableGraph: {
-            resolveRoot: () =>
-              shape === 'tagged' ? { kind: 'found', vertex } : vertex,
+            resolveRoot: () => ({ kind: 'found', vertex }),
             resolveChild: () => ({
+              satisfiesDependencies: true as const,
               kind: 'omitted',
-              satisfiesDependencies: true,
             }),
           },
         }).createRunner();
@@ -204,7 +202,10 @@ for (const TreeTraversal of [
             return reads === 1 ? original : inherited;
           },
         }),
-        resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted',
+        }),
       },
     }).createRunner();
     await runner.run();

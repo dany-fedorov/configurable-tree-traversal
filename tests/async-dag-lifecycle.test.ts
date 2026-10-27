@@ -49,7 +49,7 @@ test('halts the requester between visitors without repeating the first visitor',
   const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'root' } },
+    value: { vertex: { $data: 'root' } },
   });
   expect(calls).toEqual(['first', 'second']);
   await expect(resumed.next()).resolves.toEqual({
@@ -95,7 +95,7 @@ test('delivers another started chain once while the requester halts', async () =
   finishB.resolve();
   await expect(drainingEvent).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'B' } },
+    value: { vertex: { $data: 'B' } },
   });
   await expect(iterator.next()).resolves.toEqual({
     done: true,
@@ -107,7 +107,7 @@ test('delivers another started chain once while the requester halts', async () =
   const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'A' } },
+    value: { vertex: { $data: 'A' } },
   });
   expect(calls.filter((call) => call === 'A:first')).toHaveLength(1);
   expect(calls.filter((call) => call === 'A:second')).toHaveLength(1);
@@ -154,7 +154,7 @@ test('loop close waits for a pending visitor and preserves its buffered event', 
   const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'child' }, kind: 'workCompleted' },
+    value: { vertex: { $data: 'child' }, kind: 'workCompleted' },
   });
   await expect(resumed.next()).resolves.toEqual({
     done: true,
@@ -190,7 +190,7 @@ test('a committed buffered event retains its original filter eligibility', async
   const changedFilters = runner.iterateEvents({ emitEvents: [] });
   await expect(changedFilters.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'child' }, kind: 'workCompleted' },
+    value: { vertex: { $data: 'child' }, kind: 'workCompleted' },
   });
   await expect(changedFilters.next()).resolves.toEqual({
     done: true,
@@ -326,16 +326,22 @@ test('shared DAG objects retain one runner owner through halt and release at fin
 
 test('close does not await a pending resolver and reuses its result on resume', async () => {
   const child = deferred<{
-    vertexId: string;
-    dependsOnWork: string[];
-    vertexContent: { $d: string; $c: string[] };
+    kind: 'found';
+    vertex: {
+      vertexId: string;
+      dependsOnWork: string[];
+      vertexContent: { $data: string; $childHints: string[] };
+    };
   }>();
   let resolutions = 0;
   const runner = new AsyncDagTraversal<TestGraph>({
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'root',
-        vertexContent: { $d: 'root', $c: ['child'] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'root',
+          vertexContent: { $data: 'root', $childHints: ['child'] },
+        },
       }),
       resolveChild: () => {
         resolutions++;
@@ -356,16 +362,19 @@ test('close does not await a pending resolver and reuses its result on resume', 
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
   expect(runner.getStatus()).toBe(Status.HALTED);
   child.resolve({
-    vertexId: 'child',
-    dependsOnWork: ['root'],
-    vertexContent: { $d: 'child', $c: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'child',
+      dependsOnWork: ['root'],
+      vertexContent: { $data: 'child', $childHints: [] },
+    },
   });
   await eventLoopTurn();
 
   const resumed = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'child' } },
+    value: { vertex: { $data: 'child' } },
   });
   expect(resolutions).toBe(1);
   await resumed.return(undefined);
@@ -537,11 +546,17 @@ test('inspection is detached and inert during pending, halting, and failed work'
       resolveRoot: () => {
         sourceCalls++;
         return {
-          vertexId: 'root',
-          vertexContent: { $d: 'root', $c: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            vertexContent: { $data: 'root', $childHints: [] },
+          },
         };
       },
-      resolveChild: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }),
     },
   });
   traversal.addVisitorFor(Order.ON_WORK_READY, async () => {
@@ -576,11 +591,14 @@ test('inspection is detached and inert during pending, halting, and failed work'
 });
 
 test('retains undefined as the exact traversal failure sentinel', async () => {
-  const root = deferred<{ vertexContent: null }>();
+  const root = deferred<{ kind: 'omitted'; satisfiesDependencies: true }>();
   const runner = new AsyncDagTraversal<TestGraph>({
     traversableGraph: {
       resolveRoot: () => root.promise,
-      resolveChild: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
     },
   }).createRunner();
   const running = runner.run();

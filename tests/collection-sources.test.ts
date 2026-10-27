@@ -29,7 +29,7 @@ test('a flat diamond discovers all records and releases dependencies after settl
   ).toEqual(['a']);
   runner.settle(
     'a',
-    { ok: true },
+    { kind: 'workCompleted' },
     runner.summary().vertices.get('a')!.generation!,
   );
   runner.run();
@@ -38,12 +38,12 @@ test('a flat diamond discovers all records and releases dependencies after settl
   ).toEqual(['b', 'c']);
   runner.settle(
     'b',
-    { ok: true },
+    { kind: 'workCompleted' },
     runner.summary().vertices.get('b')!.generation!,
   );
   runner.settle(
     'c',
-    { ok: true },
+    { kind: 'workCompleted' },
     runner.summary().vertices.get('c')!.generation!,
   );
   runner.run();
@@ -103,7 +103,8 @@ test('materialization copies membership, children, and both milestone edges', as
       },
       children: (item: typeof items[number]) => item.children,
       dependsOnWork: (item: typeof items[number]) => item.dependencies,
-      dependsOnSubgraphCompletion: (item: typeof items[number]) => item.completion,
+      dependsOnSubgraphCompletion: (item: typeof items[number]) =>
+        item.completion,
     };
     const source = asyncSource
       ? await materializeDagSourceFromRecordsAsync(items, selectors)
@@ -130,7 +131,7 @@ test('materialization copies membership, children, and both milestone edges', as
       graph.getVertexRefById('a')!.getValue().$childHints.length = 0;
       runner.settle(
         'a',
-        { ok: true },
+        { kind: 'workCompleted' },
         runner.summary().vertices.get('a')!.generation!,
       );
       runner.run();
@@ -139,7 +140,7 @@ test('materialization copies membership, children, and both milestone edges', as
       ).toEqual(['b']);
       runner.settle(
         'b',
-        { ok: true },
+        { kind: 'workCompleted' },
         runner.summary().vertices.get('b')!.generation!,
       );
       runner.run();
@@ -310,7 +311,7 @@ test('forest copies child records and completion constraints before caller mutat
     ).toEqual(['root', 'child']);
     runner.settle(
       'root',
-      { ok: true },
+      { kind: 'workCompleted' },
       runner.summary().vertices.get('root')!.generation!,
     );
     runner.run();
@@ -319,7 +320,7 @@ test('forest copies child records and completion constraints before caller mutat
     ).toEqual(['child']);
     runner.settle(
       'child',
-      { ok: true },
+      { kind: 'workCompleted' },
       runner.summary().vertices.get('child')!.generation!,
     );
     runner.run();
@@ -546,7 +547,7 @@ test.each([
     ).toEqual(['child', 'group']);
     runner.settle(
       'group',
-      { ok: true },
+      { kind: 'workCompleted' },
       runner.summary().vertices.get('group')!.generation!,
     );
     runner.run();
@@ -558,7 +559,7 @@ test.each([
     ).toEqual(['afterWork', 'child']);
     runner.settle(
       'child',
-      { ok: true },
+      { kind: 'workCompleted' },
       runner.summary().vertices.get('child')!.generation!,
     );
     runner.run();

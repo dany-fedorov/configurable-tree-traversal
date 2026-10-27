@@ -18,19 +18,33 @@ import {
 
 const traversableTree = {
   resolveRoot: () => ({
-    vertexContent: { $data: 'root', $childHints: [] as string[] },
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: 'root', $childHints: [] as string[] },
+    },
   }),
-  resolveChild: () => ({ vertexContent: null }),
+  resolveChild: () => ({ kind: 'omitted' as const }),
 };
 const traversableGraph = {
   resolveRoot: () => ({
-    vertexId: 'root',
-    vertexContent: { $data: 'root', $childHints: [] as string[] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'root',
+      vertexContent: { $data: 'root', $childHints: [] as string[] },
+    },
   }),
-  resolveChild: () => ({ vertexContent: null }),
+  resolveChild: () => ({
+    satisfiesDependencies: true as const,
+    kind: 'omitted' as const,
+  }),
 };
 const families = [
-  [DepthFirstTreeTraversal, F.PRE_ORDER, { traversableTree }, traverseTreeDepthFirst],
+  [
+    DepthFirstTreeTraversal,
+    F.PRE_ORDER,
+    { traversableTree },
+    traverseTreeDepthFirst,
+  ],
   [
     AsyncDepthFirstTreeTraversal,
     F.PRE_ORDER,
@@ -122,7 +136,7 @@ for (const [Ctor, order, source] of families) {
     );
     t.addVisitorGroupFor(order, {
       visitors: [],
-      commandCommitMode: 'afterGroup',
+      commandCommitMode: 'afterGroup' as const,
     });
     t.setVisitorsFor(order, t.listVisitorsFor(order));
     t.addVisitorFor(

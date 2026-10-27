@@ -27,40 +27,16 @@ export type TraversalExecutionOptions<
 
 /** Internal normalized phase gates. Public input uses TraversalExecutionOptions. */
 export type TraversalRunnerIterableConfig<ORDER extends string> = {
-  /** @deprecated Use visitorPhases. A non-null enable list takes precedence. */
   enableVisitorFunctionsFor: ORDER[] | null;
-  /** @deprecated Use visitorPhases. Used only when the enable list is null. */
   disableVisitorFunctionsFor: ORDER[] | null;
-  /** @deprecated Use emitEvents. */
   iterateOver: ORDER[];
 };
 
-type EmissionInput<ORDER extends string, EmittedKind extends string> =
-  | { emitEvents?: readonly EmittedKind[]; iterateOver?: never }
-  | {
-      emitEvents?: never;
-      /** @deprecated Use emitEvents. */
-      iterateOver?: readonly ORDER[];
-    };
-type VisitorInput<ORDER extends string> =
-  | {
-      visitorPhases?: VisitorPhaseSelection<ORDER>;
-      enableVisitorFunctionsFor?: never;
-      disableVisitorFunctionsFor?: never;
-    }
-  | {
-      visitorPhases?: never;
-      /** @deprecated Use visitorPhases. */
-      enableVisitorFunctionsFor?: readonly ORDER[] | null;
-      /** @deprecated Use visitorPhases. */
-      disableVisitorFunctionsFor?: readonly ORDER[] | null;
-    };
-
-/** @deprecated Compatibility decoding only; public execution uses TraversalExecutionOptions. */
+/** Private alias used by the shared engine; public input has no compatibility arms. */
 export type TraversalIterableConfigInput<
   ORDER extends string,
   EmittedKind extends string = EmissionKind<ORDER>,
-> = EmissionInput<ORDER, EmittedKind> & VisitorInput<ORDER>;
+> = TraversalExecutionOptions<ORDER, EmittedKind>;
 
 export type EffectiveTraversalExecutionOptions<ORDER extends string> = {
   emitEvents: EmissionKind<ORDER>[];

@@ -16,21 +16,30 @@ import {
   traversalInternals,
 } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: Node[] };
+type Node = { $data: string; $childHints: Node[] };
 type TestTTP = VertexTypes<string, Node>;
 type MutableNode = {
-  $d: { label: string; nested: { count: number } };
-  $c: MutableNode[];
+  $data: { label: string; nested: { count: number } };
+  $childHints: MutableNode[];
 };
-type MutableDataTTP = VertexTypes<MutableNode['$d'], MutableNode>;
+type MutableDataTTP = VertexTypes<MutableNode['$data'], MutableNode>;
 
-const node = ($d: string, ...$c: Node[]): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: Node[]): Node => ({
+  $data,
+  $childHints,
+});
 
 function makeTraversal(root: Node, retainOriginalTreeStructure = false) {
   return new DepthFirstTreeTraversal<TestTTP>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: root }),
-      resolveChild: (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: root },
+      }),
+      resolveChild: (hint) => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: hint },
+      }),
     },
     retainOriginalTreeStructure,
   });
@@ -42,8 +51,8 @@ function makeRef(
 ): MutableRef<Vertex<TestTTP>> {
   return new MutableRef(
     new Vertex<TestTTP>({
-      $d: data,
-      $c: childrenHints,
+      $data: data,
+      $childHints: childrenHints,
     }),
   );
 }
@@ -146,7 +155,7 @@ describe('saved resolved-tree consistency', () => {
       throw new Error('Expected a saved root ref');
     }
 
-    rootRef.setValue(rootRef.getValue().clone({ $d: 'rewritten' }));
+    rootRef.setValue(rootRef.getValue().clone({ $data: 'rewritten' }));
     container.set(
       rootRef,
       new TreeVertexRecord<TestTTP>({
@@ -263,8 +272,7 @@ describe('saved resolved-tree consistency', () => {
           return {
             commands: [
               {
-                commandName:
-                  TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+                commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
                 commandArguments: { newHints: [replacementLeaf] },
               },
             ],
@@ -338,11 +346,17 @@ describe('saved resolved-tree consistency', () => {
 
   test('copies structural arrays while shallowly sharing user data', () => {
     const sharedData = { label: 'root', nested: { count: 1 } };
-    const root: MutableNode = { $d: sharedData, $c: [] };
+    const root: MutableNode = { $data: sharedData, $childHints: [] };
     const runner = new DepthFirstTreeTraversal<MutableDataTTP>({
       traversableTree: {
-        resolveRoot: () => ({ vertexContent: root }),
-        resolveChild: (hint) => ({ vertexContent: hint }),
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: { vertexContent: root },
+        }),
+        resolveChild: (hint) => ({
+          kind: 'found' as const,
+          vertex: { vertexContent: hint },
+        }),
       },
       retainOriginalTreeStructure: true,
     })
@@ -525,7 +539,7 @@ describe('MutableRef identity', () => {
   test('keeps a stable unique id while its target is replaced', () => {
     const first = makeRef('first');
     const second = makeRef('second');
-    const firstId = first.getId();
+    const firstId = first.getRefId();
 
     expect(firstId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
@@ -533,8 +547,8 @@ describe('MutableRef identity', () => {
 
     first.setValue(makeRef('replacement').getValue());
 
-    expect(first.getId()).toBe(firstId);
-    expect(first.getId()).not.toBe(second.getId());
+    expect(first.getRefId()).toBe(firstId);
+    expect(first.getRefId()).not.toBe(second.getRefId());
     expect(first.getValue().getData()).toBe('replacement');
   });
 });

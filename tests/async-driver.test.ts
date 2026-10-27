@@ -46,7 +46,9 @@ function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
 }
 
 test('closes while root resolution is pending and consumes it after resume', async () => {
-  const root = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const root = deferred<{
+    vertexContent: { $data: string; $childHints: string[] };
+  }>();
   const kernel = makeKernel(['PRE_ORDER']);
   const bindings: CallbackBindings<TestGraph> = {
     invoke: (call) => {
@@ -68,7 +70,7 @@ test('closes while root resolution is pending and consumes it after resume', asy
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
   expect(kernel.getStatus()).toBe(TraversalRunnerStatus.HALTED);
 
-  root.resolve({ vertexContent: { $d: 'root', $c: [] } });
+  root.resolve({ vertexContent: { $data: 'root', $childHints: [] } });
   await eventLoopTurn();
   expect(driver.inspect().inFlightCallbackCount).toBe(0);
   expect(kernel.inspect().pendingRequests).toHaveLength(1);
@@ -76,7 +78,7 @@ test('closes while root resolution is pending and consumes it after resume', asy
   const resumed = session.iterateEvents();
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'root' }, order: 'PRE_ORDER' },
+    value: { vertex: { $data: 'root' }, order: 'PRE_ORDER' },
   });
   await expect(resumed.next()).resolves.toEqual({
     done: true,
@@ -170,7 +172,9 @@ test('deletion cancels queued callbacks while an invalid running permit drains',
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['A', 'B', 'C'] } },
+            value: {
+              vertexContent: { $data: 'root', $childHints: ['A', 'B', 'C'] },
+            },
           };
         }
         if (call.kind === 'MAKE_VERTEX') {

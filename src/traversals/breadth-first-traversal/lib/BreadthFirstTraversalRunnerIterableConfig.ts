@@ -5,6 +5,7 @@ import type {
 } from '@core/TraversalRunnerIterableConfig';
 import {
   normalizeTraversalExecutionOptions,
+  executionOptionsFromPhaseGates,
   toLegacyTraversalExecutionConfig,
 } from '@core/normalizeTraversalExecutionOptions';
 import { deepFreeze } from '@utils/deepFreeze';
@@ -28,7 +29,10 @@ export function makeEffectiveBreadthFirstTraversalRunnerIterableConfig(
       config,
       previous === undefined
         ? undefined
-        : normalizeTraversalExecutionOptions<BreadthFirstPhase>(phases, previous),
+        : normalizeTraversalExecutionOptions<BreadthFirstPhase>(
+            phases,
+            executionOptionsFromPhaseGates(previous),
+          ),
     ),
   );
 }

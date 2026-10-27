@@ -1,4 +1,3 @@
-import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { MutableRef } from '@core/CTTRef';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
@@ -50,6 +49,4 @@ export type VisitorChainInput<
   order?: string;
 };
 
-export type VisitorOutcome<R extends VertexTypes> = Outcome<
-  VisitResult<R> | typeof DEFER_READY
->;
+export type VisitorOutcome<R extends VertexTypes> = Outcome<VisitResult<R>>;

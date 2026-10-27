@@ -4,7 +4,7 @@ import {
 } from '@core/drivers/normalizeSourceResult';
 import {
   AbstractTreeSource,
-  MakeTreeVertexResult,
+  TreeVertexFound,
   TreeChildResolutionContext,
   TreeVertexResolution,
 } from '@core/TraversableTree';
@@ -19,7 +19,6 @@ import type {
   ObjectTreeResolvedOptions,
 } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
 import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
-import type { LegacyObjectTreeOptions } from './lib/TraversableObjectTreeInstanceConfig';
 
 type ObjectCycleState = {
   seenIdentities: WeakSet<object>;
@@ -61,20 +60,17 @@ export class ObjectTreeSource<
   ) {
     super();
     this.rootObject = rootObject;
-    const { resolveVertexHook, makeVertexHook, ...otherOptions } =
-      (icfgInput as
-        | LegacyObjectTreeOptions<In, InK, InV, OutK, OutV>
-        | undefined) ?? {};
+    if (icfgInput && 'makeVertexHook' in icfgInput) {
+      throw new TypeError(
+        'makeVertexHook is unsupported; use resolveVertexHook',
+      );
+    }
+    const { resolveVertexHook, ...otherOptions } = icfgInput ?? {};
     if (
       resolveVertexHook !== undefined &&
       typeof resolveVertexHook !== 'function'
     ) {
       throw new TypeError('resolveVertexHook must be a function');
-    }
-    if (resolveVertexHook !== undefined && makeVertexHook != null) {
-      throw new TypeError(
-        'resolveVertexHook and makeVertexHook cannot both be active',
-      );
     }
     this.icfg = {
       getChildrenOfProperty:
@@ -85,14 +81,12 @@ export class ObjectTreeSource<
         ObjectTreeSource.getRootPropertyFromInputObjectDefault(),
       ...otherOptions,
       resolveVertexHook,
-      makeVertexHook: makeVertexHook ?? null,
     };
   }
 
   static createObjectMutationBinder = createObjectMutationBinder;
 
-  /** Retains the published untagged direct result; custom sources should use tagged results. */
-  resolveRoot(): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
+  resolveRoot(): TreeVertexFound<TraversableObjectTTP<InK, InV>> {
     const { getChildrenOfProperty, getRootPropertyFromInputObject } = this.icfg;
     const rootProp = getRootPropertyFromInputObject(this.rootObject);
     this.originalIdentityByVertexData.set(
@@ -101,21 +95,18 @@ export class ObjectTreeSource<
     );
     const children = getChildrenOfProperty(rootProp);
     return {
-      vertexContent: {
-        $data: rootProp,
-        $childHints: children,
-      },
+      kind: 'found',
+      vertex: { vertexContent: { $data: rootProp, $childHints: children } },
     };
   }
 
-  /** Retains direct vertexContent access, including null omission, for compatibility. */
   resolveChild(
     vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
     options: TreeChildResolutionContext<
       TraversableObjectTTP<InK, InV>,
       TraversableObjectTTP<OutK, OutV>
     >,
-  ): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
+  ): TreeVertexResolution<TraversableObjectTTP<InK, InV>> {
     const canonicalHook = this.icfg.resolveVertexHook;
     let result:
       | TreeVertexResolution<TraversableObjectTTP<InK, InV>>
@@ -132,29 +123,20 @@ export class ObjectTreeSource<
         }
         result = resolved;
       }
-    } else {
-      const legacy = this.icfg.makeVertexHook?.(vertexHint, options);
-      if (legacy != null) assertNoTreeMetadata(legacy);
-      const returnMe = legacy?.returnMe;
-      if (returnMe !== undefined) {
-        result = { vertexContent: returnMe };
-      }
     }
     if (result !== undefined) {
       const normalized = normalizeSourceResult(result, false, 'Tree source')!;
-      if (normalized.vertexContent === null) return { vertexContent: null };
+      if (normalized.vertexContent === null) return { kind: 'omitted' };
       const content = normalizeVertexContent(normalized.vertexContent);
       this.assertNoObjectIdentityCycle(content.$data, options);
-      return { vertexContent: content };
+      return { kind: 'found', vertex: { vertexContent: content } };
     }
     const { getChildrenOfProperty } = this.icfg;
     this.assertNoObjectIdentityCycle(vertexHint, options);
     const hints = getChildrenOfProperty(vertexHint);
     return {
-      vertexContent: {
-        $data: vertexHint,
-        $childHints: hints,
-      },
+      kind: 'found',
+      vertex: { vertexContent: { $data: vertexHint, $childHints: hints } },
     };
   }
 

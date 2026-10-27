@@ -33,7 +33,10 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
               },
             };
           },
-          resolveChild: () => ({ vertexContent: null }),
+          resolveChild: () => ({
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+          }),
         };
       }
       const original = source('original', originalId);
@@ -294,8 +297,14 @@ for (const merge of [
 ]) {
   test(`${merge.name} retains a source for an ignored direct patch`, () => {
     const source: DagDiscoverySource<Data> = {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveRoot: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
+      resolveChild: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
     };
     const base = {
       ...traversalInternals(

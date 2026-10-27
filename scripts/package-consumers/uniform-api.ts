@@ -1,3 +1,4 @@
+import { TraversalVisitorCommandName as VisitorCommand } from 'configurable-tree-traversal';
 import {
   AsyncDagTraversal,
   DagTraversal,
@@ -6,7 +7,6 @@ import {
   DepthFirstPhase as F,
   BreadthFirstPhase as B,
   TraversalVisitorCommandName as C,
-  DEFER_READY,
   core,
   traverseTreeDepthFirst,
   traverseTreeDepthFirstAsync,
@@ -34,10 +34,11 @@ import type {
 
 type T = VertexTypes<string | undefined, string>;
 const canonical: VertexContent<T> = { $data: 'root', $childHints: ['leaf'] };
-const legacy: Extract<VertexContentInput<T>, { $d: unknown }> = { $d: 'old', $c: [] };
-const vertex = new core.Vertex<T>(legacy).clone({ $data: undefined });
+// @ts-expect-error Retired content spelling is not accepted.
+const legacy: VertexContentInput<T> = { $d: 'old', $c: [] };
+const vertex = new core.Vertex<T>(canonical).clone({ $data: undefined });
 const data: string | undefined = vertex.$data;
-const alias: string | undefined = vertex.$d;
+const alias: string | undefined = vertex.$data;
 // @ts-expect-error mixed vertex spellings are ambiguous
 new core.Vertex<T>({ $data: '', $c: [] });
 const found: DagVertexFound<T> = {
@@ -77,12 +78,10 @@ const depth = new DepthFirstTreeTraversal({ traversableTree: tree });
 depth.addVisitorFor(F.POST_ORDER, common);
 depth.configure({
   visitors: {
-    [F.POST_ORDER]: [{ visitor: common, priority: 1, addedIndex: 0 }],
+    [F.POST_ORDER]: [{ visitor: common, priority: 1 }],
   },
 });
-depth.setVisitorsFor(F.POST_ORDER, [
-  { visitor: common, priority: 1, addedIndex: 0 },
-]);
+depth.setVisitorsFor(F.POST_ORDER, [{ visitor: common, priority: 1 }]);
 const callback = depth.listVisitorsFor(F.POST_ORDER)[0]!.visitor;
 depth.addVisitorFor(
   F.PRE_ORDER,
@@ -117,7 +116,9 @@ dag.addVisitorFor(D.ON_WORK_READY, (_v, options) => {
   void phase;
   return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
 });
-dag.addVisitorFor(D.ON_WORK_READY, () => DEFER_READY);
+dag.addVisitorFor(D.ON_WORK_READY, () => ({
+  commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+}));
 dag.addVisitorFor(D.ON_SUBGRAPH_READY, dagCommon);
 dag.addVisitorFor(D.ON_SUBGRAPH_READY, () => ({
   // @ts-expect-error completion visitors cannot defer
@@ -131,6 +132,7 @@ const outcome: DagSettlementOutcome = {
   kind: 'traversalFailed',
   error: undefined,
 };
+// @ts-expect-error Boolean settlement feedback is removed.
 const oldOutcome: DagSettlementOutcome = { ok: false, error: undefined };
 const work: DagWorkState = 'completed';
 // @ts-expect-error old progress string is replaced
@@ -148,9 +150,18 @@ const syncHelpers = [
     traversableGraph: graph,
     visitors: { [D.ON_WORK_READY]: dagCommon },
   }),
-  traverseTreeDepthFirst(tree, { postOrderVisitor: common }),
-  traverseTreeBreadthFirst(tree, common),
-  traverseDag({ traversableGraph: graph }, { onReadyVisitor: dagCommon }),
+  traverseTreeDepthFirst({
+    traversableTree: tree,
+    visitors: { POST_ORDER: common },
+  }),
+  traverseTreeBreadthFirst({
+    traversableTree: tree,
+    visitors: { LEVEL_ORDER: common },
+  }),
+  traverseDag({
+    ...{ traversableGraph: graph },
+    visitors: { ON_WORK_READY: dagCommon },
+  }),
 ];
 const asyncHelpers: Promise<unknown>[] = [
   traverseTreeDepthFirstAsync({
@@ -165,9 +176,18 @@ const asyncHelpers: Promise<unknown>[] = [
     traversableGraph: graph,
     visitors: { [D.ON_WORK_READY]: dagCommon },
   }),
-  traverseTreeDepthFirstAsync(tree, { postOrderVisitor: common }),
-  traverseTreeBreadthFirstAsync(tree, common),
-  traverseDagAsync({ traversableGraph: graph }, { onReadyVisitor: dagCommon }),
+  traverseTreeDepthFirstAsync({
+    traversableTree: tree,
+    visitors: { POST_ORDER: common },
+  }),
+  traverseTreeBreadthFirstAsync({
+    traversableTree: tree,
+    visitors: { LEVEL_ORDER: common },
+  }),
+  traverseDagAsync({
+    ...{ traversableGraph: graph },
+    visitors: { ON_WORK_READY: dagCommon },
+  }),
 ];
 // @ts-expect-error helper has exactly one source
 traverseDag({ traversableTree: tree, traversableGraph: graph });
@@ -230,7 +250,8 @@ const undefinedAcknowledgement = {
 const undefinedOmissionAsTree: TreeVertexOmitted = undefinedAcknowledgement;
 void [graphOmissionAsTree, treeOmissionAsGraph, undefinedOmissionAsTree];
 const treeResult: TreeVertexResolution<T> = treeFound;
-const oldTreeResult: Extract<TreeVertexResolution<T>, { vertexContent: unknown }> = { vertexContent: canonical };
+// @ts-expect-error Untagged tree results are removed.
+const oldTreeResult: TreeVertexResolution<T> = { vertexContent: canonical };
 // @ts-expect-error tree sources do not accept graph identity
 const wrongTree: TreeVertexResolution<T> = found;
 const execution: TraversalExecutionOptions<F> = {

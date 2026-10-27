@@ -1,3 +1,4 @@
+import { TraversalVisitorCommandName as VisitorCommand } from '../src';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
@@ -9,7 +10,6 @@ import {
   AsyncDagTraversal,
   DagTraversal,
   DagVisitorPhase as Order,
-  DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import {
   AsyncDepthFirstTreeTraversal,
@@ -28,13 +28,22 @@ import {
 
 type G = VertexTypes<string, string>;
 const tree = {
-  resolveRoot: () => ({ vertexContent: { $data: 'A', $childHints: ['B'] } }),
-  resolveChild: () => ({ vertexContent: { $data: 'B', $childHints: [] } }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'A', $childHints: ['B'] } },
+  }),
+  resolveChild: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'B', $childHints: [] } },
+  }),
 };
 const graph = {
   resolveRoot: () => ({
-    vertexId: 'A',
-    vertexContent: { $data: 'A', $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'A',
+      vertexContent: { $data: 'A', $childHints: [] },
+    },
   }),
   resolveChild: tree.resolveChild,
 };
@@ -100,7 +109,11 @@ for (const Constructor of [
 for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
   test(`${Constructor.name} keeps the preceding settlement stop until resume`, async () => {
     const traversal = new Constructor({ traversableGraph: graph });
-    traversal.addVisitorFor(Order.ON_WORK_READY, () => DEFER_READY);
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
+      commands: [
+        { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+      ],
+    }));
     const runner = traversal.createRunner();
     await runner.run();
     expectReason(runner, 'awaitingSettlement');

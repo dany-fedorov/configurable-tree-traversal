@@ -65,21 +65,36 @@ function createLifecycleInspection(library, fixture, completed, options) {
     traversableGraph: {
       resolveRoot: () => {
         counters.root++;
-        return { vertexContent: { $d: 'catalog', $c: fixture.ids } };
+        return {
+          kind: 'found',
+          vertex: {
+            vertexContent: { $data: 'catalog', $childHints: fixture.ids },
+          },
+        };
       },
       resolveChild: (id) => {
         counters.vertex++;
         return {
-          vertexId: id,
-          dependsOnWork: fixture.prerequisites[indexes.get(id)],
-          vertexContent: { $d: id, $c: [] },
+          kind: 'found',
+          vertex: {
+            vertexId: id,
+            dependsOnWork: fixture.prerequisites[indexes.get(id)],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         };
       },
     },
   });
   const visit = () => {
     counters.ready++;
-    return library.DEFER_READY;
+    return {
+      commands: [
+        {
+          commandName:
+            library.TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+        },
+      ],
+    };
   };
   traversal.addVisitorFor(
     library.DagVisitorPhase.ON_WORK_READY,
@@ -238,7 +253,9 @@ async function runLifecycleSample(library, fixture, seeds, options) {
     const accepted = [];
     start = performance.now();
     for (const [id, generation] of settlements)
-      accepted.push(retained.runner.settle(id, { ok: true }, generation));
+      accepted.push(
+        retained.runner.settle(id, { kind: 'workCompleted' }, generation),
+      );
     const settlementBatchMs = performance.now() - start;
     assert.ok(accepted.every((value) => value === true));
     acceptedIds.forEach((id) => completed.add(id));
@@ -416,7 +433,7 @@ async function main(args) {
       completedWorkSeeds: 'empty or first floor(V/2) IDs; prerequisite-closed',
       batchRanking: 'fixture ID order, outside measured regions',
       asyncVisitor:
-        'await Promise.resolve() then DEFER_READY; callback scheduling overhead, no external I/O',
+        'await Promise.resolve() then DEFER_WORK_COMPLETION; callback scheduling overhead, no external I/O',
       frontierScope:
         'pre-run summaries and open lazy boundaries are partial-discovery; full-fixture Kahn retains all prerequisite edges and projects ready IDs onto discovered IDs. Global readiness claims only at discovery.complete boundaries; the flat synthetic catalog resolves all V declarations before its first quiescent frontier',
       memory:

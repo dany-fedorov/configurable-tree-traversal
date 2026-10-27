@@ -15,8 +15,6 @@ export enum TraversalVisitorCommandName {
   SET_VERTEX_VISITORS_CHAIN_STATE = 'SET_VERTEX_VISITORS_CHAIN_STATE',
   REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
   DISABLE_SUBTREE_TRAVERSAL = 'DISABLE_SUBTREE_TRAVERSAL',
-  /** @deprecated Use REWRITE_CHILD_HINTS. */
-  REWRITE_VERTEX_HINTS_ON_PRE_ORDER = 'REWRITE_VERTEX_HINTS_ON_PRE_ORDER',
 }
 
 export type TraversalVisitorCommandArguments<RW_TTP extends VertexTypes> = {
@@ -34,9 +32,6 @@ export type TraversalVisitorCommandArguments<RW_TTP extends VertexTypes> = {
     newData: RW_TTP['VertexData'];
   };
   [TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL]: never;
-  [TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER]: {
-    newHints: RW_TTP['VertexHint'][];
-  };
 };
 
 export type TraversalVisitorCommand<
@@ -53,9 +48,7 @@ export type TraversalVisitorCommand<
 /** Prevent callback returns from widening the phase inferred from a registration key. */
 export type NoInferPhase<P extends string> = [P][P extends string ? 0 : never];
 
-type HintCommand =
-  | TraversalVisitorCommandName.REWRITE_CHILD_HINTS
-  | TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER;
+type HintCommand = TraversalVisitorCommandName.REWRITE_CHILD_HINTS;
 type CommonCommand = Exclude<
   TraversalVisitorCommandName,
   HintCommand | TraversalVisitorCommandName.DEFER_WORK_COMPLETION
@@ -103,12 +96,6 @@ export type TreeVisitorContext<
   phase: ORDER;
 };
 
-/** @deprecated Use commandCommitMode for command batching. */
-export enum TraversalVisitorFunctionResolutionStyle {
-  SEQUENTIAL = 'SEQUENTIAL',
-  CONCURRENT = 'CONCURRENT',
-}
-
 export type CommandCommitMode = 'afterEachVisitor' | 'afterGroup';
 
 export type TraversalVisitorFunctionOptions = {
@@ -121,8 +108,6 @@ export type VisitorDefinition<F> =
   | F
   | ({
       visitor: F;
-      /** @deprecated Registration indexes are assigned internally. */
-      addedIndex?: number;
     } & Partial<TraversalVisitorFunctionOptions>);
 
 export type VisitorGroupMember<F> =
@@ -155,8 +140,6 @@ export type VisitorGroupMetadata = Readonly<{
 export type VisitorRegistrationMetadata = Readonly<
   TraversalVisitorFunctionOptions & {
     addedIndex: number;
-    /** @deprecated Use commandCommitMode. */
-    resolutionStyle?: TraversalVisitorFunctionResolutionStyle | undefined;
     visitorGroup?: VisitorGroupMetadata | undefined;
   }
 >;
@@ -172,7 +155,6 @@ export const DEFAULT_VISITOR_PRIORITY = 100;
 export const DEFAULT_VISITOR_FN_OPTIONS = deepFreeze({
   priority: DEFAULT_VISITOR_PRIORITY,
   commandCommitMode: 'afterEachVisitor' as const,
-  resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
 });
 
 // Resolve the result before constructing the callback so TypeScript compares

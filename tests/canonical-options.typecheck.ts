@@ -1,4 +1,3 @@
-import { TraversalVisitorFunctionResolutionStyle as Style } from '../src/core/TraversalVisitor';
 import {
   DepthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
@@ -49,7 +48,7 @@ runner.curGenerator;
 runner.run({ iterateOver: [DepthFirstPhase.PRE_ORDER] });
 traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => undefined, {
   // @ts-expect-error registration policy has one canonical vocabulary
-  resolutionStyle: Style.SEQUENTIAL,
+  resolutionStyle: 'SEQUENTIAL',
 });
 // @ts-expect-error public effective inspection contains canonical selectors
 runner.inspect().executionOptions.iterateOver;

@@ -13,7 +13,7 @@ const rewrite: TraversalVisitorCommand<Tree> = {
   commandArguments: { newData: 42 },
 };
 const hints: TraversalVisitorCommand<Tree> = {
-  commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+  commandName: Command.REWRITE_CHILD_HINTS,
   commandArguments: { newHints: ['child'] },
 };
 // @ts-expect-error Rewrite commands need their data payload.

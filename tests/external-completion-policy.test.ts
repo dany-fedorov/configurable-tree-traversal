@@ -11,12 +11,18 @@ import { traversalInternals } from './internal-runner-fixtures';
 type G = VertexTypes<string, string>;
 const catalog = {
   resolveRoot: () => ({
-    vertexContent: { $data: '', $childHints: ['A', 'B'] },
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: '', $childHints: ['A', 'B'] },
+    },
   }),
   resolveChild: (id: string) => ({
-    vertexId: id,
-    dependsOnWork: id === 'B' ? ['A'] : [],
-    vertexContent: { $data: id, $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: id,
+      dependsOnWork: id === 'B' ? ['A'] : [],
+      vertexContent: { $data: id, $childHints: [] },
+    },
   }),
 };
 const external = { workCompletion: 'externalSettlement' as const };
@@ -59,10 +65,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       traversableTree: {
         resolveRoot: () => ({
-          vertexContent: { $data: 'A', $childHints: ['B'] },
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'A', $childHints: ['B'] },
+          },
         }),
         resolveChild: () => ({
-          vertexContent: { $data: 'B', $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'B', $childHints: [] },
+          },
         }),
       },
       ...external,
@@ -102,7 +114,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           ],
         };
       },
-      { commandCommitMode: 'afterGroup' },
+      { commandCommitMode: 'afterGroup' as const },
     );
     const runner = traversal.createRunner();
     await runner.run();
@@ -173,12 +185,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         ],
       }),
-      { commandCommitMode: 'afterGroup' },
+      { commandCommitMode: 'afterGroup' as const },
     );
     traversal.addVisitorFor(
       Order.ON_WORK_READY,
       () => ({ commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] }),
-      { commandCommitMode: 'afterGroup' },
+      { commandCommitMode: 'afterGroup' as const },
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       throw new Error('must skip later callback');
@@ -206,15 +218,21 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ...external,
       traversableGraph: {
         resolveRoot: () => ({
-          vertexContent: { $data: '', $childHints: ['A', 'W', 'C'] },
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: '', $childHints: ['A', 'W', 'C'] },
+          },
         }),
         resolveChild: (id) => ({
-          vertexId: id,
-          dependsOnWork: id === 'W' ? ['A'] : [],
-          dependsOnSubgraphCompletion: id === 'C' ? ['A'] : [],
-          vertexContent: {
-            $data: id,
-            $childHints: id === 'A' ? ['child'] : [],
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnWork: id === 'W' ? ['A'] : [],
+            dependsOnSubgraphCompletion: id === 'C' ? ['A'] : [],
+            vertexContent: {
+              $data: id,
+              $childHints: id === 'A' ? ['child'] : [],
+            },
           },
         }),
       },
@@ -323,7 +341,10 @@ test('async external settlement frees logical chain capacity while a physical ca
     traversableGraph: {
       ...catalog,
       resolveRoot: () => ({
-        vertexContent: { $data: '', $childHints: ['A', 'busy', 'B'] },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: '', $childHints: ['A', 'busy', 'B'] },
+        },
       }),
     },
   });
@@ -361,7 +382,10 @@ test('external async close drains callbacks before recording pause and retains g
     traversableGraph: {
       ...catalog,
       resolveRoot: () => ({
-        vertexContent: { $data: '', $childHints: ['A', 'busy', 'B'] },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: '', $childHints: ['A', 'busy', 'B'] },
+        },
       }),
     },
   });

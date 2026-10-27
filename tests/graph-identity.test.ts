@@ -24,7 +24,7 @@ test('new references generate independent UUID ids', () => {
   const first = new MutableRef({});
   const second = new MutableRef({});
 
-  expect(first.getId()).not.toBe(second.getId());
+  expect(first.getRefId()).not.toBe(second.getRefId());
 });
 
 test('diagnostic labels are literal for primitives and stable for references', () => {

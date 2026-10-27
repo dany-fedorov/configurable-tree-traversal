@@ -1,4 +1,4 @@
-import { TraversalVisitorFunctionResolutionStyle as Style } from '../src/core/TraversalVisitor';
+import { TraversalVisitorCommandName as VisitorCommand } from '../src';
 import type { VertexTypes } from '../src';
 import {
   AsyncBreadthFirstTreeTraversal,
@@ -8,7 +8,6 @@ import {
   BreadthFirstTreeTraversal,
   DagTraversal,
   DagVisitorPhase as DagOrder,
-  DEFER_READY,
   DepthFirstPhase as DfsOrder,
   DepthFirstTreeTraversal,
   TraversalVisitorCommandName as Command,
@@ -17,12 +16,18 @@ import {
 type G = VertexTypes<string, string>;
 const source = {
   resolveRoot: () => ({
-    vertexId: 'root',
-    vertexContent: { $data: 'root', $childHints: [] as string[] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'root',
+      vertexContent: { $data: 'root', $childHints: [] as string[] },
+    },
   }),
   resolveChild: (id: string) => ({
-    vertexId: id,
-    vertexContent: { $data: id, $childHints: [] as string[] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: id,
+      vertexContent: { $data: id, $childHints: [] as string[] },
+    },
   }),
 };
 for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
@@ -40,15 +45,21 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
             },
           ],
         }),
-        { commandCommitMode: 'afterGroup', priority: 200 },
+        { commandCommitMode: 'afterGroup' as const, priority: 200 },
       );
       traversal.addVisitorFor(
         DagOrder.ON_WORK_READY,
         () =>
           form === 'symbol'
-            ? DEFER_READY
+            ? {
+                commands: [
+                  {
+                    commandName: VisitorCommand.DEFER_WORK_COMPLETION as const,
+                  },
+                ],
+              }
             : { commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] },
-        { commandCommitMode: 'afterGroup' },
+        { commandCommitMode: 'afterGroup' as const },
       );
       traversal.addVisitorFor(DagOrder.ON_WORK_READY, () => {
         throw new Error('must skip');
@@ -59,13 +70,13 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       expect(runner.summary().completedWorkIds).toEqual([]);
       runner.settle(
         'root',
-        { ok: true },
+        { kind: 'workCompleted' },
         runner.summary().vertices.get('root')!.generation!,
       );
       await runner.run();
       expect(runner.summary().completedWorkIds).toEqual(['root']);
       expect(
-        runner.getResolvedGraph().getVertexById('root')!.getValue().$data,
+        runner.getResolvedGraph().getVertexRefById('root')!.getValue().$data,
       ).toBe('root');
     },
   );
@@ -90,7 +101,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       await runner.run();
     }).rejects.toThrow(/sole command/);
     expect(
-      runner.getResolvedGraph().getVertexById('root')!.getValue().$data,
+      runner.getResolvedGraph().getVertexRefById('root')!.getValue().$data,
     ).toBe('root');
   });
 }
@@ -108,10 +119,16 @@ for (const [Constructor, order, sourceKey] of [
         sourceKey === 'traversableTree'
           ? {
               resolveRoot: () => ({
-                vertexContent: source.resolveRoot().vertexContent,
+                kind: 'found' as const,
+                vertex: {
+                  vertexContent: source.resolveRoot().vertex.vertexContent,
+                },
               }),
               resolveChild: (id: string) => ({
-                vertexContent: source.resolveChild(id).vertexContent,
+                kind: 'found' as const,
+                vertex: {
+                  vertexContent: source.resolveChild(id).vertex.vertexContent,
+                },
               }),
             }
           : source,
@@ -158,7 +175,6 @@ for (const [Constructor, order, sourceKey] of [
     )(order as never);
     expect(listed[0]).toMatchObject({
       commandCommitMode: 'afterGroup',
-      resolutionStyle: Style.CONCURRENT,
     });
     (
       traversal.setVisitorsFor.bind(
@@ -177,17 +193,21 @@ for (const [Constructor, order, sourceKey] of [
     );
     await traversal.createRunner().run();
     expect(seen).toEqual(['configured', 'replaced']);
-    const conflict = { ...record, resolutionStyle: Style.SEQUENTIAL };
+    const conflict = {
+      ...record,
+      resolutionStyle: 'SEQUENTIAL',
+      commandCommitMode: 'afterEachVisitor' as const,
+    };
     expect(() =>
       traversal.configure({ visitors: { [order]: [conflict] } } as never),
-    ).toThrow(/conflict/i);
+    ).toThrow(/resolutionStyle|unsupported/i);
     expect(() =>
       (
         traversal.setVisitorsFor.bind(
           traversal,
         ) as DepthFirstTreeTraversal<G>['setVisitorsFor']
       )(order as never, [conflict] as never),
-    ).toThrow(/conflict/i);
+    ).toThrow(/resolutionStyle|unsupported/i);
   });
   test(`${Constructor.name} supports canonical batching and child rewrites`, async () => {
     // The heterogeneous constructor table deliberately erases only its dispatch signature.
@@ -196,10 +216,16 @@ for (const [Constructor, order, sourceKey] of [
         sourceKey === 'traversableTree'
           ? {
               resolveRoot: () => ({
-                vertexContent: source.resolveRoot().vertexContent,
+                kind: 'found' as const,
+                vertex: {
+                  vertexContent: source.resolveRoot().vertex.vertexContent,
+                },
               }),
               resolveChild: (id: string) => ({
-                vertexContent: source.resolveChild(id).vertexContent,
+                kind: 'found' as const,
+                vertex: {
+                  vertexContent: source.resolveChild(id).vertex.vertexContent,
+                },
               }),
             }
           : source,
@@ -221,14 +247,14 @@ for (const [Constructor, order, sourceKey] of [
           ],
         };
       },
-      { commandCommitMode: 'afterGroup' },
+      { commandCommitMode: 'afterGroup' as const },
     );
     add(
       order as DfsOrder,
       (vertex) => {
         seen.push(`group2:${vertex.$data}`);
       },
-      { resolutionStyle: Style.CONCURRENT } as never,
+      { commandCommitMode: 'afterGroup' as const } as never,
     );
     add(
       order as DfsOrder.PRE_ORDER,
@@ -243,16 +269,16 @@ for (const [Constructor, order, sourceKey] of [
           ],
         };
       },
-      { commandCommitMode: 'afterEachVisitor' },
+      { commandCommitMode: 'afterEachVisitor' as const },
     );
     await traversal.createRunner().run();
     expect(seen).toEqual(['group1:root', 'group2:root', 'each:changed']);
     expect(() =>
       add(order as DfsOrder, () => undefined, {
-        commandCommitMode: 'afterEachVisitor',
-        resolutionStyle: Style.CONCURRENT,
+        resolutionStyle: 'SEQUENTIAL',
+        commandCommitMode: 'afterGroup',
       } as never),
-    ).toThrow(/conflict/i);
+    ).toThrow(/resolutionStyle|unsupported/i);
   });
 }
 
@@ -273,19 +299,25 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     const runner = traversal.createRunner();
     await runner.run();
     expect(
-      runner.getResolvedGraph().getVertexById('root')!.getValue().$data,
+      runner.getResolvedGraph().getVertexRefById('root')!.getValue().$data,
     ).toBe('kept');
     const generation = runner.summary().vertices.get('root')!.generation!;
-    expect(() => runner.settle('root', { ok: true }, Symbol())).toThrow();
-    expect(runner.settle('root', { ok: true }, generation)).toBe(true);
-    expect(runner.settle('root', { ok: true }, generation)).toBe(false);
+    expect(() =>
+      runner.settle('root', { kind: 'workCompleted' }, Symbol()),
+    ).toThrow();
+    expect(runner.settle('root', { kind: 'workCompleted' }, generation)).toBe(
+      true,
+    );
+    expect(runner.settle('root', { kind: 'workCompleted' }, generation)).toBe(
+      false,
+    );
     await runner.run();
     expect(runner.summary().completedWorkIds).toEqual(['root']);
   });
 
   test.each([
     Command.REWRITE_CHILD_HINTS,
-    Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+    Command.REWRITE_CHILD_HINTS,
   ] as const)(
     `${Constructor.name} validates %s during completion and eager discovery`,
     async (commandName) => {
@@ -333,11 +365,17 @@ test('async command deferral releases callback capacity while work prerequisites
     discovery: 'eager',
     traversableGraph: {
       resolveRoot: () => ({
-        vertexContent: { $data: '', $childHints: ['a', 'b', 'c'] },
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: '', $childHints: ['a', 'b', 'c'] },
+        },
       }),
       resolveChild: (id) => ({
-        ...source.resolveChild(id),
-        dependsOnWork: id === 'c' ? ['a'] : [],
+        kind: 'found',
+        vertex: {
+          ...source.resolveChild(id).vertex,
+          dependsOnWork: id === 'c' ? ['a'] : [],
+        },
       }),
     },
   });
@@ -353,7 +391,7 @@ test('async command deferral releases callback capacity while work prerequisites
   expect(runner.summary().completedWorkIds).toEqual([]);
   runner.settle(
     'a',
-    { ok: true },
+    { kind: 'workCompleted' },
     runner.summary().vertices.get('a')!.generation!,
   );
   await runner.run();

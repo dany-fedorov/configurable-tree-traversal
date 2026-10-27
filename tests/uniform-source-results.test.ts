@@ -1,3 +1,4 @@
+import { treeResolution } from './source-result-fixtures';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -99,7 +100,7 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
         async (originalError) => {
           let getterCalls = 0;
           const badResult = Object.defineProperty(
-            { vertexContent: null },
+            { kind: 'omitted' as const, satisfiesDependencies: true as const },
             'then',
             {
               get() {
@@ -116,12 +117,15 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
                 callback === 'root'
                   ? badResult
                   : {
-                      vertexId: 'root',
-                      dependsOnWork:
-                        callback === 'prerequisite' ? ['external'] : [],
-                      vertexContent: {
-                        $data: 'root',
-                        $childHints: callback === 'hint' ? ['child'] : [],
+                      kind: 'found' as const,
+                      vertex: {
+                        vertexId: 'root',
+                        dependsOnWork:
+                          callback === 'prerequisite' ? ['external'] : [],
+                        vertexContent: {
+                          $data: 'root',
+                          $childHints: callback === 'hint' ? ['child'] : [],
+                        },
                       },
                     },
               resolveChild: () => badResult,
@@ -162,17 +166,21 @@ for (const Constructor of [
   test(`${Constructor.name} tree root observes a throwing then getter only once`, async () => {
     const originalError = {};
     let getterCalls = 0;
-    const badResult = Object.defineProperty({ vertexContent: null }, 'then', {
-      get() {
-        getterCalls += 1;
-        if (getterCalls === 1) throw originalError;
-        return undefined;
+    const badResult = Object.defineProperty(
+      { kind: 'omitted' as const },
+      'then',
+      {
+        get() {
+          getterCalls += 1;
+          if (getterCalls === 1) throw originalError;
+          return undefined;
+        },
       },
-    });
+    );
     const runner = new Constructor({
       traversableTree: {
         resolveRoot: () => badResult,
-        resolveChild: () => ({ vertexContent: null }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
     }).createRunner();
     let failure: { error: unknown } | undefined;
@@ -210,12 +218,11 @@ for (const Constructor of [
     for (const empty of [true, false]) {
       const runner = new Constructor({
         traversableTree: {
-          resolveRoot: () => ({
-            vertexContent: empty
-              ? null
-              : { $data: 'root', $childHints: ['skip'] },
-          }),
-          resolveChild: () => ({ vertexContent: null }),
+          resolveRoot: () =>
+            treeResolution(
+              empty ? null : { $data: 'root', $childHints: ['skip'] },
+            ),
+          resolveChild: () => ({ kind: 'omitted' as const }),
         },
       }).createRunner();
       const seen: string[] = [];
@@ -277,7 +284,9 @@ for (const Constructor of [
               },
         resolveChild: async () => ({ kind: 'omitted' }),
       };
-      const runner = new Constructor({ traversableTree: source }).createRunner();
+      const runner = new Constructor({
+        traversableTree: source,
+      }).createRunner();
       const seen: string[] = [];
       for await (const event of runner.iterateEvents()) {
         if (event !== null && !seen.includes(event.vertex.getData()))

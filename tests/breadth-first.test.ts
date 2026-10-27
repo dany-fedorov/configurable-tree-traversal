@@ -1,3 +1,4 @@
+import { treeResolution } from './source-result-fixtures';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
@@ -9,10 +10,13 @@ import {
 } from '../src/traversals/breadth-first-traversal';
 import { runnerInternals } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: (Node | null)[] };
+type Node = { $data: string; $childHints: (Node | null)[] };
 type TTP = VertexTypes<string, Node | null>;
 
-const node = ($d: string, ...$c: (Node | null)[]): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: (Node | null)[]): Node => ({
+  $data,
+  $childHints,
+});
 
 function setup(
   root: Node | null = node(
@@ -25,11 +29,11 @@ function setup(
   const tree: TreeSource<TTP> = {
     resolveRoot: () => {
       calls.push('root');
-      return { vertexContent: root };
+      return treeResolution(root);
     },
     resolveChild: (hint) => {
-      calls.push(`vertex:${hint?.$d ?? 'null'}`);
-      return { vertexContent: hint };
+      calls.push(`vertex:${hint?.$data ?? 'null'}`);
+      return treeResolution(hint);
     },
   };
   return {
@@ -90,7 +94,11 @@ describe('breadth-first traversal', () => {
       sortChildrenHints: (hints) => hints.reverse(),
     });
     expect(yieldedValues(traversal.createRunner())).toEqual(['root', 'a', 'b']);
-    expect(root.$c.map((child) => child?.$d ?? null)).toEqual(['b', null, 'a']);
+    expect(root.$childHints.map((child) => child?.$data ?? null)).toEqual([
+      'b',
+      null,
+      'a',
+    ]);
   });
 
   test('orders visitors by priority and preserves them across configure', () => {
@@ -133,7 +141,7 @@ describe('breadth-first traversal', () => {
         ? {
             commands: [
               {
-                commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+                commandName: Command.REWRITE_CHILD_HINTS,
                 commandArguments: { newHints: [node('new')] },
               },
             ],
@@ -273,14 +281,14 @@ describe('breadth-first traversal', () => {
           ],
         };
       },
-      { commandCommitMode: 'afterGroup' },
+      { commandCommitMode: 'afterGroup' as const },
     );
     traversal.addVisitorFor(
       Order.LEVEL_ORDER,
       (vertex) => {
         seen.push(vertex.getData());
       },
-      { commandCommitMode: 'afterGroup' },
+      { commandCommitMode: 'afterGroup' as const },
     );
     traversal.addVisitorFor(Order.LEVEL_ORDER, (vertex) => {
       seen.push(vertex.getData());
@@ -353,7 +361,7 @@ describe('breadth-first traversal', () => {
 
   test('the convenience helper accepts a null visitor and completed runners are reusable', () => {
     const { tree } = setup(node('root', node('child')));
-    const runner = traverseTreeBreadthFirst(tree, null);
+    const runner = traverseTreeBreadthFirst({ traversableTree: tree });
     expect(runner.getStatus()).toBe(Status.FINISHED);
     expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
       'root',

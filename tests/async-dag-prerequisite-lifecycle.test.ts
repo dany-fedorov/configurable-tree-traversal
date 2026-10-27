@@ -1,4 +1,4 @@
-import type { MakeVertexResult } from '../src/core/TraversableTree';
+import type { DagPrerequisiteResolution } from '../src/core/TraversableTree';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
@@ -10,20 +10,29 @@ import {
 } from './internal-runner-fixtures';
 
 const removed = { commands: [{ commandName: Command.DELETE_VERTEX as const }] };
-const found = { vertexContent: { $d: 'external', $c: [] } };
+const found = {
+  kind: 'found' as const,
+  vertex: { vertexContent: { $data: 'external', $childHints: [] } },
+};
 
 test('held lookup respects halt and iterator return, stores its reply and resumes once', async () => {
-  const gate = deferred<MakeVertexResult<G> | undefined>();
+  const gate = deferred<DagPrerequisiteResolution<G>>();
   const entered = deferred<void>();
   const calls: unknown[] = [];
   const traversal = new AsyncDagTraversal<G>({
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'root',
-        dependsOnWork: ['external'],
-        vertexContent: { $d: 'root', $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'root',
+          dependsOnWork: ['external'],
+          vertexContent: { $data: 'root', $childHints: [] },
+        },
       }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }),
       resolvePrerequisite: (id) => {
         calls.push(id);
         entered.resolve();
@@ -51,8 +60,14 @@ test('held lookup respects halt and iterator return, stores its reply and resume
   expect(() =>
     createInternalAsyncDagTraversalRunner<G>({
       traversableGraph: {
-        resolveRoot: () => ({ vertexContent: null }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveRoot: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
       },
       traversalRunnerInternalObjects: {
         resolvedGraphsContainer:
@@ -62,7 +77,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
   ).toThrow('Injected DAG objects belong to an active runner');
   gate.resolve(found);
   await eventLoopTurn();
-  expect(runner.getResolvedGraph().getVertexById('external')).toBeNull();
+  expect(runner.getResolvedGraph().getVertexRefById('external')).toBeNull();
   expect(runner.summary()).toEqual(before);
   await runner.run();
   expect(calls).toEqual(['external']);
@@ -71,7 +86,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
 
 for (const removeAll of [false, true]) {
   test(`shared lookup survives only while retained original declarations demand it (${removeAll})`, async () => {
-    const lookup = deferred<MakeVertexResult<G>>();
+    const lookup = deferred<DagPrerequisiteResolution<G>>();
     const entered = deferred<void>();
     const a = deferred<void>();
     const b = deferred<void>();
@@ -81,13 +96,19 @@ for (const removeAll of [false, true]) {
       concurrency: 4,
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'root',
-          vertexContent: { $d: 'root', $c: ['a', 'b'] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
+          },
         }),
         resolveChild: (id) => ({
-          vertexId: id,
-          dependsOnWork: ['external'],
-          vertexContent: { $d: id, $c: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnWork: ['external'],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         }),
         resolvePrerequisite: (id) => {
           calls.push(id);
@@ -117,15 +138,15 @@ for (const removeAll of [false, true]) {
     if (!removeAll) b.resolve();
     await running;
     expect(calls).toEqual(['external']);
-    expect(runner.getResolvedGraph().getVertexById('external') === null).toBe(
-      removeAll,
-    );
+    expect(
+      runner.getResolvedGraph().getVertexRefById('external') === null,
+    ).toBe(removeAll);
     expect(runner.summary().counts.subgraphCompleted).toBe(removeAll ? 1 : 3);
   });
 }
 
 test('deleting the root invalidates held lookup errors without resurrecting detached work', async () => {
-  const lookup = deferred<MakeVertexResult<G>>();
+  const lookup = deferred<DagPrerequisiteResolution<G>>();
   const entered = deferred<void>();
   const remove = deferred<void>();
   const traversal = new AsyncDagTraversal<G>({
@@ -133,11 +154,17 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
     concurrency: 2,
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'root',
-        dependsOnWork: ['external'],
-        vertexContent: { $d: 'root', $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'root',
+          dependsOnWork: ['external'],
+          vertexContent: { $data: 'root', $childHints: [] },
+        },
       }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }),
       resolvePrerequisite: () => {
         entered.resolve();
         return lookup.promise;
@@ -161,7 +188,7 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
 
 for (const hinted of [false, true]) {
   test(`eager lookup closure waits for racing lookup and ordinary discovery (${hinted})`, async () => {
-    const second = deferred<MakeVertexResult<G>>();
+    const second = deferred<DagPrerequisiteResolution<G>>();
     const calls: string[] = [];
     const events: string[] = [];
     const traversal = new AsyncDagTraversal<G>({
@@ -169,9 +196,12 @@ for (const hinted of [false, true]) {
       concurrency: 3,
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'root',
-          dependsOnWork: ['loader', 'external'],
-          vertexContent: { $d: 'root', $c: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            dependsOnWork: ['loader', 'external'],
+            vertexContent: { $data: 'root', $childHints: [] },
+          },
         }),
         ...(hinted
           ? { getVertexIdFromHint: (id: string) => ({ vertexId: id }) }
@@ -179,16 +209,22 @@ for (const hinted of [false, true]) {
         resolveChild: (id) => {
           calls.push(id);
           return {
-            vertexId: id,
-            dependsOnWork: [],
-            vertexContent: { $d: 'ordinary', $c: [] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: id,
+              dependsOnWork: [],
+              vertexContent: { $data: 'ordinary', $childHints: [] },
+            },
           };
         },
         resolvePrerequisite: (id) =>
           id === 'external'
             ? second.promise
             : Promise.resolve({
-                vertexContent: { $d: 'loader', $c: ['external'] },
+                kind: 'found' as const,
+                vertex: {
+                  vertexContent: { $data: 'loader', $childHints: ['external'] },
+                },
               }),
       },
     });
@@ -212,20 +248,26 @@ for (const hinted of [false, true]) {
 
 test('resolver calls share the finite callback concurrency ceiling', async () => {
   const gates = [
-    deferred<MakeVertexResult<G>>(),
-    deferred<MakeVertexResult<G>>(),
-    deferred<MakeVertexResult<G>>(),
+    deferred<DagPrerequisiteResolution<G>>(),
+    deferred<DagPrerequisiteResolution<G>>(),
+    deferred<DagPrerequisiteResolution<G>>(),
   ];
   const calls: unknown[] = [];
   const runner = new AsyncDagTraversal<G>({
     concurrency: 2,
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'root',
-        dependsOnWork: [0, 1, 2],
-        vertexContent: { $d: 'root', $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'root',
+          dependsOnWork: [0, 1, 2],
+          vertexContent: { $data: 'root', $childHints: [] },
+        },
       }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }),
       resolvePrerequisite: (id) => {
         calls.push(id);
         return gates[id as number]!.promise;
@@ -249,15 +291,21 @@ for (const error of [undefined, null, { rejected: true }]) {
   test(`stored async resolver rejection survives resume (${String(
     error,
   )})`, async () => {
-    const gate = deferred<MakeVertexResult<G>>();
+    const gate = deferred<DagPrerequisiteResolution<G>>();
     const runner = new AsyncDagTraversal<G>({
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'root',
-          dependsOnWork: ['external'],
-          vertexContent: { $d: 'root', $c: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            dependsOnWork: ['external'],
+            vertexContent: { $data: 'root', $childHints: [] },
+          },
         }),
-        resolveChild: () => ({ vertexContent: null }),
+        resolveChild: () => ({
+          kind: 'omitted' as const,
+          satisfiesDependencies: true as const,
+        }),
         resolvePrerequisite: () => gate.promise,
       },
     }).createRunner();
@@ -268,25 +316,31 @@ for (const error of [undefined, null, { rejected: true }]) {
     await next;
     gate.reject(error);
     await eventLoopTurn();
-    expect(runner.getResolvedGraph().getVertexById('external')).toBeNull();
+    expect(runner.getResolvedGraph().getVertexRefById('external')).toBeNull();
     await expect(runner.run()).rejects.toBe(error);
   });
 }
 
 test('fatal lookup failure invalidates queued and started sibling lookups', async () => {
-  const first = deferred<MakeVertexResult<G>>();
-  const second = deferred<MakeVertexResult<G>>();
+  const first = deferred<DagPrerequisiteResolution<G>>();
+  const second = deferred<DagPrerequisiteResolution<G>>();
   const calls: unknown[] = [];
   const error = {};
   const runner = new AsyncDagTraversal<G>({
     concurrency: 2,
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'root',
-        dependsOnWork: ['a', 'b', 'c'],
-        vertexContent: { $d: 'root', $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'root',
+          dependsOnWork: ['a', 'b', 'c'],
+          vertexContent: { $data: 'root', $childHints: [] },
+        },
       }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }),
       resolvePrerequisite: (id) => {
         calls.push(id);
         return id === 'a' ? first.promise : second.promise;
@@ -306,7 +360,7 @@ test('fatal lookup failure invalidates queued and started sibling lookups', asyn
 for (const lookupSource of [false, true]) {
   for (const reject of [false, true]) {
     test(`acceptance-triggered deletion invalidates consumer callbacks (${lookupSource}, ${reject})`, async () => {
-      const acceptance = deferred<MakeVertexResult<G>>();
+      const acceptance = deferred<import('../src').DagVertexResolution<G>>();
       const consumer = deferred<void>();
       const consumerEntered = deferred<void>();
       const traversal = new AsyncDagTraversal<G>({
@@ -314,19 +368,29 @@ for (const lookupSource of [false, true]) {
         concurrency: 4,
         traversableGraph: {
           resolveRoot: () => ({
-            vertexId: 'root',
-            vertexContent: {
-              $d: 'root',
-              $c: ['dead', 'consumer', ...(lookupSource ? [] : ['external'])],
+            kind: 'found' as const,
+            vertex: {
+              vertexId: 'root',
+              vertexContent: {
+                $data: 'root',
+                $childHints: [
+                  'dead',
+                  'consumer',
+                  ...(lookupSource ? [] : ['external']),
+                ],
+              },
             },
           }),
           resolveChild: (id) =>
             id === 'external'
               ? acceptance.promise
               : {
-                  vertexId: id,
-                  dependsOnWork: id === 'consumer' ? ['external'] : [],
-                  vertexContent: { $d: id, $c: [] },
+                  kind: 'found' as const,
+                  vertex: {
+                    vertexId: id,
+                    dependsOnWork: id === 'consumer' ? ['external'] : [],
+                    vertexContent: { $data: id, $childHints: [] },
+                  },
                 },
           ...(lookupSource
             ? { resolvePrerequisite: () => acceptance.promise }
@@ -346,9 +410,12 @@ for (const lookupSource of [false, true]) {
       const running = runner.run();
       await consumerEntered.promise;
       acceptance.resolve({
-        vertexId: 'external',
-        dependsOnWork: ['dead'],
-        vertexContent: { $d: 'external', $c: [] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'external',
+          dependsOnWork: ['dead'],
+          vertexContent: { $data: 'external', $childHints: [] },
+        },
       });
       await eventLoopTurn();
       if (reject) consumer.reject(undefined);
@@ -367,41 +434,59 @@ for (const lookupSource of [false, true]) {
 
 for (const omittedFirst of [false, true]) {
   test(`lookup races preserve first-accepted omission/content precedence (${omittedFirst})`, async () => {
-    const second = deferred<MakeVertexResult<G>>();
+    const second = deferred<DagPrerequisiteResolution<G>>();
     const runner = new AsyncDagTraversal<G>({
       discovery: 'eager',
       concurrency: 2,
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'root',
-          dependsOnWork: ['loader', 'external'],
-          vertexContent: { $d: 'root', $c: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            dependsOnWork: ['loader', 'external'],
+            vertexContent: { $data: 'root', $childHints: [] },
+          },
         }),
-        resolveChild: (id) => ({
-          vertexId: id,
-          dependsOnWork: [],
-          vertexContent: omittedFirst ? null : { $d: 'ordinary', $c: [] },
-        }),
+        resolveChild: (id) =>
+          omittedFirst
+            ? { kind: 'omitted', vertexId: id, satisfiesDependencies: true }
+            : {
+                kind: 'found',
+                vertex: {
+                  vertexId: id,
+                  dependsOnWork: [],
+                  vertexContent: { $data: 'ordinary', $childHints: [] },
+                },
+              },
         resolvePrerequisite: (id) =>
           id === 'external'
             ? second.promise
-            : { vertexContent: { $d: 'loader', $c: ['external'] } },
+            : {
+                kind: 'found' as const,
+                vertex: {
+                  vertexContent: { $data: 'loader', $childHints: ['external'] },
+                },
+              },
       },
     }).createRunner();
     const running = runner.run();
     await eventLoopTurn();
-    second.resolve(omittedFirst ? found : { vertexContent: null });
+    second.resolve(
+      omittedFirst
+        ? found
+        : { kind: 'omitted' as const, satisfiesDependencies: true as const },
+    );
     if (omittedFirst) {
       await expect(running).rejects.toThrow(
         'Vertex omission conflicts with supplied content',
       );
-      expect(runner.getResolvedGraph().getVertexById('external')).toBeNull();
+      expect(runner.getResolvedGraph().getVertexRefById('external')).toBeNull();
     } else {
       await running;
       expect(
         runner
           .getResolvedGraph()
-          .getVertexById('external')!
+          .getVertexRefById('external')!
           .getValue()
           .getData(),
       ).toBe('ordinary');

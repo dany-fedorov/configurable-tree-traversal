@@ -1,6 +1,7 @@
 import type { AsyncDagDiscoverySource } from '@core/TraversableGraph';
 import type {
   MakeVertexResult,
+  DagVertexResolution,
   DagPrerequisiteResolution,
 } from '@core/TraversableTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -47,7 +48,7 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
     prerequisite: boolean,
   ) => {
     const normalized = normalizeSourceResult<T, ID>(value, prerequisite);
-    if (normalized === undefined) return undefined;
+    if (normalized === undefined) return { kind: 'missing' as const };
     // These fields use ordinary property access in the engine, so inherited and
     // non-enumerable source properties must survive capture too.
     const copied: MakeVertexResult<T> & { priority?: unknown } = {
@@ -65,7 +66,19 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
     // The engine rejects own priority metadata by presence without reading it.
     if (Object.prototype.hasOwnProperty.call(normalized, 'priority'))
       copied.priority = undefined;
-    return copied;
+    if (copied.vertexContent === null) {
+      return Object.prototype.hasOwnProperty.call(copied, 'vertexId')
+        ? {
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+            vertexId: copied.vertexId as ID,
+          }
+        : { kind: 'omitted' as const, satisfiesDependencies: true as const };
+    }
+    return { kind: 'found' as const, vertex: copied } as DagVertexResolution<
+      T,
+      ID
+    >;
   };
 
   const adapter: AsyncDagDiscoverySource<T, T, ID> = {
@@ -73,13 +86,13 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
       call(
         () => source.resolveRoot(),
         (value) => {
-          return record(value, false)! as MakeVertexResult<T, ID>;
+          return record(value, false)! as DagVertexResolution<T, ID>;
         },
       ),
     resolveChild: (hint, options) =>
       call(
         () => source.resolveChild(hint, options),
-        (value) => record(value, false)! as MakeVertexResult<T, ID>,
+        (value) => record(value, false)! as DagVertexResolution<T, ID>,
       ),
   };
   if (source.getVertexIdFromHint !== undefined) {
@@ -103,7 +116,7 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
       candidates.add(id);
       return call(
         () => source.resolvePrerequisite!(id),
-        (value) => record(value, true) as MakeVertexResult<T, ID> | undefined,
+        (value) => record(value, true) as DagPrerequisiteResolution<T, ID>,
       );
     };
   }

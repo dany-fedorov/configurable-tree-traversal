@@ -7,7 +7,7 @@ import type {
 } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import type { LegacyVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
+import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 
 export type VertexId = unknown;
 
@@ -74,7 +74,7 @@ export type VisitorRecord<F> = {
   addedIndex: number;
   visitor: F;
   readonly visitorGroup?: VisitorGroupMetadata | undefined;
-} & LegacyVisitorOptions;
+} & TraversalVisitorFunctionOptions;
 
 export type IdState<T extends VertexTypes> =
   | { kind: 'live'; ref: VertexRef<T> }

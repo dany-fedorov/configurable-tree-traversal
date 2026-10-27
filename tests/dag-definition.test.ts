@@ -330,7 +330,10 @@ test('definitions retain empty and omitted roots separately from forest catalogs
   const omittedHolder = prepareDag<G, string>({
     syntheticRoot: true,
     traversableGraph: {
-      resolveRoot: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      resolveRoot: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted',
+      }),
       resolveChild: () => {
         throw new Error('No children');
       },

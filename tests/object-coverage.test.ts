@@ -1,4 +1,3 @@
-import { TraversalVisitorFunctionResolutionStyle } from '../src/core/TraversalVisitor';
 import {
   DepthFirstPhase,
   DepthFirstTreeTraversal,
@@ -12,7 +11,6 @@ import {
   type TraversableObjectTTP,
   type TreeVisitorContext,
 } from '../src';
-import { legacyObjectOptions } from './legacy-object-options';
 
 const { rewriteObject } = rewriteObjectApi;
 
@@ -65,9 +63,8 @@ describe('rewrite object option integration', () => {
         visitors: {
           [DepthFirstPhase.IN_ORDER]: [
             {
-              addedIndex: 0,
               priority: 100,
-              commandCommitMode: 'afterEachVisitor',
+              commandCommitMode: 'afterEachVisitor' as const,
               visitor: (vertex, { isTreeRoot }) => {
                 inOrder.push(isTreeRoot ? 'root' : vertex.getData().key);
               },
@@ -97,7 +94,7 @@ describe('rewrite object option integration', () => {
 
 describe('object identity bookkeeping', () => {
   const makeObjectVertex = (key: PropertyKey, value: unknown) =>
-    new Vertex<ObjectTree>({ $d: { key, value }, $c: [] });
+    new Vertex<ObjectTree>({ $data: { key, value }, $childHints: [] });
 
   test('keeps the original non-root identity after pre-order data rewriting', () => {
     const branch: { self?: unknown } = {};
@@ -207,20 +204,23 @@ describe('object identity bookkeeping', () => {
     const traversal = new DepthFirstTreeTraversal({
       traversableTree: new ObjectTreeSource(
         { custom: { ignored: true } },
-        legacyObjectOptions({
-          makeVertexHook: (hint) =>
+        {
+          resolveVertexHook: (hint) =>
             hint.key === 'custom'
               ? {
-                  returnMe: {
-                    $d: { key: 'custom', value: 0 },
-                    $c: [
-                      { key: 'first', value: 1 },
-                      { key: 'second', value: 2 },
-                    ],
+                  kind: 'found',
+                  vertex: {
+                    vertexContent: {
+                      $data: { key: 'custom', value: 0 },
+                      $childHints: [
+                        { key: 'first', value: 1 },
+                        { key: 'second', value: 2 },
+                      ],
+                    },
                   },
                 }
-              : {},
-        }),
+              : { kind: 'useDefault' },
+        },
       ),
     });
     traversal.addVisitorFor(
@@ -370,15 +370,15 @@ describe('object identity bookkeeping', () => {
 describe('public mutation command factory', () => {
   const makeArguments = (value: unknown) => {
     const vertex = new Vertex<ObjectTree>({
-      $d: { key: 'root', value },
-      $c: [],
+      $data: { key: 'root', value },
+      $childHints: [],
     });
     const vertexRef = new MutableRef(vertex);
     const resolvedTree = new ResolvedTreeStore<ObjectTree>();
     const registration = {
       addedIndex: 0,
       priority: 100,
-      resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: () => undefined,
     };
     const options: TreeVisitorContext<DepthFirstPhase, ObjectTree, ObjectTree> =

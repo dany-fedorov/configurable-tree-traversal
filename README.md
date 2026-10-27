@@ -8,15 +8,15 @@ Give CTT a graph of work and accepted completion facts. It determines what can r
 
 ## Start with autonomous agents
 
-| You want to… | Use CTT for… | Start here |
-| --- | --- | --- |
-| Coordinate research, implementation, testing, and review agents | Parallel branches and dependency joins | [Quickstart](#quickstart-find-the-next-agent-tasks) |
-| Let a coordinator choose which agents run next | Deferred work and generation-bearing dispatch records | [Host-controlled execution](docs/agent-workflows.md#choose-an-execution-model) |
-| Resume after a process restart or wait for human input | Reconstruction from accepted completion facts | [Recovery and storage](docs/agent-workflows.md#persist-facts-and-reconstruct) |
-| Review a composite task only after all its subtasks finish | `dependsOnSubgraphCompletion` | [Work versus completion](docs/agent-workflows.md#work-dependencies-and-completion-joins) |
-| Fetch dependencies from a task catalog or service | `resolvePrerequisite(id)` | [Discover prerequisites](docs/agent-workflows.md#discover-the-graph) |
-| Explore cyclic context, code references, or provenance | Lazy typed vertex/edge/path walking with explicit bounds | [Graph exploration](docs/agent-workflows.md#explore-context-and-references) |
-| Walk or transform a repository index, AST, or JSON object | Iterative sync/async DFS, BFS, pruning, rewriting | [Tree and object traversal](docs/reference.md#traverse-an-object) |
+| You want to…                                                    | Use CTT for…                                             | Start here                                                                               |
+| --------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Coordinate research, implementation, testing, and review agents | Parallel branches and dependency joins                   | [Quickstart](#quickstart-find-the-next-agent-tasks)                                      |
+| Let a coordinator choose which agents run next                  | Deferred work and generation-bearing dispatch records    | [Host-controlled execution](docs/agent-workflows.md#choose-an-execution-model)           |
+| Resume after a process restart or wait for human input          | Reconstruction from accepted completion facts            | [Recovery and storage](docs/agent-workflows.md#persist-facts-and-reconstruct)            |
+| Review a composite task only after all its subtasks finish      | `dependsOnSubgraphCompletion`                            | [Work versus completion](docs/agent-workflows.md#work-dependencies-and-completion-joins) |
+| Fetch dependencies from a task catalog or service               | `resolvePrerequisite(id)`                                | [Discover prerequisites](docs/agent-workflows.md#discover-the-graph)                     |
+| Explore cyclic context, code references, or provenance          | Lazy typed vertex/edge/path walking with explicit bounds | [Graph exploration](docs/agent-workflows.md#explore-context-and-references)              |
+| Walk or transform a repository index, AST, or JSON object       | Iterative sync/async DFS, BFS, pruning, rewriting        | [Tree and object traversal](docs/reference.md#traverse-an-object)                        |
 
 CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool execution, claims, retries, timeouts, business outcomes, and durable storage. It can use SQLite, another database, or another storage provider without a CTT storage dependency.
 
@@ -40,7 +40,10 @@ research ──┬── implement ──┬── review
 <!-- standalone -->
 
 ```ts
-import { materializeDagSourceFromRecords, prepareDag } from 'configurable-tree-traversal';
+import {
+  materializeDagSourceFromRecords,
+  prepareDag,
+} from 'configurable-tree-traversal';
 
 const tasks = [
   { id: 'research', requires: [] },
@@ -48,18 +51,24 @@ const tasks = [
   { id: 'testPlan', requires: ['research'] },
   { id: 'review', requires: ['implement', 'testPlan'] },
 ];
-const prepared = prepareDag(materializeDagSourceFromRecords(tasks, {
-  id: task => task.id,
-  dependsOnWork: task => task.requires,
-}));
-if (prepared.kind === 'invalid') throw new Error('Invalid dependency constraints');
+const prepared = prepareDag(
+  materializeDagSourceFromRecords(tasks, {
+    id: (task) => task.id,
+    dependsOnWork: (task) => task.requires,
+  }),
+);
+if (prepared.kind === 'invalid')
+  throw new Error('Invalid dependency constraints');
 
 // In-memory stand-in for completion facts already accepted by the host.
 const accepted = new Set(['research']);
 const session = prepared.dag.createWorkSession({ completedWork: accepted });
 const boundary = session.advance();
 if (boundary.kind === 'awaitingSettlement') {
-  if (boundary.workTickets.map(ticket => ticket.vertexId).join(',') !== 'implement,testPlan') {
+  if (
+    boundary.workTickets.map((ticket) => ticket.vertexId).join(',') !==
+    'implement,testPlan'
+  ) {
     throw new Error('Unexpected ready tasks');
   }
   // Retain each frontier ticket with its host attempt.
@@ -68,7 +77,8 @@ if (boundary.kind === 'awaitingSettlement') {
   accepted.add(ticket.vertexId); // Simulate durable acceptance.
   session.completeWork(ticket); // { kind: 'accepted' }
   const next = session.advance(); // Observe newly eligible work.
-  if (next.kind !== 'awaitingSettlement') throw new Error('Expected pending work');
+  if (next.kind !== 'awaitingSettlement')
+    throw new Error('Expected pending work');
 }
 ```
 
@@ -102,29 +112,29 @@ const {
 } = require('configurable-tree-traversal');
 ```
 
-Native ESM `.mjs` entries and `.d.mts` declarations share one CommonJS implementation and canonical types. Named/default imports, classes, namespaces, commands, and the deprecated `DEFER_READY` sentinel preserve identity across loaders. ESM entries use Node-compatible `createRequire`; standalone browser ESM and tree shaking are not promised. Nine explicit runtime entry points are supported; historical deep imports are blocked; see [compatibility details](docs/reference.md#api-compatibility).
+Native ESM `.mjs` entries and `.d.mts` declarations share one CommonJS implementation and canonical types. Named/default imports, classes, namespaces, and commands preserve identity across loaders. ESM entries use Node-compatible `createRequire`; standalone browser ESM and tree shaking are not promised. Nine explicit runtime entry points are supported; historical deep imports are blocked; see [compatibility details](docs/reference.md#api-compatibility).
 
 ## Reference shortcuts
 
 Existing README section links land here; each topic now has a dedicated location in the reference.
 
-| Topic | Detailed guidance |
-| --- | --- |
-| <a id="dag-traversal"></a>DAG traversal | [Read section](docs/reference.md#dag-traversal) |
+| Topic                                                                                             | Detailed guidance                                                            |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| <a id="dag-traversal"></a>DAG traversal                                                           | [Read section](docs/reference.md#dag-traversal)                              |
 | <a id="discovery-and-execution-as-separate-phases"></a>Discovery and execution as separate phases | [Read section](docs/reference.md#discovery-and-execution-as-separate-phases) |
-| <a id="discovery-and-completed-work"></a>Discovery and completed work | [Read section](docs/reference.md#discovery-and-completed-work) |
-| <a id="deferred-dag-progress-and-reconciliation"></a>Deferred DAG progress and reconciliation | [Read section](docs/reference.md#deferred-dag-progress-and-reconciliation) |
-| <a id="host-policy-and-traversal-feedback"></a>Host policy and traversal feedback | [Read section](docs/reference.md#host-policy-and-traversal-feedback) |
-| <a id="traverse-an-object"></a>Traverse an object | [Read section](docs/reference.md#traverse-an-object) |
-| <a id="abstract-trees"></a>Abstract trees | [Read section](docs/reference.md#abstract-trees) |
-| <a id="traversal-orders"></a>Traversal orders | [Read section](docs/reference.md#traversal-orders) |
-| <a id="breadth-first-traversal"></a>Breadth-first traversal | [Read section](docs/reference.md#breadth-first-traversal) |
-| <a id="async-traversal"></a>Async traversal | [Read section](docs/reference.md#async-traversal) |
-| <a id="visitors-and-commands"></a>Visitors and commands | [Read section](docs/reference.md#visitors-and-commands) |
-| <a id="pause-and-resume"></a>Pause and resume | [Read section](docs/reference.md#pause-and-resume) |
-| <a id="inspection-and-execution"></a>Inspection and execution | [Read section](docs/reference.md#inspection-and-execution) |
-| <a id="rewrite-objects"></a>Rewrite objects | [Read section](docs/reference.md#rewrite-objects) |
-| <a id="api-compatibility"></a>API compatibility | [Read section](docs/reference.md#api-compatibility) |
-| <a id="development"></a>Development | [Read section](docs/reference.md#development) |
+| <a id="discovery-and-completed-work"></a>Discovery and completed work                             | [Read section](docs/reference.md#discovery-and-completed-work)               |
+| <a id="deferred-dag-progress-and-reconciliation"></a>Deferred DAG progress and reconciliation     | [Read section](docs/reference.md#deferred-dag-progress-and-reconciliation)   |
+| <a id="host-policy-and-traversal-feedback"></a>Host policy and traversal feedback                 | [Read section](docs/reference.md#host-policy-and-traversal-feedback)         |
+| <a id="traverse-an-object"></a>Traverse an object                                                 | [Read section](docs/reference.md#traverse-an-object)                         |
+| <a id="abstract-trees"></a>Abstract trees                                                         | [Read section](docs/reference.md#abstract-trees)                             |
+| <a id="traversal-orders"></a>Traversal orders                                                     | [Read section](docs/reference.md#traversal-orders)                           |
+| <a id="breadth-first-traversal"></a>Breadth-first traversal                                       | [Read section](docs/reference.md#breadth-first-traversal)                    |
+| <a id="async-traversal"></a>Async traversal                                                       | [Read section](docs/reference.md#async-traversal)                            |
+| <a id="visitors-and-commands"></a>Visitors and commands                                           | [Read section](docs/reference.md#visitors-and-commands)                      |
+| <a id="pause-and-resume"></a>Pause and resume                                                     | [Read section](docs/reference.md#pause-and-resume)                           |
+| <a id="inspection-and-execution"></a>Inspection and execution                                     | [Read section](docs/reference.md#inspection-and-execution)                   |
+| <a id="rewrite-objects"></a>Rewrite objects                                                       | [Read section](docs/reference.md#rewrite-objects)                            |
+| <a id="api-compatibility"></a>API compatibility                                                   | [Read section](docs/reference.md#api-compatibility)                          |
+| <a id="development"></a>Development                                                               | [Read section](docs/reference.md#development)                                |
 
 MIT licensed.

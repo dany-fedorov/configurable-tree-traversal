@@ -47,6 +47,7 @@ import { assertDagWorkCompletion } from '../traversals/dag-traversal/lib/DagTrav
 import {
   getTraversalExecutionPhases,
   normalizeTraversalExecutionOptions,
+  executionOptionsFromPhaseGates,
 } from './normalizeTraversalExecutionOptions';
 import type {
   ResolvedTraversalExecutionOptions,
@@ -70,14 +71,6 @@ function normalizeDagSettlementOutcome(
         return { kind: 'workCompleted' };
       }
       if (kind === 'traversalFailed' && 'error' in outcome) {
-        return { kind: 'traversalFailed', error: outcome.error };
-      }
-    } else {
-      const ok = outcome.ok;
-      if (ok === true && !('error' in outcome)) {
-        return { kind: 'workCompleted' };
-      }
-      if (ok === false && 'error' in outcome) {
         return { kind: 'traversalFailed', error: outcome.error };
       }
     }
@@ -181,16 +174,9 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   constructor(private readonly options: KernelOptions<T, R>) {
     assertDagWorkCompletion(options.workCompletion);
     this.phases = getTraversalExecutionPhases(options.kind);
-    // Constructor compatibility fields may come from an already normalized family helper.
     this.executionConfig = normalizeTraversalExecutionOptions<VisitOrder>(
       this.phases,
-      {
-        iterateOver: options.iterableConfig.iterateOver,
-        enableVisitorFunctionsFor:
-          options.iterableConfig.enableVisitorFunctionsFor,
-        disableVisitorFunctionsFor:
-          options.iterableConfig.disableVisitorFunctionsFor,
-      },
+      executionOptionsFromPhaseGates(options.iterableConfig),
     );
     this.scheduling = new GraphScheduling(
       options.container,
@@ -704,7 +690,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     const completedSubgraphIds: VertexId[] = [];
     let pending = 0;
     for (const item of work) {
-      const id = graph.getIdOf(item.ref);
+      const id = graph.getVertexId(item.ref);
       const deferred = this.deferred.get(item.ref);
       const running = inFlight.has(item.ref);
       const state = item.initialCommitted
@@ -758,7 +744,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
             !initialCommitted && (unmet.size > 0 || unmetComplete.size > 0),
         )
         .map(({ ref, unmet, unmetComplete }) => ({
-          id: graph.getIdOf(ref),
+          id: graph.getVertexId(ref),
           unmet: Array.from(new Set([...unmet, ...unmetComplete])),
         }));
       diagnostics.dependencyBlockedIds =
@@ -1179,8 +1165,6 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
         (command.commandName ===
           TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL ||
           command.commandName ===
-            TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER ||
-          command.commandName ===
             TraversalVisitorCommandName.REWRITE_CHILD_HINTS)
       ) {
         throw new TypeError(
@@ -1241,7 +1225,6 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           );
           break;
         case TraversalVisitorCommandName.REWRITE_CHILD_HINTS:
-        case TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER:
           if (
             (this.depthFirstPolicy !== null &&
               runtime.state.order !== DepthFirstPhase.PRE_ORDER) ||
@@ -1260,6 +1243,8 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
             }),
           );
           break;
+        default:
+          throw new TypeError('Unknown visitor command');
       }
     }
     return {

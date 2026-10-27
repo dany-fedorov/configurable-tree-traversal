@@ -28,7 +28,7 @@ const common: DagVisitor<T> = () => undefined;
 const ready: VisitorPhaseInput<DagVisitor<T, T, D.ON_WORK_READY>> = {
   groups: [
     {
-      commandCommitMode: 'afterGroup',
+      commandCommitMode: 'afterGroup' as const,
       visitors: [{ visitor: common, priority: 1 }, common],
     },
   ],
@@ -64,7 +64,10 @@ const dfs = { [F.PRE_ORDER]: { groups: [{ visitors: [treeCommon] }] } };
   t.addVisitorGroupFor(F.PRE_ORDER, { visitors: [treeCommon] });
 }
 {
-  const t = new AsyncDepthFirstTreeTraversal({ traversableTree, visitors: dfs });
+  const t = new AsyncDepthFirstTreeTraversal({
+    traversableTree,
+    visitors: dfs,
+  });
   t.configure({ visitors: dfs });
   t.setVisitorsFor(F.PRE_ORDER, treeCommon);
   t.setVisitorsFor(F.PRE_ORDER, t.listVisitorsFor(F.PRE_ORDER));
@@ -81,7 +84,10 @@ const bfs = { [B.LEVEL_ORDER]: { visitor: treeCommon } };
   t.addVisitorGroupFor(B.LEVEL_ORDER, { visitors: [treeCommon] });
 }
 {
-  const t = new AsyncBreadthFirstTreeTraversal({ traversableTree, visitors: bfs });
+  const t = new AsyncBreadthFirstTreeTraversal({
+    traversableTree,
+    visitors: bfs,
+  });
   t.configure({ visitors: bfs });
   t.setVisitorsFor(B.LEVEL_ORDER, treeCommon);
   t.setVisitorsFor(B.LEVEL_ORDER, t.listVisitorsFor(B.LEVEL_ORDER));
@@ -92,7 +98,7 @@ traverseTreeBreadthFirstAsync({ traversableTree, visitors: bfs });
 const bad: VisitorGroupMember<DagVisitor<T>> = {
   visitor: common,
   // @ts-expect-error Explicit group owns commit policy.
-  commandCommitMode: 'afterGroup',
+  commandCommitMode: 'afterGroup' as const,
 };
 void bad;
 declare const narrow: DagVisitor<T, T, D.ON_WORK_READY>;
@@ -434,17 +440,23 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
 const legacyBatchMember: VisitorGroupMember<DagVisitor<T>> = {
   visitor: common,
   // @ts-expect-error Explicit groups also forbid deprecated member batching.
-  resolutionStyle: 'CONCURRENT',
+  commandCommitMode: 'afterGroup' as const,
 };
 void legacyBatchMember;
-declare const asyncNarrow: import('../src').AsyncDagVisitor<T, T, D.ON_WORK_READY>;
+declare const asyncNarrow: import('../src').AsyncDagVisitor<
+  T,
+  T,
+  D.ON_WORK_READY
+>;
 const at = new AsyncDagTraversal({ traversableGraph });
 // @ts-expect-error Async groups reject union-phase ready-only callbacks.
 at.addVisitorGroupFor(phase, { visitors: [asyncNarrow] });
 // @ts-expect-error Async list producer cannot turn a phase union into a safe union callback.
 at.setVisitorsFor(phase, at.listVisitorsFor(phase));
-// @ts-expect-error Full normalized records are sequences, not members of a new explicit group.
-t.addVisitorGroupFor(D.ON_WORK_READY, { visitors: t.listVisitorsFor(D.ON_WORK_READY) });
+t.addVisitorGroupFor(D.ON_WORK_READY, {
+  // @ts-expect-error Full normalized records are sequences, not members of a new explicit group.
+  visitors: t.listVisitorsFor(D.ON_WORK_READY),
+});
 traverseDag({
   traversableGraph,
   // @ts-expect-error Canonical helper groups preserve phase restrictions.

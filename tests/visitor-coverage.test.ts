@@ -10,17 +10,23 @@ import {
   type VertexTypes,
 } from '../src';
 
-type Node = { $d: string; $c: Node[] };
+type Node = { $data: string; $childHints: Node[] };
 type Tree = VertexTypes<string, Node>;
 type Visitor = TraversalVisitor<
   DepthFirstPhase | BreadthFirstPhase,
   Tree,
   Tree
 >;
-const root: Node = { $d: 'root', $c: [] };
+const root: Node = { $data: 'root', $childHints: [] };
 const adapter = {
-  resolveRoot: () => ({ vertexContent: root }),
-  resolveChild: (hint: Node) => ({ vertexContent: hint }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: root },
+  }),
+  resolveChild: (hint: Node) => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: hint },
+  }),
 };
 
 describe.each(['depth-first', 'breadth-first'] as const)(

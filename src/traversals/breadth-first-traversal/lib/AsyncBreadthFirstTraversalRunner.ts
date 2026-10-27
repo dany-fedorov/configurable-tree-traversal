@@ -146,13 +146,13 @@ export class InternalAsyncBreadthFirstTreeRunner<
           ({
             addedIndex,
             priority,
-            resolutionStyle,
+
             commandCommitMode,
             visitorGroup,
           }) => ({
             addedIndex,
             priority,
-            resolutionStyle,
+
             commandCommitMode,
             visitorGroup,
           }),

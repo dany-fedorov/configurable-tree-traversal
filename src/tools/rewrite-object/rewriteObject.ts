@@ -5,9 +5,9 @@ import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TreeVisitorContext } from '@core/TraversalVisitor';
 import type { Vertex } from '@core/Vertex';
 import type { DepthFirstTreeOptionsPatch } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
-import { traverseTreeDepthFirst } from '@depth-first-traversal/traverseDepthFirst';
+import { DepthFirstTreeTraversal } from '@depth-first-traversal/DepthFirstTraversal';
 import type {
   ObjectMutationOptions,
   ObjectMutationPatch,
@@ -16,10 +16,7 @@ import type { ObjectCompositeClassification } from '@traversable-object-tree/lib
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type {
-  LegacyObjectTreeOptions,
-  ObjectTreeOptions,
-} from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
+import type { ObjectTreeOptions } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
 import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
 import { ObjectTreeSource } from '@traversable-object-tree/TraversableObjectTree';
 
@@ -113,6 +110,10 @@ export function rewriteObject<
   options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
 ): RewriteObjectResult<InK, InV, Out, OutK, OutV> {
   if (options) assertPublicOptions(options);
+  if (options && 'makeVertexHook' in options) {
+    throw new TypeError('makeVertexHook is unsupported; use resolveVertexHook');
+  }
+
   if (options && 'traversableTree' in options) {
     throw new TypeError(
       'rewriteObject owns its source; traversableTree is unsupported',
@@ -127,16 +128,8 @@ export function rewriteObject<
       ? options.getOutputObjectFromRootValue
       : (rootValue: OutV | null) => rootValue as unknown as Out;
   const resolveVertexHook = options?.resolveVertexHook;
-  const makeVertexHook = (
-    options as LegacyObjectTreeOptions<In, InK, InV, OutK, OutV> | undefined
-  )?.makeVertexHook;
   const tree = new ObjectTreeSource<In, InK, InV, OutK, OutV>(object, {
     ...(resolveVertexHook === undefined ? {} : { resolveVertexHook }),
-    ...(!makeVertexHook
-      ? {}
-      : {
-          makeVertexHook,
-        }),
     ...(!options?.['getChildrenOfProperty']
       ? {}
       : {
@@ -162,67 +155,12 @@ export function rewriteObject<
       ? { assembledMap: options.assembledMap }
       : { assembledMap: new Map() }),
   });
-  const traversalRunner = traverseTreeDepthFirst<
+  const traversal = new DepthFirstTreeTraversal<
     TraversableObjectTTP<InK, InV>,
     TraversableObjectTTP<OutK, OutV>
-  >(
-    tree,
-    {
-      postOrderVisitor: (
-        /**
-         * [1] No guarantee here by traverseTreeDepthFirst that it wasn't rewritten to Vertex<TraversableObjectTTP<OutK,OutV>>
-         * on preorder
-         */
-        vertex: Vertex<
-          TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
-        >,
-        options: TreeVisitorContext<
-          DepthFirstPhase.POST_ORDER,
-          TraversableObjectTTP<InK, InV>,
-          TraversableObjectTTP<OutK, OutV>
-        >,
-      ) => {
-        const {
-          makeMutationCommand,
-          isComposite,
-          isObject,
-          isArray,
-          assembleComposite,
-        } = bindObjectMutation(vertex, options);
-        let rwInput = vertex.getData() as RewriteFnPropInput<InK, InV, OutV>;
-        if (assembleCompositeBeforeVisit && isComposite) {
-          rwInput = { ...rwInput, assembledComposite: assembleComposite() };
-        }
-        /**
-         * [1] But here rewriteObject guarantees that this is TraversableObjectProp<InK, InV> since we only rewrite on
-         * postorder
-         */
-        const rw = rewrite?.(rwInput, {
-          ...options,
-          isComposite,
-          isObject,
-          isArray,
-          vertex,
-          getKeyPath: (thisOptions?: GetPathToOptions) =>
-            options.resolvedTree
-              .getPathTo(options.vertexRef, thisOptions)
-              .map((ps) => ps.getValue().getData().key),
-        } as unknown as RewriteFnOptions<InK, InV>);
-        const hasDelete =
-          rw && Object.prototype.hasOwnProperty.call(rw, 'delete');
-        const hasRewrite =
-          rw && Object.prototype.hasOwnProperty.call(rw, 'rewrite');
-        return {
-          commands: [
-            makeMutationCommand({
-              ...(!hasDelete ? {} : { delete: rw.delete }),
-              ...(!hasRewrite ? {} : { rewrite: rw.rewrite }),
-            }),
-          ],
-        };
-      },
-    },
-    {
+  >({
+    traversableTree: tree,
+    ...{
       ...(options?.sortChildrenHints === undefined
         ? {}
         : { sortChildrenHints: options.sortChildrenHints }),
@@ -236,7 +174,64 @@ export function rewriteObject<
             retainOriginalTreeStructure: options.retainOriginalTreeStructure,
           }),
     },
+  });
+  traversal.addVisitorFor(
+    DepthFirstPhase.POST_ORDER,
+    (
+      /**
+       * [1] No guarantee here by traverseTreeDepthFirst that it wasn't rewritten to Vertex<TraversableObjectTTP<OutK,OutV>>
+       * on preorder
+       */
+      vertex: Vertex<
+        TraversableObjectTTP<InK, InV> | TraversableObjectTTP<OutK, OutV>
+      >,
+      options: TreeVisitorContext<
+        DepthFirstPhase.POST_ORDER,
+        TraversableObjectTTP<InK, InV>,
+        TraversableObjectTTP<OutK, OutV>
+      >,
+    ) => {
+      const {
+        makeMutationCommand,
+        isComposite,
+        isObject,
+        isArray,
+        assembleComposite,
+      } = bindObjectMutation(vertex, options);
+      let rwInput = vertex.getData() as RewriteFnPropInput<InK, InV, OutV>;
+      if (assembleCompositeBeforeVisit && isComposite) {
+        rwInput = { ...rwInput, assembledComposite: assembleComposite() };
+      }
+      /**
+       * [1] But here rewriteObject guarantees that this is TraversableObjectProp<InK, InV> since we only rewrite on
+       * postorder
+       */
+      const rw = rewrite?.(rwInput, {
+        ...options,
+        isComposite,
+        isObject,
+        isArray,
+        vertex,
+        getKeyPath: (thisOptions?: GetPathToOptions) =>
+          options.resolvedTree
+            .getPathTo(options.vertexRef, thisOptions)
+            .map((ps) => ps.getValue().getData().key),
+      } as unknown as RewriteFnOptions<InK, InV>);
+      const hasDelete =
+        rw && Object.prototype.hasOwnProperty.call(rw, 'delete');
+      const hasRewrite =
+        rw && Object.prototype.hasOwnProperty.call(rw, 'rewrite');
+      return {
+        commands: [
+          makeMutationCommand({
+            ...(!hasDelete ? {} : { delete: rw.delete }),
+            ...(!hasRewrite ? {} : { rewrite: rw.rewrite }),
+          }),
+        ],
+      };
+    },
   );
+  const traversalRunner = traversal.createRunner().run();
   const convertCurrentRoot = () => {
     const resolvedTree = traversalRunner.getResolvedTreeView();
     const rootRef = resolvedTree.getRoot();

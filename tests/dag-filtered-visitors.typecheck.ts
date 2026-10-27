@@ -1,3 +1,4 @@
+import { TraversalVisitorCommandName as VisitorCommand } from '../src';
 import {
   filterDagDataVisitor,
   filterAsyncDagDataVisitor,
@@ -6,7 +7,6 @@ import {
   DagTraversal,
   AsyncDagTraversal,
   DagVisitorPhase as Order,
-  DEFER_READY,
 } from '../src/traversals/dag-traversal';
 import type {
   DagVisitor,
@@ -58,12 +58,20 @@ traversal.addVisitorFor(
 
 const ready: DagVisitor<T, R, Order.ON_WORK_READY, ID> = filterDagDataVisitor(
   isTask,
-  () => DEFER_READY,
+  () => ({
+    commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+  }),
 );
 const asyncReady: AsyncDagVisitor<T, R, Order.ON_WORK_READY, ID> =
   filterAsyncDagDataVisitor(
     isTask,
-    async (): Promise<typeof DEFER_READY> => DEFER_READY,
+    async (): Promise<{
+      commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION }];
+    }> => ({
+      commands: [
+        { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+      ],
+    }),
   );
 
 // Annotated predicates work without contextual registration or generic arguments.
@@ -104,21 +112,31 @@ traversal.addVisitorFor(
 
 traversal.addVisitorFor(
   Order.ON_SUBGRAPH_READY,
-  // @ts-expect-error Completion-phase visitors cannot defer ready work.
-  filterDagDataVisitor(isTask, () => DEFER_READY),
+  filterDagDataVisitor(isTask, () => ({
+    // @ts-expect-error Completion-phase visitors cannot defer ready work.
+    commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+  })),
 );
 asyncTraversal.addVisitorFor(
   Order.ON_SUBGRAPH_READY,
   filterAsyncDagDataVisitor(
     isTask,
+    async (): Promise<{
+      commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION }];
     // @ts-expect-error Async completion-phase visitors cannot defer ready work.
-    async (): Promise<typeof DEFER_READY> => DEFER_READY,
+    }> => ({
+      commands: [
+        { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+      ],
+    }),
   ),
 );
 const mixed: DagVisitor<T, R, Order, ID> = filterDagDataVisitor(
   isTask,
-  // @ts-expect-error Mixed phase visitors cannot defer ready work.
-  () => DEFER_READY,
+  () => ({
+    // @ts-expect-error Mixed phase visitors cannot defer ready work.
+    commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+  }),
 );
 traversal.addVisitorFor(
   Order.ON_WORK_READY,

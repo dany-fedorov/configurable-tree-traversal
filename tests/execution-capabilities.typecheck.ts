@@ -113,7 +113,7 @@ dag.iterateEvents({ visitorPhases: { exclude: [BFS.LEVEL_ORDER] } });
 // @ts-expect-error Async BFS abstraction rejects DFS phases.
 asyncBreadth.run({ emitEvents: [DFS.PRE_ORDER] });
 // @ts-expect-error Async DAG abstraction rejects DFS phases.
-asyncDag.run({ iterateOver: [DFS.POST_ORDER] });
+asyncDag.run({ emitEvents: [DFS.POST_ORDER] });
 void [
   asyncReturn,
   asyncRun,

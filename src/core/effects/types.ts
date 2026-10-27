@@ -1,4 +1,3 @@
-import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
@@ -66,7 +65,7 @@ export type CallbackValues<T extends VertexTypes, R extends VertexTypes = T> = {
   MAKE_VERTEX: MakeVertexResult<T>;
   SORT_HINTS: (T | R)['VertexHint'][];
   HINT_ID: HintVertexId | undefined;
-  VISIT: VisitResult<R> | typeof DEFER_READY;
+  VISIT: VisitResult<R>;
 };
 
 export type CallbackReply<T extends VertexTypes, R extends VertexTypes = T> = {

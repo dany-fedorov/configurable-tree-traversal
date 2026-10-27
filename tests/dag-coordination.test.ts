@@ -18,13 +18,19 @@ import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 type G = VertexTypes<string, string>;
 const source = {
   resolveRoot: () => ({
-    vertexId: 'holder',
-    vertexContent: { $data: '', $childHints: ['a', 'b'] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'holder',
+      vertexContent: { $data: '', $childHints: ['a', 'b'] },
+    },
   }),
   resolveChild: (id: string) => ({
-    vertexId: id,
-    dependsOnWork: id === 'b' ? ['a'] : [],
-    vertexContent: { $data: id, $childHints: [] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: id,
+      dependsOnWork: id === 'b' ? ['a'] : [],
+      vertexContent: { $data: id, $childHints: [] },
+    },
   }),
 };
 const options = {
@@ -44,7 +50,9 @@ for (const async of [false, true]) {
       ? createAsyncDagWorkSession(
           new AsyncDagTraversal<G, G, string>(input).createRunner(),
         )
-      : createDagWorkSession(new DagTraversal<G, G, string>(input).createRunner());
+      : createDagWorkSession(
+          new DagTraversal<G, G, string>(input).createRunner(),
+        );
 
   test(`${label} observes work and accepts repeated completions without advancing it`, async () => {
     const coordinator = create();
@@ -53,14 +61,18 @@ for (const async of [false, true]) {
     expect(ticket.vertexId).toBe('a');
     const repeated = frontier(await coordinator.advance())[0]!;
     expect(coordinator.completeWork(ticket)).toEqual({ kind: 'accepted' });
-    expect(coordinator.completeWork(repeated)).toEqual({ kind: 'alreadyAccepted' });
+    expect(coordinator.completeWork(repeated)).toEqual({
+      kind: 'alreadyAccepted',
+    });
     expect(coordinator.summary().deferredWorkIds).toEqual([]);
     const second = frontier(await coordinator.advance())[0]!;
     expect(second.vertexId).toBe('b');
     expect(coordinator.completeWork(second)).toEqual({ kind: 'accepted' });
     expect(await coordinator.advance()).toEqual({ kind: 'finished' });
     expect(await coordinator.advance()).toEqual({ kind: 'finished' });
-    expect(coordinator.completeWork(ticket)).toEqual({ kind: 'alreadyAccepted' });
+    expect(coordinator.completeWork(ticket)).toEqual({
+      kind: 'alreadyAccepted',
+    });
   });
 
   test(`${label} rejects foreign and forged tickets without consuming work`, async () => {
@@ -69,9 +81,9 @@ for (const async of [false, true]) {
     const ticket = frontier(await first.advance())[0]!;
     await second.advance();
     for (const forged of [ticket, { ...ticket }, null, 0]) {
-      expect(() => second.completeWork(forged as DagWorkTicket<string>)).toThrow(
-        TypeError,
-      );
+      expect(() =>
+        second.completeWork(forged as DagWorkTicket<string>),
+      ).toThrow(TypeError);
       expect(() =>
         second.failTraversal(forged as DagWorkTicket<string>, null),
       ).toThrow(TypeError);
@@ -116,8 +128,11 @@ for (const async of [false, true]) {
       traversableGraph: {
         ...source,
         resolveRoot: () => ({
-          vertexId: 'holder',
-          vertexContent: { $data: '', $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'holder',
+            vertexContent: { $data: '', $childHints: [] },
+          },
         }),
       },
     });
@@ -196,15 +211,21 @@ test('deleted work rejects previously issued tickets as stale', () => {
     ...options,
     traversableGraph: {
       resolveRoot: () => ({
-        vertexId: 'holder',
-        vertexContent: { $data: '', $childHints: ['parent', 'gate'] },
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'holder',
+          vertexContent: { $data: '', $childHints: ['parent', 'gate'] },
+        },
       }),
       resolveChild: (id) => ({
-        vertexId: id,
-        dependsOnWork: id === 'parent' ? ['gate'] : [],
-        vertexContent: {
-          $data: id,
-          $childHints: id === 'parent' ? ['child'] : [],
+        kind: 'found' as const,
+        vertex: {
+          vertexId: id,
+          dependsOnWork: id === 'parent' ? ['gate'] : [],
+          vertexContent: {
+            $data: id,
+            $childHints: id === 'parent' ? ['child'] : [],
+          },
         },
       }),
     },
@@ -218,29 +239,37 @@ test('deleted work rejects previously issued tickets as stale', () => {
   const coordinator = createDagWorkSession(traversal.createRunner());
   const tickets = frontier(coordinator.advance());
   const child = tickets.find((ticket) => ticket.vertexId === 'child')!;
-  coordinator.completeWork(tickets.find((ticket) => ticket.vertexId === 'gate')!);
+  coordinator.completeWork(
+    tickets.find((ticket) => ticket.vertexId === 'gate')!,
+  );
   expect(coordinator.advance()).toEqual({ kind: 'finished' });
   expect(() => coordinator.completeWork(child)).toThrow(/stale/);
 });
 
 for (const async of [false, true]) {
   test.each([undefined, null, NaN, Symbol('id'), { id: 'object' }])(
-    `${
-      async ? 'async' : 'sync'
-    } tickets preserve arbitrary ID identity: %p`,
+    `${async ? 'async' : 'sync'} tickets preserve arbitrary ID identity: %p`,
     async (id) => {
       const input = {
         workCompletion: 'externalSettlement' as const,
         traversableGraph: {
           resolveRoot: () => ({
-            vertexId: id,
-            vertexContent: { $data: 'work', $childHints: [] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: id,
+              vertexContent: { $data: 'work', $childHints: [] },
+            },
           }),
-          resolveChild: () => ({ vertexContent: null }),
+          resolveChild: () => ({
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+          }),
         },
       };
       const coordinator = async
-        ? createAsyncDagWorkSession(new AsyncDagTraversal<G>(input).createRunner())
+        ? createAsyncDagWorkSession(
+            new AsyncDagTraversal<G>(input).createRunner(),
+          )
         : createDagWorkSession(new DagTraversal<G>(input).createRunner());
       const ticket = frontier(await coordinator.advance())[0]!;
       expect(ticket.vertexId).toBe(id);
@@ -334,7 +363,9 @@ for (const async of [false, true]) {
         ? createAsyncDagWorkSession(
             new AsyncDagTraversal<G, G, string>(options).createRunner(),
           )
-        : createDagWorkSession(new DagTraversal<G, G, string>(options).createRunner());
+        : createDagWorkSession(
+            new DagTraversal<G, G, string>(options).createRunner(),
+          );
       const ticket = frontier(await session.advance())[0]!;
       expect('fail' in session).toBe(false);
       expect(session.failTraversal(ticket, error)).toEqual({

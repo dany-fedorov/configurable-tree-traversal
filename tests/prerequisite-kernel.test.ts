@@ -54,7 +54,7 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
       value: {
         vertexId: 'root',
         dependsOnWork: ['loader', 'shared'],
-        vertexContent: { $d: 'root', $c: [] },
+        vertexContent: { $data: 'root', $childHints: [] },
       },
     },
   });
@@ -68,7 +68,7 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
     kind: 'RESOLVE_PREREQUISITE',
     outcome: {
       ok: true,
-      value: { vertexContent: { $d: 'loader', $c: ['shared'] } },
+      value: { vertexContent: { $data: 'loader', $childHints: ['shared'] } },
     },
   });
   const natural = call(kernel);
@@ -81,7 +81,7 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
       value: {
         vertexId: 'shared',
         dependsOnWork: [],
-        vertexContent: { $d: 'natural', $c: [] },
+        vertexContent: { $data: 'natural', $childHints: [] },
       },
     },
   });
@@ -91,7 +91,7 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
   kernel.discardRequest(shared.requestId);
   expect(action.kind).toBe('FINISHED');
   expect(
-    container.resolvedGraph.getVertexById('shared')!.getValue().getData(),
+    container.resolvedGraph.getVertexRefById('shared')!.getValue().getData(),
   ).toBe('natural');
 });
 
@@ -106,7 +106,7 @@ test('lookup reply validation rejects malformed and duplicate transport replies'
       value: {
         vertexId: 'root',
         dependsOnWork: ['external'],
-        vertexContent: { $d: 'root', $c: [] },
+        vertexContent: { $data: 'root', $childHints: [] },
       },
     },
   });

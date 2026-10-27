@@ -8,10 +8,16 @@ import { traversalInternals } from './internal-runner-fixtures';
 type T = { VertexData: string; VertexHint: string };
 const traversableGraph = {
   resolveRoot: () => ({
-    vertexId: 'root',
-    vertexContent: { $data: 'root', $childHints: [] as string[] },
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'root',
+      vertexContent: { $data: 'root', $childHints: [] as string[] },
+    },
   }),
-  resolveChild: () => ({ vertexContent: null }),
+  resolveChild: () => ({
+    satisfiesDependencies: true as const,
+    kind: 'omitted' as const,
+  }),
 };
 for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Ctor.name}: flat priority order precedes batching mode`, async () => {
@@ -22,14 +28,14 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
       () => {
         seen.push('high');
       },
-      { priority: 1000, commandCommitMode: 'afterEachVisitor' },
+      { priority: 1000, commandCommitMode: 'afterEachVisitor' as const },
     );
     t.addVisitorFor(
       D.ON_WORK_READY,
       () => {
         seen.push('low');
       },
-      { priority: 1, commandCommitMode: 'afterGroup' },
+      { priority: 1, commandCommitMode: 'afterGroup' as const },
     );
     await t.createRunner().run();
     expect(seen).toEqual(['high', 'low']);
@@ -56,7 +62,7 @@ for (const Ctor of [DagTraversal, AsyncDagTraversal]) {
               ],
             },
             {
-              commandCommitMode: 'afterGroup',
+              commandCommitMode: 'afterGroup' as const,
               visitors: [
                 {
                   priority: 1,
@@ -206,14 +212,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           seen.push('legacy-first');
         },
         priority: 1,
-        addedIndex: 999,
       },
       {
         visitor: () => {
           seen.push('legacy-second');
         },
         priority: 1,
-        addedIndex: 0,
       },
     ]);
     await t.createRunner().run();
@@ -226,7 +230,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       workCompletion: 'externalSettlement',
     });
     t.addVisitorGroupFor(D.ON_WORK_READY, {
-      commandCommitMode: 'afterGroup',
+      commandCommitMode: 'afterGroup' as const,
       visitors: [
         () => ({
           commands: [
@@ -239,7 +243,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ],
     });
     t.addVisitorGroupFor(D.ON_WORK_READY, {
-      commandCommitMode: 'afterGroup',
+      commandCommitMode: 'afterGroup' as const,
       visitors: [
         (v) => {
           seen.push(v.getData());
@@ -285,7 +289,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         [D.ON_WORK_READY]: {
           groups: [
             {
-              commandCommitMode: 'afterGroup',
+              commandCommitMode: 'afterGroup' as const,
               visitors: [
                 () => ({
                   commands: [
@@ -329,7 +333,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         [D.ON_WORK_READY]: {
           groups: [
             {
-              commandCommitMode: 'afterGroup',
+              commandCommitMode: 'afterGroup' as const,
               visitors: [
                 () => ({ commands: [{ commandName: C.PAUSE_TRAVERSAL }] }),
                 () => ({
@@ -369,7 +373,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         [D.ON_WORK_READY]: {
           groups: [
             {
-              commandCommitMode: 'afterGroup',
+              commandCommitMode: 'afterGroup' as const,
               visitors: [
                 () => ({ commands: [{ commandName: C.DELETE_VERTEX }] }),
                 () => {
@@ -401,7 +405,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         [D.ON_WORK_READY]: {
           groups: [
             {
-              commandCommitMode: 'afterGroup',
+              commandCommitMode: 'afterGroup' as const,
               visitors: [
                 () => {
                   seen.push('original');
@@ -427,7 +431,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         groups: [
           {
             visitors: [
-              { visitor: () => undefined, commandCommitMode: 'afterGroup' },
+              {
+                visitor: () => undefined,
+                commandCommitMode: 'afterGroup' as const,
+              },
             ],
           },
         ],
@@ -436,7 +443,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         groups: [
           {
             visitors: [
-              { visitor: () => undefined, resolutionStyle: undefined },
+              { visitor: () => undefined, commandCommitMode: undefined },
             ],
           },
         ],
@@ -460,7 +467,6 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const changed = original.map((record) => ({
       ...record,
       commandCommitMode: 'afterEachVisitor' as const,
-      resolutionStyle: undefined,
     }));
     expect(() => t.setVisitorsFor(D.ON_WORK_READY, changed)).toThrow(
       /conflicting/,
@@ -491,7 +497,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         shape === 'definition'
           ? member
           : {
-              groups: [{ commandCommitMode: 'afterGroup', visitors: [member] }],
+              groups: [
+                {
+                  commandCommitMode: 'afterGroup' as const,
+                  visitors: [member],
+                },
+              ],
             };
       const t = new Constructor<T>({ traversableGraph });
       t.configure({ visitors: { [D.ON_WORK_READY]: input as never } });

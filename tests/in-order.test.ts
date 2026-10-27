@@ -1,22 +1,28 @@
+import { treeResolution } from './source-result-fixtures';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import type { InOrderOptions as Config } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
 import { DepthFirstPhase as Order } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 
-type Node = { $d: string; $c: (Node | null)[] };
+type Node = { $data: string; $childHints: (Node | null)[] };
 type Tree = VertexTypes<string, Node | null>;
 function walk(
   hints: (string | null)[],
   config: Partial<Config> = {},
 ): string[] {
   const root: Node = {
-    $d: 'root',
-    $c: hints.map((value) => (value === null ? null : { $d: value, $c: [] })),
+    $data: 'root',
+    $childHints: hints.map((value) =>
+      value === null ? null : { $data: value, $childHints: [] },
+    ),
   };
   const t = new DepthFirstTreeTraversal<Tree>({
     traversableTree: {
-      resolveRoot: () => ({ vertexContent: root }),
-      resolveChild: (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: root },
+      }),
+      resolveChild: (hint) => treeResolution(hint),
     },
     inOrder: config,
   });

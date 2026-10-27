@@ -1,3 +1,4 @@
+import { treeResolution } from './source-result-fixtures';
 import { MutableRef } from '../src/core/CTTRef';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
@@ -22,26 +23,32 @@ import {
   runnerInternals,
 } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: Array<Node | null> };
+type Node = { $data: string; $childHints: Array<Node | null> };
 type Tree = VertexTypes<string, Node | null>;
 
-const node = ($d: string, ...$c: Array<Node | null>): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: Array<Node | null>): Node => ({
+  $data,
+  $childHints,
+});
 const adapter = (root: Node | null): TreeSource<Tree> => ({
-  resolveRoot: () => ({ vertexContent: root }),
-  resolveChild: (hint) => ({ vertexContent: hint }),
+  resolveRoot: () => treeResolution(root),
+  resolveChild: (hint) => treeResolution(hint),
 });
 
 test('depth-first convenience visitors run at their requested orders', () => {
   const visits: string[] = [];
-  const runner = traverseTreeDepthFirst(adapter(node('root', node('child'))), {
-    preOrderVisitor: (vertex, options) => {
-      visits.push(`${options.phase}:${vertex.getData()}`);
-    },
-    inOrderVisitor: (vertex, options) => {
-      visits.push(`${options.phase}:${vertex.getData()}`);
-    },
-    postOrderVisitor: (vertex, options) => {
-      visits.push(`${options.phase}:${vertex.getData()}`);
+  const runner = traverseTreeDepthFirst({
+    traversableTree: adapter(node('root', node('child'))),
+    visitors: {
+      PRE_ORDER: (vertex, options) => {
+        visits.push(`${options.phase}:${vertex.getData()}`);
+      },
+      IN_ORDER: (vertex, options) => {
+        visits.push(`${options.phase}:${vertex.getData()}`);
+      },
+      POST_ORDER: (vertex, options) => {
+        visits.push(`${options.phase}:${vertex.getData()}`);
+      },
     },
   });
 
@@ -57,7 +64,9 @@ test('depth-first convenience visitors run at their requested orders', () => {
 });
 
 test('depth-first convenience traversal accepts no visitors or config', () => {
-  const runner = traverseTreeDepthFirst(adapter(node('root')), null);
+  const runner = traverseTreeDepthFirst({
+    traversableTree: adapter(node('root')),
+  });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
@@ -67,13 +76,15 @@ test('depth-first convenience traversal accepts no visitors or config', () => {
 
 test('breadth-first convenience visitor receives sorted level-order vertices', () => {
   const visits: string[] = [];
-  const runner = traverseTreeBreadthFirst(
-    adapter(node('root', node('a'), node('b'))),
-    (vertex, options) => {
-      visits.push(`${options.phase}:${vertex.getData()}`);
+  const runner = traverseTreeBreadthFirst({
+    traversableTree: adapter(node('root', node('a'), node('b'))),
+    ...{ sortChildrenHints: (hints) => hints.reverse() },
+    visitors: {
+      LEVEL_ORDER: (vertex, options) => {
+        visits.push(`${options.phase}:${vertex.getData()}`);
+      },
     },
-    { sortChildrenHints: (hints) => hints.reverse() },
-  );
+  });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(visits).toEqual([
@@ -97,15 +108,13 @@ test('breadth-first set/list visitors preserve priority order when executed', ()
 
   const returned = traversal.setVisitorsFor(BreadthFirstPhase.LEVEL_ORDER, [
     {
-      addedIndex: 0,
       priority: 10,
-      commandCommitMode: 'afterEachVisitor',
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: lowerPriority,
     },
     {
-      addedIndex: 1,
       priority: 20,
-      commandCommitMode: 'afterEachVisitor',
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: higherPriority,
     },
   ]);
@@ -216,8 +225,7 @@ test('depth-first hint rewrites outside pre-order fail the runner', () => {
       ({
         commands: [
           {
-            commandName:
-              TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+            commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
             commandArguments: { newHints: [node('late')] },
           },
         ],
@@ -347,7 +355,7 @@ test.each(['missing', 'disabled'] as const)(
         },
         resolveChild: (hint) => {
           childResolutionCalls++;
-          return { vertexContent: hint };
+          return treeResolution(hint);
         },
       },
       traversalRunnerInternalObjects: {

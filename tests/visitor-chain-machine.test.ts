@@ -1,31 +1,29 @@
 import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { VisitorChain } from '../src/core/visitors/VisitorChain';
 
 type Tree = VertexTypes<string, string>;
 
-const ref = () => new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+const ref = () =>
+  new MutableRef(new Vertex<Tree>({ $data: 'root', $childHints: [] }));
 const metadata = () => ({
   phaseVisitIndex: 4,
   visitorIndex: 99,
   previousPhaseVertexRef: null,
   visitorChainState: 'ignored at admission',
 });
-const record = (resolutionStyle: Style) => ({
+const record = (commandCommitMode: import('../src').CommandCommitMode) => ({
   addedIndex: 0,
   priority: 100,
-  resolutionStyle,
+  commandCommitMode,
 });
 
 test('starts directly with the first callback and committed state is initially null', () => {
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record(Style.SEQUENTIAL)],
+    records: [record('afterEachVisitor')],
     metadata: metadata(),
     family: 'tree',
   });
@@ -39,7 +37,7 @@ test('starts directly with the first callback and committed state is initially n
 test('waits for a sequential command batch and resumes after its halt', () => {
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record(Style.SEQUENTIAL), record(Style.SEQUENTIAL)],
+    records: [record('afterEachVisitor'), record('afterEachVisitor')],
     metadata: metadata(),
     family: 'tree',
   });
@@ -73,9 +71,9 @@ test('batches concurrent records in input order and passes null chain state', ()
   const chain = new VisitorChain<Tree>({
     ref: ref(),
     records: [
-      record(Style.CONCURRENT),
-      record(Style.CONCURRENT),
-      record(Style.SEQUENTIAL),
+      record('afterGroup'),
+      record('afterGroup'),
+      record('afterEachVisitor'),
     ],
     metadata: metadata(),
     family: 'dag',
@@ -127,7 +125,7 @@ test('batches concurrent records in input order and passes null chain state', ()
 test('does not pause for a halt that was not requested by its command batch', () => {
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record(Style.SEQUENTIAL), record(Style.SEQUENTIAL)],
+    records: [record('afterEachVisitor'), record('afterEachVisitor')],
     metadata: metadata(),
     family: 'dag',
   });
@@ -143,7 +141,7 @@ test('does not pause for a halt that was not requested by its command batch', ()
 test('stops before another callback after deletion or invalidation', () => {
   const deleted = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record(Style.SEQUENTIAL), record(Style.SEQUENTIAL)],
+    records: [record('afterEachVisitor'), record('afterEachVisitor')],
     metadata: metadata(),
     family: 'tree',
   });
@@ -156,7 +154,7 @@ test('stops before another callback after deletion or invalidation', () => {
 
   const invalid = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record(Style.SEQUENTIAL)],
+    records: [record('afterEachVisitor')],
     metadata: metadata(),
     family: 'dag',
   });
@@ -167,7 +165,7 @@ test('stops before another callback after deletion or invalidation', () => {
 test('rejects submit and commit calls outside their transition boundaries', () => {
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record(Style.SEQUENTIAL)],
+    records: [record('afterEachVisitor')],
     metadata: metadata(),
     family: 'tree',
   });
@@ -194,20 +192,23 @@ test('rejects submit and commit calls outside their transition boundaries', () =
   );
 });
 
-test('rejects every unknown style at admission and rethrows callback errors', () => {
+test('rejects every unknown command commit mode at admission and rethrows callback errors', () => {
   expect(
     () =>
       new VisitorChain<Tree>({
         ref: ref(),
-        records: [record(Style.SEQUENTIAL), record('ASYNC' as Style)],
+        records: [
+          record('afterEachVisitor'),
+          record('ASYNC' as import('../src').CommandCommitMode),
+        ],
         metadata: metadata(),
         family: 'tree',
       }),
-  ).toThrow(/unknown visitor resolution style/i);
+  ).toThrow(/unknown visitor command commit mode/i);
 
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record(Style.SEQUENTIAL)],
+    records: [record('afterEachVisitor')],
     metadata: metadata(),
     family: 'tree',
   });
@@ -224,10 +225,14 @@ test('rejects every unknown style at admission and rethrows callback errors', ()
 
 test('tree visitor chains reject canonical deferral before exposing a command batch', () => {
   const chain = new VisitorChain<Tree>({
-    ref: new MutableRef(new Vertex<Tree>({ $d: 'root', $c: [] })),
+    ref: new MutableRef(new Vertex<Tree>({ $data: 'root', $childHints: [] })),
     family: 'tree',
     records: [
-      { addedIndex: 0, priority: 1, commandCommitMode: 'afterEachVisitor' },
+      {
+        addedIndex: 0,
+        priority: 1,
+        commandCommitMode: 'afterEachVisitor' as const,
+      },
     ],
     metadata: {
       phaseVisitIndex: 0,

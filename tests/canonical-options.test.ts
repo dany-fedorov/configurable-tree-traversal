@@ -128,8 +128,14 @@ test('DAG coordination requires the registered runner identity', () => {
   const runner = new DagTraversal({
     workCompletion: 'externalSettlement',
     traversableGraph: {
-      resolveRoot: () => ({ vertexContent: null }),
-      resolveChild: () => ({ vertexContent: null }),
+      resolveRoot: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
+      resolveChild: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
     },
   }).createRunner();
   expect(() => createDagWorkSession(Object.create(runner))).toThrow(

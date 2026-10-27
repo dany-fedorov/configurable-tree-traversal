@@ -57,7 +57,6 @@ export type {
   DagMilestoneSnapshot,
   DagMilestoneStatus,
 } from './lib/DagInspection';
-export { DEFER_READY } from './lib/DagProgress';
 export type {
   DagSettlementGeneration,
   DagDeferredWork,
@@ -103,6 +102,4 @@ export type {
 export { prepareDagDefinition } from './prepareDagDefinition';
 export { reviseDag } from './reviseDag';
 export { traverseDag } from './traverseDag';
-export type { DagTraversalVisitorsSimple } from './traverseDag';
 export { traverseDagAsync } from './traverseDagAsync';
-export type { AsyncDagTraversalVisitorsSimple } from './traverseDagAsync';

@@ -20,9 +20,4 @@ export class MutableRef<T> {
   getRefId(): string {
     return this._id;
   }
-
-  /** @deprecated Use getRefId to distinguish reference UUIDs from host vertex IDs. */
-  getId(): string {
-    return this.getRefId();
-  }
 }

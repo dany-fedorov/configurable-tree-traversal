@@ -56,12 +56,18 @@ for (const Constructor of [
     const runner = new Constructor({
       traversableTree: {
         resolveRoot: () => ({
-          vertexContent: { $data: data, $childHints: ['child'] },
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: data, $childHints: ['child'] },
+          },
         }),
         resolveChild: (_hint, context) => {
           expect(context.originalTreeView).toBe(retained);
           expect(context.originalTreeView).not.toHaveProperty('set');
-          return { vertexContent: { $data: { count: 2 }, $childHints: [] } };
+          return {
+            kind: 'found' as const,
+            vertex: { vertexContent: { $data: { count: 2 }, $childHints: [] } },
+          };
         },
       },
       retainOriginalTreeStructure: true,
@@ -84,7 +90,7 @@ test('tree records own metadata and children independently of Vertex content ali
   expect(record.metadata).toBe(metadata);
   expect(record.children).toBe(children);
   const child = new MutableRef(
-    new VertexValue<RetainedTree>({ $d: { count: 2 }, $c: [] }),
+    new VertexValue<RetainedTree>({ $data: { count: 2 }, $childHints: [] }),
   );
   record.pushChildren([child]);
   expect(record.getChildren()).toEqual([child]);
@@ -105,15 +111,21 @@ for (const Constructor of [
     const runner = new Constructor({
       traversableGraph: {
         resolveRoot: () => ({
-          vertexId: 'root',
-          vertexContent: { $data: data, $childHints: ['child'] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            vertexContent: { $data: data, $childHints: ['child'] },
+          },
         }),
         resolveChild: (_hint, context) => {
           expect(context.originalGraphView).toBe(retained);
           expect(retained!.getVertexRefs()).toHaveLength(1);
           return {
-            vertexId: 'child',
-            vertexContent: { $data: { count: 2 }, $childHints: [] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: 'child',
+              vertexContent: { $data: { count: 2 }, $childHints: [] },
+            },
           };
         },
       },

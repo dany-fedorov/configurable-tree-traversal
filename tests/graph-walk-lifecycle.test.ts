@@ -237,7 +237,7 @@ it('emits the drained observation before acknowledging cooperative pause and pre
   const seen: string[] = [];
   const t = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
   t.addVisitorGroupFor(Phase.VERTEX, {
-    commandCommitMode: 'afterGroup',
+    commandCommitMode: 'afterGroup' as const,
     visitors: [
       () => {
         expect(runner.requestPause()).toBe(true);
@@ -257,8 +257,8 @@ it('emits the drained observation before acknowledging cooperative pause and pre
   expect([...runner.iterateEvents()]).toMatchObject([{ kind: 'vertex' }]);
   expect(seen).toEqual(['first', 'second']);
   expect(runner.getStatus()).toBe(Status.HALTED);
-  expect([...runner.iterateEvents({ emitEvents: [Phase.PATH] })]).toMatchObject([
-    { kind: 'path' },
-  ]);
+  expect([...runner.iterateEvents({ emitEvents: [Phase.PATH] })]).toMatchObject(
+    [{ kind: 'path' }],
+  );
   expect(seen).toEqual(['first', 'second']);
 });

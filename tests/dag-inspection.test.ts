@@ -269,7 +269,7 @@ test('kernel observations preserve an omitted root with its own undefined identi
   kernel.submit({
     requestId: root.requestId,
     kind: 'MAKE_ROOT',
-    outcome: { ok: true, value: { vertexId: undefined, vertexContent: null } },
+    outcome: { ok: true, value: { vertexContent: null, vertexId: undefined } },
   });
   expect(kernel.poll('drive').kind).toBe('FINISHED');
   container.store.markDeleted('deleted');
@@ -571,14 +571,20 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveRoot: () => {
           calls++;
           return {
-            vertexId: 'root',
-            vertexContent: { $data: 'root', $childHints: [] },
-            dependsOnWork: [undefined, 'missing'],
+            kind: 'found' as const,
+            vertex: {
+              vertexId: 'root',
+              vertexContent: { $data: 'root', $childHints: [] },
+              dependsOnWork: [undefined, 'missing'],
+            },
           };
         },
         resolveChild: () => {
           calls++;
-          return { vertexContent: null };
+          return {
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+          };
         },
         resolvePrerequisite: (id) => {
           calls++;
@@ -627,15 +633,21 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveRoot: () => {
           calls++;
           return {
-            vertexId: 'root',
-            vertexContent: { $data: 'root', $childHints: ['child'] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: 'root',
+              vertexContent: { $data: 'root', $childHints: ['child'] },
+            },
           };
         },
         resolveChild: (hint) => {
           calls++;
           return {
-            vertexId: hint,
-            vertexContent: { $data: hint, $childHints: [] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: hint,
+              vertexContent: { $data: hint, $childHints: [] },
+            },
           };
         },
         getVertexIdFromHint: (hint) => {
@@ -766,11 +778,19 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableTree: {
         resolveRoot: () => {
           calls++;
-          return { vertexContent: { $data: 'root', $childHints: ['child'] } };
+          return {
+            kind: 'found' as const,
+            vertex: {
+              vertexContent: { $data: 'root', $childHints: ['child'] },
+            },
+          };
         },
         resolveChild: (hint) => {
           calls++;
-          return { vertexContent: { $data: hint, $childHints: [] } };
+          return {
+            kind: 'found' as const,
+            vertex: { vertexContent: { $data: hint, $childHints: [] } },
+          };
         },
       },
     }).createRunner();
@@ -949,9 +969,15 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       traversableGraph: {
         resolveRoot: () => ({
-          vertexContent: { $data: 'forest', $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'forest', $childHints: [] },
+          },
         }),
-        resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted',
+        }),
       },
     }).createRunner();
     // Exercise raw bookkeeping deletion independently of runner callback scheduling.

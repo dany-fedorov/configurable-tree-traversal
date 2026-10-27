@@ -1,4 +1,3 @@
-import type { DEFER_READY } from './DagProgress';
 import type { MutableRef } from '@core/CTTRef';
 import type { ResolvedGraph, OriginalGraphView } from '@core/ResolvedGraph';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -31,11 +30,7 @@ export type DagVisitor<
   R extends VertexTypes = T,
   ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
-> =
-  | VisitResult<R, ORDER>
-  | ([ORDER] extends ['ON_WORK_READY']
-      ? typeof DEFER_READY
-      : never) extends infer RESULT
+> = VisitResult<R, ORDER> extends infer RESULT
   ? (
       vertex: Vertex<T | R>,
       options: DagVisitorContext<T, R, ORDER, ID>,
@@ -47,11 +42,7 @@ export type AsyncDagVisitor<
   R extends VertexTypes = T,
   ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
-> =
-  | VisitResult<R, ORDER>
-  | ([ORDER] extends ['ON_WORK_READY']
-      ? typeof DEFER_READY
-      : never) extends infer RESULT
+> = VisitResult<R, ORDER> extends infer RESULT
   ? (
       vertex: Vertex<T | R>,
       options: DagVisitorContext<T, R, ORDER, ID>,

@@ -32,7 +32,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       for await (const event of runner.iterateEvents()) before.push(event);
       expect(before).toEqual([]);
       const record = runner.summary().awaitingSettlement[0]!;
-      runner.settle(id, { ok: true }, record.generation);
+      runner.settle(id, { kind: 'workCompleted' }, record.generation);
       const events = [];
       for await (const event of runner.iterateEvents()) {
         expect(event).toHaveProperty('vertexId');

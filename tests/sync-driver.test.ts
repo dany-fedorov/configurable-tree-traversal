@@ -47,7 +47,7 @@ test('invokes callbacks synchronously and restores the physical count', () => {
       if (call.kind !== 'MAKE_ROOT') throw new Error('Unexpected callback');
       return {
         kind: 'MAKE_ROOT',
-        value: { vertexContent: { $d: 'root', $c: [] } },
+        value: { vertexContent: { $data: 'root', $childHints: [] } },
       };
     },
   };
@@ -199,7 +199,7 @@ test('callback bindings dispatch every request by its discriminant', () => {
     value: { vertexContent: null },
   });
   const ref = new MutableRef(
-    new Vertex<TestGraph>({ $d: 'parent', $c: ['a'] }),
+    new Vertex<TestGraph>({ $data: 'parent', $childHints: ['a'] }),
   );
   const owner = { kind: 'frame' as const, id: 2, epoch: 0 };
   expect(
@@ -274,7 +274,9 @@ test('callback bindings use sort fallback and reject missing visitors', () => {
       requestId: 2,
       owner: { kind: 'chain', id: 2, epoch: 0 },
       kind: 'VISIT',
-      ref: new MutableRef(new Vertex<TestGraph>({ $d: 'root', $c: [] })),
+      ref: new MutableRef(
+        new Vertex<TestGraph>({ $data: 'root', $childHints: [] }),
+      ),
       order: 'ON_WORK_READY',
       recordIndex: 0,
       metadata: {

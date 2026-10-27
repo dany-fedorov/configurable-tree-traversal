@@ -53,8 +53,6 @@ export class StructuralGraphSnapshot<
       getVertexRefs: () => Array.from(this.entries.keys()),
       getVertexRefById,
       getVertexId,
-      getVertexById: getVertexRefById,
-      getIdOf: getVertexId,
       getParentsOf: (ref: VertexRef<T>) => this.getParents(ref),
       getChildrenOf: (ref: VertexRef<T>) => this.getChildren(ref),
       getPathsTo: (ref: VertexRef<T>, options?: GetPathToOptions) =>

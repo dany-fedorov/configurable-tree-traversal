@@ -31,7 +31,7 @@ for (const Constructor of [
       async (field) => {
         for (const value of [undefined, true, false, []]) {
           for (const result of [
-            { vertexContent: null, [field]: value },
+            { kind: 'omitted' as const, [field]: value },
             {
               kind: 'found',
               vertex: { vertexContent: content, [field]: value },
@@ -46,7 +46,12 @@ for (const Constructor of [
             for (const atRoot of [true, false]) {
               const source = {
                 resolveRoot: () =>
-                  atRoot ? result : { vertexContent: root },
+                  atRoot
+                    ? result
+                    : {
+                        kind: 'found' as const,
+                        vertex: { vertexContent: root },
+                      },
                 resolveChild: () => result,
               } as TreeSource<T>;
               const runner = new Constructor({
