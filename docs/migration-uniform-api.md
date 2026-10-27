@@ -127,10 +127,10 @@ import {
   traverseTreeDepthFirst,
   type VisitorPhaseInput,
   type TraversalVisitor,
-  type TraversableObjectTTP,
+  type ObjectTreeVertexTypes,
 } from 'configurable-tree-traversal';
 
-type Tree = TraversableObjectTTP<string, number>;
+type Tree = ObjectTreeVertexTypes<string, number>;
 const source = new ObjectTreeSource<number, string, number>(1);
 const calls: string[] = [];
 const definition: VisitorPhaseInput<
@@ -295,7 +295,7 @@ Statuses remain compatible. `getStopReason()` and inspection `stopReason` return
 
 ## Typed mutation inputs and object hooks
 
-Generic `MutationCommandBuilder<Output, RewriteInput = Output['VertexData']>` requires full replacement by default; name an explicit rewrite-input parameter for custom adapters. Object helpers use `ObjectMutationPatch<Output>` (`Partial<Output['VertexData']>`), supporting typed key-only/value-only patches. Incorrect key/value types and incomplete generic replacements now fail compilation. Omit `rewrite` for no patch; present null/undefined/primitive rewrites throw TypeError. `{ rewrite: { value: undefined } }` sets undefined when allowed by the output type. Assembler errors retain exact identity.
+Generic `MutationCommandBuilder<Output, RewriteInput = Output['VertexData']>` requires full replacement by default; name an explicit rewrite-input parameter for custom adapters. Object helpers use `ObjectPropertyPatch<Output>` (`Partial<Pick<Output['VertexData'], 'key' | 'value'>>`), supporting typed key-only/value-only patches. Incorrect key/value types and incomplete generic replacements now fail compilation. Omit `rewrite` for no patch; present null/undefined/primitive rewrites throw TypeError. `{ rewrite: { value: undefined } }` sets undefined when allowed by the output type. Unknown own string/symbol patch fields throw TypeError; arbitrary metadata is retained. Use `REWRITE_VERTEX_DATA` for complete payload replacement. Assembler errors retain exact identity.
 
 Use `resolveVertexHook` in object adapters and `rewriteObject`: return `{ kind: 'useDefault' }`, tagged tree `found` replacement content, or `{ kind: 'omitted' }`. Null/undefined canonical results and graph metadata reject. The hook applies to child/hint resolution. `makeVertexHook` rejects by presence, including undefined/null; `returnMe` hook results reject. Cycle checks and shallow identities remain unchanged.
 
@@ -367,7 +367,7 @@ Use `MutableRef<T>.getValue()` / `.setValue(value)` in place of `CTTRef.unref()`
 
 Replace `saveNotMutatedResolvedTree` / `saveNotMutatedResolvedGraph` with `retainOriginalTreeStructure` / `retainOriginalGraphStructure`, and context fields `notMutatedResolvedTree` / `notMutatedResolvedGraph` with `originalTreeView` / `originalGraphView`. The graph type is `OriginalGraphView`. Original-tree contexts expose `ResolvedTreeView` without storage mutators. Retention grows during discovery and shares payloads; it does not capture frozen deep data or a complete snapshot before discovery.
 
-Replace `makeMutationCommandFactory` with `createObjectMutationBinder`. Its configured stage is `ObjectMutationBinder`, its bound stage `ObjectMutationCommands`, its patch `ObjectMutationPatch`, and configuration `ObjectMutationOptions`. Classifier flags use `ObjectCompositeClassification`. Generic stages use `MutationCommandBinderFactory`, `MutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`. Classifiers, custom assemblers, reference-keyed `assembledMap`, falsy values, symbol property keys, and patch-presence semantics are preserved.
+Replace `makeMutationCommandFactory` with `createObjectMutationBinder`. Its configured stage is `ObjectMutationBinder`, its bound stage `ObjectMutationCommands`, its patch `ObjectPropertyPatch`, and configuration `ObjectMutationOptions`. Classifier flags use `ObjectCompositeClassification`. Generic stages use `MutationCommandBinderFactory`, `MutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`. Classifiers, custom assemblers, reference-keyed `assembledMap`, falsy values, symbol property keys, and patch-presence semantics are preserved.
 
 The root `rewriteObject` export is now directly callable; use `objectRewrite` for the module namespace. Root/subpath callables retain identity under both CJS and ESM. `rewriteObjectAs` remains an assertion, and default output remains unknown.
 

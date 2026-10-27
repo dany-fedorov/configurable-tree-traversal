@@ -8,13 +8,13 @@ import {
   TraversalVisitorCommandName,
   TreeVertexRecord,
   Vertex,
-  type TraversableObjectTTP,
+  type ObjectTreeVertexTypes,
   type TreeVisitorContext,
 } from '../src';
 
 const { rewriteObject } = rewriteObjectApi;
 
-type ObjectTree = TraversableObjectTTP<PropertyKey, unknown>;
+type ObjectTree = ObjectTreeVertexTypes<PropertyKey, unknown>;
 
 describe('rewrite object option integration', () => {
   test('stores assembled composites and exposes the rewritten leaf path', () => {

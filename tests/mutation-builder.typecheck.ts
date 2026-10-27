@@ -4,12 +4,12 @@ import {
   type MutationCommandBuilder,
   type MutationCommandBinderFactory,
   type VertexTypes,
-  type TraversableObjectTTP,
+  type ObjectTreeVertexTypes,
 } from '../src';
 import { createObjectMutationBinder } from '../src/traversable-tree-implementations/traversable-object-tree';
 
-type Input = TraversableObjectTTP<string, unknown>;
-type Output = TraversableObjectTTP<string, number>;
+type Input = ObjectTreeVertexTypes<string, unknown>;
+type Output = ObjectTreeVertexTypes<string, number>;
 const factory = ObjectTreeSource.createObjectMutationBinder<Input, Output>();
 declare const args: Parameters<typeof factory>;
 const { makeMutationCommand } = factory(...args);
@@ -37,7 +37,7 @@ makeMutationCommand({ rewrite: undefined });
 makeMutationCommand({ rewrite: { value: undefined } });
 const optionalFactory = createObjectMutationBinder<
   Input,
-  TraversableObjectTTP<string, number | undefined>
+  ObjectTreeVertexTypes<string, number | undefined>
 >();
 declare const optionalArgs: Parameters<typeof optionalFactory>;
 optionalFactory(...optionalArgs).makeMutationCommand({

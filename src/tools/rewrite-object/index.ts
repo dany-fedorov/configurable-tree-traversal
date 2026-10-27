@@ -1,8 +1,8 @@
 export { rewriteObject, rewriteObjectAs } from './rewriteObject';
 export type {
-  RewriteFnOptions,
-  RewriteFnPropInput,
-  RewriteFn,
+  ObjectRewriteContext,
+  ObjectRewriteInput,
+  ObjectRewriteCallback,
   RewriteObjectResult,
   RewriteObjectOptions,
 } from './rewriteObject';

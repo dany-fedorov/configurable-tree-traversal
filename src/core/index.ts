@@ -39,7 +39,7 @@ export type {
   ResolvedTreeMap,
   GetPathToOptions,
 } from './ResolvedTree';
-export type { ResolvedTreeTypeParameters } from './ResolvedTreeTypeParameters';
+export type { ResolvedTreeVertexTypes } from './ResolvedTreeVertexTypes';
 export type { ResolvedTreeView } from './ResolvedTreeView';
 export type {
   DagChildResolutionContext,

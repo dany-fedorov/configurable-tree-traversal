@@ -228,9 +228,9 @@ import type {
   VisitorGroupMember,
   ResolvedTreeView,
   ObjectVertexHookResult,
-  TraversableObjectTTP,
+  ObjectTreeVertexTypes,
   MutationCommandBuilder,
-  ObjectMutationPatch,
+  ObjectPropertyPatch,
 } from 'configurable-tree-traversal';
 import { ObjectTreeSource, rewriteObject } from 'configurable-tree-traversal';
 const treeFound: TreeVertexFound<T> = {
@@ -305,13 +305,13 @@ if (vertexRef) {
   const hostId: unknown = resolved.getVertexId(vertexRef);
   void [referenceId, hostId];
 }
-const hookResult: ObjectVertexHookResult<TraversableObjectTTP<string, number>> =
+const hookResult: ObjectVertexHookResult<ObjectTreeVertexTypes<string, number>> =
   { kind: 'useDefault' };
 new ObjectTreeSource({ a: 1 }, { resolveVertexHook: () => hookResult });
 // @ts-expect-error Preferred object options use the tagged resolution hook.
 new ObjectTreeSource({ a: 1 }, { makeVertexHook: () => ({ returnMe: null }) });
-type Prop = TraversableObjectTTP<string, number | undefined>;
-const objectPatch: ObjectMutationPatch<Prop> = { value: undefined };
+type Prop = ObjectTreeVertexTypes<string, number | undefined>;
+const objectPatch: ObjectPropertyPatch<Prop> = { value: undefined };
 const objectFactory = ObjectTreeSource.createObjectMutationBinder<Prop, Prop>();
 const objectVisitor: TraversalVisitor<F.POST_ORDER, Prop, Prop> = (
   v,

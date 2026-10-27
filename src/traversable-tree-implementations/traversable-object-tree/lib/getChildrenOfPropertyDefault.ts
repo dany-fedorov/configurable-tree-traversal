@@ -1,6 +1,6 @@
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
-import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
+import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 import { PRIMITIVE_TYPEOF_TYPES } from '@traversable-object-tree/lib/constants';
 
 export function getChildrenOfPropertyDefault<
@@ -8,7 +8,7 @@ export function getChildrenOfPropertyDefault<
   V,
 >(
   prop: TraversableObjectProp<K, V>,
-): TraversableObjectTTP<K, V>['VertexHint'][] {
+): ObjectTreeVertexTypes<K, V>['VertexHint'][] {
   const { value } = prop;
   if (PRIMITIVE_TYPEOF_TYPES.includes(typeof value) || value === null) {
     return [];

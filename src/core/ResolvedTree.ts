@@ -5,7 +5,7 @@ import {
   AbstractTreeSource,
   TreeVertexResolution,
 } from '@core/TraversableTree';
-import type { ResolvedTreeTypeParameters } from '@core/ResolvedTreeTypeParameters';
+import type { ResolvedTreeVertexTypes } from '@core/ResolvedTreeVertexTypes';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import { GraphStore } from '@core/graph/GraphStore';
@@ -94,7 +94,7 @@ export type GetPathToOptions = {
 
 export class ResolvedTreeStore<
   TTP extends VertexTypes,
-> extends AbstractTreeSource<ResolvedTreeTypeParameters<TTP>> {
+> extends AbstractTreeSource<ResolvedTreeVertexTypes<TTP>> {
   private readonly store: GraphStore<TTP>;
   private readonly readOnly: ResolvedTreeView<TTP>;
 
@@ -244,7 +244,7 @@ export class ResolvedTreeStore<
     return straightPath;
   }
 
-  resolveRoot(): TreeVertexResolution<ResolvedTreeTypeParameters<TTP>> {
+  resolveRoot(): TreeVertexResolution<ResolvedTreeVertexTypes<TTP>> {
     const root = this.getRoot();
     if (root === null) {
       return { kind: 'omitted' };
@@ -261,8 +261,8 @@ export class ResolvedTreeStore<
   }
 
   resolveChild(
-    vertexHint: ResolvedTreeTypeParameters<TTP>['VertexHint'],
-  ): TreeVertexResolution<ResolvedTreeTypeParameters<TTP>> {
+    vertexHint: ResolvedTreeVertexTypes<TTP>['VertexHint'],
+  ): TreeVertexResolution<ResolvedTreeVertexTypes<TTP>> {
     return {
       kind: 'found',
       vertex: {

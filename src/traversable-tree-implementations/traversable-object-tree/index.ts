@@ -2,7 +2,7 @@ export { ObjectTreeSource } from './TraversableObjectTree';
 export { createObjectMutationBinder } from './lib/makeMutationCommandFactory';
 export type {
   ObjectMutationOptions,
-  ObjectMutationPatch,
+  ObjectPropertyPatch,
   ObjectMutationCommands,
   ObjectMutationBinder,
   ObjectMutationBinderFactory,
@@ -15,4 +15,4 @@ export type {
   ObjectVertexHookResult,
   ObjectTreeOptions,
 } from './lib/TraversableObjectTreeInstanceConfig';
-export type { TraversableObjectTTP } from './lib/TraversableObjectTTP';
+export type { ObjectTreeVertexTypes } from './lib/ObjectTreeVertexTypes';

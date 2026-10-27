@@ -7,7 +7,7 @@ import {
   DepthFirstPhase,
   DepthFirstTreeTraversal,
   ObjectTreeSource,
-  type TraversableObjectTTP,
+  type ObjectTreeVertexTypes,
 } from '../src';
 import {
   rewriteObject,
@@ -212,7 +212,7 @@ test('rejects a nonfunction canonical hook before traversal', () => {
   ).toThrow(TypeError);
 });
 
-type ObjectT = TraversableObjectTTP<string | number | symbol, unknown>;
+type ObjectT = ObjectTreeVertexTypes<string | number | symbol, unknown>;
 for (const Constructor of [
   DepthFirstTreeTraversal<ObjectT>,
   AsyncDepthFirstTreeTraversal<ObjectT>,

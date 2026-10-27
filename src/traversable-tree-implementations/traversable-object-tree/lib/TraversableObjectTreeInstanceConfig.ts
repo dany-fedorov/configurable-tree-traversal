@@ -6,7 +6,7 @@ import type {
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
+import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 
 export type ObjectVertexHookResult<T extends VertexTypes> =
   | {
@@ -28,17 +28,17 @@ export type ObjectTreeOptions<
 > = {
   getChildrenOfProperty?: (
     prop: TraversableObjectProp<InK, InV>,
-  ) => TraversableObjectTTP<InK, InV>['VertexHint'][];
+  ) => ObjectTreeVertexTypes<InK, InV>['VertexHint'][];
   getRootPropertyFromInputObject?: (
     inputObj: In,
   ) => TraversableObjectProp<InK, InV>;
   resolveVertexHook?: (
-    vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
-    options: TreeChildResolutionContext<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
+    vertexHint: ObjectTreeVertexTypes<InK, InV>['VertexHint'],
+    context: TreeChildResolutionContext<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectTreeVertexTypes<OutK, OutV>
     >,
-  ) => ObjectVertexHookResult<TraversableObjectTTP<InK, InV>>;
+  ) => ObjectVertexHookResult<ObjectTreeVertexTypes<InK, InV>>;
 };
 
 export type ObjectTreeResolvedOptions<
