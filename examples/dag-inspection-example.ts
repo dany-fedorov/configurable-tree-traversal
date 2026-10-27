@@ -1,13 +1,13 @@
 import {
   DagTraversal,
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   inspectDagMilestones,
 } from '../src';
 import assert from 'node:assert/strict';
 
 // Parent work is reusable, while its unfinished child still blocks a C join.
 const runner = new DagTraversal({
-  ...materializeDagSourceFromRecords(
+  ...materializeDagInputFromRecords(
     [
       { id: 'bundle', children: ['child'], complete: [] as string[] },
       { id: 'child', children: [], complete: [] },

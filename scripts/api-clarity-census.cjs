@@ -4,13 +4,11 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
-const output = path.resolve(
-  process.argv[2] ||
-    path.join(
-      root,
-      '.superpowers/sdd/2026-10-26-api-clarity-migration/task-8-validation',
-    ),
+assert(
+  process.argv[2],
+  'Pass an explicit census output directory; historical audits are immutable',
 );
+const output = path.resolve(process.argv[2]);
 const pkg = JSON.parse(
   fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
 );
@@ -35,6 +33,8 @@ const bindings = [];
 const declarations = new Map();
 const pending = [];
 const reachable = new Set();
+const vocabulary = [];
+const deprecations = [];
 const resolve = (symbol) =>
   symbol && symbol.flags & ts.SymbolFlags.Alias
     ? checker.getAliasedSymbol(symbol)
@@ -171,6 +171,44 @@ while (pending.length) {
         kind: ts.SyntaxKind[child.kind],
       });
     }
+    for (const tag of ts.getJSDocTags(child)) {
+      if (tag.tagName.text === 'deprecated') deprecations.push(location(child));
+    }
+    if (
+      ts.isStringLiteral(child) ||
+      ts.isTypeParameterDeclaration(child) ||
+      ts.isParameter(child)
+    ) {
+      vocabulary.push({
+        owner: name,
+        location: location(child),
+        kind: ts.SyntaxKind[child.kind],
+        text: child.getText(),
+      });
+    }
+    if (ts.isPropertySignature(child) && child.name) {
+      const retired = new Set([
+        '$d',
+        '$c',
+        'resolutionStyle',
+        'rootDependencies',
+        'implicitParentDependency',
+        'iterateOver',
+        'enableVisitorFunctionsFor',
+        'disableVisitorFunctionsFor',
+        'makeVertexHook',
+        'returnMe',
+        'vertexVisitorsChainState',
+      ]);
+      if (retired.has(child.name.getText())) {
+        assert.equal(
+          child.type?.kind,
+          ts.SyntaxKind.NeverKeyword,
+          location(child) +
+            ': retired fields may only be rejection-only never constraints',
+        );
+      }
+    }
     if (ts.isIdentifier(child)) enqueue(checker.getSymbolAtLocation(child));
     ts.forEachChild(child, visit);
   };
@@ -232,11 +270,116 @@ assert.deepEqual(
 assert.equal(entries.length, 9);
 assert.equal(Object.keys(pkg.exports).length, 10);
 assert(!Object.keys(pkg.exports).some((key) => key.includes('*')));
+// Guard the complete transitively reachable declaration surface, not only barrels.
+const retiredNames = new Set([
+  'MaterializedDagSource',
+  'materializeDagSourceFromRecords',
+  'materializeDagSourceFromRoots',
+  'materializeDagSourceFromRecordsAsync',
+  'materializeDagSourceFromRootsAsync',
+  'ObjectMutationPatch',
+  'RewriteFn',
+  'RewriteFnOptions',
+  'RewriteFnPropInput',
+  'TraversableObjectTTP',
+  'ResolvedTreeTypeParameters',
+  'ResolvedVertexStatus',
+  'AsyncCoreExecution',
+  'CoreInspection',
+  'TreeTraversal',
+  'TreeTraversalRunner',
+  'TreeTraversalIterable',
+  'AbstractTreeSource',
+  'TraversalVisitor',
+  'AsyncTraversalVisitor',
+  'TraversalVisitorRecord',
+  'MutationCommandBinder',
+  'MutationCommandBinderFactory',
+  'DEFER_READY',
+  'TraversalVisitorFunctionResolutionStyle',
+]);
+for (const declaration of allDeclarations) {
+  assert(
+    !retiredNames.has(declaration.name) &&
+      !/^(?:Legacy)|VisitorsSimple$/.test(declaration.name),
+    declaration.name,
+  );
+  for (const member of [...declaration.members, ...declaration.staticMembers]) {
+    assert(
+      !/^(?:getId|getIdOf|getVertexById|getStatusOf|getRootPropertyFromInputObjectDefault|DELETE_VERTEX|DISABLE_SUBTREE_TRAVERSAL|SET_VERTEX_VISITORS_CHAIN_STATE|REWRITE_VERTEX_HINTS_ON_PRE_ORDER)$/.test(
+        member.name,
+      ),
+      declaration.name + '.' + member.name,
+    );
+  }
+  if (declaration.name === 'ResolvedTreeStore')
+    assert(!declaration.members.some((m) => m.name === 'delete'));
+  if (declaration.name === 'ResolvedGraphVertex')
+    assert(!declaration.members.some((m) => m.name === 'status'));
+}
+for (const binding of bindings)
+  assert(!retiredNames.has(binding.name), binding.entry + ':' + binding.name);
+assert.deepEqual(
+  deprecations,
+  [],
+  'No deprecated reachable declarations or members',
+);
+const canonicalNames = [
+  'MaterializedDagInput',
+  'materializeDagInputFromRecords',
+  'materializeDagInputFromRoots',
+  'materializeDagInputFromRecordsAsync',
+  'materializeDagInputFromRootsAsync',
+  'ObjectCurrentVertexTypes',
+  'ObjectPropertyPatch',
+  'ObjectRewriteCallback',
+  'ObjectRewriteContext',
+  'ObjectRewriteInput',
+  'ObjectTreeVertexTypes',
+  'ResolvedTreeVertexTypes',
+  'ResolvedVisitStage',
+  'ExecutionInspection',
+  'TreeDagExecutionInspection',
+  'TreeVisitor',
+  'AsyncTreeVisitor',
+  'TreeVisitorRecord',
+  'TreeMutationCommandBinder',
+  'TreeMutationCommandBinderFactory',
+  'DagDiscoverySource',
+  'AsyncDagDiscoverySource',
+  'GraphWalkSource',
+  'materializeWalkSourceFromRecords',
+  'materializeWalkSourceFromRecordsAsync',
+  'materializeWalkSourceFromDagDefinition',
+];
+for (const name of canonicalNames)
+  assert(
+    rootBindings.some((b) => b.name === name),
+    name,
+  );
+const commands = allDeclarations.find(
+  (d) => d.name === 'TraversalVisitorCommandName',
+);
+for (const name of [
+  'DELETE_TREE_SUBTREE',
+  'DELETE_DAG_VERTEX_CASCADE',
+  'SKIP_REMAINING_CHILDREN',
+  'SET_VISITOR_CHAIN_STATE',
+])
+  assert(
+    commands.members.some((m) => m.name === name) ||
+      commands.declaredMembers.some((m) => m.signature.includes(name)),
+    name,
+  );
 const members = allDeclarations.reduce(
   (count, d) => count + d.members.length,
   0,
 );
 const summary = {
+  canonicalNames,
+  retiredSurfaceGuards: [...retiredNames],
+  deprecatedOccurrences: deprecations.length,
+  vocabularyOccurrences: vocabulary.length,
   compiler: ts.version,
   runtime: process.version,
   runtimeEntries: entries.length,
@@ -266,7 +409,13 @@ fs.mkdirSync(output, { recursive: true });
 fs.writeFileSync(
   path.join(output, 'public-api-census.json'),
   JSON.stringify(
-    { summary, exports: pkg.exports, bindings, declarations: allDeclarations },
+    {
+      summary,
+      exports: pkg.exports,
+      bindings,
+      declarations: allDeclarations,
+      vocabulary,
+    },
     null,
     2,
   ) + '\n',

@@ -2,8 +2,8 @@ import type { DagDiscoverySource } from '@core/TraversableGraph';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
 
-/** Materialized sources can be spread into ordinary DAG traversal options. */
-export type MaterializedDagSource<Item, ID> = {
+/** Materialized input envelopes can be spread into ordinary DAG traversal options. */
+export type MaterializedDagInput<Item, ID> = {
   traversableGraph: DagDiscoverySource<
     VertexTypes<Item, ID>,
     VertexTypes<Item, ID>,

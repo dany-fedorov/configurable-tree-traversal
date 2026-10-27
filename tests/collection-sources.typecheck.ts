@@ -1,34 +1,36 @@
 import {
-  materializeDagSourceFromRecords,
-  materializeDagSourceFromRoots,
-  materializeDagSourceFromRecordsAsync,
-  materializeDagSourceFromRootsAsync,
+  materializeDagInputFromRecords,
+  materializeDagInputFromRoots,
+  materializeDagInputFromRecordsAsync,
+  materializeDagInputFromRootsAsync,
 } from '../src/sources';
-import type { MaterializedDagSource } from '../src/sources';
+import type { MaterializedDagInput } from '../src/sources';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagVisitorPhase } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 
 type Item = { id: number; children: Item[]; dependencies: number[] };
 const items: Item[] = [];
-const source = materializeDagSourceFromRecords(items, {
+const source = materializeDagInputFromRecords(items, {
   id: (item) => item.id,
   dependsOnWork: (item) => item.dependencies,
   children: (item) => item.children.map((child) => child.id),
 });
-const typedSource: MaterializedDagSource<Item, number> = source;
-const forest: MaterializedDagSource<Item, number> = materializeDagSourceFromRoots(items, {
-  id: (item) => item.id,
-  children: (item) => item.children,
-});
-const asyncSource: Promise<MaterializedDagSource<Item, number>> = materializeDagSourceFromRecordsAsync(
+const typedSource: MaterializedDagInput<Item, number> = source;
+const forest: MaterializedDagInput<Item, number> = materializeDagInputFromRoots(
   items,
-  { id: async (item) => item.id },
+  {
+    id: (item) => item.id,
+    children: (item) => item.children,
+  },
 );
-const asyncForest: Promise<MaterializedDagSource<Item, number>> = materializeDagSourceFromRootsAsync(
-  items,
-  { id: async (item) => item.id, children: async (item) => item.children },
-);
+const asyncSource: Promise<MaterializedDagInput<Item, number>> =
+  materializeDagInputFromRecordsAsync(items, { id: async (item) => item.id });
+const asyncForest: Promise<MaterializedDagInput<Item, number>> =
+  materializeDagInputFromRootsAsync(items, {
+    id: async (item) => item.id,
+    children: async (item) => item.children,
+  });
 for (const traversal of [
   new DagTraversal(source),
   new AsyncDagTraversal(source),
@@ -62,21 +64,27 @@ async function exactAsyncEvents() {
   }
 }
 void exactAsyncEvents;
-materializeDagSourceFromRecords(items, {
+materializeDagInputFromRecords(items, {
   id: (item) => item.id,
   // @ts-expect-error Synchronous selectors cannot return promises.
   dependsOnWork: async (item) => item.dependencies,
 });
-// @ts-expect-error Graph children are IDs, not records.
-materializeDagSourceFromRecords(items, { id: (item) => item.id, children: (item) => item.children });
-materializeDagSourceFromRoots(items, {
+materializeDagInputFromRecords(items, {
+  id: (item) => item.id,
+  // @ts-expect-error Graph children are IDs, not records.
+  children: (item) => item.children,
+});
+materializeDagInputFromRoots(items, {
   id: (item) => item.id,
   // @ts-expect-error Forest children are records, not IDs.
   children: (item) => item.dependencies,
 });
-// @ts-expect-error IDs and prerequisites must agree.
-materializeDagSourceFromRecords(items, { id: (item) => item.id, dependsOnWork: () => ['bad'] });
-materializeDagSourceFromRecordsAsync(items, {
+materializeDagInputFromRecords(items, {
+  // @ts-expect-error IDs and prerequisites must agree.
+  id: (item) => item.id,
+  dependsOnWork: () => ['bad'],
+});
+materializeDagInputFromRecordsAsync(items, {
   // @ts-expect-error Async IDs and prerequisites must agree.
   id: async (item) => item.id,
   dependsOnWork: async () => ['bad'],
@@ -88,47 +96,65 @@ const canonicalSelectors = {
   dependsOnWork: (item: Item) => item.dependencies,
   dependsOnSubgraphCompletion: (item: Item) => item.dependencies,
 };
-materializeDagSourceFromRecords(items, canonicalSelectors);
-materializeDagSourceFromRoots(items, canonicalSelectors);
-materializeDagSourceFromRecordsAsync(items, canonicalSelectors);
-materializeDagSourceFromRootsAsync(items, canonicalSelectors);
-materializeDagSourceFromRecords(items, {
+materializeDagInputFromRecords(items, canonicalSelectors);
+materializeDagInputFromRoots(items, canonicalSelectors);
+materializeDagInputFromRecordsAsync(items, canonicalSelectors);
+materializeDagInputFromRootsAsync(items, canonicalSelectors);
+materializeDagInputFromRecords(items, {
   id: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   dependencies: undefined,
 });
-materializeDagSourceFromRecords(items, {
+materializeDagInputFromRecords(items, {
   id: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   completionDependencies: undefined,
 });
-materializeDagSourceFromRoots(items, {
+materializeDagInputFromRoots(items, {
   id: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   dependencies: undefined,
 });
-materializeDagSourceFromRoots(items, {
+materializeDagInputFromRoots(items, {
   id: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   completionDependencies: undefined,
 });
-materializeDagSourceFromRecordsAsync(items, {
+materializeDagInputFromRecordsAsync(items, {
   id: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   dependencies: undefined,
 });
-materializeDagSourceFromRecordsAsync(items, {
+materializeDagInputFromRecordsAsync(items, {
   id: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   completionDependencies: undefined,
 });
-materializeDagSourceFromRootsAsync(items, {
+materializeDagInputFromRootsAsync(items, {
   id: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   dependencies: undefined,
 });
-materializeDagSourceFromRootsAsync(items, {
+materializeDagInputFromRootsAsync(items, {
   id: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   completionDependencies: undefined,
 });
+
+// @ts-expect-error Materialized DAG envelopes are inputs, not source protocols.
+import type { MaterializedDagSource } from '../src/sources';
+// @ts-expect-error Retired source-named envelope factory has no alias.
+import { materializeDagSourceFromRecords } from '../src';
+// @ts-expect-error Retired source-named envelope factory has no alias.
+import { materializeDagSourceFromRoots } from '../src/sources';
+// @ts-expect-error Retired async source-named factory has no alias.
+import { materializeDagSourceFromRecordsAsync } from '../src/sources';
+// @ts-expect-error Retired async source-named factory has no alias.
+import { materializeDagSourceFromRootsAsync } from '../src/sources';
+void [
+  materializeDagSourceFromRecords,
+  materializeDagSourceFromRoots,
+  materializeDagSourceFromRecordsAsync,
+  materializeDagSourceFromRootsAsync,
+];
+export type RemovedEnvelope = MaterializedDagSource<unknown, unknown>;

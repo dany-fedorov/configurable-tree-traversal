@@ -2,7 +2,7 @@
 
 [Home and quickstart](../README.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md)
 
-The [API naming migration](migration-api-clarity.md) covers renamed contracts and removed import routes; the [uniform API migration](migration-uniform-api.md) covers changed defaults and removed forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
+The [idiomatic API migration](migration-idiomatic-api.md) covers the complete canonical contracts and removal checklist. The [API naming migration](migration-api-clarity.md) covers renamed contracts and removed import routes; the [uniform API migration](migration-uniform-api.md) covers changed defaults and removed forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
 
 ## Read by task
 
@@ -19,7 +19,7 @@ The [API naming migration](migration-api-clarity.md) covers renamed contracts an
 | Explore cyclic context, references or provenance | [Walking workflow](agent-workflows.md#explore-context-and-references) → [walking contracts](reference.md#general-graph-walking)                                                               | A lazy source, independent observations, and explicit completeness outcome                                                                     |
 | Walk an object or abstract tree                  | [Objects](reference.md#traverse-an-object) → [abstract trees](reference.md#abstract-trees) → [orders](reference.md#traversal-orders)                                                          | The correct adapter, traversal family, and order                                                                                               |
 | Use async callbacks                              | [Execution models](agent-workflows.md#choose-an-execution-model) → [async traversal](reference.md#async-traversal) → [pause/resume](reference.md#pause-and-resume)                            | A callback concurrency limit and clear iterator ownership                                                                                      |
-| Migrate from 0.11.0                              | [API naming migration](migration-api-clarity.md) → [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                              | Prepared previews, guarded frontiers, execution/pause capabilities, truthful rewrite outputs, typed identity, diagnostics and detached queries |
+| Migrate from 0.11.0                              | [Idiomatic API migration](migration-idiomatic-api.md) → [API naming migration](migration-api-clarity.md) → [Uniform API migration](migration-uniform-api.md) → [reference](reference.md)                                                              | Prepared previews, guarded frontiers, execution/pause capabilities, truthful rewrite outputs, typed identity, diagnostics and detached queries |
 | Modify CTT                                       | [AGENTS.md](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/AGENTS.md) → [testing](testing.md)                                                                          | The relevant implementation and regression tests                                                                                               |
 
 ## Runnable examples

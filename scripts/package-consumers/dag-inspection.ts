@@ -2,7 +2,7 @@ import {
   DagTraversalStallError,
   DagTraversal,
   AsyncDagTraversal,
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   inspectDagMilestones,
   type DagMilestoneSnapshot,
   type DagExplanation,
@@ -16,7 +16,7 @@ const records: { id: ID; work: ID[] }[] = [
   { id: 'build', work: [] },
   { id: 'review', work: ['build'] },
 ];
-const source = materializeDagSourceFromRecords(records, {
+const source = materializeDagInputFromRecords(records, {
   id: (v) => v.id,
   dependsOnWork: (v) => v.work,
 });

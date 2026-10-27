@@ -3,14 +3,14 @@ import {
   DagTraversal,
   AsyncDagTraversal,
   inspectDagMilestones,
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   prepareDag,
 } from '../src';
 
 describe('API clarity migration', () => {
   test('materialized DAG sources create host-controlled work sessions', () => {
     const prepared = prepareDag(
-      materializeDagSourceFromRecords([{ id: 'a' }], { id: (x) => x.id }),
+      materializeDagInputFromRecords([{ id: 'a' }], { id: (x) => x.id }),
     );
     if (prepared.kind === 'invalid') {
       throw new Error('unexpected invalid fixture');
@@ -75,7 +75,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
 test('milestone inspection rejects an unregistered structural impostor before invoking its methods', () => {
   const runner = new DagTraversal(
-    materializeDagSourceFromRecords([{ id: 'a' }], {
+    materializeDagInputFromRecords([{ id: 'a' }], {
       id: (item) => item.id,
     }),
   ).createRunner();

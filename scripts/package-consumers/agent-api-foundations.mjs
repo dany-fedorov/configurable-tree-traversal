@@ -9,10 +9,10 @@ const cjs = require('configurable-tree-traversal');
 const cjsSources = require('configurable-tree-traversal/sources');
 const cjsDag = require('configurable-tree-traversal/traversals/dag-traversal');
 for (const name of [
-  'materializeDagSourceFromRecords',
-  'materializeDagSourceFromRoots',
-  'materializeDagSourceFromRecordsAsync',
-  'materializeDagSourceFromRootsAsync',
+  'materializeDagInputFromRecords',
+  'materializeDagInputFromRoots',
+  'materializeDagInputFromRecordsAsync',
+  'materializeDagInputFromRootsAsync',
 ]) {
   assert.equal(esm[name], cjs[name]);
   assert.equal(sources[name], cjs[name]);
@@ -56,7 +56,7 @@ for (const api of [cjs, esm]) {
     { id: ids[1], requires: [ids[0]] },
     { id: ids[2], requires: [ids[0]] },
   ];
-  const source = api.materializeDagSourceFromRecords(items, {
+  const source = api.materializeDagInputFromRecords(items, {
     id: (item) => {
       selections++;
       return item.id;
@@ -138,7 +138,7 @@ for (const api of [cjs, esm]) {
     yield { id: undefined };
     yield { id: NaN };
   }
-  const asyncSource = await api.materializeDagSourceFromRecordsAsync(catalog(), {
+  const asyncSource = await api.materializeDagInputFromRecordsAsync(catalog(), {
     id: async (item) => item.id,
   });
   const asyncPrepared = await api.prepareDagAsync(asyncSource);
@@ -158,8 +158,8 @@ for (const api of [cjs, esm]) {
     children: (item) => item.children,
   };
   for (const forest of [
-    api.materializeDagSourceFromRoots(roots, selectors),
-    await api.materializeDagSourceFromRootsAsync(roots, {
+    api.materializeDagInputFromRoots(roots, selectors),
+    await api.materializeDagInputFromRootsAsync(roots, {
       id: async (item) => item.id,
       children: async (item) => item.children,
     }),
@@ -191,7 +191,7 @@ for (const api of [cjs, esm]) {
     ];
     const TreeTraversal = asyncMode ? api.AsyncDagTraversal : api.DagTraversal;
     const traversal = new TreeTraversal(
-      api.materializeDagSourceFromRecords(records, { id: (item) => item.id }),
+      api.materializeDagInputFromRecords(records, { id: (item) => item.id }),
     );
     const calls = [];
     const callback = (data, options) => {
@@ -252,7 +252,7 @@ for (const api of [esm, cjs]) {
   assert.throws(
     () =>
       api.prepareDag(
-        api.materializeDagSourceFromRecords([{ id: 'a', children: ['a'] }], {
+        api.materializeDagInputFromRecords([{ id: 'a', children: ['a'] }], {
           id: (item) => item.id,
           children: (item) => item.children,
         }),
@@ -263,7 +263,7 @@ for (const api of [esm, cjs]) {
   );
   for (const prepare of [api.prepareDag, api.prepareDagAsync]) {
     const invalid = await prepare(
-      api.materializeDagSourceFromRecords([{ id: 'b', deps: ['missing'] }], {
+      api.materializeDagInputFromRecords([{ id: 'b', deps: ['missing'] }], {
         id: (item) => item.id,
         dependsOnWork: (item) => item.deps,
       }),
@@ -277,7 +277,7 @@ for (const api of [esm, cjs]) {
     ]);
   }
   const prepared = api.prepareDag(
-    api.materializeDagSourceFromRecords([{ id: 'a' }], { id: (item) => item.id }),
+    api.materializeDagInputFromRecords([{ id: 'a' }], { id: (item) => item.id }),
   );
   for (const session of [
     prepared.dag.createWorkSession(),

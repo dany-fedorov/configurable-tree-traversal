@@ -1,5 +1,5 @@
 import {
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   prepareDag,
   prepareDagAsync,
   type PreparedDag,
@@ -8,7 +8,7 @@ import {
 
 type ID = 'research' | 'review';
 type Task = { id: ID; title: string; requires: ID[] };
-const source = materializeDagSourceFromRecords<Task, ID>(
+const source = materializeDagInputFromRecords<Task, ID>(
   [{ id: 'research', title: 'Read', requires: [] }],
   {
     id: (item) => item.id,

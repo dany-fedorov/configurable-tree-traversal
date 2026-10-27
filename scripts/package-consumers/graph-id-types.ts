@@ -136,16 +136,15 @@ const missingTagged: DagVertexFound<W, string> = {
   // @ts-expect-error Typed found content cannot fall back to a generated UUID.
   vertex: { vertexContent: { $data: 'a', $childHints: [] } },
 };
-// @ts-expect-error Legacy live content also requires a typed ID.
-const missingLegacy: Extract<
-  DagVertexResolution<W, string>,
-  { vertexContent: unknown }
-> = {
-  kind: 'found' as const,
-  vertex: {
-    vertexContent: { $data: 'a', $childHints: [] },
-  },
+const canonicalFound: DagVertexResolution<W, string> = {
+  kind: 'found',
+  vertex: { vertexId: 'a', vertexContent: { $data: 'a', $childHints: [] } },
 };
+const missingLegacy: DagVertexResolution<W, string> = {
+  // @ts-expect-error Untagged live source content is removed.
+  vertexContent: { $data: 'a', $childHints: [] },
+};
+void canonicalFound;
 const missingUnion: DagVertexResolution<W, string> = {
   kind: 'found',
   // @ts-expect-error Source union must not admit tagged missing IDs.

@@ -1,6 +1,6 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { definitionSource } from '../src/traversals/dag-traversal/lib/definitionSource';
-import { materializeDagSourceFromRecords } from '../src';
+import { materializeDagInputFromRecords } from '../src';
 import {
   defineDag,
   prepareDagDefinition,
@@ -312,7 +312,7 @@ test('definitions retain empty and omitted roots separately from forest catalogs
     expect(replay.getStopReason()).toBe('finished');
   }
   const forest = prepareDag(
-    materializeDagSourceFromRecords(['a', 'b'], { id: (id) => id }),
+    materializeDagInputFromRecords(['a', 'b'], { id: (id) => id }),
   );
   if (forest.kind !== 'valid') throw new Error('Expected valid');
   expect(forest.dag.definition.entry).toEqual({
@@ -323,7 +323,7 @@ test('definitions retain empty and omitted roots separately from forest catalogs
     ],
   });
   const empty = prepareDag(
-    materializeDagSourceFromRecords<string, string>([], { id: (id) => id }),
+    materializeDagInputFromRecords<string, string>([], { id: (id) => id }),
   );
   if (empty.kind !== 'valid') throw new Error('Expected valid');
   expect(empty.dag.definition.entry).toEqual({ kind: 'roots', slots: [] });

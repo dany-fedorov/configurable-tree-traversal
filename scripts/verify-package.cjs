@@ -494,6 +494,7 @@ try {
     'execution-capabilities',
     'idiomatic-execution',
     'idiomatic-diagnostics',
+    'idiomatic-api',
     'graph-id-types',
     'dag-preparation',
     'dag-milestone-diagnostics',
@@ -514,6 +515,7 @@ try {
   for (const file of [
     'supported-exports.mjs',
     'idiomatic-diagnostics.mjs',
+    'idiomatic-api.mjs',
     'uniform-api.mjs',
     'composable-api.mjs',
     'agent-api-foundations.mjs',
@@ -604,6 +606,7 @@ try {
     'docs/reference.md',
     'docs/migration-uniform-api.md',
     'docs/migration-api-clarity.md',
+    'docs/migration-idiomatic-api.md',
     'docs/testing.md',
   ];
   const anchors = (markdown) => {
@@ -709,6 +712,7 @@ try {
     'docs/reference.md',
     'docs/migration-uniform-api.md',
     'docs/migration-api-clarity.md',
+    'docs/migration-idiomatic-api.md',
     'dist/index.js',
     'dist/index.d.ts',
     'dist/core/index.js',

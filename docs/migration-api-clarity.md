@@ -38,11 +38,11 @@ Namespaces `core`, `depthFirstTraversal`, `breadthFirstTraversal`, `dagTraversal
 
 | Previous                                                                     | Canonical                                                                                              |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `graphFrom`, `graphFromAsync`                                                | `materializeDagSourceFromRecords`, `materializeDagSourceFromRecordsAsync`                              |
-| `forestFrom`, `forestFromAsync`                                              | `materializeDagSourceFromRoots`, `materializeDagSourceFromRootsAsync`                                  |
+| `graphFrom`, `graphFromAsync`                                                | `materializeDagInputFromRecords`, `materializeDagInputFromRecordsAsync`                              |
+| `forestFrom`, `forestFromAsync`                                              | `materializeDagInputFromRoots`, `materializeDagInputFromRootsAsync`                                  |
 | `walkSourceFrom`, `walkSourceFromAsync`                                      | `materializeWalkSourceFromRecords`, `materializeWalkSourceFromRecordsAsync`                            |
 | `walkSourceFromDag`                                                          | `materializeWalkSourceFromDagDefinition`                                                               |
-| `CollectionSource`                                                           | `MaterializedDagSource`                                                                                |
+| `CollectionSource`                                                           | `MaterializedDagInput`                                                                                |
 | `GraphSelectors`, `AsyncGraphSelectors`                                      | `DagRecordSelectors`, `AsyncDagRecordSelectors`                                                        |
 | `ForestSelectors`, `AsyncForestSelectors`                                    | `DagRootSelectors`, `AsyncDagRootSelectors`                                                            |
 | `TraversableTree`, `AsyncTraversableTree`, `AbstractTraversableTree`         | `TreeSource`, `AsyncTreeSource`; implement these structurally                                          |
@@ -227,13 +227,13 @@ In-order positions are child **indices**: zero means after child index zero. Neg
 
 ```ts
 import {
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   prepareDag,
   DagVisitorPhase,
 } from 'configurable-tree-traversal';
 
 const result = prepareDag(
-  materializeDagSourceFromRecords(
+  materializeDagInputFromRecords(
     [
       { id: 'draft', after: [] as string[] },
       { id: 'review', after: ['draft'] },

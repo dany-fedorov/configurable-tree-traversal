@@ -7,7 +7,7 @@ import {
   DagTraversalStallError,
   DagVisitorPhase as Order,
   inspectDagMilestones,
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
 } from '../src';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
@@ -199,7 +199,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} retains failed preparation diagnostics and owns every copied observation wrapper`, async () => {
     const first = { name: 'first' };
     const second = { name: 'second' };
-    const source = materializeDagSourceFromRecords(
+    const source = materializeDagInputFromRecords(
       [
         { id: first, complete: [second] },
         { id: second, complete: [first] },
@@ -284,7 +284,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   });
 
   test(`${Constructor.name} retains deferred work and earlier commits when a later visitor fails`, async () => {
-    const source = materializeDagSourceFromRecords(
+    const source = materializeDagInputFromRecords(
       [{ id: 'done' }, { id: 'deferred' }, { id: 'failed' }],
       { id: (item) => item.id },
     );
@@ -357,7 +357,7 @@ test('terminal async observations stay stable after an invalidated callback sett
   const started = new Promise<void>((resolve) => {
     bothStarted = resolve;
   });
-  const source = materializeDagSourceFromRecords([{ id: 'a' }, { id: 'b' }], {
+  const source = materializeDagInputFromRecords([{ id: 'a' }, { id: 'b' }], {
     id: (item) => item.id,
   });
   const traversal = new AsyncDagTraversal({

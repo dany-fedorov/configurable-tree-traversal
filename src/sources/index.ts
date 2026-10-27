@@ -1,7 +1,13 @@
-export { materializeDagSourceFromRecords, materializeDagSourceFromRecordsAsync } from './graphFrom';
-export { materializeDagSourceFromRoots, materializeDagSourceFromRootsAsync } from './forestFrom';
+export {
+  materializeDagInputFromRecords,
+  materializeDagInputFromRecordsAsync,
+} from './graphFrom';
+export {
+  materializeDagInputFromRoots,
+  materializeDagInputFromRootsAsync,
+} from './forestFrom';
 export type {
-  MaterializedDagSource,
+  MaterializedDagInput,
   DagRecordSelectors,
   DagRootSelectors,
   AsyncCollection,

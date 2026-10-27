@@ -5,7 +5,7 @@ import {
   DagTraversalStallError as CTTStallError,
   DagVisitorPhase as Order,
   inspectDagMilestones,
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   TraversalVisitorCommandName as Command,
 } from '../src';
 import type { CallSpec } from '../src/core/effects/types';
@@ -25,7 +25,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { id: 'review', children: [], work: ['bundle'], complete: ['bundle'] },
     ];
     const runner = new Constructor({
-      ...materializeDagSourceFromRecords(records, {
+      ...materializeDagInputFromRecords(records, {
         id: (item) => item.id,
         children: (item) => item.children,
         dependsOnWork: (item) => item.work,
@@ -49,7 +49,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { id: 'complete', work: [], complete: [] },
     ];
     const runner = new Constructor({
-      ...materializeDagSourceFromRecords(records, {
+      ...materializeDagInputFromRecords(records, {
         id: (item) => item.id,
         dependsOnWork: (item) => item.work,
         dependsOnSubgraphCompletion: (item) => item.complete,
@@ -339,7 +339,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       { id: 'source', children: [], work: [], complete: [] },
     ];
     const runner = new Constructor({
-      ...materializeDagSourceFromRecords(records, {
+      ...materializeDagInputFromRecords(records, {
         id: (item) => item.id,
         children: (item) => item.children,
         dependsOnWork: (item) => item.work,
@@ -455,7 +455,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const records = ids.map((id) => ({ id, work: [] as unknown[] }));
     records[0]!.work = [second, symbol, undefined, null, NaN, -0, '0'];
     const runner = new Constructor({
-      ...materializeDagSourceFromRecords(records, {
+      ...materializeDagInputFromRecords(records, {
         id: (item) => item.id,
         dependsOnWork: (item) => item.work,
       }),
@@ -519,7 +519,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
   test(`${Constructor.name} terminates cyclic forward and reverse queries without returning the start`, async () => {
     const runner = new Constructor(
-      materializeDagSourceFromRecords(
+      materializeDagInputFromRecords(
         [
           { id: 'a', work: ['b'] },
           { id: 'b', work: ['a'] },
@@ -734,7 +734,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} retains old constraints after deletion and hides forest holders`, async () => {
     const traversal = new Constructor(
-      materializeDagSourceFromRecords([{ id: 'deleted' }], {
+      materializeDagInputFromRecords([{ id: 'deleted' }], {
         id: (item) => item.id,
       }),
     );
@@ -908,7 +908,7 @@ test('transitive navigation uses an iterative walk on deep prerequisite chains',
     work: id === 11999 ? [] : [id + 1],
   }));
   const runner = new DagTraversal({
-    ...materializeDagSourceFromRecords(records, {
+    ...materializeDagInputFromRecords(records, {
       id: (item) => item.id,
       dependsOnWork: (item) => item.work,
     }),

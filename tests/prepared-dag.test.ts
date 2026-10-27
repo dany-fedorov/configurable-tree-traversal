@@ -9,8 +9,8 @@ import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import {
-  materializeDagSourceFromRecords,
-  materializeDagSourceFromRoots,
+  materializeDagInputFromRecords,
+  materializeDagInputFromRoots,
 } from '../src/sources';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
@@ -245,7 +245,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       expect(session.advance()).toEqual({ kind: 'finished' });
     }
     const empty = await prepare<VertexTypes<string, string>, string>(
-      materializeDagSourceFromRecords<string, string>([], { id: (id) => id }),
+      materializeDagInputFromRecords<string, string>([], { id: (id) => id }),
     );
     if (empty.kind !== 'valid') throw new Error('Expected valid');
     expect(empty.dag.createWorkSession().advance()).toEqual({
@@ -255,7 +255,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
 
   test(`${prepare.name} returns missing prerequisites as milestone issues`, async () => {
     const missing = await prepare<VertexTypes<string, string>, string>(
-      materializeDagSourceFromRecords(['a'], {
+      materializeDagInputFromRecords(['a'], {
         id: (id) => id,
         dependsOnWork: () => ['absent'],
       }),
@@ -274,7 +274,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
 
   test(`${prepare.name} returns dependency cycles as milestone issues`, async () => {
     const cycle = await prepare<VertexTypes<string, string>, string>(
-      materializeDagSourceFromRecords(['a', 'b'], {
+      materializeDagInputFromRecords(['a', 'b'], {
         id: (id) => id,
         dependsOnWork: (id) => [id === 'a' ? 'b' : 'a'],
       }),
@@ -423,7 +423,7 @@ test('prepared forest completion joins retain structural sharing and order', () 
     { id: 'review', children: [], after: ['left', 'right'] },
   ];
   const result = prepareDag(
-    materializeDagSourceFromRoots(roots, {
+    materializeDagInputFromRoots(roots, {
       id: (item) => item.id,
       children: (item) => item.children,
       dependsOnSubgraphCompletion: (item) => item.after ?? [],
@@ -463,7 +463,7 @@ test('definition arrays are immutable while arbitrary IDs and data stay shallow'
   const ids: unknown[] = [undefined, null, NaN, objectId, symbol];
   const items = ids.map((id) => ({ id, label: 'original' }));
   const result = prepareDag(
-    materializeDagSourceFromRecords(items, { id: (item) => item.id }),
+    materializeDagInputFromRecords(items, { id: (item) => item.id }),
   );
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(() => (result.dag.vertices as unknown[]).pop()).toThrow();
@@ -715,7 +715,7 @@ for (const async of [false, true]) {
     async (self) => {
       const a = { name: 'same' };
       const b = self ? a : { name: 'same' };
-      const graph = materializeDagSourceFromRecords(
+      const graph = materializeDagInputFromRecords(
         [{ id: a, children: [b] }, ...(self ? [] : [{ id: b, children: [a] }])],
         {
           id: (item) => item.id,

@@ -5,14 +5,14 @@ import {
   DagTraversal,
   DagVisitorPhase as Order,
   TraversalVisitorCommandName as Command,
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   inspectDagMilestones,
 } from '../src';
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} explains seeded W separately from child-blocked C and stops at satisfied edges`, async () => {
     const runner = new Constructor({
-      ...materializeDagSourceFromRecords(
+      ...materializeDagInputFromRecords(
         [
           {
             id: 'bundle',
@@ -121,7 +121,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
   test(`${Constructor.name} distinguishes ready work and pending completion before callback commit`, async () => {
     const traversal = new Constructor(
-      materializeDagSourceFromRecords([{ id: 'leaf' }], { id: (v) => v.id }),
+      materializeDagInputFromRecords([{ id: 'leaf' }], { id: (v) => v.id }),
     );
     let pending: unknown;
     traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, () => {
@@ -190,7 +190,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       discoveryComplete: true,
     });
     const traversal = new Constructor(
-      materializeDagSourceFromRecords([{ id: 'deleted' }], { id: (v) => v.id }),
+      materializeDagInputFromRecords([{ id: 'deleted' }], { id: (v) => v.id }),
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
       commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
@@ -341,7 +341,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
   test(`${Constructor.name} bounds cyclic explanations`, async () => {
     const cyclic = new Constructor(
-      materializeDagSourceFromRecords(
+      materializeDagInputFromRecords(
         [
           { id: 'a', work: ['b'] },
           { id: 'b', work: ['a'] },
@@ -380,7 +380,7 @@ test('explanations walk deep unfinished work chains iteratively', () => {
     work: id === 11999 ? [] : [id + 1],
   }));
   const runner = new DagTraversal({
-    ...materializeDagSourceFromRecords(records, {
+    ...materializeDagInputFromRecords(records, {
       id: (v) => v.id,
       dependsOnWork: (v) => v.work,
     }),
@@ -402,7 +402,7 @@ test('explanations walk deep unfinished work chains iteratively', () => {
 
 test('captured deleted endpoints remain explicit unsatisfied constraints', () => {
   const runner = new DagTraversal({
-    ...materializeDagSourceFromRecords([{ id: 'a' }], { id: (v) => v.id }),
+    ...materializeDagInputFromRecords([{ id: 'a' }], { id: (v) => v.id }),
     workCompletion: 'externalSettlement',
   }).createRunner();
   runner.prepare();
@@ -498,7 +498,7 @@ test('explanations retain SameValueZero IDs without freezing caller objects', ()
   const symbol = Symbol('task');
   const ids: unknown[] = [object, symbol, NaN, -0, undefined, null];
   const runner = new DagTraversal({
-    ...materializeDagSourceFromRecords(
+    ...materializeDagInputFromRecords(
       ids.map((id) => ({ id })),
       { id: (v) => v.id },
     ),

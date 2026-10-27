@@ -7,7 +7,7 @@ import {
   prepareDagDefinition,
   type DagDefinitionIssue,
   type PrepareDagResult,
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
 } from '../src';
 
 import { prepareDagDefinition as requirePrepareDagDefinition } from '../src/traversals/dag-traversal';
@@ -40,7 +40,7 @@ defineDag<Data, ID>({
   omittedIds: ['wrong'],
   entry: { kind: 'empty' },
 });
-const prepared = prepareDag(materializeDagSourceFromRecords<Data, ID>([], { id: () => 'a' }));
+const prepared = prepareDag(materializeDagInputFromRecords<Data, ID>([], { id: () => 'a' }));
 if (prepared.kind === 'valid') {
   const captured: DagDefinition<Data, ID> = prepared.dag.definition;
   const runner = prepared.dag.createRunner();

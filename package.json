@@ -80,7 +80,8 @@
     "docs/reference.md",
     "docs/migration-uniform-api.md",
     "docs/testing.md",
-    "docs/migration-api-clarity.md"
+    "docs/migration-api-clarity.md",
+    "docs/migration-idiomatic-api.md"
   ],
   "sideEffects": false,
   "exports": {

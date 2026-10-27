@@ -1,5 +1,5 @@
 import {
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   prepareDag,
   type DagWorkBoundary,
   type DagWorkTicket,
@@ -24,7 +24,7 @@ function work(
 }
 
 async function main(): Promise<void> {
-  const source = materializeDagSourceFromRecords(tasks, {
+  const source = materializeDagInputFromRecords(tasks, {
     id: (task) => task.id,
     dependsOnWork: (task) => task.requires,
   });

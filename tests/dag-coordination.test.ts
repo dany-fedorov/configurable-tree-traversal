@@ -11,7 +11,7 @@ import {
 } from '../src/traversals/dag-traversal/coordinateDag';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import { materializeDagSourceFromRecords, prepareDag } from '../src';
+import { materializeDagInputFromRecords, prepareDag } from '../src';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
@@ -317,7 +317,7 @@ for (const async of [false, true]) {
     async ? 'async' : 'sync'
   } prepared sessions explain blockers without advancing or exposing tickets`, async () => {
     const result = prepareDag(
-      materializeDagSourceFromRecords(
+      materializeDagInputFromRecords(
         [
           { id: 'a', dependencies: [] as string[] },
           { id: 'b', dependencies: ['a'] },

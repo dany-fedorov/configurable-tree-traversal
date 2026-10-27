@@ -1,16 +1,16 @@
-import type { MaterializedDagSource } from '../src/sources';
+import type { MaterializedDagInput } from '../src/sources';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagVisitorPhase } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import {
-  materializeDagSourceFromRecords,
-  materializeDagSourceFromRoots,
-  materializeDagSourceFromRecordsAsync,
-  materializeDagSourceFromRootsAsync,
+  materializeDagInputFromRecords,
+  materializeDagInputFromRoots,
+  materializeDagInputFromRecordsAsync,
+  materializeDagInputFromRootsAsync,
 } from '../src/sources';
 
 test('a flat diamond discovers all records and releases dependencies after settlement', () => {
-  const source = materializeDagSourceFromRecords(
+  const source = materializeDagInputFromRecords(
     [
       { id: 'a', requires: [] },
       { id: 'b', requires: ['a'] },
@@ -61,12 +61,12 @@ test('arbitrary IDs retain identity and caller data stays shared and unfrozen', 
   const ids: unknown[] = [undefined, null, NaN, objectId, Symbol('id'), 0];
   const items = ids.map((id) => ({ id, value: 1 }));
   for (const source of [
-    materializeDagSourceFromRecords(items, { id: (item) => item.id }),
-    await materializeDagSourceFromRecordsAsync(items, {
+    materializeDagInputFromRecords(items, { id: (item) => item.id }),
+    await materializeDagInputFromRecordsAsync(items, {
       id: async (item) => item.id,
     }),
-    materializeDagSourceFromRoots(items, { id: (item) => item.id }),
-    await materializeDagSourceFromRootsAsync(items, {
+    materializeDagInputFromRoots(items, { id: (item) => item.id }),
+    await materializeDagInputFromRootsAsync(items, {
       id: async (item) => item.id,
     }),
   ]) {
@@ -107,8 +107,8 @@ test('materialization copies membership, children, and both milestone edges', as
         item.completion,
     };
     const source = asyncSource
-      ? await materializeDagSourceFromRecordsAsync(items, selectors)
-      : materializeDagSourceFromRecords(items, selectors);
+      ? await materializeDagInputFromRecordsAsync(items, selectors)
+      : materializeDagInputFromRecords(items, selectors);
     const first = items[0]!;
     first.children.length = 0;
     items[1]!.dependencies.length = 0;
@@ -157,12 +157,12 @@ test.each([undefined, NaN, 0, {}])(
   async (id) => {
     const item = { id };
     expect(() =>
-      materializeDagSourceFromRecords([item, item], {
+      materializeDagInputFromRecords([item, item], {
         id: (record) => record.id,
       }),
     ).toThrow(TypeError);
     await expect(
-      materializeDagSourceFromRecordsAsync([item, item], {
+      materializeDagInputFromRecordsAsync([item, item], {
         id: (record) => record.id,
       }),
     ).rejects.toThrow(TypeError);
@@ -172,16 +172,16 @@ test.each([undefined, NaN, 0, {}])(
 test('forest permits repeated record identity but rejects different records sharing IDs', async () => {
   const roots = [{ id: undefined }, { id: undefined }];
   expect(() =>
-    materializeDagSourceFromRoots(roots, { id: (item) => item.id }),
+    materializeDagInputFromRoots(roots, { id: (item) => item.id }),
   ).toThrow(TypeError);
   await expect(
-    materializeDagSourceFromRootsAsync(roots, { id: (item) => item.id }),
+    materializeDagInputFromRootsAsync(roots, { id: (item) => item.id }),
   ).rejects.toThrow(TypeError);
   for (const source of [
-    materializeDagSourceFromRoots([roots[0]!, roots[0]!], {
+    materializeDagInputFromRoots([roots[0]!, roots[0]!], {
       id: (item) => item.id,
     }),
-    await materializeDagSourceFromRootsAsync([roots[0]!, roots[0]!], {
+    await materializeDagInputFromRootsAsync([roots[0]!, roots[0]!], {
       id: (item) => item.id,
     }),
   ]) {
@@ -193,13 +193,13 @@ test('forest permits repeated record identity but rejects different records shar
 
 test('missing structural children reject during catalog materialization', async () => {
   expect(() =>
-    materializeDagSourceFromRecords(['a'], {
+    materializeDagInputFromRecords(['a'], {
       id: (item) => item,
       children: () => ['missing'],
     }),
   ).toThrow(TypeError);
   await expect(
-    materializeDagSourceFromRecordsAsync(['a'], {
+    materializeDagInputFromRecordsAsync(['a'], {
       id: (item) => item,
       children: () => ['missing'],
     }),
@@ -207,7 +207,7 @@ test('missing structural children reject during catalog materialization', async 
 });
 
 test('unknown prerequisites remain engine validation errors while known lookup is tagged found', () => {
-  const source = materializeDagSourceFromRecords(['a'], {
+  const source = materializeDagInputFromRecords(['a'], {
     id: (item) => item,
     dependsOnWork: () => ['missing'],
   });
@@ -222,7 +222,7 @@ test('unknown prerequisites remain engine validation errors while known lookup i
 });
 
 test('a source rejects unknown structural lookup without omitting it', () => {
-  const source = materializeDagSourceFromRecords(['a'], { id: (item) => item });
+  const source = materializeDagInputFromRecords(['a'], { id: (item) => item });
   const traversal = new DagTraversal({
     ...source,
     traversableGraph: {
@@ -242,7 +242,7 @@ test('async catalogs and promised iterable selectors preserve completion and str
   async function* children(id: string) {
     if (id === 'a') yield 'b';
   }
-  const source = await materializeDagSourceFromRecordsAsync(catalog(), {
+  const source = await materializeDagInputFromRecordsAsync(catalog(), {
     id: async (item) => item.id,
     children: (item) => children(item.id),
     dependsOnWork: async () => [],
@@ -271,7 +271,7 @@ test('forest async selectors and input materialize once, preserving milestone de
     dependsOnWork: async (item: typeof root) => (item === leaf ? ['root'] : []),
     dependsOnSubgraphCompletion: async () => [],
   };
-  const source = await materializeDagSourceFromRootsAsync(roots(), selectors);
+  const source = await materializeDagInputFromRootsAsync(roots(), selectors);
   const runner = new DagTraversal({
     ...source,
     workCompletion: 'externalSettlement',
@@ -296,8 +296,8 @@ test('forest copies child records and completion constraints before caller mutat
       dependsOnSubgraphCompletion: (item: Item) => item.after,
     };
     const source = asyncSource
-      ? await materializeDagSourceFromRootsAsync(roots, selectors)
-      : materializeDagSourceFromRoots(roots, selectors);
+      ? await materializeDagInputFromRootsAsync(roots, selectors)
+      : materializeDagInputFromRoots(roots, selectors);
     root.children.length = 0;
     after.after.length = 0;
     roots.length = 0;
@@ -332,8 +332,8 @@ test('forest copies child records and completion constraints before caller mutat
 
 test('empty forests produce finished empty graphs with no holder events', async () => {
   for (const source of [
-    materializeDagSourceFromRoots([], { id: (item: string) => item }),
-    await materializeDagSourceFromRootsAsync([], {
+    materializeDagInputFromRoots([], { id: (item: string) => item }),
+    await materializeDagInputFromRootsAsync([], {
       id: (item: string) => item,
     }),
   ]) {
@@ -353,10 +353,10 @@ test('forest materialization is iterative for deep input and leaves cycle valida
     dependsOnWork: () => [],
     dependsOnSubgraphCompletion: () => [],
   };
-  expect(() => materializeDagSourceFromRoots([root], selectors)).not.toThrow();
+  expect(() => materializeDagInputFromRoots([root], selectors)).not.toThrow();
   const cycle: Item = { id: 0, children: [] };
   cycle.children.push(cycle);
-  const source = materializeDagSourceFromRoots([cycle], selectors);
+  const source = materializeDagInputFromRoots([cycle], selectors);
   expect(() => new DagTraversal(source).createRunner().run()).toThrow();
 });
 
@@ -366,8 +366,8 @@ test('selector and catalog failures retain exact identity', async () => {
     throw error;
   };
   for (const factory of [
-    materializeDagSourceFromRecords,
-    materializeDagSourceFromRoots,
+    materializeDagInputFromRecords,
+    materializeDagInputFromRoots,
   ]) {
     try {
       factory([1], { id });
@@ -377,8 +377,8 @@ test('selector and catalog failures retain exact identity', async () => {
     }
   }
   for (const factory of [
-    materializeDagSourceFromRecordsAsync,
-    materializeDagSourceFromRootsAsync,
+    materializeDagInputFromRecordsAsync,
+    materializeDagInputFromRootsAsync,
   ]) {
     await expect(
       factory([1], { id: () => Promise.reject(error) }),
@@ -400,11 +400,11 @@ test('selector and catalog failures retain exact identity', async () => {
 
 test('empty and disconnected catalogs expose only actual records', async () => {
   const empty = new DagTraversal(
-    materializeDagSourceFromRecords([], { id: (item: string) => item }),
+    materializeDagInputFromRecords([], { id: (item: string) => item }),
   ).createRunner();
   empty.run();
   expect(empty.getResolvedGraph().getVertexRefs()).toEqual([]);
-  const source = await materializeDagSourceFromRecordsAsync([1, 2], {
+  const source = await materializeDagInputFromRecordsAsync([1, 2], {
     id: (item) => item,
   });
   const runner = new AsyncDagTraversal(source).createRunner();
@@ -420,11 +420,11 @@ test('forest expansion shares records across parents', async () => {
     { id: 'b', children: [leaf] },
   ];
   for (const source of [
-    materializeDagSourceFromRoots(roots, {
+    materializeDagInputFromRoots(roots, {
       id: (item) => item.id,
       children: (item) => item.children,
     }),
-    await materializeDagSourceFromRootsAsync(roots, {
+    await materializeDagInputFromRootsAsync(roots, {
       id: (item) => item.id,
       children: (item) => item.children,
     }),
@@ -456,45 +456,45 @@ type MilestoneSelectors = {
 
 test.each([
   [
-    'materializeDagSourceFromRecords',
+    'materializeDagInputFromRecords',
     (
       items: MilestoneItem[],
       selectors: MilestoneSelectors,
-    ): MaterializedDagSource<MilestoneItem, string> =>
-      materializeDagSourceFromRecords(items, {
+    ): MaterializedDagInput<MilestoneItem, string> =>
+      materializeDagInputFromRecords(items, {
         ...selectors,
         children: (item) => item.children.map((child) => child.id),
       }),
   ],
   [
-    'materializeDagSourceFromRecordsAsync',
+    'materializeDagInputFromRecordsAsync',
     (
       items: MilestoneItem[],
       selectors: MilestoneSelectors,
-    ): Promise<MaterializedDagSource<MilestoneItem, string>> =>
-      materializeDagSourceFromRecordsAsync(items, {
+    ): Promise<MaterializedDagInput<MilestoneItem, string>> =>
+      materializeDagInputFromRecordsAsync(items, {
         ...selectors,
         children: async (item) => item.children.map((child) => child.id),
       }),
   ],
   [
-    'materializeDagSourceFromRoots',
+    'materializeDagInputFromRoots',
     (
       items: MilestoneItem[],
       selectors: MilestoneSelectors,
-    ): MaterializedDagSource<MilestoneItem, string> =>
-      materializeDagSourceFromRoots(items, {
+    ): MaterializedDagInput<MilestoneItem, string> =>
+      materializeDagInputFromRoots(items, {
         ...selectors,
         children: (item) => item.children,
       }),
   ],
   [
-    'materializeDagSourceFromRootsAsync',
+    'materializeDagInputFromRootsAsync',
     (
       items: MilestoneItem[],
       selectors: MilestoneSelectors,
-    ): Promise<MaterializedDagSource<MilestoneItem, string>> =>
-      materializeDagSourceFromRootsAsync(items, {
+    ): Promise<MaterializedDagInput<MilestoneItem, string>> =>
+      materializeDagInputFromRootsAsync(items, {
         ...selectors,
         children: async (item) => item.children,
       }),
@@ -573,13 +573,13 @@ test.each([
 );
 
 for (const [name, make] of [
-  ['materializeDagSourceFromRecords', materializeDagSourceFromRecords],
-  ['materializeDagSourceFromRoots', materializeDagSourceFromRoots],
+  ['materializeDagInputFromRecords', materializeDagInputFromRecords],
+  ['materializeDagInputFromRoots', materializeDagInputFromRoots],
   [
-    'materializeDagSourceFromRecordsAsync',
-    materializeDagSourceFromRecordsAsync,
+    'materializeDagInputFromRecordsAsync',
+    materializeDagInputFromRecordsAsync,
   ],
-  ['materializeDagSourceFromRootsAsync', materializeDagSourceFromRootsAsync],
+  ['materializeDagInputFromRootsAsync', materializeDagInputFromRootsAsync],
 ] as const) {
   for (const key of ['dependencies', 'completionDependencies']) {
     for (const inherited of [false, true]) {

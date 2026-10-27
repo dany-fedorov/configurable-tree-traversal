@@ -4,7 +4,7 @@
 
 Give CTT a graph of work and accepted completion facts. It determines what can run next, enforces work and structural-completion dependencies, and exposes progress without executing business work. Your host chooses agents, dispatches tasks, accepts results, and persists state.
 
-[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [API naming migration](docs/migration-api-clarity.md) · [Uniform API migration](docs/migration-uniform-api.md) · [npm](https://www.npmjs.com/package/configurable-tree-traversal)
+[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Idiomatic API migration](docs/migration-idiomatic-api.md) · [API naming migration](docs/migration-api-clarity.md) · [Uniform API migration](docs/migration-uniform-api.md) · [npm](https://www.npmjs.com/package/configurable-tree-traversal)
 
 ## Start with autonomous agents
 
@@ -41,7 +41,7 @@ research ──┬── implement ──┬── review
 
 ```ts
 import {
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   prepareDag,
 } from 'configurable-tree-traversal';
 
@@ -52,7 +52,7 @@ const tasks = [
   { id: 'review', requires: ['implement', 'testPlan'] },
 ];
 const prepared = prepareDag(
-  materializeDagSourceFromRecords(tasks, {
+  materializeDagInputFromRecords(tasks, {
     id: (task) => task.id,
     dependsOnWork: (task) => task.requires,
   }),
@@ -82,7 +82,7 @@ if (boundary.kind === 'awaitingSettlement') {
 }
 ```
 
-`materializeDagSourceFromRecords` copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `completeWork(ticket)` accepts work without dispatching agents. Dispatch from `advance().workTickets` tickets; `ON_WORK_READY` visitors can also start work before deferral. `workCompleted` iterator events report work **after** commitment, so they are observations, not dispatch requests. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
+`materializeDagInputFromRecords` returns a `MaterializedDagInput` envelope (`traversableGraph` plus `syntheticRoot: true`) and copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures return `invalid`; source failures, malformed inputs and structural child cycles throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `completeWork(ticket)` accepts work without dispatching agents. Dispatch from `advance().workTickets` tickets; `ON_WORK_READY` visitors can also start work before deferral. `workCompleted` iterator events report work **after** commitment, so they are observations, not dispatch requests. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
 
 See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) for independent sessions, duplicate reports, and recovery. Custom graph adapters and existing `runner.prepare()` / guarded `settle()` APIs remain available.
 

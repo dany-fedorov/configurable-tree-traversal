@@ -1,6 +1,6 @@
 import {
   DagTraversal,
-  materializeDagSourceFromRecords,
+  materializeDagInputFromRecords,
   inspectDagMilestones,
   type DagMilestone,
 } from '../src';
@@ -8,7 +8,7 @@ import {
 const id = { name: 'leaf' };
 function inspection() {
   const runner = new DagTraversal(
-    materializeDagSourceFromRecords([id], { id: (value) => value }),
+    materializeDagInputFromRecords([id], { id: (value) => value }),
   ).createRunner();
   runner.prepare();
   return inspectDagMilestones(runner);

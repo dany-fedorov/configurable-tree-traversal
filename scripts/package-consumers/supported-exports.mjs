@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 const require = createRequire(import.meta.url);
 const root = require('configurable-tree-traversal');
+const packageRoot = dirname(
+  require.resolve('configurable-tree-traversal/package.json'),
+);
+// Bun's observed missing-module codes differ from Node's export-map error.
+const isBun = typeof process.versions.bun === 'string';
 for (const path of [
   'core/graph/treeStoreCapabilities',
   'core/graph/treeStoreCapabilities.js',
@@ -30,15 +37,26 @@ for (const path of [
   'dist/traversals/graph-walk/lib/WalkEffects',
   'dist/traversals/graph-walk/lib/WalkEffects.js',
 ]) {
+  // Each denied route targets a physically packaged implementation. This
+  // distinguishes export-map denial from an accidentally missing private file.
+  assert(
+    [
+      join(packageRoot, path),
+      join(packageRoot, path + '.js'),
+      join(packageRoot, 'dist', path),
+      join(packageRoot, 'dist', path + '.js'),
+    ].some((filename) => existsSync(filename)),
+    path + ' must have a physically packaged target',
+  );
   const specifier = 'configurable-tree-traversal/' + path;
   assert.throws(
     () => require(specifier),
-    { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' },
+    { code: isBun ? 'MODULE_NOT_FOUND' : 'ERR_PACKAGE_PATH_NOT_EXPORTED' },
     specifier,
   );
   await assert.rejects(
     import(specifier),
-    { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' },
+    { code: isBun ? 'ERR_MODULE_NOT_FOUND' : 'ERR_PACKAGE_PATH_NOT_EXPORTED' },
     specifier,
   );
 }
@@ -74,7 +92,7 @@ console.log(
 
 for (const Constructor of [root.DagTraversal, root.AsyncDagTraversal]) {
   const runner = new Constructor(
-    root.materializeDagSourceFromRecords([{ id: 'a' }], {
+    root.materializeDagInputFromRecords([{ id: 'a' }], {
       id: (item) => item.id,
     }),
   ).createRunner();

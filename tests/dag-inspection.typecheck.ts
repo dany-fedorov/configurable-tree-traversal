@@ -9,7 +9,7 @@ import type {
   DagDiscoverySource,
   TreeSource,
 } from '../src';
-import { AsyncDagTraversal, DagTraversal, materializeDagSourceFromRecords } from '../src';
+import { AsyncDagTraversal, DagTraversal, materializeDagInputFromRecords } from '../src';
 import type { DagVertexProgress, DagSummary, VertexTypes } from '../src';
 import type {
   DagInspectionState,
@@ -21,7 +21,7 @@ const records: Array<{ id: ID; work: ID[] }> = [
   { id: 'review', work: ['work'] },
   { id: 'work', work: [] },
 ];
-const source = materializeDagSourceFromRecords(records, {
+const source = materializeDagInputFromRecords(records, {
   id: (item) => item.id,
   dependsOnWork: (item) => item.work,
 });

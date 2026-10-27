@@ -1,9 +1,9 @@
 import { TraversalVisitorCommandName as VisitorCommand } from 'configurable-tree-traversal';
 import {
-  materializeDagSourceFromRecords,
-  materializeDagSourceFromRoots,
-  materializeDagSourceFromRecordsAsync,
-  materializeDagSourceFromRootsAsync,
+  materializeDagInputFromRecords,
+  materializeDagInputFromRoots,
+  materializeDagInputFromRecordsAsync,
+  materializeDagInputFromRootsAsync,
   prepareDag,
   prepareDagAsync,
   createDagWorkSession,
@@ -15,7 +15,7 @@ import {
   DagVisitorPhase,
 } from 'configurable-tree-traversal';
 import type {
-  MaterializedDagSource,
+  MaterializedDagInput,
   VertexTypes,
   PreparedDag,
   PrepareDagResult,
@@ -26,8 +26,8 @@ import type {
   DagVisitorContext,
 } from 'configurable-tree-traversal';
 import * as sourceSubpath from 'configurable-tree-traversal/sources';
-import { materializeDagSourceFromRecords as subpathMaterializeRecords } from 'configurable-tree-traversal/sources';
-import type { MaterializedDagSource as SubpathSource } from 'configurable-tree-traversal/sources';
+import { materializeDagInputFromRecords as subpathMaterializeRecords } from 'configurable-tree-traversal/sources';
+import type { MaterializedDagInput as SubpathSource } from 'configurable-tree-traversal/sources';
 import type {
   PreparedDag as SubpathPreparedDag,
   DagEvent as SubpathEvent,
@@ -47,31 +47,31 @@ type Group = {
 type Item = Task | Group;
 type T = VertexTypes<Item, ID>;
 declare const items: readonly Item[];
-const source = materializeDagSourceFromRecords(items, {
+const source = materializeDagInputFromRecords(items, {
   id: (item) => item.id,
   dependsOnWork: (item) => item.requires,
 });
-const sourceIdentity: MaterializedDagSource<Item, ID> = source;
+const sourceIdentity: MaterializedDagInput<Item, ID> = source;
 const subpathIdentity: SubpathSource<Item, ID> = sourceIdentity;
-const cjsIdentity: cjs.MaterializedDagSource<Item, ID> = subpathIdentity;
-const factoryIdentity: typeof materializeDagSourceFromRecords =
-  sourceSubpath.materializeDagSourceFromRecords;
-const explicitIdentity: typeof cjs.materializeDagSourceFromRecords =
+const cjsIdentity: cjs.MaterializedDagInput<Item, ID> = subpathIdentity;
+const factoryIdentity: typeof materializeDagInputFromRecords =
+  sourceSubpath.materializeDagInputFromRecords;
+const explicitIdentity: typeof cjs.materializeDagInputFromRecords =
   subpathMaterializeRecords;
-const forest: MaterializedDagSource<Item, ID> = materializeDagSourceFromRoots(
+const forest: MaterializedDagInput<Item, ID> = materializeDagInputFromRoots(
   items,
   {
     id: (item) => item.id,
     children: (item) => (item.kind === 'group' ? item.children : []),
   },
 );
-const asyncSource: Promise<MaterializedDagSource<Item, ID>> =
-  materializeDagSourceFromRecordsAsync(items, {
+const asyncSource: Promise<MaterializedDagInput<Item, ID>> =
+  materializeDagInputFromRecordsAsync(items, {
     id: async (item) => item.id,
     dependsOnWork: async (item) => item.requires,
   });
-const asyncForest: Promise<MaterializedDagSource<Item, ID>> =
-  materializeDagSourceFromRootsAsync(items, {
+const asyncForest: Promise<MaterializedDagInput<Item, ID>> =
+  materializeDagInputFromRootsAsync(items, {
     id: async (item) => item.id,
     children: async (item) => (item.kind === 'group' ? item.children : []),
   });
@@ -201,7 +201,7 @@ async function checkAsync() {
     inspect(event);
 }
 
-materializeDagSourceFromRecords(items, {
+materializeDagInputFromRecords(items, {
   // @ts-expect-error Graph selectors accept IDs as structural children.
   id: (item) => item.id,
   children: () => items,

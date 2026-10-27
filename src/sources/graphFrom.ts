@@ -8,15 +8,15 @@ import type { MaterializedRecord } from './materialize';
 import type {
   AsyncCollection,
   AsyncDagRecordSelectors,
-  MaterializedDagSource,
+  MaterializedDagInput,
   DagRecordSelectors,
 } from './types';
 
 /** Copy a finite catalog's topology while retaining each item and ID by identity. */
-export function materializeDagSourceFromRecords<Item, ID>(
+export function materializeDagInputFromRecords<Item, ID>(
   items: Iterable<Item>,
   selectors: DagRecordSelectors<Item, ID>,
-): MaterializedDagSource<Item, ID> {
+): MaterializedDagInput<Item, ID> {
   validateCollectionSelectors(selectors);
   const records = new Map<ID, MaterializedRecord<Item, ID>>();
   for (const item of items) {
@@ -34,11 +34,11 @@ export function materializeDagSourceFromRecords<Item, ID>(
   return materializedSource(records, [...records.keys()]);
 }
 
-/** Await finite catalogs/selectors once, returning an ordinary synchronous source. */
-export async function materializeDagSourceFromRecordsAsync<Item, ID>(
+/** Await finite catalogs/selectors once, returning an input envelope with a synchronous source. */
+export async function materializeDagInputFromRecordsAsync<Item, ID>(
   items: AsyncCollection<Item>,
   selectors: AsyncDagRecordSelectors<Item, ID>,
-): Promise<MaterializedDagSource<Item, ID>> {
+): Promise<MaterializedDagInput<Item, ID>> {
   validateCollectionSelectors(selectors);
   const records = new Map<ID, MaterializedRecord<Item, ID>>();
   for await (const item of items) {

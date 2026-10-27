@@ -5,9 +5,9 @@ import type {
   DepthFirstTreeOptions,
   AsyncDagOptionsPatch,
 } from 'configurable-tree-traversal';
-import { materializeDagSourceFromRecords } from 'configurable-tree-traversal/sources';
-import { materializeDagSourceFromRecords as rootMaterializer } from 'configurable-tree-traversal';
-const materializer: typeof rootMaterializer = materializeDagSourceFromRecords;
+import { materializeDagInputFromRecords } from 'configurable-tree-traversal/sources';
+import { materializeDagInputFromRecords as rootMaterializer } from 'configurable-tree-traversal';
+const materializer: typeof rootMaterializer = materializeDagInputFromRecords;
 const operations: GraphWalkOperation[] = [
   'roots',
   'rootNext',

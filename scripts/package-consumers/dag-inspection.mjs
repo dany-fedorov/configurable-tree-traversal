@@ -12,7 +12,7 @@ assert.equal(esm.inspectDagMilestones, esm.dagTraversal.inspectDagMilestones);
 for (const Constructor of [esm.DagTraversal, cjs.AsyncDagTraversal]) {
   const task = { label: 'task' };
   const runner = new Constructor({
-    ...esm.materializeDagSourceFromRecords([{ id: task }], { id: (item) => item.id }),
+    ...esm.materializeDagInputFromRecords([{ id: task }], { id: (item) => item.id }),
     workCompletion: 'externalSettlement',
   }).createRunner();
   const target = { vertexId: task, milestone: 'work' };

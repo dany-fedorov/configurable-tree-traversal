@@ -1,7 +1,7 @@
 import type { DagVertexFound } from '@core/TraversableTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
-import type { AsyncCollection, MaterializedDagSource } from './types';
+import type { AsyncCollection, MaterializedDagInput } from './types';
 
 export type MaterializedRecord<Item, ID> = {
   item: Item;
@@ -23,7 +23,7 @@ export async function collect<Item>(
 export function materializedSource<Item, ID>(
   records: Map<ID, MaterializedRecord<Item, ID>>,
   roots: ID[],
-): MaterializedDagSource<Item, ID> {
+): MaterializedDagInput<Item, ID> {
   type T = VertexTypes<Item, ID>;
   const found = (
     record: MaterializedRecord<Item, ID>,
