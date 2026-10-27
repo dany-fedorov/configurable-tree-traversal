@@ -1,3 +1,4 @@
+import type { ObjectCurrentVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
 import { assertPublicOptions } from '@core/assertPublicOptions';
 import type { MutationRequest } from '@core/MakeMutationCommandFunctionFactory';
 import type { GetPathToOptions } from '@core/ResolvedTree';
@@ -28,11 +29,17 @@ export type ObjectRewriteContext<
 > = TreeVisitorContext<
   DepthFirstPhase.POST_ORDER,
   ObjectTreeVertexTypes<InK, InV>,
-  ObjectTreeVertexTypes<OutK, OutV>
+  ObjectCurrentVertexTypes<
+    ObjectTreeVertexTypes<InK, InV>,
+    ObjectTreeVertexTypes<OutK, OutV>
+  >
 > &
   ObjectCompositeClassification & {
     vertex: Vertex<
-      ObjectTreeVertexTypes<InK, InV> | ObjectTreeVertexTypes<OutK, OutV>
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >;
     getKeyPath: (options?: GetPathToOptions) => (InK | OutK)[];
   };
@@ -74,7 +81,10 @@ export type RewriteObjectResult<
   getOutput(): Out | null;
   traversalRunner: DepthFirstTreeRunner<
     ObjectTreeVertexTypes<InK, InV>,
-    ObjectTreeVertexTypes<OutK, OutV>
+    ObjectCurrentVertexTypes<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectTreeVertexTypes<OutK, OutV>
+    >
   >;
 };
 
@@ -94,7 +104,10 @@ export type RewriteObjectOptions<
     Omit<
       DepthFirstTreeOptionsPatch<
         ObjectTreeVertexTypes<InK, InV>,
-        ObjectTreeVertexTypes<OutK, OutV>
+        ObjectCurrentVertexTypes<
+          ObjectTreeVertexTypes<InK, InV>,
+          ObjectTreeVertexTypes<OutK, OutV>
+        >
       >,
       'traversableTree'
     >
@@ -164,7 +177,10 @@ export function rewriteObject<
   });
   const traversal = new DepthFirstTreeTraversal<
     ObjectTreeVertexTypes<InK, InV>,
-    ObjectTreeVertexTypes<OutK, OutV>
+    ObjectCurrentVertexTypes<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectTreeVertexTypes<OutK, OutV>
+    >
   >({
     traversableTree: tree,
     ...{
@@ -186,12 +202,18 @@ export function rewriteObject<
     DepthFirstPhase.POST_ORDER,
     (
       vertex: Vertex<
-        ObjectTreeVertexTypes<InK, InV> | ObjectTreeVertexTypes<OutK, OutV>
+        ObjectCurrentVertexTypes<
+          ObjectTreeVertexTypes<InK, InV>,
+          ObjectTreeVertexTypes<OutK, OutV>
+        >
       >,
       context: TreeVisitorContext<
         DepthFirstPhase.POST_ORDER,
         ObjectTreeVertexTypes<InK, InV>,
-        ObjectTreeVertexTypes<OutK, OutV>
+        ObjectCurrentVertexTypes<
+          ObjectTreeVertexTypes<InK, InV>,
+          ObjectTreeVertexTypes<OutK, OutV>
+        >
       >,
     ) => {
       const {

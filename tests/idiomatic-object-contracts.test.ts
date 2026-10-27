@@ -5,6 +5,8 @@ import {
   TraversalVisitorCommandName,
   traverseTreeDepthFirst,
   type VertexTypes,
+  type ObjectTreeVertexTypes,
+  type ObjectCurrentVertexTypes,
 } from '../src';
 
 describe('object callback and patch contracts', () => {
@@ -230,4 +232,203 @@ describe('object callback and patch contracts', () => {
       expect(current).toEqual({ key: 'root', value: 1, note: 'old' });
     },
   );
+});
+
+describe('independent key/value patch domains', () => {
+  test.each([
+    {
+      patch: { value: 'changed' },
+      expected: { key: 'input', value: 'changed' },
+    },
+    {
+      patch: { key: 'output' as const },
+      expected: { key: 'output', value: 1 },
+    },
+  ])(
+    'retains mixed records after patch $patch across classifiers and live callback paths',
+    ({ patch, expected }) => {
+      type Input = ObjectTreeVertexTypes<'input', number>;
+      type Output = ObjectTreeVertexTypes<'output', string>;
+      const bind = createObjectMutationBinder<Input, Output>();
+      const observed: unknown[] = [];
+      const result = rewriteObject<
+        number,
+        'input',
+        number,
+        unknown,
+        'output',
+        string
+      >(1, {
+        retainOriginalTreeStructure: true,
+        getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+        visitors: {
+          [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
+            commands: [
+              bind(vertex, context).makeMutationCommand({ rewrite: patch }),
+            ],
+          }),
+        },
+        isArray: (prop) => {
+          observed.push(prop);
+          return false;
+        },
+        isObject: (prop) => {
+          observed.push(prop);
+          return false;
+        },
+        rewrite(prop, context) {
+          observed.push(
+            prop,
+            context.vertex.getData(),
+            context.vertexRef.getValue().getData(),
+            context.resolvedTree.getRoot()!.getValue().getData(),
+          );
+          expect(
+            context.originalTreeView!.getRoot()!.getValue().getData(),
+          ).toEqual({ key: 'input', value: 1 });
+          return undefined;
+        },
+      });
+      expect(observed).toEqual(Array(6).fill(expected));
+      expect(
+        result.traversalRunner
+          .getResolvedTreeView()
+          .getRoot()!
+          .getValue()
+          .getData(),
+      ).toEqual(expected);
+      expect(result.getOutput()).toBe(expected.value);
+    },
+  );
+});
+
+test.each(['value', 'key'] as const)(
+  'supplies mixed %s-patched children and previous refs to postorder assembly',
+  (field) => {
+    type Input = ObjectTreeVertexTypes<'input', number>;
+    type Output = ObjectTreeVertexTypes<'output', string>;
+    const bind = createObjectMutationBinder<Input, Output>();
+    const previous: unknown[] = [];
+    const assembledChildren: unknown[] = [];
+    const result = rewriteObject<
+      number,
+      'input',
+      number,
+      unknown,
+      'output',
+      string
+    >(0, {
+      getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+      getChildrenOfProperty: (prop) =>
+        prop.value === 0
+          ? [
+              { key: 'input', value: 1 },
+              { key: 'input', value: 2 },
+            ]
+          : [],
+      visitors: {
+        [DepthFirstPhase.PRE_ORDER]: (vertex, context) =>
+          vertex.getData().value === 0
+            ? undefined
+            : {
+                commands: [
+                  bind(vertex, context).makeMutationCommand({
+                    rewrite:
+                      field === 'value'
+                        ? { value: 'changed' }
+                        : { key: 'output' },
+                  }),
+                ],
+              },
+      },
+      isObject: (prop) => prop.value === 0,
+      assembleObject(children) {
+        assembledChildren.push(children);
+        return 'assembled';
+      },
+      rewrite(prop, context) {
+        if (prop.value !== 0 && context.previousPhaseVertexRef !== null) {
+          previous.push(context.previousPhaseVertexRef.getValue().getData());
+        }
+        return undefined;
+      },
+    });
+    if (field === 'value') {
+      expect(previous).toEqual([{ key: 'input', value: 'changed' }]);
+      expect(assembledChildren).toEqual([
+        [
+          { key: 'input', value: 'changed' },
+          { key: 'input', value: 'changed' },
+        ],
+      ]);
+    } else {
+      expect(previous).toEqual([{ key: 'output', value: 1 }]);
+      expect(assembledChildren).toEqual([
+        [
+          { key: 'output', value: 1 },
+          { key: 'output', value: 2 },
+        ],
+      ]);
+    }
+    expect(result.getOutput()).toBe('assembled');
+  },
+);
+
+test('retains input metadata after a partial output patch through a generic traversal', () => {
+  type InputProp = { key: 'input'; value: number; tag: 'input'; note: object };
+  type OutputProp = {
+    key: 'output';
+    value: string;
+    tag: 'output';
+    otherNote: object;
+  };
+  type Input = VertexTypes<InputProp, InputProp>;
+  type Output = VertexTypes<OutputProp, OutputProp>;
+  type Current = ObjectCurrentVertexTypes<Input, Output>;
+  const note = { retained: true };
+  const seen: unknown[] = [];
+  const bind = createObjectMutationBinder<Input, Output>({
+    isArray: (prop) => {
+      seen.push(prop);
+      return false;
+    },
+  });
+  const runner = traverseTreeDepthFirst<Input, Current>({
+    retainOriginalTreeStructure: true,
+    traversableTree: {
+      resolveRoot: () => ({
+        kind: 'found',
+        vertex: {
+          vertexContent: {
+            $data: { key: 'input', value: 1, tag: 'input', note },
+            $childHints: [],
+          },
+        },
+      }),
+      resolveChild: () => ({ kind: 'omitted' }),
+    },
+    visitors: {
+      [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
+        commands: [
+          bind(vertex, context).makeMutationCommand({
+            rewrite: { value: 'changed' },
+          }),
+        ],
+      }),
+      [DepthFirstPhase.POST_ORDER]: (vertex, context) => {
+        bind(vertex, context);
+        expect(
+          context.originalTreeView!.getRoot()!.getValue().getData(),
+        ).toEqual({ key: 'input', value: 1, tag: 'input', note });
+      },
+    },
+  });
+  expect(seen).toEqual([
+    { key: 'input', value: 1, tag: 'input', note },
+    { key: 'input', value: 'changed', tag: 'input', note },
+  ]);
+  const data = runner.getResolvedTreeView().getRoot()!.getValue().getData();
+  expect(data).toEqual({ key: 'input', value: 'changed', tag: 'input', note });
+  if (data.tag !== 'input') throw new Error('Expected retained input metadata');
+  expect(data.note).toBe(note);
 });

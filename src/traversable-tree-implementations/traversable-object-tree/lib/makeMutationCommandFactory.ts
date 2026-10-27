@@ -1,3 +1,4 @@
+import type { ObjectCurrentVertexTypes } from './ObjectCurrentVertexTypes';
 import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 import type { TraversalVisitor } from '@core/TraversalVisitor';
@@ -17,29 +18,43 @@ export type ObjectMutationOptions<
   OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
 > = {
   isArray?: (
-    vertexData: InputTypes['VertexData'] | OutputTypes['VertexData'],
+    vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
   ) => boolean;
   isObject?: (
-    vertexData: InputTypes['VertexData'] | OutputTypes['VertexData'],
+    vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
   ) => boolean;
   assembleArray?: (
-    processedChildren: (InputTypes['VertexData'] | OutputTypes['VertexData'])[],
-    vertexData: InputTypes['VertexData'] | OutputTypes['VertexData'],
+    processedChildren: ObjectCurrentVertexTypes<
+      InputTypes,
+      OutputTypes
+    >['VertexData'][],
+    vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
     visitorArguments: Parameters<
-      TraversalVisitor<string, InputTypes, OutputTypes>
+      TraversalVisitor<
+        string,
+        InputTypes,
+        ObjectCurrentVertexTypes<InputTypes, OutputTypes>
+      >
     >,
     isCompositeAssertions: ObjectCompositeClassification,
   ) => OutputTypes['VertexData']['value'];
   assembleObject?: (
-    processedChildren: (InputTypes['VertexData'] | OutputTypes['VertexData'])[],
-    vertexData: InputTypes['VertexData'] | OutputTypes['VertexData'],
+    processedChildren: ObjectCurrentVertexTypes<
+      InputTypes,
+      OutputTypes
+    >['VertexData'][],
+    vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
     visitorArguments: Parameters<
-      TraversalVisitor<string, InputTypes, OutputTypes>
+      TraversalVisitor<
+        string,
+        InputTypes,
+        ObjectCurrentVertexTypes<InputTypes, OutputTypes>
+      >
     >,
     isCompositeAssertions: ObjectCompositeClassification,
   ) => OutputTypes['VertexData']['value'];
   assembledMap?: Map<
-    MutableRef<Vertex<InputTypes | OutputTypes>>,
+    MutableRef<Vertex<ObjectCurrentVertexTypes<InputTypes, OutputTypes>>>,
     OutputTypes['VertexData']['value']
   >;
 };
@@ -51,9 +66,13 @@ export type ObjectPropertyPatch<
 
 export type ObjectMutationCommands<
   OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
+  InputTypes extends ObjectTreeVertexTypes<
+    TraversableObjectPropKey,
+    unknown
+  > = OutputTypes,
 > = ObjectCompositeClassification & {
   makeMutationCommand: MutationCommandBuilder<
-    OutputTypes,
+    ObjectCurrentVertexTypes<InputTypes, OutputTypes>,
     ObjectPropertyPatch<OutputTypes>
   >;
   assembleComposite: (
@@ -66,9 +85,13 @@ export type ObjectMutationBinder<
   OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
 > = (
   ...visitorArguments: Parameters<
-    TraversalVisitor<string, InputTypes, OutputTypes>
+    TraversalVisitor<
+      string,
+      InputTypes,
+      ObjectCurrentVertexTypes<InputTypes, OutputTypes>
+    >
   >
-) => ObjectMutationCommands<OutputTypes>;
+) => ObjectMutationCommands<OutputTypes, InputTypes>;
 
 export type ObjectMutationBinderFactory = <
   InputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
@@ -101,9 +124,13 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
 
     return function bindObjectMutation(
       ...visitorArguments: Parameters<
-        TraversalVisitor<string, InputTypes, OutputTypes>
+        TraversalVisitor<
+          string,
+          InputTypes,
+          ObjectCurrentVertexTypes<InputTypes, OutputTypes>
+        >
       >
-    ): ObjectMutationCommands<OutputTypes> {
+    ): ObjectMutationCommands<OutputTypes, InputTypes> {
       const [vertex, context] = visitorArguments;
       const vertexData = vertex.getData();
       const { resolvedTree, vertexRef } = context;
@@ -113,8 +140,10 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
       const isThisComposite = isThisAnArray || isThisAnObject;
 
       function TraversableObjectTree_getChildrenObjectPropertiesOf(
-        vertexRef: MutableRef<Vertex<InputTypes | OutputTypes>>,
-      ): (InputTypes['VertexData'] | OutputTypes['VertexData'])[] {
+        vertexRef: MutableRef<
+          Vertex<ObjectCurrentVertexTypes<InputTypes, OutputTypes>>
+        >,
+      ): ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'][] {
         return (resolvedTree.getChildrenOf(vertexRef) ?? []).map((ch) =>
           ch.getValue().getData(),
         );
@@ -162,7 +191,7 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
 
       function buildMutationCommand(
         request?: MutationRequest<ObjectPropertyPatch<OutputTypes>>,
-      ): MutationCommand<OutputTypes> {
+      ): MutationCommand<ObjectCurrentVertexTypes<InputTypes, OutputTypes>> {
         const inputOk = request && typeof request === 'object';
         const toDelete =
           inputOk &&

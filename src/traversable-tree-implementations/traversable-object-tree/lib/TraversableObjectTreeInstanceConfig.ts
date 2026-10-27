@@ -1,3 +1,4 @@
+import type { ObjectCurrentVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
 import type {
   TreeChildResolutionContext,
   TreeVertexFound,
@@ -36,7 +37,10 @@ export type ObjectTreeOptions<
     vertexHint: ObjectTreeVertexTypes<InK, InV>['VertexHint'],
     context: TreeChildResolutionContext<
       ObjectTreeVertexTypes<InK, InV>,
-      ObjectTreeVertexTypes<OutK, OutV>
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
   ) => ObjectVertexHookResult<ObjectTreeVertexTypes<InK, InV>>;
 };

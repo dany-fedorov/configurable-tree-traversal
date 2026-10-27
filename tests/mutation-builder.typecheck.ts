@@ -20,6 +20,7 @@ makeMutationCommand({ rewrite: { key: 'renamed' } });
 makeMutationCommand({ rewrite: { value: 3 } });
 const command = makeMutationCommand({ rewrite: { key: 'renamed', value: 3 } });
 if (command.commandName === TraversalVisitorCommandName.REWRITE_VERTEX_DATA) {
+  // @ts-expect-error Partial-patch builders do not guarantee a full output record.
   const value: number = command.commandArguments.newData.value;
   void value;
 }

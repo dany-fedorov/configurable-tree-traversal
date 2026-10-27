@@ -1142,9 +1142,38 @@ The helper owns its source. `traversableTree` is forbidden in inline and pretype
 
 Generic `MutationCommandBuilder<Output, RewriteInput = Output['VertexData']>` requires complete replacement data by default. Object helpers explicitly accept `ObjectPropertyPatch<Output>` (`Partial<Pick<Output['VertexData'], 'key' | 'value'>>`), so key-only and value-only patches remain typed. Omit `rewrite` for no patch; a present `rewrite: undefined`, null, or primitive throws TypeError before mutation. `{ rewrite: { value: undefined } }` sets an undefined value when the output type permits it. User assembler errors propagate exactly. Unknown own patch fields, including non-enumerable string or symbol keys, throw TypeError. Existing payload metadata is retained; use `REWRITE_VERTEX_DATA` for full payload replacement.
 
-`ObjectRewriteCallback<InK, InV, OutK, OutV>` receives `ObjectRewriteInput` and `ObjectRewriteContext` with the same type parameters. Current property keys/values, vertex/ref/live tree, previous refs, and `getKeyPath()` include input and output domains because configured visitors can rewrite before the callback. Custom classifiers and assembler parent/child properties also receive input-or-output data; unchanged children can retain input values. Assembler results and `assembledComposite` use the output value type. `originalTreeView` retains input types. `ObjectTreeVertexTypes<K, V>` names the object vertex-data/hint family; `ResolvedTreeVertexTypes<T>` names a tree whose data/hints are resolved vertex refs.
+`ObjectRewriteCallback<InK, InV, OutK, OutV>` receives `ObjectRewriteInput` and `ObjectRewriteContext` with the same type parameters. Current property keys/values, vertex/ref/live tree, previous refs, and `getKeyPath()` include input and output domains because configured visitors can rewrite before the callback. Custom classifiers and assembler parent/child properties also receive input-or-output data; unchanged children can retain input values. These live records use `ObjectCurrentVertexTypes<InputTypes, OutputTypes>`: key and value independently combine their input/output domains in every retained metadata alternative. A value-only patch can leave an input key with an output value; a key-only patch can leave an output key with an input value. Narrowing by key or metadata therefore does not prove the old value domain. Assembler results and `assembledComposite` use the output value type. `originalTreeView` retains input types. `ObjectTreeVertexTypes<K, V>` names the object vertex-data/hint family; `ResolvedTreeVertexTypes<T>` names a tree whose data/hints are resolved vertex refs.
 
 `ObjectTreeSource.createRootPropertyMapper(rootKey?)` creates the function accepted by `getRootPropertyFromInputObject`; omitting the key preserves the default root key. `getChildrenOfPropertyDefault` remains a direct child getter.
+
+The binder returns `ObjectMutationCommands<OutputTypes, InputTypes>`: its builder accepts output key/value patches and emits commands containing current records. `rewriteObject` configures this current domain automatically for its visitors, source callback contexts and returned runner. For direct generic traversal composition, use `ObjectCurrentVertexTypes<InputTypes, OutputTypes>` as the traversal's second type argument and as the vertex type of reference-keyed assembly maps. Original retained views still use the first, input type argument.
+
+<!-- standalone -->
+
+```ts
+import {
+  ObjectTreeSource, createObjectMutationBinder, traverseTreeDepthFirst,
+  DepthFirstPhase, type ObjectTreeVertexTypes, type ObjectCurrentVertexTypes,
+} from 'configurable-tree-traversal';
+
+type Input = ObjectTreeVertexTypes<'input', number>;
+type Output = ObjectTreeVertexTypes<'output', string>;
+type Current = ObjectCurrentVertexTypes<Input, Output>;
+const bind = createObjectMutationBinder<Input, Output>();
+const runner = traverseTreeDepthFirst<Input, Current>({
+  traversableTree: new ObjectTreeSource<number, 'input', number, 'output', string>(1, {
+    getRootPropertyFromInputObject: value => ({ key: 'input', value }),
+  }),
+  visitors: {
+    [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
+      commands: [bind(vertex, context).makeMutationCommand({ rewrite: { key: 'output' } })],
+    }),
+  },
+});
+const current = runner.getResolvedTreeView().getRoot()!.getValue().getData();
+if (current.key !== 'output' || current.value !== 1) throw new Error('Expected a key-only patch');
+```
+
 
 `resolveVertexHook(hint, context)` returns `ObjectVertexHookResult<T>`: `{ kind: 'useDefault' }`, tagged tree `found` with replacement content, or `{ kind: 'omitted' }`. It applies to child/hint resolution, not the synthetic root. Null/undefined returns and graph metadata reject. `makeVertexHook` rejects by presence, including undefined/null; `returnMe` hook results reject. Cycle checks and shallow identities remain.
 

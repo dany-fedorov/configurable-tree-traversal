@@ -16,3 +16,4 @@ export type {
   ObjectTreeOptions,
 } from './lib/TraversableObjectTreeInstanceConfig';
 export type { ObjectTreeVertexTypes } from './lib/ObjectTreeVertexTypes';
+export type { ObjectCurrentVertexTypes } from './lib/ObjectCurrentVertexTypes';

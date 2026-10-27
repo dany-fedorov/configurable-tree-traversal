@@ -1,3 +1,4 @@
+import type { ObjectCurrentVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
 import {
   assertNoTreeMetadata,
   normalizeSourceResult,
@@ -33,7 +34,10 @@ export class ObjectTreeSource<
   OutV = InV,
 > extends AbstractTreeSource<
   ObjectTreeVertexTypes<InK, InV>,
-  ObjectTreeVertexTypes<OutK, OutV>
+  ObjectCurrentVertexTypes<
+    ObjectTreeVertexTypes<InK, InV>,
+    ObjectTreeVertexTypes<OutK, OutV>
+  >
 > {
   private readonly icfg: ObjectTreeResolvedOptions<In, InK, InV, OutK, OutV>;
   public readonly rootObject: In;
@@ -103,7 +107,10 @@ export class ObjectTreeSource<
     vertexHint: ObjectTreeVertexTypes<InK, InV>['VertexHint'],
     options: TreeChildResolutionContext<
       ObjectTreeVertexTypes<InK, InV>,
-      ObjectTreeVertexTypes<OutK, OutV>
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
   ): TreeVertexResolution<ObjectTreeVertexTypes<InK, InV>> {
     const canonicalHook = this.icfg.resolveVertexHook;
@@ -143,7 +150,10 @@ export class ObjectTreeSource<
     prop: ObjectTreeVertexTypes<InK, InV>['VertexData'],
     options: TreeChildResolutionContext<
       ObjectTreeVertexTypes<InK, InV>,
-      ObjectTreeVertexTypes<OutK, OutV>
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
   ): void {
     const valueIdentity = getObjectIdentity(prop.value);
@@ -203,12 +213,18 @@ export class ObjectTreeSource<
   private getOriginalIdentityOf(
     vertexRef: TreeChildResolutionContext<
       ObjectTreeVertexTypes<InK, InV>,
-      ObjectTreeVertexTypes<OutK, OutV>
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >['resolutionContext']['parentVertexRef'],
     state: ObjectCycleState,
     options: TreeChildResolutionContext<
       ObjectTreeVertexTypes<InK, InV>,
-      ObjectTreeVertexTypes<OutK, OutV>
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
   ): object | null {
     if (state.originalIdentityByVertexRef.has(vertexRef)) {
@@ -238,11 +254,17 @@ export class ObjectTreeSource<
   private formatPathTo(
     vertexRef: TreeChildResolutionContext<
       ObjectTreeVertexTypes<InK, InV>,
-      ObjectTreeVertexTypes<OutK, OutV>
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >['resolutionContext']['parentVertexRef'],
     options: TreeChildResolutionContext<
       ObjectTreeVertexTypes<InK, InV>,
-      ObjectTreeVertexTypes<OutK, OutV>
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
     finalKey?: TraversableObjectPropKey,
   ): string {
