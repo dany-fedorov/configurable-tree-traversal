@@ -465,7 +465,7 @@ Discovery order does not satisfy a dependency or override its readiness rule.
 It can still influence FIFO order among equally ready vertices.
 
 Graph sources default to `omittedWorkDependencies: 'none'`: omitting `dependsOnWork`
-means no work prerequisites. Set it to `true` to inherit discovery-parent W
+means no work prerequisites. Set `omittedWorkDependencies: 'discoveryParentWork'` to inherit discovery-parent W
 only for omitted lists. Explicit `dependsOnWork: []` or an ID list always wins. Children of
 a synthetic catalog root have no implicit dependency on the catalog holder.
 Real child hints still define structure, paths, and subtree-completion

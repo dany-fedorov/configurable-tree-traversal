@@ -105,7 +105,7 @@ Prepared DAGs and rewrite helpers own their sources and forbid caller source/sta
 | Command `DEFER_READY`                                                      | `DEFER_WORK_COMPLETION`; the `DEFER_READY` sentinel is removed                                                   |
 | `TraversalVisitorInputOptions`, `AsyncTraversalVisitorInputOptions`        | Shared `TreeVisitorContext`                                                                                      |
 | `DagVisitorOptions`, `AsyncDagVisitorOptions`                              | Shared `DagVisitorContext`                                                                                       |
-| Context `order`, `curVertexVisitorVisitIndex`, `state`, `visitorRecord`    | `phase`, `visitorIndex`, `visitorChainState`, `registration`                                                     |
+| Context `order`, `curVertexVisitorVisitIndex`, `vertexVisitorsChainState`, `visitorRecord`    | `phase`, `visitorIndex`, `visitorChainState`, `registration`                                                     |
 | Tree/DAG `vertexVisitIndex`, `previousVisitedVertexRef`                    | `phaseVisitIndex`, `previousPhaseVertexRef`                                                                      |
 | Walking `occurrenceIndex`, `observationIndex`, edge `index`                | `admissionIndex`, `phaseObservationIndex`, edge `outgoingIndex`                                                  |
 | `*RunnerIterableConfigInput`, `TraversalIterableConfigInput`               | `TraversalExecutionOptions<VisitorPhase, EmittedKind>`                                                           |
