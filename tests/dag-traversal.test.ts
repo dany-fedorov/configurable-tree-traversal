@@ -49,7 +49,7 @@ test('visits a shared join once after both prerequisites', () => {
   const graph = runner.getResolvedGraph();
   const join = graph.getVertexRefById('join')!;
   expect(graph.getParentsOf(join)).toHaveLength(3);
-  expect(graph.getStatusOf(join)).toBe('COMPLETE');
+  expect(graph.getVisitStageOf(join)).toBe('COMPLETE');
 });
 
 test('defaults to both orders and keeps initial and completion work in one FIFO', () => {
@@ -337,7 +337,7 @@ test('captures a structural graph snapshot before rewrite and delete', () => {
   const child = snapshot!.getVertexRefById('child')!;
   expect(child.getValue().getData()).toBe('child');
   expect(snapshot!.getParentsOf(child)).toHaveLength(1);
-  expect('getStatusOf' in snapshot!).toBe(false);
+  expect('getVisitStageOf' in snapshot!).toBe(false);
 });
 
 test('halts synchronously and resumes without repeating a visitor', () => {
@@ -524,12 +524,15 @@ test('exposes lifecycle statuses while each visitor chain runs', () => {
   });
   for (const order of [Order.ON_WORK_READY, Order.ON_SUBGRAPH_READY]) {
     traversal.addVisitorFor(order, (_vertex, options) => {
-      statuses.push(options.resolvedGraph.getStatusOf(options.vertexRef)!);
+      statuses.push(options.resolvedGraph.getVisitStageOf(options.vertexRef)!);
     });
   }
 
   traversal.createRunner().run();
-  expect(statuses).toEqual(['PRE_VISITING', 'COMPLETING']);
+  expect(statuses).toEqual([
+    'INITIAL_VISIT_STARTED',
+    'COMPLETION_VISIT_ELIGIBLE',
+  ]);
 });
 
 test('tombstones deleted ids and closes later arrivals', () => {

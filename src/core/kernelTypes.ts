@@ -2,7 +2,7 @@ import type {
   Outcome,
   OwnerToken,
   VisitMetadata,
-  VisitOrder,
+  VisitPhase,
 } from '@core/effects/types';
 import type { VisitorExecutionState } from '@core/executeVisitors';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
@@ -28,7 +28,7 @@ export type KernelStateBridge<T extends VertexTypes> = {
   status: TraversalRunnerStatus;
   traversalRootVertexRef: VertexRef<T> | null;
   subtreeTraversalDisabledRefs: Set<VertexRef<T>>;
-  visitorsState: Partial<Record<VisitOrder, VisitorExecutionState<T>>>;
+  visitorsState: Partial<Record<VisitPhase, VisitorExecutionState<T>>>;
 };
 
 export type KernelOptions<T extends VertexTypes, R extends VertexTypes = T> = {
@@ -37,8 +37,8 @@ export type KernelOptions<T extends VertexTypes, R extends VertexTypes = T> = {
   sourceMode: 'tree' | 'graph';
   container: ResolvedGraphsContainer<T, R>;
   stateBridge: KernelStateBridge<T | R>;
-  visitorMetadata: Partial<Record<VisitOrder, readonly RegistrationMetadata[]>>;
-  iterableConfig: TraversalRunnerIterableConfig<VisitOrder>;
+  visitorMetadata: Partial<Record<VisitPhase, readonly RegistrationMetadata[]>>;
+  iterableConfig: TraversalRunnerIterableConfig<VisitPhase>;
   inOrderConfig: InOrderOptions | null;
   hasSorter: boolean;
   hasHintIds: boolean;
@@ -77,14 +77,14 @@ export type FrameState<T extends VertexTypes, R extends VertexTypes = T> = {
 export type ChainState<T extends VertexTypes, R extends VertexTypes = T> = {
   owner: OwnerToken;
   ref: VertexRef<T | R>;
-  order: VisitOrder;
+  order: VisitPhase;
   phase: 'running' | 'paused' | 'done' | 'invalid';
   group: 'concurrent' | 'sequential';
   position: number;
   waitingFor: 'none' | 'callback' | 'batch';
   commands: TraversalVisitorCommand<R>[];
   metadata: VisitMetadata<T | R>;
-  config: ResolvedTraversalExecutionOptions<VisitOrder>;
+  config: ResolvedTraversalExecutionOptions<VisitPhase>;
 };
 
 export type VertexWork<T extends VertexTypes> = {
@@ -111,7 +111,7 @@ export interface AsyncSessionControl<E> {
   requestHalt(): void;
   isHaltRequested(): boolean;
   resume(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
     preparation?: boolean,
   ): void;
   getStatus(): TraversalRunnerStatus;

@@ -61,7 +61,7 @@ export interface DagTraversalRunner<
 > extends SyncTraversalExecution<
     DagVisitorPhase,
     DagEvent<T | R, ID>,
-    TreeDagExecutionInspection,
+    TreeDagExecutionInspection<DagVisitorPhase>,
     'workCompleted' | 'subgraphCompleted'
   > {
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
@@ -342,12 +342,12 @@ export class InternalDagTraversalRunner<
     return ref === this.state.traversalRootVertexRef;
   }
 
-  inspect(): TreeDagExecutionInspection {
+  inspect(): TreeDagExecutionInspection<DagVisitorPhase> {
     return deepFreeze({
       ...this.kernel.inspect(),
       inFlightCallbackCount: this.runtimeState.inFlightCallbackCount,
       bufferedEventCount: 0,
-    });
+    }) as TreeDagExecutionInspection<DagVisitorPhase>;
   }
 
   *iterateEvents(

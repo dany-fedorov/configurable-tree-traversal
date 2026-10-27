@@ -110,12 +110,14 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
   const resolvedRoot = runner.getResolvedGraph().getRoot();
   expect(resolvedRoot).not.toBeNull();
   if (resolvedRoot === null) throw new Error('Expected a resolved root');
-  expect(runner.getResolvedGraph().getStatusOf(resolvedRoot)).toBe('COMPLETE');
+  expect(runner.getResolvedGraph().getVisitStageOf(resolvedRoot)).toBe(
+    'COMPLETE',
+  );
   expect(
     runner
       .getResolvedGraph()
       .getChildrenOf(resolvedRoot)
-      ?.map((ref) => runner.getResolvedGraph().getStatusOf(ref)),
+      ?.map((ref) => runner.getResolvedGraph().getVisitStageOf(ref)),
   ).toEqual(['COMPLETE', 'COMPLETE']);
   expect(runner.inspect()).toMatchObject({
     status: TraversalRunnerStatus.FINISHED,
@@ -151,9 +153,9 @@ test('DFS inspection during a visitor halt preserves the next visitor', () => {
   const halted = runner.inspect();
   expect(halted.chains).toHaveLength(1);
   expect(halted.chains[0]).toMatchObject({
-    order: DepthFirstPhase.PRE_ORDER,
-    phase: 'paused',
-    position: 1,
+    phase: DepthFirstPhase.PRE_ORDER,
+    state: 'paused',
+    visitorIndex: 1,
   });
   expect(
     runnerInternals(runner).state.visitorsState[DepthFirstPhase.PRE_ORDER],
@@ -358,7 +360,7 @@ test('disabled visitor execution leaves injected per-order state unchanged', () 
   });
   const root = runner.getResolvedGraph().getRoot();
   if (root === null) throw new Error('Expected a resolved root');
-  expect(runner.getResolvedGraph().getStatusOf(root)).toBe('COMPLETE');
+  expect(runner.getResolvedGraph().getVisitStageOf(root)).toBe('COMPLETE');
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });
 

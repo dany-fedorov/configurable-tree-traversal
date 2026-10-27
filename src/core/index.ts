@@ -3,6 +3,7 @@ export type { AsyncTreeVisitor } from './AsyncTraversalVisitor';
 export type { AsyncChildHintSorter, ChildHintSorter } from './ChildHintSorter';
 export type {
   TreeDagExecutionInspection,
+  TreeDagInspectionOperation,
   InspectionFilters,
 } from './CoreInspection';
 export { MutableRef } from './CTTRef';
@@ -19,7 +20,7 @@ export type {
   HintVertexId,
   MaybePromise,
   ResolvedGraphVertex,
-  ResolvedVertexStatus,
+  ResolvedVisitStage,
   StructuralChildEdge,
   VertexId,
   VertexRef,

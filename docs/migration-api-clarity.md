@@ -154,6 +154,13 @@ The host owns dispatch, authorization, capacity/claims, attempts, retries, artif
 | `DagDependencyEdge`, `DagDependencyMilestone`                                            | `DagWaitEdge`, `DagMilestone`                                          |
 | Diagnostic edge `from`, `to`; `dependencyCycles`                                         | `waiter`, `prerequisite`; `dependencyCycleComponents`                  |
 | `DagInspection`, `inspectDag`, receiver `.inspectDag()`                                  | `DagMilestoneSnapshot`, `inspectDagMilestones`, `.inspectMilestones()` |
+| Inspection ready/chain `order`; chain `phase`, `position`, `config`, `group`             | `phase`; `state`, `visitorIndex`, `executionOptions`, `commandCommitMode` |
+| Inspection pending request `kind` (engine effect key)                                    | `operation` (public callback name)                                        |
+| `ResolvedVertexStatus`; graph vertex `status`; `getStatusOf`                             | `ResolvedVisitStage`; `visitStage`; `getVisitStageOf`                     |
+
+Visit stages map in order: `DISCOVERED` → `DISCOVERED`, `READY` → `INITIAL_VISIT_ELIGIBLE`, `PRE_VISITING` → `INITIAL_VISIT_STARTED`, `PRE_VISITED` → `INITIAL_VISIT_COMMITTED`, `COMPLETING` → `COMPLETION_VISIT_ELIGIBLE`, and `COMPLETE` → `COMPLETE`. Scheduling boundaries are unchanged: tree callbacks may remain initial-visit eligible while DAG callbacks are initial-visit started. A deferred DAG can remain initial-visit started with zero callbacks. Use inspection counts/chains for active callbacks and DAG summary/milestones for W/C; `DagWorkState` and runner lifecycle `getStatus()` remain separate.
+
+Pending request operations are `resolveRoot`, `resolveChild`, `resolvePrerequisite`, `sortChildHints`, `getVertexIdFromHint`, and `visit`. Chain `phase` now means the callback phase; chain `state` carries `running | paused | done | invalid`. Frame `stage`, owner tokens, and waits remain mechanical diagnostics. `TreeDagExecutionInspection<Phase>` preserves the explicit runner family's phase type.
 
 Original structure grows during discovery, retains topology/hints independently of command-driven rewrites, and uses distinct retained reference handles while sharing caller payloads. Repeated queries share the handles belonging to that view. Original tree callbacks expose a safe `ResolvedTreeView`, not mutable storage. Live and original query arrays/contexts are detached shallow values; read-only topology does not deeply freeze data, provide rollback, or create a complete discovery snapshot in advance.
 
@@ -165,7 +172,7 @@ Original structure grows during discovery, retains topology/hints independently 
 | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `CTTRef<T>`, `Ref<T>`                                                                 | `MutableRef<T>`, deliberately exported `VertexRef<T>`                |
 | `unref`, `setPointsTo`                                                                | `getValue`, `setValue`                                               |
-| `GraphVertex`, `GraphVertexStatus`, `GraphEdge`                                       | `ResolvedGraphVertex`, `ResolvedVertexStatus`, `StructuralChildEdge` |
+| `GraphVertex`, `GraphVertexStatus`, `GraphEdge`                                       | `ResolvedGraphVertex`, `ResolvedVisitStage`, `StructuralChildEdge` |
 | `VertexResolved`, `VertexResolvedData`, `VertexResolvedContent`                       | `TreeVertexRecord`, `TreeVertexMetadata`, `TreeVertexRecordContent`  |
 | Record `$d`, `$c`                                                                     | `metadata`, `children` (actual structural references)                |
 | `ResolvedTree`, `getResolvedTree`                                                     | `ResolvedTreeStore`, `getResolvedTreeStore`                          |

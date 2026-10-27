@@ -7,7 +7,7 @@ import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
-import type { PumpMode, VisitOrder } from '@core/effects/types';
+import type { PumpMode, VisitPhase } from '@core/effects/types';
 import type { AsyncSessionControl } from '@core/kernelTypes';
 import { Wakeup } from '@core/drivers/Wakeup';
 
@@ -24,7 +24,7 @@ type CloseWaiter = {
 
 type IteratorState<E> = {
   phase: 'unopened' | 'active' | 'closing' | 'closed';
-  config: TraversalIterableConfigInput<VisitOrder> | undefined;
+  config: TraversalIterableConfigInput<VisitPhase> | undefined;
   preparation?: () => void;
   nextWaiters: NextWaiter<E>[];
   closeWaiters: CloseWaiter[];
@@ -40,10 +40,10 @@ const done = Object.freeze({ done: true, value: undefined }) as IteratorResult<
 export class AsyncRunnerSession<E>
   implements
     AsyncTraversalExecution<
-      VisitOrder,
+      VisitPhase,
       E,
       TreeDagExecutionInspection,
-      import('../TraversalRunnerIterableConfig').EmissionKind<VisitOrder>
+      import('../TraversalRunnerIterableConfig').EmissionKind<VisitPhase>
     >
 {
   private readonly bufferedEvents: BufferedEvent<E>[] = [];
@@ -92,7 +92,7 @@ export class AsyncRunnerSession<E>
   }
 
   public iterateEvents(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
   ): AsyncGenerator<E, void, unknown> {
     return this.makeIterator(config);
   }
@@ -105,7 +105,7 @@ export class AsyncRunnerSession<E>
   }
 
   private makeIterator(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
     preparation?: () => void,
   ): AsyncGenerator<E, void, unknown> {
     const state: IteratorState<E> = {
@@ -127,7 +127,7 @@ export class AsyncRunnerSession<E>
   }
 
   public async run(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
   ): Promise<this> {
     const iterator = this.iterateEvents(config);
     while (!(await iterator.next()).done) {
@@ -170,7 +170,7 @@ export class AsyncRunnerSession<E>
           try {
             // Validate caller input before claiming the underlying runtime. Keep
             // internal control failures on the normal terminal failure path.
-            state.config = detachTraversalExecutionOptions<VisitOrder>(
+            state.config = detachTraversalExecutionOptions<VisitPhase>(
               phases,
               state.config,
             );

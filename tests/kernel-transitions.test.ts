@@ -2,7 +2,7 @@ import { MutableRef } from '../src/core/CTTRef';
 import type {
   CallbackReply,
   Outcome,
-  VisitOrder,
+  VisitPhase,
 } from '../src/core/effects/types';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { VertexRef } from '../src/core/graph/types';
@@ -16,7 +16,7 @@ import type { TestGraph } from './helpers/graph-fixtures';
 
 function makeKernel(
   visitorCount = 1,
-  options: { includeCompletion?: boolean; iterateOver?: VisitOrder[] } = {},
+  options: { includeCompletion?: boolean; iterateOver?: VisitPhase[] } = {},
 ) {
   const container = new ResolvedGraphsContainer<TestGraph>({
     sourceMode: 'graph',
@@ -338,7 +338,7 @@ test('kernel inspection maps breadth-first policy frames', () => {
   ).scheduling;
   scheduling.eligible.push({ ref: vertexRef, order: 'ON_SUBGRAPH_READY' });
   expect(kernel.inspect().readyVisits).toEqual([
-    { vertexRefId: vertexRef.getRefId(), order: 'LEVEL_ORDER' },
+    { vertexRefId: vertexRef.getRefId(), phase: 'LEVEL_ORDER' },
   ]);
 });
 
@@ -533,8 +533,8 @@ test('commits a halting command batch once and resumes at the next visitor', () 
 
   expect(kernel.poll('drive')).toEqual({ kind: 'HALTED' });
   expect(kernel.inspect().chains[0]).toMatchObject({
-    phase: 'paused',
-    position: 1,
+    state: 'paused',
+    visitorIndex: 1,
     waitingFor: 'none',
   });
   kernel.resume();

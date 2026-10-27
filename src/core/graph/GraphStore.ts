@@ -8,7 +8,7 @@ import type {
   GraphIdentityState,
   GraphStoreContract,
   ResolvedGraphVertex,
-  ResolvedVertexStatus,
+  ResolvedVisitStage,
   HintVertexId,
   IdState,
   VertexRef,
@@ -21,7 +21,7 @@ type Entry<T extends VertexTypes> = {
   dependsOnWork: VertexId[];
   dependsOnSubgraphCompletion: VertexId[];
   depth: number;
-  status: ResolvedVertexStatus;
+  visitStage: ResolvedVisitStage;
   incoming: StructuralChildEdge<T>[];
   slots: ChildSlot<T>[] | null;
 };
@@ -46,7 +46,8 @@ export class GraphStore<T extends VertexTypes>
       getVertexRefs: () => Array.from(this.entries.keys()),
       getVertexRefById,
       getVertexId,
-      getStatusOf: (ref: VertexRef<T>) => this.entries.get(ref)?.status ?? null,
+      getVisitStageOf: (ref: VertexRef<T>) =>
+        this.entries.get(ref)?.visitStage ?? null,
       getParentsOf: (ref: VertexRef<T>) => this.getParents(ref),
       getChildrenOf: (ref: VertexRef<T>) => this.getChildren(ref),
       getPathsTo: (ref: VertexRef<T>, options?: GetPathToOptions) =>
@@ -115,7 +116,7 @@ export class GraphStore<T extends VertexTypes>
       dependsOnSubgraphCompletion:
         input.dependsOnSubgraphCompletion?.slice() ?? [],
       depth: input.depth,
-      status: 'DISCOVERED',
+      visitStage: 'DISCOVERED',
       incoming: [],
       slots: null,
     });
@@ -128,8 +129,8 @@ export class GraphStore<T extends VertexTypes>
     this.root = ref;
   }
 
-  setStatus(ref: VertexRef<T>, status: ResolvedVertexStatus): void {
-    this.getEntry(ref).status = status;
+  setVisitStage(ref: VertexRef<T>, visitStage: ResolvedVisitStage): void {
+    this.getEntry(ref).visitStage = visitStage;
   }
 
   resetTraversal(ref: VertexRef<T>): void {
@@ -137,7 +138,7 @@ export class GraphStore<T extends VertexTypes>
       throw new Error('TreeTraversal reset requires tree mode');
     }
     const entry = this.getEntry(ref);
-    entry.status = 'DISCOVERED';
+    entry.visitStage = 'DISCOVERED';
     entry.slots = null;
     this.topologyVersion += 1;
   }
@@ -276,7 +277,7 @@ export class GraphStore<T extends VertexTypes>
         dependsOnWork: [],
         dependsOnSubgraphCompletion: [],
         depth: context?.depth ?? 0,
-        status: 'DISCOVERED',
+        visitStage: 'DISCOVERED',
         incoming: [],
         slots: null,
       });
@@ -329,7 +330,7 @@ export class GraphStore<T extends VertexTypes>
               entry.dependsOnSubgraphCompletion.slice(),
           }
         : {}),
-      status: entry.status,
+      visitStage: entry.visitStage,
       incoming,
       slots,
     };

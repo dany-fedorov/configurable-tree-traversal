@@ -181,7 +181,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           .incoming.map((edge) => graph.getVertexId(edge.parentRef)),
       ).toEqual(['a', 'b']);
       expect(graph.has(shared)).toBe(true);
-      expect(graph.getStatusOf(shared)).toBe('COMPLETE');
+      expect(graph.getVisitStageOf(shared)).toBe('COMPLETE');
     },
   );
 
@@ -280,7 +280,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(() => graph.getPathsTo(hidden)).toThrow();
     expect(graph.getParentsOf(hidden)).toBeNull();
     expect(graph.getChildrenOf(hidden)).toBeNull();
-    expect(graph.getStatusOf(hidden)).toBeNull();
+    expect(graph.getVisitStageOf(hidden)).toBeNull();
     const foreign = new Constructor<G>({
       traversableGraph: {
         resolveRoot: () => ({
@@ -299,7 +299,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(graph.has(unknown)).toBe(false);
     expect(graph.getParentsOf(unknown)).toBeNull();
     expect(graph.getChildrenOf(unknown)).toBeNull();
-    expect(graph.getStatusOf(unknown)).toBeNull();
+    expect(graph.getVisitStageOf(unknown)).toBeNull();
   });
 }
 

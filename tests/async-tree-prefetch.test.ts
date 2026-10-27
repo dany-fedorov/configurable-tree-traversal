@@ -1,6 +1,6 @@
 import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import { createAsyncDriver } from '../src/core/drivers/runAsync';
-import type { CallbackBindings, VisitOrder } from '../src/core/effects/types';
+import type { CallbackBindings, VisitPhase } from '../src/core/effects/types';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { VertexRef } from '../src/core/graph/types';
 import { TraversalKernel } from '../src/core/TraversalKernel';
@@ -13,7 +13,7 @@ function setup(options: {
   concurrency?: number;
   hasSorter?: boolean;
   hasHintIds?: boolean;
-  iterateOver?: VisitOrder[];
+  iterateOver?: VisitPhase[];
   visitorCount?: number;
   bindings: CallbackBindings<TestGraph>;
 }) {

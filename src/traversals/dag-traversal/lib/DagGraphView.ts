@@ -34,8 +34,8 @@ export function makeDagGraphView<T extends VertexTypes, ID = unknown>(
     getVertexRefs: () => graph.getVertexRefs().filter(visible),
     getVertexRefById,
     getVertexId,
-    getStatusOf: (ref: VertexRef<T>) =>
-      visible(ref) ? graph.getStatusOf(ref) : null,
+    getVisitStageOf: (ref: VertexRef<T>) =>
+      visible(ref) ? graph.getVisitStageOf(ref) : null,
     getParentsOf: (ref: VertexRef<T>) =>
       visible(ref) ? graph.getParentsOf(ref)?.filter(visible) ?? null : null,
     getChildrenOf: (ref: VertexRef<T>) =>

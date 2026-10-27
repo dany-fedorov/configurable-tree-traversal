@@ -45,7 +45,7 @@ export interface DepthFirstTreeRunner<
 > extends SyncTraversalExecution<
     DepthFirstPhase,
     TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>,
-    TreeDagExecutionInspection
+    TreeDagExecutionInspection<DepthFirstPhase>
   > {
   getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
@@ -202,12 +202,12 @@ export class InternalDepthFirstTreeRunner<
     return this.getResolvedTreeStore().getResolvedGraph();
   }
 
-  inspect(): TreeDagExecutionInspection {
+  inspect(): TreeDagExecutionInspection<DepthFirstPhase> {
     return deepFreeze({
       ...this.kernel.inspect(),
       inFlightCallbackCount: this.runtimeState.inFlightCallbackCount,
       bufferedEventCount: 0,
-    });
+    }) as TreeDagExecutionInspection<DepthFirstPhase>;
   }
 
   isTraversalRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean {

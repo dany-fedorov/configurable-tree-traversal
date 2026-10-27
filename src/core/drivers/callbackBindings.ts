@@ -21,7 +21,7 @@ import type {
   CallbackBindings,
   CallSpec,
   RawCallbackResult,
-  VisitOrder,
+  VisitPhase,
 } from '@core/effects/types';
 
 export interface BoundSource<T extends VertexTypes, R extends VertexTypes = T> {
@@ -150,7 +150,7 @@ export function createCallbackBindings<
   sortHints?: (
     hints: (T | R)['VertexHint'][],
   ) => MaybePromise<(T | R)['VertexHint'][]>;
-  visit: Partial<Record<VisitOrder, BoundVisit<T, R>>>;
+  visit: Partial<Record<VisitPhase, BoundVisit<T, R>>>;
 }): CallbackBindings<T, R> {
   return {
     invoke(call): RawCallbackResult<T, R> {

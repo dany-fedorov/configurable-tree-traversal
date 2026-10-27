@@ -360,7 +360,7 @@ Visitor context uses `admissionIndex` and `phaseObservationIndex`. Walking edges
 
 ## Values, original structure, object mutation, and tree positions
 
-Use `MutableRef<T>.getValue()` / `.setValue(value)` in place of `CTTRef.unref()` / `.setPointsTo(value)`. `VertexRef<T>` is the exported vertex handle alias. `getRefId()` remains a reference UUID, distinct from arbitrary caller vertex IDs; retired `getId()` is removed. `GraphVertex`, `GraphVertexStatus`, and `GraphEdge` become `ResolvedGraphVertex`, `ResolvedVertexStatus`, and `StructuralChildEdge`.
+Use `MutableRef<T>.getValue()` / `.setValue(value)` in place of `CTTRef.unref()` / `.setPointsTo(value)`. `VertexRef<T>` is the exported vertex handle alias. `getRefId()` remains a reference UUID, distinct from arbitrary caller vertex IDs; retired `getId()` is removed. `GraphVertex`, `GraphVertexStatus`, and `GraphEdge` become `ResolvedGraphVertex`, `ResolvedVisitStage`, and `StructuralChildEdge`.
 
 `VertexResolved` becomes `TreeVertexRecord` with `metadata` and `children`. These fields describe records and structural references; Vertex's canonical `$data` / `$childHints` remain distinct from structural references; retired aliases are removed. `ResolvedTree` / `getResolvedTree()` become `ResolvedTreeStore` / `getResolvedTreeStore()`. Continue using `getResolvedTreeView()` for shallow detached queries.
 

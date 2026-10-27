@@ -257,7 +257,7 @@ test('kernel observations retain partial expansion and remain stable after settl
     discoveryComplete: false,
   });
   expect(
-    container.resolvedGraph.getStatusOf(
+    container.resolvedGraph.getVisitStageOf(
       container.resolvedGraph.getVertexRefById('root')!,
     ),
   ).toBe('COMPLETE');

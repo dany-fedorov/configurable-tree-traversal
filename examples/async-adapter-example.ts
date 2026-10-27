@@ -61,7 +61,7 @@ async function main() {
   assert(pendingInspection.inFlightCallbackCount <= 2);
   assert(
     pendingInspection.pendingRequests.some(
-      ({ kind }) => kind === 'MAKE_VERTEX',
+      ({ operation }) => operation === 'resolveChild',
     ),
   );
 

@@ -285,9 +285,9 @@ function haltedSeed() {
     vertexHint: 'B',
   });
   container.acceptEdge(root, 1, b);
-  container.store.setStatus(root, 'PRE_VISITED');
-  container.store.setStatus(a, 'PRE_VISITED');
-  container.store.setStatus(b, 'READY');
+  container.store.setVisitStage(root, 'INITIAL_VISIT_COMMITTED');
+  container.store.setVisitStage(a, 'INITIAL_VISIT_COMMITTED');
+  container.store.setVisitStage(b, 'INITIAL_VISIT_ELIGIBLE');
   const state = new DagTraversalRunnerState<TestGraph>({
     status: Status.HALTED,
     traversalRootVertexRef: root,
@@ -355,7 +355,7 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
   expect(runner.inspect().readyVisits).toEqual([
     {
       vertexRefId: state.readyVisits[0]!.vertexRef.getRefId(),
-      order: Order.ON_WORK_READY,
+      phase: Order.ON_WORK_READY,
     },
   ]);
 
@@ -396,7 +396,7 @@ test.each([
   [
     'wrong ready status',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.b, 'PRE_VISITED');
+      seed.container.store.setVisitStage(seed.b, 'INITIAL_VISIT_COMMITTED');
     },
   ],
   [
@@ -420,7 +420,7 @@ test.each([
   [
     'active visit',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.root, 'PRE_VISITING');
+      seed.container.store.setVisitStage(seed.root, 'INITIAL_VISIT_STARTED');
     },
   ],
   [
@@ -432,14 +432,14 @@ test.each([
   [
     'discovered work without dependencies',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.b, 'DISCOVERED');
+      seed.container.store.setVisitStage(seed.b, 'DISCOVERED');
       seed.state.readyVisits = [];
     },
   ],
   [
     'discovered work with prepared slots',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.b, 'DISCOVERED');
+      seed.container.store.setVisitStage(seed.b, 'DISCOVERED');
       seed.container.store.prepareSlots(seed.b, []);
       seed.state.readyVisits = [];
     },
@@ -447,7 +447,7 @@ test.each([
   [
     'discovered work in the ready queue',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.b, 'DISCOVERED');
+      seed.container.store.setVisitStage(seed.b, 'DISCOVERED');
     },
   ],
   [
@@ -460,7 +460,7 @@ test.each([
     'ready work with an unmet dependency',
     (seed: ReturnType<typeof haltedSeed>) => {
       const vertexRef = acceptDetached(seed, 'D', ['missing']);
-      seed.container.store.setStatus(vertexRef, 'READY');
+      seed.container.store.setVisitStage(vertexRef, 'INITIAL_VISIT_ELIGIBLE');
       seed.state.readyVisits.push({ vertexRef, order: Order.ON_WORK_READY });
     },
   ],
@@ -473,7 +473,7 @@ test.each([
   [
     'ready visit attached to committed work',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.b, 'PRE_VISITED');
+      seed.container.store.setVisitStage(seed.b, 'INITIAL_VISIT_COMMITTED');
       seed.state.expansionQueue.push(seed.b);
     },
   ],
@@ -481,21 +481,24 @@ test.each([
     'pre-visited work with an unmet dependency',
     (seed: ReturnType<typeof haltedSeed>) => {
       const vertexRef = acceptDetached(seed, 'D', ['missing']);
-      seed.container.store.setStatus(vertexRef, 'PRE_VISITED');
+      seed.container.store.setVisitStage(vertexRef, 'INITIAL_VISIT_COMMITTED');
       seed.state.expansionQueue.push(vertexRef);
     },
   ],
   [
     'completing work without prepared slots',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.b, 'COMPLETING');
+      seed.container.store.setVisitStage(seed.b, 'COMPLETION_VISIT_ELIGIBLE');
       seed.state.readyVisits[0]!.order = Order.ON_SUBGRAPH_READY;
     },
   ],
   [
     'completing work with remaining children',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.root, 'COMPLETING');
+      seed.container.store.setVisitStage(
+        seed.root,
+        'COMPLETION_VISIT_ELIGIBLE',
+      );
       seed.state.readyVisits = [
         { vertexRef: seed.root, order: Order.ON_SUBGRAPH_READY },
       ];
@@ -506,7 +509,10 @@ test.each([
     (seed: ReturnType<typeof haltedSeed>) => {
       const vertexRef = acceptDetached(seed, 'D', ['missing']);
       seed.container.store.prepareSlots(vertexRef, []);
-      seed.container.store.setStatus(vertexRef, 'COMPLETING');
+      seed.container.store.setVisitStage(
+        vertexRef,
+        'COMPLETION_VISIT_ELIGIBLE',
+      );
       seed.state.readyVisits.push({
         vertexRef,
         order: Order.ON_SUBGRAPH_READY,
@@ -516,14 +522,14 @@ test.each([
   [
     'completed work without prepared slots',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.b, 'COMPLETE');
+      seed.container.store.setVisitStage(seed.b, 'COMPLETE');
       seed.state.readyVisits = [];
     },
   ],
   [
     'completed work with remaining children',
     (seed: ReturnType<typeof haltedSeed>) => {
-      seed.container.store.setStatus(seed.root, 'COMPLETE');
+      seed.container.store.setVisitStage(seed.root, 'COMPLETE');
       seed.state.readyVisits = [];
     },
   ],
@@ -531,7 +537,7 @@ test.each([
     'completed work in the ready queue',
     (seed: ReturnType<typeof haltedSeed>) => {
       seed.container.store.prepareSlots(seed.b, []);
-      seed.container.store.setStatus(seed.b, 'COMPLETE');
+      seed.container.store.setVisitStage(seed.b, 'COMPLETE');
     },
   ],
   [
@@ -539,7 +545,7 @@ test.each([
     (seed: ReturnType<typeof haltedSeed>) => {
       const vertexRef = acceptDetached(seed, 'D', ['missing']);
       seed.container.store.prepareSlots(vertexRef, []);
-      seed.container.store.setStatus(vertexRef, 'COMPLETE');
+      seed.container.store.setVisitStage(vertexRef, 'COMPLETE');
     },
   ],
   [
@@ -580,7 +586,9 @@ test.each([
   const seed = haltedSeed();
   corrupt(seed);
   const beforeRefs = seed.container.resolvedGraph.getVertexRefs();
-  const beforeRootStatus = seed.container.resolvedGraph.getStatusOf(seed.root);
+  const beforeRootStatus = seed.container.resolvedGraph.getVisitStageOf(
+    seed.root,
+  );
   const beforeSlots = seed.container.resolvedGraph.get(seed.root)!.slots;
 
   expect(() =>
@@ -593,7 +601,7 @@ test.each([
     }),
   ).toThrow(/injected DAG|seed/i);
   expect(seed.container.resolvedGraph.getVertexRefs()).toEqual(beforeRefs);
-  expect(seed.container.resolvedGraph.getStatusOf(seed.root)).toBe(
+  expect(seed.container.resolvedGraph.getVisitStageOf(seed.root)).toBe(
     beforeRootStatus,
   );
   expect(seed.container.resolvedGraph.get(seed.root)!.slots).toEqual(
@@ -623,12 +631,12 @@ test('rejects injected work for an empty graph', () => {
 });
 
 test.each([
-  ['COMPLETING', Order.ON_SUBGRAPH_READY],
+  ['COMPLETION_VISIT_ELIGIBLE', Order.ON_SUBGRAPH_READY],
   ['COMPLETE', null],
 ] as const)('restores terminal-ready lifecycle status %s', (status, order) => {
   const seed = haltedSeed();
   seed.container.store.prepareSlots(seed.b, []);
-  seed.container.store.setStatus(seed.b, status);
+  seed.container.store.setVisitStage(seed.b, status);
   seed.state.readyVisits = order === null ? [] : [{ vertexRef: seed.b, order }];
   const runner = createInternalDagTraversalRunner<TestGraph>({
     traversableGraph: {
@@ -652,9 +660,9 @@ test.each([
     (event) => `${event.kind}:${event.vertex.getData()}`,
   );
   expect(events.filter((event) => event.endsWith(':B'))).toEqual(
-    status === 'COMPLETING' ? ['subgraphCompleted:B'] : [],
+    status === 'COMPLETION_VISIT_ELIGIBLE' ? ['subgraphCompleted:B'] : [],
   );
-  expect(runner.getResolvedGraph().getStatusOf(seed.root)).toBe('COMPLETE');
+  expect(runner.getResolvedGraph().getVisitStageOf(seed.root)).toBe('COMPLETE');
 });
 
 test('restores discovered work blocked by a missing dependency', () => {
@@ -679,7 +687,7 @@ test('restores discovered work blocked by a missing dependency', () => {
     },
   });
   expect(() => runner.run()).toThrow(/stalled.*blocked.*missing/i);
-  expect(runner.getResolvedGraph().getStatusOf(blocked)).toBe('DISCOVERED');
+  expect(runner.getResolvedGraph().getVisitStageOf(blocked)).toBe('DISCOVERED');
 });
 
 test.each(['omitted', 'completing', 'complete'] as const)(
@@ -693,9 +701,11 @@ test.each(['omitted', 'completing', 'complete'] as const)(
     } else {
       dependencyId = 'B';
       seed.container.store.prepareSlots(seed.b, []);
-      seed.container.store.setStatus(
+      seed.container.store.setVisitStage(
         seed.b,
-        dependencyStatus === 'completing' ? 'COMPLETING' : 'COMPLETE',
+        dependencyStatus === 'completing'
+          ? 'COMPLETION_VISIT_ELIGIBLE'
+          : 'COMPLETE',
       );
       seed.state.readyVisits =
         dependencyStatus === 'completing'
@@ -703,7 +713,7 @@ test.each(['omitted', 'completing', 'complete'] as const)(
           : [];
     }
     const dependent = acceptDetached(seed, 'dependent', [dependencyId]);
-    seed.container.store.setStatus(dependent, 'READY');
+    seed.container.store.setVisitStage(dependent, 'INITIAL_VISIT_ELIGIBLE');
     seed.state.readyVisits.push({
       vertexRef: dependent,
       order: Order.ON_WORK_READY,

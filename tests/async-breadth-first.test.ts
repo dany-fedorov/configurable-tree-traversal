@@ -183,9 +183,9 @@ test('preserves paused visitor outcomes through repeated resumptions', async () 
 
   await runner.run({ emitEvents: [] });
   expect(runner.inspect().chains[0]).toMatchObject({
-    order: Order.LEVEL_ORDER,
-    phase: 'paused',
-    position: 1,
+    phase: Order.LEVEL_ORDER,
+    state: 'paused',
+    visitorIndex: 1,
   });
   expect(seen).toEqual(['halt:root']);
   await runner.run({ emitEvents: [] });

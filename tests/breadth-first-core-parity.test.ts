@@ -180,7 +180,7 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
   const store = getTreeGraphStore(seed.getResolvedTreeStore());
   store.resetTraversal(parent);
   store.prepareSlots(parent, ['child']);
-  store.setStatus(parent, 'COMPLETE');
+  store.setVisitStage(parent, 'COMPLETE');
   const validContext = {
     depth: 2,
     parentVertex: parent.getValue(),

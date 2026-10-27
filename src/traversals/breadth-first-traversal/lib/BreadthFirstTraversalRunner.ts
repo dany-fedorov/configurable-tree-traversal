@@ -46,7 +46,7 @@ export interface BreadthFirstTreeRunner<
 > extends SyncTraversalExecution<
     BreadthFirstPhase,
     TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>,
-    TreeDagExecutionInspection
+    TreeDagExecutionInspection<BreadthFirstPhase>
   > {
   getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
@@ -205,12 +205,12 @@ export class InternalBreadthFirstTreeRunner<
     return this.getResolvedTreeStore().getResolvedGraph();
   }
 
-  inspect(): TreeDagExecutionInspection {
+  inspect(): TreeDagExecutionInspection<BreadthFirstPhase> {
     return deepFreeze({
       ...this.kernel.inspect(),
       inFlightCallbackCount: this.runtimeState.inFlightCallbackCount,
       bufferedEventCount: 0,
-    });
+    }) as TreeDagExecutionInspection<BreadthFirstPhase>;
   }
 
   isTraversalRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean {

@@ -129,7 +129,7 @@ test('validates unknown references and slot operations before mutation', () => {
   expect(store.graph.has(unknown)).toBe(false);
   expect(store.graph.getVertexRefById('missing')).toBeNull();
   expect(store.getIdState('missing')).toBeUndefined();
-  expect(store.graph.getStatusOf(unknown)).toBeNull();
+  expect(store.graph.getVisitStageOf(unknown)).toBeNull();
   expect(store.graph.getParentsOf(unknown)).toBeNull();
   expect(store.graph.getChildrenOf(unknown)).toBeNull();
   expect(() => store.graph.getVertexId(unknown)).toThrow(/reference/i);
@@ -214,7 +214,7 @@ test('returns shallow query snapshots and exposes no store mutations', () => {
   store.setRoot(root);
   store.prepareSlots(root, ['child']);
   store.linkSlot(root, 0, child);
-  store.setStatus(child, 'READY');
+  store.setVisitStage(child, 'INITIAL_VISIT_ELIGIBLE');
 
   const refs = store.graph.getVertexRefs();
   const children = store.graph.getChildrenOf(root)!;
@@ -239,7 +239,7 @@ test('returns shallow query snapshots and exposes no store mutations', () => {
     vertexId: 'child',
     discoveryDepth: 1,
     dependsOnWork: ['root'],
-    status: 'READY',
+    visitStage: 'INITIAL_VISIT_ELIGIBLE',
   });
   expect(
     (store.graph as unknown as { linkSlot?: unknown }).linkSlot,
@@ -385,7 +385,9 @@ test('enforces remaining mode and reference invariants', () => {
     }),
   ).toThrow(/reference/i);
   expect(() => dag.setRoot(ref('unknown'))).toThrow(/reference/i);
-  expect(() => dag.setStatus(ref('unknown'), 'READY')).toThrow(/reference/i);
+  expect(() =>
+    dag.setVisitStage(ref('unknown'), 'INITIAL_VISIT_ELIGIBLE'),
+  ).toThrow(/reference/i);
   expect(() =>
     dag.setTreeRecord(
       parent,

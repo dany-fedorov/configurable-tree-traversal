@@ -172,7 +172,9 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
   expect(second.container.resolvedGraph.getChildrenOf(second.rootRef)).toEqual([
     childRef,
   ]);
-  expect(second.container.resolvedGraph.getStatusOf(childRef)).toBe('COMPLETE');
+  expect(second.container.resolvedGraph.getVisitStageOf(childRef)).toBe(
+    'COMPLETE',
+  );
   reusable.reusableTreeChildren.set(
     second.rootRef,
     new Map([[0, { ref: childRef, hint: 'different' }]]),
@@ -226,7 +228,9 @@ test('admits an early dependent only after both later prerequisites are pre-visi
   expect(scheduling.takeReady()).toBeNull();
   scheduling.markPreVisited(bRef);
   expect(scheduling.takeReady()).toBe(joinRef);
-  expect(container.resolvedGraph.get(joinRef)?.status).toBe('READY');
+  expect(container.resolvedGraph.get(joinRef)?.visitStage).toBe(
+    'INITIAL_VISIT_ELIGIBLE',
+  );
 });
 
 test('uses one FIFO for eligible visits and consumes each readiness once', () => {
@@ -292,7 +296,7 @@ test('graph children have no work prerequisites unless explicitly declared', () 
   expect(scheduling.takeReady()).toBeNull();
 });
 
-test('deduplicates dependencies with SameValueZero and accepts COMPLETING as satisfied', () => {
+test('deduplicates dependencies with SameValueZero and accepts COMPLETION_VISIT_ELIGIBLE as satisfied', () => {
   const dependencyId = {};
   const { container, scheduling, rootRef } = setup(['dependency', 'dependent']);
   scheduling.takeReady();
@@ -302,7 +306,7 @@ test('deduplicates dependencies with SameValueZero and accepts COMPLETING as sat
     result('dependency', { id: dependencyId, dependsOnWork: [] }),
   )!;
   expect(scheduling.takeReady()).toBe(dependencyRef);
-  container.store.setStatus(dependencyRef, 'COMPLETING');
+  container.store.setVisitStage(dependencyRef, 'COMPLETION_VISIT_ELIGIBLE');
 
   const dependentRef = scheduling.acceptVertex(
     context(rootRef, 1),

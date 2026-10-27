@@ -1,7 +1,7 @@
 import type { DriverInspection } from '../src/core/CoreInspection';
 import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import { Wakeup } from '../src/core/drivers/Wakeup';
-import type { VisitOrder } from '../src/core/effects/types';
+import type { VisitPhase } from '../src/core/effects/types';
 import type {
   AsyncSessionControl,
   SessionProgress,
@@ -36,7 +36,7 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
   public readonly modes: string[] = [];
   public readonly acknowledged: number[] = [];
   public readonly resumedWith: (
-    | import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitOrder>
+    | import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitPhase>
     | undefined
   )[] = [];
   public advanceCount = 0;
@@ -90,7 +90,7 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
   }
 
   public resume(
-    config?: import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitOrder>,
+    config?: import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitPhase>,
   ): void {
     this.resumedWith.push(config);
     this.pauseRequested = false;

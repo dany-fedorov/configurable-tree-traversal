@@ -391,7 +391,7 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
     new Vertex<TestGraph>({ $data: 'root', $childHints: [] }),
   );
   container.acceptRoot(root, 'root');
-  container.store.setStatus(root, 'READY');
+  container.store.setVisitStage(root, 'INITIAL_VISIT_ELIGIBLE');
   const state = new DagTraversalRunnerState<TestGraph>({
     status: Status.HALTED,
     traversalRootVertexRef: root,
@@ -421,7 +421,7 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
   expect(runner.isHalted()).toBe(true);
   expect(sourceCalls).toBe(0);
   expect(runner.inspect().readyVisits).toEqual([
-    { vertexRefId: root.getRefId(), order: Order.ON_WORK_READY },
+    { vertexRefId: root.getRefId(), phase: Order.ON_WORK_READY },
   ]);
 });
 

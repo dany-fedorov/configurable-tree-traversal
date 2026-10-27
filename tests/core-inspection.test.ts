@@ -62,7 +62,7 @@ test('inspection is detached, deeply frozen, callback-free, and side-effect free
   expect(first.pendingRequests).toEqual([
     {
       requestId: action.call.requestId,
-      kind: 'MAKE_ROOT',
+      operation: 'resolveRoot',
       owner: { kind: 'root', id: 1, epoch: 0 },
       valid: true,
     },
@@ -140,7 +140,9 @@ test('inspection detaches and freezes populated chain and frame records', () => 
   expect(Object.isFrozen(firstChain.chains)).toBe(true);
   expect(Object.isFrozen(firstChain.chains[0])).toBe(true);
   expect(Object.isFrozen(firstChain.chains[0]!.owner)).toBe(true);
-  expect(Object.isFrozen(firstChain.chains[0]!.config.emitEvents)).toBe(true);
+  expect(
+    Object.isFrozen(firstChain.chains[0]!.executionOptions.emitEvents),
+  ).toBe(true);
   expect(JSON.stringify(firstChain)).not.toMatch(
     /private-root-data|private-hint|promise/i,
   );

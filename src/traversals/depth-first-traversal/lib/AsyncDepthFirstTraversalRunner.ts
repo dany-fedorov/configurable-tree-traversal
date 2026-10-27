@@ -41,7 +41,7 @@ export interface AsyncDepthFirstTreeRunner<
 > extends AsyncTraversalExecution<
     DepthFirstPhase,
     TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>,
-    TreeDagExecutionInspection
+    TreeDagExecutionInspection<DepthFirstPhase>
   > {
   getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
@@ -180,8 +180,8 @@ export class InternalAsyncDepthFirstTreeRunner<
     return this.execution.isHalted();
   }
 
-  inspect(): TreeDagExecutionInspection {
-    return this.execution.inspect();
+  inspect(): TreeDagExecutionInspection<DepthFirstPhase> {
+    return this.execution.inspect() as TreeDagExecutionInspection<DepthFirstPhase>;
   }
 
   getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP> {

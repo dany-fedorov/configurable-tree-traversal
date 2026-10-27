@@ -244,7 +244,7 @@ describe.each(families)('$name execution selection', (family) => {
     expect(runner.inspect().chains).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          config: expect.objectContaining({
+          executionOptions: expect.objectContaining({
             emitEvents: [emissionKind(family.phase)],
             visitorPhases: 'all',
           }),

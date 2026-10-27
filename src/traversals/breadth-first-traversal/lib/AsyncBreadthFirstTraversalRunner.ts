@@ -44,7 +44,7 @@ export interface AsyncBreadthFirstTreeRunner<
 > extends AsyncTraversalExecution<
     BreadthFirstPhase,
     TreeTraversalEvent<BreadthFirstPhase, TTP, RW_TTP>,
-    TreeDagExecutionInspection
+    TreeDagExecutionInspection<BreadthFirstPhase>
   > {
   getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
@@ -185,8 +185,8 @@ export class InternalAsyncBreadthFirstTreeRunner<
     return this.execution.isHalted();
   }
 
-  inspect(): TreeDagExecutionInspection {
-    return this.execution.inspect();
+  inspect(): TreeDagExecutionInspection<BreadthFirstPhase> {
+    return this.execution.inspect() as TreeDagExecutionInspection<BreadthFirstPhase>;
   }
 
   getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP> {

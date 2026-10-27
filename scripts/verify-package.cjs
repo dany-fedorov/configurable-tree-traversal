@@ -310,8 +310,8 @@ try {
     path.join(consumer, 'consumer.ts'),
     `
     import { AsyncBreadthFirstTreeTraversal, AsyncDagTraversal, AsyncDepthFirstTreeTraversal, DepthFirstTreeTraversal, DepthFirstPhase, BreadthFirstTreeTraversal, DagTraversal, DagVisitorPhase, ObjectTreeSource, TraversalRunnerStatus, TraversalVisitorCommandName, core, objectRewrite, rewriteObject, traverseTreeBreadthFirstAsync, traverseDag, traverseDagAsync, traverseTreeDepthFirst, traverseTreeDepthFirstAsync } from 'configurable-tree-traversal';
-    import type { AsyncDagDiscoverySource, ChildSlot, TreeDagExecutionInspection, StructuralChildEdge, ResolvedGraphVertex, ResolvedVertexStatus, HintVertexId, MaybePromise, ResolvedGraph, DepthFirstTreeRunner, DagDiscoverySource, TreeSource, VertexTypes, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
-    import type { ChildSlot as CoreChildSlot, StructuralChildEdge as CoreGraphEdge, ResolvedGraphVertex as CoreGraphVertex, ResolvedVertexStatus as CoreGraphVertexStatus, HintVertexId as CoreHintVertexId, MaybePromise as CoreMaybePromise, VertexId as CoreVertexId } from 'configurable-tree-traversal/core';
+    import type { AsyncDagDiscoverySource, ChildSlot, TreeDagExecutionInspection, StructuralChildEdge, ResolvedGraphVertex, ResolvedVisitStage, HintVertexId, MaybePromise, ResolvedGraph, DepthFirstTreeRunner, DagDiscoverySource, TreeSource, VertexTypes, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
+    import type { ChildSlot as CoreChildSlot, StructuralChildEdge as CoreGraphEdge, ResolvedGraphVertex as CoreGraphVertex, ResolvedVisitStage as CoreGraphVertexStatus, HintVertexId as CoreHintVertexId, MaybePromise as CoreMaybePromise, VertexId as CoreVertexId } from 'configurable-tree-traversal/core';
     import type { TraversalExecutionOptions, DepthFirstTreeOptions, DepthFirstTreeOptionsPatch } from 'configurable-tree-traversal';
     import { TraversalVisitorCommandName as Command } from 'configurable-tree-traversal';
     import type { DagSummary, DagSettlementGeneration, DagSettlementOutcome, DagVertexProgress, DagWorkState } from 'configurable-tree-traversal';
@@ -409,7 +409,7 @@ try {
     abstractTraversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => ({ commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] }));
     void [subpathSummary, state, settlement, asyncSettlement];
     const inspection: TreeDagExecutionInspection = asyncDag.inspect();
-    const publicTypes: [VertexId, HintVertexId, MaybePromise<string>, ResolvedVertexStatus, StructuralChildEdge<Tree> | null, ChildSlot<Tree> | null, ResolvedGraphVertex<Tree> | null, CoreVertexId, CoreHintVertexId, CoreMaybePromise<string>, CoreGraphVertexStatus, CoreGraphEdge<Tree> | null, CoreChildSlot<Tree> | null, CoreGraphVertex<Tree> | null] = ['id', { vertexId: 'id' }, 'value', 'READY', null, null, null, 'core-id', { vertexId: 'core-id' }, Promise.resolve('value'), 'COMPLETE', null, null, null];
+    const publicTypes: [VertexId, HintVertexId, MaybePromise<string>, ResolvedVisitStage, StructuralChildEdge<Tree> | null, ChildSlot<Tree> | null, ResolvedGraphVertex<Tree> | null, CoreVertexId, CoreHintVertexId, CoreMaybePromise<string>, CoreGraphVertexStatus, CoreGraphEdge<Tree> | null, CoreChildSlot<Tree> | null, CoreGraphVertex<Tree> | null] = ['id', { vertexId: 'id' }, 'value', 'INITIAL_VISIT_ELIGIBLE', null, null, null, 'core-id', { vertexId: 'core-id' }, Promise.resolve('value'), 'COMPLETE', null, null, null];
     const asyncRuns: Promise<unknown>[] = [
       asyncDepth.run(), asyncBreadth.run(), asyncDag.run(),
       traverseTreeDepthFirstAsync({ traversableTree: abstractTree,  }),
@@ -493,6 +493,7 @@ try {
     'rewrite-output',
     'execution-capabilities',
     'idiomatic-execution',
+    'idiomatic-diagnostics',
     'graph-id-types',
     'dag-preparation',
     'dag-milestone-diagnostics',
@@ -512,6 +513,7 @@ try {
   }
   for (const file of [
     'supported-exports.mjs',
+    'idiomatic-diagnostics.mjs',
     'uniform-api.mjs',
     'composable-api.mjs',
     'agent-api-foundations.mjs',

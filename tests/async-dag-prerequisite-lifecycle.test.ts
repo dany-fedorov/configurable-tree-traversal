@@ -52,7 +52,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
   expect(runner.inspect().pendingRequests).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
-        kind: 'RESOLVE_PREREQUISITE',
+        operation: 'resolvePrerequisite',
         owner: expect.objectContaining({ kind: 'prerequisite' }),
       }),
     ]),

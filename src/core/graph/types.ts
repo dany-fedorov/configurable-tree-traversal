@@ -23,12 +23,12 @@ export type VisitResult<
 
 export type HintVertexId<ID = unknown> = { vertexId: ID };
 
-export type ResolvedVertexStatus =
+export type ResolvedVisitStage =
   | 'DISCOVERED'
-  | 'READY'
-  | 'PRE_VISITING'
-  | 'PRE_VISITED'
-  | 'COMPLETING'
+  | 'INITIAL_VISIT_ELIGIBLE'
+  | 'INITIAL_VISIT_STARTED'
+  | 'INITIAL_VISIT_COMMITTED'
+  | 'COMPLETION_VISIT_ELIGIBLE'
   | 'COMPLETE';
 
 export type StructuralChildEdge<T extends VertexTypes> = Readonly<{
@@ -66,7 +66,7 @@ export type ResolvedGraphVertex<
   discoveryDepth: number;
   dependsOnWork: readonly ID[];
   dependsOnSubgraphCompletion?: readonly ID[];
-  status: ResolvedVertexStatus;
+  visitStage: ResolvedVisitStage;
   incoming: readonly StructuralChildEdge<T>[];
   slots: readonly ChildSlot<T, ID>[];
 }>;
@@ -127,7 +127,7 @@ export interface GraphStoreContract<T extends VertexTypes, ID = unknown> {
     depth: number;
   }): void;
   setRoot(ref: VertexRef<T> | null): void;
-  setStatus(ref: VertexRef<T>, status: ResolvedVertexStatus): void;
+  setVisitStage(ref: VertexRef<T>, visitStage: ResolvedVisitStage): void;
   resetTraversal(ref: VertexRef<T>): void;
   prepareSlots(ref: VertexRef<T>, hints: readonly T['VertexHint'][]): void;
   linkSlot(

@@ -16,7 +16,7 @@ import type {
 } from '@core/graph/types';
 import type { KernelInspection } from '@core/CoreInspection';
 
-export type VisitOrder =
+export type VisitPhase =
   | 'PRE_ORDER'
   | 'IN_ORDER'
   | 'POST_ORDER'
@@ -53,7 +53,7 @@ export type CallSpec<T extends VertexTypes, R extends VertexTypes = T> = {
   | {
       kind: 'VISIT';
       ref: VertexRef<T | R>;
-      order: VisitOrder;
+      order: VisitPhase;
       recordIndex: number;
       metadata: VisitMetadata<T | R>;
     }
@@ -96,7 +96,7 @@ export interface CallbackBindings<
 export type KernelEvent<T extends VertexTypes> = {
   vertex: Vertex<T>;
   vertexRef: VertexRef<T>;
-  order: VisitOrder;
+  order: VisitPhase;
   isRoot: boolean;
   isTraversalRoot: boolean;
 };
@@ -116,7 +116,7 @@ export interface KernelPort<T extends VertexTypes, R extends VertexTypes = T> {
   acknowledgeEvent(boundaryId: number): void;
   requestHalt(): void;
   resume(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
     preparation?: boolean,
   ): void;
   isRequestEligible(requestId: number, mode: PumpMode): boolean;

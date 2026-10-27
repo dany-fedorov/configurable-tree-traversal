@@ -63,7 +63,7 @@ export interface AsyncDagTraversalRunner<
 > extends AsyncTraversalExecution<
     DagVisitorPhase,
     DagEvent<T | R, ID>,
-    TreeDagExecutionInspection,
+    TreeDagExecutionInspection<DagVisitorPhase>,
     'workCompleted' | 'subgraphCompleted'
   > {
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
@@ -305,8 +305,8 @@ export class InternalAsyncDagTraversalRunner<
     return this.execution.isHalted();
   }
 
-  inspect(): TreeDagExecutionInspection {
-    return this.execution.inspect();
+  inspect(): TreeDagExecutionInspection<DagVisitorPhase> {
+    return this.execution.inspect() as TreeDagExecutionInspection<DagVisitorPhase>;
   }
 
   getResolvedTreeView(): ResolvedTreeView<T | R> | null {

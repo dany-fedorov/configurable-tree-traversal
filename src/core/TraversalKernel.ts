@@ -12,7 +12,7 @@ import type {
   Outcome,
   OwnerToken,
   PumpMode,
-  VisitOrder,
+  VisitPhase,
 } from '@core/effects/types';
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type {
@@ -102,8 +102,8 @@ type CallAction<T extends VertexTypes, R extends VertexTypes> = Extract<
 >;
 
 type PolicyOrders = {
-  initial: VisitOrder;
-  completion: VisitOrder | null;
+  initial: VisitPhase;
+  completion: VisitPhase | null;
 };
 
 type CallInput<T extends VertexTypes, R extends VertexTypes> = CallSpec<
@@ -168,13 +168,13 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   private failure: { error: unknown } | null = null;
   private readonly boundaries: Boundary<T | R>[] = [];
 
-  private readonly phases: readonly VisitOrder[];
-  private executionConfig: ResolvedTraversalExecutionOptions<VisitOrder>;
+  private readonly phases: readonly VisitPhase[];
+  private executionConfig: ResolvedTraversalExecutionOptions<VisitPhase>;
 
   constructor(private readonly options: KernelOptions<T, R>) {
     assertDagWorkCompletion(options.workCompletion);
     this.phases = getTraversalExecutionPhases(options.kind);
-    this.executionConfig = normalizeTraversalExecutionOptions<VisitOrder>(
+    this.executionConfig = normalizeTraversalExecutionOptions<VisitPhase>(
       this.phases,
       executionOptionsFromPhaseGates(options.iterableConfig),
     );
@@ -230,7 +230,8 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
         if (
           expansionRefs.has(ref) ||
           !options.container.resolvedGraph.has(ref) ||
-          options.container.resolvedGraph.getStatusOf(ref) !== 'PRE_VISITED' ||
+          options.container.resolvedGraph.getVisitStageOf(ref) !==
+            'INITIAL_VISIT_COMMITTED' ||
           options.container.store.getTraversalSlots(ref) !== null
         ) {
           throw new Error(
@@ -241,7 +242,8 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       }
       for (const ref of refs) {
         if (
-          options.container.resolvedGraph.getStatusOf(ref) === 'PRE_VISITED' &&
+          options.container.resolvedGraph.getVisitStageOf(ref) ===
+            'INITIAL_VISIT_COMMITTED' &&
           options.container.store.getTraversalSlots(ref) === null &&
           !expansionRefs.has(ref)
         ) {
@@ -522,11 +524,11 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   }
 
   resume(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
     preparation = false,
   ): void {
     if (this.failure !== null) return;
-    this.executionConfig = normalizeTraversalExecutionOptions<VisitOrder>(
+    this.executionConfig = normalizeTraversalExecutionOptions<VisitPhase>(
       this.phases,
       config,
       this.executionConfig,
@@ -606,7 +608,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       executionOptions: this.inspectConfig(this.executionConfig),
       readyVisits: this.scheduling.inspectEligible().map((visit) => ({
         vertexRefId: visit.ref.getRefId(),
-        order:
+        phase:
           visit.order === 'ON_WORK_READY'
             ? this.orders.initial
             : this.orders.completion ?? this.orders.initial,
@@ -635,20 +637,26 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       chains: Array.from(this.chains.values(), ({ state }) => ({
         owner: { ...state.owner },
         vertexRefId: state.ref.getRefId(),
-        order: state.order,
-        phase: state.phase,
-        group: state.group,
+        phase: state.order,
+        state: state.phase,
         commandCommitMode:
           state.group === 'concurrent' ? 'afterGroup' : 'afterEachVisitor',
-        position: state.position,
+        visitorIndex: state.position,
         waitingFor: state.waitingFor,
-        config: this.inspectConfig(state.config),
+        executionOptions: this.inspectConfig(state.config),
       })),
       pendingRequests: Array.from(
         this.pendingRequests.values(),
         ({ call }) => ({
           requestId: call.requestId,
-          kind: call.kind,
+          operation: {
+            MAKE_ROOT: 'resolveRoot' as const,
+            MAKE_VERTEX: 'resolveChild' as const,
+            RESOLVE_PREREQUISITE: 'resolvePrerequisite' as const,
+            SORT_HINTS: 'sortChildHints' as const,
+            HINT_ID: 'getVertexIdFromHint' as const,
+            VISIT: 'visit' as const,
+          }[call.kind],
           owner: { ...call.owner },
           valid: this.isOwnerValid(call.owner),
         }),
@@ -1922,7 +1930,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     return true;
   }
 
-  private admitChain(ref: VertexRef<T | R>, order: VisitOrder): OwnerToken {
+  private admitChain(ref: VertexRef<T | R>, order: VisitPhase): OwnerToken {
     const owner = this.newOwner('chain');
     const config = this.copyConfig(this.executionConfig);
     const records = this.visitorsEnabled(order)
@@ -2192,13 +2200,13 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     return null;
   }
 
-  private visitorsEnabled(order: VisitOrder): boolean {
+  private visitorsEnabled(order: VisitPhase): boolean {
     return this.visitorsEnabledFor(this.executionConfig, order);
   }
 
   private visitorsEnabledFor(
     config: typeof this.executionConfig,
-    order: VisitOrder,
+    order: VisitPhase,
   ): boolean {
     const selection = config.visitorPhases;
     return (

@@ -4,7 +4,7 @@ import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type {
   ResolvedGraphVertex,
-  ResolvedVertexStatus,
+  ResolvedVisitStage,
 } from '@core/graph/types';
 
 export interface ResolvedGraph<T extends VertexTypes, ID = unknown> {
@@ -14,7 +14,7 @@ export interface ResolvedGraph<T extends VertexTypes, ID = unknown> {
   getVertexRefs(): MutableRef<Vertex<T>>[];
   getVertexRefById(id: ID): MutableRef<Vertex<T>> | null;
   getVertexId(ref: MutableRef<Vertex<T>>): ID;
-  getStatusOf(ref: MutableRef<Vertex<T>>): ResolvedVertexStatus | null;
+  getVisitStageOf(ref: MutableRef<Vertex<T>>): ResolvedVisitStage | null;
   getParentsOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
   getChildrenOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
   getPathsTo(

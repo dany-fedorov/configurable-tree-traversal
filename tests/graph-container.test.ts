@@ -81,7 +81,7 @@ test('the original graph retains first-accepted content and shared topology', ()
   ]);
   expect(snapshot.getParentsOf(savedShared)).toEqual([savedLeft, savedRight]);
   expect(
-    (snapshot as unknown as { getStatusOf?: unknown }).getStatusOf,
+    (snapshot as unknown as { getVisitStageOf?: unknown }).getVisitStageOf,
   ).toBeUndefined();
 });
 

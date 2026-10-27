@@ -4,7 +4,7 @@ import { GraphStore } from '../src/core/graph/GraphStore';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import { dependencyMilestoneCycles } from '../src/core/scheduling/dependencyMilestones';
-import type { VertexRef, ResolvedVertexStatus } from '../src/core/graph/types';
+import type { VertexRef, ResolvedVisitStage } from '../src/core/graph/types';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -68,13 +68,17 @@ test('omission releases W and C while a later omitted gate is immediately satisf
   expect(scheduling.takeReady()).toBeNull();
 });
 
-test.each(['PRE_VISITED', 'COMPLETING', 'COMPLETE'] as const)(
+test.each([
+  'INITIAL_VISIT_COMMITTED',
+  'COMPLETION_VISIT_ELIGIBLE',
+  'COMPLETE',
+] as const)(
   'a late C gate only accepts committed COMPLETE, not %s',
   (status) => {
     const { container, accept, scheduling } = setup();
     const gate = accept(1, result('gate'))!;
     scheduling.takeReady();
-    container.store.setStatus(gate, status);
+    container.store.setVisitStage(gate, status);
     const join = accept(0, result('join', ['gate']));
     expect(scheduling.takeReady()).toBe(status === 'COMPLETE' ? join : null);
   },
@@ -142,31 +146,31 @@ test('GraphStore copies completion inputs and keeps empty public vertex shapes u
 
 test.each([
   'DISCOVERED',
-  'READY',
-  'PRE_VISITED',
-  'COMPLETING',
+  'INITIAL_VISIT_ELIGIBLE',
+  'INITIAL_VISIT_COMMITTED',
+  'COMPLETION_VISIT_ELIGIBLE',
   'COMPLETE',
 ] as const)(
   'continuation validates %s against unsatisfied C gates',
-  (status: ResolvedVertexStatus) => {
+  (status: ResolvedVisitStage) => {
     const { container, scheduling, accept, root } = setup();
     const join = accept(0, result('join', ['gate']))!;
     const gate = accept(1, result('gate'))!;
     scheduling.closeSlot(root, 2, 'disabled');
     scheduling.closeSlot(root, 3, 'disabled');
     scheduling.closeExpansion(root);
-    container.store.setStatus(join, status);
+    container.store.setVisitStage(join, status);
     if (
-      status === 'PRE_VISITED' ||
-      status === 'COMPLETING' ||
+      status === 'INITIAL_VISIT_COMMITTED' ||
+      status === 'COMPLETION_VISIT_ELIGIBLE' ||
       status === 'COMPLETE'
     )
       container.store.prepareSlots(join, []);
     const visits = [
       { ref: gate, order: 'ON_WORK_READY' as const },
-      ...(status === 'READY'
+      ...(status === 'INITIAL_VISIT_ELIGIBLE'
         ? [{ ref: join, order: 'ON_WORK_READY' as const }]
-        : status === 'COMPLETING'
+        : status === 'COMPLETION_VISIT_ELIGIBLE'
         ? [{ ref: join, order: 'ON_SUBGRAPH_READY' as const }]
         : []),
     ];

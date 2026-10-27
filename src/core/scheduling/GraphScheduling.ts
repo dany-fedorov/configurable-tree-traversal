@@ -202,13 +202,13 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         slots?.map(
           (slot) =>
             slot.kind !== 'linked' ||
-            this.container.resolvedGraph.getStatusOf(slot.childRef) ===
+            this.container.resolvedGraph.getVisitStageOf(slot.childRef) ===
               'COMPLETE',
         ) ?? [];
       const remainingChildren = completionAccounted.filter(
         (accounted) => !accounted,
       ).length;
-      const status = vertex.status;
+      const status = vertex.visitStage;
       const queuedVisit = queued.get(ref);
       const work: VertexWork<T | R> = {
         ref,
@@ -217,46 +217,53 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
         expansion: slots === null ? 'unprepared' : 'closed',
         initialAdmitted: status !== 'DISCOVERED',
         initialCommitted:
-          status === 'PRE_VISITED' ||
-          status === 'COMPLETING' ||
+          status === 'INITIAL_VISIT_COMMITTED' ||
+          status === 'COMPLETION_VISIT_ELIGIBLE' ||
           status === 'COMPLETE',
-        completionAdmitted: status === 'COMPLETING' || status === 'COMPLETE',
+        completionAdmitted:
+          status === 'COMPLETION_VISIT_ELIGIBLE' || status === 'COMPLETE',
         completionCommitted: status === 'COMPLETE',
         completionAccounted,
         remainingChildren,
       };
 
-      if (status === 'PRE_VISITING') {
+      if (status === 'INITIAL_VISIT_STARTED') {
         this.throwInvalidSeed('vertex has an active initial visit');
       }
       if (status === 'DISCOVERED') {
         if (slots !== null || !hasUnmet || queuedVisit !== undefined) {
           this.throwInvalidSeed('DISCOVERED vertex is inconsistent');
         }
-      } else if (status === 'READY') {
+      } else if (status === 'INITIAL_VISIT_ELIGIBLE') {
         if (
           slots !== null ||
           hasUnmet ||
           queuedVisit?.order !== 'ON_WORK_READY'
         ) {
-          this.throwInvalidSeed('READY vertex is inconsistent');
+          this.throwInvalidSeed(
+            'INITIAL_VISIT_ELIGIBLE vertex is inconsistent',
+          );
         }
-      } else if (status === 'PRE_VISITED') {
+      } else if (status === 'INITIAL_VISIT_COMMITTED') {
         if (
           hasUnmet ||
           queuedVisit !== undefined ||
           (slots !== null && remainingChildren === 0)
         ) {
-          this.throwInvalidSeed('PRE_VISITED vertex is inconsistent');
+          this.throwInvalidSeed(
+            'INITIAL_VISIT_COMMITTED vertex is inconsistent',
+          );
         }
-      } else if (status === 'COMPLETING') {
+      } else if (status === 'COMPLETION_VISIT_ELIGIBLE') {
         if (
           slots === null ||
           hasUnmet ||
           remainingChildren !== 0 ||
           queuedVisit?.order !== 'ON_SUBGRAPH_READY'
         ) {
-          this.throwInvalidSeed('COMPLETING vertex is inconsistent');
+          this.throwInvalidSeed(
+            'COMPLETION_VISIT_ELIGIBLE vertex is inconsistent',
+          );
         }
       } else if (
         slots === null ||
@@ -560,14 +567,14 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     if (vertexWork.initialCommitted) return;
 
     vertexWork.initialCommitted = true;
-    this.container.store.setStatus(ref, 'PRE_VISITED');
+    this.container.store.setVisitStage(ref, 'INITIAL_VISIT_COMMITTED');
     this.satisfy(vertex.vertexId);
     this.enqueueCompletion(vertexWork);
   }
 
   markPreVisiting(ref: VertexRef<T | R>): void {
     this.getWork(ref);
-    this.container.store.setStatus(ref, 'PRE_VISITING');
+    this.container.store.setVisitStage(ref, 'INITIAL_VISIT_STARTED');
   }
 
   prepareSlots(
@@ -595,7 +602,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       true,
     );
     this.noteLinkedSlot(context.parentVertexRef, context.hintIndex);
-    this.container.store.setStatus(child, 'COMPLETE');
+    this.container.store.setVisitStage(child, 'COMPLETE');
   }
 
   closeExpansion(ref: VertexRef<T | R>): void {
@@ -615,7 +622,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       if (
         slot.kind !== 'pending' &&
         (slot.kind !== 'linked' ||
-          this.container.resolvedGraph.getStatusOf(slot.childRef) ===
+          this.container.resolvedGraph.getVisitStageOf(slot.childRef) ===
             'COMPLETE')
       ) {
         vertexWork.completionAccounted[index] = true;
@@ -646,7 +653,7 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     const vertex = this.getVertex(ref);
 
     vertexWork.completionCommitted = true;
-    this.container.store.setStatus(ref, 'COMPLETE');
+    this.container.store.setVisitStage(ref, 'COMPLETE');
     this.satisfy(vertex.vertexId, true);
     for (const edge of vertex.incoming) {
       const parentWork = this.work.get(edge.parentRef);
@@ -967,10 +974,12 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       const state = this.container.store.getIdState(dependency);
       if (state?.kind === 'omitted') continue;
       if (state?.kind === 'live') {
-        const status = this.container.resolvedGraph.getStatusOf(state.ref);
+        const status = this.container.resolvedGraph.getVisitStageOf(state.ref);
         if (
           status === 'COMPLETE' ||
-          (!complete && (status === 'PRE_VISITED' || status === 'COMPLETING'))
+          (!complete &&
+            (status === 'INITIAL_VISIT_COMMITTED' ||
+              status === 'COMPLETION_VISIT_ELIGIBLE'))
         )
           continue;
       }
@@ -1050,7 +1059,10 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
     )
       return;
     vertexWork.initialAdmitted = true;
-    this.container.store.setStatus(vertexWork.ref, 'READY');
+    this.container.store.setVisitStage(
+      vertexWork.ref,
+      'INITIAL_VISIT_ELIGIBLE',
+    );
     this.eligible.push({ ref: vertexWork.ref, order: 'ON_WORK_READY' });
   }
 
@@ -1107,7 +1119,10 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       return;
     }
     vertexWork.completionAdmitted = true;
-    this.container.store.setStatus(vertexWork.ref, 'COMPLETING');
+    this.container.store.setVisitStage(
+      vertexWork.ref,
+      'COMPLETION_VISIT_ELIGIBLE',
+    );
     this.eligible.push({ ref: vertexWork.ref, order: 'ON_SUBGRAPH_READY' });
   }
 

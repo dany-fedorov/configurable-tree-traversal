@@ -1,4 +1,4 @@
-import type { VisitOrder } from './effects/types';
+import type { VisitPhase } from './effects/types';
 import type {
   EmissionKind,
   ResolvedTraversalExecutionOptions,
@@ -15,7 +15,7 @@ const phasesByKind = {
 
 export function getTraversalExecutionPhases(
   kind: keyof typeof phasesByKind,
-): readonly VisitOrder[] {
+): readonly VisitPhase[] {
   return phasesByKind[kind];
 }
 
