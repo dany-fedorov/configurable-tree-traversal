@@ -1,4 +1,4 @@
-import { assertOwnKeys } from '@core/assertPublicOptions';
+import { assertOwnKeys, captureOptionFields } from '@core/assertPublicOptions';
 import { DEFAULT_VISITOR_PRIORITY } from '@core/TraversalVisitor';
 import type {
   CommandCommitMode,
@@ -26,6 +26,7 @@ function definition<F>(
   addedIndex: number,
   visitorGroup: VisitorGroupMetadata,
   explicit = false,
+  retainGroup = false,
 ): VisitorRecord<F> {
   const value = typeof input === 'function' ? { visitor: input } : input;
   if (value === null || typeof value !== 'object' || !('visitor' in value)) {
@@ -38,11 +39,20 @@ function definition<F>(
     'addedIndex',
     'visitorGroup',
   ]);
-  const visitor = value.visitor;
+  const options = captureOptionFields(value as Partial<VisitorRecord<F>>, [
+    'visitor',
+    'priority',
+    'commandCommitMode',
+    'addedIndex',
+    'visitorGroup',
+  ]);
+  const visitor = options.visitor;
   if (typeof visitor !== 'function') {
     throw new TypeError('Visitor definition requires a callback');
   }
-  const options = value as Partial<VisitorRecord<F>>;
+  const boundary = retainGroup
+    ? options.visitorGroup ?? visitorGroup
+    : visitorGroup;
   if (
     explicit &&
     ('commandCommitMode' in value || 'resolutionStyle' in value)
@@ -53,13 +63,13 @@ function definition<F>(
     explicit
       ? {
           priority: options.priority ?? DEFAULT_VISITOR_PRIORITY,
-          commandCommitMode: visitorGroup.commandCommitMode,
+          commandCommitMode: boundary.commandCommitMode,
         }
       : options,
   );
   if (
-    visitorGroup.explicit &&
-    effective.commandCommitMode !== visitorGroup.commandCommitMode
+    boundary.explicit &&
+    effective.commandCommitMode !== boundary.commandCommitMode
   ) {
     throw new TypeError(
       'Normalized explicit group has conflicting command commit policy',
@@ -69,7 +79,7 @@ function definition<F>(
     visitor: visitor as F,
     addedIndex,
     ...effective,
-    visitorGroup,
+    visitorGroup: boundary,
   };
 }
 
@@ -107,11 +117,11 @@ export function normalizeVisitorDefinitions<F>(
 ): VisitorRecord<F>[] {
   if (input !== null && typeof input === 'object' && 'groups' in input) {
     assertOwnKeys(input, ['groups']);
-    if (!Array.isArray(input.groups))
+    const { groups } = captureOptionFields(input, ['groups']);
+    if (!Array.isArray(groups))
       throw new TypeError('Visitor groups must be an array');
     let records: VisitorRecord<F>[] = [];
-    for (const entry of input.groups)
-      records = appendVisitorGroup(records, entry);
+    for (const entry of groups) records = appendVisitorGroup(records, entry);
     return records;
   }
   const entries: readonly VisitorDefinition<F>[] = Array.isArray(input)
@@ -119,13 +129,9 @@ export function normalizeVisitorDefinitions<F>(
     : [input as VisitorDefinition<F>];
   const implicit = group(false);
   return orderVisitorRecords(
-    entries.map((entry, index) => {
-      const existing =
-        typeof entry === 'object' && entry !== null
-          ? (entry as Partial<VisitorRecord<F>>).visitorGroup
-          : undefined;
-      return definition<F>(entry, index, existing ?? implicit);
-    }),
+    entries.map((entry, index) =>
+      definition<F>(entry, index, implicit, false, true),
+    ),
   );
 }
 
@@ -147,21 +153,23 @@ export function appendVisitorGroup<F>(
   records: readonly VisitorRecord<F>[],
   input: VisitorGroupDefinition<F>,
 ): VisitorRecord<F>[] {
-  if (
-    input === null ||
-    typeof input !== 'object' ||
-    !Array.isArray(input.visitors)
-  ) {
+  if (input === null || typeof input !== 'object') {
     throw new TypeError('Visitor group requires a visitors array');
   }
   assertOwnKeys(input, ['visitors', 'commandCommitMode']);
+  const captured = captureOptionFields(input, [
+    'visitors',
+    'commandCommitMode',
+  ]);
+  if (!Array.isArray(captured.visitors))
+    throw new TypeError('Visitor group requires a visitors array');
   const mode = normalizeVisitorOptions({
-    commandCommitMode: input.commandCommitMode,
+    commandCommitMode: captured.commandCommitMode,
   }).commandCommitMode;
   const boundary = group(true, mode);
   const start =
     records.reduce((max, record) => Math.max(max, record.addedIndex), -1) + 1;
-  const members = input.visitors.map((entry, index) =>
+  const members = captured.visitors.map((entry, index) =>
     definition<F>(entry, start + index, boundary, true),
   );
   return [...records, ...orderVisitorRecords(members)];

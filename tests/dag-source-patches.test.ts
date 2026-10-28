@@ -99,6 +99,28 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       await run('replacement');
     });
 
+    test.each([null, 0, {}])(
+      `${Factory.name} ${sourceKey} rejects malformed opposite source %p without mutation or callbacks`,
+      async (opposite) => {
+        const { traversal, replacement, calls, run } = fixture();
+        const before = traversalInternals(traversal).icfg;
+        const visitors = traversal.listVisitorsFor(Order.ON_WORK_READY);
+        expect(() =>
+          traversal.configure({
+            [sourceKey]: replacement,
+            [oppositeKey]: opposite,
+            visitors: { [Order.ON_WORK_READY]: [] },
+          } as never),
+        ).toThrow(TypeError);
+        expect(calls).toEqual([]);
+        expect(traversalInternals(traversal).icfg).toBe(before);
+        expect(traversal.listVisitorsFor(Order.ON_WORK_READY)).toEqual(
+          visitors,
+        );
+        await run('original');
+      },
+    );
+
     test.each([true, false])(
       `${Factory.name} ${sourceKey} captures source getters once (enumerable=%s)`,
       async (enumerable) => {

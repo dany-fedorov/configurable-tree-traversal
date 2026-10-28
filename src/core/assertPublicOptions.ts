@@ -64,6 +64,16 @@ export function definedOptions<T extends object>(
   return result;
 }
 
+/** Snapshot supported structural fields, including inherited accessors, once. */
+export function captureOptionFields<T extends object, K extends keyof T>(
+  input: T,
+  keys: readonly K[],
+): Pick<T, K> {
+  // Every requested key is copied with its original value; Pick describes that
+  // exact mapped record while preserving the input's required/optional fields.
+  return Object.fromEntries(keys.map((key) => [key, input[key]])) as Pick<T, K>;
+}
+
 export function assertOptionalCallbacks(
   options: object,
   keys: readonly string[],

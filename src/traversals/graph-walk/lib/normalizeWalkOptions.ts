@@ -81,10 +81,15 @@ function object(value: unknown, message: string): Record<string, unknown> {
 function captureSource<Data, Edge, ID>(
   value: unknown,
 ): NormalizedWalkSource<Data, Edge, ID> {
-  const source = object(value, 'Walking source must be an object');
-  const roots = source['roots'];
-  const outgoing = source['outgoing'];
-  const resolveVertex = source['resolveVertex'];
+  if (
+    value === null ||
+    (typeof value !== 'object' && typeof value !== 'function') ||
+    Array.isArray(value)
+  )
+    throw new TypeError('Walking source must be an object or function');
+  const roots: unknown = Reflect.get(value, 'roots');
+  const outgoing: unknown = Reflect.get(value, 'outgoing');
+  const resolveVertex: unknown = Reflect.get(value, 'resolveVertex');
   if (
     typeof roots !== 'function' ||
     typeof outgoing !== 'function' ||

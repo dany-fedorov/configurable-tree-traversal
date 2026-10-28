@@ -1,4 +1,4 @@
-import { assertOwnKeys } from '@core/assertPublicOptions';
+import { assertOwnKeys, captureOptionFields } from '@core/assertPublicOptions';
 import { defineDag } from './defineDag';
 import { DagFragmentValidationError } from './lib/DagFragmentValidationError';
 import type {
@@ -58,7 +58,8 @@ export function instantiateDagFragment<Data, ID, Port extends string, MappedID>(
   options: { mapId: (id: ID) => MappedID },
 ): DagFragmentInstance<Data, MappedID, Port> {
   assertOwnKeys(options, ['mapId']);
-  if (typeof options.mapId !== 'function')
+  const { mapId } = captureOptionFields(options, ['mapId']);
+  if (typeof mapId !== 'function')
     throw new TypeError('mapId must be a function');
   const local = defineDagFragment(fragment.definition, fragment.ports);
   const mapped = new Map<ID, MappedID>();
@@ -67,7 +68,7 @@ export function instantiateDagFragment<Data, ID, Port extends string, MappedID>(
     ...local.definition.vertices.map((vertex) => vertex.vertexId),
     ...local.definition.omittedIds,
   ]) {
-    const next = options.mapId(id);
+    const next = mapId.call(options, id);
     if (used.has(next))
       throw new TypeError('Mapped DAG fragment identities collide');
     used.add(next);

@@ -1,6 +1,7 @@
 import {
   assertOwnKeys,
   assertOptionalCallbacks,
+  captureOptionFields,
 } from '@core/assertPublicOptions';
 import type { MaybePromise } from '@core/graph/types';
 import type { GraphWalkSource } from './GraphWalkSource';
@@ -47,25 +48,26 @@ export function materializeWalkSourceFromRecords<Data, Edge, ID>(
   },
 ): GraphWalkSource<Data, Edge, ID> {
   assertOwnKeys(options, ['id', 'outgoing', 'roots']);
-  assertOptionalCallbacks(options, ['id', 'outgoing']);
+  const captured = captureOptionFields(options, ['id', 'outgoing', 'roots']);
+  assertOptionalCallbacks(captured, ['id', 'outgoing']);
   if (
-    typeof options.id !== 'function' ||
-    typeof options.outgoing !== 'function'
+    typeof captured.id !== 'function' ||
+    typeof captured.outgoing !== 'function'
   )
     throw new TypeError('Walking selectors require id/outgoing');
   const records = new Map<ID, CatalogRecord<Data, Edge, ID>>();
   for (const item of items) {
-    const id = options.id(item);
+    const id = captured.id.call(options, item);
     if (records.has(id)) throw new TypeError('Duplicate walking vertex ID');
     records.set(id, {
       data: item,
-      links: Array.from(options.outgoing(item), (link) => ({
+      links: Array.from(captured.outgoing.call(options, item), (link) => ({
         to: link.to,
         data: link.data,
       })),
     });
   }
-  return materializedSource(records, [...options.roots]);
+  return materializedSource(records, [...captured.roots]);
 }
 
 /** Await finite inputs once and return a reusable synchronous walking source. */
@@ -82,22 +84,23 @@ export async function materializeWalkSourceFromRecordsAsync<Data, Edge, ID>(
   },
 ): Promise<GraphWalkSource<Data, Edge, ID>> {
   assertOwnKeys(options, ['id', 'outgoing', 'roots']);
-  assertOptionalCallbacks(options, ['id', 'outgoing']);
+  const captured = captureOptionFields(options, ['id', 'outgoing', 'roots']);
+  assertOptionalCallbacks(captured, ['id', 'outgoing']);
   if (
-    typeof options.id !== 'function' ||
-    typeof options.outgoing !== 'function'
+    typeof captured.id !== 'function' ||
+    typeof captured.outgoing !== 'function'
   )
     throw new TypeError('Walking selectors require id/outgoing');
   const records = new Map<ID, CatalogRecord<Data, Edge, ID>>();
   for await (const item of items) {
-    const id = await options.id(item);
+    const id = await captured.id.call(options, item);
     if (records.has(id)) throw new TypeError('Duplicate walking vertex ID');
     const links: CatalogLink<Edge, ID>[] = [];
-    for await (const link of await options.outgoing(item))
+    for await (const link of await captured.outgoing.call(options, item))
       links.push({ to: link.to, data: link.data });
     records.set(id, { data: item, links });
   }
   const roots: ID[] = [];
-  for await (const id of options.roots) roots.push(id);
+  for await (const id of captured.roots) roots.push(id);
   return materializedSource(records, roots);
 }

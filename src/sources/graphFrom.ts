@@ -1,5 +1,5 @@
 import {
-  validateCollectionSelectors,
+  captureCollectionSelectors,
   collect,
   materializedSource,
   validateChildren,
@@ -17,17 +17,19 @@ export function materializeDagInputFromRecords<Item, ID>(
   items: Iterable<Item>,
   selectors: DagRecordSelectors<Item, ID>,
 ): MaterializedDagInput<Item, ID> {
-  validateCollectionSelectors(selectors);
+  const captured = captureCollectionSelectors(selectors);
   const records = new Map<ID, MaterializedRecord<Item, ID>>();
   for (const item of items) {
-    const id = selectors.id(item);
+    const id = captured.id.call(selectors, item);
     if (records.has(id)) throw new TypeError('Duplicate collection vertex ID');
     records.set(id, {
       item,
       id,
-      children: [...(selectors.children?.(item) ?? [])],
-      dependsOnWork: [...(selectors.dependsOnWork?.(item) ?? [])],
-      dependsOnSubgraphCompletion: [...(selectors.dependsOnSubgraphCompletion?.(item) ?? [])],
+      children: [...(captured.children?.call(selectors, item) ?? [])],
+      dependsOnWork: [...(captured.dependsOnWork?.call(selectors, item) ?? [])],
+      dependsOnSubgraphCompletion: [
+        ...(captured.dependsOnSubgraphCompletion?.call(selectors, item) ?? []),
+      ],
     });
   }
   validateChildren(records);
@@ -39,18 +41,20 @@ export async function materializeDagInputFromRecordsAsync<Item, ID>(
   items: AsyncCollection<Item>,
   selectors: AsyncDagRecordSelectors<Item, ID>,
 ): Promise<MaterializedDagInput<Item, ID>> {
-  validateCollectionSelectors(selectors);
+  const captured = captureCollectionSelectors(selectors);
   const records = new Map<ID, MaterializedRecord<Item, ID>>();
   for await (const item of items) {
-    const id = await selectors.id(item);
+    const id = await captured.id.call(selectors, item);
     if (records.has(id)) throw new TypeError('Duplicate collection vertex ID');
     records.set(id, {
       item,
       id,
-      children: await collect(selectors.children?.(item) ?? []),
-      dependsOnWork: await collect(selectors.dependsOnWork?.(item) ?? []),
+      children: await collect(captured.children?.call(selectors, item) ?? []),
+      dependsOnWork: await collect(
+        captured.dependsOnWork?.call(selectors, item) ?? [],
+      ),
       dependsOnSubgraphCompletion: await collect(
-        selectors.dependsOnSubgraphCompletion?.(item) ?? [],
+        captured.dependsOnSubgraphCompletion?.call(selectors, item) ?? [],
       ),
     });
   }
