@@ -1,4 +1,5 @@
 import { assertNoTreeMetadata } from '@core/drivers/normalizeSourceResult';
+import { engineDagValidationErrors } from '@core/errors/engineDagValidationErrors';
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 import { dependencyMilestones } from './dependencyMilestones';
@@ -125,7 +126,9 @@ export class GraphScheduling<T extends VertexTypes, R extends VertexTypes = T> {
       diagnostics.unknownPrerequisiteIds.length > 0 ||
       diagnostics.dependencyCycleComponents.length > 0
     ) {
-      throw new DagTraversalStallError(diagnostics);
+      const error = new DagTraversalStallError(diagnostics);
+      engineDagValidationErrors.set(this.container.store, error);
+      throw error;
     }
     if (this.getUnusedCompletedWorkIds().length > 0) {
       throw new TypeError('completedWork contains undiscovered vertex IDs');

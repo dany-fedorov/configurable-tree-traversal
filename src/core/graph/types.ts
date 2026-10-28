@@ -118,7 +118,6 @@ export interface GraphStoreContract<T extends VertexTypes, ID = unknown> {
   getDiscoveryDepth(ref: VertexRef<T>): number;
   getDeclaredDependencies(ref: VertexRef<T>): ID[];
   getDeclaredCompleteDependencies(ref: VertexRef<T>): ID[];
-  hasCompleteDependencies(ref: VertexRef<T>): boolean;
   getTopologyVersion(): number;
   insertVertex(input: {
     ref: VertexRef<T>;

@@ -49,7 +49,7 @@ export type KernelOptions<T extends VertexTypes, R extends VertexTypes = T> = {
   concurrency: number;
   discovery?: 'lazy' | 'eager';
   canPrepare?: boolean;
-  workCompletion?: 'visitorReturn' | 'externalSettlement';
+  workCompletion?: 'afterWorkReadyChain' | 'externalSettlement';
   rootWorkDependencies?: 'honor' | 'ignore';
   omittedWorkDependencies?: 'none' | 'discoveryParentWork';
   completedWork?: ReadonlySet<VertexId>;

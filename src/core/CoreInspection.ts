@@ -21,7 +21,7 @@ export type TreeDagInspectionOperation =
   | 'resolveRoot'
   | 'resolveChild'
   | 'resolvePrerequisite'
-  | 'sortChildHints'
+  | 'sortChildrenHints'
   | 'getVertexIdFromHint'
   | 'visit';
 

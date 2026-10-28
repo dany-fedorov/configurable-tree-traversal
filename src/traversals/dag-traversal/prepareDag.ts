@@ -1,7 +1,4 @@
-import {
-  DagTraversalStallError,
-  type DagTraversalStallDiagnostics,
-} from '@core/errors/DagTraversalStallError';
+import { preparationIssue } from './lib/preparationIssue';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type {
   AsyncDagDiscoverySource,
@@ -75,20 +72,12 @@ export async function prepareDagAsync<T extends VertexTypes, ID = unknown>(
   try {
     await runner.prepare();
   } catch (error) {
-    if (
-      !(error instanceof DagTraversalStallError) ||
-      captured.errors.has(error)
-    )
-      throw error;
-    return {
-      kind: 'invalid',
-      issues: [
-        {
-          kind: 'milestone',
-          diagnostics: error.diagnostics as DagTraversalStallDiagnostics<ID>,
-        },
-      ],
-    };
+    const issue = preparationIssue<ID>(
+      dagRunnerCapabilities.get(runner)!.container.store,
+      error,
+    );
+    if (issue === undefined) throw error;
+    return { kind: 'invalid', issues: [issue] };
   }
   return {
     kind: 'valid',

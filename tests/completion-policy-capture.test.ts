@@ -29,11 +29,11 @@ const graph = {
     },
   }),
 };
-type Policy = 'externalSettlement' | 'visitorReturn';
+type Policy = 'externalSettlement' | 'afterWorkReadyChain';
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   for (const entry of ['constructor', 'configure'] as const) {
-    test.each(['visitorReturn', 'invalid'])(
+    test.each(['afterWorkReadyChain', 'invalid'])(
       `${Constructor.name} ${entry} captures ownership before a later %s value`,
       async (later) => {
         let reads = 0;
@@ -65,7 +65,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const input = {
         traversableGraph: graph,
         get workCompletion(): Policy {
-          return (++reads === 1 ? 'invalid' : 'visitorReturn') as Policy;
+          return (++reads === 1 ? 'invalid' : 'afterWorkReadyChain') as Policy;
         },
       };
       const traversal = new Constructor<G>({
@@ -131,7 +131,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await retained.run();
     expect(retained.summary().completedWorkIds).toEqual([]);
     expect(retained.summary().deferredWorkIds).toEqual(['A']);
-    traversal.configure({ workCompletion: 'visitorReturn' });
+    traversal.configure({ workCompletion: 'afterWorkReadyChain' });
     const automatic = traversal.createRunner();
     await automatic.run();
     expect(automatic.summary().completedWorkIds).toEqual(['A', 'B']);
@@ -146,7 +146,7 @@ for (const Runner of [DagTraversalRunner, AsyncDagTraversalRunner]) {
         .icfg,
       concurrency: 1,
       get workCompletion(): Policy {
-        return ++reads === 1 ? 'externalSettlement' : 'visitorReturn';
+        return ++reads === 1 ? 'externalSettlement' : 'afterWorkReadyChain';
       },
     };
     const runner = new Runner<G>(input);
@@ -166,7 +166,7 @@ for (const Runner of [DagTraversalRunner, AsyncDagTraversalRunner]) {
         .icfg,
       concurrency: 1,
       get workCompletion(): Policy {
-        return (++reads === 1 ? 'invalid' : 'visitorReturn') as Policy;
+        return (++reads === 1 ? 'invalid' : 'afterWorkReadyChain') as Policy;
       },
     };
     expect(() => new Runner<G>(input)).toThrow(TypeError);

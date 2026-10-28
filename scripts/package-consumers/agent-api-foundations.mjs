@@ -143,10 +143,10 @@ for (const api of [cjs, esm]) {
   });
   const asyncPrepared = await api.prepareDagAsync(asyncSource);
   assert.equal(asyncPrepared.kind, 'valid');
-  assert.deepEqual(await drain(await asyncPrepared.dag.createAsyncWorkSession()), [
-    undefined,
-    NaN,
-  ]);
+  assert.deepEqual(
+    await drain(await asyncPrepared.dag.createAsyncWorkSession()),
+    [undefined, NaN],
+  );
 
   const leaf = { id: Symbol('leaf'), children: [] };
   const roots = [
@@ -251,12 +251,12 @@ assert.equal(cjsDag.DagDiscoveryCycleError, esm.DagDiscoveryCycleError);
 for (const api of [esm, cjs]) {
   assert.throws(
     () =>
-      api.prepareDag(
+      new api.DagTraversal(
         api.materializeDagInputFromRecords([{ id: 'a', children: ['a'] }], {
           id: (item) => item.id,
           children: (item) => item.children,
         }),
-      ),
+      ).createRunner().run(),
     (error) =>
       error instanceof esm.DagDiscoveryCycleError &&
       error.vertexIds.join(',') === 'a,a',
@@ -277,7 +277,9 @@ for (const api of [esm, cjs]) {
     ]);
   }
   const prepared = api.prepareDag(
-    api.materializeDagInputFromRecords([{ id: 'a' }], { id: (item) => item.id }),
+    api.materializeDagInputFromRecords([{ id: 'a' }], {
+      id: (item) => item.id,
+    }),
   );
   for (const session of [
     prepared.dag.createWorkSession(),
@@ -299,5 +301,56 @@ for (const api of [esm, cjs]) {
       async () => session.advance(),
       (value) => value === error,
     );
+  }
+}
+
+for (const api of [esm, cjs, dag, cjsDag, esm.dagTraversal, cjs.dagTraversal]) {
+  assert.equal(Object.hasOwn(api, 'DagWorkTicket'), false);
+  const cyclic =
+    api === dag ||
+    api === cjsDag ||
+    api === esm.dagTraversal ||
+    api === cjs.dagTraversal
+      ? esm.materializeDagInputFromRecords([{ id: 'a', children: ['a'] }], {
+          id: (v) => v.id,
+          children: (v) => v.children,
+        })
+      : api.materializeDagInputFromRecords([{ id: 'a', children: ['a'] }], {
+          id: (v) => v.id,
+          children: (v) => v.children,
+        });
+  for (const prepare of [api.prepareDag, api.prepareDagAsync])
+    assert.deepEqual(await prepare(cyclic), {
+      kind: 'invalid',
+      issues: [{ kind: 'discoveryCycle', vertexIds: ['a', 'a'] }],
+    });
+}
+for (const api of [esm, cjs]) {
+  for (const Constructor of [api.DagTraversal, api.AsyncDagTraversal]) {
+    const input = api.materializeDagInputFromRecords([{ id: 'a' }], {
+      id: (v) => v.id,
+    });
+    assert.throws(
+      () => new Constructor({ ...input, workCompletion: 'visitorReturn' }),
+      TypeError,
+    );
+    const runner = new Constructor({
+      ...input,
+      workCompletion: 'afterWorkReadyChain',
+    }).createRunner();
+    await runner.run();
+    assert.deepEqual(runner.summary().completedWorkIds, ['a']);
+    const progress = runner.summary().vertices.get('a');
+    assert.deepEqual(progress.unmetWorkPrerequisiteIds, []);
+    assert.deepEqual(progress.unmetSubgraphPrerequisiteIds, []);
+    const session = api.createDagWorkSession(
+      new api.DagTraversal({
+        ...input,
+        workCompletion: 'externalSettlement',
+      }).createRunner(),
+    );
+    const ticket = session.advance().workTickets[0];
+    assert.throws(() => session.completeWork({ ...ticket }), TypeError);
+    assert.deepEqual(session.completeWork(ticket), { kind: 'accepted' });
   }
 }

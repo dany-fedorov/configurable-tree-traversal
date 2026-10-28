@@ -44,6 +44,7 @@ export type DagDefinitionIssue<ID = unknown> =
   | { kind: 'invalidOmission'; vertexIds: readonly ID[] }
   | { kind: 'unreachable'; vertexIds: readonly ID[] }
   | { kind: 'structuralCycle'; vertexIds: readonly ID[] }
+  | { kind: 'discoveryCycle'; vertexIds: readonly ID[] }
   | {
       kind: 'milestone';
       diagnostics: DagTraversalStallDiagnostics<ID>;

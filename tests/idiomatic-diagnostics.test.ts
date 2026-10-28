@@ -1,5 +1,7 @@
 import {
   AsyncBreadthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
+  DepthFirstTreeTraversal,
   AsyncDagTraversal,
   AsyncDepthFirstTreeTraversal,
   DagTraversal,
@@ -87,7 +89,7 @@ test('DAG inspection names pending public operations without source IO or engine
         owner: expect.objectContaining({ kind: 'prerequisite' }),
         valid: true,
       }),
-      expect.objectContaining({ operation: 'sortChildHints', valid: true }),
+      expect.objectContaining({ operation: 'sortChildrenHints', valid: true }),
       expect.objectContaining({
         operation: 'getVertexIdFromHint',
         valid: true,
@@ -274,3 +276,51 @@ test('completion diagnostics describe eligibility at callback admission, indepen
     subgraphCompleted: 1,
   });
 });
+
+type SorterInput = {
+  traversableTree: import('../src').TreeSource<G>;
+  sortChildrenHints: (hints: string[]) => string[];
+};
+for (const [name, create] of [
+  [
+    'depth-first',
+    (input: SorterInput) => new DepthFirstTreeTraversal<G>(input),
+  ],
+  [
+    'breadth-first',
+    (input: SorterInput) => new BreadthFirstTreeTraversal<G>(input),
+  ],
+  ['dag', (input: SorterInput) => new DagTraversal<G>(input)],
+  [
+    'async depth-first',
+    (input: SorterInput) => new AsyncDepthFirstTreeTraversal<G>(input),
+  ],
+  [
+    'async breadth-first',
+    (input: SorterInput) => new AsyncBreadthFirstTreeTraversal<G>(input),
+  ],
+  ['async dag', (input: SorterInput) => new AsyncDagTraversal<G>(input)],
+] as const) {
+  test(`${name} reports sortChildrenHints while the sorter runs`, async () => {
+    const observed: string[] = [];
+    const runner = create({
+      traversableTree: {
+        resolveRoot: () => ({
+          kind: 'found',
+          vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+        }),
+        resolveChild: () => ({ kind: 'omitted' }),
+      },
+      sortChildrenHints: (hints) => {
+        observed.push(
+          ...runner
+            .inspect()
+            .pendingRequests.map((request) => request.operation),
+        );
+        return hints;
+      },
+    }).createRunner();
+    await runner.run();
+    expect(observed).toEqual(['sortChildrenHints']);
+  });
+}

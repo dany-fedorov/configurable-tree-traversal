@@ -89,6 +89,10 @@ if (prepared.kind === 'valid') {
     const requiredTicket: dagCjs.DagWorkTicket<ID> = subpathTicket;
     const id: ID = requiredTicket.vertexId;
     session.completeWork(requiredTicket);
+    // @ts-expect-error A spread loses nominal ticket ownership.
+    session.completeWork({ ...requiredTicket });
+    // @ts-expect-error A copied ticket cannot authorize fatal settlement either.
+    session.failTraversal({ ...ticket }, undefined);
     // @ts-expect-error Fatal settlement exposes only the canonical method.
     session.fail(requiredTicket, undefined);
     // @ts-expect-error Tickets retain their exact ID domain.
@@ -114,6 +118,10 @@ if (prepared.kind === 'valid') {
   void [coordinator, data, children];
 } else {
   for (const issue of prepared.issues) {
+    if (issue.kind === 'discoveryCycle') {
+      const witness: readonly ID[] = issue.vertexIds;
+      void witness;
+    }
     if (issue.kind === 'milestone') {
       const missing: readonly ID[] = issue.diagnostics.unknownPrerequisiteIds;
       void missing;
@@ -224,3 +232,21 @@ function inspectSession(session: DagWorkSession<ID> | AsyncDagWorkSession<ID>) {
   void [state, inspection, fatal, witness];
 }
 void inspectSession;
+
+// @ts-expect-error Work tickets are type-only, with no constructor value.
+new cjs.DagWorkTicket();
+// @ts-expect-error DAG-subpath tickets are also type-only.
+new dagCjs.DagWorkTicket();
+// @ts-expect-error The namespace does not expose a ticket constructor.
+new cjs.dagTraversal.DagWorkTicket();
+new DagTraversal({ ...source, workCompletion: 'afterWorkReadyChain' });
+// @ts-expect-error The retired completion literal is not accepted.
+new DagTraversal({ ...source, workCompletion: 'visitorReturn' });
+const exactProgress = new DagTraversal(source)
+  .createRunner()
+  .summary()
+  .vertices.get(items[0]!.id)!;
+const exactWork: readonly ID[] = exactProgress.unmetWorkPrerequisiteIds;
+const exactCompletion: readonly ID[] =
+  exactProgress.unmetSubgraphPrerequisiteIds;
+void [exactWork, exactCompletion];

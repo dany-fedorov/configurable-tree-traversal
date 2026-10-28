@@ -113,13 +113,9 @@ export function makeDagInspection<ID>(
     return {
       ...progress,
       unmetPrerequisiteIds: progress.unmetPrerequisiteIds.slice(),
-      unmetWorkPrerequisiteIds: progress.unmetWorkPrerequisiteIds!.slice(),
-      ...(progress.unmetSubgraphPrerequisiteIds === undefined
-        ? {}
-        : {
-            unmetSubgraphPrerequisiteIds:
-              progress.unmetSubgraphPrerequisiteIds.slice(),
-          }),
+      unmetWorkPrerequisiteIds: progress.unmetWorkPrerequisiteIds.slice(),
+      unmetSubgraphPrerequisiteIds:
+        progress.unmetSubgraphPrerequisiteIds.slice(),
     };
   };
   const walk = makeMilestoneQuery(snapshot.edges);

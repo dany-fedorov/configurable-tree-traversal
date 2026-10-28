@@ -310,10 +310,10 @@ const inspectionStopReason: import('../src').TraversalStopReason | null =
   inspection.stopReason;
 new AsyncDagTraversal({
   traversableGraph: graph,
-  workCompletion: 'visitorReturn',
+  workCompletion: 'afterWorkReadyChain',
 }).configure({ workCompletion: 'externalSettlement' });
 new DagTraversal({ traversableGraph: graph }).configure({
-  workCompletion: 'visitorReturn',
+  workCompletion: 'afterWorkReadyChain',
 });
 // @ts-expect-error Completion policy accepts only the two explicit ownership modes.
 new DagTraversal({ traversableGraph: graph, workCompletion: 'automatic' });

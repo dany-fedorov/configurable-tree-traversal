@@ -16,7 +16,7 @@ import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInte
 import type { DagVisitor } from './DagTraversalVisitor';
 
 export type DagSchedulingOptions = {
-  workCompletion?: 'visitorReturn' | 'externalSettlement' | undefined;
+  workCompletion?: 'afterWorkReadyChain' | 'externalSettlement' | undefined;
   discovery?: 'lazy' | 'eager' | undefined;
   rootWorkDependencies?: 'honor' | 'ignore' | undefined;
   omittedWorkDependencies?: 'none' | 'discoveryParentWork' | undefined;
@@ -169,11 +169,11 @@ export function mergeDagTraversalInstanceConfigs<
 export function assertDagWorkCompletion(policy: unknown): void {
   if (
     policy !== undefined &&
-    policy !== 'visitorReturn' &&
+    policy !== 'afterWorkReadyChain' &&
     policy !== 'externalSettlement'
   ) {
     throw new TypeError(
-      'workCompletion must be visitorReturn or externalSettlement',
+      'workCompletion must be afterWorkReadyChain or externalSettlement',
     );
   }
 }

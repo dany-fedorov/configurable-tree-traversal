@@ -11,13 +11,15 @@ import type {
 import { dagRunnerCapabilities } from './lib/dagRunnerCapabilities';
 import type { DagTraversalRunner } from './lib/DagTraversalRunner';
 
-declare const ticketBrand: unique symbol;
+/** Declaration only: issued objects use WeakMap ownership, with no constructor value. */
+declare class NominalDagWorkTicket<ID> {
+  private constructor();
+  private readonly ticketIdentity: never;
+  readonly vertexId: ID;
+}
 
 /** Local settlement capability issued by one coordinator; copying loses ownership. */
-export type DagWorkTicket<ID = unknown> = Readonly<{
-  vertexId: ID;
-  [ticketBrand]: never;
-}>;
+export type DagWorkTicket<ID = unknown> = NominalDagWorkTicket<ID>;
 
 export type DagWorkBoundary<ID = unknown> =
   | Readonly<{

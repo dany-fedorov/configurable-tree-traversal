@@ -93,7 +93,7 @@ expect(() => traversal.configure({unknownPolicy: true} as never)).toThrow(TypeEr
 
 ### Task 4: Precise DAG preparation, completion, tickets and progress (F07, F08, F12, F14; tree/DAG part of F19)
 
-**Files:** src/traversals/dag-traversal/{prepareDag.ts,prepareDagAsync.ts,coordinateDag.ts,lib/DagDefinition.ts,lib/DagProgress.ts,lib/DagInspection.ts,lib/DagTraversalInstanceConfig.ts}; src/core/TraversalKernel.ts and engine cycle-origin tracking; src/core/CoreInspection.ts; relevant DAG tests/type assertions, examples, packed consumers and docs.
+**Files:** src/traversals/dag-traversal/{prepareDag.ts,coordinateDag.ts,lib/DagDefinition.ts,lib/DagProgress.ts,lib/DagInspection.ts,lib/DagTraversalInstanceConfig.ts}; src/core/TraversalKernel.ts and engine cycle-origin tracking; src/core/CoreInspection.ts; relevant DAG tests/type assertions, examples, packed consumers and docs.
 
 **Interfaces:** Produces discoveryCycle preparation issue, afterWorkReadyChain literal, type-only nominal DagWorkTicket, required W/C progress arrays and sortChildrenHints diagnostic operation. F09 later changes buffered event delivery, not completion/admission semantics.
 
@@ -102,7 +102,7 @@ expect(() => traversal.configure({unknownPolicy: true} as never)).toThrow(TypeEr
 ```ts
 // For a source with a -> b -> a structural discovery:
 expect(prepared.kind).toBe('invalid');
-// Its issue is {kind:'discoveryCycle', vertexIds:['a','b','a']}.
+// Preserve the engine's closed witness exactly; existing a -> b -> a discovery emits ['b','a','b'].
 // @ts-expect-error copying drops the private nominal ticket identity
 session.completeWork({...ticket});
 ```

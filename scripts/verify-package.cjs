@@ -398,7 +398,7 @@ try {
     const entry: DagVertexProgress | undefined = summary.vertices.get('root');
     const completeGates: readonly VertexId[] | undefined = entry?.unmetSubgraphPrerequisiteIds;
     const completeDeclaration: readonly VertexId[] | undefined = dag.getResolvedGraph().get(dag.getResolvedGraph().getRoot()!)?.dependsOnSubgraphCompletion;
-    const legacyProgress: DagVertexProgress = { vertexId: 'old', work: 'pending', subgraphComplete: false, unmetPrerequisiteIds: [] };
+    const legacyProgress: DagVertexProgress = { vertexId: 'old', work: 'pending', subgraphComplete: false, unmetPrerequisiteIds: [], unmetWorkPrerequisiteIds: [], unmetSubgraphPrerequisiteIds: [] };
     void [completeGates, completeDeclaration, legacyProgress];
     const state: DagWorkState | undefined = entry?.work;
     const generation: DagSettlementGeneration = Symbol();

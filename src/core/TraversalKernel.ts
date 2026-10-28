@@ -14,6 +14,7 @@ import type {
   PumpMode,
   VisitPhase,
 } from '@core/effects/types';
+import { engineDagValidationErrors } from '@core/errors/engineDagValidationErrors';
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type {
   DagInspectionState,
@@ -452,6 +453,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           const error = new DagTraversalStallError(
             this.scheduling.diagnoseStall(stall),
           );
+          engineDagValidationErrors.set(this.options.container.store, error);
           this.fail(error);
           return { kind: 'FAILED', error };
         }
@@ -653,7 +655,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
             MAKE_ROOT: 'resolveRoot' as const,
             MAKE_VERTEX: 'resolveChild' as const,
             RESOLVE_PREREQUISITE: 'resolvePrerequisite' as const,
-            SORT_HINTS: 'sortChildHints' as const,
+            SORT_HINTS: 'sortChildrenHints' as const,
             HINT_ID: 'getVertexIdFromHint' as const,
             VISIT: 'visit' as const,
           }[call.kind],
@@ -733,9 +735,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
         unmetPrerequisiteIds: Array.from(
           new Set([...item.unmet, ...item.unmetComplete]),
         ),
-        ...(this.options.container.store.hasCompleteDependencies(item.ref)
-          ? { unmetSubgraphPrerequisiteIds: Array.from(item.unmetComplete) }
-          : {}),
+        unmetSubgraphPrerequisiteIds: Array.from(item.unmetComplete),
         ...(state === 'deferred' ? { generation: deferred!.generation } : {}),
       });
     }

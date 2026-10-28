@@ -9,7 +9,11 @@ import type {
   DagDiscoverySource,
   TreeSource,
 } from '../src';
-import { AsyncDagTraversal, DagTraversal, materializeDagInputFromRecords } from '../src';
+import {
+  AsyncDagTraversal,
+  DagTraversal,
+  materializeDagInputFromRecords,
+} from '../src';
 import type { DagVertexProgress, DagSummary, VertexTypes } from '../src';
 import type {
   DagInspectionState,
@@ -28,14 +32,16 @@ const source = materializeDagInputFromRecords(records, {
 const sync = new DagTraversal(source).createRunner();
 const asyncRunner = new AsyncDagTraversal(source).createRunner();
 const summaries: DagSummary<ID>[] = [sync.summary(), asyncRunner.summary()];
-const waits: readonly ID[] | undefined =
+const waits: readonly ID[] =
   summaries[0]!.vertices.get('review')!.unmetWorkPrerequisiteIds;
-// Manually constructed records remain source compatible without the new field.
+// Manually constructed progress records include both milestone wait arrays.
 const manual: DagVertexProgress<ID> = {
   vertexId: 'review',
   work: 'pending',
   subgraphComplete: false,
   unmetPrerequisiteIds: ['work'],
+  unmetWorkPrerequisiteIds: ['work'],
+  unmetSubgraphPrerequisiteIds: [],
 };
 const wrong: DagVertexProgress<ID> = {
   ...manual,
@@ -43,7 +49,7 @@ const wrong: DagVertexProgress<ID> = {
   unmetWorkPrerequisiteIds: ['other'],
 };
 // @ts-expect-error Public exact wait arrays are readonly.
-manual.unmetWorkPrerequisiteIds?.push('work');
+manual.unmetWorkPrerequisiteIds.push('work');
 
 declare const state: DagInspectionState<ID>;
 // @ts-expect-error Internal identity collections expose no mutators.
@@ -137,7 +143,8 @@ if (explanation.kind === 'known') {
     void milestone;
   }
   if (blocker?.kind === 'constraint') {
-    const status: import('../src').DagMilestoneStatus = blocker.prerequisiteStatus;
+    const status: import('../src').DagMilestoneStatus =
+      blocker.prerequisiteStatus;
     const id: ID = blocker.prerequisite.vertexId;
     void [status, id];
   }
@@ -198,3 +205,12 @@ const legacyUnknown: unknown =
 const legacyDomain: { task: string } | null | undefined | number =
   heterogeneousStall.diagnostics.dependencies[0]!.id;
 void [legacyUnknown, legacyDomain];
+
+// @ts-expect-error Progress outputs always include both W and C wait arrays.
+const incompleteProgress: DagVertexProgress<ID> = {
+  vertexId: 'review',
+  work: 'pending',
+  subgraphComplete: false,
+  unmetPrerequisiteIds: [],
+};
+void incompleteProgress;

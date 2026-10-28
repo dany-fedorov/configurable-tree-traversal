@@ -8,32 +8,21 @@ import type { VertexTypes } from '@core/TreeTypeParameters';
 import { normalizeSourceResult } from '@core/drivers/normalizeSourceResult';
 import type { MaybePromise } from '@core/graph/types';
 
-/** Capture omission candidates and distinguish source failures from engine validation. */
+/** Capture omission candidates while preserving source receiver and error behavior. */
 export function capturePreparedSource<T extends VertexTypes, ID>(
   source: AsyncDagDiscoverySource<T, T, ID>,
   asynchronous: boolean,
 ) {
   const candidates = new Set<ID>();
-  const errors = new Set<unknown>();
 
   function syncCall<I, O>(invoke: () => I, receive: (value: I) => O): O {
-    try {
-      return receive(invoke());
-    } catch (error) {
-      errors.add(error);
-      throw error;
-    }
+    return receive(invoke());
   }
   async function asyncCall<I, O>(
     invoke: () => MaybePromise<I>,
     receive: (value: I) => O,
   ): Promise<O> {
-    try {
-      return receive(await invoke());
-    } catch (error) {
-      errors.add(error);
-      throw error;
-    }
+    return receive(await invoke());
   }
   const call = <I, O>(
     invoke: () => MaybePromise<I>,
@@ -120,5 +109,5 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
       );
     };
   }
-  return { adapter, candidates, errors };
+  return { adapter, candidates };
 }

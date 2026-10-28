@@ -2,6 +2,7 @@ import { normalizePathOptions } from '@core/normalizePathOptions';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { GetPathToOptions, TreeVertexRecord } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
+import { engineDagValidationErrors } from '@core/errors/engineDagValidationErrors';
 import { DagDiscoveryCycleError } from '@core/errors/DagDiscoveryCycleError';
 import type {
   ChildSlot,
@@ -91,10 +92,6 @@ export class GraphStore<T extends VertexTypes>
     return this.getEntry(ref).dependsOnSubgraphCompletion.slice();
   }
 
-  hasCompleteDependencies(ref: VertexRef<T>): boolean {
-    return this.getEntry(ref).dependsOnSubgraphCompletion.length > 0;
-  }
-
   getTopologyVersion(): number {
     return this.topologyVersion;
   }
@@ -170,9 +167,11 @@ export class GraphStore<T extends VertexTypes>
     if (this.mode === 'dag') {
       const path = this.findPath(child, parent);
       if (path !== null) {
-        throw new DagDiscoveryCycleError(
+        const error = new DagDiscoveryCycleError(
           [parent, ...path].map((ref) => this.getEntry(ref).id),
         );
+        engineDagValidationErrors.set(this, error);
+        throw error;
       }
     }
 

@@ -202,7 +202,7 @@ export class InternalAsyncDagTraversalRunner<
       discovery: input.discovery ?? 'lazy',
       workCompletion:
         this.icfg.workCompletion === undefined
-          ? 'visitorReturn'
+          ? 'afterWorkReadyChain'
           : this.icfg.workCompletion,
       ...(input.rootWorkDependencies === undefined
         ? {}

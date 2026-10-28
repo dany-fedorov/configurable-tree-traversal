@@ -371,9 +371,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(
       runner.summary().vertices.get('join')!.unmetSubgraphPrerequisiteIds,
     ).toHaveLength(6);
-    expect(runner.summary().vertices.get(reference)).not.toHaveProperty(
-      'unmetSubgraphPrerequisiteIds',
-    );
+    expect(
+      runner.summary().vertices.get(reference)!.unmetSubgraphPrerequisiteIds,
+    ).toEqual([]);
     for (const id of ids)
       runner.settle(
         id,

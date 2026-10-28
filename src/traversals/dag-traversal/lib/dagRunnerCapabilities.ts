@@ -6,7 +6,7 @@ export const dagRunnerCapabilities = new WeakMap<
   object,
   {
     inspectState: () => DagInspectionState;
-    workCompletion: 'visitorReturn' | 'externalSettlement' | undefined;
+    workCompletion: 'afterWorkReadyChain' | 'externalSettlement' | undefined;
     container: ResolvedGraphsContainer<VertexTypes>;
   }
 >();

@@ -14,6 +14,7 @@ import {
 } from '../src/sources';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 
 type T = VertexTypes<{ name: string }, string>;
 
@@ -538,7 +539,9 @@ test('prepared option boundaries reject overrides including present undefined be
     ).rejects.toThrow(TypeError);
   }
   expect(() =>
-    result.dag.createWorkSession({ workCompletion: 'visitorReturn' } as any),
+    result.dag.createWorkSession({
+      workCompletion: 'afterWorkReadyChain',
+    } as any),
   ).toThrow(TypeError);
   await expect(
     result.dag.createAsyncWorkSession({ visitors: {} } as any),
@@ -722,10 +725,22 @@ for (const async of [false, true]) {
           children: (item) => item.children,
         },
       );
+      const result = async ? await prepareDagAsync(graph) : prepareDag(graph);
+      expect(result).toEqual({
+        kind: 'invalid',
+        issues: [
+          { kind: 'discoveryCycle', vertexIds: self ? [a, a] : [b, a, b] },
+        ],
+      });
+      if (result.kind !== 'invalid') throw Error('Expected invalid result');
+      const issue = result.issues[0]!;
+      if (issue.kind !== 'discoveryCycle')
+        throw Error('Expected discovery cycle issue');
+      expect(issue.vertexIds[0]).toBe(b);
       let failure: unknown;
       try {
-        if (async) await prepareDagAsync(graph);
-        else prepareDag(graph);
+        if (async) await new AsyncDagTraversal(graph).createRunner().run();
+        else new DagTraversal(graph).createRunner().run();
       } catch (error) {
         failure = error;
       }

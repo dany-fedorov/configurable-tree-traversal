@@ -26,8 +26,7 @@ const coordinator: DagWorkSession<TaskId> = createDagWorkSession(runner);
 const asyncCoordinator: AsyncDagWorkSession<TaskId> =
   createAsyncDagWorkSession(asyncRunner);
 const boundary: DagWorkBoundary<TaskId> = coordinator.advance();
-const pending: Promise<DagWorkBoundary<TaskId>> =
-  asyncCoordinator.advance();
+const pending: Promise<DagWorkBoundary<TaskId>> = asyncCoordinator.advance();
 const summary: DagSummary<TaskId> = coordinator.summary();
 const requested: boolean = coordinator.requestPause();
 if (boundary.kind === 'awaitingSettlement') {
@@ -42,6 +41,10 @@ if (boundary.kind === 'awaitingSettlement') {
   coordinator.fail(ticket, undefined);
   // @ts-expect-error Async fatal settlement has only the canonical method.
   asyncCoordinator.fail(ticket, undefined);
+  // @ts-expect-error Spreading drops private nominal ticket identity.
+  coordinator.completeWork({ ...ticket });
+  // @ts-expect-error Spreading cannot manufacture async fatal settlement authority.
+  asyncCoordinator.failTraversal({ ...ticket }, undefined);
   // @ts-expect-error Tickets expose a readonly identity.
   ticket.vertexId = { task: 'changed' };
   // @ts-expect-error Frontier observations are readonly.
@@ -63,8 +66,14 @@ void [pending, summary, requested, forged];
 const syncState: TraversalExecutionState = coordinator;
 const asyncState: TraversalExecutionState<ExecutionInspection> =
   asyncCoordinator;
-const dependencies: DagMilestoneSnapshot<TaskId> = coordinator.inspectMilestones();
-const asyncDependencies: DagMilestoneSnapshot<TaskId> = asyncCoordinator.inspectMilestones();
+const dependencies: DagMilestoneSnapshot<TaskId> =
+  coordinator.inspectMilestones();
+const asyncDependencies: DagMilestoneSnapshot<TaskId> =
+  asyncCoordinator.inspectMilestones();
 // @ts-expect-error Dependency queries preserve the coordinator ID domain.
 dependencies.explain({ vertexId: 'wrong', milestone: 'work' });
 void [syncState, asyncState, dependencies, asyncDependencies];
+
+import * as publicApi from '../src';
+// @ts-expect-error Tickets have no public runtime value or constructor.
+new publicApi.DagWorkTicket();

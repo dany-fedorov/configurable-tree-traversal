@@ -211,7 +211,7 @@ for (const [api, other] of [
           resolveChild: (id) => found(id),
         },
         get workCompletion() {
-          return ++reads === 1 ? 'externalSettlement' : 'visitorReturn';
+          return ++reads === 1 ? 'externalSettlement' : 'afterWorkReadyChain';
         },
       };
       const traversal =

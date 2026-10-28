@@ -19,9 +19,9 @@ export type DagVertexProgress<ID = unknown> = Readonly<{
   work: DagWorkState;
   subgraphComplete: boolean;
   unmetPrerequisiteIds: readonly ID[];
-  /** Exact W waits; always present in engine-produced summaries. */
-  unmetWorkPrerequisiteIds?: readonly ID[];
-  unmetSubgraphPrerequisiteIds?: readonly ID[];
+  /** Exact W waits, independent of C waits even when their IDs overlap. */
+  unmetWorkPrerequisiteIds: readonly ID[];
+  unmetSubgraphPrerequisiteIds: readonly ID[];
   generation?: DagSettlementGeneration;
 }>;
 export type DagSummary<ID = unknown> = Readonly<{

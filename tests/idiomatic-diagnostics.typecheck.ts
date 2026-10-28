@@ -36,7 +36,7 @@ const operation:
   | 'resolveRoot'
   | 'resolveChild'
   | 'resolvePrerequisite'
-  | 'sortChildHints'
+  | 'sortChildrenHints'
   | 'getVertexIdFromHint'
   | 'visit' = snapshot.pendingRequests[0]!.operation;
 const options = snapshot.chains[0]!.executionOptions;

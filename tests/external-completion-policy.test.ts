@@ -151,7 +151,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   });
 
   test(`${Constructor.name} rejects invalid completion policies before execution and preserves configure state`, () => {
-    const invalid = { workCompletion: 'invalid' as 'visitorReturn' };
+    const invalid = { workCompletion: 'invalid' as 'afterWorkReadyChain' };
     expect(
       () => new Constructor<G>({ traversableGraph: catalog, ...invalid }),
     ).toThrow(TypeError);

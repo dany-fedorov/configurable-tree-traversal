@@ -143,7 +143,7 @@ for (const async of [false, true]) {
 }
 
 test('wrapping requires external settlement and does not claim or run the runner', () => {
-  for (const workCompletion of [undefined, 'visitorReturn'] as const) {
+  for (const workCompletion of [undefined, 'afterWorkReadyChain'] as const) {
     const input = {
       traversableGraph: source,
       syntheticRoot: true,
@@ -276,7 +276,10 @@ for (const async of [false, true]) {
       expect(Object.isFrozen(ticket)).toBe(true);
       if (typeof id === 'object' && id !== null)
         expect(Object.isFrozen(id)).toBe(false);
-      expect(() => coordinator.completeWork({ ...ticket })).toThrow(TypeError);
+      expect(() => {
+        // @ts-expect-error A copied ticket has no nominal ownership.
+        coordinator.completeWork({ ...ticket });
+      }).toThrow(TypeError);
       expect(coordinator.completeWork(ticket)).toEqual({ kind: 'accepted' });
       expect(await coordinator.advance()).toEqual({ kind: 'finished' });
     },

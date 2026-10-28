@@ -359,7 +359,7 @@ Retired JS configuration keys reject before mutation/discovery where applicable,
 
 Generic `TraversalExecutionState`, `SyncTraversalExecution` and `AsyncTraversalExecution` default to `ExecutionInspection`; execution emission defaults to `EmissionKind<Phase>`. Concrete tree/DAG runners use `TreeDagExecutionInspection<Phase>`, walkers use `GraphWalkInspection`. Family phases and genuine sync/async differences remain intact. Graph ID generics stay after input/rewrite types (after phase for visitors); arbitrary ID identity and inference are preserved.
 
-Ready visits and chains expose callback `phase`; chains separately expose `state: 'running' | 'paused' | 'done' | 'invalid'`, `visitorIndex`, `executionOptions` and `commandCommitMode`. Pending `operation` names are `resolveRoot`, `resolveChild`, `resolvePrerequisite`, `sortChildHints`, `getVertexIdFromHint`, and `visit`; private engine effect keys are absent. DFS/BFS frame `stage` keeps its mechanical meaning.
+Ready visits and chains expose callback `phase`; chains separately expose `state: 'running' | 'paused' | 'done' | 'invalid'`, `visitorIndex`, `executionOptions` and `commandCommitMode`. Pending `operation` names are `resolveRoot`, `resolveChild`, `resolvePrerequisite`, `sortChildrenHints`, `getVertexIdFromHint`, and `visit`; private engine effect keys are absent. DFS/BFS frame `stage` keeps its mechanical meaning.
 
 | Old visit status | `ResolvedVisitStage`        |
 | ---------------- | --------------------------- |
@@ -410,3 +410,27 @@ All public option bags reject unknown own string and symbol keys with `TypeError
 `configure` retains every missing or undefined field, including nested visitor phases and in-order options. This works with pretyped optional patches under `exactOptionalPropertyTypes`. Defined malformed fields reject atomically. Only explicitly nullable fields accept null; walking limits still replace their entire record.
 
 Replace `afterChildIndices: 0` with `{ indices: [0] }`, a former tuple interval `[0, 2]` with `{ ranges: [{ from: 0, through: 2 }] }`, and a former distinct-position list `{ ranges: [0, 2] }` with `{ indices: [0, 2] }`. The same syntax applies to fallback positions. Negative indexing, inclusive ranges and all-out-of-bounds fallback behavior remain.
+
+## Precise DAG preparation, completion and tickets
+
+Replace `workCompletion: 'visitorReturn'` with `workCompletion: 'afterWorkReadyChain'`.
+The old literal rejects. The default completes W after a normal `ON_WORK_READY`
+chain, including an empty or filtered chain. `externalSettlement` still requires
+host settlement, and explicit `DEFER_WORK_COMPLETION` still ends the chain early.
+
+`prepareDag` and `prepareDagAsync` return engine-discovered structural cycles as
+`{ kind: 'invalid', issues: [{ kind: 'discoveryCycle', vertexIds }] }`. Preserve
+that ordered closed witness; authored `structuralCycle` issues describe SCC
+membership. Direct runner execution/preparation still throws `DagDiscoveryCycleError`.
+Exact source-thrown values, including same-class errors from callbacks, getters
+and iterables, escape unchanged.
+
+`DagWorkTicket` is a type-only nominal capability with no runtime constructor.
+Pass the original ticket to settlement methods; spreading it fails typechecking
+and runtime provenance validation. `DagVertexProgress` always supplies readonly
+`unmetWorkPrerequisiteIds` and `unmetSubgraphPrerequisiteIds`, even when empty.
+Update manual fixtures with both arrays. Overlapping IDs remain in both arrays;
+W cannot be recovered by subtracting C from `unmetPrerequisiteIds`.
+
+Tree/DAG pending-request diagnostics use `operation: 'sortChildrenHints'`, matching
+the sorter option. Replace the old diagnostic spelling in inspection consumers.
