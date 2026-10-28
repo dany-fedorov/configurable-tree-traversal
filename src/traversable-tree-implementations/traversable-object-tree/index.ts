@@ -4,6 +4,7 @@ export type {
   ObjectMutationOptions,
   ObjectAssemblyCache,
   ObjectPropertyPatch,
+  ObjectMutationRequest,
   ObjectMutationCommands,
   ObjectMutationBinder,
   ObjectMutationBinderFactory,
@@ -13,7 +14,7 @@ export type { TraversableObject } from './lib/TraversableObject';
 export type { TraversableObjectProp } from './lib/TraversableObjectProp';
 export type { TraversableObjectPropKey } from './lib/TraversableObjectPropKey';
 export type {
-  ObjectVertexHookResult,
+  ObjectChildHookResult,
   ObjectTreeOptions,
   ObjectTreePropertyAdapters,
 } from './lib/TraversableObjectTreeInstanceConfig';

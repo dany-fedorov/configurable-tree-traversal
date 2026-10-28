@@ -19,7 +19,7 @@ describe('object rewriting', () => {
     const { outputAtReturn } = rewriteObject(input, {
       rewrite: ({ value }) =>
         typeof value === 'number'
-          ? { rewrite: { value: value + 10 } }
+          ? { kind: 'rewrite', patch: { value: value + 10 } }
           : undefined,
     });
 
@@ -40,7 +40,7 @@ describe('object rewriting', () => {
     const { outputAtReturn } = rewriteObject(input, {
       rewrite: ({ value }) =>
         typeof value === 'number'
-          ? { rewrite: { value: value * 10 } }
+          ? { kind: 'rewrite', patch: { value: value * 10 } }
           : undefined,
     });
 
@@ -66,7 +66,7 @@ describe('object rewriting', () => {
     const { outputAtReturn } = rewriteObjectAs<typeof input>(input, {
       rewrite: ({ value }) =>
         typeof value === 'string'
-          ? { rewrite: { value: value.toUpperCase() } }
+          ? { kind: 'rewrite', patch: { value: value.toUpperCase() } }
           : undefined,
     });
 
@@ -79,7 +79,7 @@ describe('object rewriting', () => {
   test('compacts numeric array children after deletion', () => {
     expect(
       rewriteObject([1, 2, 3], {
-        rewrite: ({ value }) => (value === 2 ? { delete: true } : undefined),
+        rewrite: ({ value }) => (value === 2 ? { kind: 'delete' } : undefined),
       }).outputAtReturn,
     ).toEqual([1, 3]);
   });
@@ -97,14 +97,14 @@ describe('object rewriting', () => {
     expect(
       rewriteObject(3, {
         rewrite: ({ value }) =>
-          value === 3 ? { rewrite: { value: 4 } } : undefined,
+          value === 3 ? { kind: 'rewrite', patch: { value: 4 } } : undefined,
       }).outputAtReturn,
     ).toBe(4);
   });
 
   test('returns null when the root is deleted', () => {
     expect(
-      rewriteObject({ value: 1 }, { rewrite: () => ({ delete: true }) })
+      rewriteObject({ value: 1 }, { rewrite: () => ({ kind: 'delete' }) })
         .outputAtReturn,
     ).toBeNull();
   });
@@ -114,9 +114,8 @@ describe('object rewriting', () => {
       rewriteObject(
         { value: 1 },
         {
-          rewrite: () => ({ delete: true }),
-          convertRootValue: (value) =>
-            value === null ? 'deleted' : 'present',
+          rewrite: () => ({ kind: 'delete' }),
+          convertRootValue: (value) => (value === null ? 'deleted' : 'present'),
         },
       ).outputAtReturn,
     ).toBe('deleted');

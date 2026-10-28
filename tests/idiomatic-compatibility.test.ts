@@ -187,7 +187,7 @@ test('rejects retired object hooks and returnMe results', () => {
   ).toThrow(TypeError);
   const objectSource = new ObjectTreeSource(
     { child: 1 },
-    { resolveVertexHook: (() => ({ returnMe: content })) as never },
+    { resolveChildHook: (() => ({ returnMe: content })) as never },
   );
   expect(() =>
     traverseTreeDepthFirst({ traversableTree: objectSource }),

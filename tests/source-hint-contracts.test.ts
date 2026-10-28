@@ -36,7 +36,7 @@ test('owned and composed object sources resolve explicitly declared union hints 
         value: 0,
       }),
       getChildrenOfProperty: () => [],
-      resolveVertexHook: (hint: Input['VertexHint']) => {
+      resolveChildHook: (hint: Input['VertexHint']) => {
         seen.push(hint);
         return { kind: 'useDefault' as const };
       },
@@ -54,7 +54,8 @@ test('owned and composed object sources resolve explicitly declared union hints 
           ? {
               commands: [
                 binder(vertex, context).makeMutationCommand({
-                  rewrite: { value: 'rewritten parent' },
+                  kind: 'rewrite',
+                  patch: { value: 'rewritten parent' },
                 }),
                 {
                   commandName: Command.REWRITE_CHILD_HINTS as const,

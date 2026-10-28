@@ -9,7 +9,7 @@ import type {
   TreeVertexOmitted,
   TreeVertexResolution,
   DagVertexResolution,
-  ObjectVertexHookResult,
+  ObjectChildHookResult,
 } from '../src';
 
 type T = VertexTypes<string, string>;
@@ -30,7 +30,7 @@ const asyncTree: AsyncTreeSource<T> = {
   resolveRoot: async () => legacy,
   resolveChild: async () => found,
 };
-const hook: ObjectVertexHookResult<T> = { kind: 'useDefault' };
+const hook: ObjectChildHookResult<T> = { kind: 'useDefault' };
 const graph: DagDiscoverySource<T> = {
   resolveRoot: () => ({
     kind: 'found',
@@ -189,9 +189,9 @@ const asyncBaddependsOnCompleteomitted: AsyncTreeSource<T> = {
 };
 void [baddependsOnCompleteomitted, asyncBaddependsOnCompleteomitted];
 // @ts-expect-error Canonical hooks cannot implicitly request default resolution.
-const implicitHook: ObjectVertexHookResult<T> = undefined;
+const implicitHook: ObjectChildHookResult<T> = undefined;
 // @ts-expect-error Canonical default results cannot carry graph identity.
-const graphHook: ObjectVertexHookResult<T> = {
+const graphHook: ObjectChildHookResult<T> = {
   kind: 'useDefault',
   vertexId: undefined,
 };
@@ -201,7 +201,7 @@ void [implicitHook, graphHook];
 const adapter = new ObjectTreeSource(
   { a: 1 },
   {
-    resolveVertexHook: (hint, options) => {
+    resolveChildHook: (hint, options) => {
       const sameHint: typeof hint = options.resolutionContext.vertexHint;
       return {
         kind: 'found',
@@ -210,19 +210,19 @@ const adapter = new ObjectTreeSource(
     },
   },
 );
-rewriteObject({ a: 1 }, { resolveVertexHook: () => ({ kind: 'useDefault' }) });
+rewriteObject({ a: 1 }, { resolveChildHook: () => ({ kind: 'useDefault' }) });
 new ObjectTreeSource(
   { a: 1 },
   {
     // @ts-expect-error Canonical hooks require an explicit tagged result.
-    resolveVertexHook: () => undefined,
+    resolveChildHook: () => undefined,
   },
 );
 rewriteObject(
   { a: 1 },
   {
     // @ts-expect-error Canonical hooks cannot return legacy null-content results.
-    resolveVertexHook: () => ({ vertexContent: null }),
+    resolveChildHook: () => ({ vertexContent: null }),
   },
 );
 void adapter;
@@ -244,10 +244,10 @@ for (const satisfiesDependencies of [true, undefined] as const) {
     resolveChild: async () => omitted,
   };
   // @ts-expect-error Object hooks are tree sources too.
-  const invalidHook: ObjectVertexHookResult<T> = invalidOmission();
+  const invalidHook: ObjectChildHookResult<T> = invalidOmission();
   void [invalidTree, invalidAsyncTree, invalidHook];
 }
-const plainHook: ObjectVertexHookResult<T> = omitted;
+const plainHook: ObjectChildHookResult<T> = omitted;
 const plainAsyncTree: AsyncTreeSource<T> = {
   resolveRoot: async () => omitted,
   resolveChild: async () => omitted,
@@ -279,5 +279,5 @@ const invalidDefaultHook = {
   satisfiesDependencies: undefined,
 };
 // @ts-expect-error Default object-hook results also forbid acknowledgement metadata.
-const defaultHook: ObjectVertexHookResult<T> = invalidDefaultHook;
+const defaultHook: ObjectChildHookResult<T> = invalidDefaultHook;
 void [acknowledgedTree, undefinedTree, defaultHook];

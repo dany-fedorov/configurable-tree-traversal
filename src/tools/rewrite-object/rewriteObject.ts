@@ -1,6 +1,5 @@
 import type { ObjectCurrentVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
 import { assertPublicOptions } from '@core/assertPublicOptions';
-import type { MutationRequest } from '@core/MakeMutationCommandFunctionFactory';
 import type { GetPathToOptions } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TreeVisitorContext } from '@core/TraversalVisitor';
@@ -11,7 +10,7 @@ import type { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirst
 import { DepthFirstTreeTraversal } from '@depth-first-traversal/DepthFirstTraversal';
 import type {
   ObjectMutationOptions,
-  ObjectPropertyPatch,
+  ObjectMutationRequest,
 } from '@traversable-object-tree/lib/makeMutationCommandFactory';
 import type { ObjectCompositeClassification } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
@@ -67,9 +66,7 @@ export type ObjectRewriteCallback<
 > = (
   prop: ObjectRewriteInput<InK, InV, OutK, OutV>,
   context: ObjectRewriteContext<InK, InV, OutK, OutV>,
-) =>
-  | MutationRequest<ObjectPropertyPatch<ObjectTreeVertexTypes<OutK, OutV>>>
-  | undefined;
+) => ObjectMutationRequest<ObjectTreeVertexTypes<OutK, OutV>> | undefined;
 
 export const __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ =
   '__REWRITE_OBJECT_DEFAULT_ROOT_KEY__';
@@ -139,7 +136,14 @@ export function rewriteObject<
   OutV = InV,
 >(
   object: In,
-  ...args: Record<never, never> extends RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>
+  ...args: Record<never, never> extends RewriteObjectOptions<
+    In,
+    InK,
+    InV,
+    Out,
+    OutK,
+    OutV
+  >
     ? [options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>]
     : [options: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>]
 ): RewriteObjectResult<InK, InV, Out, OutK, OutV> {
@@ -150,8 +154,13 @@ export function rewriteObject<
       'getOutputObjectFromRootValue is unsupported; use convertRootValue',
     );
   }
+  if (options && 'resolveVertexHook' in options) {
+    throw new TypeError(
+      'resolveVertexHook is unsupported; use resolveChildHook',
+    );
+  }
   if (options && 'makeVertexHook' in options) {
-    throw new TypeError('makeVertexHook is unsupported; use resolveVertexHook');
+    throw new TypeError('makeVertexHook is unsupported; use resolveChildHook');
   }
 
   if (options && 'traversableTree' in options) {
@@ -165,13 +174,13 @@ export function rewriteObject<
     typeof options?.rewrite === 'function' ? options.rewrite : null;
   const convertRootValue: RootValueConverter<Out> =
     options?.convertRootValue ?? ((value: unknown) => value as Out);
-  const resolveVertexHook = options?.resolveVertexHook;
+  const resolveChildHook = options?.resolveChildHook;
   // Required narrow adapters are enforced by RewriteObjectOptions. The default
   // mapper preserves the actual input; its discovery domain is broad.
   const tree = ObjectTreeSource.fromProperties<In, InK, InV, OutK, OutV>(
     object,
     {
-      ...(resolveVertexHook === undefined ? {} : { resolveVertexHook }),
+      ...(resolveChildHook === undefined ? {} : { resolveChildHook }),
       getChildrenOfProperty:
         options?.getChildrenOfProperty ??
         ObjectTreeSource.getChildrenOfPropertyDefault,
@@ -187,6 +196,12 @@ export function rewriteObject<
     ObjectTreeVertexTypes<InK, InV>,
     ObjectTreeVertexTypes<OutK, OutV>
   >({
+    ...(options?.arrayIndexPolicy === undefined
+      ? {}
+      : { arrayIndexPolicy: options.arrayIndexPolicy }),
+    ...(options?.propertyCollision === undefined
+      ? {}
+      : { propertyCollision: options.propertyCollision }),
     ...(options?.isArray ? { isArray: options.isArray } : {}),
     ...(options?.isObject ? { isObject: options.isObject } : {}),
     ...(options?.assembleArray ? { assembleArray: options.assembleArray } : {}),
@@ -260,18 +275,7 @@ export function rewriteObject<
             .getPathTo(context.vertexRef, thisOptions)
             .map((ps) => ps.getValue().getData().key),
       });
-      const hasDelete =
-        rw && Object.prototype.hasOwnProperty.call(rw, 'delete');
-      const hasRewrite =
-        rw && Object.prototype.hasOwnProperty.call(rw, 'rewrite');
-      return {
-        commands: [
-          makeMutationCommand({
-            ...(!hasDelete ? {} : { delete: rw.delete }),
-            ...(!hasRewrite ? {} : { rewrite: rw.rewrite }),
-          }),
-        ],
-      };
+      return { commands: [makeMutationCommand(rw)] };
     },
   );
   const traversalRunner = traversal.createRunner().run();

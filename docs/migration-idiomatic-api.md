@@ -107,7 +107,7 @@ Replace `getOutputObjectFromRootValue` with `convertRootValue(value: unknown, co
 
 Default object discovery now exposes `PropertyKey`/`unknown`. Narrow constructor generics and rewrite helpers require **both** the root and child property adapters, including with pretyped or spread options. Prefer `ObjectTreeSource.fromProperties(input, { getRootPropertyFromInputObject, getChildrenOfProperty })` for precise discovery. `createRootPropertyMapper(rootKey?)` preserves the actual root input and root-key type; `getChildrenOfPropertyDefault` cannot promise narrow descendant keys or values. Assembly caches use `ObjectAssemblyCache<Key>` with function-valued `has`, `get`, and `set`; use `Map<Key, unknown>` so arbitrary mixed values can be stored safely.
 
-Discovery hints belong to the source input domain: `REWRITE_CHILD_HINTS` accepts `T['VertexHint'][]` in tree and DAG visitors, including async visitors, registration groups and `rewriteObject` options. Rewriting vertex data to `R` does not admit `R['VertexHint']`. `resolveChild`, object `resolveVertexHook` and `getChildrenOfProperty` still resolve input records; retained original views therefore remain truthful. If discovery needs another hint kind, declare it in the source input union first. For object sources that means extending `InK`/`InV`, and original views then reflect that declared union.
+Discovery hints belong to the source input domain: `REWRITE_CHILD_HINTS` accepts `T['VertexHint'][]` in tree and DAG visitors, including async visitors, registration groups and `rewriteObject` options. Rewriting vertex data to `R` does not admit `R['VertexHint']`. `resolveChild`, object `resolveChildHook` and `getChildrenOfProperty` still resolve input records; retained original views therefore remain truthful. If discovery needs another hint kind, declare it in the source input union first. For object sources that means extending `InK`/`InV`, and original views then reflect that declared union.
 
 A composed source must accept the traversal's full current context. Source callback properties are checked contravariantly with strict function checking: an input-only `ObjectTreeSource<In, InK, InV>` can be too narrow for a traversal that widens live keys or hints. Configure its `OutK`/`OutV` to match, and use `ObjectCurrentVertexTypes<Input, Output>` for the traversal and binder's live data. For custom sources, explicitly declare `TreeSource<T, R>` / `DagDiscoverySource<T, R, ID>` (or their async counterparts) when standalone callbacks do not provide enough inference. Matching sources and binders compose without assertions.
 
@@ -182,7 +182,7 @@ const result = rewriteObject<
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
   getChildrenOfProperty: () => [],
   retainOriginalTreeStructure: true,
-  resolveVertexHook(hint, context) {
+  resolveChildHook(hint, context) {
     const inputValue: number | string = hint.value;
     const originalValue: number | string = context
       .originalTreeView!.getRoot()!
@@ -347,7 +347,7 @@ Graph discovery defaults are `rootWorkDependencies: 'honor'` and `omittedWorkDep
 | `resolutionStyle`, `TraversalVisitorFunctionResolutionStyle`, `CONCURRENT` / `SEQUENTIAL`, diagnostic `group` | `commandCommitMode` and its two explicit visibility modes.                                                                                               |
 | Caller `addedIndex` policy                                                                                    | Assigned registration metadata; detached query records can round-trip with fresh assigned indexes.                                                       |
 | `iterateOver`, `enableVisitorFunctionsFor`, `disableVisitorFunctionsFor`                                      | `emitEvents` / `visitorPhases`; retired JS keys reject. Earlier `emitPhases` is also replaced by `emitEvents`.                                           |
-| `makeVertexHook`, `{ returnMe }`                                                                              | `resolveVertexHook` with `useDefault`, tagged tree `found`, or `omitted`.                                                                                |
+| `makeVertexHook`, `{ returnMe }`                                                                              | `resolveChildHook` with `useDefault`, tagged tree `found`, or `omitted`.                                                                                |
 | `AsyncCoreExecution`                                                                                          | `AsyncTraversalExecution`, preserving phase and async differences.                                                                                       |
 | Runtime bases `TreeTraversal`, `TreeTraversalRunner`, `TreeTraversalIterable`, `AbstractTreeSource`           | Structural `TreeSource`, execution capabilities, concrete builders and `Iterable<TreeTraversalEvent<...>>`.                                              |
 | Collection selector `dependencies` / `completionDependencies`                                                 | `dependsOnWork` / `dependsOnSubgraphCompletion`; rejected old keys remain rejected.                                                                      |
@@ -379,3 +379,26 @@ Read graph `visitStage` or `getVisitStageOf(ref)`. Tree initial callbacks can re
 ## Source-required options
 
 Tree builders/helpers require `traversableTree`; DAG builders/helpers require exactly one `traversableGraph` or `traversableTree`; walkers require `source`. Configuration patches update future runners atomically. Prepared factories and rewrite helpers own their sources and reject caller source/state overrides. Public runners are capability interfaces obtained from builders/prepared factories, without public constructors or engine state injection. No dependency, engine-version, publication or host-dispatch policy changes accompany this migration.
+
+## Explicit object operations and reconstruction
+
+Replace optional `{ rewrite: patch }` / `{ delete: true }` requests with
+`{ kind: 'rewrite', patch }` / `{ kind: 'delete' }`. Generic mutation builders
+use `{ kind: 'rewrite', value }` for a complete replacement. Omission and
+`{ kind: 'keep' }` preserve each helper's default behavior, including object
+composite reconstruction. Conflicting operations and unknown request fields reject.
+
+Rename `resolveVertexHook` / `ObjectVertexHookResult` to `resolveChildHook` /
+`ObjectChildHookResult`; the hook runs only for children. Use the root mapper
+for the root. The old hook option rejects even when present with undefined.
+
+Built-in assembly now rejects property collisions by default after normalizing
+JavaScript property keys (number/string equivalents collide; symbols preserve
+identity). Select `propertyCollision: 'firstWins'` or `'lastWins'` explicitly
+when desired. Arrays default to `arrayIndexPolicy: 'compactInTraversalOrder'`;
+`'preserveNumericKeys'` retains holes and assigns numeric indices 0..2^32-2.
+Output length is max(original array length, highest assigned index + 1), so
+trailing holes and deletion-created trailing holes survive. Non-arrays classified
+as arrays derive length from assigned indices.
+Invalid numeric positions reject. Custom assemblers own their reconstruction
+and supersede these built-in placement/collision policies.

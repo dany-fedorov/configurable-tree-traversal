@@ -14,7 +14,9 @@ const changed = rewriteObject(
   { count: 1 },
   {
     rewrite: ({ key }) =>
-      key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
+      key === 'count'
+        ? { kind: 'rewrite', patch: { key: 'renamed' } }
+        : undefined,
   },
 );
 // @ts-expect-error Arbitrary rewrites do not preserve the input shape.
@@ -25,7 +27,9 @@ const typed = rewriteObjectAs<{ renamed: number }>(
   { count: 1 },
   {
     rewrite: ({ key }) =>
-      key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
+      key === 'count'
+        ? { kind: 'rewrite', patch: { key: 'renamed' } }
+        : undefined,
   },
 );
 const value: number = typed.getOutput()!.renamed;

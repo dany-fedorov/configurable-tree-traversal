@@ -76,6 +76,58 @@ for (const api of [cjs, esm]) {
     }
   }
   assert.equal(api.rewriteObjectAs(3).getOutput(), 3); // No schema validation.
+  assert.deepEqual(
+    api
+      .rewriteObject([10, 20], {
+        arrayIndexPolicy: 'preserveNumericKeys',
+        rewrite: (p) =>
+          typeof p.key === 'number'
+            ? { kind: 'rewrite', patch: { key: p.key + 2 } }
+            : { kind: 'keep' },
+      })
+      .getOutput(),
+    [, , 10, 20],
+  );
+  const trailing = api
+    .rewriteObject([10, 20], {
+      arrayIndexPolicy: 'preserveNumericKeys',
+      rewrite: (p) => (p.key === 1 ? { kind: 'delete' } : { kind: 'keep' }),
+    })
+    .getOutput();
+  assert.equal(trailing.length, 2);
+  assert.deepEqual(Object.keys(trailing), ['0']);
+  for (const propertyCollision of ['error', 'firstWins', 'lastWins']) {
+    const options = {
+      propertyCollision,
+      rewrite: (p) =>
+        p.key === 'b' ? { kind: 'rewrite', patch: { key: 'a' } } : undefined,
+    };
+    if (propertyCollision === 'error') {
+      assert.throws(
+        () => api.rewriteObject({ a: 1, b: 2 }, options),
+        TypeError,
+      );
+    } else {
+      assert.deepEqual(api.rewriteObject({ a: 1, b: 2 }, options).getOutput(), {
+        a: propertyCollision === 'firstWins' ? 1 : 2,
+      });
+    }
+  }
+  for (const operation of [
+    { rewrite: { value: 1 } },
+    { delete: true },
+    { kind: 'keep', patch: {} },
+    { kind: 'rewrite', value: 1 },
+  ]) {
+    assert.throws(
+      () => api.rewriteObject(1, { rewrite: () => operation }),
+      TypeError,
+    );
+  }
+  assert.throws(
+    () => api.rewriteObject({}, { resolveVertexHook: undefined }),
+    TypeError,
+  );
   let paused = false;
   let conversions = 0;
   const result = api.rewriteObject(
@@ -93,7 +145,9 @@ for (const api of [cjs, esm]) {
         },
       },
       rewrite: ({ key }) =>
-        key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
+        key === 'count'
+          ? { kind: 'rewrite', patch: { key: 'renamed' } }
+          : undefined,
       convertRootValue: (value) => {
         conversions++;
         if (conversions === 2) throw undefined;

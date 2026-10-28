@@ -29,7 +29,7 @@ describe('rewrite object option integration', () => {
         rewrite: ({ value }, { getKeyPath }) => {
           if (value === 1) {
             leafPaths.push(getKeyPath({ noRoot: true }));
-            return { rewrite: { value: 2 } };
+            return { kind: 'rewrite', patch: { value: 2 } };
           }
           return undefined;
         },
@@ -136,7 +136,7 @@ describe('object identity bookkeeping', () => {
       traversableTree: new ObjectTreeSource<{ branch: number }>(
         { branch: 0 },
         {
-          resolveVertexHook: (hint) =>
+          resolveChildHook: (hint) =>
             hint.key === 'branch'
               ? {
                   kind: 'found',
@@ -205,7 +205,7 @@ describe('object identity bookkeeping', () => {
       traversableTree: new ObjectTreeSource<{ custom: { ignored: boolean } }>(
         { custom: { ignored: true } },
         {
-          resolveVertexHook: (hint) =>
+          resolveChildHook: (hint) =>
             hint.key === 'custom'
               ? {
                   kind: 'found',
@@ -415,9 +415,10 @@ describe('public mutation command factory', () => {
         },
       })(vertex, options);
       const before = vertex.getData();
-      const input = { rewrite } as unknown as Parameters<
-        typeof mutation.makeMutationCommand
-      >[0];
+      const input = {
+        kind: 'rewrite',
+        patch: rewrite,
+      } as unknown as Parameters<typeof mutation.makeMutationCommand>[0];
 
       expect(() => mutation.makeMutationCommand(input)).toThrow(TypeError);
       expect(() => mutation.makeMutationCommand(input)).toThrow(
@@ -446,7 +447,8 @@ describe('public mutation command factory', () => {
           },
         })(vertex, options);
       const input = {
-        get rewrite() {
+        kind: 'rewrite',
+        get patch() {
           return ++reads === 1 ? firstPatch : {};
         },
       } as unknown as Parameters<typeof makeMutationCommand>[0];
@@ -499,7 +501,8 @@ describe('public mutation command factory', () => {
           },
         })(vertex, options);
       const input = {
-        get rewrite() {
+        kind: 'rewrite',
+        get patch() {
           return ++reads <= 2 ? patch : 3;
         },
       } as unknown as Parameters<typeof makeMutationCommand>[0];
@@ -534,7 +537,8 @@ describe('public mutation command factory', () => {
       let didThrow = false;
       try {
         makeMutationCommand({
-          get rewrite(): never {
+          kind: 'rewrite',
+          get patch(): never {
             reads += 1;
             throw error;
           },
@@ -557,15 +561,19 @@ describe('public mutation command factory', () => {
       ObjectTree,
       ObjectTree
     >()(vertex, options);
-    expect(makeMutationCommand({ rewrite: { value: undefined } })).toEqual({
+    expect(
+      makeMutationCommand({ kind: 'rewrite', patch: { value: undefined } }),
+    ).toEqual({
       commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
       commandArguments: { newData: { key: 'root', value: undefined } },
     });
-    expect(makeMutationCommand({ rewrite: { key: 'renamed' } })).toEqual({
+    expect(
+      makeMutationCommand({ kind: 'rewrite', patch: { key: 'renamed' } }),
+    ).toEqual({
       commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
       commandArguments: { newData: { key: 'renamed', value: 1 } },
     });
-    expect(makeMutationCommand({ delete: true })).toEqual({
+    expect(makeMutationCommand({ kind: 'delete' })).toEqual({
       commandName: TraversalVisitorCommandName.DELETE_TREE_SUBTREE,
     });
     expect(vertex.getData()).toEqual({ key: 'root', value: 1 });

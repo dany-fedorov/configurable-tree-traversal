@@ -36,7 +36,9 @@ describe('rewrite result contracts', () => {
     const result = rewriteObject(input, {
       visitors: pauseBeforeRootRewrite(),
       rewrite: ({ key }) =>
-        key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
+        key === 'count'
+          ? { kind: 'rewrite', patch: { key: 'renamed' } }
+          : undefined,
       convertRootValue: (value, context) => {
         completion.push(context.complete);
         convertedValues.push(value);
@@ -130,7 +132,7 @@ describe('rewrite result contracts', () => {
       {},
       {
         visitors: pauseBeforeRootRewrite(),
-        rewrite: () => ({ delete: true }),
+        rewrite: () => ({ kind: 'delete' }),
         convertRootValue: (value) => (value === null ? 'deleted' : 'present'),
       },
     );
@@ -140,14 +142,14 @@ describe('rewrite result contracts', () => {
       {},
       {
         visitors: pauseBeforeRootRewrite(),
-        rewrite: () => ({ rewrite: { value: null } }),
+        rewrite: () => ({ kind: 'rewrite', patch: { value: null } }),
       },
     );
     nullRoot.traversalRunner.run();
     expect(nullRoot.getOutput()).toBeNull();
     expect(rewriteObject(null).getOutput()).toBeNull();
     expect(
-      rewriteObject({}, { rewrite: () => ({ delete: true }) }).getOutput(),
+      rewriteObject({}, { rewrite: () => ({ kind: 'delete' }) }).getOutput(),
     ).toBeNull();
   });
 
@@ -156,7 +158,9 @@ describe('rewrite result contracts', () => {
       { count: 1 },
       {
         rewrite: ({ key }) =>
-          key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
+          key === 'count'
+            ? { kind: 'rewrite', patch: { key: 'renamed' } }
+            : undefined,
       },
     );
     expect(result.getOutput()).toEqual({ renamed: 1 });

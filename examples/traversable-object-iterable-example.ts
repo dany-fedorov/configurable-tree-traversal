@@ -42,7 +42,7 @@ const obj = {
 };
 
 const traversableTree = new ObjectTreeSource(obj, {
-  resolveVertexHook: (vertexHint) => {
+  resolveChildHook: (vertexHint) => {
     if (vertexHint.value === null) {
       return { kind: 'omitted' };
     }

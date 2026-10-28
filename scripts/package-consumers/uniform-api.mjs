@@ -416,11 +416,11 @@ for (const [api, other] of [
   );
   for (const hook of [
     {
-      resolveVertexHook: (hint) =>
+      resolveChildHook: (hint) =>
         hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
     },
     {
-      resolveVertexHook: (hint) =>
+      resolveChildHook: (hint) =>
         hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
     },
   ]) {
@@ -429,7 +429,9 @@ for (const [api, other] of [
       {
         ...hook,
         rewrite: ({ key }) =>
-          key === 'keep' ? { rewrite: { value: undefined } } : undefined,
+          key === 'keep'
+            ? { kind: 'rewrite', patch: { value: undefined } }
+            : undefined,
       },
     );
     assert.deepEqual(result.outputAtReturn, { keep: undefined });
@@ -439,7 +441,7 @@ for (const [api, other] of [
       api.rewriteObject(
         { a: 1 },
         {
-          rewrite: () => ({ rewrite: undefined }),
+          rewrite: () => ({ kind: 'rewrite', patch: undefined }),
         },
       ),
     TypeError,

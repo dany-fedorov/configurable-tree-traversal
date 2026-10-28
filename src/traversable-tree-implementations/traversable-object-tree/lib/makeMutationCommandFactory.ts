@@ -5,11 +5,7 @@ import type { TreeVisitor } from '@core/TraversalVisitor';
 import type { ObjectCompositeClassification } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
 import type { MutableRef } from '@core/CTTRef';
 import type { Vertex } from '@core/Vertex';
-import type {
-  MutationCommandBuilder,
-  MutationRequest,
-  MutationCommand,
-} from '@core/MakeMutationCommandFunctionFactory';
+import type { MutationCommand } from '@core/MakeMutationCommandFunctionFactory';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
@@ -24,6 +20,8 @@ export type ObjectMutationOptions<
   InputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
   OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
 > = {
+  arrayIndexPolicy?: 'compactInTraversalOrder' | 'preserveNumericKeys';
+  propertyCollision?: 'error' | 'firstWins' | 'lastWins';
   isArray?: (
     vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
   ) => boolean;
@@ -65,6 +63,13 @@ export type ObjectMutationOptions<
   >;
 };
 
+export type ObjectMutationRequest<
+  OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
+> =
+  | { kind: 'rewrite'; patch: ObjectPropertyPatch<OutputTypes>; value?: never }
+  | { kind: 'delete'; patch?: never; value?: never }
+  | { kind: 'keep'; patch?: never; value?: never };
+
 /** Object helpers merge only the supplied output property fields. */
 export type ObjectPropertyPatch<
   OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
@@ -77,9 +82,10 @@ export type ObjectMutationCommands<
     unknown
   > = OutputTypes,
 > = ObjectCompositeClassification & {
-  makeMutationCommand: MutationCommandBuilder<
+  makeMutationCommand: (
+    request?: ObjectMutationRequest<OutputTypes>,
+  ) => MutationCommand<
     ObjectCurrentVertexTypes<InputTypes, OutputTypes>,
-    ObjectPropertyPatch<OutputTypes>,
     TraversalVisitorCommandName.DELETE_TREE_SUBTREE
   >;
   assembleComposite: (saveToMap?: boolean) => unknown;
@@ -116,16 +122,59 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
     options?: ObjectMutationOptions<InputTypes, OutputTypes>,
   ): ObjectMutationBinder<InputTypes, OutputTypes> {
     const {
+      arrayIndexPolicy = 'compactInTraversalOrder',
+      propertyCollision = 'error',
+    } = options ?? {};
+    if (
+      arrayIndexPolicy !== 'compactInTraversalOrder' &&
+      arrayIndexPolicy !== 'preserveNumericKeys'
+    ) {
+      throw new TypeError('Invalid arrayIndexPolicy');
+    }
+    if (
+      propertyCollision !== 'error' &&
+      propertyCollision !== 'firstWins' &&
+      propertyCollision !== 'lastWins'
+    ) {
+      throw new TypeError('Invalid propertyCollision');
+    }
+    const {
       isObject,
       isArray,
-      assembleObject,
-      assembleArray,
+      assembleObject: customAssembleObject,
+      assembleArray: customAssembleArray,
       assembledMap: assembledMapInput,
     } = {
       ...OBJECT_MUTATION_DEFAULTS,
       ...options,
     };
     const assembledMap = assembledMapInput ?? new Map();
+    const assembleArray =
+      customAssembleArray ??
+      ((
+        children: TraversableObjectProp<TraversableObjectPropKey, unknown>[],
+        vertexData: TraversableObjectProp<TraversableObjectPropKey, unknown>,
+      ) =>
+        assembleProperties(
+          children,
+          true,
+          arrayIndexPolicy,
+          propertyCollision,
+          vertexData.value,
+        ));
+    const assembleObject =
+      customAssembleObject ??
+      ((
+        children: TraversableObjectProp<TraversableObjectPropKey, unknown>[],
+        vertexData: TraversableObjectProp<TraversableObjectPropKey, unknown>,
+      ) =>
+        assembleProperties(
+          children,
+          false,
+          arrayIndexPolicy,
+          propertyCollision,
+          vertexData.value,
+        ));
 
     return function bindObjectMutation(
       ...visitorArguments: Parameters<
@@ -195,22 +244,54 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
       }
 
       function buildMutationCommand(
-        request?: MutationRequest<ObjectPropertyPatch<OutputTypes>>,
+        request?: ObjectMutationRequest<OutputTypes>,
       ): MutationCommand<
         ObjectCurrentVertexTypes<InputTypes, OutputTypes>,
         TraversalVisitorCommandName.DELETE_TREE_SUBTREE
       > {
-        const inputOk = request && typeof request === 'object';
-        const toDelete =
-          inputOk &&
-          Object.prototype.hasOwnProperty.call(request, 'delete') &&
-          request?.delete === true;
-        const hasRewrite =
-          inputOk && Object.prototype.hasOwnProperty.call(request, 'rewrite');
-        const rewrite = hasRewrite ? request.rewrite : undefined;
-        if (hasRewrite && (rewrite === null || typeof rewrite !== 'object')) {
+        let toDelete = false;
+        let hasRewrite = false;
+        let rewrite: ObjectPropertyPatch<OutputTypes> | undefined;
+        if (request !== undefined) {
+          if (
+            request === null ||
+            typeof request !== 'object' ||
+            Array.isArray(request)
+          ) {
+            throw new TypeError('Invalid mutation operation');
+          }
+          const keys = Reflect.ownKeys(request);
+          if (!Object.prototype.hasOwnProperty.call(request, 'kind')) {
+            throw new TypeError('Mutation operation requires kind');
+          }
+          const kind = request.kind;
+          if (kind !== 'rewrite' && kind !== 'delete' && kind !== 'keep') {
+            throw new TypeError('Invalid mutation operation kind');
+          }
+          if (
+            keys.some(
+              (key) =>
+                key !== 'kind' && !(kind === 'rewrite' && key === 'patch'),
+            ) ||
+            (kind === 'rewrite' &&
+              !Object.prototype.hasOwnProperty.call(request, 'patch'))
+          ) {
+            throw new TypeError('Invalid mutation operation fields');
+          }
+          toDelete = kind === 'delete';
+          if (kind === 'rewrite') {
+            hasRewrite = true;
+            rewrite = request.patch;
+          }
+        }
+        if (
+          hasRewrite &&
+          (rewrite === null ||
+            typeof rewrite !== 'object' ||
+            Array.isArray(rewrite))
+        ) {
           throw new TypeError(
-            'rewrite must be a non-null object property patch',
+            'rewrite patch must be a non-null object property patch',
           );
         }
         if (hasRewrite) {
@@ -288,7 +369,58 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
     };
   };
 
-export const OBJECT_MUTATION_DEFAULTS = {
+/** Normalize property keys once, before collision checks and assignment. */
+function assembleProperties(
+  children: TraversableObjectProp<TraversableObjectPropKey, unknown>[],
+  array: boolean,
+  arrayIndexPolicy: 'compactInTraversalOrder' | 'preserveNumericKeys',
+  propertyCollision: 'error' | 'firstWins' | 'lastWins',
+  originalValue: unknown,
+): unknown {
+  const result = array
+    ? arrayIndexPolicy === 'preserveNumericKeys' && Array.isArray(originalValue)
+      ? new Array(originalValue.length)
+      : []
+    : {};
+  const occupied = new Set<string | symbol>();
+  let nextIndex = 0;
+  for (const child of children) {
+    let key: string | symbol;
+    if (array && typeof child.key === 'number') {
+      if (arrayIndexPolicy === 'preserveNumericKeys') {
+        if (
+          !Number.isInteger(child.key) ||
+          child.key < 0 ||
+          child.key > 4294967294
+        ) {
+          throw new TypeError(
+            'Preserved array keys must be valid numeric indices',
+          );
+        }
+        key = String(child.key);
+      } else {
+        key = String(nextIndex++);
+      }
+    } else {
+      key = typeof child.key === 'symbol' ? child.key : String(child.key);
+    }
+    if (occupied.has(key)) {
+      if (propertyCollision === 'error')
+        throw new TypeError('Property collision during object assembly');
+      if (propertyCollision === 'firstWins') continue;
+    }
+    occupied.add(key);
+    Object.defineProperty(result, key, {
+      value: child.value,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return result;
+}
+
+const OBJECT_MUTATION_DEFAULTS = {
   isArray: (
     d: TraversableObjectProp<TraversableObjectPropKey, unknown>,
   ): boolean => Array.isArray(d.value),
@@ -296,37 +428,4 @@ export const OBJECT_MUTATION_DEFAULTS = {
     d: TraversableObjectProp<TraversableObjectPropKey, unknown>,
   ): boolean =>
     Boolean(d.value && typeof d.value === 'object' && !Array.isArray(d.value)),
-  assembleArray: (
-    processedChildren: TraversableObjectProp<
-      TraversableObjectPropKey,
-      unknown
-    >[],
-    _vertexData: TraversableObjectProp<TraversableObjectPropKey, unknown>,
-  ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
-    const numericChildren = processedChildren.filter(
-      (child) => typeof child.key === 'number',
-    );
-    const result = numericChildren.map((child) => child.value);
-    for (const child of processedChildren) {
-      if (typeof child.key !== 'number') {
-        Object.defineProperty(result, child.key, {
-          value: child.value,
-          enumerable: true,
-          configurable: true,
-          writable: true,
-        });
-      }
-    }
-    return result;
-  },
-  assembleObject: (
-    processedChildren: TraversableObjectProp<
-      TraversableObjectPropKey,
-      unknown
-    >[],
-  ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
-    return Object.fromEntries(
-      processedChildren.map((ch) => [ch.key, ch.value]),
-    );
-  },
 };

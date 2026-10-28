@@ -205,7 +205,7 @@ describe('canonical vertex content', () => {
     const cycle: { child?: unknown } = {};
     cycle.child = cycle;
     const tree = new ObjectTreeSource(cycle, {
-      resolveVertexHook: (hint) => ({
+      resolveChildHook: (hint) => ({
         kind: 'found',
         vertex: { vertexContent: { $data: hint, $childHints: [] } },
       }),

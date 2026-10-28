@@ -24,9 +24,9 @@ type Options = RewriteObjectOptions<
 >;
 function rewriteWithHook(
   input: unknown,
-  resolveVertexHook: (hint: { key: PropertyKey; value: unknown }) => unknown,
+  resolveChildHook: (hint: { key: PropertyKey; value: unknown }) => unknown,
 ) {
-  return rewriteObject(input, { resolveVertexHook } as Options).outputAtReturn;
+  return rewriteObject(input, { resolveChildHook } as Options).outputAtReturn;
 }
 
 test('canonical hook replaces and omits properties in reconstructed output and delegates defaults', () => {
@@ -54,7 +54,7 @@ test('canonical found preserves exact data and child hint identity', () => {
   const data = { key: 'replacement', value: {} };
   const childHints = [hint];
   const tree = new ObjectTreeSource({ original: 1 }, {
-    resolveVertexHook: (input: { key: PropertyKey }) =>
+    resolveChildHook: (input: { key: PropertyKey }) =>
       input.key === 'original'
         ? {
             kind: 'found',
@@ -133,7 +133,7 @@ test.each([undefined, null, () => ({})])(
   (makeVertexHook) => {
     expect(() =>
       rewriteObject({ a: 1 }, {
-        resolveVertexHook: () => ({ kind: 'useDefault' }),
+        resolveChildHook: () => ({ kind: 'useDefault' }),
         makeVertexHook,
       } as never),
     ).toThrow(TypeError);
@@ -153,7 +153,7 @@ test('canonical found and omitted hook results reconstruct output', () => {
 
 test('rewriteObject captures the canonical hook configuration getter once', () => {
   let reads = 0;
-  const options = Object.defineProperty({}, 'resolveVertexHook', {
+  const options = Object.defineProperty({}, 'resolveChildHook', {
     get() {
       reads++;
       if (reads > 1) throw new Error('configuration read twice');
@@ -208,7 +208,7 @@ test.each([
 
 test('rejects a nonfunction canonical hook before traversal', () => {
   expect(() =>
-    rewriteObject({}, { resolveVertexHook: null } as unknown as Options),
+    rewriteObject({}, { resolveChildHook: null } as unknown as Options),
   ).toThrow(TypeError);
 });
 
@@ -225,7 +225,7 @@ for (const Constructor of [
     const tree: import('../src').TreeSource<ObjectT> = new ObjectTreeSource(
       { keep: 1, skip: 2 },
       {
-        resolveVertexHook: (hint) =>
+        resolveChildHook: (hint) =>
           hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
       },
     );
@@ -242,7 +242,7 @@ for (const Constructor of [
         traversableTree: new ObjectTreeSource(
           { child: 1 },
           {
-            resolveVertexHook: () => {
+            resolveChildHook: () => {
               throw failure;
             },
           },

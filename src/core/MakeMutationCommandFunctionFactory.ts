@@ -6,10 +6,10 @@ import type {
 } from '@core/TraversalVisitor';
 import type { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
-export type MutationRequest<RW_V> = {
-  rewrite?: RW_V;
-  delete?: boolean;
-};
+export type MutationRequest<RW_V> =
+  | { kind: 'rewrite'; value: RW_V; patch?: never }
+  | { kind: 'delete'; value?: never; patch?: never }
+  | { kind: 'keep'; value?: never; patch?: never };
 
 export type MutationCommand<
   TTP extends VertexTypes,

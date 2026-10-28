@@ -1,9 +1,8 @@
 import {
   rewriteObject,
-  type TraversableObjectProp,
-  type MutationRequest,
+  type ObjectPropertyPatch,
+  type ObjectTreeVertexTypes,
   type TraversableObjectPropKey,
-  type TraversableObject,
 } from '../src';
 
 const obj = {
@@ -28,7 +27,7 @@ const result = rewriteObject(obj, {
     if (!complete) throw new Error('Expected the initial traversal to finish');
     return JSON.stringify(value, null, 2);
   },
-  resolveVertexHook: (vertexHint) => {
+  resolveChildHook: (vertexHint) => {
     if (vertexHint.value === null) {
       return { kind: 'omitted' };
     }
@@ -46,17 +45,12 @@ const result = rewriteObject(obj, {
       '; value:',
       JSON.stringify(value),
     );
-    const rewriteCmd: MutationRequest<
-      Partial<
-        TraversableObjectProp<
-          TraversableObjectPropKey,
-          TraversableObject<TraversableObjectPropKey, unknown> | unknown
-        >
-      >
-    >['rewrite'] = {};
+    const rewriteCmd: ObjectPropertyPatch<
+      ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>
+    > = {};
     if (value === 2) {
       return {
-        delete: true,
+        kind: 'delete',
       };
     }
     if (value === 1) {
@@ -66,7 +60,7 @@ const result = rewriteObject(obj, {
       const newKey = [key, depth].join('__');
       rewriteCmd.key = newKey;
     }
-    return { rewrite: rewriteCmd };
+    return { kind: 'rewrite', patch: rewriteCmd };
   },
 });
 

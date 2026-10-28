@@ -168,7 +168,8 @@ describe('object callback and patch contracts', () => {
         [DepthFirstPhase.POST_ORDER]: (vertex, context) => ({
           commands: [
             bind(vertex, context).makeMutationCommand({
-              rewrite: { key: newKey, value: undefined },
+              kind: 'rewrite',
+              patch: { key: newKey, value: undefined },
             }),
           ],
         }),
@@ -220,7 +221,8 @@ describe('object callback and patch contracts', () => {
                 undefined,
                 [
                   {
-                    rewrite: Object.defineProperty({}, field, {
+                    kind: 'rewrite',
+                    patch: Object.defineProperty({}, field, {
                       value: 'new',
                       enumerable,
                     }),
@@ -268,7 +270,10 @@ describe('independent key/value patch domains', () => {
         visitors: {
           [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
             commands: [
-              bind(vertex, context).makeMutationCommand({ rewrite: patch }),
+              bind(vertex, context).makeMutationCommand({
+                kind: 'rewrite',
+                patch: patch,
+              }),
             ],
           }),
         },
@@ -337,7 +342,8 @@ test.each(['value', 'key'] as const)(
             : {
                 commands: [
                   bind(vertex, context).makeMutationCommand({
-                    rewrite:
+                    kind: 'rewrite',
+                    patch:
                       field === 'value'
                         ? { value: 'changed' }
                         : { key: 'output' },
@@ -415,7 +421,8 @@ test('retains input metadata after a partial output patch through a generic trav
       [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
         commands: [
           bind(vertex, context).makeMutationCommand({
-            rewrite: { value: 'changed' },
+            kind: 'rewrite',
+            patch: { value: 'changed' },
           }),
         ],
       }),

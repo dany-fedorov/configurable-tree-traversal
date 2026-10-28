@@ -49,7 +49,7 @@ const outputHints = () => ({
 rewriteObject<number, 'input', number, unknown, 'output', string>(0, {
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
   getChildrenOfProperty: () => [],
-  resolveVertexHook(hint) {
+  resolveChildHook(hint) {
     hint.value.toFixed();
     return { kind: 'useDefault' };
   },
@@ -78,7 +78,7 @@ traverseTreeDepthFirst<Input, Current>({
 const narrow = new ObjectTreeSource<number, 'input', number>(0, {
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
   getChildrenOfProperty: () => [],
-  resolveVertexHook(_hint, context) {
+  resolveChildHook(_hint, context) {
     const value = context.resolutionContext.parentVertexRef
       .getValue()
       .getData().value;
@@ -94,7 +94,8 @@ traverseTreeDepthFirst<Input, Current>({
     [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
       commands: [
         binder(vertex, context).makeMutationCommand({
-          rewrite: { value: 'changed' },
+          kind: 'rewrite',
+          patch: { value: 'changed' },
         }),
       ],
     }),
@@ -421,7 +422,7 @@ const unionObject = new ObjectTreeSource<
 >(0, {
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
   getChildrenOfProperty: () => [],
-  resolveVertexHook(hint, context) {
+  resolveChildHook(hint, context) {
     const hintValue: number | string = hint.value;
     const originalValue: number | string = context
       .originalTreeView!.getRoot()!

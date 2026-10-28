@@ -96,7 +96,7 @@ type Extended = VertexTypes<ExtendedProp, ExtendedProp>;
 const bind = createObjectMutationBinder<Extended, Extended>();
 declare const args: Parameters<typeof bind>;
 // @ts-expect-error Object patches change key/value only, even for extended data.
-bind(...args).makeMutationCommand({ rewrite: { note: 'new' } });
+bind(...args).makeMutationCommand({ kind: 'rewrite', patch: { note: 'new' } });
 
 const callback: ObjectRewriteCallback<string, number, symbol, string> = (
   prop,
@@ -139,10 +139,12 @@ const hybridResult = rewriteObject<
     [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
       commands: [
         bindLiteral(vertex, context).makeMutationCommand({
-          rewrite: { value: 'changed' },
+          kind: 'rewrite',
+          patch: { value: 'changed' },
         }),
         bindLiteral(vertex, context).makeMutationCommand({
-          rewrite: { key: 'output' },
+          kind: 'rewrite',
+          patch: { key: 'output' },
         }),
       ],
     }),
@@ -408,7 +410,7 @@ const hybridResult = rewriteObject<
     }
     return 'assembled';
   },
-  resolveVertexHook(_hint, context) {
+  resolveChildHook(_hint, context) {
     const parent = context.resolutionContext.parentVertexRef
       .getValue()
       .getData();
@@ -507,7 +509,8 @@ const bindMetadata = createObjectMutationBinder<MetaInput, MetaOutput>({
 });
 declare const metadataArgs: Parameters<typeof bindMetadata>;
 const metadataCommand = bindMetadata(...metadataArgs).makeMutationCommand({
-  rewrite: { value: 'changed' },
+  kind: 'rewrite',
+  patch: { value: 'changed' },
 });
 if (
   metadataCommand.commandName ===
@@ -543,7 +546,8 @@ const composedRunner = traverseTreeDepthFirst<LiteralInput, LiteralCurrent>({
     [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
       commands: [
         composedBinder(vertex, context).makeMutationCommand({
-          rewrite: { key: 'output' },
+          kind: 'rewrite',
+          patch: { key: 'output' },
         }),
       ],
     }),

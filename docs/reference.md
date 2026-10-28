@@ -802,7 +802,7 @@ for (const { vertex, vertexRef } of runner.iterateEvents({
 
 The object adapter creates a synthetic root representing the whole input. Each vertex contains `{ key, value }`. Arrays use numeric index keys; objects include their own enumerable string and symbol keys. Sparse array holes are skipped. Non-enumerable and inherited properties are excluded. Property access may invoke getters.
 
-Ancestor cycles throw a descriptive error before descent; shared objects in separate branches are traversed independently. The same adapter can be used by multiple runners. Use `resolveVertexHook` to skip or customize properties, or `getChildrenOfProperty` to define traversal for specialized values.
+Ancestor cycles throw a descriptive error before descent; shared objects in separate branches are traversed independently. The same adapter can be used by multiple runners. Use `resolveChildHook` to skip or customize child properties (the root uses `getRootPropertyFromInputObject`), or `getChildrenOfProperty` to define traversal for specialized values.
 
 `ObjectTreeSource.resolveRoot()` / `.resolveChild()` and `ResolvedTreeStore` source adapters return canonical tagged `found`/`omitted` results directly.
 
@@ -1131,15 +1131,15 @@ import { rewriteObject } from 'configurable-tree-traversal';
 const input = { keep: 1, remove: 2, nested: [3] };
 const result = rewriteObject(input, {
   rewrite: ({ key, value }) => {
-    if (key === 'remove') return { delete: true };
-    if (typeof value === 'number') return { rewrite: { value: value * 10 } };
+    if (key === 'remove') return { kind: 'delete' };
+    if (typeof value === 'number') return { kind: 'rewrite', patch: { value: value * 10 } };
     return undefined;
   },
 });
 console.log(result.getOutput()); // { keep: 10, nested: [30] }; input is unchanged
 ```
 
-Rewrites run in post-order. Return `{ rewrite: { key, value } }` to rename or replace a property, `{ delete: true }` to remove it, or `undefined` to retain it. Composite parents are reconstructed from their processed children. Arrays are compacted after skipped/deleted elements. Null and undefined values are retained; deleting the root returns `null`.
+Rewrites run in post-order. Return `{ kind: 'rewrite', patch: { key, value } }` to rename or replace a property, `{ kind: 'delete' }` to remove it, or `undefined` / `{ kind: 'keep' }` for default assembly. Composite parents are reconstructed from their processed children. Arrays default to `arrayIndexPolicy: 'compactInTraversalOrder'`. Choose `'preserveNumericKeys'` to retain numeric positions and holes; output length is the larger of the original array length and highest assigned index plus one, preserving trailing holes and holes left by deletion. Non-arrays classified as arrays derive length from assigned indices. Numeric keys must be integers from 0 through 2^32-2. Named array properties remain supported. Built-in reconstruction defaults to `propertyCollision: 'error'`; `'firstWins'` and `'lastWins'` resolve duplicate normalized JavaScript property keys explicitly. Number/string equivalents collide, while distinct symbols retain identity. Custom `assembleArray`/`assembleObject` callbacks own placement and collision behavior for their respective composites. Null and undefined values are retained; deleting the root returns `null`.
 
 Set `assembleCompositesBeforeRewrite: true` to receive `assembledComposite` alongside the original property. Options include `isArray`, `isObject`, `isComposite`, and `getKeyPath({ noRoot: true })`. Custom `isArray`/`isObject` and `assembleArray`/`assembleObject` functions support specialized reconstruction. Default reconstruction is for plain objects and arrays; it does not preserve prototypes, descriptors, collection types, or identity shared between branches.
 
@@ -1149,9 +1149,9 @@ Set `assembleCompositesBeforeRewrite: true` to receive `assembledComposite` alon
 
 The helper owns its source. `traversableTree` is forbidden in inline and pretyped options; JavaScript presence, including present `undefined`, rejects before source, rewrite or conversion callbacks. Remove that field, or use a traversal directly for a custom source.
 
-`createObjectMutationBinder(options)` returns an `ObjectMutationBinder`; binding a vertex and context returns `ObjectMutationCommands`. Its `makeMutationCommand` builder consumes a `MutationRequest<ObjectPropertyPatch<Output>>`. `ObjectMutationOptions` retains classifiers, assemblers, and `assembledMap`, keyed by reference identity. `ObjectCompositeClassification` names the bound array/object/composite flags. Generic stages are `TreeMutationCommandBinderFactory`, `TreeMutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`.
+`createObjectMutationBinder(options)` returns an `ObjectMutationBinder`; binding a vertex and context returns `ObjectMutationCommands`. Its `makeMutationCommand` builder consumes an `ObjectMutationRequest<Output>`. `ObjectMutationOptions` retains classifiers, assemblers, and `assembledMap`, keyed by reference identity. `ObjectCompositeClassification` names the bound array/object/composite flags. Generic stages are `TreeMutationCommandBinderFactory`, `TreeMutationCommandBinder`, `MutationCommands`, `MutationCommandBuilder`, `MutationRequest`, and `MutationCommand`.
 
-Generic `MutationCommandBuilder<Output, RewriteInput = Output['VertexData']>` requires complete replacement data by default. Object helpers explicitly accept `ObjectPropertyPatch<Output>` (`Partial<Pick<Output['VertexData'], 'key' | 'value'>>`), so key-only and value-only patches remain typed. Omit `rewrite` for no patch; a present `rewrite: undefined`, null, or primitive throws TypeError before mutation. `{ rewrite: { value: undefined } }` sets an undefined value when the output type permits it. User assembler errors propagate exactly. Unknown own patch fields, including non-enumerable string or symbol keys, throw TypeError. Existing payload metadata is retained; use `REWRITE_VERTEX_DATA` for full payload replacement.
+Generic `MutationCommandBuilder<Output, RewriteInput = Output['VertexData']>` uses `{ kind: 'rewrite', value }` for complete replacement data, `{ kind: 'delete' }` for deletion, and `{ kind: 'keep' }` for no mutation. Object helpers explicitly accept `ObjectPropertyPatch<Output>` (`Partial<Pick<Output['VertexData'], 'key' | 'value'>>`), so key-only and value-only patches remain typed. Omit the operation or return `{ kind: 'keep' }` for default assembly. Object rewrites use `{ kind: 'rewrite', patch }`; the patch must be a non-null object. Malformed or conflicting operations throw TypeError before assembly or mutation. `{ kind: 'rewrite', patch: { value: undefined } }` sets an undefined value when the output type permits it. User assembler errors propagate exactly. Unknown own patch fields, including non-enumerable string or symbol keys, throw TypeError. Existing payload metadata is retained; use `REWRITE_VERTEX_DATA` for full payload replacement.
 
 `ObjectRewriteCallback<InK, InV, OutK, OutV>` receives `ObjectRewriteInput` and `ObjectRewriteContext` with the same type parameters. Current keys and `getKeyPath()` include input and output keys. Current values are `unknown`: unchanged values and reconstructed containers can mix retained and replaced children, such as `[1, 'two']`. This applies to callback properties, vertex/ref/live tree, previous refs, classifiers, and assembler parent/child properties. `ObjectCurrentVertexTypes<InputTypes, OutputTypes>` preserves key identity and metadata alternatives without promising a narrow current value domain; narrowing by key or metadata cannot restore one. Assembler results, `assembledComposite`, and assembly cache values are also `unknown`. Requested replacement patches retain their declared `OutV` payload type. `originalTreeView` retains input types. `ObjectTreeVertexTypes<K, V>` names the object vertex-data/hint family; `ResolvedTreeVertexTypes<T>` names a tree whose data/hints are resolved vertex refs.
 
@@ -1159,7 +1159,7 @@ Default `ObjectTreeSource` discovery exposes `PropertyKey`/`unknown`. Narrow key
 
 `assembledMap` accepts `ObjectAssemblyCache<Key>`, a structural protocol with function-valued `has`, `get`, and `set` members. Its writer must accept `unknown`; a `Map<Key, unknown>` works, while `Map<Key, string>` rejects because mixed assembly would invalidate its reads. Cache keys retain reference identity.
 
-Discovery hints belong to the source input domain: `REWRITE_CHILD_HINTS` accepts `T['VertexHint'][]` in tree and DAG visitors, including async visitors, registration groups and `rewriteObject` options. Rewriting vertex data to `R` does not admit `R['VertexHint']`. `resolveChild`, object `resolveVertexHook` and `getChildrenOfProperty` still resolve input records; retained original views therefore remain truthful. If discovery needs another hint kind, declare it in the source input union first. For object sources that means extending `InK`/`InV`, and original views then reflect that declared union.
+Discovery hints belong to the source input domain: `REWRITE_CHILD_HINTS` accepts `T['VertexHint'][]` in tree and DAG visitors, including async visitors, registration groups and `rewriteObject` options. Rewriting vertex data to `R` does not admit `R['VertexHint']`. `resolveChild`, object `resolveChildHook` and `getChildrenOfProperty` still resolve input records; retained original views therefore remain truthful. If discovery needs another hint kind, declare it in the source input union first. For object sources that means extending `InK`/`InV`, and original views then reflect that declared union.
 
 A composed source must accept the traversal's full current context. Source callback properties are checked contravariantly with strict function checking: an input-only `ObjectTreeSource<In, InK, InV>` can be too narrow for a traversal that widens live keys or hints. Configure its `OutK`/`OutV` to match, and use `ObjectCurrentVertexTypes<Input, Output>` for the traversal and binder's live data. For custom sources, explicitly declare `TreeSource<T, R>` / `DagDiscoverySource<T, R, ID>` (or their async counterparts) when standalone callbacks do not provide enough inference. Matching sources and binders compose without assertions. On TypeScript 4.7/4.9, put an unannotated sorter directly on the options object; for a sorter nested in a spread, use a generic hint-preserving function (`<Hint,>(hints: Hint[]) => hints.reverse()`) or annotate `T['VertexHint'][]`. See the [executable alternatives](migration-idiomatic-api.md#corrected-object-contracts).
 
@@ -1200,7 +1200,7 @@ const runner = traverseTreeDepthFirst<Input, Current>({
     [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
       commands: [
         bind(vertex, context).makeMutationCommand({
-          rewrite: { key: 'output' },
+          kind: 'rewrite', patch: { key: 'output' },
         }),
       ],
     }),
@@ -1211,7 +1211,7 @@ if (current.key !== 'output' || current.value !== 1)
   throw new Error('Expected a key-only patch');
 ```
 
-`resolveVertexHook(hint, context)` returns `ObjectVertexHookResult<T>`: `{ kind: 'useDefault' }`, tagged tree `found` with replacement content, or `{ kind: 'omitted' }`. It applies to child/hint resolution, not the synthetic root. Null/undefined returns and graph metadata reject. `makeVertexHook` rejects by presence, including undefined/null; `returnMe` hook results reject. Cycle checks and shallow identities remain.
+`resolveChildHook(hint, context)` returns `ObjectChildHookResult<T>`: `{ kind: 'useDefault' }`, tagged tree `found` with replacement content, or `{ kind: 'omitted' }`. It applies only to child/hint resolution; use `getRootPropertyFromInputObject` for the root. Null/undefined returns and graph metadata reject. `resolveVertexHook` and `makeVertexHook` reject by presence, including undefined/null; `returnMe` hook results reject. Cycle checks and shallow identities remain.
 
 With `retainOriginalTreeStructure: true`, visitors and child-resolution callbacks receive `originalTreeView: ResolvedTreeView<T> | null`, a stable read-only query facade over the retained original structure. Its vertex references, child lists, and resolution contexts are independent of command-driven changes. Vertex data is shallowly shared, so direct mutation of user data is not an immutable snapshot. The retained tree grows as vertices are resolved. DAG retention uses `retainOriginalGraphStructure`, `originalGraphView`, and `OriginalGraphView` with the same progressive topology and shared-data semantics. Runner configuration and visitor records are also copied when a runner is made; later builder configuration does not alter that runner.
 

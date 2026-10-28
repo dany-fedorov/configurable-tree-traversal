@@ -251,7 +251,7 @@ for (const api of [esm, cjs]) {
       api.traverseTreeDepthFirst({
         traversableTree: new api.ObjectTreeSource(
           { x: 1 },
-          { resolveVertexHook: () => ({ returnMe: vertex }) },
+          { resolveChildHook: () => ({ returnMe: vertex }) },
         ),
       }),
     TypeError,

@@ -227,7 +227,7 @@ import type {
   VisitorPhaseInput,
   VisitorGroupMember,
   ResolvedTreeView,
-  ObjectVertexHookResult,
+  ObjectChildHookResult,
   ObjectTreeVertexTypes,
   MutationCommandBuilder,
   ObjectPropertyPatch,
@@ -305,10 +305,9 @@ if (vertexRef) {
   const hostId: unknown = resolved.getVertexId(vertexRef);
   void [referenceId, hostId];
 }
-const hookResult: ObjectVertexHookResult<
-  ObjectTreeVertexTypes<string, number>
-> = { kind: 'useDefault' };
-new ObjectTreeSource({ a: 1 }, { resolveVertexHook: () => hookResult });
+const hookResult: ObjectChildHookResult<ObjectTreeVertexTypes<string, number>> =
+  { kind: 'useDefault' };
+new ObjectTreeSource({ a: 1 }, { resolveChildHook: () => hookResult });
 // @ts-expect-error Preferred object options use the tagged resolution hook.
 new ObjectTreeSource({ a: 1 }, { makeVertexHook: () => ({ returnMe: null }) });
 type Prop = ObjectTreeVertexTypes<string, number | undefined>;
@@ -316,16 +315,16 @@ const objectPatch: ObjectPropertyPatch<Prop> = { value: undefined };
 const objectFactory = ObjectTreeSource.createObjectMutationBinder<Prop, Prop>();
 const objectVisitor: TreeVisitor<F.POST_ORDER, Prop, Prop> = (v, options) => {
   const { makeMutationCommand } = objectFactory(v, options);
-  makeMutationCommand({ rewrite: objectPatch });
-  makeMutationCommand({ rewrite: { key: 'renamed' } });
+  makeMutationCommand({ kind: 'rewrite', patch: objectPatch });
+  makeMutationCommand({ kind: 'rewrite', patch: { key: 'renamed' } });
   // @ts-expect-error typed object helper rejects wrong value types
-  makeMutationCommand({ rewrite: { value: 'wrong' } });
+  makeMutationCommand({ kind: 'rewrite', patch: { value: 'wrong' } });
 };
 declare const replace: MutationCommandBuilder<Prop>;
-replace({ rewrite: { key: 'new', value: 1 } });
+replace({ kind: 'rewrite', value: { key: 'new', value: 1 } });
 // @ts-expect-error generic builder requires complete data by default
-replace({ rewrite: { key: 'incomplete' } });
-rewriteObject({ a: 1 }, { resolveVertexHook: () => ({ kind: 'useDefault' }) });
+replace({ kind: 'rewrite', value: { key: 'incomplete' } });
+rewriteObject({ a: 1 }, { resolveChildHook: () => ({ kind: 'useDefault' }) });
 void [
   treeOmitted,
   treeResult,

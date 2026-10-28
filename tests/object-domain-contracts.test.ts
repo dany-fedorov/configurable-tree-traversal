@@ -4,7 +4,9 @@ describe('object discovery and rewrite domains', () => {
   test('preserves retained input while assembling mixed replacement arrays', () => {
     const result = rewriteObject([1, 2], {
       rewrite: (prop) =>
-        prop.key === 1 ? { rewrite: { value: 'two' } } : undefined,
+        prop.key === 1
+          ? { kind: 'rewrite', patch: { value: 'two' } }
+          : undefined,
     });
     expect(result.getOutput()).toEqual([1, 'two']);
     expect(rewriteObject(1).getOutput()).toBe(1);
@@ -32,7 +34,9 @@ describe('object discovery and rewrite domains', () => {
     const contexts: boolean[] = [];
     const result = rewriteObject([1, 2], {
       rewrite: (prop) =>
-        prop.key === 1 ? { rewrite: { value: 'two' } } : undefined,
+        prop.key === 1
+          ? { kind: 'rewrite', patch: { value: 'two' } }
+          : undefined,
       convertRootValue(value, context) {
         contexts.push(context.complete);
         if (!Array.isArray(value)) throw new Error('expected array');

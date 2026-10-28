@@ -29,16 +29,18 @@ const main = () => {
       );
       if (value === 2) {
         return {
-          delete: true,
+          kind: 'delete',
         };
       } else if (value === 1) {
         return {
-          rewrite: { value: 1000 },
+          kind: 'rewrite',
+          patch: { value: 1000 },
         };
       } else if (depth % 2 === 0 && typeof key === 'string') {
         const newKey = [key, depth].join('__');
         return {
-          rewrite: {
+          kind: 'rewrite',
+          patch: {
             key: newKey,
           },
         };

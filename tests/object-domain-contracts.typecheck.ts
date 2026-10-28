@@ -87,7 +87,7 @@ rewriteObject<number, 'root', number, unknown, 'replacement', string>(1, {
     // @ts-expect-error Live values retain the unknown assembly domain.
     const live: number | string = context.vertex.getData().value;
     void [narrow, assembled, live];
-    return { rewrite: { value: 'valid replacement' } };
+    return { kind: 'rewrite', patch: { value: 'valid replacement' } };
   },
 });
 void [
@@ -120,7 +120,7 @@ rewriteObject<number, 'root', number, unknown, 'replacement', string>(1, {
   ...rootOnly,
   ...childrenOnly,
   // @ts-expect-error Replacement patches retain their declared output payload type.
-  rewrite: () => ({ rewrite: { value: 3 } }),
+  rewrite: () => ({ kind: 'rewrite', patch: { value: 3 } }),
 });
 const defaultSource = new ObjectTreeSource([1, 'two']);
 // @ts-expect-error Raw source discovery remains unknown for mixed containers.

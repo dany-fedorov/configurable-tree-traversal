@@ -109,17 +109,22 @@ export class ObjectTreeSource<
     options?: ObjectTreeBaseOptions<In, InK, InV, OutK, OutV>,
   ) {
     this.rootObject = rootObject;
-    if (options && 'makeVertexHook' in options) {
+    if (options && 'resolveVertexHook' in options) {
       throw new TypeError(
-        'makeVertexHook is unsupported; use resolveVertexHook',
+        'resolveVertexHook is unsupported; use resolveChildHook',
       );
     }
-    const { resolveVertexHook, ...otherOptions } = options ?? {};
+    if (options && 'makeVertexHook' in options) {
+      throw new TypeError(
+        'makeVertexHook is unsupported; use resolveChildHook',
+      );
+    }
+    const { resolveChildHook, ...otherOptions } = options ?? {};
     if (
-      resolveVertexHook !== undefined &&
-      typeof resolveVertexHook !== 'function'
+      resolveChildHook !== undefined &&
+      typeof resolveChildHook !== 'function'
     ) {
-      throw new TypeError('resolveVertexHook must be a function');
+      throw new TypeError('resolveChildHook must be a function');
     }
     // The public signature requires both adapters for narrow domains. Default
     // adapters are used only for PropertyKey/unknown discovery.
@@ -131,7 +136,7 @@ export class ObjectTreeSource<
         otherOptions.getRootPropertyFromInputObject ??
         ObjectTreeSource.createRootPropertyMapper(),
       ...otherOptions,
-      resolveVertexHook,
+      resolveChildHook,
     } as ObjectTreeResolvedOptions<In, InK, InV, OutK, OutV>;
   }
 
@@ -161,7 +166,7 @@ export class ObjectTreeSource<
       >
     >,
   ): TreeVertexResolution<ObjectTreeVertexTypes<InK, InV>> {
-    const canonicalHook = this.icfg.resolveVertexHook;
+    const canonicalHook = this.icfg.resolveChildHook;
     let result:
       | TreeVertexResolution<ObjectTreeVertexTypes<InK, InV>>
       | undefined;

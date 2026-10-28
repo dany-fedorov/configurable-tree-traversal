@@ -31,13 +31,13 @@ describe('object traversal and rewriting edge cases', () => {
         },
         rewrite: ({ key, value, assembledComposite }) => {
           if (key === 'old') {
-            return { rewrite: { key: 'renamed', value: 10 } };
+            return { kind: 'rewrite', patch: { key: 'renamed', value: 10 } };
           }
           if (key === 'branch') {
             branchCompositeSeenByRewrite = assembledComposite;
           }
           return typeof value === 'number'
-            ? { rewrite: { value: value * 10 } }
+            ? { kind: 'rewrite', patch: { value: value * 10 } }
             : undefined;
         },
       },
@@ -83,8 +83,8 @@ describe('object traversal and rewriting edge cases', () => {
         return result;
       },
       rewrite: ({ key, value }) => {
-        if (value === 2) return { delete: true };
-        if (key === 'label') return { rewrite: { key: 'name' } };
+        if (value === 2) return { kind: 'delete' };
+        if (key === 'label') return { kind: 'rewrite', patch: { key: 'name' } };
         return undefined;
       },
     });
@@ -126,7 +126,7 @@ describe('object traversal and rewriting edge cases', () => {
       },
       rewrite: ({ value }) =>
         typeof value === 'number'
-          ? { rewrite: { value: value * 10 } }
+          ? { kind: 'rewrite', patch: { value: value * 10 } }
           : undefined,
     });
 
@@ -137,7 +137,7 @@ describe('object traversal and rewriting edge cases', () => {
     expect(input.boxed.entries).toEqual({ first: 1, second: 2 });
   });
 
-  test('resolveVertexHook can prune one property and replace another subtree', () => {
+  test('resolveChildHook can prune one property and replace another subtree', () => {
     const visited: PropertyKey[] = [];
 
     const { outputAtReturn } = rewriteObject<unknown>(
@@ -147,7 +147,7 @@ describe('object traversal and rewriting edge cases', () => {
         replace: { ignored: 3 },
       },
       {
-        resolveVertexHook: (hint) => {
+        resolveChildHook: (hint) => {
           if (hint.key === 'prune') return { kind: 'omitted' };
           if (hint.key === 'replace') {
             return {
@@ -188,8 +188,9 @@ describe('object traversal and rewriting edge cases', () => {
       {
         retainOriginalTreeStructure: true,
         rewrite: ({ key }, options) => {
-          if (key === 'change') return { rewrite: { value: 10 } };
-          if (key === 'remove') return { delete: true };
+          if (key === 'change')
+            return { kind: 'rewrite', patch: { value: 10 } };
+          if (key === 'remove') return { kind: 'delete' };
           if (options.isTreeRoot) {
             const originalTree = options.originalTreeView!;
             const originalRoot = originalTree.getRoot()!;
@@ -248,7 +249,7 @@ describe('object traversal and rewriting edge cases', () => {
       },
       rewrite: ({ value }) =>
         typeof value === 'number'
-          ? { rewrite: { value: value + 1 } }
+          ? { kind: 'rewrite', patch: { value: value + 1 } }
           : undefined,
     });
 
@@ -278,8 +279,9 @@ describe('object traversal and rewriting edge cases', () => {
       },
       {
         rewrite: ({ value }) => {
-          if (value === 3) return { rewrite: { value: undefined } };
-          if (value === 4) return { rewrite: { value: null } };
+          if (value === 3)
+            return { kind: 'rewrite', patch: { value: undefined } };
+          if (value === 4) return { kind: 'rewrite', patch: { value: null } };
           return undefined;
         },
       },
@@ -313,7 +315,7 @@ describe('object traversal and rewriting edge cases', () => {
     const { outputAtReturn } = rewriteObject(input, {
       rewrite: ({ value }) =>
         typeof value === 'number'
-          ? { rewrite: { value: value * 10 } }
+          ? { kind: 'rewrite', patch: { value: value * 10 } }
           : undefined,
     });
 
@@ -387,7 +389,9 @@ describe('object traversal and rewriting edge cases', () => {
 
     const { outputAtReturn } = rewriteObject(cursor, {
       rewrite: ({ key, value }) =>
-        key === 'leaf' && value === 1 ? { rewrite: { value: 2 } } : undefined,
+        key === 'leaf' && value === 1
+          ? { kind: 'rewrite', patch: { value: 2 } }
+          : undefined,
     });
 
     let outputCursor: unknown = outputAtReturn;
@@ -400,7 +404,7 @@ describe('object traversal and rewriting edge cases', () => {
   test('a hook that substitutes an ancestor identity is rejected as a cycle', () => {
     const input = { child: { leaf: 1 } };
     const tree = new ObjectTreeSource<typeof input>(input, {
-      resolveVertexHook: (hint) =>
+      resolveChildHook: (hint) =>
         hint.key === 'child'
           ? {
               kind: 'found',
