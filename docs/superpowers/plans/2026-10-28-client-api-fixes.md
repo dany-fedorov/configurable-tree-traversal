@@ -53,7 +53,7 @@ expect(precise.resolveRoot().vertex.vertexContent.$data.value).toBe(1);
 
 **Interfaces:** Consumes Task 1 unknown current/assembled values and truthful mapping routes. Produces tagged mutation requests, resolveChildHook, arrayIndexPolicy and propertyCollision. Later option-boundary validation must accept these policy keys.
 
-- [ ] Write public behavior/type tests before implementation: default collision rejection, normalized number/string collision, distinct symbols, explicit first/last wins, array compaction versus preserved holes/indices, invalid preserved indices, custom assembler precedence, malformed/conflicting requests and child-only hook behavior.
+- [ ] Write public behavior/type tests before implementation: default collision rejection, normalized number/string collision, distinct symbols, explicit first/last wins, array compaction versus preserved holes/indices (including original/deletion-created trailing holes and length max(original intrinsic length, highest assigned index+1)), invalid preserved indices, custom assembler precedence, malformed/conflicting requests and child-only hook behavior.
 
 ```ts
 expect(() => rewriteObject({a: 1, b: 2}, {
