@@ -248,7 +248,7 @@ it('emits the drained observation before acknowledging cooperative pause and pre
         expect(runner.inspect()).toMatchObject({
           activeVisitor: { phase: Phase.VERTEX, visitorIndex: 1 },
           inFlightCallbackCount: 1,
-          pendingRequests: [{ operation: 'visitor' }],
+          pendingRequests: [{ operation: 'visit' }],
         });
       },
     ],

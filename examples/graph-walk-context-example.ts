@@ -37,6 +37,7 @@ const hydrated = (vertexId: string): GraphWalkTarget<Context, string> => ({
 });
 const resolved: string[] = [];
 const source: GraphWalkSource<Context, Relation, string> = {
+  hydration: 'resolver' as const,
   roots: () => [hydrated('A'), hydrated('E')],
   resolveVertex(vertexId) {
     resolved.push(vertexId);

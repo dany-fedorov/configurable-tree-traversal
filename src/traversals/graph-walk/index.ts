@@ -50,6 +50,11 @@ export {
   materializeWalkSourceFromRecords,
   materializeWalkSourceFromRecordsAsync,
 } from './walkSourceFrom';
+export type {
+  GraphWalkRecordSelectors,
+  AsyncGraphWalkRecordSelectors,
+  GraphWalkCatalogLink,
+} from './walkSourceFrom';
 export { materializeWalkSourceFromDagDefinition } from './walkSourceFromDag';
 export type { GraphWalkDagRelation } from './walkSourceFromDag';
 export { walkGraph } from './walkGraph';

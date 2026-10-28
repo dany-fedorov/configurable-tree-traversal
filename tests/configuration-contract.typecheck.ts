@@ -42,7 +42,13 @@ new AsyncDagTraversal({ traversableTree: tree }).configure({
   concurrency: undefined,
   completedWork: undefined,
 });
-new GraphWalk({ source: { roots: () => [], outgoing: () => [] } }).configure({
+new GraphWalk({
+  source: {
+    hydration: 'inlineOrCached' as const,
+    roots: () => [],
+    outgoing: () => [],
+  },
+}).configure({
   source: undefined,
   strategy: undefined,
   limits: undefined,

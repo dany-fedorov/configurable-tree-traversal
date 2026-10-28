@@ -16,11 +16,14 @@ const operations: GraphWalkOperation[] = [
   'edgeNext',
   'shouldFollowEdge',
   'shouldExpandVertex',
-  'visitor',
+  'visit',
   'iteratorReturn',
 ];
 const operation: GraphWalkOperation = (null as unknown as GraphWalkInspection)
   .pendingRequests[0]!.operation;
+// @ts-expect-error Walking callback diagnostics use visit.
+const retiredVisitOperation: GraphWalkOperation = 'visitor';
+void retiredVisitOperation;
 // @ts-expect-error predicate diagnostics match public callback names
 const oldOperation: GraphWalkOperation = 'followEdge';
 const options: DepthFirstTreeOptions<VertexTypes> = {

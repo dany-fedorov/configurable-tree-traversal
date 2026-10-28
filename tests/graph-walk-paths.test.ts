@@ -83,13 +83,16 @@ it.each(policies)(
     expect(
       paths.map((path) => path.vertices.map((v) => v.vertexId).join('')),
     ).toEqual(['A', 'AB', 'AB']);
-    expect(paths.map((path) => path.edges.map((edge) => edge.outgoingIndex))).toEqual([
-      [],
-      [0],
-      [1],
-    ]);
+    expect(
+      paths.map((path) => path.edges.map((edge) => edge.outgoingIndex)),
+    ).toEqual([[], [0], [1]]);
     expect(runner.summary()).toMatchObject({
-      counts: { candidateReadAttempts: 7, admittedTargets: 3, uniqueFoundVertices: 2, discoveredLinks: 2 },
+      counts: {
+        candidateReadAttempts: 7,
+        admittedTargets: 3,
+        uniqueFoundVertices: 2,
+        discoveredLinks: 2,
+      },
       outcome: { kind: 'exhausted' },
     });
   },
@@ -112,7 +115,11 @@ it.each(policies)(
       .createRunner()
       .run();
     expect(runner.summary()).toMatchObject({
-      counts: { candidateReadAttempts: 6, admittedTargets: 3, discoveredLinks: 2 },
+      counts: {
+        candidateReadAttempts: 6,
+        admittedTargets: 3,
+        discoveredLinks: 2,
+      },
       outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
     });
   },
@@ -139,7 +146,12 @@ it.each(policies)(
       ),
     ).toEqual(['A', 'AB', 'B']);
     expect(runner.summary()).toMatchObject({
-      counts: { candidateReadAttempts: 8, admittedTargets: 3, uniqueFoundVertices: 2, discoveredLinks: 1 },
+      counts: {
+        candidateReadAttempts: 8,
+        admittedTargets: 3,
+        uniqueFoundVertices: 2,
+        discoveredLinks: 1,
+      },
       outcome: { kind: 'exhausted' },
     });
   },
@@ -288,6 +300,7 @@ it('tests simple path ancestry with SameValueZero and preserves object and symbo
   ]);
   const followed: unknown[] = [];
   const source: GraphWalkSource<unknown, undefined, unknown> = {
+    hydration: 'resolver' as const,
     roots: () => [{ vertexId: NaN }],
     resolveVertex: (id) => ({ kind: 'found', data: id }),
     outgoing: (vertex) =>
@@ -373,6 +386,7 @@ it.each(policies)(
       const calls: string[] = [];
       const runner = new GraphWalk({
         source: {
+          hydration: 'inlineOrCached' as const,
           roots() {
             calls.push('roots');
             return [];
@@ -396,14 +410,22 @@ it.each(policies)(
     const calls: string[] = [];
     const runner = new GraphWalk({
       source: {
+        hydration: 'inlineOrCached' as const,
         roots: () => [
-          { vertexId: 'A', resolution: { kind: 'found' as const, data: 'A' } },
+          {
+            kind: 'inline' as const,
+            vertexId: 'A',
+            resolution: { kind: 'found' as const, data: 'A' },
+          },
         ],
         outgoing: function* () {
           try {
             for (const vertexId of ['B', 'C', 'D']) {
               calls.push(vertexId);
-              yield { target: { vertexId }, data: undefined };
+              yield {
+                target: { kind: 'cached' as const, vertexId },
+                data: undefined,
+              };
             }
           } finally {
             calls.push('closed');
@@ -418,7 +440,12 @@ it.each(policies)(
       .run();
     expect(calls).toEqual(['B', 'C', 'closed']);
     expect(runner.summary()).toMatchObject({
-      counts: { candidateReadAttempts: 4, admittedTargets: 1, uniqueFoundVertices: 1, discoveredLinks: 2 },
+      counts: {
+        candidateReadAttempts: 4,
+        admittedTargets: 1,
+        uniqueFoundVertices: 1,
+        discoveredLinks: 2,
+      },
       outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
     });
     expect(runner.inspect().openSourceIteratorCount).toBe(0);
@@ -430,6 +457,7 @@ it.each(policies)(
   (revisit) => {
     const runner = new GraphWalk({
       source: {
+        hydration: 'resolver' as const,
         roots: () => [{ vertexId: 0 }],
         resolveVertex: (id: number) => ({ kind: 'found' as const, data: id }),
         outgoing: (vertex) => [
@@ -462,13 +490,13 @@ it.each(policies)(
       kind: 'exhausted',
     });
     factory.configure({ limits: { maxDepth: 1 } }).configure({ revisit });
-    expect(() => factory.configure({ limits: { maxAdmittedTargets: 5 } })).toThrow(
-      TypeError,
-    );
+    expect(() =>
+      factory.configure({ limits: { maxAdmittedTargets: 5 } }),
+    ).toThrow(TypeError);
     const runner = factory.createRunner();
-    expect([...runner.iterateEvents({ emitEvents: [Phase.PATH] })]).toHaveLength(
-      revisit === 'walks' ? 2 : 1,
-    );
+    expect([
+      ...runner.iterateEvents({ emitEvents: [Phase.PATH] }),
+    ]).toHaveLength(revisit === 'walks' ? 2 : 1);
   },
 );
 
@@ -579,10 +607,20 @@ it.each([-0, 0])(
     const calls: number[] = [];
     const runner = new GraphWalk({
       source: {
+        hydration: 'inlineOrCached' as const,
         roots: () => [
-          { vertexId, resolution: { kind: 'found' as const, data: vertexId } },
+          {
+            kind: 'inline' as const,
+            vertexId,
+            resolution: { kind: 'found' as const, data: vertexId },
+          },
         ],
-        outgoing: () => [{ target: { vertexId: -vertexId }, data: undefined }],
+        outgoing: () => [
+          {
+            target: { kind: 'cached' as const, vertexId: -vertexId },
+            data: undefined,
+          },
+        ],
       },
       revisit: 'simplePaths',
       limits: { maxCandidateReadAttempts: 10 },

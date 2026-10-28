@@ -104,24 +104,37 @@ for (const Factory of [cjsWalking.GraphWalk, walking.AsyncGraphWalk]) {
 
 const stream = new walking.AsyncGraphWalk({
   source: {
+    hydration: 'inlineOrCached',
     async *roots() {
-      yield { vertexId: objectId, resolution: { kind: 'found', data: 'A' } };
+      yield {
+        kind: 'inline',
+        vertexId: objectId,
+        resolution: { kind: 'found', data: 'A' },
+      };
     },
     async *outgoing(vertex) {
       if (vertex.vertexId === objectId) {
         yield {
           target: {
+            kind: 'inline',
             vertexId: symbolId,
             resolution: { kind: 'found', data: 'B' },
           },
           data: relation,
         };
         yield {
-          target: { vertexId: undefined, resolution: { kind: 'omitted' } },
+          target: {
+            kind: 'inline',
+            vertexId: undefined,
+            resolution: { kind: 'omitted' },
+          },
           data: relation,
         };
       } else {
-        yield { target: { vertexId: objectId }, data: relation };
+        yield {
+          target: { kind: 'cached', vertexId: objectId },
+          data: relation,
+        };
       }
     },
   },
@@ -182,13 +195,16 @@ assert.deepEqual(bounded.summary().outcome, {
 for (const asynchronous of [false, true]) {
   const cleanup = [];
   const source = {
+    hydration: 'inlineOrCached',
     *roots() {
       try {
         yield {
+          kind: 'inline',
           vertexId: objectId,
           resolution: { kind: 'found', data: 'root' },
         };
         yield {
+          kind: 'inline',
           vertexId: symbolId,
           resolution: { kind: 'found', data: 'later' },
         };
@@ -300,3 +316,37 @@ const syncDagWalk = cjsWalking.walkGraph({ source: projected });
 assert.equal(syncDagWalk.summary().counts.uniqueFoundVertices, 1);
 assert.equal(syncDagWalk.summary().counts.uniqueOmittedVertices, 1);
 console.log('Packed graph walking consumers passed');
+
+assert.equal(catalog.hydration, 'resolver');
+assert.equal(self.hydration, 'resolver');
+for (const Factory of [root.GraphWalk, cjsWalking.AsyncGraphWalk]) {
+  assert.throws(
+    () => new Factory({ source: { roots: () => [], outgoing: () => [] } }),
+    TypeError,
+  );
+  assert.throws(
+    () =>
+      new Factory({
+        source: { hydration: 'resolver', roots: () => [], outgoing: () => [] },
+      }),
+    TypeError,
+  );
+  const cached = new Factory({
+    source: {
+      hydration: 'inlineOrCached',
+      roots: () => [
+        {
+          kind: 'inline',
+          vertexId: objectId,
+          resolution: { kind: 'found', data: 'root' },
+        },
+      ],
+      outgoing: () => [
+        { target: { kind: 'cached', vertexId: objectId }, data: relation },
+      ],
+    },
+  }).createRunner();
+  await cached.run();
+  assert.equal(cached.summary().counts.uniqueFoundVertices, 1);
+  assert.equal(cached.summary().counts.discoveredLinks, 1);
+}

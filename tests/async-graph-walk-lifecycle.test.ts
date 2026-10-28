@@ -21,6 +21,7 @@ it('return immediately pauses a pending resolver, retains its vertex, and drains
   const resolution = deferred<GraphWalkVertexResult<string>>();
   let lookups = 0;
   const source: AsyncGraphWalkSource<string, undefined, string> = {
+    hydration: 'resolver' as const,
     roots: () => [{ vertexId: 'A' }],
     resolveVertex: () => {
       lookups++;
@@ -140,6 +141,7 @@ it.each([
       return value;
     };
     const source: AsyncGraphWalkSource<string, undefined, string> = {
+      hydration: 'resolver' as const,
       roots: () =>
         step('roots', {
           [Symbol.asyncIterator]() {
@@ -231,6 +233,7 @@ it('throw pauses pending work, preserves source failure, and rejects close with 
   const result = deferred<GraphWalkVertexResult<string>>();
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'resolver' as const,
       roots: () => [{ vertexId: 'A' }],
       resolveVertex: () => {
         started.resolve();
@@ -429,6 +432,7 @@ it('consumer exceptions and successful pending throw pause without failing the r
 it('invalid selectors fail before acquisition and immediate return admits no source work', async () => {
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'inlineOrCached' as const,
       roots: () => {
         throw new Error('source must not be called');
       },

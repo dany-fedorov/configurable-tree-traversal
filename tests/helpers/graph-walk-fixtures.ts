@@ -3,9 +3,13 @@ import type { GraphWalkSource } from '../../src';
 export function idGraph(
   roots: readonly string[],
   adjacency: Iterable<readonly [string, readonly string[]]>,
-): GraphWalkSource<string, undefined, string> {
+): Extract<
+  GraphWalkSource<string, undefined, string>,
+  { hydration: 'resolver' }
+> {
   const byId = new Map(adjacency);
   return {
+    hydration: 'resolver' as const,
     roots: () => roots.map((vertexId) => ({ vertexId })),
     resolveVertex(vertexId) {
       if (!byId.has(vertexId)) throw new TypeError('Unknown test ID');
@@ -52,6 +56,7 @@ export function contextFixture(): {
     ['E', []],
   ]);
   const source: GraphWalkSource<ContextData, Relation, string> = {
+    hydration: 'resolver' as const,
     roots() {
       calls.push('roots');
       return [{ vertexId: 'A' }, { vertexId: 'E' }];

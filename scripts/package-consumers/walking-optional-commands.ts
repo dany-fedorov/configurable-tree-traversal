@@ -15,6 +15,10 @@ const visitors = {
     ],
   }),
 };
-const source = { roots: () => [], outgoing: () => [] };
+const source = {
+  hydration: 'inlineOrCached' as const,
+  roots: () => [],
+  outgoing: () => [],
+};
 new GraphWalk({ source, visitors });
 new AsyncGraphWalk({ source, visitors });

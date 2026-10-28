@@ -19,7 +19,14 @@ it('captures passive frozen detached mechanical state while a visitor is pending
   let calls = 0;
   const runner = new AsyncGraphWalk({
     source: {
-      roots: () => [{ vertexId: id, resolution: { kind: 'found', data } }],
+      hydration: 'inlineOrCached' as const,
+      roots: () => [
+        {
+          kind: 'inline' as const,
+          vertexId: id,
+          resolution: { kind: 'found', data },
+        },
+      ],
       outgoing: () => {
         calls++;
         return [];
@@ -47,7 +54,7 @@ it('captures passive frozen detached mechanical state while a visitor is pending
     openSourceIteratorCount: 1,
     pendingObservationKinds: [Phase.VERTEX, Phase.PATH],
     activeVisitor: { phase: Phase.VERTEX, visitorIndex: 0 },
-    pendingRequests: [{ operation: 'visitor' }],
+    pendingRequests: [{ operation: 'visit' }],
   });
   const token = snapshot.pendingRequests[0]!.vertexToken;
   expect(typeof token).toBe('symbol');
@@ -63,7 +70,9 @@ it('captures passive frozen detached mechanical state while a visitor is pending
     }
   }
   check(snapshot);
-  expect(() => Object.assign(snapshot.counts, { candidateReadAttempts: 900 })).toThrow();
+  expect(() =>
+    Object.assign(snapshot.counts, { candidateReadAttempts: 900 }),
+  ).toThrow();
   expect(runner.inspect()).toEqual(snapshot);
   expect(runner.inspect()).not.toBe(snapshot);
   expect(calls).toBe(0);
@@ -91,6 +100,7 @@ it('freezes owned summary records without freezing arbitrary failure objects', (
   const error = { reason: 'caller error' };
   const runner = new GraphWalk({
     source: {
+      hydration: 'inlineOrCached' as const,
       roots() {
         throw error;
       },
@@ -130,6 +140,7 @@ it('uses consistent private tokens across source, predicate, observation, and cl
     strategy: 'depthFirst',
     limits: { maxAdmittedTargets: 2 },
     source: {
+      hydration: 'resolver' as const,
       roots: () => [{ vertexId: id }],
       resolveVertex: () => {
         snapshot();
@@ -169,12 +180,12 @@ it('uses consistent private tokens across source, predicate, observation, and cl
   runner.run();
   expect(operations).toEqual([
     'resolveVertex',
-    'visitor',
+    'visit',
     'shouldExpandVertex',
     'outgoing',
     'edgeNext',
     'shouldFollowEdge',
-    'visitor',
+    'visit',
     'iteratorReturn',
   ]);
   expect(typeof tokens[0]).toBe('symbol');
@@ -195,6 +206,7 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
   let returns = 0;
   const factory = new AsyncGraphWalk({
     source: {
+      hydration: 'resolver' as const,
       roots: () => ({
         [Symbol.asyncIterator]() {
           return {

@@ -138,6 +138,7 @@ test('own unknown helper, source, binder and execution fields reject before call
 
 test('walking rejects unknown nested phase symbols while retaining protocol receivers', () => {
   class Source {
+    readonly hydration = 'inlineOrCached';
     count = 0;
     *roots() {
       this.count++;

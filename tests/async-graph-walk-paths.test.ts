@@ -19,6 +19,7 @@ it.each(policies)(
     );
     const runner = new AsyncGraphWalk({
       source: {
+        hydration: 'resolver' as const,
         async roots() {
           return base.roots();
         },
@@ -77,6 +78,7 @@ it.each(policies)(
     ]);
     const trace: string[] = [];
     const source: AsyncGraphWalkSource<string, undefined, string> = {
+      hydration: 'resolver' as const,
       roots: async function* () {
         yield { vertexId: 'A' };
       },
@@ -169,6 +171,7 @@ it.each(policies)(
     ]);
     const runner = new AsyncGraphWalk({
       source: {
+        hydration: 'resolver' as const,
         roots: () => [{ vertexId: 'A' }],
         async resolveVertex(id: string) {
           trace.push('resolve:' + id);
@@ -215,7 +218,12 @@ it.each(policies)(
       'open:F',
     ]);
     expect(runner.summary()).toMatchObject({
-      counts: { uniqueFoundVertices: 6, discoveredLinks: 6, admittedTargets: 9, candidateReadAttempts: 19 },
+      counts: {
+        uniqueFoundVertices: 6,
+        discoveredLinks: 6,
+        admittedTargets: 9,
+        candidateReadAttempts: 19,
+      },
       outcome: { kind: 'exhausted' },
     });
   },
@@ -225,9 +233,11 @@ it('closes each physical async iterator once after cached replay hits its step l
   const trace: string[] = [];
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'inlineOrCached' as const,
       roots: async function* () {
         try {
           yield {
+            kind: 'inline' as const,
             vertexId: 'A',
             resolution: { kind: 'found' as const, data: 'A' },
           };
@@ -238,7 +248,10 @@ it('closes each physical async iterator once after cached replay hits its step l
       outgoing: async function* () {
         try {
           trace.push('pull:A');
-          yield { target: { vertexId: 'A' }, data: undefined };
+          yield {
+            target: { kind: 'cached' as const, vertexId: 'A' },
+            data: undefined,
+          };
           trace.push('unexpected second pull');
         } finally {
           trace.push('close:A');
@@ -264,7 +277,12 @@ it('closes each physical async iterator once after cached replay hits its step l
   expect(trace).toEqual(['pull:A', 'close:A', 'close:roots']);
   expect(runner.inspect().openSourceIteratorCount).toBe(0);
   expect(runner.summary()).toMatchObject({
-    counts: { candidateReadAttempts: 3, admittedTargets: 3, uniqueFoundVertices: 1, discoveredLinks: 1 },
+    counts: {
+      candidateReadAttempts: 3,
+      admittedTargets: 3,
+      uniqueFoundVertices: 1,
+      discoveredLinks: 1,
+    },
     outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
   });
 });
@@ -281,9 +299,9 @@ it.each(policies)(
       kind: 'exhausted',
     });
     factory.configure({ limits: { maxDepth: 1 } }).configure({ revisit });
-    expect(() => factory.configure({ limits: { maxAdmittedTargets: 5 } })).toThrow(
-      TypeError,
-    );
+    expect(() =>
+      factory.configure({ limits: { maxAdmittedTargets: 5 } }),
+    ).toThrow(TypeError);
     const runner = await factory.createRunner().run();
     expect(runner.summary().counts.admittedTargets).toBe(
       revisit === 'walks' ? 2 : 1,
@@ -354,6 +372,7 @@ it.each(policies)(
       const calls: string[] = [];
       const runner = await new AsyncGraphWalk({
         source: {
+          hydration: 'inlineOrCached' as const,
           async roots() {
             calls.push('roots');
             return [];
@@ -380,14 +399,22 @@ it.each(policies)(
     const calls: string[] = [];
     const runner = await new AsyncGraphWalk({
       source: {
+        hydration: 'inlineOrCached' as const,
         roots: () => [
-          { vertexId: 'A', resolution: { kind: 'found' as const, data: 'A' } },
+          {
+            kind: 'inline' as const,
+            vertexId: 'A',
+            resolution: { kind: 'found' as const, data: 'A' },
+          },
         ],
         async *outgoing() {
           try {
             for (const vertexId of ['B', 'C', 'D']) {
               calls.push(vertexId);
-              yield { target: { vertexId }, data: undefined };
+              yield {
+                target: { kind: 'cached' as const, vertexId },
+                data: undefined,
+              };
             }
           } finally {
             await Promise.resolve();
@@ -403,7 +430,12 @@ it.each(policies)(
       .run();
     expect(calls).toEqual(['B', 'C', 'closed']);
     expect(runner.summary()).toMatchObject({
-      counts: { candidateReadAttempts: 4, admittedTargets: 1, uniqueFoundVertices: 1, discoveredLinks: 2 },
+      counts: {
+        candidateReadAttempts: 4,
+        admittedTargets: 1,
+        uniqueFoundVertices: 1,
+        discoveredLinks: 2,
+      },
       outcome: { kind: 'limited', reasons: ['maxCandidateReadAttempts'] },
     });
     expect(runner.inspect().openSourceIteratorCount).toBe(0);

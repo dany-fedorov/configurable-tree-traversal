@@ -8,6 +8,7 @@ import { idGraph } from './helpers/graph-walk-fixtures';
 it('keeps poll passive and settles each issued request exactly once', () => {
   const calls: string[] = [];
   const source = {
+    hydration: 'inlineOrCached' as const,
     roots() {
       calls.push('roots');
       return [];
@@ -108,6 +109,7 @@ it('prevents a synchronous session from acquiring externally outstanding work', 
 it('reports in-flight requests passively from inside source calls', () => {
   const snapshots: unknown[] = [];
   const source = {
+    hydration: 'resolver' as const,
     roots() {
       snapshots.push(runner.inspect());
       return [{ vertexId: 'A' }];

@@ -215,7 +215,11 @@ paused(commonDag);
 paused(commonAsyncBreadth);
 paused(commonAsyncDag);
 
-const walkingSource = { roots: () => [], outgoing: () => [] };
+const walkingSource = {
+  hydration: 'inlineOrCached' as const,
+  roots: () => [],
+  outgoing: () => [],
+};
 const walking = new GraphWalk({ source: walkingSource }).createRunner();
 const asyncWalking = new AsyncGraphWalk({
   source: walkingSource,

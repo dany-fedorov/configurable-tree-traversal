@@ -36,11 +36,23 @@ it('filters before inline hydration and target lookup, keeping link indices', ()
   };
   const inline = new GraphWalk({
     source: {
+      hydration: 'inlineOrCached' as const,
       roots: () => [
-        { vertexId: 'A', resolution: { kind: 'found' as const, data: 'A' } },
+        {
+          kind: 'inline' as const,
+          vertexId: 'A',
+          resolution: { kind: 'found' as const, data: 'A' },
+        },
       ],
       outgoing: () => [
-        { target: { vertexId: 'B', resolution: poison }, data: undefined },
+        {
+          target: {
+            kind: 'inline' as const,
+            vertexId: 'B',
+            resolution: poison,
+          },
+          data: undefined,
+        },
       ],
     } as unknown as GraphWalkSource<string, undefined, string>,
     shouldFollowEdge: () => false,
@@ -152,12 +164,14 @@ it('detaches predicate wrappers from subsequent observations and expansion', () 
       return true;
     },
   }).createRunner();
-  expect([...runner.iterateEvents({ emitEvents: [Phase.EDGE] })]).toMatchObject([
-    {
-      edge: { from: 'A', to: 'B' },
-      source: { vertexId: 'A' },
-      target: { vertex: { vertexId: 'B' } },
-    },
-  ]);
+  expect([...runner.iterateEvents({ emitEvents: [Phase.EDGE] })]).toMatchObject(
+    [
+      {
+        edge: { from: 'A', to: 'B' },
+        source: { vertexId: 'A' },
+        target: { vertex: { vertexId: 'B' } },
+      },
+    ],
+  );
   expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
 });

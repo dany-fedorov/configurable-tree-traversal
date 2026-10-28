@@ -16,11 +16,19 @@ const id = Symbol('id');
 type Data = { title: string };
 type Edge = { kind: 'cites' };
 const source: GraphWalkSource<Data, Edge, typeof id> = {
+  hydration: 'inlineOrCached' as const,
   roots: () => [
-    { vertexId: id, resolution: { kind: 'found', data: { title: 'root' } } },
+    {
+      kind: 'inline' as const,
+      vertexId: id,
+      resolution: { kind: 'found', data: { title: 'root' } },
+    },
   ],
   outgoing: (vertex) => [
-    { target: { vertexId: vertex.vertexId }, data: { kind: 'cites' } },
+    {
+      target: { kind: 'cached' as const, vertexId: vertex.vertexId },
+      data: { kind: 'cites' },
+    },
   ],
 };
 const runner = walkGraph({

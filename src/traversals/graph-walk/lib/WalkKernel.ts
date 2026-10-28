@@ -63,7 +63,7 @@ export class WalkKernel<Data, Edge, ID> {
   private boundaryId = 0;
   private roots: WalkCursor | null = null;
   private readonly rootIds = new Set<ID>();
-  private readonly cache = new WalkSourceCache<Data, Edge, ID>();
+  private readonly cache: WalkSourceCache<Data, Edge, ID>;
   private readonly frontier: WalkFrontier<Data, Edge, ID>;
   private readonly observations: Observation<Data, Edge, ID>[] = [];
   private chain: WalkVisitorChain<Data, Edge, ID> | null = null;
@@ -87,6 +87,7 @@ export class WalkKernel<Data, Edge, ID> {
     private readonly options: GraphWalkResolvedOptions<Data, Edge, ID>,
     private readonly executionKind: 'sync' | 'async' = 'sync',
   ) {
+    this.cache = new WalkSourceCache(options.source.hydration);
     this.frontier = new WalkFrontier(options.strategy);
     this.execution = options.execution;
   }
@@ -205,15 +206,12 @@ export class WalkKernel<Data, Edge, ID> {
       this.commit(candidate, copyResolution<Data>(target.resolution), true);
     } else {
       const source = this.options.source;
+      const resolveVertex = source.resolveVertex;
+      if (resolveVertex === undefined)
+        throw new TypeError('Cached walking target has no admitted resolution');
       this.call(
         'resolveVertex',
-        () => {
-          if (source.resolveVertex === undefined)
-            throw new TypeError(
-              'An unresolved walking target requires resolveVertex',
-            );
-          return source.resolveVertex.call(source.receiver, target.vertexId);
-        },
+        () => resolveVertex.call(source.receiver, target.vertexId),
         (value) => this.commit(candidate, copyResolution<Data>(value), true),
         this.token(target.vertexId),
       );
@@ -426,7 +424,7 @@ export class WalkKernel<Data, Edge, ID> {
         }
         if (chain.done) return this.observations[0]!;
         this.call(
-          'visitor',
+          'visit',
           () => chain.invoke(),
           (value) => chain.submit(value),
           this.observations[0]!.vertexToken,

@@ -76,11 +76,19 @@ export class WalkSourceCache<Data, Edge, ID> {
   readonly resolutions = new Map<ID, GraphWalkVertexResult<Data>>();
   readonly adjacency = new Map<ID, Adjacency<Edge, ID>>();
 
+  constructor(private readonly hydration: 'resolver' | 'inlineOrCached') {}
+
   copyTarget(value: unknown): WalkTarget<ID> {
     const input = record(value);
     if (!Object.prototype.hasOwnProperty.call(input, 'vertexId'))
       throw new TypeError('Expected a walking target vertexId');
     const vertexId = input['vertexId'] as ID;
+    if (this.hydration === 'inlineOrCached') {
+      const kind = input['kind'];
+      if (kind !== 'inline' && kind !== 'cached')
+        throw new TypeError('Expected an inline or cached walking target');
+      if (kind === 'cached') return { vertexId };
+    }
     // A later inline value cannot replace or revalidate the accepted snapshot.
     if (this.resolutions.has(vertexId)) return { vertexId };
     const resolution = input['resolution'];

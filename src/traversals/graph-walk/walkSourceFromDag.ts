@@ -25,7 +25,10 @@ type RelationSelection =
 export function materializeWalkSourceFromDagDefinition<Data, ID>(
   definition: DagDefinition<Data, ID>,
   options: { relations: readonly [RelationSelection, ...RelationSelection[]] },
-): GraphWalkSource<Data, GraphWalkDagRelation, ID> {
+): Extract<
+  GraphWalkSource<Data, GraphWalkDagRelation, ID>,
+  { hydration: 'resolver' }
+> {
   assertOwnKeys(options, ['relations']);
   const selection = options?.relations;
   if (!Array.isArray(selection) || selection.length === 0)
@@ -112,6 +115,7 @@ export function materializeWalkSourceFromDagDefinition<Data, ID>(
       }
   }
   return {
+    hydration: 'resolver',
     roots: () => roots.map((target) => ({ vertexId: target.vertexId })),
     resolveVertex: (vertexId) => ({ ...lookup(vertexId).resolution }),
     outgoing: (vertex) =>

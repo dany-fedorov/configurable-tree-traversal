@@ -434,3 +434,28 @@ W cannot be recovered by subtracting C from `unmetPrerequisiteIds`.
 
 Tree/DAG pending-request diagnostics use `operation: 'sortChildrenHints'`, matching
 the sorter option. Replace the old diagnostic spelling in inspection consumers.
+
+## Explicit walking hydration and reusable catalogs
+
+Every walking source now declares a hydration mode. Use `hydration: 'resolver'`
+with a required `resolveVertex(id)`; this mode keeps mixed `{ vertexId }` and
+`{ vertexId, resolution }` targets. For a source without a resolver, declare
+`hydration: 'inlineOrCached'` (`resolveVertex` absent or yielding `undefined`,
+including getters) and replace targets with
+`{ kind: 'inline', vertexId, resolution }` or `{ kind: 'cached', vertexId }`.
+A cached target requires an already admitted found/omitted resolution in this
+runner. Inline roots can therefore expose cached self/backedges. Rejected links
+never seed the cache, and the first admitted resolution, including omission,
+remains authoritative. Missing hydration declarations reject; there is no legacy
+source-shape fallback.
+
+Walking materializers and the DAG definition adapter declare resolver mode.
+The async catalog materializer still returns a reusable synchronous source.
+Use `GraphWalkRecordSelectors` and `AsyncGraphWalkRecordSelectors` to name reusable
+selector contracts and `GraphWalkCatalogLink` for readonly `to`/`data` catalog
+relations. Catalog relations remain separate from lazy links with target wrappers.
+These types are exported from the root and walking entry point.
+
+Walking callback diagnostics now use `operation: 'visit'` in place of `visitor`.
+Callback names, walking phases and iterator operations retain their names.
+See [walking sources](reference.md#walking-sources-and-identity).

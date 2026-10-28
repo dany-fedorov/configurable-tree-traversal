@@ -5,6 +5,7 @@ import type { GraphWalkSource } from '../src/traversals/graph-walk/GraphWalkSour
 import { normalizeWalkOptions } from '../src/traversals/graph-walk/lib/normalizeWalkOptions';
 
 const source: GraphWalkSource<string, undefined, string> = {
+  hydration: 'inlineOrCached' as const,
   roots: () => [],
   outgoing: () => [],
 };
@@ -13,6 +14,7 @@ describe('walking configuration snapshots', () => {
   test('defaults are once/BFS with vertex emissions and all visitors, without source I/O', () => {
     const calls: string[] = [];
     const lazySource = {
+      hydration: 'inlineOrCached' as const,
       roots() {
         calls.push('roots');
         return [];
@@ -99,7 +101,11 @@ describe('walking configuration snapshots', () => {
     const callback = () => undefined;
     const records = [{ visitor: callback, priority: 5 }];
     const resolver = () => ({ kind: 'omitted' as const });
-    const hydrated = { ...source, resolveVertex: resolver };
+    const hydrated = {
+      ...source,
+      hydration: 'resolver' as const,
+      resolveVertex: resolver,
+    };
     const config = normalizeWalkOptions({
       source: hydrated,
       emitEvents,
@@ -162,20 +168,22 @@ describe('walking configuration snapshots', () => {
     null,
     [],
     1,
-    {},
+    { hydration: 'inlineOrCached' },
     {
+      hydration: 'inlineOrCached',
       roots: 1,
       outgoing() {
         return [];
       },
     },
     {
+      hydration: 'inlineOrCached' as const,
       roots() {
         return [];
       },
       outgoing: null,
     },
-    { ...source, resolveVertex: 1 },
+    { ...source, hydration: 'resolver', resolveVertex: 1 },
   ])('rejects malformed sources %p', (value) => {
     expect(() => normalizeWalkOptions({ source: value })).toThrow(TypeError);
   });
@@ -255,6 +263,10 @@ describe('walking configuration snapshots', () => {
   test('captures nested source, limit and phase getters once without invoking callbacks', () => {
     const reads: string[] = [];
     const capturedSource = {
+      get hydration() {
+        reads.push('hydration');
+        return 'inlineOrCached' as const;
+      },
       get roots() {
         reads.push('roots');
         return source.roots;
@@ -284,6 +296,7 @@ describe('walking configuration snapshots', () => {
       },
     });
     expect(reads).toEqual([
+      'hydration',
       'roots',
       'outgoing',
       'resolveVertex',
@@ -309,7 +322,11 @@ describe('walking configuration snapshots', () => {
 for (const Factory of [GraphWalk, AsyncGraphWalk]) {
   test(`${Factory.name} rejects unknown options and limit keys before discovery and preserves configuration`, async () => {
     const roots = jest.fn(() => []);
-    const lazy = { roots, outgoing: () => [] };
+    const lazy = {
+      hydration: 'inlineOrCached' as const,
+      roots,
+      outgoing: () => [],
+    };
     const traversal = new Factory({
       source: lazy,
       limits: { maxCandidateReadAttempts: 0 },
@@ -393,7 +410,11 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
 it.each(['followEdge', 'expandVertex'])(
   'rejects removed predicate option %s instead of retaining an alias',
   (key) => {
-    const source = { roots: () => [], outgoing: () => [] };
+    const source = {
+      hydration: 'inlineOrCached' as const,
+      roots: () => [],
+      outgoing: () => [],
+    };
     expect(() => new GraphWalk({ source, [key]: () => true } as never)).toThrow(
       TypeError,
     );
@@ -402,7 +423,11 @@ it.each(['followEdge', 'expandVertex'])(
 it.each(['maxSteps', 'maxOccurrences'])(
   'rejects removed walking limit %s instead of retaining an alias',
   (key) => {
-    const source = { roots: () => [], outgoing: () => [] };
+    const source = {
+      hydration: 'inlineOrCached' as const,
+      roots: () => [],
+      outgoing: () => [],
+    };
     expect(
       () => new GraphWalk({ source, limits: { [key]: 1 } } as never),
     ).toThrow(TypeError);

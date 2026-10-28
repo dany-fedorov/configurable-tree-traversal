@@ -41,6 +41,7 @@ const target: GraphWalkTarget<Data, ID> = {
   resolution: { kind: 'found', data: { label: 'root' } },
 };
 const source: GraphWalkSource<Data, Relation, ID> = {
+  hydration: 'resolver' as const,
   roots: () => [
     target,
     { vertexId: undefined, resolution: { kind: 'omitted' } },
@@ -58,6 +59,7 @@ const source: GraphWalkSource<Data, Relation, ID> = {
   },
 };
 const asyncSource: AsyncGraphWalkSource<Data, Relation, ID> = {
+  hydration: 'resolver' as const,
   async *roots() {
     yield target;
   },
@@ -416,3 +418,85 @@ void [
   canonicalAsyncExpansionPredicate,
   walkingCounts,
 ];
+
+const catalogRelation: rootCjs.GraphWalkCatalogLink<Relation, symbol> = {
+  to: symbolId,
+  data: relation,
+};
+const namedSelectors: walking.GraphWalkRecordSelectors<
+  typeof items[number],
+  Relation,
+  symbol
+> = {
+  id: (item) => item.id,
+  outgoing: () => [catalogRelation],
+  roots: [symbolId],
+};
+const rootSelectors: graphWalk.GraphWalkRecordSelectors<
+  typeof items[number],
+  Relation,
+  symbol
+> = namedSelectors;
+const namedAsyncSelectors: walkingCjs.AsyncGraphWalkRecordSelectors<
+  typeof items[number],
+  Relation,
+  symbol
+> = {
+  id: async (item) => item.id,
+  outgoing: async function* () {
+    yield catalogRelation;
+  },
+  roots: [symbolId],
+};
+const rootAsyncSelectors: rootCjs.AsyncGraphWalkRecordSelectors<
+  typeof items[number],
+  Relation,
+  symbol
+> = namedAsyncSelectors;
+// @ts-expect-error Catalog relation endpoints are readonly.
+catalogRelation.to = symbolId;
+// @ts-expect-error Catalog relation data fields are readonly.
+catalogRelation.data = relation;
+const declaredSource = materializeWalkSourceFromRecords(items, rootSelectors);
+const declaredMode: 'resolver' = declaredSource.hydration;
+declaredSource.resolveVertex(symbolId);
+materializeWalkSourceFromRecordsAsync(items, rootAsyncSelectors).then(
+  (value) => {
+    const mode: 'resolver' = value.hydration;
+    const resolution: walking.GraphWalkVertexResult<typeof items[number]> =
+      value.resolveVertex(symbolId);
+    new GraphWalk({ source: value });
+    void [mode, resolution];
+  },
+);
+// @ts-expect-error Walking hydration mode is required.
+const noMode: walking.GraphWalkSource<Data, Relation, ID> = {
+  roots: () => [],
+  outgoing: () => [],
+};
+// @ts-expect-error Resolver sources require resolveVertex.
+const noResolver: walking.GraphWalkSource<Data, Relation, ID> = {
+  hydration: 'resolver',
+  roots: () => [],
+  outgoing: () => [],
+};
+const cachedSource: rootCjs.GraphWalkSource<Data, Relation, ID> = {
+  hydration: 'inlineOrCached',
+  roots: () => [
+    {
+      kind: 'inline',
+      vertexId: objectId,
+      resolution: { kind: 'found', data: { label: 'root' } },
+    },
+  ],
+  outgoing: () => [
+    { target: { kind: 'cached', vertexId: objectId }, data: relation },
+  ],
+};
+// @ts-expect-error No-resolver walking sources require tagged targets.
+const untaggedSource: walking.GraphWalkSource<Data, Relation, ID> = {
+  hydration: 'inlineOrCached',
+  roots: () => [{ vertexId: objectId }],
+  outgoing: () => [],
+};
+void [declaredMode, noMode, noResolver, cachedSource, untaggedSource];

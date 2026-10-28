@@ -16,9 +16,11 @@ import assert from 'node:assert/strict';
 type Code = { kind: 'file'; path: string } | { kind: 'symbol'; name: string };
 type Reference = { kind: 'defines' | 'references' };
 const source: AsyncGraphWalkSource<Code, Reference, string> = {
+  hydration: 'inlineOrCached' as const,
   async roots() {
     return [
       {
+        kind: 'inline' as const,
         vertexId: 'file',
         resolution: {
           kind: 'found',
@@ -33,6 +35,7 @@ const source: AsyncGraphWalkSource<Code, Reference, string> = {
     return [
       {
         target: {
+          kind: 'inline' as const,
           vertexId: 'symbol',
           resolution: {
             kind: 'found' as const,

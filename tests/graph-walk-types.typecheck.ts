@@ -20,10 +20,17 @@ import {
 import type { InspectionFilters } from '../src/core/CoreInspection';
 
 const source: GraphWalkSource<string, number, undefined> = {
+  hydration: 'inlineOrCached' as const,
   roots: () => [
-    { vertexId: undefined, resolution: { kind: 'found', data: 'root' } },
+    {
+      kind: 'inline' as const,
+      vertexId: undefined,
+      resolution: { kind: 'found', data: 'root' },
+    },
   ],
-  outgoing: (vertex) => [{ target: { vertexId: vertex.vertexId }, data: 1 }],
+  outgoing: (vertex) => [
+    { target: { kind: 'cached' as const, vertexId: vertex.vertexId }, data: 1 },
+  ],
 };
 const asyncSource: AsyncGraphWalkSource<string, number, undefined> = source;
 const asyncOptions: AsyncGraphWalkOptions<string, number, undefined> = {
@@ -71,8 +78,13 @@ const symbol = Symbol('id');
 const target: GraphWalkTarget<string, typeof symbol> = { vertexId: symbol };
 const objectId = { vertexId: 'arbitrary', resolution: 'id field' };
 const objectSource: GraphWalkSource<undefined, undefined, typeof objectId> = {
+  hydration: 'inlineOrCached' as const,
   roots: () => [
-    { vertexId: objectId, resolution: { kind: 'found', data: undefined } },
+    {
+      kind: 'inline' as const,
+      vertexId: objectId,
+      resolution: { kind: 'found', data: undefined },
+    },
   ],
   outgoing: (vertex) => {
     const id: typeof objectId = vertex.vertexId;
@@ -81,6 +93,7 @@ const objectSource: GraphWalkSource<undefined, undefined, typeof objectId> = {
   },
 };
 const symbolSource: GraphWalkSource<string, number, typeof symbol> = {
+  hydration: 'resolver' as const,
   roots: () => [target],
   outgoing: () => [],
   resolveVertex: () => ({ kind: 'omitted' }),

@@ -148,10 +148,18 @@ export function executionSelectionTypes() {
 function walkingKinds() {
   for (const runner of [
     new GraphWalk({
-      source: { roots: () => [], outgoing: () => [] },
+      source: {
+        hydration: 'inlineOrCached' as const,
+        roots: () => [],
+        outgoing: () => [],
+      },
     }).createRunner(),
     new AsyncGraphWalk({
-      source: { roots: () => [], outgoing: () => [] },
+      source: {
+        hydration: 'inlineOrCached' as const,
+        roots: () => [],
+        outgoing: () => [],
+      },
     }).createRunner(),
   ]) {
     runner.iterateEvents({

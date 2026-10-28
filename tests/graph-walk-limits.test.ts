@@ -289,6 +289,7 @@ it.each([GraphWalk, AsyncGraphWalk])(
   async (Factory) => {
     const resolved: string[] = [];
     const source = {
+      hydration: 'resolver' as const,
       roots: () => [{ vertexId: 'A' }],
       resolveVertex(vertexId: string) {
         resolved.push(vertexId);

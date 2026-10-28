@@ -98,6 +98,7 @@ for (const Builder of [GraphWalk, AsyncGraphWalk]) {
     let calls = 0;
     const traversal = new Builder({
       source: {
+        hydration: 'inlineOrCached' as const,
         roots: () => {
           calls++;
           return [];

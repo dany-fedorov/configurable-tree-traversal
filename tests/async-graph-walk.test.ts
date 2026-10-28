@@ -23,6 +23,7 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
     const runner = new AsyncGraphWalk({
       strategy,
       source: {
+        hydration: 'resolver' as const,
         async *roots() {
           yield* source.roots();
         },
@@ -67,40 +68,61 @@ it.each([false, true])(
   async (fallback) => {
     const opened: string[] = [];
     const resolved: string[] = [];
-    const source: AsyncGraphWalkSource<string, undefined, string> = {
-      roots: async () => [
-        { vertexId: 'A', resolution: { kind: 'found', data: 'A' } },
-      ],
-      async *outgoing({ vertexId }) {
-        opened.push(vertexId);
-        if (vertexId === 'A') {
-          yield {
-            target: {
-              vertexId: 'B',
-              ...(fallback
-                ? {}
-                : { resolution: { kind: 'found' as const, data: 'B' } }),
-            },
-            data: undefined,
-          };
-          yield {
-            target: {
-              vertexId: 'B',
-              resolution: { kind: 'found', data: 'ignored' },
-            },
-            data: undefined,
-          };
+    const source: AsyncGraphWalkSource<string, undefined, string> = fallback
+      ? {
+          hydration: 'resolver',
+          roots: async () => [
+            { vertexId: 'A', resolution: { kind: 'found', data: 'A' } },
+          ],
+          resolveVertex: async (id) => {
+            resolved.push(id);
+            return { kind: 'found', data: id };
+          },
+          async *outgoing({ vertexId }) {
+            opened.push(vertexId);
+            if (vertexId === 'A') {
+              yield { target: { vertexId: 'B' }, data: undefined };
+              yield {
+                target: {
+                  vertexId: 'B',
+                  resolution: { kind: 'found', data: 'ignored' },
+                },
+                data: undefined,
+              };
+            }
+          },
         }
-      },
-      ...(fallback
-        ? {
-            resolveVertex: async (id: string) => {
-              resolved.push(id);
-              return { kind: 'found' as const, data: id };
+      : {
+          hydration: 'inlineOrCached',
+          roots: async () => [
+            {
+              kind: 'inline',
+              vertexId: 'A',
+              resolution: { kind: 'found', data: 'A' },
             },
-          }
-        : {}),
-    };
+          ],
+          async *outgoing({ vertexId }) {
+            opened.push(vertexId);
+            if (vertexId === 'A') {
+              yield {
+                target: {
+                  kind: 'inline',
+                  vertexId: 'B',
+                  resolution: { kind: 'found', data: 'B' },
+                },
+                data: undefined,
+              };
+              yield {
+                target: {
+                  kind: 'inline',
+                  vertexId: 'B',
+                  resolution: { kind: 'found', data: 'ignored' },
+                },
+                data: undefined,
+              };
+            }
+          },
+        };
     const runner = new AsyncGraphWalk({ source }).createRunner();
     const events = await collect(runner.iterateEvents());
     expect(events).toMatchObject([
@@ -118,11 +140,18 @@ it('captures source callbacks and receiver while retaining shared caller data an
   const data = { title: 'first' };
   let rootsReads = 0;
   const source: AsyncGraphWalkSource<typeof data, undefined, typeof id> = {
+    hydration: 'inlineOrCached' as const,
     get roots() {
       rootsReads++;
       return async function (this: typeof source) {
         expect(this).toBe(source);
-        return [{ vertexId: id, resolution: { kind: 'found' as const, data } }];
+        return [
+          {
+            kind: 'inline' as const,
+            vertexId: id,
+            resolution: { kind: 'found' as const, data },
+          },
+        ];
       };
     },
     async outgoing() {
@@ -196,6 +225,7 @@ it('accepts resolved thenables from async sources, predicates and visitors', asy
   const seen: string[] = [];
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'resolver' as const,
       roots: () => thenable([{ vertexId: 'A' }]),
       resolveVertex: () => thenable({ kind: 'found' as const, data: 'A' }),
       outgoing: () => thenable([]),
@@ -230,6 +260,7 @@ it.each([
       throw error;
     };
     const source: AsyncGraphWalkSource<string, undefined, string> = {
+      hydration: 'resolver' as const,
       roots: () =>
         stage === 'roots'
           ? Promise.reject(error)
@@ -285,10 +316,12 @@ it('prefers async iteration and falls back only for an absent async factory', as
   const calls: string[] = [];
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'inlineOrCached' as const,
       roots: () => ({
         async *[Symbol.asyncIterator]() {
           calls.push('async');
           yield {
+            kind: 'inline' as const,
             vertexId: 'A',
             resolution: { kind: 'found' as const, data: 'A' },
           };
@@ -310,6 +343,7 @@ it.each([1, { then: () => undefined }])(
   'rejects malformed async factories without using sync fallback %p',
   async (factory) => {
     const source = {
+      hydration: 'inlineOrCached' as const,
       roots: () => ({
         [Symbol.asyncIterator]: factory,
         [Symbol.iterator]: function* () {
@@ -328,6 +362,7 @@ it('observes an invalid async iterator factory rejected promise before retaining
   const error = Symbol('factory');
   const observed: unknown[] = [];
   const source = {
+    hydration: 'inlineOrCached' as const,
     roots: () => ({
       [Symbol.asyncIterator]() {
         const rejected = Promise.reject(error);

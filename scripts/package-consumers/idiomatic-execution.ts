@@ -54,10 +54,18 @@ const asyncDag = new AsyncDagTraversal<Tree>({
   traversableTree: source,
 }).createRunner();
 const walker = new GraphWalk({
-  source: { roots: () => [], outgoing: () => [] },
+  source: {
+    hydration: 'inlineOrCached' as const,
+    roots: () => [],
+    outgoing: () => [],
+  },
 }).createRunner();
 const asyncWalker = new AsyncGraphWalk({
-  source: { roots: () => [], outgoing: () => [] },
+  source: {
+    hydration: 'inlineOrCached' as const,
+    roots: () => [],
+    outgoing: () => [],
+  },
 }).createRunner();
 function inspect(execution: TraversalExecutionState) {
   return execution.inspect().status;

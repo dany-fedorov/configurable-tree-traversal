@@ -28,6 +28,7 @@ import type {
 
 /** Captured methods retain the caller receiver without binding or freezing it. */
 export type NormalizedWalkSource<Data, Edge, ID> = {
+  hydration: 'resolver' | 'inlineOrCached';
   receiver:
     | GraphWalkSource<Data, Edge, ID>
     | AsyncGraphWalkSource<Data, Edge, ID>;
@@ -87,21 +88,26 @@ function captureSource<Data, Edge, ID>(
     Array.isArray(value)
   )
     throw new TypeError('Walking source must be an object or function');
+  const hydration: unknown = Reflect.get(value, 'hydration');
   const roots: unknown = Reflect.get(value, 'roots');
   const outgoing: unknown = Reflect.get(value, 'outgoing');
   const resolveVertex: unknown = Reflect.get(value, 'resolveVertex');
   if (
     typeof roots !== 'function' ||
     typeof outgoing !== 'function' ||
-    (resolveVertex !== undefined && typeof resolveVertex !== 'function')
+    (hydration !== 'resolver' && hydration !== 'inlineOrCached') ||
+    (hydration === 'resolver'
+      ? typeof resolveVertex !== 'function'
+      : resolveVertex !== undefined)
   ) {
     throw new TypeError(
-      'Walking source requires roots/outgoing and an optional resolver',
+      'Walking source requires roots/outgoing and explicit hydration with a resolver only in resolver mode',
     );
   }
   // Only invocation signatures cross this unknown-input boundary. Callers are
   // invoked by the sessions, which validate their returned protocols/results.
   return {
+    hydration,
     receiver: value,
     roots,
     outgoing,

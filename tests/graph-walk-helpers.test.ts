@@ -130,6 +130,8 @@ it.each([null, undefined, { error: 'opaque' }])(
       throw error;
     };
     const unreadable = {
+      hydration: 'resolver' as const,
+      resolveVertex: source.resolveVertex,
       get roots(): typeof source.roots {
         throw error;
       },

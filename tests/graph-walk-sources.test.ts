@@ -29,6 +29,7 @@ it('captures catalog topology eagerly while retaining shallow caller data', () =
     },
     roots,
   });
+  expect(source.hydration).toBe('resolver');
   expect(calls).toEqual(['id:A', 'outgoing:A', 'id:B', 'outgoing:B']);
   roots.length = 0;
   adjacency.length = 0;
@@ -200,6 +201,7 @@ it('eagerly awaits async catalogs, selectors and roots into a synchronous reusab
       })(),
     },
   );
+  expect(source.hydration).toBe('resolver');
   expect(calls).toEqual(['id:a', 'outgoing:a', 'id:b', 'outgoing:b', 'roots']);
   link.to = 'unknown';
   const factory = new GraphWalk({ source });
@@ -312,6 +314,7 @@ it('walks cyclic definitions without DAG preparation or callback execution', () 
   const source = materializeWalkSourceFromDagDefinition(definition, {
     relations: ['children'],
   });
+  expect(source.hydration).toBe('resolver');
   const runner = new GraphWalk({ source }).createRunner();
   expect(
     [...runner.iterateEvents({ emitEvents: [Phase.EDGE] })].map((event) => [

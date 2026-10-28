@@ -258,6 +258,7 @@ test.each([false, true])(
   async (asyncMode) => {
     const calls: string[] = [];
     class Source extends Function {
+      readonly hydration = 'resolver';
       state = { data: 42 };
       roots() {
         expect(this).toBe(source);

@@ -116,7 +116,7 @@ session.completeWork({...ticket});
 
 **Interfaces:** Produces GraphWalkSource/AsyncGraphWalkSource hydration union and named GraphWalkRecordSelectors/AsyncGraphWalkRecordSelectors/GraphWalkCatalogLink. Preserve family-safe execution capabilities and admission cache semantics.
 
-- [ ] Add strict source contract assertions: resolver mode requires resolveVertex; inlineOrCached mode requires tagged inline/cached targets and forbids resolver. Add sync/async runtime cases for omitted inline resolutions, first-use cached rejection, inline root with ID-only cached self/backedge, rejected links not seeding cache and first-resolution wins.
+- [ ] Add strict source contract assertions: resolver mode requires resolveVertex; inlineOrCached mode requires tagged inline/cached targets and forbids non-undefined resolver values while explicitly permitting undefined field/getter values in runtime and exact-optional types. Add sync/async runtime cases for omitted inline resolutions, first-use cached rejection, inline root with ID-only cached self/backedge, rejected links not seeding cache and first-resolution wins.
 
 ```ts
 const source = {

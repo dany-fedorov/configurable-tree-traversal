@@ -190,8 +190,13 @@ const asyncTreeDagInspection: TreeDagExecutionInspection = concrete.inspect();
 const treeState: TraversalExecutionState = syncConcrete;
 const asyncTreeState: TraversalExecutionState = concrete;
 const walkSource: GraphWalkSource<string, number, undefined> = {
+  hydration: 'inlineOrCached' as const,
   roots: () => [
-    { vertexId: undefined, resolution: { kind: 'found', data: 'root' } },
+    {
+      kind: 'inline' as const,
+      vertexId: undefined,
+      resolution: { kind: 'found', data: 'root' },
+    },
   ],
   outgoing: () => [],
 };

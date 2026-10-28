@@ -7,5 +7,5 @@ export type GraphWalkOperation =
   | 'edgeNext'
   | 'shouldFollowEdge'
   | 'shouldExpandVertex'
-  | 'visitor'
+  | 'visit'
   | 'iteratorReturn';
