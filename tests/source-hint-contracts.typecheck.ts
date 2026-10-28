@@ -48,6 +48,7 @@ const outputHints = () => ({
 });
 rewriteObject<number, 'input', number, unknown, 'output', string>(0, {
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+  getChildrenOfProperty: () => [],
   resolveVertexHook(hint) {
     hint.value.toFixed();
     return { kind: 'useDefault' };
@@ -65,6 +66,7 @@ const matching = new ObjectTreeSource<
   string
 >(0, {
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+  getChildrenOfProperty: () => [],
 });
 traverseTreeDepthFirst<Input, Current>({
   traversableTree: matching,
@@ -75,11 +77,12 @@ traverseTreeDepthFirst<Input, Current>({
 });
 const narrow = new ObjectTreeSource<number, 'input', number>(0, {
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+  getChildrenOfProperty: () => [],
   resolveVertexHook(_hint, context) {
-    context.resolutionContext.parentVertexRef
+    const value = context.resolutionContext.parentVertexRef
       .getValue()
-      .getData()
-      .value.toFixed();
+      .getData().value;
+    if (typeof value === 'number') value.toFixed();
     return { kind: 'useDefault' };
   },
 });
@@ -417,14 +420,16 @@ const unionObject = new ObjectTreeSource<
   string
 >(0, {
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+  getChildrenOfProperty: () => [],
   resolveVertexHook(hint, context) {
     const hintValue: number | string = hint.value;
     const originalValue: number | string = context
       .originalTreeView!.getRoot()!
       .getValue()
       .getData().value;
-    const currentValue: number | string =
-      context.resolutionContext.parentVertexRef.getValue().getData().value;
+    const currentValue: unknown = context.resolutionContext.parentVertexRef
+      .getValue()
+      .getData().value;
     // @ts-expect-error The declared source union applies to original discovered records too.
     const numberOnly: number = originalValue;
     void [hintValue, currentValue, numberOnly];
@@ -444,6 +449,7 @@ rewriteObject<
   string
 >(0, {
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+  getChildrenOfProperty: () => [],
   visitors: { PRE_ORDER: outputHints },
 });
 
@@ -573,11 +579,25 @@ new AsyncDagTraversal({
 });
 
 // Shared standalone defaults remain useful; concrete visitors select source hints.
-const standaloneHints: TraversalVisitorCommand<R, Command.REWRITE_CHILD_HINTS> = invalidHints().commands[0]!;
-const sourceOwnedHints: TraversalVisitorCommand<R, Command.REWRITE_CHILD_HINTS, T['VertexHint']> = validHints().commands[0]!;
+const standaloneHints: TraversalVisitorCommand<R, Command.REWRITE_CHILD_HINTS> =
+  invalidHints().commands[0]!;
+const sourceOwnedHints: TraversalVisitorCommand<
+  R,
+  Command.REWRITE_CHILD_HINTS,
+  T['VertexHint']
+> = validHints().commands[0]!;
 // @ts-expect-error Standalone output hints cannot bypass a concrete source-owned contract.
 const rejectedStandalone: typeof sourceOwnedHints = standaloneHints;
-const standaloneArguments: TraversalVisitorCommandArguments<HintOutput>[Command.REWRITE_CHILD_HINTS] = { newHints: [true] };
-const sourceArguments: TraversalVisitorCommandArguments<HintOutput, HintInput['VertexHint']>[Command.REWRITE_CHILD_HINTS] = { newHints: ['first', { next: 2 }] };
-const sourceResult: TraversalVisitorResult<HintOutput, DepthFirstPhase.PRE_ORDER, 'tree', HintInput['VertexHint']> = genericHints<HintInput['VertexHint']>('first')();
+const standaloneArguments: TraversalVisitorCommandArguments<HintOutput>[Command.REWRITE_CHILD_HINTS] =
+  { newHints: [true] };
+const sourceArguments: TraversalVisitorCommandArguments<
+  HintOutput,
+  HintInput['VertexHint']
+>[Command.REWRITE_CHILD_HINTS] = { newHints: ['first', { next: 2 }] };
+const sourceResult: TraversalVisitorResult<
+  HintOutput,
+  DepthFirstPhase.PRE_ORDER,
+  'tree',
+  HintInput['VertexHint']
+> = genericHints<HintInput['VertexHint']>('first')();
 void [rejectedStandalone, standaloneArguments, sourceArguments, sourceResult];

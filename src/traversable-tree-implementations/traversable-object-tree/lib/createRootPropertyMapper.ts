@@ -1,22 +1,29 @@
-import { __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ } from '@traversable-object-tree/lib/constants';
-import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { ObjectTreeOptions } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
+import { __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ } from './constants';
+import type { TraversableObjectPropKey } from './TraversableObjectPropKey';
+import type { TraversableObjectProp } from './TraversableObjectProp';
 
-export function createRootPropertyMapper<
-  In,
-  InK extends TraversableObjectPropKey,
-  InV,
-  OutK extends TraversableObjectPropKey,
-  OutV,
->(
-  rootKey?: InK,
-): Required<
-  ObjectTreeOptions<In, InK, InV, OutK, OutV>
->['getRootPropertyFromInputObject'] {
-  return function createRootPropertyMapper_implementation(inputObject: In) {
-    return {
-      key: (rootKey ?? __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__) as InK,
-      value: inputObject as unknown as InV,
-    };
-  };
+export function createRootPropertyMapper(
+  rootKey?: undefined,
+): <In>(
+  inputObject: In,
+) => TraversableObjectProp<
+  typeof __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__,
+  In
+>;
+export function createRootPropertyMapper<K extends TraversableObjectPropKey>(
+  rootKey: K,
+): <In>(inputObject: In) => TraversableObjectProp<K, In>;
+export function createRootPropertyMapper<K extends TraversableObjectPropKey>(
+  rootKey: K | undefined,
+): <In>(
+  inputObject: In,
+) => TraversableObjectProp<
+  K | typeof __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__,
+  In
+>;
+
+export function createRootPropertyMapper(
+  rootKey: TraversableObjectPropKey = __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__,
+) {
+  return <In>(inputObject: In) => ({ key: rootKey, value: inputObject });
 }

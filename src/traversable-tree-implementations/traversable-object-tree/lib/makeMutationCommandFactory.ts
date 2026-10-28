@@ -13,6 +13,13 @@ import type {
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
+/** Reference-keyed assembly storage must accept every reconstructed value. */
+export type ObjectAssemblyCache<Key> = {
+  has: (key: Key) => boolean;
+  get: (key: Key) => unknown;
+  set: (key: Key, value: unknown) => unknown;
+};
+
 export type ObjectMutationOptions<
   InputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
   OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
@@ -37,7 +44,7 @@ export type ObjectMutationOptions<
       >
     >,
     isCompositeAssertions: ObjectCompositeClassification,
-  ) => OutputTypes['VertexData']['value'];
+  ) => unknown;
   assembleObject?: (
     processedChildren: ObjectCurrentVertexTypes<
       InputTypes,
@@ -52,10 +59,9 @@ export type ObjectMutationOptions<
       >
     >,
     isCompositeAssertions: ObjectCompositeClassification,
-  ) => OutputTypes['VertexData']['value'];
-  assembledMap?: Map<
-    MutableRef<Vertex<ObjectCurrentVertexTypes<InputTypes, OutputTypes>>>,
-    OutputTypes['VertexData']['value']
+  ) => unknown;
+  assembledMap?: ObjectAssemblyCache<
+    MutableRef<Vertex<ObjectCurrentVertexTypes<InputTypes, OutputTypes>>>
   >;
 };
 
@@ -76,9 +82,7 @@ export type ObjectMutationCommands<
     ObjectPropertyPatch<OutputTypes>,
     TraversalVisitorCommandName.DELETE_TREE_SUBTREE
   >;
-  assembleComposite: (
-    saveToMap?: boolean,
-  ) => OutputTypes['VertexData']['value'];
+  assembleComposite: (saveToMap?: boolean) => unknown;
 };
 
 export type ObjectMutationBinder<
@@ -152,7 +156,7 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
 
       function TraversableObjectTree_assembleComposite(
         saveToMap = true,
-      ): OutputTypes['VertexData']['value'] {
+      ): unknown {
         if (isThisAnArray) {
           const res = assembleArray(
             TraversableObjectTree_getChildrenObjectPropertiesOf(vertexRef),

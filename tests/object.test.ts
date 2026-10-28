@@ -115,7 +115,7 @@ describe('object rewriting', () => {
         { value: 1 },
         {
           rewrite: () => ({ delete: true }),
-          getOutputObjectFromRootValue: (value) =>
+          convertRootValue: (value) =>
             value === null ? 'deleted' : 'present',
         },
       ).outputAtReturn,

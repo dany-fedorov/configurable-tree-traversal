@@ -3,12 +3,9 @@ import type { TraversableObjectProp } from '@traversable-object-tree/lib/Travers
 import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 import { PRIMITIVE_TYPEOF_TYPES } from '@traversable-object-tree/lib/constants';
 
-export function getChildrenOfPropertyDefault<
-  K extends TraversableObjectPropKey,
-  V,
->(
-  prop: TraversableObjectProp<K, V>,
-): ObjectTreeVertexTypes<K, V>['VertexHint'][] {
+export function getChildrenOfPropertyDefault(
+  prop: TraversableObjectProp<TraversableObjectPropKey, unknown>,
+): ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>['VertexHint'][] {
   const { value } = prop;
   if (PRIMITIVE_TYPEOF_TYPES.includes(typeof value) || value === null) {
     return [];
@@ -21,15 +18,15 @@ export function getChildrenOfPropertyDefault<
   if (Array.isArray(value)) {
     const stringKeys = Object.keys(value);
     return [...stringKeys, ...enumerableSymbolKeys].map((key) => ({
-      key: (isArrayIndex(key) ? Number(key) : key) as K,
-      value: value[key as keyof typeof value] as V,
+      key: isArrayIndex(key) ? Number(key) : key,
+      value: value[key as keyof typeof value],
     }));
   }
 
-  const objectValue = value as Record<PropertyKey, V>;
+  const objectValue = value as Record<PropertyKey, unknown>;
   return [...Object.keys(objectValue), ...enumerableSymbolKeys].map((key) => ({
-    key: key as K,
-    value: objectValue[key] as V,
+    key,
+    value: objectValue[key],
   }));
 }
 

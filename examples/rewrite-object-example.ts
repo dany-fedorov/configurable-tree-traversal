@@ -24,6 +24,10 @@ console.log(JSON.stringify(obj, null, 2));
 console.log();
 
 const result = rewriteObject(obj, {
+  convertRootValue(value, { complete }) {
+    if (!complete) throw new Error('Expected the initial traversal to finish');
+    return JSON.stringify(value, null, 2);
+  },
   resolveVertexHook: (vertexHint) => {
     if (vertexHint.value === null) {
       return { kind: 'omitted' };
@@ -68,7 +72,7 @@ const result = rewriteObject(obj, {
 
 console.log();
 console.log('Output');
-console.log(JSON.stringify(result.getOutput(), null, 2));
+console.log(result.getOutput());
 
 /*
 Input

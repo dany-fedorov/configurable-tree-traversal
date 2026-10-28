@@ -9,7 +9,7 @@ type PropertyMetadata<Data> = Data extends unknown
   ? Omit<Data, 'key' | 'value'>
   : never;
 
-/** Live object records after any sequence of key-only/value-only patches. */
+/** Live keys/metadata survive patches; arbitrary reconstructed values are unknown. */
 export type ObjectCurrentVertexTypes<
   InputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
   OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
@@ -22,7 +22,7 @@ export type ObjectCurrentVertexTypes<
   | (PropertyMetadata<InputTypes['VertexData'] | OutputTypes['VertexData']> &
       TraversableObjectProp<
         InputTypes['VertexData']['key'] | OutputTypes['VertexData']['key'],
-        InputTypes['VertexData']['value'] | OutputTypes['VertexData']['value']
+        unknown
       >),
   InputTypes['VertexHint'] | OutputTypes['VertexHint']
 >;

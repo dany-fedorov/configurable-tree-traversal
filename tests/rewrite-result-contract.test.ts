@@ -32,11 +32,13 @@ describe('rewrite result contracts', () => {
   test('requires completion and converts the final root only once after resuming', () => {
     const input = { count: 1 };
     const convertedValues: unknown[] = [];
+    const completion: boolean[] = [];
     const result = rewriteObject(input, {
       visitors: pauseBeforeRootRewrite(),
       rewrite: ({ key }) =>
         key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
-      getOutputObjectFromRootValue: (value) => {
+      convertRootValue: (value, context) => {
+        completion.push(context.complete);
         convertedValues.push(value);
         return { converted: value };
       },
@@ -53,6 +55,7 @@ describe('rewrite result contracts', () => {
     expect(final).toEqual({ converted: { renamed: 1 } });
     expect(result.getOutput()).toBe(final);
     expect(convertedValues).toEqual([input, { renamed: 1 }]);
+    expect(completion).toEqual([false, true]);
     expect(result.outputAtReturn).toEqual({ converted: { count: 1 } });
   });
 
@@ -61,7 +64,7 @@ describe('rewrite result contracts', () => {
     const result = rewriteObject(
       { count: 1 },
       {
-        getOutputObjectFromRootValue: (value) => ({
+        convertRootValue: (value) => ({
           value,
           conversion: ++conversions,
         }),
@@ -80,7 +83,7 @@ describe('rewrite result contracts', () => {
         { count: 1 },
         {
           visitors: pauseBeforeRootRewrite(),
-          getOutputObjectFromRootValue: (value) => {
+          convertRootValue: (value) => {
             conversions += 1;
             if (conversions === 2) throw error;
             return { value };
@@ -110,7 +113,7 @@ describe('rewrite result contracts', () => {
       rewriteObject(
         {},
         {
-          getOutputObjectFromRootValue: () => {
+          convertRootValue: () => {
             throw error;
           },
         },
@@ -128,8 +131,7 @@ describe('rewrite result contracts', () => {
       {
         visitors: pauseBeforeRootRewrite(),
         rewrite: () => ({ delete: true }),
-        getOutputObjectFromRootValue: (value) =>
-          value === null ? 'deleted' : 'present',
+        convertRootValue: (value) => (value === null ? 'deleted' : 'present'),
       },
     );
     deleted.traversalRunner.run();
@@ -179,7 +181,7 @@ describe('rewrite result contracts', () => {
           calls.push('rewrite');
           return undefined;
         },
-        getOutputObjectFromRootValue: () => {
+        convertRootValue: () => {
           calls.push('convert');
           return 1;
         },

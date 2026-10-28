@@ -140,7 +140,7 @@ describe('object traversal and rewriting edge cases', () => {
   test('resolveVertexHook can prune one property and replace another subtree', () => {
     const visited: PropertyKey[] = [];
 
-    const { outputAtReturn } = rewriteObject(
+    const { outputAtReturn } = rewriteObject<unknown>(
       {
         keep: 1,
         prune: { hidden: 2 },
@@ -399,7 +399,7 @@ describe('object traversal and rewriting edge cases', () => {
 
   test('a hook that substitutes an ancestor identity is rejected as a cycle', () => {
     const input = { child: { leaf: 1 } };
-    const tree = new ObjectTreeSource(input, {
+    const tree = new ObjectTreeSource<typeof input>(input, {
       resolveVertexHook: (hint) =>
         hint.key === 'child'
           ? {

@@ -133,7 +133,7 @@ describe('object identity bookkeeping', () => {
     const branch: { self?: unknown } = {};
     branch.self = branch;
     const traversal = new DepthFirstTreeTraversal({
-      traversableTree: new ObjectTreeSource(
+      traversableTree: new ObjectTreeSource<{ branch: number }>(
         { branch: 0 },
         {
           resolveVertexHook: (hint) =>
@@ -202,7 +202,7 @@ describe('object identity bookkeeping', () => {
   test('hook-supplied primitive parents with explicit children do not create false cycles', () => {
     const visited: PropertyKey[] = [];
     const traversal = new DepthFirstTreeTraversal({
-      traversableTree: new ObjectTreeSource(
+      traversableTree: new ObjectTreeSource<{ custom: { ignored: boolean } }>(
         { custom: { ignored: true } },
         {
           resolveVertexHook: (hint) =>

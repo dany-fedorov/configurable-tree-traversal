@@ -101,15 +101,19 @@ new GraphWalk({
 
 ## Corrected object contracts
 
-An earlier visitor can rewrite the current property before `rewrite` runs; children can remain unchanged. `ObjectCurrentVertexTypes<InputTypes, OutputTypes>` therefore closes keys and values **independently** over both domains, retaining the original metadata alternatives. An input key with an output value, or an output key with an input value, is valid. A union of complete input/output records would incorrectly exclude these hybrids. Neither narrowing the key nor narrowing metadata proves an input-only/output-only value. This applies to callback properties, `vertex`, live refs/tree, previous-phase refs, key paths, classifiers, assemblers and object-source parent contexts. `originalTreeView` stays input-typed. Generic tree APIs retain their configured domains; explicitly use the current-domain helper when composing an object binder with a generic traversal.
+An earlier visitor can rewrite the current property before `rewrite` runs; children can remain unchanged or become mixed reconstructed containers. `ObjectCurrentVertexTypes<InputTypes, OutputTypes>` retains input/output keys and metadata alternatives, while current values are `unknown`. This applies to callback properties, `vertex`, live refs/tree, previous-phase refs, classifiers, assemblers and object-source parent contexts. Assembler results and `assembledComposite` are `unknown` too. Narrow current values with runtime checks; neither key nor metadata narrowing proves a value domain. `originalTreeView` stays input-typed. Generic tree APIs retain their configured domains; explicitly use the current-domain helper when composing an object binder with a generic traversal.
+
+Replace `getOutputObjectFromRootValue` with `convertRootValue(value: unknown, context: { readonly complete: boolean })`. The old option rejects. Ordinary `rewriteObject` requires this converter before promising a specific `Out`; explicit output generics alone no longer work. Keep `rewriteObjectAs<Out>` for a deliberate unchecked final output assertion. Completion gating, successful conversion caching, and retry after exact conversion failures remain unchanged.
+
+Default object discovery now exposes `PropertyKey`/`unknown`. Narrow constructor generics and rewrite helpers require **both** the root and child property adapters, including with pretyped or spread options. Prefer `ObjectTreeSource.fromProperties(input, { getRootPropertyFromInputObject, getChildrenOfProperty })` for precise discovery. `createRootPropertyMapper(rootKey?)` preserves the actual root input and root-key type; `getChildrenOfPropertyDefault` cannot promise narrow descendant keys or values. Assembly caches use `ObjectAssemblyCache<Key>` with function-valued `has`, `get`, and `set`; use `Map<Key, unknown>` so arbitrary mixed values can be stored safely.
 
 Discovery hints belong to the source input domain: `REWRITE_CHILD_HINTS` accepts `T['VertexHint'][]` in tree and DAG visitors, including async visitors, registration groups and `rewriteObject` options. Rewriting vertex data to `R` does not admit `R['VertexHint']`. `resolveChild`, object `resolveVertexHook` and `getChildrenOfProperty` still resolve input records; retained original views therefore remain truthful. If discovery needs another hint kind, declare it in the source input union first. For object sources that means extending `InK`/`InV`, and original views then reflect that declared union.
 
-A composed source must accept the traversal's full current context. Source callback properties are checked contravariantly with strict function checking: an input-only `ObjectTreeSource<In, InK, InV>` cannot serve a traversal that rewrites to a broader domain. Configure its `OutK`/`OutV` to match, and use `ObjectCurrentVertexTypes<Input, Output>` for the traversal and binder's live data. For custom sources, explicitly declare `TreeSource<T, R>` / `DagDiscoverySource<T, R, ID>` (or their async counterparts) when standalone callbacks do not provide enough inference. Matching sources and binders compose without assertions.
+A composed source must accept the traversal's full current context. Source callback properties are checked contravariantly with strict function checking: an input-only `ObjectTreeSource<In, InK, InV>` can be too narrow for a traversal that widens live keys or hints. Configure its `OutK`/`OutV` to match, and use `ObjectCurrentVertexTypes<Input, Output>` for the traversal and binder's live data. For custom sources, explicitly declare `TreeSource<T, R>` / `DagDiscoverySource<T, R, ID>` (or their async counterparts) when standalone callbacks do not provide enough inference. Matching sources and binders compose without assertions.
 
 The shared algebra keeps its standalone default while accepting a trailing `SourceHint`: `TraversalVisitorCommandArguments<R, SourceHint = R['VertexHint']>`, `TraversalVisitorCommand<R, Name, SourceHint = R['VertexHint']>`, `TraversalVisitorResult<R, Phase, Family, SourceHint = R['VertexHint']>`. Concrete tree/DAG visitors select `T['VertexHint']` automatically. Existing generic positions, including trailing graph IDs, remain unchanged.
 
-`ObjectPropertyPatch<OutputTypes>` is `Partial<Pick<OutputTypes['VertexData'], 'key' | 'value'>>`. Unknown own fields, including symbols and non-enumerable fields, throw `TypeError`; metadata already on a property survives supported patches. An absent field differs from an own field containing undefined. A present `rewrite` must be a non-null object. For arbitrary full payload replacement, use `REWRITE_VERTEX_DATA` with `newData`. Assemblers and patch fields retain output types; bound commands emit the wider current domain. `ObjectMutationCommands<OutputTypes, InputTypes = OutputTypes>` keeps output first and appends input.
+`ObjectPropertyPatch<OutputTypes>` is `Partial<Pick<OutputTypes['VertexData'], 'key' | 'value'>>`. Unknown own fields, including symbols and non-enumerable fields, throw `TypeError`; metadata already on a property survives supported patches. An absent field differs from an own field containing undefined. A present `rewrite` must be a non-null object. For arbitrary full payload replacement, use `REWRITE_VERTEX_DATA` with `newData`. Patch fields retain output types; assembler results are unknown; bound commands emit the wider current domain. `ObjectMutationCommands<OutputTypes, InputTypes = OutputTypes>` keeps output first and appends input.
 
 <!-- standalone -->
 
@@ -129,6 +133,7 @@ const result = rewriteObject<
   string
 >(1, {
   getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+  getChildrenOfProperty: () => [],
   visitors: {
     [DepthFirstPhase.PRE_ORDER]: () => ({
       commands: [
@@ -140,8 +145,8 @@ const result = rewriteObject<
     }),
   },
   rewrite(property, context) {
-    const current: number | string = property.value;
-    const live: number | string = context.vertex.getData().value;
+    const current: unknown = property.value;
+    const live: unknown = context.vertex.getData().value;
     if (typeof current === 'number') current.toFixed();
     if (live !== 'changed') throw new Error('Expected rewritten live data');
     return undefined;

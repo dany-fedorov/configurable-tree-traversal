@@ -131,7 +131,10 @@ import {
 } from 'configurable-tree-traversal';
 
 type Tree = ObjectTreeVertexTypes<string, number>;
-const source = new ObjectTreeSource<number, string, number>(1);
+const source = ObjectTreeSource.fromProperties<number, string, number>(1, {
+  getRootPropertyFromInputObject: value => ({ key: 'root', value }),
+  getChildrenOfProperty: () => [],
+});
 const calls: string[] = [];
 const definition: VisitorPhaseInput<TreeVisitor<Order.POST_ORDER, Tree, Tree>> =
   {

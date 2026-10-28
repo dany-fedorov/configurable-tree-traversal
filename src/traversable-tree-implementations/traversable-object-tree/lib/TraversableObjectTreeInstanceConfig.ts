@@ -20,7 +20,7 @@ export type ObjectVertexHookResult<T extends VertexTypes> =
   | TreeVertexFound<T>
   | TreeVertexOmitted;
 
-export type ObjectTreeOptions<
+export type ObjectTreeBaseOptions<
   In,
   InK extends TraversableObjectPropKey,
   InV,
@@ -45,6 +45,29 @@ export type ObjectTreeOptions<
   ) => ObjectVertexHookResult<ObjectTreeVertexTypes<InK, InV>>;
 };
 
+/** Both adapters establish a narrow discovery domain, including its root. */
+export type ObjectTreePropertyAdapters<
+  In,
+  InK extends TraversableObjectPropKey,
+  InV,
+> = Required<
+  Pick<
+    ObjectTreeBaseOptions<In, InK, InV, InK, InV>,
+    'getRootPropertyFromInputObject' | 'getChildrenOfProperty'
+  >
+>;
+
+export type ObjectTreeOptions<
+  In,
+  InK extends TraversableObjectPropKey,
+  InV,
+  OutK extends TraversableObjectPropKey,
+  OutV,
+> = ObjectTreeBaseOptions<In, InK, InV, OutK, OutV> &
+  ([TraversableObjectPropKey, unknown] extends [InK, InV]
+    ? unknown
+    : ObjectTreePropertyAdapters<In, InK, InV>);
+
 export type ObjectTreeResolvedOptions<
   In,
   InK extends TraversableObjectPropKey,
@@ -52,9 +75,9 @@ export type ObjectTreeResolvedOptions<
   OutK extends TraversableObjectPropKey,
   OutV,
 > = Required<
-  Omit<ObjectTreeOptions<In, InK, InV, OutK, OutV>, 'resolveVertexHook'>
+  Omit<ObjectTreeBaseOptions<In, InK, InV, OutK, OutV>, 'resolveVertexHook'>
 > & {
-  resolveVertexHook: ObjectTreeOptions<
+  resolveVertexHook: ObjectTreeBaseOptions<
     In,
     InK,
     InV,

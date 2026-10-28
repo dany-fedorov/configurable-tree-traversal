@@ -23,6 +23,7 @@ describe('object callback and patch contracts', () => {
     >(1, {
       retainOriginalTreeStructure: true,
       getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+      getChildrenOfProperty: () => [],
       visitors: {
         [DepthFirstPhase.PRE_ORDER]: () => ({
           commands: [
@@ -65,6 +66,8 @@ describe('object callback and patch contracts', () => {
         PropertyKey,
         string
       >(1, {
+        getRootPropertyFromInputObject: (value) => ({ key: 'root', value }),
+        getChildrenOfProperty: () => [],
         visitors: {
           [DepthFirstPhase.PRE_ORDER]: (vertex) => ({
             commands: [
@@ -261,6 +264,7 @@ describe('independent key/value patch domains', () => {
       >(1, {
         retainOriginalTreeStructure: true,
         getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
+        getChildrenOfProperty: () => [],
         visitors: {
           [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
             commands: [

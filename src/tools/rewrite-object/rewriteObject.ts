@@ -15,9 +15,12 @@ import type {
 } from '@traversable-object-tree/lib/makeMutationCommandFactory';
 import type { ObjectCompositeClassification } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
-import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { ObjectTreeOptions } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
+import type {
+  ObjectTreeOptions,
+  ObjectTreeBaseOptions,
+  ObjectTreePropertyAdapters,
+} from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
 import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 import { ObjectTreeSource } from '@traversable-object-tree/TraversableObjectTree';
 
@@ -49,8 +52,11 @@ export type ObjectRewriteInput<
   InV,
   OutK extends TraversableObjectPropKey,
   OutV,
-> = TraversableObjectProp<InK | OutK, InV | OutV> & {
-  assembledComposite?: OutV;
+> = ObjectCurrentVertexTypes<
+  ObjectTreeVertexTypes<InK, InV>,
+  ObjectTreeVertexTypes<OutK, OutV>
+>['VertexData'] & {
+  assembledComposite?: unknown;
 };
 
 export type ObjectRewriteCallback<
@@ -95,41 +101,55 @@ export type RewriteObjectOptions<
   Out,
   OutK extends TraversableObjectPropKey,
   OutV,
-> = Partial<
-  ObjectTreeOptions<In, InK, InV, OutK, OutV> &
+> = ObjectTreeOptions<In, InK, InV, OutK, OutV> &
+  Partial<
     ObjectMutationOptions<
       ObjectTreeVertexTypes<InK, InV>,
       ObjectTreeVertexTypes<OutK, OutV>
     > &
-    Omit<
-      DepthFirstTreeOptionsPatch<
-        ObjectTreeVertexTypes<InK, InV>,
-        ObjectCurrentVertexTypes<
+      Omit<
+        DepthFirstTreeOptionsPatch<
           ObjectTreeVertexTypes<InK, InV>,
-          ObjectTreeVertexTypes<OutK, OutV>
-        >
-      >,
-      'traversableTree'
-    >
-> & {
-  traversableTree?: never;
-  rewrite?: ObjectRewriteCallback<InK, InV, OutK, OutV>;
-  getOutputObjectFromRootValue?: (value: OutV | null) => Out;
-  assembleCompositesBeforeRewrite?: boolean;
-};
+          ObjectCurrentVertexTypes<
+            ObjectTreeVertexTypes<InK, InV>,
+            ObjectTreeVertexTypes<OutK, OutV>
+          >
+        >,
+        'traversableTree'
+      >
+  > & {
+    traversableTree?: never;
+    rewrite?: ObjectRewriteCallback<InK, InV, OutK, OutV>;
+    assembleCompositesBeforeRewrite?: boolean;
+  } & (unknown extends Out
+    ? { convertRootValue?: RootValueConverter<Out> }
+    : { convertRootValue: RootValueConverter<Out> });
+
+export type RootValueConverter<Out> = (
+  value: unknown,
+  context: { readonly complete: boolean },
+) => Out;
 
 export function rewriteObject<
   In = TraversableObject<TraversableObjectPropKey, unknown>,
   InK extends TraversableObjectPropKey = TraversableObjectPropKey,
-  InV = TraversableObject<TraversableObjectPropKey, unknown> | unknown,
+  InV = unknown,
   Out = unknown,
   OutK extends TraversableObjectPropKey = InK,
   OutV = InV,
 >(
   object: In,
-  options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>,
+  ...args: Record<never, never> extends RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>
+    ? [options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>]
+    : [options: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>]
 ): RewriteObjectResult<InK, InV, Out, OutK, OutV> {
+  const [options] = args;
   if (options) assertPublicOptions(options, false);
+  if (options && 'getOutputObjectFromRootValue' in options) {
+    throw new TypeError(
+      'getOutputObjectFromRootValue is unsupported; use convertRootValue',
+    );
+  }
   if (options && 'makeVertexHook' in options) {
     throw new TypeError('makeVertexHook is unsupported; use resolveVertexHook');
   }
@@ -143,24 +163,26 @@ export function rewriteObject<
     options?.assembleCompositesBeforeRewrite ?? false;
   const rewrite =
     typeof options?.rewrite === 'function' ? options.rewrite : null;
-  const getOutputObjectFromRootValue =
-    typeof options?.getOutputObjectFromRootValue === 'function'
-      ? options.getOutputObjectFromRootValue
-      : (rootValue: OutV | null) => rootValue as unknown as Out;
+  const convertRootValue: RootValueConverter<Out> =
+    options?.convertRootValue ?? ((value: unknown) => value as Out);
   const resolveVertexHook = options?.resolveVertexHook;
-  const tree = new ObjectTreeSource<In, InK, InV, OutK, OutV>(object, {
-    ...(resolveVertexHook === undefined ? {} : { resolveVertexHook }),
-    ...(!options?.['getChildrenOfProperty']
-      ? {}
-      : {
-          getChildrenOfProperty: options?.['getChildrenOfProperty'],
-        }),
-    getRootPropertyFromInputObject:
-      options?.['getRootPropertyFromInputObject'] ??
-      ObjectTreeSource.createRootPropertyMapper(
-        __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ as InK,
-      ),
-  });
+  // Required narrow adapters are enforced by RewriteObjectOptions. The default
+  // mapper preserves the actual input; its discovery domain is broad.
+  const tree = ObjectTreeSource.fromProperties<In, InK, InV, OutK, OutV>(
+    object,
+    {
+      ...(resolveVertexHook === undefined ? {} : { resolveVertexHook }),
+      getChildrenOfProperty:
+        options?.getChildrenOfProperty ??
+        ObjectTreeSource.getChildrenOfPropertyDefault,
+      getRootPropertyFromInputObject:
+        options?.getRootPropertyFromInputObject ??
+        ObjectTreeSource.createRootPropertyMapper(
+          __REWRITE_OBJECT_DEFAULT_ROOT_KEY__,
+        ),
+    } as ObjectTreeBaseOptions<In, InK, InV, OutK, OutV> &
+      ObjectTreePropertyAdapters<In, InK, InV>,
+  );
   const bindObjectMutation = ObjectTreeSource.createObjectMutationBinder<
     ObjectTreeVertexTypes<InK, InV>,
     ObjectTreeVertexTypes<OutK, OutV>
@@ -259,8 +281,10 @@ export function rewriteObject<
     const rootValue =
       rootRef === null || !resolvedTree.has(rootRef)
         ? null
-        : (rootRef.getValue().getData().value as unknown as OutV);
-    return getOutputObjectFromRootValue(rootValue);
+        : rootRef.getValue().getData().value;
+    return convertRootValue(rootValue, {
+      complete: traversalRunner.getStatus() === TraversalRunnerStatus.FINISHED,
+    });
   };
   const outputAtReturn = convertCurrentRoot();
   let hasFinalOutput =
@@ -289,7 +313,7 @@ export function rewriteObjectAs<Out>(
     unknown,
     TraversableObjectPropKey,
     unknown,
-    Out,
+    unknown,
     TraversableObjectPropKey,
     unknown
   >,
@@ -300,12 +324,13 @@ export function rewriteObjectAs<Out>(
   TraversableObjectPropKey,
   unknown
 > {
-  return rewriteObject<
-    unknown,
+  // This helper is the explicit caller assertion. Ordinary rewriteObject keeps
+  // the unknown result unless convertRootValue establishes a typed output.
+  return rewriteObject(object, options) as RewriteObjectResult<
     TraversableObjectPropKey,
     unknown,
     Out,
     TraversableObjectPropKey,
     unknown
-  >(object, options);
+  >;
 }

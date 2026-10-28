@@ -65,7 +65,7 @@ for (const api of [cjs, esm]) {
               rewrite: () => {
                 calls++;
               },
-              getOutputObjectFromRootValue: () => {
+              convertRootValue: () => {
                 calls++;
               },
             },
@@ -94,7 +94,7 @@ for (const api of [cjs, esm]) {
       },
       rewrite: ({ key }) =>
         key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
-      getOutputObjectFromRootValue: (value) => {
+      convertRootValue: (value) => {
         conversions++;
         if (conversions === 2) throw undefined;
         return { value };

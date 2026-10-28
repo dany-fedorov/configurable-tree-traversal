@@ -17,6 +17,8 @@ import type { TraversableObject } from '@traversable-object-tree/lib/Traversable
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 import type {
   ObjectTreeOptions,
+  ObjectTreeBaseOptions,
+  ObjectTreePropertyAdapters,
   ObjectTreeResolvedOptions,
 } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
 import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
@@ -29,7 +31,7 @@ type ObjectCycleState = {
 export class ObjectTreeSource<
   In = TraversableObject<TraversableObjectPropKey, unknown>,
   InK extends TraversableObjectPropKey = TraversableObjectPropKey,
-  InV = TraversableObject<TraversableObjectPropKey, unknown> | unknown,
+  InV = unknown,
   OutK extends TraversableObjectPropKey = InK,
   OutV = InV,
 > implements
@@ -59,9 +61,52 @@ export class ObjectTreeSource<
   static getChildrenOfPropertyDefault = getChildrenOfPropertyDefault;
   static createRootPropertyMapper = createRootPropertyMapper;
 
+  static fromProperties<
+    In,
+    InK extends TraversableObjectPropKey,
+    InV,
+    OutK extends TraversableObjectPropKey = InK,
+    OutV = InV,
+  >(
+    rootObject: In,
+    options: ObjectTreeBaseOptions<In, InK, InV, OutK, OutV> &
+      ObjectTreePropertyAdapters<In, InK, InV>,
+  ): ObjectTreeSource<In, InK, InV, OutK, OutV> {
+    const {
+      getRootPropertyFromInputObject,
+      getChildrenOfProperty,
+      ...otherOptions
+    } = options;
+    if (
+      typeof getRootPropertyFromInputObject !== 'function' ||
+      typeof getChildrenOfProperty !== 'function'
+    ) {
+      throw new TypeError(
+        'fromProperties requires root and child property adapters',
+      );
+    }
+    return new ObjectTreeSource<In, InK, InV, OutK, OutV>(rootObject, {
+      ...otherOptions,
+      getRootPropertyFromInputObject,
+      getChildrenOfProperty,
+    });
+  }
+
   constructor(
     rootObject: In,
-    options?: ObjectTreeOptions<In, InK, InV, OutK, OutV>,
+    options: ObjectTreeBaseOptions<In, InK, InV, OutK, OutV> &
+      ObjectTreePropertyAdapters<In, InK, InV>,
+  );
+
+  constructor(
+    rootObject: In,
+    ...args: [TraversableObjectPropKey, unknown] extends [InK, InV]
+      ? [options?: ObjectTreeOptions<In, InK, InV, OutK, OutV>]
+      : [options: ObjectTreeOptions<In, InK, InV, OutK, OutV>]
+  );
+  constructor(
+    rootObject: In,
+    options?: ObjectTreeBaseOptions<In, InK, InV, OutK, OutV>,
   ) {
     this.rootObject = rootObject;
     if (options && 'makeVertexHook' in options) {
@@ -76,6 +121,8 @@ export class ObjectTreeSource<
     ) {
       throw new TypeError('resolveVertexHook must be a function');
     }
+    // The public signature requires both adapters for narrow domains. Default
+    // adapters are used only for PropertyKey/unknown discovery.
     this.icfg = {
       getChildrenOfProperty:
         otherOptions.getChildrenOfProperty ??
@@ -85,7 +132,7 @@ export class ObjectTreeSource<
         ObjectTreeSource.createRootPropertyMapper(),
       ...otherOptions,
       resolveVertexHook,
-    };
+    } as ObjectTreeResolvedOptions<In, InK, InV, OutK, OutV>;
   }
 
   static createObjectMutationBinder = createObjectMutationBinder;

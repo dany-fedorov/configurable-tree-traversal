@@ -16,7 +16,7 @@ import {
 
 type Options = RewriteObjectOptions<
   unknown,
-  string,
+  PropertyKey,
   unknown,
   unknown,
   string,
@@ -24,7 +24,7 @@ type Options = RewriteObjectOptions<
 >;
 function rewriteWithHook(
   input: unknown,
-  resolveVertexHook: (hint: { key: string; value: unknown }) => unknown,
+  resolveVertexHook: (hint: { key: PropertyKey; value: unknown }) => unknown,
 ) {
   return rewriteObject(input, { resolveVertexHook } as Options).outputAtReturn;
 }
@@ -54,7 +54,7 @@ test('canonical found preserves exact data and child hint identity', () => {
   const data = { key: 'replacement', value: {} };
   const childHints = [hint];
   const tree = new ObjectTreeSource({ original: 1 }, {
-    resolveVertexHook: (input: { key: string }) =>
+    resolveVertexHook: (input: { key: PropertyKey }) =>
       input.key === 'original'
         ? {
             kind: 'found',

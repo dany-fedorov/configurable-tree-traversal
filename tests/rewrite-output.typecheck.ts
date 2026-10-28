@@ -34,10 +34,11 @@ const namespaceValue: number = rewriteApi
   .getOutput()!;
 const subpathValue: number = subpathRewriteObjectAs<number>(1).getOutput()!;
 const inferred = rewriteObject(1, {
-  getOutputObjectFromRootValue: () => ({ converted: true }),
+  convertRootValue: () => ({ converted: true }),
 });
 const converted: boolean = inferred.getOutput()!.converted;
 const snapshotConverted: boolean = inferred.outputAtReturn!.converted;
+// @ts-expect-error A generic output selection requires a converter.
 const explicit = rewriteObject<
   Record<string, never>,
   PropertyKey,
