@@ -34,8 +34,8 @@ function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: {
-      afterChildIndices: 0,
-      fallbackChildIndices: 0,
+      afterChildIndices: { indices: [0] },
+      fallbackChildIndices: { indices: [0] },
       visitSingleChildParent: true,
       visitAfterOmittedChildren: true,
     },

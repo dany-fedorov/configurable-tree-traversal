@@ -325,3 +325,46 @@ for (const api of [esm, cjs]) {
 console.log(
   'Verified idiomatic API envelopes, identity, copied topology and retired runtime surface through all nine packed routes.',
 );
+
+for (const api of [esm, cjs]) {
+  const traversal = new api.DepthFirstTreeTraversal({
+    traversableTree: new api.ObjectTreeSource(['a', 'b', 'c', 'd']),
+    inOrder: { afterChildIndices: { indices: [0, 2] } },
+  });
+  traversal.configure({
+    traversableTree: undefined,
+    inOrder: { afterChildIndices: undefined },
+  });
+  assert.equal(
+    [
+      ...traversal
+        .createRunner()
+        .iterateEvents({ emitEvents: [api.DepthFirstPhase.IN_ORDER] }),
+    ].length,
+    6,
+  );
+  assert.throws(
+    () => traversal.configure({ inOrder: { afterChildIndices: [0, 2] } }),
+    TypeError,
+  );
+  assert.throws(
+    () => traversal.configure({ [Symbol('unsupported')]: undefined }),
+    TypeError,
+  );
+  assert.equal(
+    traversal.createRunner().run().getStatus(),
+    api.TraversalRunnerStatus.FINISHED,
+  );
+}
+
+for (const api of [esm, cjs]) {
+  const runner = new api.DepthFirstTreeTraversal({
+    traversableTree: new api.ObjectTreeSource(1),
+  })
+    .createRunner()
+    .run();
+  const view = runner.getResolvedTreeView();
+  const root = view.getRoot();
+  assert.deepEqual(view.getPathTo(root, { noRoot: undefined }), [root]);
+  assert.throws(() => view.getPathTo(root, { noRot: true }), TypeError);
+}

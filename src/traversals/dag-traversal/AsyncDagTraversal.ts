@@ -1,4 +1,8 @@
-import { assertPublicOptions } from '@core/assertPublicOptions';
+import { assertOwnKeys, definedOptions } from '@core/assertPublicOptions';
+import {
+  assertPublicOptions,
+  DAG_OPTION_KEYS,
+} from '@core/assertPublicOptions';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
@@ -65,7 +69,7 @@ export class AsyncDagTraversal<
   );
   constructor(input: AsyncDagOptions<T, R, ID>);
   constructor(input: AsyncDagOptions<T, R, ID>) {
-    assertPublicOptions(input);
+    assertPublicOptions(input, [...DAG_OPTION_KEYS, 'concurrency']);
     const sources = captureDagSourcePatch(input);
     this.sourceMode = assertExactlyOneDagSource(sources);
     this.icfg = mergeAsyncDagTraversalInstanceConfigs(
@@ -88,7 +92,7 @@ export class AsyncDagTraversal<
    * and own undefined sources retain the active source. Mode changes reject atomically.
    */
   configure(input: AsyncDagOptionsPatch<T, R, ID>): this {
-    assertPublicOptions(input);
+    assertPublicOptions(input, [...DAG_OPTION_KEYS, 'concurrency']);
     const sources = captureDagSourcePatch(input);
     if (
       (this.sourceMode === 'graph' && sources.traversableTree !== undefined) ||
@@ -110,6 +114,7 @@ export class AsyncDagTraversal<
     visitor: AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
+    assertOwnKeys(options, ['priority', 'commandCommitMode']);
     (
       this.visitors as Record<
         ORDER,
@@ -117,7 +122,7 @@ export class AsyncDagTraversal<
       >
     )[order] = appendVisitorDefinition<AsyncDagVisitor<T, R, ORDER, ID>>(
       this.visitors[order] as VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[],
-      { visitor, ...options },
+      { visitor, ...definedOptions(options) },
     );
     return this;
   }

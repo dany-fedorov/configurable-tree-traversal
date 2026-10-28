@@ -72,12 +72,12 @@ describe('internal traversal defaults', () => {
   test('mutating the internal DFS range cannot corrupt a future traversal', () => {
     const ranges =
       DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.inOrder.afterChildIndices;
-    if (!Array.isArray(ranges)) throw new Error('Expected default ranges');
-    const original = ranges[0];
+    if (ranges.ranges === undefined) throw new Error('Expected default ranges');
+    const original = ranges.ranges[0]!.from;
     let mutationError: unknown;
 
     try {
-      ranges[0] = 2;
+      Object.assign(ranges.ranges[0]!, { from: 2 });
     } catch (error) {
       mutationError = error;
     }
@@ -95,7 +95,8 @@ describe('internal traversal defaults', () => {
       expect(values).toEqual(['a', 'root', 'b', 'root', 'c']);
       expect(mutationError).toBeInstanceOf(TypeError);
     } finally {
-      if (!Object.isFrozen(ranges)) ranges[0] = original;
+      if (!Object.isFrozen(ranges.ranges[0]))
+        Object.assign(ranges.ranges[0]!, { from: original });
     }
   });
 

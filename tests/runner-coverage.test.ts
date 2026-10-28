@@ -78,7 +78,7 @@ test('breadth-first convenience visitor receives sorted level-order vertices', (
   const visits: string[] = [];
   const runner = traverseTreeBreadthFirst({
     traversableTree: adapter(node('root', node('a'), node('b'))),
-    ...{ sortChildrenHints: <Hint,>(hints: Hint[]) => hints.reverse() },
+    ...{ sortChildrenHints: <Hint>(hints: Hint[]) => hints.reverse() },
     visitors: {
       LEVEL_ORDER: (vertex, options) => {
         visits.push(`${options.phase}:${vertex.getData()}`);
@@ -265,8 +265,8 @@ test('object-form fallback ranges control depth-first in-order boundaries', () =
   const traversal = new DepthFirstTreeTraversal<Tree>({
     traversableTree: adapter(node('root', node('first'), node('second'))),
     inOrder: {
-      afterChildIndices: { ranges: [99] },
-      fallbackChildIndices: { ranges: [0] },
+      afterChildIndices: { indices: [99] },
+      fallbackChildIndices: { indices: [0] },
     },
   });
 

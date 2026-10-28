@@ -1,3 +1,7 @@
+import {
+  assertOwnKeys,
+  assertOptionalCallbacks,
+} from '@core/assertPublicOptions';
 import type { MaybePromise } from '@core/graph/types';
 import type { GraphWalkSource } from './GraphWalkSource';
 
@@ -42,6 +46,13 @@ export function materializeWalkSourceFromRecords<Data, Edge, ID>(
     roots: Iterable<ID>;
   },
 ): GraphWalkSource<Data, Edge, ID> {
+  assertOwnKeys(options, ['id', 'outgoing', 'roots']);
+  assertOptionalCallbacks(options, ['id', 'outgoing']);
+  if (
+    typeof options.id !== 'function' ||
+    typeof options.outgoing !== 'function'
+  )
+    throw new TypeError('Walking selectors require id/outgoing');
   const records = new Map<ID, CatalogRecord<Data, Edge, ID>>();
   for (const item of items) {
     const id = options.id(item);
@@ -70,6 +81,13 @@ export async function materializeWalkSourceFromRecordsAsync<Data, Edge, ID>(
     roots: Iterable<ID> | AsyncIterable<ID>;
   },
 ): Promise<GraphWalkSource<Data, Edge, ID>> {
+  assertOwnKeys(options, ['id', 'outgoing', 'roots']);
+  assertOptionalCallbacks(options, ['id', 'outgoing']);
+  if (
+    typeof options.id !== 'function' ||
+    typeof options.outgoing !== 'function'
+  )
+    throw new TypeError('Walking selectors require id/outgoing');
   const records = new Map<ID, CatalogRecord<Data, Edge, ID>>();
   for await (const item of items) {
     const id = await options.id(item);

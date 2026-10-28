@@ -49,10 +49,11 @@ for (const Constructor of [
       const children = retained!.getChildrenOf(root)!;
       (children as unknown[]).length = 0;
     };
-    const visitors = {
-      [DepthFirstPhase.PRE_ORDER]: visit,
-      [BreadthFirstPhase.LEVEL_ORDER]: visit,
-    };
+    const visitors =
+      Constructor === DepthFirstTreeTraversal ||
+      Constructor === AsyncDepthFirstTreeTraversal
+        ? { [DepthFirstPhase.PRE_ORDER]: visit }
+        : { [BreadthFirstPhase.LEVEL_ORDER]: visit };
     const runner = new Constructor({
       traversableTree: {
         resolveRoot: () => ({

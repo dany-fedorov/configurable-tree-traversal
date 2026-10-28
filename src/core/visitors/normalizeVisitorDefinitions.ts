@@ -1,3 +1,4 @@
+import { assertOwnKeys } from '@core/assertPublicOptions';
 import { DEFAULT_VISITOR_PRIORITY } from '@core/TraversalVisitor';
 import type {
   CommandCommitMode,
@@ -30,6 +31,13 @@ function definition<F>(
   if (value === null || typeof value !== 'object' || !('visitor' in value)) {
     throw new TypeError('Visitor definition requires a callback');
   }
+  assertOwnKeys(value, [
+    'visitor',
+    'priority',
+    'commandCommitMode',
+    'addedIndex',
+    'visitorGroup',
+  ]);
   const visitor = value.visitor;
   if (typeof visitor !== 'function') {
     throw new TypeError('Visitor definition requires a callback');
@@ -98,10 +106,7 @@ export function normalizeVisitorDefinitions<F>(
   input: VisitorPhaseInput<F>,
 ): VisitorRecord<F>[] {
   if (input !== null && typeof input === 'object' && 'groups' in input) {
-    if ('resolutionStyle' in input)
-      throw new TypeError(
-        'resolutionStyle is unsupported; use commandCommitMode',
-      );
+    assertOwnKeys(input, ['groups']);
     if (!Array.isArray(input.groups))
       throw new TypeError('Visitor groups must be an array');
     let records: VisitorRecord<F>[] = [];
@@ -149,10 +154,7 @@ export function appendVisitorGroup<F>(
   ) {
     throw new TypeError('Visitor group requires a visitors array');
   }
-  if ('resolutionStyle' in input)
-    throw new TypeError(
-      'resolutionStyle is unsupported; use commandCommitMode',
-    );
+  assertOwnKeys(input, ['visitors', 'commandCommitMode']);
   const mode = normalizeVisitorOptions({
     commandCommitMode: input.commandCommitMode,
   }).commandCommitMode;

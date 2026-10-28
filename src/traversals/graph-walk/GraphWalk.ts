@@ -1,3 +1,4 @@
+import { assertOwnKeys, definedOptions } from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
 import type {
   NoInferPhase,
@@ -38,9 +39,10 @@ export class GraphWalk<Data, Edge, ID> {
     visitor: GraphWalkVisitor<Data, Edge, NoInferPhase<Phase>, ID>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
+    assertOwnKeys(options, ['priority', 'commandCommitMode']);
     const records = appendVisitorDefinition(this.recordsFor(phase), {
       visitor,
-      ...options,
+      ...definedOptions(options),
     });
     this.options = {
       ...this.options,

@@ -1,3 +1,7 @@
+import {
+  assertTraversalFields,
+  definedOptions,
+} from '@core/assertPublicOptions';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
 import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
@@ -36,11 +40,13 @@ export type AsyncBreadthFirstTreeOptionsPatch<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = {
-  traversableTree?: AsyncTreeSource<TTP, RW_TTP>;
-  sortChildrenHints?: AsyncChildHintSorter<TTP> | null;
-  visitors?: VisitorInputs<AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>>;
-  retainOriginalTreeStructure?: boolean;
-  concurrency?: number;
+  traversableTree?: AsyncTreeSource<TTP, RW_TTP> | undefined;
+  sortChildrenHints?: AsyncChildHintSorter<TTP> | null | undefined;
+  visitors?:
+    | VisitorInputs<AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>>
+    | undefined;
+  retainOriginalTreeStructure?: boolean | undefined;
+  concurrency?: number | undefined;
 };
 
 export type AsyncBreadthFirstTreeOptions<
@@ -69,10 +75,15 @@ export function mergeAsyncBreadthFirstTraversalInstanceConfigs<
   base: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
   input: AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP>,
 ): AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP> {
-  const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
+  const capturedInput = definedOptions(input);
+  assertTraversalFields(capturedInput, Object.values(BreadthFirstPhase));
+  const visitors = {
+    ...base.visitors,
+    ...definedOptions(capturedInput.visitors ?? {}),
+  };
   const merged: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP> = {
     ...base,
-    ...input,
+    ...capturedInput,
     visitors: {
       [BreadthFirstPhase.LEVEL_ORDER]: normalizeVisitorDefinitions(
         visitors[BreadthFirstPhase.LEVEL_ORDER],

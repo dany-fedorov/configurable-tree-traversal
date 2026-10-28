@@ -402,3 +402,11 @@ trailing holes and deletion-created trailing holes survive. Non-arrays classifie
 as arrays derive length from assigned indices.
 Invalid numeric positions reject. Custom assemblers own their reconstruction
 and supersede these built-in placement/collision policies.
+
+## Strict configuration and child positions
+
+All public option bags reject unknown own string and symbol keys with `TypeError`; remove unsupported policies instead of relying on ignored fields. Source protocol objects keep caller-owned state and inherited methods. Combined helpers validate their own options, then pass only supported fields to lower-level components.
+
+`configure` retains every missing or undefined field, including nested visitor phases and in-order options. This works with pretyped optional patches under `exactOptionalPropertyTypes`. Defined malformed fields reject atomically. Only explicitly nullable fields accept null; walking limits still replace their entire record.
+
+Replace `afterChildIndices: 0` with `{ indices: [0] }`, a former tuple interval `[0, 2]` with `{ ranges: [{ from: 0, through: 2 }] }`, and a former distinct-position list `{ ranges: [0, 2] }` with `{ indices: [0, 2] }`. The same syntax applies to fallback positions. Negative indexing, inclusive ranges and all-out-of-bounds fallback behavior remain.

@@ -1,3 +1,9 @@
+import {
+  assertOwnKeys,
+  assertOptionalCallbacks,
+  OBJECT_SOURCE_OPTION_KEYS,
+  definedOptions,
+} from '@core/assertPublicOptions';
 import type { ObjectCurrentVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
 import {
   assertNoTreeMetadata,
@@ -72,11 +78,12 @@ export class ObjectTreeSource<
     options: ObjectTreeBaseOptions<In, InK, InV, OutK, OutV> &
       ObjectTreePropertyAdapters<In, InK, InV>,
   ): ObjectTreeSource<In, InK, InV, OutK, OutV> {
+    assertOwnKeys(options, OBJECT_SOURCE_OPTION_KEYS);
     const {
       getRootPropertyFromInputObject,
       getChildrenOfProperty,
       ...otherOptions
-    } = options;
+    } = definedOptions(options);
     if (
       typeof getRootPropertyFromInputObject !== 'function' ||
       typeof getChildrenOfProperty !== 'function'
@@ -108,24 +115,13 @@ export class ObjectTreeSource<
     rootObject: In,
     options?: ObjectTreeBaseOptions<In, InK, InV, OutK, OutV>,
   ) {
+    if (options !== undefined) {
+      assertOwnKeys(options, OBJECT_SOURCE_OPTION_KEYS);
+      options = definedOptions(options);
+      assertOptionalCallbacks(options, OBJECT_SOURCE_OPTION_KEYS);
+    }
     this.rootObject = rootObject;
-    if (options && 'resolveVertexHook' in options) {
-      throw new TypeError(
-        'resolveVertexHook is unsupported; use resolveChildHook',
-      );
-    }
-    if (options && 'makeVertexHook' in options) {
-      throw new TypeError(
-        'makeVertexHook is unsupported; use resolveChildHook',
-      );
-    }
     const { resolveChildHook, ...otherOptions } = options ?? {};
-    if (
-      resolveChildHook !== undefined &&
-      typeof resolveChildHook !== 'function'
-    ) {
-      throw new TypeError('resolveChildHook must be a function');
-    }
     // The public signature requires both adapters for narrow domains. Default
     // adapters are used only for PropertyKey/unknown discovery.
     this.icfg = {
@@ -135,7 +131,7 @@ export class ObjectTreeSource<
       getRootPropertyFromInputObject:
         otherOptions.getRootPropertyFromInputObject ??
         ObjectTreeSource.createRootPropertyMapper(),
-      ...otherOptions,
+      ...definedOptions(otherOptions),
       resolveChildHook,
     } as ObjectTreeResolvedOptions<In, InK, InV, OutK, OutV>;
   }

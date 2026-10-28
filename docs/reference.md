@@ -115,7 +115,7 @@ Paths include zero-edge roots and every admitted prefix, not only leaves. Parall
 
 `shouldFollowEdge(edge, context)` runs before target lookup; false prevents lookup through that occurrence. Context has found `source`, candidate target `depth`, and `revisit`; route policies add the current source-prefix `path`. The edge already identifies the relationship; context has no required `via`. `shouldExpandVertex(vertex, context)` runs after observations and before adjacency enumeration; context has occurrence `depth`, incoming `via`, `revisit`, and route `path` where applicable. False preserves observations while pruning expansion. Under `once`, the first expansion decision stands; route modes evaluate policy per prefix. The callback types are `GraphWalkEdgePredicate` and `GraphWalkExpansionPredicate`, with `Async` counterparts. Predicates must return booleans (promises allowed only for async). Commands do not control pruning.
 
-Limits are nonnegative safe integers, including zero. `simplePaths`/`walks` require `maxDepth` or `maxCandidateReadAttempts` at construction; `maxAdmittedTargets` alone is insufficient. Configuration patches validate merged options atomically and reject invalid transitions without mutation. A supplied `configure({ limits: ... })` record **replaces** the previous limits record; include each bound you want to retain. Runners snapshot options, selector arrays, visitor records and source callbacks/receiver; limits/topology policies are fixed for that runner. Larger bounds require a fresh runner. Unknown own option keys and unknown own limit keys reject with `TypeError` at construction or `configure()`, before discovery; invalid patches leave the previous configuration intact. This strict boundary does not change legacy tree/DAG configuration behavior.
+Limits are nonnegative safe integers, including zero. `simplePaths`/`walks` require `maxDepth` or `maxCandidateReadAttempts` at construction; `maxAdmittedTargets` alone is insufficient. Configuration patches validate merged options atomically and reject invalid transitions without mutation. A supplied `configure({ limits: ... })` record **replaces** the previous limits record; include each bound you want to retain. Runners snapshot options, selector arrays, visitor records and source callbacks/receiver; limits/topology policies are fixed for that runner. Larger bounds require a fresh runner. Unknown own option keys and unknown own limit keys reject with `TypeError` at construction or `configure()`, before discovery; invalid patches leave the previous configuration intact. Tree/DAG builders and public helper/option bags use the same strict own-key rule.
 
 | Limit                      | Accounting and boundary                                                                                                                                                                                                                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -158,7 +158,9 @@ Builders configure future runners; an existing runner retains its configuration 
 | `visitors` and `emitEvents` / `visitorPhases`    | Retain unspecified fields                                        | Patch visitor phases and selector fields independently, under their existing validation rules. |
 | DAG `traversableTree` / `traversableGraph`       | Inherited keys and own `undefined` keys retain the active source | An own defined same-family source replaces it; an opposite-family source rejects.              |
 
-Nullable walking predicates and optional DAG source placeholders explicitly accept `undefined` with `exactOptionalPropertyTypes`. DAG construction still requires exactly one own defined source; the active source cannot be omitted or undefined. Source getters are captured once per request, without calling source callbacks. Invalid walking mixed patches and DAG source-mode changes reject before configuration or registrations change. A rejected patch does not affect later runners. DAG source presence now consistently uses own-and-defined checks: this is a bug-fix relaxation of the configure guard already shipped in 0.11.0.
+Every supported configure field accepts an explicit `undefined` under `exactOptionalPropertyTypes`: missing and undefined fields retain prior values. This includes tree sources, concurrency, scheduling fields, each visitor phase, and each in-order field. `null` clears only explicitly nullable fields (walking predicates and `sortChildrenHints`). Walking `limits` records continue to replace the entire record. Malformed defined fields reject atomically before registrations or configuration change; an existing runner keeps its snapshot. DAG construction requires exactly one own defined source and configure cannot change its source family. Source getters are captured once per request, without calling source callbacks.
+
+Public builders, helpers, mutation binders, execution options and nested option bags reject unsupported own string or symbol keys with `TypeError`, including non-enumerable keys and keys whose value is undefined. Source protocol objects can carry caller state and inherited methods; opaque data and IDs are not option bags. Path query options also reject unsupported own keys: `getPathTo` / `getPathsTo` accept only optional boolean `noRoot` and `noSelf` controls. Omitted or undefined controls use the default behavior, and accessors are captured once per query.
 
 ## DAG traversal
 
@@ -869,15 +871,17 @@ In-order traversal defaults to visiting between children, and after the child of
 ```ts
 traversal.configure({
   inOrder: {
-    afterChildIndices: 0,
-    fallbackChildIndices: -2,
+    afterChildIndices: { indices: [0] },
+    fallbackChildIndices: { indices: [-2] },
     visitSingleChildParent: true,
     visitAfterOmittedChildren: true,
   },
 });
 ```
 
-Child positions start at zero; negative positions count from the end. A pair such as `[0, -2]` is an inclusive range. Use `{ ranges: [0, 2] }` for multiple positions. The fallback is used only when all primary ranges are out of bounds. Null hints always count toward traversal completion; the last option controls whether they also trigger an in-order visit.
+`afterChildIndices` and `fallbackChildIndices` each require one tagged `ChildIndexSelection`: `{ indices: [0, 2] }` selects two distinct child boundaries; `{ ranges: [{ from: 0, through: 2 }] }` selects every boundary from zero through two, inclusively. Negative endpoints count from the end. Ranges clip to available boundaries; if no primary boundary is in bounds, fallback selection applies. Numeric scalars, tuples and numeric `ranges` lists reject. Position arrays and range records are detached when configured.
+
+Child positions start at zero. Null hints always count toward traversal completion; `visitAfterOmittedChildren` controls whether they also trigger an in-order visit.
 
 ## Breadth-first traversal
 
@@ -1211,7 +1215,7 @@ if (current.key !== 'output' || current.value !== 1)
   throw new Error('Expected a key-only patch');
 ```
 
-`resolveChildHook(hint, context)` returns `ObjectChildHookResult<T>`: `{ kind: 'useDefault' }`, tagged tree `found` with replacement content, or `{ kind: 'omitted' }`. It applies only to child/hint resolution; use `getRootPropertyFromInputObject` for the root. Null/undefined returns and graph metadata reject. `resolveVertexHook` and `makeVertexHook` reject by presence, including undefined/null; `returnMe` hook results reject. Cycle checks and shallow identities remain.
+`resolveChildHook(hint, context)` returns `ObjectChildHookResult<T>`: `{ kind: 'useDefault' }`, tagged tree `found` with replacement content, or `{ kind: 'omitted' }`. It applies only to child/hint resolution; use `getRootPropertyFromInputObject` for the root. Null/undefined returns and graph metadata reject. `resolveVertexHook` and `makeVertexHook` reject as unsupported own keys, including undefined/null; `returnMe` hook results reject. Cycle checks and shallow identities remain.
 
 With `retainOriginalTreeStructure: true`, visitors and child-resolution callbacks receive `originalTreeView: ResolvedTreeView<T> | null`, a stable read-only query facade over the retained original structure. Its vertex references, child lists, and resolution contexts are independent of command-driven changes. Vertex data is shallowly shared, so direct mutation of user data is not an immutable snapshot. The retained tree grows as vertices are resolved. DAG retention uses `retainOriginalGraphStructure`, `originalGraphView`, and `OriginalGraphView` with the same progressive topology and shared-data semantics. Runner configuration and visitor records are also copied when a runner is made; later builder configuration does not alter that runner.
 

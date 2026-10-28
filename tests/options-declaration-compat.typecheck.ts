@@ -1,5 +1,4 @@
-// The public declaration migration must preserve both directions of input
-// assignability while removing dependence on the normalized engine types.
+// Public patches accept explicitly undefined fields under exact optional types.
 import type {
   VertexTypes,
   DepthFirstTreeOptionsPatch,
@@ -24,10 +23,11 @@ type SameShape<A, B> = [A] extends [B]
     ? true
     : false
   : false;
-type HistoricalPatch<T extends { visitors: object }> = Partial<
+type UndefinedPatch<T> = { [K in keyof T]?: T[K] | undefined };
+type HistoricalPatch<T extends { visitors: object }> = UndefinedPatch<
   Omit<T, 'visitors' | 'traversalRunnerInternalObjects' | 'inOrder'>
 > & {
-  visitors?: VisitorInputs<T['visitors']>;
+  visitors?: VisitorInputs<T['visitors']> | undefined;
 };
 type HistoricalDagPatch<T extends { visitors: object }> = Omit<
   HistoricalPatch<T>,
@@ -39,14 +39,14 @@ export type InputCompatibility = [
       DepthFirstTreeOptionsPatch,
       HistoricalPatch<
         DepthFirstTreeResolvedOptions<VertexTypes, VertexTypes>
-      > & { inOrder?: Partial<InOrderOptions> }
+      > & { inOrder?: UndefinedPatch<InOrderOptions> | undefined }
     >
   >,
   Assert<
     SameShape<
       AsyncDepthFirstTreeOptionsPatch,
       HistoricalPatch<AsyncDepthFirstTreeResolvedOptions<VertexTypes>> & {
-        inOrder?: Partial<InOrderOptions>;
+        inOrder?: UndefinedPatch<InOrderOptions> | undefined;
       }
     >
   >,

@@ -38,8 +38,13 @@ const config: AsyncDepthFirstTreeOptions<Input, Output> = {
     [DepthFirstPhase.POST_ORDER]: [],
   },
   inOrder: {
-    afterChildIndices: { ranges: [[0, 1], -1] },
-    fallbackChildIndices: -1,
+    afterChildIndices: {
+      ranges: [
+        { from: 0, through: 1 },
+        { from: -1, through: -1 },
+      ],
+    },
+    fallbackChildIndices: { indices: [-1] },
     visitSingleChildParent: true,
     visitAfterOmittedChildren: true,
   },

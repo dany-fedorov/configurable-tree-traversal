@@ -77,3 +77,24 @@ it('preserves legacy alias behavior through field-wise patches', () => {
     ].every((e) => e.kind === 'edge'),
   ).toBe(true);
 });
+
+it('retains nested undefined selector controls through walking detachment', async () => {
+  const { AsyncGraphWalk } = await import('../src');
+  for (const create of [
+    () => new GraphWalk({ source: contextFixture().source }).createRunner(),
+    () =>
+      new AsyncGraphWalk({ source: contextFixture().source }).createRunner(),
+  ]) {
+    const runner = create();
+    const iterator = runner.iterateEvents({
+      emitEvents: [Phase.VERTEX],
+      visitorPhases: { include: [] },
+    });
+    expect((await iterator.next()).done).toBe(false);
+    await iterator.return();
+    await runner.run({ visitorPhases: { include: undefined } });
+    expect(runner.inspect().executionOptions.visitorPhases).toEqual({
+      include: [],
+    });
+  }
+});

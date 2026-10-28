@@ -257,6 +257,24 @@ describe.each(families)('$name execution selection', (family) => {
     expect(calls).toEqual(['root', 'continued']);
   });
 
+  test.each(['include', 'exclude'])(
+    'retains a nested undefined %s selector while resuming',
+    async (field) => {
+      const { runner, calls } = create(family);
+      const iterator = runner.iterateEvents({
+        emitEvents: [emissionKind(family.phase)],
+        visitorPhases: { include: [] },
+      });
+      expect((await iterator.next()).done).toBe(false);
+      await iterator.return(undefined);
+      await runner.run({ visitorPhases: { [field]: undefined } });
+      expect(calls).toEqual([]);
+      expect(runner.inspect().executionOptions.visitorPhases).toEqual({
+        include: [],
+      });
+    },
+  );
+
   test.each([
     { emitEvents: ['WRONG_PHASE'] },
     { emitPhases: [] },
@@ -270,7 +288,6 @@ describe.each(families)('$name execution selection', (family) => {
     { visitorPhases: { include: [], exclude: [] } },
     { visitorPhases: { include: [], extra: [] } },
     { visitorPhases: [] },
-    { visitorPhases: { exclude: undefined } },
     { visitorPhases: {} },
     { visitorPhases: null },
     { visitorPhases: 'none' },

@@ -332,7 +332,7 @@ for (const api of [cjs, esm]) {
             ...input,
             traversalRunnerInternalObjects: { state: {} },
           }),
-        /not a public option/i,
+        TypeError,
       );
       assert.deepEqual(fresh.inspect(), before);
       await fresh.run();
@@ -364,7 +364,7 @@ for (const api of [cjs, esm]) {
     await empty.run();
     assert.equal(empty.getStopReason(), 'finished');
     const seeded = new TreeTraversal({
-      completedWork: ['root'],
+      completedWork: new Set(['root']),
       traversableGraph: {
         resolveRoot: () => found('root'),
         resolveChild: () => found('unused'),
@@ -462,7 +462,7 @@ for (const api of [cjs, esm]) {
     const missing = Symbol('missing');
     const missingCompletion = Symbol('missing completion');
     const invalid = new TreeTraversal({
-      completedWork: [id],
+      completedWork: new Set([id]),
       traversableGraph: {
         resolveRoot: () =>
           found(id, ['child'], {

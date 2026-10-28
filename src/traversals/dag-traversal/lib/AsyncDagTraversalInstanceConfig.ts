@@ -1,3 +1,7 @@
+import {
+  assertTraversalFields,
+  definedOptions,
+} from '@core/assertPublicOptions';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
 import type { VisitorRecord } from '@core/graph/types';
@@ -43,7 +47,7 @@ type AsyncDagTraversalOptions<
   R extends VertexTypes,
   ID = unknown,
 > = DagSchedulingOptions & {
-  completedWork?: ReadonlySet<ID>;
+  completedWork?: ReadonlySet<ID> | undefined;
   sortChildrenHints: AsyncChildHintSorter<T> | null;
   visitors: AsyncDagTraversalVisitors<T, R, ID>;
   retainOriginalGraphStructure: boolean;
@@ -67,11 +71,11 @@ type AsyncDagTraversalOptionsInput<
   R extends VertexTypes,
   ID = unknown,
 > = DagSchedulingOptions & {
-  completedWork?: ReadonlySet<ID>;
-  sortChildrenHints?: AsyncChildHintSorter<T> | null;
-  visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R, ID>>;
-  retainOriginalGraphStructure?: boolean;
-  concurrency?: number;
+  completedWork?: ReadonlySet<ID> | undefined;
+  sortChildrenHints?: AsyncChildHintSorter<T> | null | undefined;
+  visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R, ID>> | undefined;
+  retainOriginalGraphStructure?: boolean | undefined;
+  concurrency?: number | undefined;
 };
 
 export type AsyncDagOptions<
@@ -132,6 +136,7 @@ export function mergeAsyncDagTraversalInstanceConfigs<
   sources = captureDagSourcePatch(input),
 ): AsyncDagResolvedOptions<T, R, ID> {
   const capturedInput = captureDagConfigPatch(input, sources);
+  assertTraversalFields(capturedInput, Object.values(DagVisitorPhase));
   assertDagWorkCompletion(capturedInput.workCompletion);
   assertDagDependencyPolicies(
     capturedInput,
@@ -139,10 +144,13 @@ export function mergeAsyncDagTraversalInstanceConfigs<
       base.traversableGraph !== undefined,
     input,
   );
-  const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
+  const visitors = {
+    ...base.visitors,
+    ...definedOptions(capturedInput.visitors ?? {}),
+  };
   const merged = {
     ...base,
-    ...capturedInput,
+    ...definedOptions(capturedInput),
     visitors: {
       [DagVisitorPhase.ON_WORK_READY]: normalizeVisitorDefinitions(
         visitors[DagVisitorPhase.ON_WORK_READY],

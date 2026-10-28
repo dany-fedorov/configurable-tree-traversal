@@ -1,3 +1,4 @@
+import { assertOwnKeys } from '@core/assertPublicOptions';
 import { defineDag } from '../dag-traversal/defineDag';
 import type {
   DagDefinition,
@@ -25,6 +26,7 @@ export function materializeWalkSourceFromDagDefinition<Data, ID>(
   definition: DagDefinition<Data, ID>,
   options: { relations: readonly [RelationSelection, ...RelationSelection[]] },
 ): GraphWalkSource<Data, GraphWalkDagRelation, ID> {
+  assertOwnKeys(options, ['relations']);
   const selection = options?.relations;
   if (!Array.isArray(selection) || selection.length === 0)
     throw new TypeError('Select at least one DAG relationship');

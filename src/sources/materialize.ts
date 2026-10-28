@@ -1,3 +1,7 @@
+import {
+  assertOwnKeys,
+  assertOptionalCallbacks,
+} from '@core/assertPublicOptions';
 import type { DagVertexFound } from '@core/TraversableTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
@@ -77,8 +81,24 @@ export function validateChildren<Item, ID>(
 
 /** Reject retired selector names before reading the catalog or invoking callbacks. */
 export function validateCollectionSelectors(selectors: object): void {
+  assertOwnKeys(selectors, [
+    'id',
+    'children',
+    'dependsOnWork',
+    'dependsOnSubgraphCompletion',
+  ]);
+  assertOptionalCallbacks(selectors, [
+    'id',
+    'children',
+    'dependsOnWork',
+    'dependsOnSubgraphCompletion',
+  ]);
+  if (typeof Reflect.get(selectors, 'id') !== 'function')
+    throw new TypeError('Selectors require id');
   for (const key of ['dependencies', 'completionDependencies']) {
     if (key in selectors)
-      throw new TypeError('Use dependsOnWork and dependsOnSubgraphCompletion selectors');
+      throw new TypeError(
+        'Use dependsOnWork and dependsOnSubgraphCompletion selectors',
+      );
   }
 }

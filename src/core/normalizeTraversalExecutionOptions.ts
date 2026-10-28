@@ -1,3 +1,4 @@
+import { assertOwnKeys, definedOptions } from './assertPublicOptions';
 import type { VisitPhase } from './effects/types';
 import type {
   EmissionKind,
@@ -32,12 +33,26 @@ function readExecutionOptions<ORDER extends string>(
   if (input === undefined) return {};
   const result: Record<string, unknown> = {};
   const keys = ['emitEvents', 'visitorPhases'];
-  if (Object.getOwnPropertyNames(input).some((key) => !keys.includes(key))) {
-    throw new TypeError('Unknown execution option');
-  }
+  assertOwnKeys(input, keys);
   for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(input, key)) {
-      result[key] = (input as Record<string, unknown>)[key];
+      const value: unknown = Reflect.get(input, key);
+      if (
+        key === 'visitorPhases' &&
+        value !== null &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        assertOwnKeys(value, ['include', 'exclude']);
+        result[key] = Object.fromEntries(
+          Reflect.ownKeys(value).map((field) => [
+            field,
+            Reflect.get(value, field),
+          ]),
+        );
+      } else {
+        result[key] = value;
+      }
     }
   }
   return result as TraversalIterableConfigInput<ORDER>;
@@ -86,31 +101,29 @@ export function normalizeTraversalExecutionOptions<ORDER extends string>(
     return copy as EmissionKind<ORDER>[];
   }
   if (config.visitorPhases !== undefined) {
-    const selection = config.visitorPhases;
+    const selectionInput = config.visitorPhases;
     enable = null;
     disable = null;
-    if (selection !== 'all') {
+    if (selectionInput !== 'all') {
       if (
-        selection === null ||
-        typeof selection !== 'object' ||
-        Array.isArray(selection)
+        selectionInput === null ||
+        typeof selectionInput !== 'object' ||
+        Array.isArray(selectionInput)
       ) {
         throw new TypeError('visitorPhases must be all, include, or exclude');
       }
-      const include = Object.prototype.hasOwnProperty.call(
-        selection,
-        'include',
-      );
-      const exclude = Object.prototype.hasOwnProperty.call(
-        selection,
-        'exclude',
-      );
-      if (
-        include === exclude ||
-        Object.keys(selection).some(
-          (key) => key !== 'include' && key !== 'exclude',
-        )
-      ) {
+      assertOwnKeys(selectionInput, ['include', 'exclude']);
+      const selection = definedOptions(selectionInput);
+      const include = selection.include !== undefined;
+      const exclude = selection.exclude !== undefined;
+      if (!include && !exclude && Reflect.ownKeys(selectionInput).length > 0) {
+        return normalizeTraversalExecutionOptions(
+          phases,
+          { emitEvents },
+          previous,
+        );
+      }
+      if (include === exclude) {
         throw new TypeError(
           'visitorPhases requires exactly one of include or exclude',
         );
@@ -143,11 +156,16 @@ export function detachTraversalExecutionOptions<ORDER extends string>(
 ): TraversalIterableConfigInput<ORDER> {
   const config = readExecutionOptions(input);
   const effective = normalizeTraversalExecutionOptions(phases, config);
+  const selection = config.visitorPhases;
+  const retainSelection =
+    selection !== undefined &&
+    selection !== 'all' &&
+    Object.values(selection).every((value) => value === undefined);
   return {
     ...(config.emitEvents === undefined
       ? {}
       : { emitEvents: effective.emitEvents }),
-    ...(config.visitorPhases === undefined
+    ...(config.visitorPhases === undefined || retainSelection
       ? {}
       : { visitorPhases: effective.visitorPhases }),
   };

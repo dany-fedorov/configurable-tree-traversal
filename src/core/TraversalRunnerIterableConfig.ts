@@ -21,8 +21,12 @@ export type TraversalExecutionOptions<
   VisitorPhase extends string,
   EmittedKind extends string = EmissionKind<VisitorPhase>,
 > = {
-  emitEvents?: readonly EmittedKind[];
-  visitorPhases?: VisitorPhaseSelection<VisitorPhase>;
+  emitEvents?: readonly EmittedKind[] | undefined;
+  visitorPhases?:
+    | VisitorPhaseSelection<VisitorPhase>
+    | { include: undefined; exclude?: never }
+    | { exclude: undefined; include?: never }
+    | undefined;
 };
 
 /** Internal normalized phase gates. Public input uses TraversalExecutionOptions. */

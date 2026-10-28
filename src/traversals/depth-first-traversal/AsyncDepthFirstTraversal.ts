@@ -1,4 +1,8 @@
-import { assertPublicOptions } from '@core/assertPublicOptions';
+import { assertOwnKeys, definedOptions } from '@core/assertPublicOptions';
+import {
+  assertPublicOptions,
+  TREE_OPTION_KEYS,
+} from '@core/assertPublicOptions';
 import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
@@ -37,7 +41,11 @@ export class AsyncDepthFirstTreeTraversal<
   private visitors: AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>;
 
   constructor(icfgInput: AsyncDepthFirstTreeOptions<TTP, RW_TTP>) {
-    assertPublicOptions(icfgInput, false);
+    assertPublicOptions(icfgInput, [
+      ...TREE_OPTION_KEYS,
+      'inOrder',
+      'concurrency',
+    ]);
     this.icfg = mergeAsyncDepthFirstTraversalInstanceConfigs(
       ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncDepthFirstTreeResolvedOptions<
         TTP,
@@ -49,7 +57,11 @@ export class AsyncDepthFirstTreeTraversal<
   }
 
   configure(icfgInput: AsyncDepthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
-    assertPublicOptions(icfgInput, false);
+    assertPublicOptions(icfgInput, [
+      ...TREE_OPTION_KEYS,
+      'inOrder',
+      'concurrency',
+    ]);
     this.icfg = mergeAsyncDepthFirstTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,
@@ -63,6 +75,7 @@ export class AsyncDepthFirstTreeTraversal<
     visitor: AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
+    assertOwnKeys(options, ['priority', 'commandCommitMode']);
     (
       this.visitors as Record<
         Phase,
@@ -72,7 +85,7 @@ export class AsyncDepthFirstTreeTraversal<
       this.visitors[phase] as VisitorRecord<
         AsyncTreeVisitor<Phase, TTP, RW_TTP>
       >[],
-      { visitor, ...options },
+      { visitor, ...definedOptions(options) },
     );
     return this;
   }

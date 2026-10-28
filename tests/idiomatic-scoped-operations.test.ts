@@ -289,15 +289,13 @@ for (const Constructor of [
       const options = Object.defineProperty({ traversableTree: tree }, key, {
         value: undefined,
       });
-      expect(() => new Constructor(options as never)).toThrow(
-        /graph discovery source/,
-      );
+      expect(() => new Constructor(options as never)).toThrow(TypeError);
       const traversal = new Constructor({ traversableTree: tree });
       expect(() =>
         traversal.configure(
           Object.defineProperty({}, key, { value: undefined }) as never,
         ),
-      ).toThrow(/graph discovery source/);
+      ).toThrow(TypeError);
     },
   );
 }

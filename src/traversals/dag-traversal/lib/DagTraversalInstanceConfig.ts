@@ -1,3 +1,7 @@
+import {
+  assertTraversalFields,
+  definedOptions,
+} from '@core/assertPublicOptions';
 import type { ChildHintSorter } from '@core/ChildHintSorter';
 import type { VisitorRecord } from '@core/graph/types';
 import type { DagDiscoverySource } from '@core/TraversableGraph';
@@ -12,11 +16,11 @@ import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInte
 import type { DagVisitor } from './DagTraversalVisitor';
 
 export type DagSchedulingOptions = {
-  workCompletion?: 'visitorReturn' | 'externalSettlement';
-  discovery?: 'lazy' | 'eager';
-  rootWorkDependencies?: 'honor' | 'ignore';
-  omittedWorkDependencies?: 'none' | 'discoveryParentWork';
-  syntheticRoot?: boolean;
+  workCompletion?: 'visitorReturn' | 'externalSettlement' | undefined;
+  discovery?: 'lazy' | 'eager' | undefined;
+  rootWorkDependencies?: 'honor' | 'ignore' | undefined;
+  omittedWorkDependencies?: 'none' | 'discoveryParentWork' | undefined;
+  syntheticRoot?: boolean | undefined;
 };
 
 export type DagSource<
@@ -46,7 +50,7 @@ type DagTraversalOptions<
   R extends VertexTypes,
   ID = unknown,
 > = DagSchedulingOptions & {
-  completedWork?: ReadonlySet<ID>;
+  completedWork?: ReadonlySet<ID> | undefined;
   sortChildrenHints: ChildHintSorter<T> | null;
   visitors: DagTraversalVisitors<T, R, ID>;
   retainOriginalGraphStructure: boolean;
@@ -69,10 +73,10 @@ type DagTraversalOptionsInput<
   R extends VertexTypes,
   ID = unknown,
 > = DagSchedulingOptions & {
-  completedWork?: ReadonlySet<ID>;
-  sortChildrenHints?: ChildHintSorter<T> | null;
-  visitors?: VisitorInputs<DagTraversalVisitors<T, R, ID>>;
-  retainOriginalGraphStructure?: boolean;
+  completedWork?: ReadonlySet<ID> | undefined;
+  sortChildrenHints?: ChildHintSorter<T> | null | undefined;
+  visitors?: VisitorInputs<DagTraversalVisitors<T, R, ID>> | undefined;
+  retainOriginalGraphStructure?: boolean | undefined;
 };
 
 export type DagOptions<
@@ -132,6 +136,7 @@ export function mergeDagTraversalInstanceConfigs<
   sources = captureDagSourcePatch(input),
 ): DagResolvedOptions<T, R, ID> {
   const capturedInput = captureDagConfigPatch(input, sources);
+  assertTraversalFields(capturedInput, Object.values(DagVisitorPhase));
   assertDagWorkCompletion(capturedInput.workCompletion);
   assertDagDependencyPolicies(
     capturedInput,
@@ -139,10 +144,13 @@ export function mergeDagTraversalInstanceConfigs<
       base.traversableGraph !== undefined,
     input,
   );
-  const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
+  const visitors = {
+    ...base.visitors,
+    ...definedOptions(capturedInput.visitors ?? {}),
+  };
   return {
     ...base,
-    ...capturedInput,
+    ...definedOptions(capturedInput),
     visitors: {
       [DagVisitorPhase.ON_WORK_READY]: normalizeVisitorDefinitions(
         visitors[DagVisitorPhase.ON_WORK_READY],

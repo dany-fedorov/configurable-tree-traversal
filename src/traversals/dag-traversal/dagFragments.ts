@@ -1,3 +1,4 @@
+import { assertOwnKeys } from '@core/assertPublicOptions';
 import { defineDag } from './defineDag';
 import { DagFragmentValidationError } from './lib/DagFragmentValidationError';
 import type {
@@ -56,6 +57,9 @@ export function instantiateDagFragment<Data, ID, Port extends string, MappedID>(
   fragment: DagFragment<Data, ID, Port>,
   options: { mapId: (id: ID) => MappedID },
 ): DagFragmentInstance<Data, MappedID, Port> {
+  assertOwnKeys(options, ['mapId']);
+  if (typeof options.mapId !== 'function')
+    throw new TypeError('mapId must be a function');
   const local = defineDagFragment(fragment.definition, fragment.ports);
   const mapped = new Map<ID, MappedID>();
   const used = new Set<MappedID>();
@@ -117,6 +121,7 @@ function requireWireFields(value: unknown, fields: readonly string[]): void {
     fields.some((field) => !Object.prototype.hasOwnProperty.call(value, field))
   )
     throw new TypeError('DAG wires require own endpoint and milestone fields');
+  assertOwnKeys(value, fields);
 }
 
 /** Combine ordered entries, append explicit links, then validate the whole DAG. */
@@ -124,6 +129,7 @@ export function composeDag<Data, ID>(
   instances: readonly DagFragmentInstance<Data, ID>[],
   options: DagCompositionOptions<InferredDagId<ID>> = {},
 ): PrepareDagResult<Data, ID> {
+  assertOwnKeys(options, ['children', 'dependencies']);
   const definitions = instances.map((instance) =>
     defineDag(instance.definition),
   );

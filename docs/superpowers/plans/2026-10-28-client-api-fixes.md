@@ -72,7 +72,7 @@ expect(rewriteObject([10, 20], {
 
 ### Task 3: Consistent configuration validation and tagged in-order positions (F04, F05, F13)
 
-**Files:** src/core/assertPublicOptions.ts; src/traversals/depth-first-traversal/{DepthFirstTraversal.ts,AsyncDepthFirstTraversal.ts,lib/*Config.ts,in-order-helpers/*}; src/traversals/breadth-first-traversal builders/configs; DAG/walking public normalizers/helpers as needed; object constructor/rewrite boundary; relevant option/type/regression tests; docs/reference.md and examples.
+**Files:** src/core/assertPublicOptions.ts, src/core/ResolvedTree.ts and tree/graph/original path-query implementations; src/traversals/depth-first-traversal/{DepthFirstTraversal.ts,AsyncDepthFirstTraversal.ts,lib/*Config.ts,in-order-helpers/*}; src/traversals/breadth-first-traversal builders/configs; DAG/walking public normalizers/helpers as needed; object constructor/rewrite boundary; relevant option/type/regression tests; docs/reference.md and examples.
 
 **Interfaces:** Consumes supported policy keys from Tasks 1–2. Produces schema-specific own-key validation and missing/undefined-retains patch semantics. ChildIndexSelection becomes {indices}|{ranges}. Future tasks add walking hydration; validate source wrappers at their source normalizer rather than treating source methods as options keys.
 

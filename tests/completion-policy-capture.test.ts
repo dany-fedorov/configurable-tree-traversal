@@ -116,7 +116,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     );
   }
 
-  test(`${Constructor.name} omission retains external ownership while present undefined restores visitor completion`, async () => {
+  test(`${Constructor.name} omission and present undefined retain external ownership`, async () => {
     const traversal = new Constructor<G>({
       traversableGraph: graph,
       workCompletion: 'externalSettlement',
@@ -126,10 +126,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await external.run();
     expect(external.summary().completedWorkIds).toEqual([]);
     expect(external.summary().deferredWorkIds).toEqual(['A']);
-    // JavaScript can explicitly supply undefined despite exact optional types.
-    traversal.configure({ workCompletion: undefined } as unknown as {
-      workCompletion: Policy;
-    });
+    traversal.configure({ workCompletion: undefined });
+    const retained = traversal.createRunner();
+    await retained.run();
+    expect(retained.summary().completedWorkIds).toEqual([]);
+    expect(retained.summary().deferredWorkIds).toEqual(['A']);
+    traversal.configure({ workCompletion: 'visitorReturn' });
     const automatic = traversal.createRunner();
     await automatic.run();
     expect(automatic.summary().completedWorkIds).toEqual(['A', 'B']);

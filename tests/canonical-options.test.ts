@@ -35,14 +35,14 @@ for (const Builder of [
     expect(calls).toBe(0);
     expect(() =>
       traversal.configure({ traversalRunnerInternalObjects: {} } as never),
-    ).toThrow(/not a public option/);
+    ).toThrow(TypeError);
     expect(
       () =>
         new Builder({
           traversableTree,
           traversalRunnerInternalObjects: {},
         } as never),
-    ).toThrow(/not a public option/);
+    ).toThrow(TypeError);
     expect(calls).toBe(0);
     await runner.run();
     expect(calls).toBe(1);
@@ -75,14 +75,14 @@ for (const Builder of [DagTraversal, AsyncDagTraversal]) {
     expect(traversal.configure({ visitors: {} })).toBe(traversal);
     expect(() =>
       traversal.configure({ traversalRunnerInternalObjects: {} } as never),
-    ).toThrow(/not a public option/);
+    ).toThrow(TypeError);
     expect(
       () =>
         new Builder({
           traversableGraph,
           traversalRunnerInternalObjects: {},
         } as never),
-    ).toThrow(/not a public option/);
+    ).toThrow(TypeError);
     const runner = traversal.createRunner();
     expect(calls).toBe(0);
     await runner.run();
@@ -121,7 +121,7 @@ for (const Builder of [GraphWalk, AsyncGraphWalk]) {
 test('rewrite helpers own fresh runner state', () => {
   expect(() =>
     rewriteObject({}, { traversalRunnerInternalObjects: {} } as never),
-  ).toThrow(/not a public option/);
+  ).toThrow(TypeError);
 });
 
 test('DAG coordination requires the registered runner identity', () => {

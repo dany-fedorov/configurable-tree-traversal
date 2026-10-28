@@ -1,3 +1,4 @@
+type UndefinedPatch<T> = { [K in keyof T]?: T[K] | undefined };
 import type { MaybePromise } from '@core/graph/types';
 import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VisitorPhaseInput } from '@core/TraversalVisitor';
@@ -83,9 +84,9 @@ type GraphWalkFields<Data, Edge, ID> = {
     | null
     | undefined;
   visitors?: {
-    [Phase in GraphWalkPhase]?: VisitorPhaseInput<
-      GraphWalkVisitor<Data, Edge, Phase, ID>
-    >;
+    [Phase in GraphWalkPhase]?:
+      | VisitorPhaseInput<GraphWalkVisitor<Data, Edge, Phase, ID>>
+      | undefined;
   };
 } & TraversalExecutionOptions<GraphWalkPhase>;
 type AsyncGraphWalkFields<Data, Edge, ID> = {
@@ -102,9 +103,9 @@ type AsyncGraphWalkFields<Data, Edge, ID> = {
     | null
     | undefined;
   visitors?: {
-    [Phase in GraphWalkPhase]?: VisitorPhaseInput<
-      AsyncGraphWalkVisitor<Data, Edge, Phase, ID>
-    >;
+    [Phase in GraphWalkPhase]?:
+      | VisitorPhaseInput<AsyncGraphWalkVisitor<Data, Edge, Phase, ID>>
+      | undefined;
   };
 } & TraversalExecutionOptions<GraphWalkPhase>;
 
@@ -118,16 +119,16 @@ export type AsyncGraphWalkOptions<Data, Edge, ID> = AsyncGraphWalkFields<
   GraphWalkRevisitOptions;
 /** Atomic top-level patch. Supplied limits replace the previous limits record;
  * the merged revisit policy must still have a depth or candidate-read bound. */
-export type GraphWalkOptionsPatch<Data, Edge, ID> = Partial<
+export type GraphWalkOptionsPatch<Data, Edge, ID> = UndefinedPatch<
   GraphWalkFields<Data, Edge, ID>
 > & {
-  revisit?: GraphWalkRevisitPolicy;
-  limits?: GraphWalkLimits;
+  revisit?: GraphWalkRevisitPolicy | undefined;
+  limits?: GraphWalkLimits | undefined;
 };
 /** Async counterpart with the same atomic patch and limits replacement rules. */
-export type AsyncGraphWalkOptionsPatch<Data, Edge, ID> = Partial<
+export type AsyncGraphWalkOptionsPatch<Data, Edge, ID> = UndefinedPatch<
   AsyncGraphWalkFields<Data, Edge, ID>
 > & {
-  revisit?: GraphWalkRevisitPolicy;
-  limits?: GraphWalkLimits;
+  revisit?: GraphWalkRevisitPolicy | undefined;
+  limits?: GraphWalkLimits | undefined;
 };

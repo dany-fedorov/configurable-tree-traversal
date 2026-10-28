@@ -59,7 +59,7 @@ describe('rewrite object option integration', () => {
     rewriteObject(
       { a: 1, b: 2, c: 3 },
       {
-        inOrder: { afterChildIndices: 2 },
+        inOrder: { afterChildIndices: { indices: [2] } },
         visitors: {
           [DepthFirstPhase.IN_ORDER]: [
             {

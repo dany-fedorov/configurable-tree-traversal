@@ -8,20 +8,22 @@ export function shouldVisitParentOnInOrder(
   justVisitedIndex: number,
   allSiblingsCount: number,
 ): boolean {
-  const cfg = inOrder.afterChildIndices;
-  const fallback = inOrder.fallbackChildIndices;
-  const visitParentAfterRanges = (
-    Array.isArray(cfg) || typeof cfg === 'number' ? [cfg] : cfg.ranges
-  )
-    .map((r: ChildIndexSelection) => normalizeRange(r, allSiblingsCount))
-    .filter(Boolean) as [number, number][];
-  const visitParentAfterFallbackRanges = (
-    Array.isArray(fallback) || typeof fallback === 'number'
-      ? [fallback]
-      : fallback.ranges
-  )
-    .map((r: ChildIndexSelection) => normalizeRange(r, allSiblingsCount))
-    .filter(Boolean) as [number, number][];
+  const normalize = (selection: ChildIndexSelection) =>
+    (selection.indices !== undefined
+      ? selection.indices.map(
+          (index): number | readonly [number, number] => index,
+        )
+      : selection.ranges.map((range): readonly [number, number] => [
+          range.from,
+          range.through,
+        ])
+    )
+      .map((range) => normalizeRange(range, allSiblingsCount))
+      .filter((range): range is [number, number] => range !== null);
+  const visitParentAfterRanges = normalize(inOrder.afterChildIndices);
+  const visitParentAfterFallbackRanges = normalize(
+    inOrder.fallbackChildIndices,
+  );
   return (
     (justVisitedIndex === allSiblingsCount - 1 &&
       allSiblingsCount === 1 &&

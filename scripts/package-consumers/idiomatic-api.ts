@@ -239,3 +239,19 @@ export type RemovedHelperTypes = [
   LegacyVertexContent,
 ];
 void badChainState;
+
+const undefinedConfigurationPatch: cjs.DepthFirstTreeOptionsPatch = {
+  traversableTree: undefined,
+  inOrder: {
+    afterChildIndices: undefined,
+    fallbackChildIndices: { indices: [-1] },
+  },
+  visitors: { IN_ORDER: undefined },
+};
+new cjs.DepthFirstTreeTraversal({
+  traversableTree: new cjs.ObjectTreeSource(1),
+}).configure({
+  traversableTree: undefined,
+  inOrder: { afterChildIndices: { ranges: [{ from: 0, through: 2 }] } },
+});
+void undefinedConfigurationPatch;

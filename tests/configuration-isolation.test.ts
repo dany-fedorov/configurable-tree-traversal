@@ -36,11 +36,11 @@ const collect = (
 test('editing one traversal range does not change future traversal defaults', () => {
   const traversal = create();
   const range = traversalInternals(traversal).icfg.inOrder.afterChildIndices;
-  if (!Array.isArray(range))
+  if (!('ranges' in range) || range.ranges === undefined)
     throw new Error('Expected the documented default range');
-  const original = range[0];
+  const original = range.ranges[0]!.from;
   try {
-    range[0] = 2;
+    Object.assign(range.ranges[0]!, { from: 2 });
     expect(collect(create().createRunner())).toEqual([
       'a',
       'root',
@@ -49,32 +49,38 @@ test('editing one traversal range does not change future traversal defaults', ()
       'c',
     ]);
   } finally {
-    range[0] = original;
+    Object.assign(range.ranges[0]!, { from: original });
   }
 });
 
 test('an existing runner keeps its in-order configuration after traversal configuration is edited', () => {
-  const traversal = create({ afterChildIndices: 0 });
+  const traversal = create({ afterChildIndices: { indices: [0] } });
   const runner = traversal.createRunner();
-  traversalInternals(traversal).icfg.inOrder.afterChildIndices = 2;
+  traversalInternals(traversal).icfg.inOrder.afterChildIndices = {
+    indices: [2],
+  };
   expect(collect(runner)).toEqual(['a', 'root', 'b', 'c']);
 });
 
 test('caller-owned nested ranges are copied when configuring the traversal', () => {
-  const ranges: { ranges: Array<[number, number]> } = { ranges: [[0, 0]] };
+  const ranges: { ranges: Array<{ from: number; through: number }> } = {
+    ranges: [{ from: 0, through: 0 }],
+  };
   const traversal = create({ afterChildIndices: ranges });
-  ranges.ranges[0]![0] = 2;
-  ranges.ranges[0]![1] = 2;
+  ranges.ranges[0]!.from = 2;
+  ranges.ranges[0]!.through = 2;
   expect(collect(traversal.createRunner())).toEqual(['a', 'root', 'b', 'c']);
 });
 
 test('caller-owned fallback ranges are isolated too', () => {
-  const fallback: { ranges: Array<[number, number]> } = { ranges: [[0, 0]] };
+  const fallback: { ranges: Array<{ from: number; through: number }> } = {
+    ranges: [{ from: 0, through: 0 }],
+  };
   const traversal = create({
-    afterChildIndices: 99,
+    afterChildIndices: { indices: [99] },
     fallbackChildIndices: fallback,
   });
-  fallback.ranges[0]![0] = 2;
-  fallback.ranges[0]![1] = 2;
+  fallback.ranges[0]!.from = 2;
+  fallback.ranges[0]!.through = 2;
   expect(collect(traversal.createRunner())).toEqual(['a', 'root', 'b', 'c']);
 });

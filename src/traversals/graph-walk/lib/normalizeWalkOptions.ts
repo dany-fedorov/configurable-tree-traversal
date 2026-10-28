@@ -1,3 +1,4 @@
+import { assertOwnKeys } from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
 import { normalizeTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
 import type {
@@ -103,16 +104,9 @@ function captureSource<Data, Edge, ID>(
   } as NormalizedWalkSource<Data, Edge, ID>;
 }
 
-function assertKnownKeys(value: object, keys: readonly string[]): void {
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string' || !keys.includes(key))
-      throw new TypeError(`Unknown walking option: ${String(key)}`);
-  }
-}
-
 function copyLimits(input: unknown): GraphWalkLimits {
   const value = object(input, 'Walking limits must be an object');
-  assertKnownKeys(value, [
+  assertOwnKeys(value, [
     'maxDepth',
     'maxAdmittedTargets',
     'maxCandidateReadAttempts',
@@ -157,12 +151,9 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     'shouldExpandVertex',
     'visitors',
     'emitEvents',
-    'iterateOver',
     'visitorPhases',
-    'enableVisitorFunctionsFor',
-    'disableVisitorFunctionsFor',
   ];
-  assertKnownKeys(value, keys);
+  assertOwnKeys(value, keys);
   for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(value, key))
       snapshot[key] = value[key];
@@ -223,13 +214,7 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     snapshot['visitors'] === undefined
       ? {}
       : object(snapshot['visitors'], 'Walking visitors must be a phase map');
-  if (
-    Object.keys(visitorInput).some(
-      (key) => !phases.includes(key as GraphWalkPhase),
-    )
-  ) {
-    throw new TypeError('Unknown walking visitor phase');
-  }
+  assertOwnKeys(visitorInput, phases);
   function records<Phase extends GraphWalkPhase>(phase: Phase) {
     const entries = visitorInput[phase];
     return entries === undefined
@@ -246,13 +231,7 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     phases,
     Object.fromEntries(
       Object.entries(snapshot).filter(([key]) =>
-        [
-          'emitEvents',
-          'iterateOver',
-          'visitorPhases',
-          'enableVisitorFunctionsFor',
-          'disableVisitorFunctionsFor',
-        ].includes(key),
+        ['emitEvents', 'visitorPhases'].includes(key),
       ),
     ) as TraversalIterableConfigInput<GraphWalkPhase>,
     previous?.execution ?? defaults,

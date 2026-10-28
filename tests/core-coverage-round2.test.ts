@@ -267,8 +267,8 @@ test('policy inspections expose unresolved BFS and waiting DFS frames', () => {
 
   const depth = new DepthFirstPolicy<TestGraph>(
     {
-      afterChildIndices: 0,
-      fallbackChildIndices: 0,
+      afterChildIndices: { indices: [0] },
+      fallbackChildIndices: { indices: [0] },
       visitSingleChildParent: true,
       visitAfterOmittedChildren: true,
     },

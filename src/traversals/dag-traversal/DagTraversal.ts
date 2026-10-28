@@ -1,4 +1,8 @@
-import { assertPublicOptions } from '@core/assertPublicOptions';
+import { assertOwnKeys, definedOptions } from '@core/assertPublicOptions';
+import {
+  assertPublicOptions,
+  DAG_OPTION_KEYS,
+} from '@core/assertPublicOptions';
 import type { VisitorRecord } from '@core/graph/types';
 import type {
   NoInferPhase,
@@ -44,7 +48,7 @@ export class DagTraversal<
 
   constructor(input: DagOptions<T, R, ID>) {
     assertNoConcurrency(input);
-    assertPublicOptions(input);
+    assertPublicOptions(input, [...DAG_OPTION_KEYS]);
     const sources = captureDagSourcePatch(input);
     this.sourceMode = assertExactlyOneDagSource(sources);
     this.icfg = mergeDagTraversalInstanceConfigs(
@@ -68,7 +72,7 @@ export class DagTraversal<
    */
   configure(input: DagOptionsPatch<T, R, ID>): this {
     assertNoConcurrency(input);
-    assertPublicOptions(input);
+    assertPublicOptions(input, [...DAG_OPTION_KEYS]);
     const sources = captureDagSourcePatch(input);
     if (
       (this.sourceMode === 'graph' && sources.traversableTree !== undefined) ||
@@ -90,6 +94,7 @@ export class DagTraversal<
     visitor: DagVisitor<T, R, NoInferPhase<ORDER>, ID>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
+    assertOwnKeys(options, ['priority', 'commandCommitMode']);
     (
       this.visitors as Record<
         ORDER,
@@ -97,7 +102,7 @@ export class DagTraversal<
       >
     )[order] = appendVisitorDefinition<DagVisitor<T, R, ORDER, ID>>(
       this.visitors[order] as VisitorRecord<DagVisitor<T, R, ORDER, ID>>[],
-      { visitor, ...options },
+      { visitor, ...definedOptions(options) },
     );
     return this;
   }

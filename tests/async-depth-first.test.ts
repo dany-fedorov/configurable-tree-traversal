@@ -74,15 +74,15 @@ test('exposes asynchronous depth-first post-order traversal', async () => {
 
 const inOrderCases: Array<[Partial<InOrderOptions>, string[]]> = [
   [{}, ['a', 'root', 'b', 'root', 'c']],
-  [{ afterChildIndices: { ranges: [0, 2] } }, ['a', 'root', 'b', 'c', 'root']],
+  [{ afterChildIndices: { indices: [0, 2] } }, ['a', 'root', 'b', 'c', 'root']],
   [
     {
-      afterChildIndices: 99,
-      fallbackChildIndices: -1,
+      afterChildIndices: { indices: [99] },
+      fallbackChildIndices: { indices: [-1] },
     },
     ['a', 'b', 'c', 'root'],
   ],
-  [{ afterChildIndices: -2 }, ['a', 'b', 'root', 'c']],
+  [{ afterChildIndices: { indices: [-2] } }, ['a', 'b', 'root', 'c']],
 ];
 
 test.each(inOrderCases)(
@@ -239,7 +239,9 @@ test('accepts the existing synchronous object-tree adapter', async () => {
 });
 
 test('builder visitor operations are stable and runner snapshots are isolated', async () => {
-  const ranges: { ranges: Array<[number, number]> } = { ranges: [[0, 0]] };
+  const ranges: { ranges: Array<{ from: number; through: number }> } = {
+    ranges: [{ from: 0, through: 0 }],
+  };
   const t = traversal(node('root', node('a'), node('b'))).configure({
     inOrder: { afterChildIndices: ranges },
   });
@@ -258,7 +260,7 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
   });
   expect(t.listVisitorsFor(Order.PRE_ORDER)).toHaveLength(2);
   const runner = t.createRunner();
-  ranges.ranges[0]![0] = 1;
+  ranges.ranges[0]!.from = 1;
   t.addVisitorFor(Order.PRE_ORDER, async () => {
     seen.push('late');
   });
@@ -272,7 +274,7 @@ test('builder visitor operations are stable and runner snapshots are isolated', 
     'second',
   ]);
   expect(runnerInternals(runner).icfg.inOrder.afterChildIndices).toEqual({
-    ranges: [[0, 0]],
+    ranges: [{ from: 0, through: 0 }],
   });
 });
 

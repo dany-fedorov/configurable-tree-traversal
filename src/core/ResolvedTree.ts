@@ -1,3 +1,4 @@
+import { normalizePathOptions } from '@core/normalizePathOptions';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { MutableRef } from '@core/CTTRef';
@@ -85,8 +86,8 @@ export type ResolvedTreeMap<TTP extends VertexTypes> = Map<
 >;
 
 export type GetPathToOptions = {
-  noRoot?: boolean;
-  noSelf?: boolean;
+  noRoot?: boolean | undefined;
+  noSelf?: boolean | undefined;
 };
 
 export class ResolvedTreeStore<TTP extends VertexTypes>
@@ -213,6 +214,7 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
     vertexRef: MutableRef<Vertex<TTP>>,
     options?: GetPathToOptions,
   ): MutableRef<Vertex<TTP>>[] {
+    const pathOptions = normalizePathOptions(options);
     if (!this.has(vertexRef)) {
       throw new Error(`Could not find ref - ${jsonStringifySafe(vertexRef)}`);
     }
@@ -228,11 +230,11 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
       }
     }
     let straightPath = reversedPath.reverse();
-    if (options?.noRoot === true && straightPath[0] === this.getRoot()) {
+    if (pathOptions.noRoot === true && straightPath[0] === this.getRoot()) {
       straightPath = straightPath.slice(1);
     }
     if (
-      options?.noSelf === true &&
+      pathOptions.noSelf === true &&
       straightPath[straightPath.length - 1] === vertexRef
     ) {
       straightPath = straightPath.slice(0, -1);

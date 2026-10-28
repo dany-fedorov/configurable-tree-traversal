@@ -1,5 +1,12 @@
 import type { ObjectCurrentVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
-import { assertPublicOptions } from '@core/assertPublicOptions';
+import {
+  assertOwnKeys,
+  assertOptionalCallbacks,
+  TREE_OPTION_KEYS,
+  OBJECT_SOURCE_OPTION_KEYS,
+  OBJECT_MUTATION_OPTION_KEYS,
+  definedOptions,
+} from '@core/assertPublicOptions';
 import type { GetPathToOptions } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TreeVisitorContext } from '@core/TraversalVisitor';
@@ -147,26 +154,34 @@ export function rewriteObject<
     ? [options?: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>]
     : [options: RewriteObjectOptions<In, InK, InV, Out, OutK, OutV>]
 ): RewriteObjectResult<InK, InV, Out, OutK, OutV> {
-  const [options] = args;
-  if (options) assertPublicOptions(options, false);
-  if (options && 'getOutputObjectFromRootValue' in options) {
-    throw new TypeError(
-      'getOutputObjectFromRootValue is unsupported; use convertRootValue',
-    );
-  }
-  if (options && 'resolveVertexHook' in options) {
-    throw new TypeError(
-      'resolveVertexHook is unsupported; use resolveChildHook',
-    );
-  }
-  if (options && 'makeVertexHook' in options) {
-    throw new TypeError('makeVertexHook is unsupported; use resolveChildHook');
-  }
-
-  if (options && 'traversableTree' in options) {
-    throw new TypeError(
-      'rewriteObject owns its source; traversableTree is unsupported',
-    );
+  const [inputOptions] = args;
+  if (inputOptions !== undefined)
+    assertOwnKeys(inputOptions, [
+      ...TREE_OPTION_KEYS.filter((key) => key !== 'traversableTree'),
+      ...OBJECT_SOURCE_OPTION_KEYS,
+      ...OBJECT_MUTATION_OPTION_KEYS,
+      'inOrder',
+      'rewrite',
+      'convertRootValue',
+      'assembleCompositesBeforeRewrite',
+    ]);
+  const options =
+    inputOptions === undefined ? undefined : definedOptions(inputOptions);
+  if (options !== undefined) {
+    assertOptionalCallbacks(options, [
+      ...OBJECT_SOURCE_OPTION_KEYS,
+      'isArray',
+      'isObject',
+      'assembleArray',
+      'assembleObject',
+      'rewrite',
+      'convertRootValue',
+    ]);
+    if (
+      options.assembleCompositesBeforeRewrite !== undefined &&
+      typeof options.assembleCompositesBeforeRewrite !== 'boolean'
+    )
+      throw new TypeError('assembleCompositesBeforeRewrite must be boolean');
   }
   const assembleCompositeBeforeVisit =
     options?.assembleCompositesBeforeRewrite ?? false;
@@ -208,9 +223,9 @@ export function rewriteObject<
     ...(options?.assembleObject
       ? { assembleObject: options.assembleObject }
       : {}),
-    ...(options?.assembledMap
-      ? { assembledMap: options.assembledMap }
-      : { assembledMap: new Map() }),
+    ...(options?.assembledMap === undefined
+      ? { assembledMap: new Map() }
+      : { assembledMap: options.assembledMap }),
   });
   const traversal = new DepthFirstTreeTraversal<
     ObjectTreeVertexTypes<InK, InV>,

@@ -1,3 +1,4 @@
+import { normalizePathOptions } from '@core/normalizePathOptions';
 import { MutableRef } from '@core/CTTRef';
 import type { OriginalGraphView } from '@core/ResolvedGraph';
 import type { GetPathToOptions } from '@core/ResolvedTree';
@@ -179,6 +180,7 @@ export class StructuralGraphSnapshot<
     ref: VertexRef<T>,
     options?: GetPathToOptions,
   ): VertexRef<T>[][] {
+    const pathOptions = normalizePathOptions(options);
     this.getEntry(ref);
     const paths: VertexRef<T>[][] = [];
     const reversedPath: VertexRef<T>[] = [ref];
@@ -212,10 +214,10 @@ export class StructuralGraphSnapshot<
     });
     return paths.map((path) => {
       let result = path;
-      if (options?.noRoot === true && result[0] === this.root) {
+      if (pathOptions.noRoot === true && result[0] === this.root) {
         result = result.slice(1);
       }
-      if (options?.noSelf === true && result[result.length - 1] === ref) {
+      if (pathOptions.noSelf === true && result[result.length - 1] === ref) {
         result = result.slice(0, -1);
       }
       return result;

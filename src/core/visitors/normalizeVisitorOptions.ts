@@ -6,12 +6,12 @@ import {
 export function normalizeVisitorOptions(
   options: Partial<TraversalVisitorFunctionOptions>,
 ): Required<TraversalVisitorFunctionOptions> {
-  if ('resolutionStyle' in options) {
-    throw new TypeError(
-      'resolutionStyle is unsupported; use commandCommitMode',
-    );
-  }
-  const { commandCommitMode } = options;
+  const { priority, commandCommitMode } = options;
+  if (
+    priority !== undefined &&
+    (typeof priority !== 'number' || !Number.isFinite(priority))
+  )
+    throw new TypeError('Visitor priority must be finite');
   if (
     commandCommitMode !== undefined &&
     commandCommitMode !== 'afterEachVisitor' &&
@@ -20,7 +20,7 @@ export function normalizeVisitorOptions(
     throw new TypeError('Unknown visitor command commit mode');
   }
   return {
-    priority: options.priority ?? DEFAULT_VISITOR_PRIORITY,
+    priority: priority ?? DEFAULT_VISITOR_PRIORITY,
     commandCommitMode: commandCommitMode ?? 'afterEachVisitor',
   };
 }

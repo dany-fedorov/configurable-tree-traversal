@@ -1,3 +1,9 @@
+import {
+  assertOwnKeys,
+  assertOptionalCallbacks,
+  OBJECT_MUTATION_OPTION_KEYS,
+  definedOptions,
+} from '@core/assertPublicOptions';
 import type { ObjectCurrentVertexTypes } from './ObjectCurrentVertexTypes';
 import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
@@ -121,6 +127,25 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
   >(
     options?: ObjectMutationOptions<InputTypes, OutputTypes>,
   ): ObjectMutationBinder<InputTypes, OutputTypes> {
+    if (options !== undefined) {
+      assertOwnKeys(options, OBJECT_MUTATION_OPTION_KEYS);
+      options = definedOptions(options);
+      assertOptionalCallbacks(options, [
+        'isArray',
+        'isObject',
+        'assembleArray',
+        'assembleObject',
+      ]);
+      const assemblyCache = options.assembledMap;
+      if (
+        assemblyCache !== undefined &&
+        (assemblyCache === null ||
+          ['has', 'get', 'set'].some(
+            (key) => typeof Reflect.get(assemblyCache, key) !== 'function',
+          ))
+      )
+        throw new TypeError('assembledMap requires has/get/set');
+    }
     const {
       arrayIndexPolicy = 'compactInTraversalOrder',
       propertyCollision = 'error',
@@ -146,7 +171,7 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
       assembledMap: assembledMapInput,
     } = {
       ...OBJECT_MUTATION_DEFAULTS,
-      ...options,
+      ...definedOptions(options ?? {}),
     };
     const assembledMap = assembledMapInput ?? new Map();
     const assembleArray =

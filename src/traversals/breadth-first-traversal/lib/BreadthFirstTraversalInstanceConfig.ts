@@ -1,3 +1,7 @@
+import {
+  assertTraversalFields,
+  definedOptions,
+} from '@core/assertPublicOptions';
 import type { ChildHintSorter } from '@core/ChildHintSorter';
 import type { TreeSource } from '@core/TraversableTree';
 import type { VisitorInputs } from '@core/TraversalVisitor';
@@ -33,10 +37,12 @@ export type BreadthFirstTreeOptionsPatch<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > = {
-  traversableTree?: TreeSource<TTP, RW_TTP>;
-  sortChildrenHints?: ChildHintSorter<TTP> | null;
-  visitors?: VisitorInputs<BreadthFirstTraversalVisitors<TTP, RW_TTP>>;
-  retainOriginalTreeStructure?: boolean;
+  traversableTree?: TreeSource<TTP, RW_TTP> | undefined;
+  sortChildrenHints?: ChildHintSorter<TTP> | null | undefined;
+  visitors?:
+    | VisitorInputs<BreadthFirstTraversalVisitors<TTP, RW_TTP>>
+    | undefined;
+  retainOriginalTreeStructure?: boolean | undefined;
 };
 
 export type BreadthFirstTreeOptions<
@@ -68,13 +74,15 @@ export function mergeBreadthFirstTraversalInstanceConfigs<
   base: BreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
   input: BreadthFirstTreeOptionsPatch<TTP, RW_TTP>,
 ): BreadthFirstTreeResolvedOptions<TTP, RW_TTP> {
+  const capturedInput = definedOptions(input);
+  assertTraversalFields(capturedInput, Object.values(BreadthFirstPhase));
   const visitors = {
     ...base.visitors,
-    ...(input.visitors ?? {}),
+    ...definedOptions(capturedInput.visitors ?? {}),
   };
   return {
     ...base,
-    ...input,
+    ...capturedInput,
     visitors: {
       [BreadthFirstPhase.LEVEL_ORDER]: normalizeVisitorDefinitions(
         visitors[BreadthFirstPhase.LEVEL_ORDER],

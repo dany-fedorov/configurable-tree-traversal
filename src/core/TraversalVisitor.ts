@@ -204,6 +204,6 @@ export type TreeVisitor<
 /** Phase-keyed caller inputs corresponding to a normalized visitor map. */
 export type VisitorInputs<M> = {
   [K in keyof M]?: M[K] extends readonly VisitorRecord<infer F>[]
-    ? VisitorPhaseInput<F>
+    ? VisitorPhaseInput<F> | undefined
     : never;
 };

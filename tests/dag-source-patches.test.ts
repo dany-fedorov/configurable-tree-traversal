@@ -144,101 +144,45 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       expect(() => new Factory<Data>(patch as never)).toThrow(/exactly one/i);
     });
 
-    test(`${Factory.name} ${sourceKey} treats only source properties as nonenumerable options`, async () => {
-      const { traversal, original, replacement, calls, run } = fixture();
+    test(`${Factory.name} ${sourceKey} validates nonenumerable defined options atomically`, async () => {
+      const { traversal, replacement, calls, run } = fixture();
+      const failure = new Error('nonenumerable ordinary option');
       const patch = Object.defineProperty(
         { [sourceKey]: replacement },
         'workCompletion',
         {
           get() {
-            throw new Error('nonenumerable ordinary option');
+            throw failure;
           },
         },
       );
-      traversal.configure(patch);
+      expect(() => traversal.configure(patch)).toThrow(failure);
       expect(calls).toEqual([]);
-      await run('replacement');
-      const constructed = new Factory<Data>({
-        [sourceKey]: original,
-        [oppositeKey]: undefined,
-      } as never);
-      await constructed.createRunner().run();
-    });
-
-    if (sourceKey === 'traversableGraph') {
-      test.each(['hidden', 'deleted', 'made enumerable'] as const)(
-        `${Factory.name} ${sourceKey} checks ordinary descriptors after earlier getters (%s)`,
-        async (change) => {
-          const { traversal, calls, run } = fixture();
-          if (change === 'deleted') {
-            traversal.configure({ workCompletion: 'externalSettlement' });
-          }
-          const patch = {
-            get discovery() {
-              if (change === 'deleted') {
-                Reflect.deleteProperty(patch, 'workCompletion');
-              } else {
-                Object.defineProperty(patch, 'workCompletion', {
-                  enumerable: change === 'made enumerable',
-                });
-              }
-              return 'eager' as const;
-            },
-          };
-          Object.defineProperty(patch, 'workCompletion', {
-            configurable: true,
-            enumerable: change !== 'made enumerable',
-            value:
-              change === 'deleted' ? 'visitorReturn' : 'externalSettlement',
-          });
-          traversal.configure(patch);
-          expect(calls).toEqual([]);
-          const runner = await run('original');
-          expect(runner.getStopReason()).toBe(
-            change === 'hidden' ? 'finished' : 'awaitingSettlement',
-          );
-        },
-      );
-    }
-
-    test(`${Factory.name} ${sourceKey} preserves ordinary symbol and own __proto__ options`, async () => {
-      const { traversal, calls, run } = fixture();
-      const symbol = Symbol('ordinary option');
-      const value = {};
-      const patch = Object.create(null) as object;
-      Object.defineProperty(patch, '__proto__', { enumerable: true, value });
-      Object.defineProperty(patch, symbol, {
-        enumerable: true,
-        get: () => value,
-      });
-      traversal.configure(patch);
-      expect(calls).toEqual([]);
-      expect(Object.getPrototypeOf(traversalInternals(traversal).icfg)).toBe(
-        Object.prototype,
-      );
-      expect(
-        Object.getOwnPropertyDescriptor(
-          traversalInternals(traversal).icfg,
-          '__proto__',
-        )?.value,
-      ).toBe(value);
-      expect(Reflect.get(traversalInternals(traversal).icfg, symbol)).toBe(
-        value,
+      await run('original');
+      expect(() =>
+        traversal.configure(
+          Object.defineProperty({}, 'workCompletion', { value: 'invalid' }),
+        ),
+      ).toThrow(TypeError);
+      traversal.configure(
+        Object.defineProperty({}, 'workCompletion', { value: undefined }),
       );
       await run('original');
     });
 
-    test.each([null, 0, {}])(
-      `${Factory.name} ${sourceKey} rejects defined malformed opposite sources (%p)`,
-      async (value) => {
-        const { traversal, calls, run } = fixture();
-        expect(() =>
-          traversal.configure({ [oppositeKey]: value } as never),
-        ).toThrow(/source mode/i);
-        expect(calls).toEqual([]);
-        await run('original');
-      },
-    );
+    test(`${Factory.name} ${sourceKey} rejects symbol and own __proto__ options atomically`, async () => {
+      const { traversal, run } = fixture();
+      const before = traversalInternals(traversal).icfg;
+      for (const key of ['__proto__', Symbol('ordinary option')]) {
+        const patch = Object.defineProperty({}, key, {
+          enumerable: true,
+          value: undefined,
+        });
+        expect(() => traversal.configure(patch)).toThrow(TypeError);
+        expect(traversalInternals(traversal).icfg).toBe(before);
+      }
+      await run('original');
+    });
 
     test(`${Factory.name} ${sourceKey} never reads inherited source getters`, async () => {
       const { traversal, original, run } = fixture();

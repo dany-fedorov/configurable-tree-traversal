@@ -1,3 +1,4 @@
+import { normalizePathOptions } from '@core/normalizePathOptions';
 import type { ResolvedGraph } from '@core/ResolvedGraph';
 import type { GetPathToOptions, TreeVertexRecord } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -409,6 +410,7 @@ export class GraphStore<T extends VertexTypes>
     ref: VertexRef<T>,
     options?: GetPathToOptions,
   ): VertexRef<T>[][] {
+    const pathOptions = normalizePathOptions(options);
     this.getEntry(ref);
     const paths: VertexRef<T>[][] = [];
     const reversedPath: VertexRef<T>[] = [ref];
@@ -446,10 +448,13 @@ export class GraphStore<T extends VertexTypes>
     });
     return paths.map((path) => {
       let filtered = path;
-      if (options?.noRoot === true && filtered[0] === this.root) {
+      if (pathOptions.noRoot === true && filtered[0] === this.root) {
         filtered = filtered.slice(1);
       }
-      if (options?.noSelf === true && filtered[filtered.length - 1] === ref) {
+      if (
+        pathOptions.noSelf === true &&
+        filtered[filtered.length - 1] === ref
+      ) {
         filtered = filtered.slice(0, -1);
       }
       return filtered;

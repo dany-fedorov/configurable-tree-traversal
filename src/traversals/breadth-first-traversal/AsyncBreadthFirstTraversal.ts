@@ -1,4 +1,8 @@
-import { assertPublicOptions } from '@core/assertPublicOptions';
+import { assertOwnKeys, definedOptions } from '@core/assertPublicOptions';
+import {
+  assertPublicOptions,
+  TREE_OPTION_KEYS,
+} from '@core/assertPublicOptions';
 import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
@@ -37,7 +41,7 @@ export class AsyncBreadthFirstTreeTraversal<
   private visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
 
   constructor(icfgInput: AsyncBreadthFirstTreeOptions<TTP, RW_TTP>) {
-    assertPublicOptions(icfgInput, false);
+    assertPublicOptions(icfgInput, [...TREE_OPTION_KEYS, 'concurrency']);
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(
       ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncBreadthFirstTreeResolvedOptions<
         TTP,
@@ -49,7 +53,7 @@ export class AsyncBreadthFirstTreeTraversal<
   }
 
   configure(icfgInput: AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
-    assertPublicOptions(icfgInput, false);
+    assertPublicOptions(icfgInput, [...TREE_OPTION_KEYS, 'concurrency']);
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,
@@ -63,6 +67,7 @@ export class AsyncBreadthFirstTreeTraversal<
     visitor: AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
+    assertOwnKeys(options, ['priority', 'commandCommitMode']);
     (
       this.visitors as Record<
         Phase,
@@ -72,7 +77,7 @@ export class AsyncBreadthFirstTreeTraversal<
       this.visitors[phase] as VisitorRecord<
         AsyncTreeVisitor<Phase, TTP, RW_TTP>
       >[],
-      { visitor, ...options },
+      { visitor, ...definedOptions(options) },
     );
     return this;
   }
