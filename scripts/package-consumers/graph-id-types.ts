@@ -15,7 +15,7 @@ import type {
   DagVertexFound,
   DagVertexOmitted,
   HintVertexId,
-  ResolvedGraph,
+  ResolvedGraphView,
   OriginalGraphView,
   DagSummary,
   DagVertexProgress,
@@ -35,7 +35,7 @@ const source: DagDiscoverySource<W, W, string> = {
     },
   }),
   resolveChild: (id, options) => {
-    const graph: ResolvedGraph<W, string> = options.resolvedGraph;
+    const graph: ResolvedGraphView<W, string> = options.resolvedGraphView;
     const snapshot: OriginalGraphView<W, string> | null =
       options.originalGraphView;
     graph.getVertexRefById(id);
@@ -64,7 +64,7 @@ const progress: DagVertexProgress<string> | undefined =
   summary.vertices.get('a');
 const diagnostics: DagTraversalStallDiagnostics<string> | null =
   summary.diagnostics;
-const graph = runner.getResolvedGraph();
+const graph = runner.getResolvedGraphView();
 const ref = graph.getVertexRefById('a');
 if (ref !== null) {
   const id: string = graph.getVertexId(ref);
@@ -93,7 +93,7 @@ new DagTraversal<W, W, string>({
   completedWork: new Set([{}]),
 });
 traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (_vertex, options) => {
-  const view: ResolvedGraph<W, string> = options.resolvedGraph;
+  const view: ResolvedGraphView<W, string> = options.resolvedGraphView;
   // @ts-expect-error Visitor graph ID lookup is checked.
   view.getVertexRefById(42);
 });
@@ -105,7 +105,7 @@ inferred.settle(42, { kind: 'workCompleted' }, Symbol());
 const helper = traverseDag({ traversableGraph: source });
 const helperIds: readonly string[] = helper.summary().readyOrDeferredIds;
 // @ts-expect-error New helper inference retains the source ID domain.
-helper.getResolvedGraph().getVertexRefById(42);
+helper.getResolvedGraphView().getVertexRefById(42);
 const legacyHelper = traverseDag({ ...{ traversableGraph: source } });
 const legacyIds: readonly string[] = legacyHelper.summary().readyOrDeferredIds;
 // @ts-expect-error Deprecated helper inference retains the source ID domain.
@@ -127,7 +127,7 @@ async function asyncHelpers() {
   // @ts-expect-error Async helper inferred ID domain.
   current.settle(42, { kind: 'workCompleted' }, Symbol());
   // @ts-expect-error Async deprecated helper inferred ID domain.
-  old.getResolvedGraph().getVertexRefById({});
+  old.getResolvedGraphView().getVertexRefById({});
   void [a, b];
 }
 
@@ -205,7 +205,7 @@ function arbitraryIds<ID>(id: ID) {
     completedWork: new Set([id]),
   }).createRunner();
   run.settle(id, { kind: 'workCompleted' }, Symbol());
-  run.getResolvedGraph().getVertexRefById(id);
+  run.getResolvedGraphView().getVertexRefById(id);
   const result: readonly ID[] = run.summary().readyOrDeferredIds;
   return result;
 }
@@ -233,7 +233,8 @@ new DagTraversal({ traversableTree: tree });
 const rewriteSource: DagDiscoverySource<W, R, string> = {
   resolveRoot: source.resolveRoot,
   resolveChild: (hint, options) => {
-    const rewrittenGraph: ResolvedGraph<W | R, string> = options.resolvedGraph;
+    const rewrittenGraph: ResolvedGraphView<W | R, string> =
+      options.resolvedGraphView;
     const original: OriginalGraphView<W, string> | null =
       options.originalGraphView;
     const data: string = hint;
@@ -251,7 +252,7 @@ new DagTraversal<W, R, string>({
   traversableGraph: rewriteSource,
 }).addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex, options) => {
   const data: string | number = vertex.$data;
-  const view: ResolvedGraph<W | R, string> = options.resolvedGraph;
+  const view: ResolvedGraphView<W | R, string> = options.resolvedGraphView;
   void [data, view];
 });
 void [
@@ -273,11 +274,12 @@ void [
   wrongHint,
 ];
 
-const containerGraph: ResolvedGraph<W, string> = runner.getResolvedGraph();
+const containerGraph: ResolvedGraphView<W, string> =
+  runner.getResolvedGraphView();
 const containerSnapshot: OriginalGraphView<W, string> | null =
   runner.originalGraphView;
 // @ts-expect-error Public graph lookups retain the ID domain.
-runner.getResolvedGraph().getVertexRefById(42);
+runner.getResolvedGraphView().getVertexRefById(42);
 // @ts-expect-error Raw container state is not a public capability.
 runner.resolvedGraphsContainer;
 // @ts-expect-error The exposed snapshot alias retains the ID domain.
@@ -343,7 +345,7 @@ const rewritingIds: readonly string[] = rewriting
 rewriting.addVisitorFor(
   DagVisitorPhase.ON_SUBGRAPH_READY,
   (_vertex, options) => {
-    const view: ResolvedGraph<W | R, string> = options.resolvedGraph;
+    const view: ResolvedGraphView<W | R, string> = options.resolvedGraphView;
     // @ts-expect-error Rewriting does not broaden the ID domain.
     view.getVertexRefById({});
   },

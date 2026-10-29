@@ -8,8 +8,10 @@ export type BreadthFirstTraversalVisitorsState<
 > = {
   [K in BreadthFirstPhase]: Pick<
     TreeVisitorContext<BreadthFirstPhase, TTP, RW_TTP>,
-    | 'phaseVisitIndex'
-    | 'visitorIndex'
-    | 'previousPhaseVertexRef'
-  >;
+    'phaseVisitIndex' | 'visitorIndex'
+  > & {
+    previousPhaseVertexRef:
+      | import('@core/graph/types').VertexRef<TTP | RW_TTP>
+      | null;
+  };
 };

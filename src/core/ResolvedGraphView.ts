@@ -3,12 +3,15 @@ import type { GetPathToOptions } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type {
-  ResolvedGraphVertex,
+  InternalResolvedGraphVertex,
   ResolvedVisitStage,
 } from '@core/graph/types';
 
-export interface ResolvedGraph<T extends VertexTypes, ID = unknown> {
-  get(ref: MutableRef<Vertex<T>>): ResolvedGraphVertex<T, ID> | null;
+export interface InternalResolvedGraphView<
+  T extends VertexTypes,
+  ID = unknown,
+> {
+  get(ref: MutableRef<Vertex<T>>): InternalResolvedGraphVertex<T, ID> | null;
   has(ref: MutableRef<Vertex<T>>): boolean;
   getRoot(): MutableRef<Vertex<T>> | null;
   getVertexRefs(): MutableRef<Vertex<T>>[];
@@ -23,8 +26,26 @@ export interface ResolvedGraph<T extends VertexTypes, ID = unknown> {
   ): MutableRef<Vertex<T>>[][];
 }
 
+import type { VertexHandle } from './CTTRef';
+import type { ResolvedGraphVertex } from './graph/types';
+export interface ResolvedGraphView<T extends VertexTypes, ID = unknown> {
+  get(ref: VertexHandle<T>): ResolvedGraphVertex<T, ID> | null;
+  has(ref: VertexHandle<T>): boolean;
+  getRoot(): VertexHandle<T> | null;
+  getVertexRefs(): readonly VertexHandle<T>[];
+  getVertexRefById(id: ID): VertexHandle<T> | null;
+  getVertexId(ref: VertexHandle<T>): ID;
+  getVisitStageOf(ref: VertexHandle<T>): ResolvedVisitStage | null;
+  getParentsOf(ref: VertexHandle<T>): readonly VertexHandle<T>[] | null;
+  getChildrenOf(ref: VertexHandle<T>): readonly VertexHandle<T>[] | null;
+  getPathsTo(
+    ref: VertexHandle<T>,
+    options?: GetPathToOptions,
+  ): readonly (readonly VertexHandle<T>[])[];
+}
+
 export type OriginalGraphView<T extends VertexTypes, ID = unknown> = Pick<
-  ResolvedGraph<T, ID>,
+  ResolvedGraphView<T, ID>,
   | 'has'
   | 'getRoot'
   | 'getVertexRefs'

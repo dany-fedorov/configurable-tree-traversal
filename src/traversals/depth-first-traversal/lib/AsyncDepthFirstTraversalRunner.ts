@@ -1,5 +1,6 @@
+import { vertexHandle, vertexView, internalRef } from '@core/observationFacets';
+import type { VertexHandle } from '@core/CTTRef';
 import type { TreeDagExecutionInspection } from '@core/CoreInspection';
-import type { MutableRef } from '@core/CTTRef';
 import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import {
   bindTreeSource,
@@ -9,7 +10,7 @@ import { createAsyncDriver } from '@core/drivers/runAsync';
 import type { KernelEvent } from '@core/effects/types';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
-import type { ResolvedGraph } from '@core/ResolvedGraph';
+import type { ResolvedGraphView } from '@core/ResolvedGraphView';
 import type { ResolvedTreeStore } from '@core/ResolvedTree';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { AsyncTraversalExecution } from '@core/TraversalExecution';
@@ -20,7 +21,6 @@ import type {
 } from '@core/TraversalRunner';
 import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
 import {
   mergeAsyncDepthFirstTraversalInstanceConfigs,
   type AsyncDepthFirstTreeResolvedOptions,
@@ -43,12 +43,10 @@ export interface AsyncDepthFirstTreeRunner<
     TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>,
     TreeDagExecutionInspection<DepthFirstPhase>
   > {
-  getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP>;
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
-  getResolvedGraph(): ResolvedGraph<TTP | RW_TTP>;
-  isTraversalRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
-  isTreeRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
-  isTraversalLeaf(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean;
+  getResolvedGraphView(): ResolvedGraphView<TTP | RW_TTP>;
+  isTreeRootVertex(ref: VertexHandle<TTP | RW_TTP>): boolean;
+  isTraversalLeaf(ref: VertexHandle<TTP | RW_TTP>): boolean;
 }
 
 export class InternalAsyncDepthFirstTreeRunner<
@@ -108,15 +106,18 @@ export class InternalAsyncDepthFirstTreeRunner<
             >,
           ) => {
             const registration = this.icfg.visitors[order][call.recordIndex]!;
-            return registration.visitor(call.ref.getValue(), {
+            return registration.visitor(vertexView(call.ref.getValue()), {
               ...call.metadata,
-              resolvedTree: this.getResolvedTreeStore(),
+              previousPhaseVertexRef: vertexHandle(
+                call.metadata.previousPhaseVertexRef,
+              ),
+              resolvedTreeView: this.getResolvedTreeView(),
               originalTreeView:
                 this.resolvedTreesContainer.originalTreeView?.asReadOnly() ??
                 null,
               isTreeRoot: this.isTreeRootVertex(call.ref),
-              isTraversalRoot: this.isTraversalRootVertex(call.ref),
-              vertexRef: call.ref,
+
+              vertexRef: vertexHandle(call.ref),
               registration,
               visitorChainState: call.metadata.visitorChainState,
               phase: order,
@@ -184,29 +185,25 @@ export class InternalAsyncDepthFirstTreeRunner<
     return this.execution.inspect() as TreeDagExecutionInspection<DepthFirstPhase>;
   }
 
-  getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP> {
+  #getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP> {
     return this.resolvedTreesContainer.resolvedTree;
   }
 
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP> {
-    return this.getResolvedTreeStore().asReadOnly();
+    return this.#getResolvedTreeStore().asReadOnly();
   }
 
-  getResolvedGraph(): ResolvedGraph<TTP | RW_TTP> {
-    return this.getResolvedTreeStore().getResolvedGraph();
+  getResolvedGraphView(): ResolvedGraphView<TTP | RW_TTP> {
+    return this.#getResolvedTreeStore().getResolvedGraphView();
   }
 
-  isTraversalRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean {
-    return ref === this.state.traversalRootVertexRef;
+  isTreeRootVertex(ref: VertexHandle<TTP | RW_TTP>): boolean {
+    return internalRef(ref) === this.#getResolvedTreeStore().getRoot();
   }
 
-  isTreeRootVertex(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean {
-    return ref === this.getResolvedTreeStore().getRoot();
-  }
-
-  isTraversalLeaf(ref: MutableRef<Vertex<TTP | RW_TTP>>): boolean {
+  isTraversalLeaf(ref: VertexHandle<TTP | RW_TTP>): boolean {
     return (
-      this.state.subtreeTraversalDisabledRefs.has(ref) ||
+      this.state.subtreeTraversalDisabledRefs.has(internalRef(ref)) ||
       ref.getValue().hasNoChildHints()
     );
   }
@@ -235,11 +232,10 @@ export class InternalAsyncDepthFirstTreeRunner<
           kind: 'EVENT',
           boundaryId: progress.boundaryId,
           event: {
-            vertex: progress.event.vertex,
-            vertexRef: progress.event.vertexRef,
+            vertex: vertexView(progress.event.vertex),
+            vertexRef: vertexHandle(progress.event.vertexRef),
             phase: progress.event.order as DepthFirstPhase,
             isTreeRoot: progress.event.isRoot,
-            isTraversalRoot: progress.event.isTraversalRoot,
           },
         };
       },

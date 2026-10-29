@@ -39,7 +39,7 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
     const data = vertex.getData();
     visited.push(data);
     expect(options.isGraphRoot).toBe(data === 'root');
-    expect(options.isTraversalRoot).toBe(data === 'root');
+    expect(options.isGraphRoot).toBe(data === 'root');
     if (data === 'A') await aVisit.promise;
     if (data === 'B') await bVisit.promise;
   });
@@ -138,7 +138,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
         },
       }),
       resolveChild: async (hint, options) => {
-        expect(options.resolvedGraph.getRoot()).not.toBeNull();
+        expect(options.resolvedGraphView.getRoot()).not.toBeNull();
         expect(options.originalGraphView).not.toBeNull();
         return {
           kind: 'found' as const,
@@ -174,7 +174,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
   })) {
     values.push(event.vertex.getData());
     expect(event.isGraphRoot).toBe(
-      event.vertexRef === runner.getResolvedGraph().getRoot(),
+      event.vertexRef === runner.getResolvedGraphView().getRoot(),
     );
   }
 
@@ -184,7 +184,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
     runner.originalGraphView?.getVertexRefById('a')?.getValue().getData(),
   ).toBe('a');
   expect(
-    runner.getResolvedGraph().getVertexRefById('a')?.getValue().getData(),
+    runner.getResolvedGraphView().getVertexRefById('a')?.getValue().getData(),
   ).toBe('changed');
 });
 
@@ -198,7 +198,7 @@ test('supports an asynchronous tree source through the graph visitor facade', as
         },
       }),
       resolveChild: async (hint, options) => {
-        expect(options.resolvedTree.getRoot()).not.toBeNull();
+        expect(options.resolvedTreeView.getRoot()).not.toBeNull();
         return {
           kind: 'found' as const,
           vertex: { vertexContent: { $data: hint, $childHints: [] } },
@@ -209,7 +209,7 @@ test('supports an asynchronous tree source through the graph visitor facade', as
   const optionsSeen: string[] = [];
   traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex, options) => {
     optionsSeen.push(vertex.getData());
-    expect(options.resolvedGraph).toBeDefined();
+    expect(options.resolvedGraphView).toBeDefined();
     expect(options).not.toHaveProperty('resolvedTree');
   });
 

@@ -1,5 +1,5 @@
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import { MutableRef } from '../src/core/CTTRef';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';

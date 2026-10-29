@@ -48,7 +48,7 @@ const runner = reconstruct();
 assert.equal(runner.prepare(), runner);
 assert.equal(runner.getStopReason(), 'prepared');
 assert.equal(runner.summary().discovery.mode, 'eager');
-assert.equal(runner.getResolvedGraph().getVertexRefs().length, 4);
+assert.equal(runner.getResolvedGraphView().getVertexRefs().length, 4);
 assert.deepEqual(runner.summary().awaitingSettlement, []);
 assert.deepEqual(runner.summary().completedWorkIds, ['research']);
 const preparedCalls = sourceCalls;

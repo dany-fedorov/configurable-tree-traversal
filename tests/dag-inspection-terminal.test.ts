@@ -180,7 +180,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     }).createRunner();
     const captured = inspectDagMilestones(restored);
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     for (const ref of graph.getVertexRefs()) {
       for (const milestone of ['work', 'subgraphCompletion'] as const) {
         expect(

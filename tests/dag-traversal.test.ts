@@ -46,7 +46,7 @@ test('visits a shared join once after both prerequisites', () => {
     ...runner.iterateEvents({ emitEvents: ['workCompleted'] }),
   ].map(({ vertex }) => vertex.getData());
   expect(values).toEqual(['root', 'A', 'B', 'join']);
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   const join = graph.getVertexRefById('join')!;
   expect(graph.getParentsOf(join)).toHaveLength(3);
   expect(graph.getVisitStageOf(join)).toBe('COMPLETE');
@@ -71,7 +71,7 @@ test('defaults to both orders and keeps initial and completion work in one FIFO'
   ]);
 });
 
-test('distinguishes graph root from the retained traversal root', () => {
+test('retains the graph root flag without an independent traversal root', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: graphAdapter(),
   }).createRunner();
@@ -82,14 +82,14 @@ test('distinguishes graph root from the retained traversal root', () => {
     false,
     false,
   ]);
-  expect(events.map(({ isTraversalRoot }) => isTraversalRoot)).toEqual([
-    true,
+  expect(events.map((event) => 'isTraversalRoot' in event)).toEqual([
+    false,
     false,
     false,
     false,
   ]);
   expect(runner.isGraphRootVertex(events[0]!.vertexRef)).toBe(true);
-  expect(runner.isTraversalRootVertex(events[0]!.vertexRef)).toBe(true);
+  expect(runner.isGraphRootVertex(events[0]!.vertexRef)).toBe(true);
 });
 
 test('finishes an empty graph', () => {
@@ -108,7 +108,7 @@ test('finishes an empty graph', () => {
 
   expect([...runner.iterateEvents()]).toEqual([]);
   expect(runner.getStatus()).toBe(Status.FINISHED);
-  expect(runner.getResolvedGraph().getRoot()).toBeNull();
+  expect(runner.getResolvedGraphView().getRoot()).toBeNull();
 });
 
 test.each([
@@ -210,10 +210,10 @@ test('omission satisfies dependents without retaining the omitted vertex', () =>
     .createRunner()
     .run();
 
-  expect(runner.getResolvedGraph().getVertexRefById('missing')).toBeNull();
+  expect(runner.getResolvedGraphView().getVertexRefById('missing')).toBeNull();
   expect(
     runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefById('dependent')!
       .getValue()
       .getData(),
@@ -253,7 +253,7 @@ test('applies rewrite, disable, and delete commands with tombstones', () => {
     return undefined;
   });
   const runner = traversal.createRunner().run();
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
 
   expect(graph.getVertexRefById('rewrite')!.getValue().getData()).toBe(
     'rewritten',
@@ -284,9 +284,9 @@ test('rewrites hints at ON_WORK_READY and rejects the same command at ON_SUBGRAP
       : undefined,
   );
   const runner = traversal.createRunner().run();
-  expect(runner.getResolvedGraph().getVertexRefById('old')).toBeNull();
+  expect(runner.getResolvedGraphView().getVertexRefById('old')).toBeNull();
   expect(
-    runner.getResolvedGraph().getVertexRefById('replacement'),
+    runner.getResolvedGraphView().getVertexRefById('replacement'),
   ).not.toBeNull();
 
   const invalid = new DagTraversal<TestGraph>({
@@ -333,7 +333,7 @@ test('captures a structural graph snapshot before rewrite and delete', () => {
   const runner = traversal.createRunner().run();
   const snapshot = runner.originalGraphView;
 
-  expect(runner.getResolvedGraph().getVertexRefById('child')).toBeNull();
+  expect(runner.getResolvedGraphView().getVertexRefById('child')).toBeNull();
   const child = snapshot!.getVertexRefById('child')!;
   expect(child.getValue().getData()).toBe('child');
   expect(snapshot!.getParentsOf(child)).toHaveLength(1);
@@ -382,7 +382,7 @@ test('tree source receives a real tree context and graph visitors', () => {
       },
     }),
     resolveChild: (hint, options) => {
-      sawParent = options.resolvedTree.has(
+      sawParent = options.resolvedTreeView.has(
         options.resolutionContext.parentVertexRef,
       );
       return {
@@ -395,7 +395,7 @@ test('tree source receives a real tree context and graph visitors', () => {
   };
   const traversal = new DagTraversal<Tree>({ traversableTree: tree });
   traversal.addVisitorFor(Order.ON_WORK_READY, (_vertex, options) => {
-    expect(options.resolvedGraph).toBeDefined();
+    expect(options.resolvedGraphView).toBeDefined();
     expect(options).not.toHaveProperty('resolvedTree');
   });
 
@@ -414,7 +414,7 @@ test('runs ObjectTreeSource with its real ancestor context', () => {
       ({ vertex }) => vertex.getData().key,
     ),
   ).toEqual(['__TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__', 'branch', 'leaf']);
-  expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(3);
+  expect(runner.getResolvedGraphView().getVertexRefs()).toHaveLength(3);
 });
 
 test('tree source rejects graph metadata', () => {
@@ -524,7 +524,9 @@ test('exposes lifecycle statuses while each visitor chain runs', () => {
   });
   for (const order of [Order.ON_WORK_READY, Order.ON_SUBGRAPH_READY]) {
     traversal.addVisitorFor(order, (_vertex, options) => {
-      statuses.push(options.resolvedGraph.getVisitStageOf(options.vertexRef)!);
+      statuses.push(
+        options.resolvedGraphView.getVisitStageOf(options.vertexRef)!,
+      );
     });
   }
 
@@ -548,7 +550,7 @@ test('tombstones deleted ids and closes later arrivals', () => {
       ? { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] }
       : undefined,
   );
-  const graph = traversal.createRunner().run().getResolvedGraph();
+  const graph = traversal.createRunner().run().getResolvedGraphView();
   const survivor = graph.getVertexRefById('survivor')!;
 
   expect(graph.getVertexRefById('victim')).toBeNull();
@@ -568,8 +570,8 @@ test('deleting the graph root empties the graph', () => {
   );
   const runner = traversal.createRunner().run();
 
-  expect(runner.getResolvedGraph().getRoot()).toBeNull();
-  expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
+  expect(runner.getResolvedGraphView().getRoot()).toBeNull();
+  expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
 });
 
 test('rejects thenables and retains callback failures', () => {

@@ -1,3 +1,4 @@
+import { internalTreeStore } from './internal-runner-fixtures';
 import { treeResolution } from './source-result-fixtures';
 import { MutableRef } from '../src/core/CTTRef';
 import type { TreeSource } from '../src/core/TraversableTree';
@@ -69,7 +70,7 @@ test('depth-first convenience traversal accepts no visitors or config', () => {
   });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-  expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
+  expect(internalTreeStore(runner).getRoot()?.getValue().getData()).toBe(
     'root',
   );
 });
@@ -313,7 +314,7 @@ test.each(['depth-first', 'breadth-first'] as const)(
     }
     const runner = traversal.createRunner();
     const unregisteredRoot = new MutableRef(new Vertex<Tree>(node('detached')));
-    runner.getResolvedTreeStore().setRoot(unregisteredRoot);
+    internalTreeStore(runner).setRoot(unregisteredRoot);
 
     expect([...runner.iterateEvents()]).toEqual([]);
     expect(visitorCalls).toBe(0);
@@ -329,7 +330,7 @@ test.each(['missing', 'disabled'] as const)(
     })
       .createRunner()
       .run();
-    const rootRef = seedRunner.getResolvedTreeStore().getRoot()!;
+    const rootRef = internalTreeStore(seedRunner).getRoot()!;
     const missingParentRef = new MutableRef(new Vertex<Tree>(node('removed')));
     const parentRef = mode === 'missing' ? missingParentRef : rootRef;
     const state = new BreadthFirstTraversalRunnerState<Tree, Tree>({
@@ -368,6 +369,6 @@ test.each(['missing', 'disabled'] as const)(
     const runner = traversal.createRunner().run();
     expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
     expect(childResolutionCalls).toBe(0);
-    expect(runner.getResolvedTreeStore().getRoot()).toBe(rootRef);
+    expect(internalTreeStore(runner).getRoot()).toBe(rootRef);
   },
 );

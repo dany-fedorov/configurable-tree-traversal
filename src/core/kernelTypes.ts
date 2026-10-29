@@ -7,7 +7,7 @@ import type {
 import type { VisitorExecutionState } from '@core/executeVisitors';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { HintVertexId, VertexId, VertexRef } from '@core/graph/types';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
 import type { EligibleVisit } from '@core/scheduling/types';
 import type { MakeVertexResult } from '@core/TraversableTree';
 import type {
@@ -70,7 +70,7 @@ export type FrameState<T extends VertexTypes, R extends VertexTypes = T> = {
   nextConsumeIndex: number;
   hintIds: Map<number, HintVertexId>;
   knownIndices: Set<number>;
-  contexts: Map<number, VertexResolutionContext<T | R>>;
+  contexts: Map<number, InternalVertexResolutionContext<T | R>>;
   pendingIndices: Set<number>;
   identityOutcomes: Map<number, Outcome<HintVertexId | undefined>>;
   outcomes: Map<number, Outcome<MakeVertexResult<T>>>;

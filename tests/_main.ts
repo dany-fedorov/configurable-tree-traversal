@@ -22,13 +22,13 @@
     host,
   });
   type TreeTTP = TraversableTreeParametersFromTraversableTree<typeof tree>;
-  const { resolvedTree } = traverseTreeDepthFirst(tree, {
+  const { resolvedTreeView: resolvedTree } = traverseTreeDepthFirst(tree, {
     postOrderVisitor: (
-      vertex: Vertex<TreeTTP>,
+      vertex: VertexView<TreeTTP>,
       options: TraversalVisitorOptions<TreeTTP>,
     ) => {
       const depth =
-        options.resolvedTree.get(options.vertexRef)?.getResolutionContext()
+        options.resolvedTreeView.get(options.vertexRef)?.getResolutionContext()
           ?.depth ?? 0;
       // console.log(depth, vertex.getData());
       const makeMutationCommand =
@@ -91,9 +91,9 @@
     assembleCompositesBeforeRewrite: true,
     rewrite: ({ key, value }, options) => {
       const depth =
-        options.resolvedTree.get(options.vertexRef)?.getResolutionContext()
+        options.resolvedTreeView.get(options.vertexRef)?.getResolutionContext()
           ?.depth ?? 0;
-      const p = options.resolvedTree.getPathTo(options.vertexRef, {
+      const p = options.resolvedTreeView.getPathTo(options.vertexRef, {
         noRoot: true,
         // noSelf: true,
       });
@@ -192,7 +192,7 @@
 //     {
 //       inOrderVisitor: (vertex, options) => {
 //         //   postOrderVisitor: (vertex, options) => {
-//         const p = options.resolvedTree.getPathTo(options.vertexRef, {
+//         const p = options.resolvedTreeView.getPathTo(options.vertexRef, {
 //           noRoot: true,
 //         });
 //         console.log(
@@ -209,7 +209,7 @@
 //           //   : options.previousPhaseVertexRef.getRefId(),
 //           // options.previousPhaseVertexRef === null
 //           //   ? 'NONE'
-//           //   : options.resolvedTree
+//           //   : options.resolvedTreeView
 //           //       .getPathTo(options.previousPhaseVertexRef, {
 //           //         noRoot: true,
 //           //       })
@@ -310,7 +310,7 @@
 //   const res1 = res.continue(
 //     null,
 //     {
-//       preOrderVisitor(vertex, { isTreeRoot, isTraversalRoot }) {
+//       preOrderVisitor(vertex, { isTreeRoot }) {
 //         console.log(
 //           'PRE'.padEnd(4),
 //           // eslint-disable-next-line @typescript-eslint/ban-ts-comment

@@ -180,7 +180,7 @@ test.each(Object.values(DepthOrder))(
         : undefined,
     );
     const runner = traversal.createRunner().run();
-    const tree = runner.getResolvedTreeStore();
+    const tree = runner.getResolvedTreeView();
     const rootRef = tree.getRoot()!;
     expect(
       tree.getChildrenOf(rootRef)?.map((ref) => ref.getValue().getData()),
@@ -214,8 +214,8 @@ test('disabling a subtree in-order stops unresolved children but retains complet
   ).toEqual([1, 0]);
   expect(
     runner
-      .getResolvedTreeStore()
-      .getChildrenOf(runner.getResolvedTreeStore().getRoot()!)
+      .getResolvedTreeView()
+      .getChildrenOf(runner.getResolvedTreeView().getRoot()!)
       ?.map((ref) => ref.getValue().getData()),
   ).toEqual([1]);
 });

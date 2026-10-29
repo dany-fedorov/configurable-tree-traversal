@@ -48,7 +48,9 @@ async function exercise(input: MaterializedDagInput<Item, string>) {
           .originalGraphView!.getVertexRefById('task')!
           .getValue()
           .getData();
-        const id: string = context.resolvedGraph.getVertexId(context.vertexRef);
+        const id: string = context.resolvedGraphView.getVertexId(
+          context.vertexRef,
+        );
         // @ts-expect-error Explicit rewrite data includes strings, not only original items.
         const inputOnly: Item = vertex.getData();
         void [live, original, id, inputOnly];
@@ -65,12 +67,12 @@ async function exercise(input: MaterializedDagInput<Item, string>) {
   }
   for (const runner of [helper, helperSpread, asyncHelper, asyncHelperSpread]) {
     const data: Item | string = runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefById('task')!
       .getValue()
       .getData();
     // @ts-expect-error The materialized source retains its actual string ID domain.
-    runner.getResolvedGraph().getVertexRefById(12);
+    runner.getResolvedGraphView().getVertexRefById(12);
     void data;
   }
 
@@ -82,27 +84,29 @@ async function exercise(input: MaterializedDagInput<Item, string>) {
       DagVisitorPhase.ON_WORK_READY,
       (vertex, context) => {
         const data: Item = vertex.getData();
-        const id: string = context.resolvedGraph.getVertexId(context.vertexRef);
+        const id: string = context.resolvedGraphView.getVertexId(
+          context.vertexRef,
+        );
         void [data, id];
       },
     );
     const data: Item = traversal
       .createRunner()
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefById('task')!
       .getValue()
       .getData();
     // @ts-expect-error Inferred ID remains string, not unknown.
-    traversal.createRunner().getResolvedGraph().getVertexRefById(undefined);
+    traversal.createRunner().getResolvedGraphView().getVertexRefById(undefined);
     void data;
   }
   const inferredHelperData: Item = traverseDag(input)
-    .getResolvedGraph()
+    .getResolvedGraphView()
     .getVertexRefById('task')!
     .getValue()
     .getData();
   const inferredAsyncData: Item = (await traverseDagAsync(input))
-    .getResolvedGraph()
+    .getResolvedGraphView()
     .getVertexRefById('task')!
     .getValue()
     .getData();
@@ -113,7 +117,7 @@ async function exercise(input: MaterializedDagInput<Item, string>) {
       const id: string = prepared.dag.definition.vertices[0]!.vertexId;
       const replayed: Item = prepared.dag
         .createRunner()
-        .getResolvedGraph()
+        .getResolvedGraphView()
         .getVertexRefById('task')!
         .getValue()
         .getData();
@@ -178,13 +182,18 @@ const differentTraversal = new DagTraversal<Input, DifferentOutput, string>(
   input,
 );
 const outputOnlyHints = () => ({
-  commands: [{
-    commandName: Command.REWRITE_CHILD_HINTS as const,
-    commandArguments: { newHints: [true] },
-  }],
+  commands: [
+    {
+      commandName: Command.REWRITE_CHILD_HINTS as const,
+      commandArguments: { newHints: [true] },
+    },
+  ],
 });
-// @ts-expect-error Polymorphic live contexts do not widen source-owned ID hints.
-differentTraversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, outputOnlyHints);
+differentTraversal.addVisitorFor(
+  DagVisitorPhase.ON_WORK_READY,
+  // @ts-expect-error Polymorphic live contexts do not widen source-owned ID hints.
+  outputOnlyHints,
+);
 void independent;
 
 const objectId: object = {};
@@ -194,7 +203,7 @@ const arbitraryInput = materializeDagInputFromRecords(
 );
 const arbitraryGraph = new DagTraversal(arbitraryInput)
   .createRunner()
-  .getResolvedGraph();
+  .getResolvedGraphView();
 const arbitraryRef = arbitraryGraph.getVertexRefById(undefined)!;
 const arbitraryData: { id: object | undefined } = arbitraryRef
   .getValue()

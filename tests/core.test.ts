@@ -1,9 +1,6 @@
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import { MutableRef } from '@core/CTTRef';
-import {
-  ResolvedTreeStore,
-  TreeVertexRecord,
-  type VertexResolutionContext,
-} from '@core/ResolvedTree';
+import { ResolvedTreeStore, TreeVertexRecord } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
 import type { DepthFirstTreeResolvedOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';

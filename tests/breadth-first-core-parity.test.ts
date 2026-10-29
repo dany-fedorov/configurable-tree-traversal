@@ -1,3 +1,5 @@
+import { vertexHandle } from '../src/core/observationFacets';
+import { internalTreeStore } from './internal-runner-fixtures';
 import { treeResolution } from './source-result-fixtures';
 import { getTreeGraphStore } from '../src/core/graph/treeStoreCapabilities';
 import {
@@ -54,7 +56,7 @@ test('BFS shared core resolves one queued child per event advancement', () => {
   expect(calls).toEqual(['root', 'resolve:A', 'visit:A']);
   expect(
     runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'A']);
@@ -67,7 +69,7 @@ test('BFS shared core resolves one queued child per event advancement', () => {
   expect(runnerInternals(runner).state.queueIndex).toBe(1);
   expect(
     runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'A']);
@@ -110,16 +112,13 @@ test('BFS can traverse a completed injected resolved-tree container again', () =
     traversableTree: adapter,
   }).createRunner();
   first.run();
-  const root = first.getResolvedTreeStore().getRoot();
+  const root = internalTreeStore(first).getRoot();
   if (root === null) throw new Error('Expected a resolved root');
-  const rootRecord = first.getResolvedTreeStore().get(root);
-  const originalChildren = first
-    .getResolvedTreeStore()
-    .get(root)
-    ?.getChildren();
+  const rootRecord = internalTreeStore(first).get(root);
+  const originalChildren = internalTreeStore(first).get(root)?.getChildren();
   const originalChild = originalChildren?.[0];
   if (originalChild === undefined) throw new Error('Expected a resolved child');
-  const childRecord = first.getResolvedTreeStore().get(originalChild);
+  const childRecord = internalTreeStore(first).get(originalChild);
 
   const second = createInternalBreadthFirstTreeRunner<TestGraph>({
     traversableTree: {
@@ -138,22 +137,22 @@ test('BFS can traverse a completed injected resolved-tree container again', () =
     'root',
     'child',
   ]);
-  expect(events[1]?.vertexRef).toBe(originalChild);
-  expect(second.getResolvedTreeStore().getRoot()).toBe(root);
-  expect(second.getResolvedTreeStore().get(root)).toBe(rootRecord);
-  expect(second.getResolvedTreeStore().get(root)?.getChildren()).toBe(
+  expect(events[1]?.vertexRef).toBe(vertexHandle(originalChild));
+  expect(internalTreeStore(second).getRoot()).toBe(root);
+  expect(internalTreeStore(second).get(root)).toBe(rootRecord);
+  expect(internalTreeStore(second).get(root)?.getChildren()).toBe(
     originalChildren,
   );
-  expect(second.getResolvedTreeStore().getChildrenOf(root)).not.toBe(
+  expect(internalTreeStore(second).getChildrenOf(root)).not.toBe(
     originalChildren,
   );
-  expect(second.getResolvedTreeStore().getChildrenOf(root)).toEqual([
+  expect(internalTreeStore(second).getChildrenOf(root)).toEqual([
     originalChild,
   ]);
-  expect(second.getResolvedTreeStore().get(originalChild)).toBe(childRecord);
-  expect(second.getResolvedGraph().getVertexRefs()).toEqual([
-    root,
-    originalChild,
+  expect(internalTreeStore(second).get(originalChild)).toBe(childRecord);
+  expect(second.getResolvedGraphView().getVertexRefs()).toEqual([
+    vertexHandle(root),
+    vertexHandle(originalChild),
   ]);
 });
 
@@ -171,13 +170,13 @@ test('BFS resumes a valid injected queue context from a nonzero cursor once', ()
     },
   }).createRunner();
   seed.run();
-  const root = seed.getResolvedTreeStore().getRoot();
+  const root = internalTreeStore(seed).getRoot();
   if (root === null) throw new Error('Expected seeded root');
-  const parent = seed.getResolvedTreeStore().getChildrenOf(root)?.[0];
+  const parent = internalTreeStore(seed).getChildrenOf(root)?.[0];
   if (parent == null) throw new Error('Expected seeded parent');
   root.setValue(root.getValue().clone({ $childHints: [] }));
   parent.setValue(parent.getValue().clone({ $childHints: ['child'] }));
-  const store = getTreeGraphStore(seed.getResolvedTreeStore());
+  const store = getTreeGraphStore(internalTreeStore(seed));
   store.resetTraversal(parent);
   store.prepareSlots(parent, ['child']);
   store.setVisitStage(parent, 'COMPLETE');
@@ -248,9 +247,9 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
   expect(firstIterator.next().value?.vertex.getData()).toBe('A');
   firstIterator.return(undefined);
 
-  const root = first.getResolvedTreeStore().getRoot();
+  const root = internalTreeStore(first).getRoot();
   if (root === null) throw new Error('Expected a resolved root');
-  const consumedChild = first.getResolvedTreeStore().getChildrenOf(root)?.[0];
+  const consumedChild = internalTreeStore(first).getChildrenOf(root)?.[0];
   if (consumedChild === undefined) throw new Error('Expected consumed child');
   const queue = runnerInternals(first).state.queue;
   expect(queue.map((context) => context.vertexHint)).toEqual(['A', 'B']);
@@ -298,13 +297,13 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
     ['root', 2, 'A'],
     ['B', 3, 'root'],
   ]);
-  const children = runner.getResolvedTreeStore().getChildrenOf(root);
+  const children = internalTreeStore(runner).getChildrenOf(root);
   expect(children).toHaveLength(2);
   expect(children?.[0]).toBe(consumedChild);
   expect(children?.[1]?.getValue().getData()).toBe('B');
   expect(
     runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .get(root)
       ?.slots.map((slot) => slot.kind),
   ).toEqual(['linked', 'linked']);
@@ -328,7 +327,7 @@ function completedParentSeed() {
     },
   }).createRunner();
   runner.run();
-  const root = runner.getResolvedTreeStore().getRoot();
+  const root = internalTreeStore(runner).getRoot();
   if (root === null) throw new Error('Expected root');
   return { root, runner };
 }
@@ -420,12 +419,12 @@ test('BFS does not search newly appended children for legacy reuse', () => {
     },
   }).createRunner();
   const lookup = jest.spyOn(
-    runner.getResolvedTreeStore(),
+    internalTreeStore(runner),
     'getResolutionContextOf',
   );
 
   runner.run({ emitEvents: [] });
 
-  expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(width + 1);
+  expect(runner.getResolvedGraphView().getVertexRefs()).toHaveLength(width + 1);
   expect(lookup).not.toHaveBeenCalled();
 });

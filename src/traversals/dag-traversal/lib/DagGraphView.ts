@@ -1,12 +1,12 @@
-import type { ResolvedGraph } from '@core/ResolvedGraph';
+import type { InternalResolvedGraphView } from '@core/ResolvedGraphView';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { VertexRef } from '@core/graph/types';
 
 /** A forest view: the scheduler's root remains private structural bookkeeping. */
 export function makeDagGraphView<T extends VertexTypes, ID = unknown>(
-  graph: ResolvedGraph<T, ID>,
+  graph: InternalResolvedGraphView<T, ID>,
   hiddenRoot: () => VertexRef<T> | null,
-): ResolvedGraph<T, ID> {
+): InternalResolvedGraphView<T, ID> {
   const visible = (ref: VertexRef<T>) => ref !== hiddenRoot();
   const getVertexRefById = (id: ID) => {
     const ref = graph.getVertexRefById(id);

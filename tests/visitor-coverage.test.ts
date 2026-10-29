@@ -90,9 +90,9 @@ describe.each(['depth-first', 'breadth-first'] as const)(
         ['halt', 'root'],
         ['rewrite', 'root'],
       ]);
-      expect(
-        runner.getResolvedTreeStore().getRoot()?.getValue().getData(),
-      ).toBe('rewritten');
+      expect(runner.getResolvedTreeView().getRoot()?.getValue().getData()).toBe(
+        'rewritten',
+      );
 
       runner.run();
 
@@ -121,7 +121,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
 
       expect([...runner.iterateEvents()]).toEqual([]);
       expect(calls).toEqual(['delete', 'root']);
-      expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
+      expect(runner.getResolvedTreeView().getRoot()).toBeNull();
       expect(runner.getStatus()).toBe(Status.FINISHED);
     });
   },

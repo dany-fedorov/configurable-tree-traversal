@@ -3,7 +3,7 @@ import type {
   TraversalVisitorResult,
 } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
+import type { VertexView } from '@core/Vertex';
 import type { MaybePromise } from '@core/graph/types';
 
 export type AsyncTreeVisitor<
@@ -17,7 +17,7 @@ export type AsyncTreeVisitor<
   T['VertexHint']
 > extends infer RESULT
   ? (
-      vertex: Vertex<T | R>,
+      vertex: VertexView<T | R>,
       options: TreeVisitorContext<Phase, T, R>,
     ) => MaybePromise<RESULT | undefined | void>
   : never;

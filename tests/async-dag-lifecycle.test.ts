@@ -420,7 +420,7 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
   deleteA.resolve();
   await running;
   const beforeLate = runner
-    .getResolvedGraph()
+    .getResolvedGraphView()
     .getVertexRefs()
     .map((ref) => ref.getValue().getData());
   expect(beforeLate).toEqual(['root']);
@@ -444,7 +444,7 @@ test('cascade deletion invalidates running dependents and all late outcomes', as
   expect(events).toEqual(eventsBeforeLate);
   expect(
     runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).toEqual(beforeLate);
@@ -471,7 +471,7 @@ test('retains the first live failure and ignores later sibling settlement', asyn
   aVisit.reject(failure);
   await expect(running).rejects.toBe(failure);
   const beforeLate = runner
-    .getResolvedGraph()
+    .getResolvedGraphView()
     .getVertexRefs()
     .map((ref) => ref.getValue().getData());
   bVisit.resolve({
@@ -488,7 +488,7 @@ test('retains the first live failure and ignores later sibling settlement', asyn
   await expect(runner.run()).rejects.toBe(failure);
   expect(
     runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).toEqual(beforeLate);

@@ -67,7 +67,7 @@ test('exposes asynchronous depth-first post-order traversal', async () => {
   })) {
     seen.push(event.vertex.getData());
     expect(event.isTreeRoot).toBe(event.vertex.getData() === 'root');
-    expect(event.isTraversalRoot).toBe(event.vertex.getData() === 'root');
+    expect(event.isTreeRoot).toBe(event.vertex.getData() === 'root');
   }
   expect(seen).toEqual(['A', 'B', 'root']);
 });
@@ -186,12 +186,12 @@ test('supports promised sorting and tree runner graph and vertex queries', async
     'b',
     'a',
   ]);
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   const root = graph.getRoot();
   if (root === null) throw new Error('Expected a root');
   const children = graph.get(root)?.slots;
   if (children?.[0]?.kind !== 'linked') throw new Error('Expected a child');
-  expect(runner.isTraversalRootVertex(root)).toBe(true);
+  expect(runner.isTreeRootVertex(root)).toBe(true);
   expect(runner.isTreeRootVertex(root)).toBe(true);
   expect(runner.isTraversalLeaf(root)).toBe(false);
   expect(runner.isTraversalLeaf(children[0].childRef)).toBe(true);
@@ -210,7 +210,7 @@ test('retains saved original tree data through asynchronous mutations', async ()
     ],
   }));
   const runner = await t.createRunner().run();
-  expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
+  expect(runner.getResolvedTreeView().getRoot()?.getValue().getData()).toBe(
     'ROOT',
   );
   const saved = runnerInternals(runner).resolvedTreesContainer.originalTreeView;
@@ -283,7 +283,7 @@ test('reuses injected tree storage and state objects', async () => {
     .createRunner()
     .run();
   const state = runnerInternals(traversal().createRunner()).state;
-  const root = first.getResolvedTreeStore().getRoot();
+  const root = first.getResolvedTreeView().getRoot();
   const second = createInternalAsyncDepthFirstTreeRunner<Tree>({
     traversableTree: {
       resolveRoot: () => {
@@ -304,7 +304,7 @@ test('reuses injected tree storage and state objects', async () => {
     'root',
     'child',
   ]);
-  expect(second.getResolvedTreeStore().getRoot()).toBe(root);
+  expect(second.getResolvedTreeView().getRoot()).toBe(root);
 });
 
 test.each([null, undefined])(

@@ -72,7 +72,7 @@ for (const materialize of dagFactories)
       const input = await materialize(selectors);
       const runner = new DagTraversal(input).createRunner().run();
       expect(
-        runner.getResolvedGraph().getVertexRefById(2)!.getValue().getData(),
+        runner.getResolvedGraphView().getVertexRefById(2)!.getValue().getData(),
       ).toBe(2);
       expect(reads).toEqual({ id: 1, children: 1, work: 1, completion: 1 });
     },

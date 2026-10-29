@@ -1,3 +1,4 @@
+import { resolutionContextView } from '../observationFacets';
 import {
   mapSourceResult,
   normalizeSourceResult,
@@ -6,7 +7,7 @@ import type {
   DagVertexResolution,
   TreeVertexResolution,
 } from '@core/TraversableTree';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
 import type { MakeVertexResult, TreeSource } from '@core/TraversableTree';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import type {
@@ -30,7 +31,7 @@ export interface BoundSource<T extends VertexTypes, R extends VertexTypes = T> {
   ): MaybePromise<MakeVertexResult<T> | undefined>;
   resolveRoot(): MaybePromise<MakeVertexResult<T>>;
   resolveChild(
-    context: VertexResolutionContext<T | R>,
+    context: InternalVertexResolutionContext<T | R>,
   ): MaybePromise<MakeVertexResult<T>>;
   getVertexIdFromHint?(
     hint: (T | R)['VertexHint'],
@@ -89,8 +90,8 @@ export function bindTreeSource<
     resolveChild: (context) =>
       validateTreeResult(
         adapter.resolveChild(asInputHint<T, R>(context.vertexHint), {
-          resolutionContext: context,
-          resolvedTree: treeContainer.resolvedTree,
+          resolutionContext: resolutionContextView(context)!,
+          resolvedTreeView: treeContainer.resolvedTree.asReadOnly(),
           originalTreeView:
             treeContainer.originalTreeView?.asReadOnly() ?? null,
         }),
@@ -116,8 +117,15 @@ export function bindGraphSource<
     resolveChild: (context) =>
       mapSourceResult(
         adapter.resolveChild(asInputHint<T, R>(context.vertexHint), {
-          resolutionContext: context,
-          resolvedGraph: container.publicResolvedGraph,
+          resolutionContext:
+            context.parentVertexRef === container.syntheticRootRef
+              ? Object.freeze({
+                  ...context,
+                  parentVertex: null,
+                  parentVertexRef: null,
+                })
+              : resolutionContextView(context)!,
+          resolvedGraphView: container.publicResolvedGraph,
           originalGraphView: container.originalGraphView,
         }),
         normalizeVertexResult,

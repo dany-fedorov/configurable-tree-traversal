@@ -84,7 +84,7 @@ describe('breadth-first traversal', () => {
     expect([...runner.iterateEvents()]).toEqual([]);
     expect(calls).toEqual(['root']);
     expect(runner.getStatus()).toBe(Status.FINISHED);
-    expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
+    expect(runner.getResolvedTreeView().getRoot()).toBeNull();
   });
 
   test('sorts a copy of each hint list and skips null results', () => {
@@ -171,11 +171,11 @@ describe('breadth-first traversal', () => {
           ? ['root', 'sibling']
           : ['root', 'branch', 'sibling'],
       );
-      const rootRef = runner.getResolvedTreeStore().getRoot();
+      const rootRef = runner.getResolvedTreeView().getRoot();
       expect(
         rootRef &&
           runner
-            .getResolvedTreeStore()
+            .getResolvedTreeView()
             .getChildrenOf(rootRef)
             ?.map((ref) => ref.getValue().getData()),
       ).toEqual(
@@ -194,7 +194,7 @@ describe('breadth-first traversal', () => {
     const runner = traversal.createRunner();
     expect([...runner.iterateEvents()]).toEqual([]);
     expect(calls).toEqual(['root']);
-    expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
+    expect(runner.getResolvedTreeView().getRoot()).toBeNull();
   });
 
   test('halts with no yielded orders and resumes the remaining visitor chain', () => {
@@ -337,7 +337,7 @@ describe('breadth-first traversal', () => {
     });
     const runner = traversal.createRunner().run();
     expect(savedLabels).toEqual(['root', 'deleted', 'kept']);
-    expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
+    expect(runner.getResolvedTreeView().getRoot()?.getValue().getData()).toBe(
       'changed-root',
     );
   });
@@ -363,7 +363,7 @@ describe('breadth-first traversal', () => {
     const { tree } = setup(node('root', node('child')));
     const runner = traverseTreeBreadthFirst({ traversableTree: tree });
     expect(runner.getStatus()).toBe(Status.FINISHED);
-    expect(runner.getResolvedTreeStore().getRoot()?.getValue().getData()).toBe(
+    expect(runner.getResolvedTreeView().getRoot()?.getValue().getData()).toBe(
       'root',
     );
     runner.run();

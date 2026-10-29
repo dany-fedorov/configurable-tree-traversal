@@ -1,3 +1,5 @@
+import { internalRef, vertexHandle } from '../src/core/observationFacets';
+import { internalTreeStore } from './internal-runner-fixtures';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -40,7 +42,7 @@ test('mutating child query arrays cannot corrupt forward/reverse topology or pat
     traversableTree: source,
   }).createRunner();
   runner.run();
-  const tree = runner.getResolvedTreeStore();
+  const tree = internalTreeStore(runner);
   const root = tree.getRoot()!;
   const child = tree.getChildrenOf(root)![0]!;
   const children = tree.getChildrenOf(root)!;
@@ -49,8 +51,12 @@ test('mutating child query arrays cannot corrupt forward/reverse topology or pat
   expect(tree.getChildrenOf(root)).toEqual([child]);
   expect(tree.getParentOf(child)).toBe(root);
   expect(tree.getPathTo(child)).toEqual([root, child]);
-  expect(tree.getResolvedGraph().getChildrenOf(root)).toEqual([child]);
-  expect(tree.getResolvedGraph().getParentsOf(child)).toEqual([root]);
+  expect(tree.getResolvedGraphView().getChildrenOf(root)).toEqual([
+    vertexHandle(child),
+  ]);
+  expect(tree.getResolvedGraphView().getParentsOf(child)).toEqual([
+    vertexHandle(root),
+  ]);
 });
 
 test('mutating query contexts cannot reparent a child or overwrite discovery metadata', () => {
@@ -58,7 +64,7 @@ test('mutating query contexts cannot reparent a child or overwrite discovery met
     traversableTree: source,
   }).createRunner();
   runner.run();
-  const tree = runner.getResolvedTreeStore();
+  const tree = internalTreeStore(runner);
   const root = tree.getRoot()!;
   const child = tree.getChildrenOf(root)![0]!;
   const context = tree.getResolutionContextOf(child)!;
@@ -81,7 +87,9 @@ test('mutating query contexts cannot reparent a child or overwrite discovery met
   });
   expect(tree.getParentOf(child)).toBe(root);
   expect(tree.getPathTo(child)).toEqual([root, child]);
-  expect(tree.getResolvedGraph().getParentsOf(child)).toEqual([root]);
+  expect(tree.getResolvedGraphView().getParentsOf(child)).toEqual([
+    vertexHandle(root),
+  ]);
 });
 
 for (const Constructor of [
@@ -108,9 +116,16 @@ for (const Constructor of [
     const context = view.getResolutionContextOf(child)!;
     expect(context.parentVertex).toBe(root.getValue());
     expect(context.vertexHint).toBe(hint);
-    (view.getChildrenOf(root)! as MutableRef<Vertex<T>>[]).length = 0;
-    (view.getPathTo(child) as MutableRef<Vertex<T>>[]).length = 0;
-    (context as VertexResolutionContext<T>).parentVertexRef = child;
+    expect(() => {
+      (view.getChildrenOf(root)! as MutableRef<Vertex<T>>[]).length = 0;
+    }).toThrow(TypeError);
+    expect(() => {
+      (view.getPathTo(child) as MutableRef<Vertex<T>>[]).length = 0;
+    }).toThrow(TypeError);
+    expect(() => {
+      // @ts-expect-error readonly context
+      (context as VertexResolutionContext<T>).parentVertexRef = child;
+    }).toThrow(TypeError);
     expect(view.getChildrenOf(root)).toEqual([child]);
     expect(view.getParentOf(child)).toBe(root);
     expect(view.getPathTo(child)).toEqual([root, child]);
@@ -131,11 +146,11 @@ for (const Constructor of [
         ? internal.resolvedTreesContainer.resolvedTree
         : internal.resolvedGraphsContainer.treeContainer!.resolvedTree;
     expect(view).toBe(tree.asReadOnly());
-    tree.deleteSubtree(child);
+    tree.deleteSubtree(internalRef(child));
     expect(view.getChildrenOf(root)).toEqual([]);
     expect(view.has(child)).toBe(false);
     expect(view.getParentOf(child)).toBeNull();
-    tree.deleteSubtree(root);
+    tree.deleteSubtree(internalRef(root));
     expect(view.getRoot()).toBeNull();
   });
 }
@@ -170,7 +185,7 @@ test('safe queries preserve saved topology while explicit active edits stay live
   })
     .createRunner()
     .run();
-  const tree = runner.getResolvedTreeStore();
+  const tree = internalTreeStore(runner);
   const view = tree.asReadOnly();
   const saved =
     runnerInternals(runner).resolvedTreesContainer.originalTreeView!;
@@ -182,15 +197,17 @@ test('safe queries preserve saved topology while explicit active edits stay live
   expect(savedRoot).not.toBe(root);
   expect(savedRoot.getValue().getData()).toBe(rootData);
   expect(savedView.getResolutionContextOf(savedChild)!.vertexHint).toBe(hint);
-  saved.getChildrenOf(savedRoot)!.length = 0;
-  saved.getResolutionContextOf(savedChild)!.parentVertexRef = child;
-  tree.getChildrenOf(root)!.length = 0;
-  tree.getResolutionContextOf(child)!.parentVertexRef = savedRoot;
+  saved.getChildrenOf(internalRef(savedRoot))!.length = 0;
+  saved.getResolutionContextOf(internalRef(savedChild))!.parentVertexRef =
+    internalRef(child);
+  tree.getChildrenOf(internalRef(root))!.length = 0;
+  tree.getResolutionContextOf(internalRef(child))!.parentVertexRef =
+    internalRef(savedRoot);
   expect(savedView.getChildrenOf(savedRoot)).toEqual([savedChild]);
   expect(savedView.getParentOf(savedChild)).toBe(savedRoot);
   expect(savedView.getPathTo(savedChild)).toEqual([savedRoot, savedChild]);
   expect(view.getChildrenOf(root)).toEqual([child]);
-  tree.deleteSubtree(child);
+  tree.deleteSubtree(internalRef(child));
   expect(view.getChildrenOf(root)).toEqual([]);
   expect(savedView.getChildrenOf(savedRoot)).toEqual([savedChild]);
   expect(savedView.getPathTo(savedChild)).toEqual([savedRoot, savedChild]);

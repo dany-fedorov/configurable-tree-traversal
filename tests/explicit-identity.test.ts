@@ -1,3 +1,4 @@
+import { vertexHandle } from '../src/core/observationFacets';
 import {
   MutableRef,
   core,
@@ -34,11 +35,11 @@ test('tree-generated vertex identities equal their reference UUIDs', () => {
       children: [],
     }),
   );
-  const graph = tree.getResolvedGraph();
+  const graph = tree.getResolvedGraphView();
   expect(graph.getVertexId(root)).toBe(root.getRefId());
   expect(graph.getVertexId(root)).toBe(root.getRefId());
-  expect(graph.getVertexRefById(root.getRefId())).toBe(root);
-  expect(graph.getVertexRefById(root.getRefId())).toBe(root);
+  expect(graph.getVertexRefById(root.getRefId())).toBe(vertexHandle(root));
+  expect(graph.getVertexRefById(root.getRefId())).toBe(vertexHandle(root));
 });
 
 for (const syntheticRoot of [false, true]) {
@@ -64,9 +65,8 @@ for (const syntheticRoot of [false, true]) {
       const saved = container.originalGraphView!;
       const savedChild = container.originalGraphRefsMap!.get(child)!;
       for (const [graph, expectedRef] of [
-        [container.resolvedGraph, child],
-        [container.publicResolvedGraph, child],
-        [saved, savedChild],
+        [container.publicResolvedGraph, vertexHandle(child)],
+        [saved, vertexHandle(savedChild)],
       ] as const) {
         expect(graph.getVertexRefById(id)).toBe(expectedRef);
         expect(graph.getVertexRefById(id)).toBe(expectedRef);

@@ -76,7 +76,8 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       await runner.run();
       expect(runner.summary().completedWorkIds).toEqual(['root']);
       expect(
-        runner.getResolvedGraph().getVertexRefById('root')!.getValue().$data,
+        runner.getResolvedGraphView().getVertexRefById('root')!.getValue()
+          .$data,
       ).toBe('root');
     },
   );
@@ -101,7 +102,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
       await runner.run();
     }).rejects.toThrow(/sole command/);
     expect(
-      runner.getResolvedGraph().getVertexRefById('root')!.getValue().$data,
+      runner.getResolvedGraphView().getVertexRefById('root')!.getValue().$data,
     ).toBe('root');
   });
 }
@@ -139,9 +140,9 @@ for (const [Constructor, order, sourceKey] of [
     const add = traversal.addVisitorFor.bind(
       traversal,
     ) as DepthFirstTreeTraversal<G>['addVisitorFor'];
-    add(order as DfsOrder.PRE_ORDER, (vertex, options) => {
+    add(order as DfsOrder.PRE_ORDER, (vertex) => {
       seen.push(vertex.$data);
-      if (options.isTraversalRoot)
+      if (vertex.$data === 'root')
         return {
           commands: [
             {
@@ -299,7 +300,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
     const runner = traversal.createRunner();
     await runner.run();
     expect(
-      runner.getResolvedGraph().getVertexRefById('root')!.getValue().$data,
+      runner.getResolvedGraphView().getVertexRefById('root')!.getValue().$data,
     ).toBe('kept');
     const generation = runner.summary().vertices.get('root')!.generation!;
     expect(() =>

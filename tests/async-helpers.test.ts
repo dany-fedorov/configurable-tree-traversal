@@ -29,9 +29,9 @@ test('async tree helpers run with omitted visitors and configured source options
   });
 
   expect(depthRunner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-  expect(depthRunner.getResolvedGraph().getRoot()?.getValue().getData()).toBe(
-    'config',
-  );
+  expect(
+    depthRunner.getResolvedGraphView().getRoot()?.getValue().getData(),
+  ).toBe('config');
 
   const breadthRunner = await traverseTreeBreadthFirstAsync({
     traversableTree: tree('root'),

@@ -212,13 +212,13 @@ export class ObjectTreeSource<
       valueIdentity,
     );
 
-    let state = this.cycleStateByResolvedTree.get(options.resolvedTree);
+    let state = this.cycleStateByResolvedTree.get(options.resolvedTreeView);
     if (state === undefined) {
       state = {
         seenIdentities: new WeakSet(),
         originalIdentityByVertexRef: new WeakMap(),
       };
-      this.cycleStateByResolvedTree.set(options.resolvedTree, state);
+      this.cycleStateByResolvedTree.set(options.resolvedTreeView, state);
     }
 
     const parentRef = options.resolutionContext.parentVertexRef;
@@ -253,7 +253,7 @@ export class ObjectTreeSource<
             )}`,
           );
         }
-        ancestorRef = options.resolvedTree.getParentOf(ancestorRef);
+        ancestorRef = options.resolvedTreeView.getParentOf(ancestorRef);
       }
     }
     state.seenIdentities.add(valueIdentity);
@@ -285,7 +285,7 @@ export class ObjectTreeSource<
     if (identity === undefined) {
       // This cache tracks the identity of the accepted resolution context.
       const context =
-        options.resolvedTree.get(vertexRef)?.getResolutionContext() ?? null;
+        options.resolvedTreeView.getResolutionContextOf(vertexRef);
       identity =
         context !== null &&
         this.originalIdentityByResolutionContext.has(context)
@@ -317,10 +317,10 @@ export class ObjectTreeSource<
     >,
     finalKey?: TraversableObjectPropKey,
   ): string {
-    const keys: TraversableObjectPropKey[] = options.resolvedTree
+    const keys: TraversableObjectPropKey[] = options.resolvedTreeView
       .getPathTo(vertexRef, { noRoot: true })
       .map((ref) => {
-        const context = options.resolvedTree.getResolutionContextOf(ref);
+        const context = options.resolvedTreeView.getResolutionContextOf(ref);
         return context?.vertexHint.key ?? ref.getValue().getData().key;
       });
     if (finalKey !== undefined) {

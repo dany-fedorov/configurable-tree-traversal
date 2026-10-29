@@ -8,8 +8,10 @@ export type DepthFirstTraversalVisitorsState<
 > = {
   [K in DepthFirstPhase]: Pick<
     TreeVisitorContext<DepthFirstPhase, TTP, RW_TTP>,
-    | 'phaseVisitIndex'
-    | 'visitorIndex'
-    | 'previousPhaseVertexRef'
-  >;
+    'phaseVisitIndex' | 'visitorIndex'
+  > & {
+    previousPhaseVertexRef:
+      | import('@core/graph/types').VertexRef<TTP | RW_TTP>
+      | null;
+  };
 };

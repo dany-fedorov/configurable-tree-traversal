@@ -16,7 +16,7 @@ const main = () => {
     assembleCompositesBeforeRewrite: true,
     rewrite: ({ key, value }, options) => {
       const depth =
-        options.resolvedTree.get(options.vertexRef)?.getResolutionContext()
+        options.resolvedTreeView.getResolutionContextOf(options.vertexRef)
           ?.depth ?? 0;
       console.log(
         depth,

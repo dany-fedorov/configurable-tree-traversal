@@ -170,7 +170,7 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
       }));
       const runner = valid.createRunner();
       await runner.run();
-      expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
+      expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
       const invalid = new Constructor(options);
       invalid.addVisitorFor(
         DagVisitorPhase.ON_WORK_READY,
@@ -345,7 +345,7 @@ for (const asynchronous of [false, true]) {
         >;
       } = {
         [DagVisitorPhase.ON_WORK_READY]: (
-          vertex: import('../src').Vertex<T>,
+          vertex: import('../src').VertexView<T>,
         ) => {
           visited.push(vertex.$data);
           return vertex.$data === target
@@ -362,9 +362,9 @@ for (const asynchronous of [false, true]) {
         : result.dag.createRunner({ visitors });
       await runner.run();
       const ids = runner
-        .getResolvedGraph()
+        .getResolvedGraphView()
         .getVertexRefs()
-        .map((ref) => runner.getResolvedGraph().getVertexId(ref));
+        .map((ref) => runner.getResolvedGraphView().getVertexId(ref));
       expect(new Set(ids)).toEqual(
         new Set(
           target === 'root'
@@ -435,9 +435,11 @@ test.each([undefined, NaN, Symbol('live'), {}])(
     await asyncRunner.run();
     for (const runner of [sync, asyncRunner]) {
       expect(runner.summary().completedWorkIds).toEqual([id, second]);
-      const shared = runner.getResolvedGraph().getVertexRefById(id)!;
-      const parent = runner.getResolvedGraph().getVertexRefById(second)!;
-      expect(runner.getResolvedGraph().getChildrenOf(parent)).toEqual([shared]);
+      const shared = runner.getResolvedGraphView().getVertexRefById(id)!;
+      const parent = runner.getResolvedGraphView().getVertexRefById(second)!;
+      expect(runner.getResolvedGraphView().getChildrenOf(parent)).toEqual([
+        shared,
+      ]);
     }
     expect([
       ...materializeWalkSourceFromDagDefinition(revised.dag.definition, {

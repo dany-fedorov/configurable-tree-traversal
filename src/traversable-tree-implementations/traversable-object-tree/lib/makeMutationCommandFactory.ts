@@ -9,8 +9,7 @@ import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectT
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 import type { TreeVisitor } from '@core/TraversalVisitor';
 import type { ObjectCompositeClassification } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
-import type { MutableRef } from '@core/CTTRef';
-import type { Vertex } from '@core/Vertex';
+import type { VertexHandle } from '@core/CTTRef';
 import type { MutationCommand } from '@core/MakeMutationCommandFunctionFactory';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
@@ -65,7 +64,7 @@ export type ObjectMutationOptions<
     isCompositeAssertions: ObjectCompositeClassification,
   ) => unknown;
   assembledMap?: ObjectAssemblyCache<
-    MutableRef<Vertex<ObjectCurrentVertexTypes<InputTypes, OutputTypes>>>
+    VertexHandle<ObjectCurrentVertexTypes<InputTypes, OutputTypes>>
   >;
 };
 
@@ -212,18 +211,18 @@ export const createObjectMutationBinder: ObjectMutationBinderFactory =
     ): ObjectMutationCommands<OutputTypes, InputTypes> {
       const [vertex, context] = visitorArguments;
       const vertexData = vertex.getData();
-      const { resolvedTree, vertexRef } = context;
+      const { resolvedTreeView, vertexRef } = context;
 
       const isThisAnArray = isArray(vertexData);
       const isThisAnObject = isObject(vertexData);
       const isThisComposite = isThisAnArray || isThisAnObject;
 
       function TraversableObjectTree_getChildrenObjectPropertiesOf(
-        vertexRef: MutableRef<
-          Vertex<ObjectCurrentVertexTypes<InputTypes, OutputTypes>>
+        vertexRef: VertexHandle<
+          ObjectCurrentVertexTypes<InputTypes, OutputTypes>
         >,
       ): ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'][] {
-        return (resolvedTree.getChildrenOf(vertexRef) ?? []).map((ch) =>
+        return (resolvedTreeView.getChildrenOf(vertexRef) ?? []).map((ch) =>
           ch.getValue().getData(),
         );
       }

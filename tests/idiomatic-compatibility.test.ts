@@ -1,3 +1,4 @@
+import type { VertexView } from '../src';
 import * as api from '../src';
 import {
   Vertex,
@@ -43,8 +44,8 @@ test('retired accessors and public runtime exports are absent', () => {
   const runner = new DagTraversal<T>({ traversableTree: source })
     .createRunner()
     .run();
-  expect('getIdOf' in runner.getResolvedGraph()).toBe(false);
-  expect('getVertexById' in runner.getResolvedGraph()).toBe(false);
+  expect('getIdOf' in runner.getResolvedGraphView()).toBe(false);
+  expect('getVertexById' in runner.getResolvedGraphView()).toBe(false);
   expect('DEFER_READY' in api).toBe(false);
   expect('TraversalVisitorFunctionResolutionStyle' in api).toBe(false);
   expect(
@@ -204,7 +205,7 @@ test('object built-in source returns a tagged root', () => {
 test('query records round-trip group identity but receive freshly assigned indexes', () => {
   const seen: number[] = [];
   const visitor = (
-    _vertex: Vertex<T>,
+    _vertex: VertexView<T>,
     context: { registration: { addedIndex: number } },
   ) => {
     seen.push(context.registration.addedIndex);

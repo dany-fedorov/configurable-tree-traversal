@@ -1,7 +1,10 @@
-import type { MutableRef } from '@core/CTTRef';
-import type { ResolvedGraph, OriginalGraphView } from '@core/ResolvedGraph';
+import type { VertexHandle } from '@core/CTTRef';
+import type {
+  ResolvedGraphView,
+  OriginalGraphView,
+} from '@core/ResolvedGraphView';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
+import type { VertexView } from '@core/Vertex';
 import type { MaybePromise, VisitResult } from '@core/graph/types';
 import type { VisitorRegistrationMetadata } from '@core/TraversalVisitor';
 import type { DagVisitorPhase } from './DagTraversalOrder';
@@ -12,15 +15,14 @@ export type DagVisitorContext<
   ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
 > = {
-  resolvedGraph: ResolvedGraph<T | R, ID>;
+  resolvedGraphView: ResolvedGraphView<T | R, ID>;
   originalGraphView: OriginalGraphView<T, ID> | null;
-  vertexRef: MutableRef<Vertex<T | R>>;
+  vertexRef: VertexHandle<T | R>;
   phase: ORDER;
   isGraphRoot: boolean;
-  isTraversalRoot: boolean;
   phaseVisitIndex: number;
   visitorIndex: number;
-  previousPhaseVertexRef: MutableRef<Vertex<T | R>> | null;
+  previousPhaseVertexRef: VertexHandle<T | R> | null;
   visitorChainState: unknown;
   registration: VisitorRegistrationMetadata;
 };
@@ -32,7 +34,7 @@ export type DagVisitor<
   ID = unknown,
 > = VisitResult<R, ORDER, 'dag', T['VertexHint']> extends infer RESULT
   ? (
-      vertex: Vertex<T | R>,
+      vertex: VertexView<T | R>,
       options: DagVisitorContext<T, R, ORDER, ID>,
     ) => RESULT
   : never;
@@ -44,7 +46,7 @@ export type AsyncDagVisitor<
   ID = unknown,
 > = VisitResult<R, ORDER, 'dag', T['VertexHint']> extends infer RESULT
   ? (
-      vertex: Vertex<T | R>,
+      vertex: VertexView<T | R>,
       options: DagVisitorContext<T, R, ORDER, ID>,
     ) => MaybePromise<RESULT>
   : never;
@@ -56,8 +58,7 @@ export type AsyncDagVisitor<
  */
 export type DagEvent<T extends VertexTypes, ID = unknown> = {
   vertexId: ID;
-  vertex: Vertex<T>;
-  vertexRef: MutableRef<Vertex<T>>;
+  vertex: VertexView<T>;
+  vertexRef: VertexHandle<T>;
   isGraphRoot: boolean;
-  isTraversalRoot: boolean;
 } & ({ kind: 'workCompleted' } | { kind: 'subgraphCompleted' });

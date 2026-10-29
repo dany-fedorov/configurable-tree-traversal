@@ -91,7 +91,10 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
   kernel.discardRequest(shared.requestId);
   expect(action.kind).toBe('FINISHED');
   expect(
-    container.resolvedGraph.getVertexRefById('shared')!.getValue().getData(),
+    container.resolvedGraphView
+      .getVertexRefById('shared')!
+      .getValue()
+      .getData(),
   ).toBe('natural');
 });
 

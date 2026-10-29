@@ -1,7 +1,8 @@
 import type { DagDiscoverySource } from '@core/TraversableGraph';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { DagVertexResolution } from '@core/TraversableTree';
-import type { VertexRef } from '@core/graph/types';
+import type { VertexHandle } from '@core/CTTRef';
+import { internalRef } from '@core/observationFacets';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { defineDag } from '../defineDag';
 import type { DagDefinition, DagDefinitionSlot } from './DagDefinition';
@@ -12,9 +13,10 @@ export function captureDagDefinition<T extends VertexTypes, ID>(
   candidates: ReadonlySet<ID>,
 ): DagDefinition<T['VertexData'], ID> {
   const graph = container.publicResolvedGraph;
-  const captureSlots = (ref: VertexRef<T>): DagDefinitionSlot<ID>[] => {
+  const captureSlots = (ref: VertexHandle<T>): DagDefinitionSlot<ID>[] => {
     const slots: DagDefinitionSlot<ID>[] = [];
-    for (const slot of container.resolvedGraph.get(ref)!.slots) {
+    for (const slot of container.resolvedGraphView.get(internalRef(ref))!
+      .slots) {
       if (slot.kind === 'linked')
         slots.push({
           kind: 'vertex',

@@ -92,11 +92,11 @@ test('deleting a prerequisite cascades C dependents and tombstones later arrival
   finish(gate);
   finish(join);
   expect(scheduling.deleteVertex(gate)).toEqual(new Set([gate, join]));
-  expect(container.resolvedGraph.has(join)).toBe(false);
+  expect(container.resolvedGraphView.has(join)).toBe(false);
   expect(accept(3, result('future', ['gate']))).toBeNull();
-  expect(container.resolvedGraph.has(later)).toBe(false);
+  expect(container.resolvedGraphView.has(later)).toBe(false);
   expect(container.store.getIdState('future')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraph.getChildrenOf(root)).toEqual([]);
+  expect(container.resolvedGraphView.getChildrenOf(root)).toEqual([]);
   expect(container.originalGraphView!.getVertexRefById('join')).not.toBeNull();
 });
 
@@ -112,7 +112,7 @@ test('C prerequisite arrays and inspected work detach from caller and snapshots'
     scheduling.inspectWork().find(({ ref }) => ref === join)!.unmetComplete,
   ).toEqual(new Set(['gate']));
   expect(
-    container.resolvedGraph.get(join)!.dependsOnSubgraphCompletion,
+    container.resolvedGraphView.get(join)!.dependsOnSubgraphCompletion,
   ).toEqual(['gate']);
 });
 
@@ -216,6 +216,6 @@ test('an ordinary root gated on a deleted prerequisite is tombstoned before admi
   expect(scheduling.acceptRoot(result('root', ['gate']))).toBeNull();
   expect(scheduling.takeReady()).toBeNull();
   expect(container.store.getIdState('root')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraph.getRoot()).toBeNull();
+  expect(container.resolvedGraphView.getRoot()).toBeNull();
   expect(container.originalGraphView!.getVertexRefs()).toEqual([]);
 });

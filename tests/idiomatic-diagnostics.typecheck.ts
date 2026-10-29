@@ -8,7 +8,7 @@ import type {
   DagVisitorPhase,
   DepthFirstTreeRunner,
   DepthFirstPhase,
-  ResolvedGraph,
+  ResolvedGraphView,
   ResolvedVisitStage,
   TreeDagExecutionInspection,
   VertexTypes,
@@ -52,7 +52,7 @@ snapshot.chains[0]!.group;
 snapshot.chains[0]!.position;
 // @ts-expect-error old chain config is retired
 snapshot.chains[0]!.config;
-declare const graph: ResolvedGraph<G>;
+declare const graph: ResolvedGraphView<G>;
 const ref = graph.getVertexRefs()[0]!;
 const stage: ResolvedVisitStage | null = graph.getVisitStageOf(ref);
 const vertexStage: ResolvedVisitStage = graph.get(ref)!.visitStage;

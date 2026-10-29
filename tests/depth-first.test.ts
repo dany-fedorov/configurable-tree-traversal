@@ -1,3 +1,4 @@
+import { internalTreeStore } from './internal-runner-fixtures';
 import { treeResolution } from './source-result-fixtures';
 import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
@@ -46,7 +47,7 @@ describe('depth-first traversal', () => {
     const runner = traversal(null).createRunner();
     expect([...runner.iterateEvents()]).toEqual([]);
     expect(runner.getStatus()).toBe(Status.FINISHED);
-    expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
+    expect(internalTreeStore(runner).getRoot()).toBeNull();
   });
 
   test('sorts copied hints before resolving children', () => {
@@ -267,7 +268,7 @@ describe('depth-first traversal', () => {
         : undefined,
     );
     const runner = t.createRunner().run();
-    const tree = runner.getResolvedTreeStore();
+    const tree = internalTreeStore(runner);
     expect(
       tree
         .getChildrenOf(tree.getRoot()!)
@@ -330,10 +331,11 @@ test('retains equal-priority registration order after replacing visitor records'
 });
 
 test('a resolved tree can be traversed again as an adapter', () => {
-  const resolvedTree = traversal(node('root', node('a'), node('b')))
-    .createRunner()
-    .run()
-    .getResolvedTreeStore();
+  const resolvedTree = internalTreeStore(
+    traversal(node('root', node('a'), node('b')))
+      .createRunner()
+      .run(),
+  );
   const again = new DepthFirstTreeTraversal({ traversableTree: resolvedTree });
   const data = [
     ...again.createRunner().iterateEvents({ emitEvents: [Order.POST_ORDER] }),

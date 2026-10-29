@@ -1,3 +1,5 @@
+import { resolutionContextView } from '../src/core/observationFacets';
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import { getTreeGraphStore } from '../src/core/graph/treeStoreCapabilities';
 import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
 import { MutableRef } from '../src/core/CTTRef';
@@ -6,7 +8,6 @@ import {
   bindTreeSource,
 } from '../src/core/drivers/callbackBindings';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 import type { TreeChildResolutionContext } from '../src/core/TraversableTree';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
@@ -62,9 +63,11 @@ test('tree binding reuses the legacy facade and passes real tree options', () =>
       hint: string,
       options: TreeChildResolutionContext<InputTTP, RewriteTTP>,
     ) => {
-      expect(options.resolvedTree).toBe(container.treeContainer!.resolvedTree);
+      expect(options.resolvedTreeView).toBe(
+        container.treeContainer!.resolvedTree.asReadOnly(),
+      );
       expect(
-        options.resolvedTree.getParentOf(
+        options.resolvedTreeView.getParentOf(
           options.resolutionContext.parentVertexRef,
         ),
       ).toBeNull();
@@ -85,8 +88,8 @@ test('tree binding reuses the legacy facade and passes real tree options', () =>
     vertexContent: { $data: 'child', $childHints: [] },
   });
   expect(container.store).toBe(getTreeGraphStore(treeContainer.resolvedTree));
-  expect(container.resolvedGraph).toBe(
-    treeContainer.resolvedTree.getResolvedGraph(),
+  expect(container.publicResolvedGraph).toBe(
+    treeContainer.resolvedTree.getResolvedGraphView(),
   );
 
   const child = new MutableRef(
@@ -98,7 +101,7 @@ test('tree binding reuses the legacy facade and passes real tree options', () =>
   const savedParent = treeContainer.originalTreeRefsMap!.get(parent)!;
   const savedChild = treeContainer.originalTreeRefsMap!.get(child)!;
 
-  expect(container.resolvedGraph.get(parent)?.slots).toEqual([
+  expect(container.resolvedGraphView.get(parent)?.slots).toEqual([
     { kind: 'linked', hint: 'child', childRef: child },
   ]);
   expect(treeContainer.originalTreeView!.getChildrenOf(savedParent)).toEqual([
@@ -199,8 +202,8 @@ test('graph binding passes graph options and forwards hint identity', () => {
     resolveChild: (hint, options) => {
       expect(hint).toBe('child');
       expect(options).toEqual({
-        resolutionContext: context,
-        resolvedGraph: container.resolvedGraph,
+        resolutionContext: resolutionContextView(context),
+        resolvedGraphView: container.publicResolvedGraph,
         originalGraphView: container.originalGraphView,
       });
       return {

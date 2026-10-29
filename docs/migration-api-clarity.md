@@ -164,7 +164,7 @@ Pending request operations are `resolveRoot`, `resolveChild`, `resolvePrerequisi
 
 Original structure grows during discovery, retains topology/hints independently of command-driven rewrites, and uses distinct retained reference handles while sharing caller payloads. Repeated queries share the handles belonging to that view. Original tree callbacks expose a safe `ResolvedTreeView`, not mutable storage. Live and original query arrays/contexts are detached shallow values; read-only topology does not deeply freeze data, provide rollback, or create a complete discovery snapshot in advance.
 
-`DagMilestoneSnapshot` instead captures progress/constraints once; refresh it after settlement. `explain`, `prerequisitesOf`, `dependentsOf` and `transitive` retain their operations. `summary()` reads current progress; `inspect()` captures execution state; `getResolvedGraph()` returns a live query view. Diagnostic wait edges point **waiter → prerequisite**, including own-work and structural-child constraints. Cycle arrays are strongly connected component membership, not an ordered cycle path. Walking edge `from/to` remains conventional direction. All IDs retain exact identity.
+`DagMilestoneSnapshot` instead captures progress/constraints once; refresh it after settlement. `explain`, `prerequisitesOf`, `dependentsOf` and `transitive` retain their operations. `summary()` reads current progress; `inspect()` captures execution state; `getResolvedGraphView()` returns a live query view. Diagnostic wait edges point **waiter → prerequisite**, including own-work and structural-child constraints. Cycle arrays are strongly connected component membership, not an ordered cycle path. Walking edge `from/to` remains conventional direction. All IDs retain exact identity.
 
 ## Handles, records and object operations
 
@@ -175,7 +175,7 @@ Original structure grows during discovery, retains topology/hints independently 
 | `GraphVertex`, `GraphVertexStatus`, `GraphEdge`                                       | `ResolvedGraphVertex`, `ResolvedVisitStage`, `StructuralChildEdge` |
 | `VertexResolved`, `VertexResolvedData`, `VertexResolvedContent`                       | `TreeVertexRecord`, `TreeVertexMetadata`, `TreeVertexRecordContent`  |
 | Record `$d`, `$c`                                                                     | `metadata`, `children` (actual structural references)                |
-| `ResolvedTree`, `getResolvedTree`                                                     | `ResolvedTreeStore`, `getResolvedTreeStore`                          |
+| `ResolvedTree`, `getResolvedTree`                                                     | standalone `ResolvedTreeStore`, runner `getResolvedTreeView`                          |
 | `makeMutationCommandFactory`                                                          | `createObjectMutationBinder`                                         |
 | `TO_MakeMutationCommandFunctionFactoryConfiguration`, `TO_IsCompositeAssertionsMixin` | `ObjectMutationOptions`, `ObjectCompositeClassification`             |
 | `TO_MakeMutationCommandFunctionFactory`, `TO_MakeMutationCommandFunctionFactory_2`    | `ObjectMutationBinderFactory`, `ObjectMutationBinder`                |

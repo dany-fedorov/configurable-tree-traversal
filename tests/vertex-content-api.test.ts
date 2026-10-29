@@ -137,14 +137,14 @@ describe('canonical vertex content', () => {
     );
     expect(data).toContain('root');
     expect(data).toContain('child');
-    const tree = runner.getResolvedGraph();
+    const tree = runner.getResolvedGraphView();
     const root = tree.getRoot()!;
     const child = tree.getChildrenOf(root)![0]!;
     expect(child.getValue().getData()).toBe('child');
     expect(tree.getParentsOf(child)).toEqual([root]);
     // Resolved metadata stores child refs, whereas vertices retain source hints.
-    if ('getResolvedTreeStore' in runner) {
-      expect(runner.getResolvedTreeStore().get(root)!.children).toEqual([
+    if ('getResolvedTreeView' in runner) {
+      expect(runner.getResolvedTreeView()!.getChildrenOf(root)).toEqual([
         child,
       ]);
     }
@@ -193,7 +193,7 @@ describe('canonical vertex content', () => {
         },
       }).createRunner();
       await runner.run();
-      const graph = runner.getResolvedGraph();
+      const graph = runner.getResolvedGraphView();
       expect(graph.getVertexRefById(rootId)?.getValue().getData()).toBe('root');
       expect(graph.getVertexRefById(childId)?.getValue().getData()).toBe(
         'child',

@@ -46,7 +46,7 @@ for (const TreeTraversal of [
     }).createRunner();
     await runner.run();
     expect(lookups).toEqual([prerequisite]);
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     const snapshot = runner.originalGraphView!;
     for (const id of [root, undefined, NaN]) {
       const ref = graph.getVertexRefById(id)!;
@@ -115,10 +115,10 @@ for (const asynchronous of [false, true]) {
         await expect(async () => {
           await runner.run();
         }).rejects.toThrow(/vertexId must be an own property/);
-        expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(
+        expect(runner.getResolvedGraphView().getVertexRefs()).toHaveLength(
           callback === 'root' ? 0 : 1,
         );
-        expect(runner.getResolvedGraph().getVertexRefById(42)).toBeNull();
+        expect(runner.getResolvedGraphView().getVertexRefById(42)).toBeNull();
       });
     }
   }
@@ -148,7 +148,7 @@ for (const TreeTraversal of [
           },
         }).createRunner();
         await runner.run();
-        const graph = runner.getResolvedGraph();
+        const graph = runner.getResolvedGraphView();
         const ref = graph.getVertexRefById(id)!;
         expect(graph.getVertexId(ref)).toBe(id);
         expect(runner.summary().completedWorkIds).toEqual([id]);
@@ -176,7 +176,7 @@ for (const TreeTraversal of [
         await expect(async () => {
           await runner.run();
         }).rejects.toBe(error);
-        expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
+        expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
       },
     );
   }
@@ -211,7 +211,7 @@ for (const TreeTraversal of [
     await runner.run();
     expect(reads).toBe(1);
     expect(runner.summary().completedWorkIds).toEqual([7]);
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     expect(graph.getVertexRefById(7)!.getValue().getData()).toBe('own');
   });
 }

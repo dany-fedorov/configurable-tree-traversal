@@ -130,7 +130,7 @@ import {
   type VisitorDefinition,
   type DagSettlementOutcome,
   type VertexTypes as LegacyVertexTypes,
-  type ResolvedGraph,
+  type ResolvedGraphView,
   type TraversalVisitorCommand,
 } from 'configurable-tree-traversal';
 // @ts-expect-error Removed legacy sentinel.
@@ -152,7 +152,7 @@ legacyVertex.$c;
 legacyVertex.clone({ $d: 'old' });
 // @ts-expect-error UUID getter has a single canonical name.
 new MutableRef(legacyVertex).getId();
-declare const graph: ResolvedGraph<LegacyT>;
+declare const graph: ResolvedGraphView<LegacyT>;
 // @ts-expect-error Removed graph forwarding alias.
 graph.getIdOf(new MutableRef(legacyVertex));
 // @ts-expect-error Removed graph forwarding alias.

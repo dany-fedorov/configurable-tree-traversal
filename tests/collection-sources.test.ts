@@ -79,7 +79,7 @@ test('arbitrary IDs retain identity and caller data stays shared and unfrozen', 
     const runner = traversal.createRunner();
     runner.run();
     expect(seen).toEqual(items);
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     for (const item of items)
       expect(graph.getVertexRefById(item.id)!.getValue().getData()).toBe(item);
     expect(Object.isFrozen(objectId)).toBe(false);
@@ -123,12 +123,15 @@ test('materialization copies membership, children, and both milestone edges', as
       expect(
         runner.summary().awaitingSettlement.map((work) => work.vertexId),
       ).toEqual(['a']);
-      const graph = runner.getResolvedGraph();
+      const graph = runner.getResolvedGraphView();
       expect(graph.getVertexRefs()).toHaveLength(3);
       expect(graph.getParentsOf(graph.getVertexRefById('b')!)).toEqual([
         graph.getVertexRefById('a'),
       ]);
-      graph.getVertexRefById('a')!.getValue().$childHints.length = 0;
+      expect(() => {
+        // @ts-expect-error readonly observation collection
+        graph.getVertexRefById('a')!.getValue().$childHints.length = 0;
+      }).toThrow(TypeError);
       runner.settle(
         'a',
         { kind: 'workCompleted' },
@@ -187,7 +190,7 @@ test('forest permits repeated record identity but rejects different records shar
   ]) {
     const runner = new DagTraversal(source).createRunner();
     runner.run();
-    expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(1);
+    expect(runner.getResolvedGraphView().getVertexRefs()).toHaveLength(1);
   }
 });
 
@@ -250,7 +253,7 @@ test('async catalogs and promised iterable selectors preserve completion and str
   });
   const runner = new AsyncDagTraversal(source).createRunner();
   await runner.run();
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   expect(graph.getParentsOf(graph.getVertexRefById('b')!)).toEqual([
     graph.getVertexRefById('a'),
   ]);
@@ -339,7 +342,7 @@ test('empty forests produce finished empty graphs with no holder events', async 
   ]) {
     const runner = new DagTraversal(source).createRunner();
     expect([...runner.iterateEvents()]).toEqual([]);
-    expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
+    expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
   }
 });
 
@@ -403,13 +406,13 @@ test('empty and disconnected catalogs expose only actual records', async () => {
     materializeDagInputFromRecords([], { id: (item: string) => item }),
   ).createRunner();
   empty.run();
-  expect(empty.getResolvedGraph().getVertexRefs()).toEqual([]);
+  expect(empty.getResolvedGraphView().getVertexRefs()).toEqual([]);
   const source = await materializeDagInputFromRecordsAsync([1, 2], {
     id: (item) => item,
   });
   const runner = new AsyncDagTraversal(source).createRunner();
   await runner.run();
-  expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(2);
+  expect(runner.getResolvedGraphView().getVertexRefs()).toHaveLength(2);
 });
 
 test('forest expansion shares records across parents', async () => {
@@ -431,7 +434,7 @@ test('forest expansion shares records across parents', async () => {
   ]) {
     const runner = new DagTraversal(source).createRunner();
     runner.run();
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     expect(graph.getVertexRefs()).toHaveLength(3);
     expect(
       graph
@@ -575,10 +578,7 @@ test.each([
 for (const [name, make] of [
   ['materializeDagInputFromRecords', materializeDagInputFromRecords],
   ['materializeDagInputFromRoots', materializeDagInputFromRoots],
-  [
-    'materializeDagInputFromRecordsAsync',
-    materializeDagInputFromRecordsAsync,
-  ],
+  ['materializeDagInputFromRecordsAsync', materializeDagInputFromRecordsAsync],
   ['materializeDagInputFromRootsAsync', materializeDagInputFromRootsAsync],
 ] as const) {
   for (const key of ['dependencies', 'completionDependencies']) {

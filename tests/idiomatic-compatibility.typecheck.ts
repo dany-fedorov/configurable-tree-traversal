@@ -7,7 +7,7 @@ import {
   type VisitorDefinition,
   type DagSettlementOutcome,
   type VertexTypes,
-  type ResolvedGraph,
+  type ResolvedGraphView,
   type TraversalVisitorCommand,
 } from '../src';
 // @ts-expect-error Removed legacy sentinel.
@@ -26,7 +26,7 @@ vertex.$c;
 vertex.clone({ $d: 'old' });
 // @ts-expect-error UUID getter has a single canonical name.
 new MutableRef(vertex).getId();
-declare const graph: ResolvedGraph<T>;
+declare const graph: ResolvedGraphView<T>;
 // @ts-expect-error Removed graph forwarding alias.
 graph.getIdOf(new MutableRef(vertex));
 // @ts-expect-error Removed graph forwarding alias.

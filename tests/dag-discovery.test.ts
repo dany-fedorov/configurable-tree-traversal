@@ -343,9 +343,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }));
     const runner = traversal.createRunner();
     await runner.run({ emitEvents: [] });
-    expect(runner.getResolvedGraph().getVertexRefById('a')).toBeNull();
+    expect(runner.getResolvedGraphView().getVertexRefById('a')).toBeNull();
     expect(
-      runner.getResolvedGraph().getVertexRefById('b')!.getValue().getData(),
+      runner.getResolvedGraphView().getVertexRefById('b')!.getValue().getData(),
     ).toBe('rewritten');
     expect(
       runner.originalGraphView!.getVertexRefById('b')!.getValue().getData(),

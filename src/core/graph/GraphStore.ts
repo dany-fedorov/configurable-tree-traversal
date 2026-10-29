@@ -1,15 +1,15 @@
 import { normalizePathOptions } from '@core/normalizePathOptions';
-import type { ResolvedGraph } from '@core/ResolvedGraph';
+import type { InternalResolvedGraphView } from '@core/ResolvedGraphView';
 import type { GetPathToOptions, TreeVertexRecord } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { engineDagValidationErrors } from '@core/errors/engineDagValidationErrors';
 import { DagDiscoveryCycleError } from '@core/errors/DagDiscoveryCycleError';
 import type {
-  ChildSlot,
-  StructuralChildEdge,
+  InternalChildSlot,
+  InternalStructuralChildEdge,
   GraphIdentityState,
   GraphStoreContract,
-  ResolvedGraphVertex,
+  InternalResolvedGraphVertex,
   ResolvedVisitStage,
   HintVertexId,
   IdState,
@@ -24,14 +24,14 @@ type Entry<T extends VertexTypes> = {
   dependsOnSubgraphCompletion: VertexId[];
   depth: number;
   visitStage: ResolvedVisitStage;
-  incoming: StructuralChildEdge<T>[];
-  slots: ChildSlot<T>[] | null;
+  incoming: InternalStructuralChildEdge<T>[];
+  slots: InternalChildSlot<T>[] | null;
 };
 
 export class GraphStore<T extends VertexTypes>
   implements GraphStoreContract<T>
 {
-  readonly graph: ResolvedGraph<T>;
+  readonly graph: InternalResolvedGraphView<T>;
   private readonly entries = new Map<VertexRef<T>, Entry<T>>();
   private readonly ids = new Map<VertexId, IdState<T>>();
   private readonly treeRecords = new Map<VertexRef<T>, TreeVertexRecord<T>>();
@@ -67,12 +67,15 @@ export class GraphStore<T extends VertexTypes>
     return Array.from(this.ids, ([vertexId, { kind }]) => ({ vertexId, kind }));
   }
 
-  getTraversalSlots(ref: VertexRef<T>): readonly ChildSlot<T>[] | null {
+  getTraversalSlots(ref: VertexRef<T>): readonly InternalChildSlot<T>[] | null {
     return this.getEntry(ref).slots?.map((slot) => ({ ...slot })) ?? null;
   }
 
   /** Narrow detached reads for internal traversal consumers. */
-  getTraversalSlot(ref: VertexRef<T>, index: number): ChildSlot<T> | undefined {
+  getTraversalSlot(
+    ref: VertexRef<T>,
+    index: number,
+  ): InternalChildSlot<T> | undefined {
     const slot = this.getEntry(ref).slots?.[index];
     return slot === undefined ? undefined : { ...slot };
   }
@@ -175,7 +178,7 @@ export class GraphStore<T extends VertexTypes>
       }
     }
 
-    const edge: StructuralChildEdge<T> = {
+    const edge: InternalStructuralChildEdge<T> = {
       parentRef: parent,
       childRef: child,
       hintIndex: index,
@@ -297,7 +300,7 @@ export class GraphStore<T extends VertexTypes>
     return entry;
   }
 
-  private getSlot(entry: Entry<T>, index: number): ChildSlot<T> {
+  private getSlot(entry: Entry<T>, index: number): InternalChildSlot<T> {
     if (!Number.isInteger(index) || index < 0) {
       throw new Error('Unknown vertex slot');
     }
@@ -311,7 +314,9 @@ export class GraphStore<T extends VertexTypes>
     return state?.kind === 'live' ? state.ref : null;
   }
 
-  private getGraphVertex(ref: VertexRef<T>): ResolvedGraphVertex<T> | null {
+  private getGraphVertex(
+    ref: VertexRef<T>,
+  ): InternalResolvedGraphVertex<T> | null {
     const entry = this.entries.get(ref);
     if (entry === undefined) return null;
     const incoming = (
@@ -336,7 +341,7 @@ export class GraphStore<T extends VertexTypes>
     };
   }
 
-  private getTreeIncoming(ref: VertexRef<T>): StructuralChildEdge<T>[] {
+  private getTreeIncoming(ref: VertexRef<T>): InternalStructuralChildEdge<T>[] {
     const context = this.treeRecords.get(ref)?.getResolutionContext();
     if (context === undefined || context === null) return [];
     return [

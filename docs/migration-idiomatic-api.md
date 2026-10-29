@@ -57,7 +57,7 @@ const runner = new DagTraversal<Input, Output, string>({
     }] }),
   },
 }).createRunner().run();
-const current: Item | string = runner.getResolvedGraph()
+const current: Item | string = runner.getResolvedGraphView()
   .getVertexRefById('task')!.getValue().getData();
 const original: Item = runner.originalGraphView!
   .getVertexRefById('task')!.getValue().getData();
@@ -85,7 +85,7 @@ const input = materializeDagInputFromRecords(records, {
 const prepared = prepareDag(input);
 if (prepared.kind === 'invalid') throw new Error('Expected valid input');
 const runner = prepared.dag.createRunner().run();
-if (runner.getResolvedGraph().getVertexRefs().length !== 2) {
+if (runner.getResolvedGraphView().getVertexRefs().length !== 2) {
   throw new Error('Synthetic holder must stay hidden');
 }
 new GraphWalk({
@@ -459,3 +459,30 @@ These types are exported from the root and walking entry point.
 Walking callback diagnostics now use `operation: 'visit'` in place of `visitor`.
 Callback names, walking phases and iterator operations retain their names.
 See [walking sources](reference.md#walking-sources-and-identity).
+
+## Restricted observation and graph views
+
+Replace `ResolvedGraph`, `getResolvedGraph()` and `resolvedGraph` with
+`ResolvedGraphView`, `getResolvedGraphView()` and `resolvedGraphView`.
+Tree callbacks and source contexts use `resolvedTreeView` in place of
+`resolvedTree`. The old names have no compatibility aliases.
+
+All ordinary tree/DAG query, callback, source-context and event routes now expose
+canonical `VertexHandle<T>` and `VertexView<T>` facets. Handles retain `getRefId()`
+and live `getValue()` queries; `setValue` and writable vertex fields are absent.
+Hints and structural arrays are detached and frozen, while opaque data, IDs and
+individual hint payloads retain shallow identity. Event `vertex` values remain
+captured observations even when the corresponding live handle changes later.
+`clone()` creates an independent editable vertex and hint collection.
+
+Use visitor commands to rewrite or delete active traversal state. Ordinary
+runners no longer expose `getResolvedTreeStore()`. Explicit standalone
+`MutableRef`, `Vertex` and `ResolvedTreeStore` editing remains available.
+Original views remain typed to the input domain. Synthetic DAG entry source
+contexts have both `parentVertex` and `parentVertexRef` set to null; depth,
+hint index and hint values still describe that entry slot. Other graph parents
+and all tree parents remain non-null.
+
+Remove `isTraversalRoot` and `isTraversalRootVertex` uses. Keep `isTreeRoot` /
+`isTreeRootVertex` and `isGraphRoot` / `isGraphRootVertex` for family roots.
+Walking entries still use `via: null`. There is no subtree-start option.

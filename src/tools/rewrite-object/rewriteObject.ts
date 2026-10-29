@@ -10,7 +10,7 @@ import {
 import type { GetPathToOptions } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TreeVisitorContext } from '@core/TraversalVisitor';
-import type { Vertex } from '@core/Vertex';
+import type { VertexView } from '@core/Vertex';
 import type { DepthFirstTreeOptionsPatch } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { DepthFirstTreeRunner } from '@depth-first-traversal/lib/DepthFirstTraversalRunner';
@@ -44,7 +44,7 @@ export type ObjectRewriteContext<
   >
 > &
   ObjectCompositeClassification & {
-    vertex: Vertex<
+    vertex: VertexView<
       ObjectCurrentVertexTypes<
         ObjectTreeVertexTypes<InK, InV>,
         ObjectTreeVertexTypes<OutK, OutV>
@@ -253,7 +253,7 @@ export function rewriteObject<
   traversal.addVisitorFor(
     DepthFirstPhase.POST_ORDER,
     (
-      vertex: Vertex<
+      vertex: VertexView<
         ObjectCurrentVertexTypes<
           ObjectTreeVertexTypes<InK, InV>,
           ObjectTreeVertexTypes<OutK, OutV>
@@ -286,7 +286,7 @@ export function rewriteObject<
         isArray,
         vertex,
         getKeyPath: (thisOptions?: GetPathToOptions) =>
-          context.resolvedTree
+          context.resolvedTreeView
             .getPathTo(context.vertexRef, thisOptions)
             .map((ps) => ps.getValue().getData().key),
       });
@@ -295,10 +295,10 @@ export function rewriteObject<
   );
   const traversalRunner = traversal.createRunner().run();
   const convertCurrentRoot = () => {
-    const resolvedTree = traversalRunner.getResolvedTreeView();
-    const rootRef = resolvedTree.getRoot();
+    const resolvedTreeView = traversalRunner.getResolvedTreeView();
+    const rootRef = resolvedTreeView.getRoot();
     const rootValue =
-      rootRef === null || !resolvedTree.has(rootRef)
+      rootRef === null || !resolvedTreeView.has(rootRef)
         ? null
         : rootRef.getValue().getData().value;
     return convertRootValue(rootValue, {

@@ -1,3 +1,4 @@
+import { vertexHandle } from '../src/core/observationFacets';
 import { getTreeGraphStore } from '../src/core/graph/treeStoreCapabilities';
 import {
   DepthFirstTreeTraversal,
@@ -32,7 +33,9 @@ test('the advanced tree API retains supplied mutable records with detached child
   );
   record.getChildren().push(child);
   expect(tree.getChildrenOf(ref)).toEqual([child]);
-  expect(tree.getResolvedGraph().getVertexRefById(ref.getRefId())).toBe(ref);
+  expect(tree.getResolvedGraphView().getVertexRefById(ref.getRefId())).toBe(
+    vertexHandle(ref),
+  );
 });
 
 test('deleting an unresolved root clears the legacy root', () => {
@@ -81,14 +84,14 @@ test('legacy deletion detaches by clone and permits manually re-setting a ref', 
   expect(tree.getChildrenOf(rootRef)).toEqual([]);
   expect(rootRecord.getChildren()).toEqual([childRef, childRef]);
   expect(
-    tree.getResolvedGraph().getVertexRefById(childRef.getRefId()),
+    tree.getResolvedGraphView().getVertexRefById(childRef.getRefId()),
   ).toBeNull();
 
   tree.set(childRef, childRecord);
   expect(tree.get(childRef)).toBe(childRecord);
-  expect(tree.getResolvedGraph().getVertexRefById(childRef.getRefId())).toBe(
-    childRef,
-  );
+  expect(
+    tree.getResolvedGraphView().getVertexRefById(childRef.getRefId()),
+  ).toBe(vertexHandle(childRef));
 });
 
 test('an injected tree container retains its graph facade and store', () => {
@@ -109,8 +112,8 @@ test('an injected tree container retains its graph facade and store', () => {
   ).resolvedTreesContainer;
 
   expect(injected.resolvedTree).toBe(source.resolvedTree);
-  expect(injected.resolvedTree.getResolvedGraph()).toBe(
-    source.resolvedTree.getResolvedGraph(),
+  expect(injected.resolvedTree.getResolvedGraphView()).toBe(
+    source.resolvedTree.getResolvedGraphView(),
   );
   expect(getTreeGraphStore(injected.resolvedTree)).toBe(
     getTreeGraphStore(source.resolvedTree),

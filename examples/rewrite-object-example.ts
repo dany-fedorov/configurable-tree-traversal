@@ -35,8 +35,8 @@ const result = rewriteObject(obj, {
   },
   rewrite: function rewrite({ key, value }, options) {
     const depth =
-      options.resolvedTree.getResolutionContextOf(options.vertexRef)?.depth ??
-      0;
+      options.resolvedTreeView.getResolutionContextOf(options.vertexRef)
+        ?.depth ?? 0;
     console.log(
       'depth:',
       depth,

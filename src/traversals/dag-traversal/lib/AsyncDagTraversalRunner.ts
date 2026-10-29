@@ -1,5 +1,6 @@
+import { vertexHandle, vertexView, internalRef } from '@core/observationFacets';
+import type { VertexHandle } from '@core/CTTRef';
 import type { TreeDagExecutionInspection } from '@core/CoreInspection';
-import type { MutableRef } from '@core/CTTRef';
 import { AsyncRunnerSession } from '@core/drivers/AsyncRunnerSession';
 import {
   bindGraphSource,
@@ -11,7 +12,10 @@ import type { CallSpec, KernelEvent } from '@core/effects/types';
 import type { ResolvedGraphsContainerOptions } from '@core/graph/ResolvedGraphsContainer';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
-import type { OriginalGraphView, ResolvedGraph } from '@core/ResolvedGraph';
+import type {
+  OriginalGraphView,
+  ResolvedGraphView,
+} from '@core/ResolvedGraphView';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { AsyncTraversalExecution } from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
@@ -19,7 +23,6 @@ import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   type DepthFirstTreeResolvedOptions,
@@ -76,9 +79,8 @@ export interface AsyncDagTraversalRunner<
     expectedGeneration: DagSettlementGeneration,
   ): boolean;
   getResolvedTreeView(): ResolvedTreeView<T | R> | null;
-  getResolvedGraph(): ResolvedGraph<T | R, ID>;
-  isGraphRootVertex(ref: MutableRef<Vertex<T | R>>): boolean;
-  isTraversalRootVertex(ref: MutableRef<Vertex<T | R>>): boolean;
+  getResolvedGraphView(): ResolvedGraphView<T | R, ID>;
+  isGraphRootVertex(ref: VertexHandle<T | R>): boolean;
 }
 
 export class InternalAsyncDagTraversalRunner<
@@ -167,7 +169,7 @@ export class InternalAsyncDagTraversalRunner<
     }
     this.terminalObservation = getDagTerminalObservation(
       this.state,
-      this.resolvedGraphsContainer.resolvedGraph.getVertexRefs().length > 0,
+      this.resolvedGraphsContainer.resolvedGraphView.getVertexRefs().length > 0,
     );
     this.originalGraphView = this.resolvedGraphsContainer.originalGraphView;
     const policy = new DagPolicy(this.state, this.resolvedGraphsContainer);
@@ -316,16 +318,14 @@ export class InternalAsyncDagTraversalRunner<
     );
   }
 
-  getResolvedGraph(): ResolvedGraph<T | R, ID> {
+  getResolvedGraphView(): ResolvedGraphView<T | R, ID> {
     return this.resolvedGraphsContainer.publicResolvedGraph;
   }
 
-  isGraphRootVertex(ref: MutableRef<Vertex<T | R>>): boolean {
-    return ref === this.getResolvedGraph().getRoot();
-  }
-
-  isTraversalRootVertex(ref: MutableRef<Vertex<T | R>>): boolean {
-    return ref === this.state.traversalRootVertexRef;
+  isGraphRootVertex(ref: VertexHandle<T | R>): boolean {
+    return (
+      vertexHandle(internalRef(ref)) === this.getResolvedGraphView().getRoot()
+    );
   }
 
   iterateEvents(
@@ -344,14 +344,17 @@ export class InternalAsyncDagTraversalRunner<
   private visit(call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>) {
     const order = call.order as DagVisitorPhase;
     const registration = this.icfg.visitors[order][call.recordIndex]!;
-    return registration.visitor(call.ref.getValue(), {
+    return registration.visitor(vertexView(call.ref.getValue()), {
       ...call.metadata,
-      resolvedGraph: this.getResolvedGraph(),
+      previousPhaseVertexRef: vertexHandle(
+        call.metadata.previousPhaseVertexRef,
+      ),
+      resolvedGraphView: this.getResolvedGraphView(),
       originalGraphView: this.originalGraphView,
-      vertexRef: call.ref,
+      vertexRef: vertexHandle(call.ref),
       phase: order,
       isGraphRoot: this.isGraphRootVertex(call.ref),
-      isTraversalRoot: this.isTraversalRootVertex(call.ref),
+
       registration,
       // The record and options share the same phase selected above.
     } as never);
@@ -387,9 +390,9 @@ export class InternalAsyncDagTraversalRunner<
             kind: 'EVENT',
             boundaryId: progress.boundaryId,
             event: {
-              vertex: progress.event.vertex,
-              vertexRef: progress.event.vertexRef,
-              vertexId: this.getResolvedGraph().getVertexId(
+              vertex: vertexView(progress.event.vertex),
+              vertexRef: vertexHandle(progress.event.vertexRef),
+              vertexId: this.getResolvedGraphView().getVertexId(
                 progress.event.vertexRef,
               ),
               ...(progress.event.order === DagVisitorPhase.ON_WORK_READY
@@ -400,7 +403,6 @@ export class InternalAsyncDagTraversalRunner<
                     kind: 'subgraphCompleted',
                   } as const)),
               isGraphRoot: progress.event.isRoot,
-              isTraversalRoot: progress.event.isTraversalRoot,
             },
           };
         }

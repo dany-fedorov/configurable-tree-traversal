@@ -76,20 +76,22 @@ for (const [api, other] of [
       assert.equal(typeof view.add, 'undefined');
       const root = view.getRoot();
       const detached = view.getChildrenOf(root);
-      detached.length = 0;
+      assert.throws(() => { detached.length = 0; }, TypeError);
       assert.equal(view.getChildrenOf(root).length, 1);
       const child = view.getChildrenOf(root)[0];
       const context = view.getResolutionContextOf(child);
-      context.depth = 100;
+      assert.throws(() => { context.depth = 100; }, TypeError);
       assert.notEqual(view.getResolutionContextOf(child).depth, 100);
       const rootRefId = root.getRefId();
       const originalValue = root.getValue();
       const replacement = originalValue.clone({ $data: 'replacement' });
-      root.setValue(replacement);
-      assert.equal(root.getValue(), replacement);
+      assert.equal("setValue" in root, false);
+      const editable = new api.MutableRef(originalValue.clone());
+      editable.setValue(replacement);
+      assert.equal(editable.getValue(), replacement);
       assert.equal(root.getRefId(), rootRefId);
       assert.equal('getId' in root, false);
-      root.setValue(originalValue);
+      assert.equal(root.getValue(), originalValue);
 
       assert.deepEqual(
         visits,
@@ -247,7 +249,7 @@ for (const [api, other] of [
     assert.equal(external.getStopReason(), 'awaitingSettlement');
     assert.equal(external.inspect().stopReason, 'awaitingSettlement');
     assert.equal(external.getResolvedTreeView(), null);
-    const graph = external.getResolvedGraph();
+    const graph = external.getResolvedGraphView();
     const ref = graph.getVertexRefById(undefined);
     assert.equal(ref, graph.getVertexRefById(undefined));
     assert(ref);
@@ -508,7 +510,7 @@ for (const api of [cjs, esm]) {
     ],
   }));
   assert.equal(
-    dag.createRunner().run().getResolvedGraph().getVertexRefs().length,
+    dag.createRunner().run().getResolvedGraphView().getVertexRefs().length,
     0,
   );
   assert.throws(

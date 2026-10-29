@@ -141,9 +141,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }).createRunner();
     await runner.run();
     expect(runner.summary().completedWorkIds).toEqual([undefined, objectId]);
-    expect(runner.getResolvedGraph().getVertexRefById(objectId)).not.toBeNull();
     expect(
-      runner.getResolvedGraph().getVertexRefById(undefined),
+      runner.getResolvedGraphView().getVertexRefById(objectId),
+    ).not.toBeNull();
+    expect(
+      runner.getResolvedGraphView().getVertexRefById(undefined),
     ).not.toBeNull();
   });
 
@@ -328,7 +330,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       }).createRunner();
       await runner.run();
-      expect(runner.getResolvedGraph().getRoot()).toBeNull();
+      expect(runner.getResolvedGraphView().getRoot()).toBeNull();
       expect(
         runnerInternals(runner).resolvedGraphsContainer.store.getIdState(id),
       ).toEqual({

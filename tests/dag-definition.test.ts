@@ -280,7 +280,7 @@ for (const anonymous of [false, true]) {
     expect(replay.summary().counts.discovered).toBe(3);
     expect(replay.summary().unusedCompletedWorkIds).toEqual([]);
     expect(
-      replay.getResolvedGraph().getRoot()!.getValue().getChildrenHints(),
+      replay.getResolvedGraphView().getRoot()!.getValue().getChildrenHints(),
     ).toEqual(['skip', 'b', 'c']);
   });
 }
@@ -412,7 +412,7 @@ test('definition replay retains structural sharing and detached prerequisites wi
   if (roundtrip.kind !== 'valid') throw new Error('Expected valid');
   expect(roundtrip.dag.definition).toEqual(result.dag.definition);
   const replay = roundtrip.dag.createRunner();
-  const graph = replay.getResolvedGraph();
+  const graph = replay.getResolvedGraphView();
   expect(graph.getParentsOf(graph.getVertexRefById(remoteId)!)).toEqual([]);
   expect(graph.getVertexRefById(sharedId)!.getValue().getData()).toBe(sharedId);
   expect(

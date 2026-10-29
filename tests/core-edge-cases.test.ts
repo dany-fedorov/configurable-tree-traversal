@@ -1,3 +1,5 @@
+import { internalTreeStore } from './internal-runner-fixtures';
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { DepthFirstTraversalResolvedTreesContainer } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import {
   DepthFirstPhase,
@@ -7,7 +9,6 @@ import {
   TraversalVisitorCommandName,
   TreeVertexRecord,
   Vertex,
-  type VertexResolutionContext,
   type VertexTypes,
 } from '../src';
 import {
@@ -298,7 +299,7 @@ describe('saved resolved-tree consistency', () => {
     });
 
     const runner = traversal.createRunner().run();
-    const activeTree = runner.getResolvedTreeStore();
+    const activeTree = internalTreeStore(runner);
     const activeRootRef = activeTree.getRoot();
     if (activeRootRef === null) throw new Error('Expected an active root');
     expect(activeRootRef.getValue().getData()).toBe('changed-root');
@@ -362,7 +363,7 @@ describe('saved resolved-tree consistency', () => {
     })
       .createRunner()
       .run();
-    const activeRootRef = runner.getResolvedTreeStore().getRoot();
+    const activeRootRef = internalTreeStore(runner).getRoot();
     const savedRootRef =
       runnerInternals(
         runner,
@@ -388,7 +389,7 @@ describe('ResolvedTreeStore paths', () => {
     const tree = makeTraversal(node('root'))
       .createRunner()
       .run()
-      .getResolvedTreeStore();
+      .getResolvedTreeView();
 
     expect(() => tree.getPathTo(makeRef('missing'))).toThrow(
       /could not find ref/i,
@@ -401,7 +402,7 @@ describe('ResolvedTreeStore paths', () => {
     )
       .createRunner()
       .run()
-      .getResolvedTreeStore();
+      .getResolvedTreeView();
     const rootRef = tree.getRoot();
     if (rootRef === null) throw new Error('Expected a root');
     const branchRef = tree.getChildrenOf(rootRef)?.[0];
@@ -428,18 +429,17 @@ describe('ResolvedTreeStore paths', () => {
   });
 
   test('keeps path semantics when a resolved tree is traversed again', () => {
-    const firstTree = makeTraversal(
-      node('root', node('branch', node('leaf')), node('sibling')),
-    )
-      .createRunner()
-      .run()
-      .getResolvedTreeStore();
+    const firstTree = internalTreeStore(
+      makeTraversal(node('root', node('branch', node('leaf')), node('sibling')))
+        .createRunner()
+        .run(),
+    );
     const secondTree = new DepthFirstTreeTraversal({
       traversableTree: firstTree,
     })
       .createRunner()
       .run()
-      .getResolvedTreeStore();
+      .getResolvedTreeView();
     const secondRootRef = secondTree.getRoot();
     if (secondRootRef === null) throw new Error('Expected a second root');
     const secondBranchRef = secondTree.getChildrenOf(secondRootRef)?.[0];

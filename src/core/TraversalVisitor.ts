@@ -1,9 +1,8 @@
-import type { MutableRef } from '@core/CTTRef';
+import type { VertexHandle } from '@core/CTTRef';
 import type { VisitorRecord } from '@core/graph/types';
-import type { ResolvedTreeStore } from '@core/ResolvedTree';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
+import type { VertexView } from '@core/Vertex';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export enum TraversalVisitorCommandName {
@@ -108,14 +107,13 @@ export type TreeVisitorContext<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
-  resolvedTree: ResolvedTreeStore<TTP | RW_TTP>;
+  resolvedTreeView: ResolvedTreeView<TTP | RW_TTP>;
   originalTreeView: ResolvedTreeView<TTP> | null;
   phaseVisitIndex: number;
   visitorIndex: number;
-  previousPhaseVertexRef: MutableRef<Vertex<TTP | RW_TTP>> | null;
+  previousPhaseVertexRef: VertexHandle<TTP | RW_TTP> | null;
   isTreeRoot: boolean;
-  isTraversalRoot: boolean;
-  vertexRef: MutableRef<Vertex<TTP | RW_TTP>>;
+  vertexRef: VertexHandle<TTP | RW_TTP>;
   visitorChainState: unknown;
   registration: VisitorRegistrationMetadata;
   phase: Phase;
@@ -196,7 +194,7 @@ export type TreeVisitor<
   TTP['VertexHint']
 > extends infer RESULT
   ? (
-      vertex: Vertex<TTP | RW_TTP>,
+      vertex: VertexView<TTP | RW_TTP>,
       options: TreeVisitorContext<Phase, TTP, RW_TTP>,
     ) => RESULT | undefined | void
   : never;

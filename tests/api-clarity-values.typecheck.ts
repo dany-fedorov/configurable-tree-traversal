@@ -1,10 +1,9 @@
+import type { VertexHandle } from '../src';
 import type {
   TreeVisitorContext,
   TreeChildResolutionContext,
   VertexTypes,
   VertexRef,
-  Vertex,
-  MutableRef,
 } from '../src';
 type T = VertexTypes<number, string>;
 declare const visitor: TreeVisitorContext<string, T, T>;
@@ -14,5 +13,5 @@ visitor.originalTreeView!.set;
 // @ts-expect-error Source callbacks receive the same read-only facade.
 child.originalTreeView!.set;
 declare const ref: VertexRef<T>;
-const generic: MutableRef<Vertex<T>> = ref;
+const generic: VertexHandle<T> = ref;
 void generic;

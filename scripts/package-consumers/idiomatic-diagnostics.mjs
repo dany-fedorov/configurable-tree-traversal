@@ -53,7 +53,7 @@ for (const api of [esm, cjs]) {
   assert.deepEqual(inspection.pendingRequests[0].owner, chain.owner);
   assert.deepEqual(runner.inspect(), inspection);
   assert.equal(sourceCalls, 1);
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   const ref = graph.getVertexRefById(id);
   assert.equal(graph.get(ref).vertexId, id);
   assert.equal(graph.get(ref).visitStage, 'INITIAL_VISIT_STARTED');

@@ -1,7 +1,12 @@
+import { resolvedGraphView, originalGraphView } from '../observationFacets';
+import type { ResolvedGraphView } from '../ResolvedGraphView';
 import { makeDagGraphView } from '../../traversals/dag-traversal/lib/DagGraphView';
-import type { ResolvedGraph, OriginalGraphView } from '@core/ResolvedGraph';
 import type {
-  VertexResolutionContext,
+  InternalResolvedGraphView,
+  OriginalGraphView,
+} from '@core/ResolvedGraphView';
+import type {
+  InternalVertexResolutionContext,
   TreeVertexRecord,
 } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -44,11 +49,11 @@ export class ResolvedGraphsContainer<
   /** Stable private identity even when the holder is omitted or deleted. */
   readonly syntheticRootId: symbol | null;
   syntheticRootRef: VertexRef<T | R> | null = null;
-  readonly publicResolvedGraph: ResolvedGraph<T | R, ID>;
+  readonly publicResolvedGraph: ResolvedGraphView<T | R, ID>;
   /** Raw bookkeeping includes a private symbol when syntheticRoot is enabled. */
   readonly store: GraphStoreContract<T | R, ID | symbol>;
   /** Unlike publicResolvedGraph, this view includes the synthetic root. */
-  readonly resolvedGraph: ResolvedGraph<T | R, ID | symbol>;
+  readonly resolvedGraphView: InternalResolvedGraphView<T | R, ID | symbol>;
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
   readonly originalGraphRefsMap: Map<VertexRef<T | R>, VertexRef<T>> | null;
   readonly treeContainer: DepthFirstTraversalResolvedTreesContainer<
@@ -67,25 +72,25 @@ export class ResolvedGraphsContainer<
       options.sourceMode === 'tree' ? options.treeContainer : null;
     this.store =
       // The erased store contains source IDs plus a private synthetic-root symbol.
-      (this.treeContainer === null
-        ? new GraphStore<T | R>('dag')
-        : getTreeGraphStore(this.treeContainer.resolvedTree)) as GraphStoreContract<
-        T | R,
-        ID | symbol
-      >;
-    this.resolvedGraph = this.store.graph;
+      (
+        this.treeContainer === null
+          ? new GraphStore<T | R>('dag')
+          : getTreeGraphStore(this.treeContainer.resolvedTree)
+      ) as GraphStoreContract<T | R, ID | symbol>;
+    this.resolvedGraphView = this.store.graph;
     // The public forest view excludes the synthetic identity; other IDs come from the source.
-    this.publicResolvedGraph = (
+    this.publicResolvedGraph = resolvedGraphView(
       this.syntheticRoot
-        ? makeDagGraphView(this.resolvedGraph, () => this.syntheticRootRef)
-        : this.resolvedGraph
-    ) as ResolvedGraph<T | R, ID>;
+        ? makeDagGraphView(this.resolvedGraphView, () => this.syntheticRootRef)
+        : this.resolvedGraphView,
+    ) as ResolvedGraphView<T | R, ID>;
     this.snapshot = options.saveOriginal
       ? new StructuralGraphSnapshot<T, R>()
       : null;
     // Snapshots preserve the exact identities accepted by this typed container.
-    this.originalGraphView = (this.snapshot?.graph ??
-      null) as OriginalGraphView<T, ID> | null;
+    this.originalGraphView = (
+      this.snapshot === null ? null : originalGraphView(this.snapshot.graph)
+    ) as OriginalGraphView<T, ID> | null;
     this.originalGraphRefsMap = this.snapshot?.refsMap ?? null;
   }
 
@@ -123,7 +128,7 @@ export class ResolvedGraphsContainer<
     ref: VertexRef<T | R>,
     id: ID,
     dependsOnWork: readonly ID[],
-    context: VertexResolutionContext<T | R>,
+    context: InternalVertexResolutionContext<T | R>,
     dependsOnSubgraphCompletion: readonly ID[] = [],
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
@@ -215,7 +220,7 @@ export class ResolvedGraphsContainer<
       return;
     }
     for (const ref of refs) {
-      if (this.resolvedGraph.has(ref)) this.treeContainer.delete(ref);
+      if (this.resolvedGraphView.has(ref)) this.treeContainer.delete(ref);
     }
   }
 

@@ -128,15 +128,17 @@ import {
   type VisitorPhaseInput,
   type TreeVisitor,
   type ObjectTreeVertexTypes,
+  type ObjectCurrentVertexTypes,
 } from 'configurable-tree-traversal';
 
 type Tree = ObjectTreeVertexTypes<string, number>;
+type Current = ObjectCurrentVertexTypes<Tree, Tree>;
 const source = ObjectTreeSource.fromProperties<number, string, number>(1, {
   getRootPropertyFromInputObject: value => ({ key: 'root', value }),
   getChildrenOfProperty: () => [],
 });
 const calls: string[] = [];
-const definition: VisitorPhaseInput<TreeVisitor<Order.POST_ORDER, Tree, Tree>> =
+const definition: VisitorPhaseInput<TreeVisitor<Order.POST_ORDER, Tree, Current>> =
   {
     groups: [
       {
@@ -162,7 +164,7 @@ const definition: VisitorPhaseInput<TreeVisitor<Order.POST_ORDER, Tree, Tree>> =
       },
     ],
   };
-const traversal = new DepthFirstTreeTraversal({
+const traversal = new DepthFirstTreeTraversal<Tree, Current>({
   traversableTree: source,
   visitors: { [Order.POST_ORDER]: definition },
 });
@@ -171,7 +173,7 @@ traversal.setVisitorsFor(
   traversal.listVisitorsFor(Order.POST_ORDER),
 );
 traversal.createRunner().run();
-traverseTreeDepthFirst({
+traverseTreeDepthFirst<Tree, Current>({
   traversableTree: source,
   visitors: { [Order.POST_ORDER]: definition },
 });
@@ -303,9 +305,9 @@ Use `resolveChildHook` in object adapters and `rewriteObject`: return `{ kind: '
 
 ## Safe queries and identity names
 
-Use `runner.getResolvedTreeView()` or `ResolvedTreeStore.asReadOnly()` for a stable live shallow `ResolvedTreeView<T>` facade. Its root/has/children/parent/path/context queries have readonly collection/context types; no mutators or raw records are exposed. Tree children arrays and context objects are now detached copies. Refs, hints and data keep shallow identity. Mutating a query result no longer edits topology. DAG tree-source mode returns its internal tree view; graph-source mode returns null. `getResolvedTreeStore()` and raw records remain advanced editing APIs with caller-owned consistency; no durable/deep snapshot is added.
+Use `runner.getResolvedTreeView()` or `ResolvedTreeStore.asReadOnly()` for a stable live shallow `ResolvedTreeView<T>` facade. Its root/has/children/parent/path/context queries have readonly collection/context types; no mutators or raw records are exposed. Tree child arrays and context objects are detached and frozen. Canonical `VertexHandle`/`VertexView` facets restrict CTT state; opaque data and individual hint payloads keep shallow identity. DAG tree-source mode returns its internal tree view; graph-source mode returns null. Ordinary runners no longer expose `getResolvedTreeStore()`. Commands edit the active traversal; standalone `ResolvedTreeStore` instances retain advanced editing with caller-owned consistency.
 
-Use `MutableRef.getRefId()` for the generated reference UUID, `ResolvedGraph.getVertexId(ref)` for the arbitrary host ID, and `getVertexRefById(id)` for the reference lookup. These names also exist on live and original graph views. Retired `getId`/`getIdOf`/`getVertexById` aliases are removed. Host IDs, including explicit undefined, symbols and object references, are not coerced.
+Use `MutableRef.getRefId()` for the generated reference UUID, `ResolvedGraphView.getVertexId(ref)` for the arbitrary host ID, and `getVertexRefById(id)` for the reference lookup. These names also exist on live and original graph views. Retired `getId`/`getIdOf`/`getVertexById` aliases are removed. Host IDs, including explicit undefined, symbols and object references, are not coerced.
 
 ## Caller-specified graph identity types
 
@@ -365,7 +367,7 @@ Visitor context uses `admissionIndex` and `phaseObservationIndex`. Walking edges
 
 Use `MutableRef<T>.getValue()` / `.setValue(value)` in place of `CTTRef.unref()` / `.setPointsTo(value)`. `VertexRef<T>` is the exported vertex handle alias. `getRefId()` remains a reference UUID, distinct from arbitrary caller vertex IDs; retired `getId()` is removed. `GraphVertex`, `GraphVertexStatus`, and `GraphEdge` become `ResolvedGraphVertex`, `ResolvedVisitStage`, and `StructuralChildEdge`.
 
-`VertexResolved` becomes `TreeVertexRecord` with `metadata` and `children`. These fields describe records and structural references; Vertex's canonical `$data` / `$childHints` remain distinct from structural references; retired aliases are removed. `ResolvedTree` / `getResolvedTree()` become `ResolvedTreeStore` / `getResolvedTreeStore()`. Continue using `getResolvedTreeView()` for shallow detached queries.
+`VertexResolved` becomes `TreeVertexRecord` with `metadata` and `children`. These fields describe records and structural references; Vertex's canonical `$data` / `$childHints` remain distinct from structural references; retired aliases are removed. `ResolvedTree` becomes the standalone `ResolvedTreeStore`; ordinary runner queries use `getResolvedTreeView()` with restricted handles.
 
 Replace `saveNotMutatedResolvedTree` / `saveNotMutatedResolvedGraph` with `retainOriginalTreeStructure` / `retainOriginalGraphStructure`, and context fields `notMutatedResolvedTree` / `notMutatedResolvedGraph` with `originalTreeView` / `originalGraphView`. The graph type is `OriginalGraphView`. Original-tree contexts expose `ResolvedTreeView` without storage mutators. Retention grows during discovery and shares payloads; it does not capture frozen deep data or a complete snapshot before discovery.
 

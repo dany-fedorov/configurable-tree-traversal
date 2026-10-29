@@ -1,10 +1,10 @@
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import {
   DepthFirstTreeTraversal,
   MutableRef,
   ResolvedTreeStore,
   TreeVertexRecord,
   Vertex,
-  type VertexResolutionContext,
   type VertexTypes,
 } from '../src';
 import { runnerInternals } from './internal-runner-fixtures';

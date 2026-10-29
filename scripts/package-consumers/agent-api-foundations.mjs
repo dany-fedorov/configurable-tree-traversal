@@ -168,7 +168,7 @@ for (const api of [cjs, esm]) {
     assert.equal(result.kind, 'valid');
     const runner = result.dag.createRunner();
     runner.run();
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     assert.equal(graph.getVertexRefs().length, 3);
     assert.deepEqual(
       graph
@@ -197,7 +197,7 @@ for (const api of [cjs, esm]) {
     const callback = (data, options) => {
       calls.push(data);
       assert.equal(
-        options.resolvedGraph.getVertexId(options.vertexRef),
+        options.resolvedGraphView.getVertexId(options.vertexRef),
         taskId,
       );
       return {
@@ -233,13 +233,19 @@ for (const api of [cjs, esm]) {
       2,
     );
     assert.equal(
-      runner.getResolvedGraph().getVertexRefById(taskId).getValue().getData()
-        .label,
+      runner
+        .getResolvedGraphView()
+        .getVertexRefById(taskId)
+        .getValue()
+        .getData().label,
       'built',
     );
     assert.equal(
-      runner.getResolvedGraph().getVertexRefById(groupId).getValue().getData()
-        .label,
+      runner
+        .getResolvedGraphView()
+        .getVertexRefById(groupId)
+        .getValue()
+        .getData().label,
       'bundle',
     );
   }
@@ -256,7 +262,9 @@ for (const api of [esm, cjs]) {
           id: (item) => item.id,
           children: (item) => item.children,
         }),
-      ).createRunner().run(),
+      )
+        .createRunner()
+        .run(),
     (error) =>
       error instanceof esm.DagDiscoveryCycleError &&
       error.vertexIds.join(',') === 'a,a',

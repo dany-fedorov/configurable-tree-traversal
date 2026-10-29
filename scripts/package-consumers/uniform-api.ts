@@ -298,7 +298,7 @@ if (treeView) {
   // @ts-expect-error query collections are readonly
   treeView.getChildrenOf(treeView.getRoot()!)!.push(treeView.getRoot()!);
 }
-const resolved = externalRunner.getResolvedGraph();
+const resolved = externalRunner.getResolvedGraphView();
 const vertexRef = resolved.getVertexRefById(undefined);
 if (vertexRef) {
   const referenceId: string = vertexRef.getRefId();

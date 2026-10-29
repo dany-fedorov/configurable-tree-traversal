@@ -8,7 +8,7 @@ import {
 } from '../src';
 import { traverseDagAsync } from '../src/traversals/dag-traversal';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
-import type { OriginalGraphView } from '../src/core/ResolvedGraph';
+import type { OriginalGraphView } from '../src/core/ResolvedGraphView';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
 type TestGraph = VertexTypes<string, string>;
@@ -60,7 +60,7 @@ test('async DAG helper accepts omitted visitors and returns a finished runner', 
   const runner = await traverseDagAsync({ ...{ traversableGraph: explicit } });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-  expect(runner.getResolvedGraph().getRoot()?.getValue().getData()).toBe(
+  expect(runner.getResolvedGraphView().getRoot()?.getValue().getData()).toBe(
     'root',
   );
 });
@@ -93,7 +93,7 @@ test('async DAG helper returns a halted runner when its visitor requests halt', 
   });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.HALTED);
-  expect(hasSingleStructuralSink(runner.getResolvedGraph())).toBe(true);
+  expect(hasSingleStructuralSink(runner.getResolvedGraphView())).toBe(true);
 });
 
 test('hasSingleStructuralSink counts the currently resolved discovery graph', () => {
@@ -113,9 +113,9 @@ test('hasSingleStructuralSink counts the currently resolved discovery graph', ()
     },
   });
 
-  expect(hasSingleStructuralSink(empty.getResolvedGraph())).toBe(false);
-  expect(hasSingleStructuralSink(fork.getResolvedGraph())).toBe(false);
-  expect(hasSingleStructuralSink(chain.getResolvedGraph())).toBe(true);
+  expect(hasSingleStructuralSink(empty.getResolvedGraphView())).toBe(false);
+  expect(hasSingleStructuralSink(fork.getResolvedGraphView())).toBe(false);
+  expect(hasSingleStructuralSink(chain.getResolvedGraphView())).toBe(true);
   expect(
     hasSingleStructuralSink({
       getVertexRefs: () => [null as never],

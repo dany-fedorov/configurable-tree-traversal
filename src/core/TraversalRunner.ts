@@ -1,17 +1,16 @@
-import type { MutableRef } from '@core/CTTRef';
+import type { VertexHandle } from '@core/CTTRef';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
+import type { VertexView } from '@core/Vertex';
 
 export type TreeTraversalEvent<
   Phase extends string,
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
-  vertex: Vertex<TTP | RW_TTP>;
-  vertexRef: MutableRef<Vertex<TTP | RW_TTP>>;
+  vertex: VertexView<TTP | RW_TTP>;
+  vertexRef: VertexHandle<TTP | RW_TTP>;
   phase: Phase;
   isTreeRoot: boolean;
-  isTraversalRoot: boolean;
 };
 
 export type TraversalStopReason =

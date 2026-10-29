@@ -110,7 +110,7 @@ test('discovery accounting survives duplicates, omissions, deleted arrivals and 
   scheduling.closeExpansion(root);
   scheduling.closeExpansion(root);
   expect(scheduling.isDiscoveryComplete()).toBe(false);
-  const previous = container.resolvedGraph.get(root)!;
+  const previous = container.resolvedGraphView.get(root)!;
   scheduling.deleteVertex(a);
   expect(scheduling.isDiscoveryComplete()).toBe(true);
   expect(previous.slots[0]).toMatchObject({ kind: 'linked', childRef: a });

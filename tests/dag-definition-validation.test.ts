@@ -71,7 +71,7 @@ test('materialized definitions accept detached W and C prerequisite closures', (
     'child',
   ]);
   const runner = result.dag.createRunner();
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   expect(graph.getParentsOf(graph.getVertexRefById('remoteC')!)).toEqual([]);
   expect(
     [...runner.iterateEvents()]

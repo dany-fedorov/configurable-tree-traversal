@@ -156,7 +156,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     DepthFirstFrame<T | R>
   >();
   private breadthPendingContext:
-    | import('@core/ResolvedTree').VertexResolutionContext<T | R>
+    | import('@core/ResolvedTree').InternalVertexResolutionContext<T | R>
     | null = null;
   private nextRequestId = 1;
   private nextOwnerId = 2;
@@ -203,16 +203,16 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
             options.hasSorter,
           )
         : null;
-    const existingRoot = options.container.resolvedGraph.getRoot();
+    const existingRoot = options.container.resolvedGraphView.getRoot();
     if (options.kind === 'dag' && options.dagSeed !== undefined) {
-      const refs = options.container.resolvedGraph.getVertexRefs();
+      const refs = options.container.resolvedGraphView.getVertexRefs();
       const traversalRoot = options.stateBridge.traversalRootVertexRef;
       if (
         (refs.length === 0 && traversalRoot !== null) ||
         (refs.length > 0 &&
           (existingRoot === null ||
             traversalRoot !== existingRoot ||
-            !options.container.resolvedGraph.has(existingRoot)))
+            !options.container.resolvedGraphView.has(existingRoot)))
       ) {
         throw new Error('Invalid injected DAG seed: traversal root mismatch');
       }
@@ -230,8 +230,8 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       for (const ref of options.dagSeed.expansionQueue) {
         if (
           expansionRefs.has(ref) ||
-          !options.container.resolvedGraph.has(ref) ||
-          options.container.resolvedGraph.getVisitStageOf(ref) !==
+          !options.container.resolvedGraphView.has(ref) ||
+          options.container.resolvedGraphView.getVisitStageOf(ref) !==
             'INITIAL_VISIT_COMMITTED' ||
           options.container.store.getTraversalSlots(ref) !== null
         ) {
@@ -243,7 +243,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       }
       for (const ref of refs) {
         if (
-          options.container.resolvedGraph.getVisitStageOf(ref) ===
+          options.container.resolvedGraphView.getVisitStageOf(ref) ===
             'INITIAL_VISIT_COMMITTED' &&
           options.container.store.getTraversalSlots(ref) === null &&
           !expansionRefs.has(ref)
@@ -266,14 +266,15 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       this.rootRequested = true;
       this.rootSettled = true;
       options.stateBridge.traversalRootVertexRef = existingRoot;
-      if (options.container.resolvedGraph.has(existingRoot)) {
+      if (options.container.resolvedGraphView.has(existingRoot)) {
         this.scheduling.enrollExisting(existingRoot);
         if (this.depthFirstPolicy !== null) {
           this.scheduling.takeReady();
           this.depthFirstPolicy.push(
             this.newOwner('frame'),
             existingRoot,
-            options.container.resolvedGraph.get(existingRoot)!.discoveryDepth,
+            options.container.resolvedGraphView.get(existingRoot)!
+              .discoveryDepth,
           );
         }
       }
@@ -387,7 +388,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       if (!this.rootRequested && mode === 'drive') {
         this.rootRequested = true;
         this.setStatus(TraversalRunnerStatus.RUNNING);
-        const existingRoot = this.options.container.resolvedGraph.getRoot();
+        const existingRoot = this.options.container.resolvedGraphView.getRoot();
         if (
           (this.depthFirstPolicy !== null ||
             this.breadthFirstPolicy !== null) &&
@@ -395,14 +396,14 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
         ) {
           this.rootSettled = true;
           this.options.stateBridge.traversalRootVertexRef = existingRoot;
-          if (this.options.container.resolvedGraph.has(existingRoot)) {
+          if (this.options.container.resolvedGraphView.has(existingRoot)) {
             this.scheduling.enrollExisting(existingRoot);
             if (this.depthFirstPolicy !== null) {
               this.scheduling.takeReady();
               this.depthFirstPolicy.push(
                 this.newOwner('frame'),
                 existingRoot,
-                this.options.container.resolvedGraph.get(existingRoot)!
+                this.options.container.resolvedGraphView.get(existingRoot)!
                   .discoveryDepth,
               );
             }
@@ -684,7 +685,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   }
 
   summary(): DagSummary {
-    const graph = this.options.container.resolvedGraph;
+    const graph = this.options.container.resolvedGraphView;
     const work = this.scheduling
       .inspectWork()
       .filter(({ ref }) => ref !== this.options.container.syntheticRootRef);
@@ -823,7 +824,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     return Array.from(this.deferred.values()).some(
       ({ state, outcome }) =>
         outcome === undefined &&
-        this.options.container.resolvedGraph.has(state.ref),
+        this.options.container.resolvedGraphView.has(state.ref),
     );
   }
 
@@ -1136,7 +1137,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           if (
             this.options.workCompletion === 'externalSettlement' &&
             runtime.state.order === 'ON_WORK_READY' &&
-            this.options.container.resolvedGraph.has(runtime.state.ref)
+            this.options.container.resolvedGraphView.has(runtime.state.ref)
           ) {
             this.deferChain(id, runtime.state);
           } else {
@@ -1312,7 +1313,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       visitorState.phaseVisitIndex += 1;
       visitorState.previousPhaseVertexRef = state.ref;
     }
-    if (!this.options.container.resolvedGraph.has(state.ref)) return;
+    if (!this.options.container.resolvedGraphView.has(state.ref)) return;
     const initial = state.order === this.orders.initial;
     if (state.order === DepthFirstPhase.IN_ORDER) {
       this.depthFirstPolicy!.completeVisit(
@@ -1351,9 +1352,8 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           vertex: state.ref.getValue(),
           vertexRef: state.ref,
           order: state.order,
-          isRoot: state.ref === this.options.container.resolvedGraph.getRoot(),
-          isTraversalRoot:
-            state.ref === this.options.stateBridge.traversalRootVertexRef,
+          isRoot:
+            state.ref === this.options.container.resolvedGraphView.getRoot(),
         },
         expandAfter: initial && this.depthFirstPolicy === null,
       });
@@ -1419,7 +1419,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     }
     if (mode !== 'drive') return null;
     const work = policy.next(
-      (ref) => this.options.container.resolvedGraph.has(ref),
+      (ref) => this.options.container.resolvedGraphView.has(ref),
       (ref) => this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref),
     );
     if (work === null) return null;
@@ -1515,7 +1515,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
         const completed = policy.completeResolution(frame.owner);
         this.breadthPendingContext = null;
         this.scheduling.acceptVertex(
-          completed.context,
+          frame.contexts.get(context.hintIndex)!,
           outcome.value,
           frame.hintIds.get(context.hintIndex),
         );
@@ -1539,7 +1539,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       return 'PROGRESSED';
     }
     const work = policy.next(
-      (ref) => this.options.container.resolvedGraph.has(ref),
+      (ref) => this.options.container.resolvedGraphView.has(ref),
       (ref) => this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref),
     );
     if (work === null) return null;
@@ -1604,7 +1604,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   }
 
   private enqueueBreadthFirstExpansion(ref: VertexRef<T | R>): void {
-    const vertex = this.options.container.resolvedGraph.get(ref);
+    const vertex = this.options.container.resolvedGraphView.get(ref);
     if (vertex !== null) {
       const policy = this.breadthFirstPolicy!;
       if (!this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref)) {
@@ -1999,7 +1999,10 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       this.scheduling.takeDiscoveryExpansion() ??
       this.scheduling.takeSeededExpansion() ??
       this.expansionQueue.shift();
-    if (ref === undefined || !this.options.container.resolvedGraph.has(ref)) {
+    if (
+      ref === undefined ||
+      !this.options.container.resolvedGraphView.has(ref)
+    ) {
       return ref !== undefined;
     }
     if (this.startedExpansions.has(ref)) return true;
@@ -2074,7 +2077,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   private isFinished(): boolean {
     if (!this.rootSettled) return false;
     return (
-      this.options.container.resolvedGraph.getRoot() === null ||
+      this.options.container.resolvedGraphView.getRoot() === null ||
       (this.scheduling.getStall() === null &&
         this.scheduling.inspectEligible().length === 0 &&
         this.frames.size === 0 &&

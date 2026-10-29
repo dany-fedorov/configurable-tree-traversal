@@ -1,3 +1,4 @@
+import type { VertexView } from '../src';
 import {
   DepthFirstTreeTraversal,
   AsyncDepthFirstTreeTraversal,
@@ -9,7 +10,6 @@ import {
   BreadthFirstPhase as B,
   DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
-  type Vertex,
 } from '../src';
 
 type T = { VertexData: string; VertexHint: string };
@@ -35,7 +35,7 @@ const traversableGraph = {
 };
 
 function definitions(calls: string[], shape: Shape) {
-  const rewrite = (label: string) => (vertex: Vertex<T>) => {
+  const rewrite = (label: string) => (vertex: VertexView<T>) => {
     calls.push(`${label}:${vertex.getData()}`);
     return {
       commands: [

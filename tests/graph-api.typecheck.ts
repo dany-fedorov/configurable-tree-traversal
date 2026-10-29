@@ -6,7 +6,7 @@ import type {
 } from '../src/core/TraversableGraph';
 import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
 import type { TreeVisitorContext } from '../src/core/TraversalVisitor';
-import type { ResolvedGraph } from '../src/core/ResolvedGraph';
+import type { ResolvedGraphView } from '../src/core/ResolvedGraphView';
 import type { TreeSource } from '../src/core/TraversableTree';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
@@ -33,11 +33,12 @@ const graph: DagDiscoverySource<Input, Output> = {
     },
   }),
   resolveChild: (hint, options) => {
-    const resolved: ResolvedGraph<Input | Output> = options.resolvedGraph;
+    const resolved: ResolvedGraphView<Input | Output> =
+      options.resolvedGraphView;
     const input: string = hint;
     void [resolved, input, options.originalGraphView];
     // @ts-expect-error Graph callbacks do not receive the tree facade.
-    options.resolvedTree;
+    options.resolvedTreeView;
     return {
       kind: 'omitted' as const,
       satisfiesDependencies: true as const,
@@ -91,7 +92,7 @@ const dagVisitor: DagVisitor<Input, Output, DagVisitorPhase.ON_WORK_READY> = (
 ) => {
   const data: { input: string } | { output: number } = vertex.getData();
   const order: DagVisitorPhase = options.phase;
-  void [data, order, options.resolvedGraph, options.registration.priority];
+  void [data, order, options.resolvedGraphView, options.registration.priority];
   return {
     commands: [
       {
@@ -136,7 +137,7 @@ asyncGraphTraversal.addVisitorFor(
     const data: { input: string } | { output: number } = vertex.getData();
     const metadata: import('../src').VisitorRegistrationMetadata =
       options.registration;
-    void [data, metadata, options.resolvedGraph, options.originalGraphView];
+    void [data, metadata, options.resolvedGraphView, options.originalGraphView];
     return {
       commands: [
         {
@@ -156,7 +157,6 @@ const asyncDagEvents: AsyncGenerator<
   {
     kind: 'workCompleted' | 'subgraphCompleted';
     isGraphRoot: boolean;
-    isTraversalRoot: boolean;
   },
   void,
   unknown

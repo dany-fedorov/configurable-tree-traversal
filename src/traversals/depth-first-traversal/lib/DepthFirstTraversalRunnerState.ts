@@ -1,5 +1,5 @@
 import type { MutableRef } from '@core/CTTRef';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -28,14 +28,14 @@ type PopStackResult<TTP extends VertexTypes, RW_TTP extends VertexTypes> =
   | { stackIsEmpty: true; vertexContext: null }
   | {
       stackIsEmpty: false;
-      vertexContext: VertexResolutionContext<TTP | RW_TTP>;
+      vertexContext: InternalVertexResolutionContext<TTP | RW_TTP>;
     };
 
 export class DepthFirstTraversalRunnerState<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > {
-  STACK: Array<VertexResolutionContext<TTP | RW_TTP>>;
+  STACK: Array<InternalVertexResolutionContext<TTP | RW_TTP>>;
   postOrderNotVisitedChildrenCountMap: Map<
     MutableRef<Vertex<TTP | RW_TTP>>,
     number
@@ -108,7 +108,7 @@ export class DepthFirstTraversalRunnerState<
 
   pushToStack(
     parentVertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
-    newEntries: VertexResolutionContext<TTP | RW_TTP>[],
+    newEntries: InternalVertexResolutionContext<TTP | RW_TTP>[],
   ): void {
     const i0 = this.STACK.length;
     this.STACK.push(...newEntries);
@@ -118,7 +118,7 @@ export class DepthFirstTraversalRunnerState<
 
   popStack(): PopStackResult<TTP, RW_TTP> {
     while (this.STACK.length > 0) {
-      const vertexContext = this.STACK.pop() as VertexResolutionContext<
+      const vertexContext = this.STACK.pop() as InternalVertexResolutionContext<
         TTP | RW_TTP
       >;
       /**

@@ -239,14 +239,14 @@ test('rejects a stale traversal root for an empty halted seed atomically', () =>
       resolvedGraphsContainer: container,
     },
   });
-  const beforeRefs = container.resolvedGraph.getVertexRefs();
+  const beforeRefs = container.resolvedGraphView.getVertexRefs();
   const beforeReadyVisits = [...state.readyVisits];
   const beforeExpansionQueue = [...state.expansionQueue];
 
   expect(() => traversal.createRunner()).toThrow(/traversal root mismatch/i);
   expect(resolveRoot).not.toHaveBeenCalled();
-  expect(container.resolvedGraph.getVertexRefs()).toEqual(beforeRefs);
-  expect(container.resolvedGraph.getRoot()).toBeNull();
+  expect(container.resolvedGraphView.getVertexRefs()).toEqual(beforeRefs);
+  expect(container.resolvedGraphView.getRoot()).toBeNull();
   expect(state.status).toBe(Status.HALTED);
   expect(state.traversalRootVertexRef).toBe(staleRoot);
   expect(state.readyVisits).toEqual(beforeReadyVisits);
@@ -371,7 +371,7 @@ test('resumes ready and expansion work from a non-empty quiescent DAG seed', () 
     'subgraphCompleted:root',
   ]);
   expect(resolutions).toEqual(['C']);
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   expect(
     graph
       .getChildrenOf(graph.getVertexRefById('root')!)!
@@ -585,11 +585,11 @@ test.each([
 ] as const)('rejects an inconsistent halted seed with %s', (_name, corrupt) => {
   const seed = haltedSeed();
   corrupt(seed);
-  const beforeRefs = seed.container.resolvedGraph.getVertexRefs();
-  const beforeRootStatus = seed.container.resolvedGraph.getVisitStageOf(
+  const beforeRefs = seed.container.resolvedGraphView.getVertexRefs();
+  const beforeRootStatus = seed.container.resolvedGraphView.getVisitStageOf(
     seed.root,
   );
-  const beforeSlots = seed.container.resolvedGraph.get(seed.root)!.slots;
+  const beforeSlots = seed.container.resolvedGraphView.get(seed.root)!.slots;
 
   expect(() =>
     createInternalDagTraversalRunner<TestGraph>({
@@ -600,11 +600,11 @@ test.each([
       },
     }),
   ).toThrow(/injected DAG|seed/i);
-  expect(seed.container.resolvedGraph.getVertexRefs()).toEqual(beforeRefs);
-  expect(seed.container.resolvedGraph.getVisitStageOf(seed.root)).toBe(
+  expect(seed.container.resolvedGraphView.getVertexRefs()).toEqual(beforeRefs);
+  expect(seed.container.resolvedGraphView.getVisitStageOf(seed.root)).toBe(
     beforeRootStatus,
   );
-  expect(seed.container.resolvedGraph.get(seed.root)!.slots).toEqual(
+  expect(seed.container.resolvedGraphView.get(seed.root)!.slots).toEqual(
     beforeSlots,
   );
   expect(seed.state.status).toBe(Status.HALTED);
@@ -662,7 +662,9 @@ test.each([
   expect(events.filter((event) => event.endsWith(':B'))).toEqual(
     status === 'COMPLETION_VISIT_ELIGIBLE' ? ['subgraphCompleted:B'] : [],
   );
-  expect(runner.getResolvedGraph().getVisitStageOf(seed.root)).toBe('COMPLETE');
+  expect(runner.getResolvedGraphView().getVisitStageOf(seed.root)).toBe(
+    'COMPLETE',
+  );
 });
 
 test('restores discovered work blocked by a missing dependency', () => {
@@ -687,7 +689,9 @@ test('restores discovered work blocked by a missing dependency', () => {
     },
   });
   expect(() => runner.run()).toThrow(/stalled.*blocked.*missing/i);
-  expect(runner.getResolvedGraph().getVisitStageOf(blocked)).toBe('DISCOVERED');
+  expect(runner.getResolvedGraphView().getVisitStageOf(blocked)).toBe(
+    'DISCOVERED',
+  );
 });
 
 test.each(['omitted', 'completing', 'complete'] as const)(

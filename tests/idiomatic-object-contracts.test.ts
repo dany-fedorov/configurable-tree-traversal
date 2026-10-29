@@ -41,7 +41,7 @@ describe('object callback and patch contracts', () => {
           prop,
           context.vertex.getData(),
           context.vertexRef.getValue().getData(),
-          context.resolvedTree.getRoot()!.getValue().getData(),
+          context.resolvedTreeView.getRoot()!.getValue().getData(),
         );
         expect(context.getKeyPath()).toEqual([outputKey]);
         expect(
@@ -290,7 +290,7 @@ describe('independent key/value patch domains', () => {
             prop,
             context.vertex.getData(),
             context.vertexRef.getValue().getData(),
-            context.resolvedTree.getRoot()!.getValue().getData(),
+            context.resolvedTreeView.getRoot()!.getValue().getData(),
           );
           expect(
             context.originalTreeView!.getRoot()!.getValue().getData(),

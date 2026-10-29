@@ -23,7 +23,7 @@ if (prepared.kind === 'valid') {
   const runner = dag.createRunner({ completedWork: new Set<ID>(['research']) });
   for (const event of runner.iterateEvents()) {
     const eventId: ID = event.vertexId;
-    const hints: ID[] = event.vertex.getChildrenHints();
+    const hints: readonly ID[] = event.vertex.getChildrenHints();
     void [eventId, hints];
   }
   // @ts-expect-error Prepared topology arrays are readonly.
@@ -43,7 +43,7 @@ if (prepared.kind === 'valid') {
   const preparationResult: PrepareDagResult<Task, ID> = definitionResult;
   for (const issue of prepared.issues) {
     if (issue.kind === 'milestone') {
-      const missing: ID[] = issue.diagnostics.unknownPrerequisiteIds;
+      const missing: readonly ID[] = issue.diagnostics.unknownPrerequisiteIds;
       void missing;
     }
   }

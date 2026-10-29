@@ -1,6 +1,6 @@
 import { normalizePathOptions } from '@core/normalizePathOptions';
 import { MutableRef } from '@core/CTTRef';
-import type { OriginalGraphView } from '@core/ResolvedGraph';
+import type { InternalResolvedGraphView } from '@core/ResolvedGraphView';
 import type { GetPathToOptions } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
@@ -39,7 +39,7 @@ export class StructuralGraphSnapshot<
   T extends VertexTypes,
   R extends VertexTypes = T,
 > {
-  readonly graph: OriginalGraphView<T>;
+  readonly graph: Omit<InternalResolvedGraphView<T>, 'get' | 'getVisitStageOf'>;
   readonly refsMap = new Map<VertexRef<T | R>, VertexRef<T>>();
   private readonly entries = new Map<VertexRef<T>, SnapshotEntry<T>>();
   private readonly ids = new Map<VertexId, VertexRef<T>>();

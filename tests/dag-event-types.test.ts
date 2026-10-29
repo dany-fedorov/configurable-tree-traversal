@@ -38,7 +38,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         expect(event).toHaveProperty('vertexId');
         expect(event.vertexId).toBe(id);
         expect(event.vertexRef.getValue()).toBe(event.vertex);
-        expect(runner.getResolvedGraph().getVertexId(event.vertexRef)).toBe(id);
+        expect(runner.getResolvedGraphView().getVertexId(event.vertexRef)).toBe(
+          id,
+        );
         expect(event).not.toHaveProperty('order');
         expect(event).not.toHaveProperty('phase');
         events.push(event.kind);
@@ -87,7 +89,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const ids = [];
     for await (const event of runner.iterateEvents()) {
       expect(event.vertexId).toBe(
-        runner.getResolvedGraph().getVertexId(event.vertexRef),
+        runner.getResolvedGraphView().getVertexId(event.vertexRef),
       );
       ids.push(event.vertexId);
     }

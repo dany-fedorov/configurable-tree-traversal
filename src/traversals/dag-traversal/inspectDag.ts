@@ -25,7 +25,7 @@ export function inspectDagMilestones<
     );
   const state = capabilities.inspectState() as DagInspectionState<ID>;
   const summary = runner.summary();
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   const declarations = graph.getVertexRefs().map((ref) => {
     const vertex = graph.get(ref)!;
     return {

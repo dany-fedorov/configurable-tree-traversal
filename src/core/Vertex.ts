@@ -68,3 +68,14 @@ export class Vertex<TTP extends VertexTypes> implements VertexContent<TTP> {
     });
   }
 }
+
+/** Read-only observation of CTT-owned vertex state; caller payloads remain shallow. */
+export interface VertexView<T extends VertexTypes> {
+  readonly $data: T['VertexData'];
+  readonly $childHints: readonly T['VertexHint'][];
+  getData(): T['VertexData'];
+  getChildrenHints(): readonly T['VertexHint'][];
+  hasNoChildHints(): boolean;
+  /** Creates an independent editable vertex and hint collection. */
+  clone(content?: VertexCloneContent<T>): Vertex<T>;
+}

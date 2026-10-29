@@ -1,3 +1,11 @@
+import {
+  vertexHandle,
+  internalRef,
+  resolutionContextView,
+  resolvedGraphView,
+} from './observationFacets';
+import type { VertexHandle } from './CTTRef';
+import type { ResolvedGraphView } from './ResolvedGraphView';
 import { normalizePathOptions } from '@core/normalizePathOptions';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -5,12 +13,11 @@ import type { MutableRef } from '@core/CTTRef';
 import type { TreeSource, TreeVertexResolution } from '@core/TraversableTree';
 import type { ResolvedTreeVertexTypes } from '@core/ResolvedTreeVertexTypes';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { ResolvedGraph } from '@core/ResolvedGraph';
 import { GraphStore } from '@core/graph/GraphStore';
 import { registerTreeGraphStore } from '@core/graph/treeStoreCapabilities';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
-export type VertexResolutionContext<TTP extends VertexTypes> = {
+export type InternalVertexResolutionContext<TTP extends VertexTypes> = {
   depth: number;
   parentVertex: Vertex<TTP>;
   parentVertexRef: MutableRef<Vertex<TTP>>;
@@ -19,7 +26,7 @@ export type VertexResolutionContext<TTP extends VertexTypes> = {
 };
 
 export type TreeVertexMetadata<TTP extends VertexTypes> = {
-  resolutionContext: VertexResolutionContext<TTP> | null;
+  resolutionContext: InternalVertexResolutionContext<TTP> | null;
 };
 
 export type TreeVertexRecordContent<TTP extends VertexTypes> = {
@@ -44,12 +51,12 @@ export class TreeVertexRecord<TTP extends VertexTypes>
     }
   }
 
-  getResolutionContext(): VertexResolutionContext<TTP> | null {
+  getResolutionContext(): InternalVertexResolutionContext<TTP> | null {
     return this.metadata.resolutionContext;
   }
 
   setResolutionContext(
-    resolutionContext: VertexResolutionContext<TTP> | null,
+    resolutionContext: InternalVertexResolutionContext<TTP> | null,
   ): void {
     this.metadata.resolutionContext = resolutionContext;
   }
@@ -100,14 +107,26 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
     this.store = new GraphStore<TTP>('tree');
     registerTreeGraphStore(this, this.store);
     this.readOnly = Object.freeze({
-      getRoot: () => this.getRoot(),
-      has: (ref: MutableRef<Vertex<TTP>>) => this.has(ref),
-      getChildrenOf: (ref: MutableRef<Vertex<TTP>>) => this.getChildrenOf(ref),
-      getParentOf: (ref: MutableRef<Vertex<TTP>>) => this.getParentOf(ref),
-      getPathTo: (ref: MutableRef<Vertex<TTP>>, options?: GetPathToOptions) =>
-        this.getPathTo(ref, options),
-      getResolutionContextOf: (ref: MutableRef<Vertex<TTP>>) =>
-        this.getResolutionContextOf(ref),
+      getRoot: () => vertexHandle(this.getRoot()),
+      has: (ref: VertexHandle<TTP>) => this.has(internalRef(ref)),
+      getChildrenOf: (ref: VertexHandle<TTP>) => {
+        const children = this.getChildrenOf(internalRef(ref));
+        return children === null
+          ? null
+          : Object.freeze(children.map((child) => vertexHandle(child)));
+      },
+      getParentOf: (ref: VertexHandle<TTP>) =>
+        vertexHandle(this.getParentOf(internalRef(ref))),
+      getPathTo: (ref: VertexHandle<TTP>, options?: GetPathToOptions) =>
+        Object.freeze(
+          this.getPathTo(internalRef(ref), options).map((item) =>
+            vertexHandle(item),
+          ),
+        ),
+      getResolutionContextOf: (ref: VertexHandle<TTP>) =>
+        resolutionContextView(
+          this.get(internalRef(ref))?.getResolutionContext() ?? null,
+        ),
     });
   }
 
@@ -124,8 +143,8 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
     this.store.setRoot(root);
   }
 
-  getResolvedGraph(): ResolvedGraph<TTP> {
-    return this.store.graph;
+  getResolvedGraphView(): ResolvedGraphView<TTP> {
+    return resolvedGraphView(this.store.graph);
   }
 
   getChildrenOf(
@@ -194,7 +213,7 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
 
   getResolutionContextOf(
     vertexRef: MutableRef<Vertex<TTP>>,
-  ): VertexResolutionContext<TTP> | null {
+  ): InternalVertexResolutionContext<TTP> | null {
     const context = this.get(vertexRef)?.getResolutionContext() ?? null;
     return context === null ? null : { ...context };
   }
@@ -272,3 +291,12 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
     };
   }
 }
+
+/** Stable detached discovery metadata; all CTT references are restricted. */
+export type VertexResolutionContext<T extends VertexTypes> = Readonly<{
+  depth: number;
+  parentVertex: import('./Vertex').VertexView<T>;
+  parentVertexRef: import('./CTTRef').VertexHandle<T>;
+  hintIndex: number;
+  vertexHint: T['VertexHint'];
+}>;

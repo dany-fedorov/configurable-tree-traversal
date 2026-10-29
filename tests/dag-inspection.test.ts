@@ -257,8 +257,8 @@ test('kernel observations retain partial expansion and remain stable after settl
     discoveryComplete: false,
   });
   expect(
-    container.resolvedGraph.getVisitStageOf(
-      container.resolvedGraph.getVertexRefById('root')!,
+    container.resolvedGraphView.getVisitStageOf(
+      container.resolvedGraphView.getVertexRefById('root')!,
     ),
   ).toBe('COMPLETE');
 });
@@ -800,7 +800,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const first = await iterator.next();
     expect(first.done).toBe(false);
     if (first.done) throw new Error('Expected root event');
-    const rootId = runner.getResolvedGraph().getVertexId(first.value.vertexRef);
+    const rootId = runner
+      .getResolvedGraphView()
+      .getVertexId(first.value.vertexRef);
     const before = calls;
     const inspection = inspectDagMilestones(runner);
     expect(

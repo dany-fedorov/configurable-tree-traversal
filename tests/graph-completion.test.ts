@@ -1,4 +1,4 @@
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { VertexRef } from '../src/core/graph/types';
@@ -136,7 +136,7 @@ test('duplicate slots are accounted once across completion and later deletion', 
   expect(scheduling.deleteVertex(childRef)).toEqual(new Set([childRef]));
   expect(scheduling.takeCompleting()).toBeNull();
   expect(
-    container.resolvedGraph.get(rootRef)?.slots.map((slot) => slot.kind),
+    container.resolvedGraphView.get(rootRef)?.slots.map((slot) => slot.kind),
   ).toEqual(['deleted', 'deleted']);
 });
 

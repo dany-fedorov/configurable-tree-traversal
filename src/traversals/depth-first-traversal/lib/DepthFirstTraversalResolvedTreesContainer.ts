@@ -2,7 +2,7 @@ import { MutableRef } from '@core/CTTRef';
 import {
   ResolvedTreeStore,
   TreeVertexRecord,
-  VertexResolutionContext,
+  InternalVertexResolutionContext,
 } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -111,7 +111,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
   }
 
   validateSavedResolutionContext(
-    resolutionContext: VertexResolutionContext<TTP | RW_TTP> | null,
+    resolutionContext: InternalVertexResolutionContext<TTP | RW_TTP> | null,
   ): void {
     if (
       this.originalTreeView !== null &&
@@ -129,7 +129,9 @@ export class DepthFirstTraversalResolvedTreesContainer<
 
   setWithResolutionContext(
     vertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
-    vertexResolutionContext: VertexResolutionContext<TTP | RW_TTP> | null,
+    vertexResolutionContext: InternalVertexResolutionContext<
+      TTP | RW_TTP
+    > | null,
   ): void {
     this.set(
       vertexRef,

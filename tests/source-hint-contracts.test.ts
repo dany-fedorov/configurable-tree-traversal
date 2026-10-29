@@ -1,3 +1,4 @@
+import type { VertexView } from '../src';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -13,7 +14,6 @@ import {
   TraversalVisitorCommandName as Command,
   type DagDiscoverySource,
   type TreeSource,
-  type Vertex,
   type VertexTypes,
   type ObjectTreeVertexTypes,
   type ObjectCurrentVertexTypes,
@@ -43,7 +43,7 @@ test('owned and composed object sources resolve explicitly declared union hints 
     };
     const visitors = {
       [DepthFirstPhase.PRE_ORDER]: (
-        vertex: Vertex<Current>,
+        vertex: VertexView<Current>,
         context: Parameters<typeof binder>[1],
       ) => {
         discovered.push(vertex.getData());
@@ -123,7 +123,7 @@ for (const asyncMode of [false, true]) {
       const observedData: (T | R)['VertexData'][] = [];
       const originalParents: Data[] = [];
       const currentParents: (T | R)['VertexData'][] = [];
-      const visit = (vertex: Vertex<T | R>) => {
+      const visit = (vertex: VertexView<T | R>) => {
         const data = vertex.getData();
         observedData.push(data);
         return data === rootData
@@ -155,7 +155,7 @@ for (const asyncMode of [false, true]) {
         }),
         resolveChild: (hint, context) => {
           currentParents.push(
-            context.resolutionContext.parentVertexRef.getValue().getData(),
+            context.resolutionContext.parentVertexRef!.getValue().getData(),
           );
           originalParents.push(
             context.originalTreeView!.getRoot()!.getValue().getData(),
@@ -176,7 +176,7 @@ for (const asyncMode of [false, true]) {
         }),
         resolveChild: (hint, context) => {
           currentParents.push(
-            context.resolutionContext.parentVertexRef.getValue().getData(),
+            context.resolutionContext.parentVertexRef!.getValue().getData(),
           );
           originalParents.push(
             context
@@ -254,14 +254,14 @@ for (const asyncMode of [false, true]) {
         await runner.run();
         expect(
           runner
-            .getResolvedGraph()
+            .getResolvedGraphView()
             .getVertexRefById(undefined)!
             .getValue()
             .getData(),
         ).toBe(lookupData);
         expect(
           runner
-            .getResolvedGraph()
+            .getResolvedGraphView()
             .getVertexRefById(inlineId)!
             .getValue()
             .getData(),

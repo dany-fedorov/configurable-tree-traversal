@@ -17,9 +17,7 @@ type Query = (options?: GetPathToOptions) => unknown;
 function verifyQuery(query: Query) {
   const defaultPath = query();
   expect(query({})).toEqual(defaultPath);
-  expect(query({ noRoot: undefined, noSelf: undefined })).toEqual(
-    defaultPath,
-  );
+  expect(query({ noRoot: undefined, noSelf: undefined })).toEqual(defaultPath);
   for (const key of ['noRot', Symbol('noSelf')]) {
     expect(() =>
       query(Object.defineProperty({}, key, { value: true }) as never),
@@ -92,7 +90,10 @@ for (const create of [
   test('graph live and original path options reject unknown fields and retain opaque IDs', async () => {
     const runner = create();
     await runner.run();
-    for (const view of [runner.getResolvedGraph(), runner.originalGraphView!]) {
+    for (const view of [
+      runner.getResolvedGraphView(),
+      runner.originalGraphView!,
+    ]) {
       const root = view.getRoot()!;
       verifyQuery((options) => view.getPathsTo(root, options));
       expect(view.getVertexId(root)).toBe(id);
@@ -115,7 +116,9 @@ test('explicit tree store and its graph route share strict path option semantics
   );
   store.setRoot(root);
   verifyQuery((options) => store.getPathTo(root, options));
-  verifyQuery((options) => store.getResolvedGraph().getPathsTo(root, options));
+  verifyQuery((options) =>
+    store.getResolvedGraphView().getPathsTo(root, options),
+  );
 });
 
 test('graph query controls read accessors once across multiple paths', () => {
@@ -143,7 +146,10 @@ test('graph query controls read accessors once across multiple paths', () => {
   })
     .createRunner()
     .run();
-  for (const view of [runner.getResolvedGraph(), runner.originalGraphView!]) {
+  for (const view of [
+    runner.getResolvedGraphView(),
+    runner.originalGraphView!,
+  ]) {
     const leaf = view.getVertexRefById('leaf')!;
     let rootReads = 0;
     let selfReads = 0;

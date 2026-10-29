@@ -21,3 +21,11 @@ export class MutableRef<T> {
     return this._id;
   }
 }
+
+/** Stable observation identity with no editing authority. */
+export interface VertexHandle<
+  T extends import('./TreeTypeParameters').VertexTypes,
+> {
+  getValue(): import('./Vertex').VertexView<T>;
+  getRefId(): string;
+}

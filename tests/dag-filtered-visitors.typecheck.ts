@@ -15,7 +15,7 @@ import type {
 } from '../src/traversals/dag-traversal/lib/DagTraversalVisitor';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { ResolvedGraph } from '../src/core/ResolvedGraph';
+import type { ResolvedGraphView } from '../src/core/ResolvedGraphView';
 
 type Task = { kind: 'task'; label: string };
 type Group = { kind: 'group'; title: string };
@@ -34,7 +34,7 @@ traversal.addVisitorFor(
   filterDagDataVisitor(isTask, (data, options) => {
     const task: Task = data;
     const context: DagVisitorContext<T, R, Order.ON_WORK_READY, ID> = options;
-    const graph: ResolvedGraph<T | R, ID> = options.resolvedGraph;
+    const graph: ResolvedGraphView<T | R, ID> = options.resolvedGraphView;
     const current: Data = options.vertexRef.getValue().getData();
     // @ts-expect-error The live graph remains heterogeneous.
     const invalid: Task = options.vertexRef.getValue().getData();
@@ -123,7 +123,7 @@ asyncTraversal.addVisitorFor(
     isTask,
     async (): Promise<{
       commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION }];
-    // @ts-expect-error Async completion-phase visitors cannot defer ready work.
+      // @ts-expect-error Async completion-phase visitors cannot defer ready work.
     }> => ({
       commands: [
         { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
@@ -131,13 +131,10 @@ asyncTraversal.addVisitorFor(
     }),
   ),
 );
-const mixed: DagVisitor<T, R, Order, ID> = filterDagDataVisitor(
-  isTask,
-  () => ({
-    // @ts-expect-error Mixed phase visitors cannot defer ready work.
-    commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
-  }),
-);
+const mixed: DagVisitor<T, R, Order, ID> = filterDagDataVisitor(isTask, () => ({
+  // @ts-expect-error Mixed phase visitors cannot defer ready work.
+  commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+}));
 traversal.addVisitorFor(
   Order.ON_WORK_READY,
   // @ts-expect-error A predicate must accept rewritten output data too.

@@ -1,12 +1,11 @@
+import type { VertexHandle } from 'configurable-tree-traversal';
 // Packed public contracts; exercise actual calls under both declaration loaders.
 import {
   ObjectTreeSource,
   objectRewrite as rewriteApi,
   rewriteObject,
-  MutableRef,
   type VertexRef,
   type VertexTypes,
-  type Vertex,
   createObjectMutationBinder,
   type ObjectRewriteCallback,
   type ObjectRewriteInput,
@@ -111,7 +110,7 @@ void [
 
 const rootAndSubpath: typeof subpathRewriteObject = rewriteObject;
 declare const vertexRef: VertexRef<VertexTypes>;
-const genericRef: MutableRef<Vertex<VertexTypes>> = vertexRef;
+const genericRef: VertexHandle<VertexTypes> = vertexRef;
 void [rootAndSubpath, genericRef];
 
 rewriteObject<number, string, number, unknown, symbol, string>(1, {
@@ -127,7 +126,7 @@ rewriteObject<number, string, number, unknown, symbol, string>(1, {
     // @ts-expect-error The live reference includes rewritten output values.
     const refValue: number = context.vertexRef.getValue().getData().value;
     // @ts-expect-error The live tree includes rewritten output values.
-    const treeValue: number = context.resolvedTree
+    const treeValue: number = context.resolvedTreeView
       .getRoot()!
       .getValue()
       .getData().value;
@@ -320,7 +319,7 @@ const hybridResult = rewriteObject<
       const stringOnly: string = ref.value;
       void stringOnly;
     }
-    const tree = context.resolvedTree.getRoot()!.getValue().getData();
+    const tree = context.resolvedTreeView.getRoot()!.getValue().getData();
     const treeKey: 'input' | 'output' = tree.key;
     const treeValue: unknown = tree.value;
     void [treeKey, treeValue];
@@ -624,7 +623,7 @@ const mixedValue: LiteralCurrent['VertexData'] = {
   value: 'changed',
 };
 const mixedKey: LiteralCurrent['VertexData'] = { key: 'output', value: 1 };
-const assembledMap = new Map<MutableRef<Vertex<LiteralCurrent>>, unknown>();
+const assembledMap = new Map<VertexHandle<LiteralCurrent>, unknown>();
 const composedBinder = createObjectMutationBinder<LiteralInput, LiteralOutput>({
   assembledMap,
 });

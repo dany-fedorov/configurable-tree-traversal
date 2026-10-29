@@ -1,3 +1,4 @@
+import type { VertexHandle } from '../src';
 import {
   rewriteObject,
   createObjectMutationBinder,
@@ -12,8 +13,6 @@ import {
   DepthFirstPhase,
   TraversalVisitorCommandName,
   type ObjectCurrentVertexTypes,
-  type MutableRef,
-  type Vertex,
   traverseTreeDepthFirst,
 } from '../src';
 
@@ -30,7 +29,7 @@ rewriteObject<number, string, number, unknown, symbol, string>(1, {
     // @ts-expect-error The live reference includes rewritten output values.
     const refValue: number = context.vertexRef.getValue().getData().value;
     // @ts-expect-error The live tree includes rewritten output values.
-    const treeValue: number = context.resolvedTree
+    const treeValue: number = context.resolvedTreeView
       .getRoot()!
       .getValue()
       .getData().value;
@@ -223,7 +222,7 @@ const hybridResult = rewriteObject<
       const stringOnly: string = ref.value;
       void stringOnly;
     }
-    const tree = context.resolvedTree.getRoot()!.getValue().getData();
+    const tree = context.resolvedTreeView.getRoot()!.getValue().getData();
     const treeKey: 'input' | 'output' = tree.key;
     const treeValue: unknown = tree.value;
     void [treeKey, treeValue];
@@ -527,7 +526,7 @@ const mixedValue: LiteralCurrent['VertexData'] = {
   value: 'changed',
 };
 const mixedKey: LiteralCurrent['VertexData'] = { key: 'output', value: 1 };
-const assembledMap = new Map<MutableRef<Vertex<LiteralCurrent>>, unknown>();
+const assembledMap = new Map<VertexHandle<LiteralCurrent>, unknown>();
 const composedBinder = createObjectMutationBinder<LiteralInput, LiteralOutput>({
   assembledMap,
 });

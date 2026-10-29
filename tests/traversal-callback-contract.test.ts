@@ -48,7 +48,10 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
           },
         };
       },
-      resolveChild: (hint, { resolutionContext, resolvedTree }) => {
+      resolveChild: (
+        hint,
+        { resolutionContext, resolvedTreeView: resolvedTree },
+      ) => {
         const root = resolvedTree.getRoot();
         const resolved = root === null ? [] : resolvedTree.getChildrenOf(root);
         trace.push(
@@ -89,7 +92,7 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
     trace.push(`iterator:${event.phase}:${event.vertex.getData()}`);
   }
 
-  const resolvedTree = runner.getResolvedTreeStore();
+  const resolvedTree = runner.getResolvedTreeView();
   const rootRef = resolvedTree.getRoot();
   if (rootRef === null) throw new Error('Expected a resolved root');
   trace.push(

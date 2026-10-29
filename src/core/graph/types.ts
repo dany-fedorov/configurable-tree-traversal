@@ -1,5 +1,5 @@
 import type { MutableRef } from '@core/CTTRef';
-import type { ResolvedGraph } from '@core/ResolvedGraph';
+import type { InternalResolvedGraphView } from '@core/ResolvedGraphView';
 import type { TreeVertexRecord } from '@core/ResolvedTree';
 import type {
   TraversalVisitorResult,
@@ -32,14 +32,14 @@ export type ResolvedVisitStage =
   | 'COMPLETION_VISIT_ELIGIBLE'
   | 'COMPLETE';
 
-export type StructuralChildEdge<T extends VertexTypes> = Readonly<{
+export type InternalStructuralChildEdge<T extends VertexTypes> = Readonly<{
   parentRef: VertexRef<T>;
   childRef: VertexRef<T>;
   hintIndex: number;
   hint: T['VertexHint'];
 }>;
 
-export type ChildSlot<T extends VertexTypes, ID = unknown> =
+export type InternalChildSlot<T extends VertexTypes, ID = unknown> =
   | Readonly<{ kind: 'pending'; hint: T['VertexHint'] }>
   | Readonly<{
       kind: 'linked';
@@ -57,7 +57,7 @@ export type ChildSlot<T extends VertexTypes, ID = unknown> =
       hint: T['VertexHint'];
     }>;
 
-export type ResolvedGraphVertex<
+export type InternalResolvedGraphVertex<
   T extends VertexTypes,
   ID = unknown,
 > = Readonly<{
@@ -68,8 +68,8 @@ export type ResolvedGraphVertex<
   dependsOnWork: readonly ID[];
   dependsOnSubgraphCompletion?: readonly ID[];
   visitStage: ResolvedVisitStage;
-  incoming: readonly StructuralChildEdge<T>[];
-  slots: readonly ChildSlot<T, ID>[];
+  incoming: readonly InternalStructuralChildEdge<T>[];
+  slots: readonly InternalChildSlot<T, ID>[];
 }>;
 
 export type VisitorRecord<F> = {
@@ -107,14 +107,16 @@ export type DagInspectionState<ID = unknown> = Readonly<{
 
 export interface GraphStoreContract<T extends VertexTypes, ID = unknown> {
   readonly mode: 'tree' | 'dag';
-  readonly graph: ResolvedGraph<T, ID>;
+  readonly graph: InternalResolvedGraphView<T, ID>;
   getIdState(id: ID): IdState<T> | undefined;
   inspectIdentityStates(): readonly GraphIdentityState<ID>[];
-  getTraversalSlots(ref: VertexRef<T>): readonly ChildSlot<T, ID>[] | null;
+  getTraversalSlots(
+    ref: VertexRef<T>,
+  ): readonly InternalChildSlot<T, ID>[] | null;
   getTraversalSlot(
     ref: VertexRef<T>,
     index: number,
-  ): ChildSlot<T, ID> | undefined;
+  ): InternalChildSlot<T, ID> | undefined;
   getDiscoveryDepth(ref: VertexRef<T>): number;
   getDeclaredDependencies(ref: VertexRef<T>): ID[];
   getDeclaredCompleteDependencies(ref: VertexRef<T>): ID[];
@@ -148,3 +150,28 @@ export interface GraphStoreContract<T extends VertexTypes, ID = unknown> {
   getTreeRecord(ref: VertexRef<T>): TreeVertexRecord<T> | null;
   setTreeRecord(ref: VertexRef<T>, record: TreeVertexRecord<T>): void;
 }
+
+export type StructuralChildEdge<T extends VertexTypes> = Readonly<{
+  parentRef: import('../CTTRef').VertexHandle<T>;
+  childRef: import('../CTTRef').VertexHandle<T>;
+  hintIndex: number;
+  hint: T['VertexHint'];
+}>;
+export type ChildSlot<T extends VertexTypes, ID = unknown> =
+  | Exclude<InternalChildSlot<T, ID>, { kind: 'linked' }>
+  | Readonly<{
+      kind: 'linked';
+      hint: T['VertexHint'];
+      childRef: import('../CTTRef').VertexHandle<T>;
+    }>;
+export type ResolvedGraphVertex<T extends VertexTypes, ID = unknown> = Readonly<
+  Omit<
+    InternalResolvedGraphVertex<T, ID>,
+    'vertexRef' | 'vertex' | 'incoming' | 'slots'
+  > & {
+    vertexRef: import('../CTTRef').VertexHandle<T>;
+    vertex: import('../Vertex').VertexView<T>;
+    incoming: readonly StructuralChildEdge<T>[];
+    slots: readonly ChildSlot<T, ID>[];
+  }
+>;

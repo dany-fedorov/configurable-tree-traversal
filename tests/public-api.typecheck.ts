@@ -21,7 +21,7 @@ import {
   type DagDiscoverySource,
   type HintVertexId,
   type MaybePromise,
-  type ResolvedGraph,
+  type ResolvedGraphView,
   type ResolvedGraphVertex,
   type ResolvedVisitStage,
   type StructuralChildEdge,
@@ -103,7 +103,7 @@ const convenienceRunner = traverseTreeDepthFirst({
   },
 });
 const convenienceData: string = convenienceRunner
-  .getResolvedTreeStore()
+  .getResolvedTreeView()
   .getRoot()!
   .getValue()
   .getData();
@@ -133,11 +133,13 @@ const asyncExecution: AsyncTraversalExecution<DagVisitorPhase, unknown> =
   new AsyncDagTraversal({
     traversableGraph: graph,
   }).createRunner();
-const resolvedGraph: ResolvedGraph<Tree> = dagResult.getResolvedGraph();
-const rootRef = resolvedGraph.getRoot();
-const children = rootRef === null ? null : resolvedGraph.getChildrenOf(rootRef);
+const resolvedGraphView: ResolvedGraphView<Tree> =
+  dagResult.getResolvedGraphView();
+const rootRef = resolvedGraphView.getRoot();
+const children =
+  rootRef === null ? null : resolvedGraphView.getChildrenOf(rootRef);
 const inspection: TreeDagExecutionInspection = dagResult.inspect();
-const oneSink: boolean = hasSingleSinkFromDagSubpath(resolvedGraph);
+const oneSink: boolean = hasSingleSinkFromDagSubpath(resolvedGraphView);
 const order: DagVisitorPhase = DagVisitorPhase.ON_WORK_READY;
 const publicTypes: [
   VertexId,
@@ -161,14 +163,14 @@ const publicTypes: [
   'INITIAL_VISIT_ELIGIBLE',
   null,
   null,
-  rootRef === null ? null : resolvedGraph.get(rootRef),
+  rootRef === null ? null : resolvedGraphView.get(rootRef),
   'core-id',
   { vertexId: 'core-id' },
   'value',
   'COMPLETE',
   null,
   null,
-  rootRef === null ? null : resolvedGraph.get(rootRef),
+  rootRef === null ? null : resolvedGraphView.get(rootRef),
 ];
 
 // @ts-expect-error DAG helper configuration cannot replace its explicit source.
@@ -185,7 +187,7 @@ void [
   dagResult,
   asyncDagResult,
   asyncExecution,
-  resolvedGraph,
+  resolvedGraphView,
   children,
   inspection,
   oneSink,

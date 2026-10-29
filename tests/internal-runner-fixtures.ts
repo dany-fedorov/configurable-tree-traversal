@@ -512,3 +512,21 @@ export function createInternalDagTraversalFor<
 export function inspectInternalDagState(runner: object) {
   return dagRunnerCapabilities.get(runner)!.inspectState();
 }
+
+/** Deliberate engine-fixture access, never an ordinary runner capability. */
+export function internalTreeStore<T extends VertexTypes>(runner: {
+  getResolvedTreeView(): import('../src').ResolvedTreeView<T> | null;
+}): import('../src').ResolvedTreeStore<T> {
+  const state = runner as unknown as {
+    resolvedTreesContainer?: {
+      resolvedTree: import('../src').ResolvedTreeStore<T>;
+    };
+    resolvedGraphsContainer?: {
+      treeContainer: { resolvedTree: import('../src').ResolvedTreeStore<T> };
+    };
+  };
+  return (
+    state.resolvedTreesContainer?.resolvedTree ??
+    state.resolvedGraphsContainer!.treeContainer.resolvedTree
+  );
+}

@@ -1,3 +1,4 @@
+import type { VertexView } from '../src';
 import type { TraversalIterableConfigInput } from '../src/core/TraversalRunnerIterableConfig';
 import type { TraversalRunnerIterableConfig } from '../src/core/TraversalRunnerIterableConfig';
 import { BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultBFS } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
@@ -6,7 +7,7 @@ import { DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS } fr
 import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
 import { makeEffectiveDagTraversalRunnerIterableConfig as makeDAG } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerIterableConfig';
 import { makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
-import type { TreeDagExecutionInspection, Vertex } from '../src';
+import type { TreeDagExecutionInspection } from '../src';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -100,7 +101,7 @@ function create(family: typeof families[number], halt = false) {
   const add = traversal.addVisitorFor.bind(traversal) as (
     phase: string,
     visitor: (
-      vertex: Vertex<TestGraph>,
+      vertex: VertexView<TestGraph>,
     ) => void | { commands: { commandName: Command.PAUSE_TRAVERSAL }[] },
   ) => unknown;
   add(phase, (vertex) => {
@@ -486,8 +487,8 @@ test.each([false, true])(
     expect(runner.inspect()).toEqual(before);
     const competitor = make();
     await competitor.run({ emitEvents: [] });
-    expect(competitor.getResolvedGraph().getRoot()?.getValue().getData()).toBe(
-      'root',
-    );
+    expect(
+      competitor.getResolvedGraphView().getRoot()?.getValue().getData(),
+    ).toBe('root');
   },
 );

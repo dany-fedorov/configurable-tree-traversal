@@ -81,7 +81,7 @@ for (const factory of ['records', 'roots', 'asyncRecords', 'asyncRoots']) {
         ? new AsyncDagTraversal<Input, Output, ID>(options).createRunner()
         : new DagTraversal<Input, Output, ID>(options).createRunner();
       await runner.run();
-      const graph = runner.getResolvedGraph();
+      const graph = runner.getResolvedGraphView();
       expect(graph.getVertexRefs()).toHaveLength(2);
       const rootRef = graph.getVertexRefById(rootId)!;
       const childRef = graph.getVertexRefById(undefined)!;
@@ -110,14 +110,14 @@ for (const factory of ['records', 'roots', 'asyncRecords', 'asyncRoots']) {
       const replay = prepared.dag.createRunner().run();
       expect(
         replay
-          .getResolvedGraph()
+          .getResolvedGraphView()
           .getVertexRefById(rootId)!
           .getValue()
           .getData(),
       ).toBe(root);
       expect(
         replay
-          .getResolvedGraph()
+          .getResolvedGraphView()
           .getVertexRefById(undefined)!
           .getValue()
           .getData(),

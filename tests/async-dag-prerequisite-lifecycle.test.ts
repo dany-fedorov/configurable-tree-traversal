@@ -79,7 +79,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
   ).toThrow('Injected DAG objects belong to an active runner');
   gate.resolve(found);
   await eventLoopTurn();
-  expect(runner.getResolvedGraph().getVertexRefById('external')).toBeNull();
+  expect(runner.getResolvedGraphView().getVertexRefById('external')).toBeNull();
   expect(runner.summary()).toEqual(before);
   await runner.run();
   expect(calls).toEqual(['external']);
@@ -141,7 +141,7 @@ for (const removeAll of [false, true]) {
     await running;
     expect(calls).toEqual(['external']);
     expect(
-      runner.getResolvedGraph().getVertexRefById('external') === null,
+      runner.getResolvedGraphView().getVertexRefById('external') === null,
     ).toBe(removeAll);
     expect(runner.summary().counts.subgraphCompleted).toBe(removeAll ? 1 : 3);
   });
@@ -184,7 +184,7 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
   await eventLoopTurn();
   lookup.reject(undefined);
   await running;
-  expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
+  expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
   expect(runner.summary().counts.discovered).toBe(0);
 });
 
@@ -318,7 +318,9 @@ for (const error of [undefined, null, { rejected: true }]) {
     await next;
     gate.reject(error);
     await eventLoopTurn();
-    expect(runner.getResolvedGraph().getVertexRefById('external')).toBeNull();
+    expect(
+      runner.getResolvedGraphView().getVertexRefById('external'),
+    ).toBeNull();
     await expect(runner.run()).rejects.toBe(error);
   });
 }
@@ -356,7 +358,7 @@ test('fatal lookup failure invalidates queued and started sibling lookups', asyn
   second.resolve(found);
   await rejected;
   expect(calls).toEqual(['a', 'b']);
-  expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(1);
+  expect(runner.getResolvedGraphView().getVertexRefs()).toHaveLength(1);
 });
 
 for (const lookupSource of [false, true]) {
@@ -425,7 +427,7 @@ for (const lookupSource of [false, true]) {
       await running;
       expect(
         runner
-          .getResolvedGraph()
+          .getResolvedGraphView()
           .getVertexRefs()
           .map((ref) => ref.getValue().getData()),
       ).toEqual(['root']);
@@ -482,12 +484,14 @@ for (const omittedFirst of [false, true]) {
       await expect(running).rejects.toThrow(
         'Vertex omission conflicts with supplied content',
       );
-      expect(runner.getResolvedGraph().getVertexRefById('external')).toBeNull();
+      expect(
+        runner.getResolvedGraphView().getVertexRefById('external'),
+      ).toBeNull();
     } else {
       await running;
       expect(
         runner
-          .getResolvedGraph()
+          .getResolvedGraphView()
           .getVertexRefById('external')!
           .getValue()
           .getData(),

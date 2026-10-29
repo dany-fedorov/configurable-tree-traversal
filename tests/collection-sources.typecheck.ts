@@ -37,18 +37,20 @@ for (const traversal of [
 ]) {
   traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex, options) => {
     const item: Item = vertex.getData();
-    const id: number = options.resolvedGraph.getVertexId(options.vertexRef);
+    const id: number = options.resolvedGraphView.getVertexId(options.vertexRef);
     void [item, id];
   });
   // @ts-expect-error The inferred ID domain is numeric.
-  traversal.createRunner().getResolvedGraph().getVertexRefById('wrong');
+  traversal.createRunner().getResolvedGraphView().getVertexRefById('wrong');
 }
 const asyncTraversal = new AsyncDagTraversal({
   ...source,
   visitors: {
     [DagVisitorPhase.ON_WORK_READY]: async (vertex, options) => {
       const item: Item = vertex.getData();
-      const id: number = options.resolvedGraph.getVertexId(options.vertexRef);
+      const id: number = options.resolvedGraphView.getVertexId(
+        options.vertexRef,
+      );
       await Promise.resolve();
       void [item, id];
     },
@@ -56,7 +58,7 @@ const asyncTraversal = new AsyncDagTraversal({
 });
 const asyncRunner = asyncTraversal.createRunner();
 // @ts-expect-error Undefined must not be added to the inferred numeric ID domain.
-asyncRunner.getResolvedGraph().getVertexRefById(undefined);
+asyncRunner.getResolvedGraphView().getVertexRefById(undefined);
 async function exactAsyncEvents() {
   for await (const event of asyncRunner.iterateEvents()) {
     const id: number = event.vertexId;

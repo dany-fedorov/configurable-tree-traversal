@@ -1,4 +1,7 @@
-import type { ResolvedGraph, OriginalGraphView } from '@core/ResolvedGraph';
+import type {
+  ResolvedGraphView,
+  OriginalGraphView,
+} from '@core/ResolvedGraphView';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type {
   DagVertexResolution,
@@ -12,8 +15,19 @@ export type DagChildResolutionContext<
   R extends VertexTypes = T,
   ID = unknown,
 > = {
-  resolutionContext: VertexResolutionContext<T | R>;
-  resolvedGraph: ResolvedGraph<T | R, ID>;
+  resolutionContext:
+    | VertexResolutionContext<T | R>
+    | Readonly<
+        Omit<
+          VertexResolutionContext<T | R>,
+          'parentVertex' | 'parentVertexRef'
+        > & {
+          /** Synthetic entry-slot parent is private; both parent fields are null. */
+          parentVertex: null;
+          parentVertexRef: null;
+        }
+      >;
+  resolvedGraphView: ResolvedGraphView<T | R, ID>;
   originalGraphView: OriginalGraphView<T, ID> | null;
 };
 

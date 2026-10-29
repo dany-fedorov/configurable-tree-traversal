@@ -1,3 +1,5 @@
+import { vertexHandle } from '../src/core/observationFacets';
+import { internalTreeStore } from './internal-runner-fixtures';
 import { treeResolution } from './source-result-fixtures';
 import {
   DepthFirstPhase,
@@ -30,7 +32,10 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
           },
         };
       },
-      resolveChild: (hint, { resolutionContext, resolvedTree }) => {
+      resolveChild: (
+        hint,
+        { resolutionContext, resolvedTreeView: resolvedTree },
+      ) => {
         const root = resolvedTree.getRoot();
         trace.push(
           `adapter:${hint}:parent=${resolutionContext.parentVertex.getData()}:depth=${
@@ -71,7 +76,7 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
     bufferedEventCount: 0,
     inFlightCallbackCount: 0,
   });
-  expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
+  expect(internalTreeStore(runner).getRoot()).toBeNull();
 
   for (const event of runner.iterateEvents()) {
     trace.push(`event:${event.phase}:${event.vertex.getData()}`);
@@ -104,20 +109,20 @@ test('DFS shared core preserves the callback, context, and event trace', () => {
     'event:POST_ORDER:root',
   ]);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-  expect(runner.getResolvedGraph()).toBe(
-    runner.getResolvedTreeStore().getResolvedGraph(),
+  expect(runner.getResolvedGraphView()).toBe(
+    internalTreeStore(runner).getResolvedGraphView(),
   );
-  const resolvedRoot = runner.getResolvedGraph().getRoot();
+  const resolvedRoot = runner.getResolvedGraphView().getRoot();
   expect(resolvedRoot).not.toBeNull();
   if (resolvedRoot === null) throw new Error('Expected a resolved root');
-  expect(runner.getResolvedGraph().getVisitStageOf(resolvedRoot)).toBe(
+  expect(runner.getResolvedGraphView().getVisitStageOf(resolvedRoot)).toBe(
     'COMPLETE',
   );
   expect(
     runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getChildrenOf(resolvedRoot)
-      ?.map((ref) => runner.getResolvedGraph().getVisitStageOf(ref)),
+      ?.map((ref) => runner.getResolvedGraphView().getVisitStageOf(ref)),
   ).toEqual(['COMPLETE', 'COMPLETE']);
   expect(runner.inspect()).toMatchObject({
     status: TraversalRunnerStatus.FINISHED,
@@ -188,16 +193,13 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
     traversableTree: adapter,
   }).createRunner();
   first.run();
-  const root = first.getResolvedTreeStore().getRoot();
+  const root = internalTreeStore(first).getRoot();
   if (root === null) throw new Error('Expected a resolved root');
-  const rootRecord = first.getResolvedTreeStore().get(root);
-  const originalChildren = first
-    .getResolvedTreeStore()
-    .get(root)
-    ?.getChildren();
+  const rootRecord = internalTreeStore(first).get(root);
+  const originalChildren = internalTreeStore(first).get(root)?.getChildren();
   const originalChild = originalChildren?.[0];
   if (originalChild === undefined) throw new Error('Expected a resolved child');
-  const childRecord = first.getResolvedTreeStore().get(originalChild);
+  const childRecord = internalTreeStore(first).get(originalChild);
 
   const second = createInternalDepthFirstTreeRunner<TestGraph>({
     traversableTree: {
@@ -220,22 +222,22 @@ test('DFS can traverse a completed injected resolved-tree container again', () =
     'root',
     'child',
   ]);
-  expect(events[1]?.vertexRef).toBe(originalChild);
-  expect(second.getResolvedTreeStore().getRoot()).toBe(root);
-  expect(second.getResolvedTreeStore().get(root)).toBe(rootRecord);
-  expect(second.getResolvedTreeStore().get(root)?.getChildren()).toBe(
+  expect(events[1]?.vertexRef).toBe(vertexHandle(originalChild));
+  expect(internalTreeStore(second).getRoot()).toBe(root);
+  expect(internalTreeStore(second).get(root)).toBe(rootRecord);
+  expect(internalTreeStore(second).get(root)?.getChildren()).toBe(
     originalChildren,
   );
-  expect(second.getResolvedTreeStore().getChildrenOf(root)).not.toBe(
+  expect(internalTreeStore(second).getChildrenOf(root)).not.toBe(
     originalChildren,
   );
-  expect(second.getResolvedTreeStore().getChildrenOf(root)).toEqual([
+  expect(internalTreeStore(second).getChildrenOf(root)).toEqual([
     originalChild,
   ]);
-  expect(second.getResolvedTreeStore().get(originalChild)).toBe(childRecord);
-  expect(second.getResolvedGraph().getVertexRefs()).toEqual([
-    root,
-    originalChild,
+  expect(internalTreeStore(second).get(originalChild)).toBe(childRecord);
+  expect(second.getResolvedGraphView().getVertexRefs()).toEqual([
+    vertexHandle(root),
+    vertexHandle(originalChild),
   ]);
 });
 
@@ -358,9 +360,9 @@ test('disabled visitor execution leaves injected per-order state unchanged', () 
     visitorIndex: 42,
     previousPhaseVertexRef: previous,
   });
-  const root = runner.getResolvedGraph().getRoot();
+  const root = runner.getResolvedGraphView().getRoot();
   if (root === null) throw new Error('Expected a resolved root');
-  expect(runner.getResolvedGraph().getVisitStageOf(root)).toBe('COMPLETE');
+  expect(runner.getResolvedGraphView().getVisitStageOf(root)).toBe('COMPLETE');
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
 });
 

@@ -1,8 +1,8 @@
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import { MutableRef } from '../src/core/CTTRef';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { createVertexIdLabeler } from '../src/core/graph/identity';
 import { StructuralGraphSnapshot } from '../src/core/graph/snapshot';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import { Vertex } from '../src/core/Vertex';
 import { BreadthFirstPolicy } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstPolicy';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';

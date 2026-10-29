@@ -65,8 +65,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       });
       expect(
         runner
-          .getResolvedGraph()
-          .get(runner.getResolvedGraph().getVertexRefById('join')!)!
+          .getResolvedGraphView()
+          .get(runner.getResolvedGraphView().getVertexRefById('join')!)!
           .dependsOnWork,
       ).toEqual(['bundle']);
     });
@@ -361,7 +361,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     (join.unmetSubgraphPrerequisiteIds as unknown[]).length = 0;
     (join.unmetPrerequisiteIds as unknown[]).length = 0;
     completion.length = 0;
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     const stored = graph.get(graph.getVertexRefById('join')!)!;
     expect(stored.dependsOnSubgraphCompletion).toHaveLength(6);
     (stored.dependsOnSubgraphCompletion as unknown[]).length = 0;

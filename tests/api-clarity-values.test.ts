@@ -1,3 +1,4 @@
+import type { VertexView } from '../src';
 import {
   MutableRef,
   AsyncDepthFirstTreeTraversal,
@@ -38,7 +39,7 @@ for (const Constructor of [
     let retained: ResolvedTreeView<RetainedTree> | null = null;
     const sizes: number[] = [];
     const visit = (
-      _vertex: Vertex<RetainedTree>,
+      _vertex: VertexView<RetainedTree>,
       context: TreeVisitorContext<string, RetainedTree, RetainedTree>,
     ) => {
       retained = context.originalTreeView;
@@ -47,7 +48,9 @@ for (const Constructor of [
       expect(root.getValue().getData()).toBe(data);
       sizes.push(retained!.getChildrenOf(root)!.length);
       const children = retained!.getChildrenOf(root)!;
-      (children as unknown[]).length = 0;
+      expect(() => {
+        (children as unknown[]).length = 0;
+      }).toThrow(TypeError);
     };
     const visitors =
       Constructor === DepthFirstTreeTraversal ||
@@ -138,7 +141,10 @@ for (const Constructor of [
           expect(retained!.getVertexRefById('root')!.getValue().getData()).toBe(
             data,
           );
-          retained!.getVertexRefs().length = 0;
+          expect(() => {
+            // @ts-expect-error readonly observation collection
+            retained!.getVertexRefs().length = 0;
+          }).toThrow(TypeError);
         },
       },
     }).createRunner();
@@ -147,7 +153,10 @@ for (const Constructor of [
     const view = retained! as OriginalGraphView<RetainedTree>;
     const root = view.getVertexRefById('root')!;
     expect(view.getChildrenOf(root)).toHaveLength(1);
-    view.getChildrenOf(root)!.length = 0;
+    expect(() => {
+      // @ts-expect-error readonly observation collection
+      view.getChildrenOf(root)!.length = 0;
+    }).toThrow(TypeError);
     expect(view.getChildrenOf(root)).toHaveLength(1);
     data.count = 9;
     expect(root.getValue().getData().count).toBe(9);

@@ -184,7 +184,7 @@ for (const family of ['depth-first', 'breadth-first', 'dag'] as const) {
     expect(Object.isFrozen(chain)).toBe(true);
     for (const key of ['order', 'group', 'position', 'config'])
       expect(chain).not.toHaveProperty(key);
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     const ref = graph.getVertexRefs()[0]!;
     expect(graph.get(ref)).toMatchObject({
       visitStage:
@@ -228,7 +228,7 @@ test('deferred work keeps the initial visit started after callbacks drain', () =
     },
   }).createRunner();
   runner.run();
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   const ref = graph.getVertexRefById(undefined)!;
   expect(graph.get(ref)).toMatchObject({
     vertexId: undefined,
@@ -259,10 +259,10 @@ test('completion diagnostics describe eligibility at callback admission, indepen
     },
     visitors: {
       [DagVisitorPhase.ON_WORK_READY]: (_vertex, context) => {
-        stages.push(context.resolvedGraph.get(context.vertexRef));
+        stages.push(context.resolvedGraphView.get(context.vertexRef));
       },
       [DagVisitorPhase.ON_SUBGRAPH_READY]: (_vertex, context) => {
-        stages.push(context.resolvedGraph.get(context.vertexRef));
+        stages.push(context.resolvedGraphView.get(context.vertexRef));
       },
     },
   }).createRunner();

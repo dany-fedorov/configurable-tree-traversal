@@ -67,7 +67,7 @@ test('canonical found preserves exact data and child hint identity', () => {
     .addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
       seen.push(vertex.getData());
       if (vertex.getData() === data)
-        expect(vertex.getChildrenHints()).toBe(childHints);
+        expect(vertex.getChildrenHints()).toEqual(childHints);
     })
     .createRunner()
     .run();

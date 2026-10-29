@@ -32,14 +32,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversal.addVisitorFor(order, (vertex, options) => {
         seen.push(vertex.getData());
         expect(options.isGraphRoot).toBe(false);
-        expect(options.isTraversalRoot).toBe(false);
-        expect(options.resolvedGraph.getRoot()).toBeNull();
+        expect(options.isGraphRoot).toBe(false);
+        expect(options.resolvedGraphView.getRoot()).toBeNull();
         expect(
-          options.resolvedGraph.get(options.vertexRef)!.dependsOnWork,
+          options.resolvedGraphView.get(options.vertexRef)!.dependsOnWork,
         ).toEqual([]);
-        expect(options.resolvedGraph.get(options.vertexRef)!.incoming).toEqual(
-          [],
-        );
+        expect(
+          options.resolvedGraphView.get(options.vertexRef)!.incoming,
+        ).toEqual([]);
       });
     const runner = traversal.createRunner();
     const events: string[] = [];
@@ -48,7 +48,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(events.sort()).toEqual(['a', 'a', 'b', 'b']);
     expect(seen.sort()).toEqual(events);
     for (const graph of [
-      runner.getResolvedGraph(),
+      runner.getResolvedGraphView(),
       runner.originalGraphView!,
     ]) {
       expect(graph.getRoot()).toBeNull();
@@ -107,7 +107,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const events = [];
     for await (const event of runner.iterateEvents()) events.push(event);
     expect(events).toEqual([]);
-    expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
+    expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
   });
 }
 
@@ -132,7 +132,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             },
           }),
           resolveChild: (hint, options) => {
-            expect(options.resolvedGraph.getRoot()).toBeNull();
+            expect(options.resolvedGraphView.getRoot()).toBeNull();
             resolved.push(hint);
             return {
               kind: 'found' as const,
@@ -157,7 +157,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         identify ? 1 : 3,
       );
       for (const graph of [
-        runner.getResolvedGraph(),
+        runner.getResolvedGraphView(),
         runner.originalGraphView!,
       ]) {
         const shared = graph.getVertexRefById('shared')!;
@@ -173,7 +173,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           graph.getPathsTo(shared, { noSelf: true, noRoot: true }),
         ).toEqual([[a], [b]]);
       }
-      const graph = runner.getResolvedGraph();
+      const graph = runner.getResolvedGraphView();
       const shared = graph.getVertexRefById('shared')!;
       expect(
         graph
@@ -268,9 +268,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     }).createRunner();
     await runner.run();
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     const internal =
-      runnerInternals(runner).resolvedGraphsContainer.resolvedGraph;
+      runnerInternals(runner).resolvedGraphsContainer.resolvedGraphView;
     const hidden = internal.getRoot()!;
     expect(graph.get(hidden)).toBeNull();
     expect(graph.has(hidden)).toBe(false);
@@ -294,7 +294,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       },
     }).createRunner();
     await foreign.run();
-    const unknown = foreign.getResolvedGraph().getRoot()!;
+    const unknown = foreign.getResolvedGraphView().getRoot()!;
     expect(graph.get(unknown)).toBeNull();
     expect(graph.has(unknown)).toBe(false);
     expect(graph.getParentsOf(unknown)).toBeNull();
@@ -337,9 +337,9 @@ test('synthetic catalog preserves arbitrary IDs without freezing or consuming it
   expect(seen).toEqual([]);
   expect(
     runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefs()
-      .map((ref) => runner.getResolvedGraph().getVertexId(ref)),
+      .map((ref) => runner.getResolvedGraphView().getVertexId(ref)),
   ).toEqual(ids);
   expect(Object.isFrozen(objectId)).toBe(false);
 });

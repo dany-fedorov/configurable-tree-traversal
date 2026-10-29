@@ -1,4 +1,4 @@
-import type { OriginalGraphView } from '@core/ResolvedGraph';
+import type { OriginalGraphView } from '@core/ResolvedGraphView';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 
 /** True when exactly one resolved vertex has no structural children.

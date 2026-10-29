@@ -51,7 +51,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       await runner.run();
       expect(calls).toEqual(['parser', 'lexer']);
       expect(events).toEqual(['lexer', 'parser', 'app']);
-      const graph = runner.getResolvedGraph();
+      const graph = runner.getResolvedGraphView();
       const parser = graph.getVertexRefById('parser')!;
       expect(graph.getParentsOf(parser)).toEqual([]);
       expect(graph.getPathsTo(parser)).toEqual([[parser]]);
@@ -250,7 +250,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     });
     const runner = traversal.createRunner();
     await runner.run();
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     const parser = graph.getVertexRefById('parser')!;
     expect(graph.get(parser)!.discoveryDepth).toBe(0);
     expect(

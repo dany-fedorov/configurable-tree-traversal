@@ -273,7 +273,7 @@ describe('object identity bookkeeping', () => {
 
     expect(() =>
       adapter.resolveChild(childHint, {
-        resolvedTree,
+        resolvedTreeView: resolvedTree.asReadOnly(),
         originalTreeView: null,
         resolutionContext: {
           depth: 2,
@@ -317,7 +317,7 @@ describe('object identity bookkeeping', () => {
 
     expect(() =>
       adapter.resolveChild(childHint, {
-        resolvedTree,
+        resolvedTreeView: resolvedTree.asReadOnly(),
         originalTreeView: null,
         resolutionContext: {
           depth: 1,
@@ -383,13 +383,13 @@ describe('public mutation command factory', () => {
     };
     const options: TreeVisitorContext<DepthFirstPhase, ObjectTree, ObjectTree> =
       {
-        resolvedTree,
+        resolvedTreeView: resolvedTree.asReadOnly(),
         originalTreeView: null,
         phaseVisitIndex: 0,
         visitorIndex: 0,
         previousPhaseVertexRef: null,
         isTreeRoot: true,
-        isTraversalRoot: true,
+
         vertexRef,
         visitorChainState: null,
         registration,

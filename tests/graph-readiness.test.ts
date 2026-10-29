@@ -1,6 +1,6 @@
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import { MutableRef } from '../src/core/CTTRef';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { HintVertexId, VertexRef } from '../src/core/graph/types';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
@@ -80,7 +80,7 @@ test('root acceptance honors existing live, omitted, and deleted identities', ()
   expect(scheduling.acceptRoot(result('ignored', { id: 'root' }))).toBe(
     rootRef,
   );
-  expect(container.resolvedGraph.getRoot()).toBe(rootRef);
+  expect(container.resolvedGraphView.getRoot()).toBe(rootRef);
 });
 
 test('scheduling rejects unknown enrollment and duplicate expansion transitions', () => {
@@ -146,7 +146,9 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
     scheduling.acceptKnownHint(context(rootRef, 0), { vertexId: 'missing' }),
   ).toBe(false);
   scheduling.restoreConsumedTreeSlot(context(rootRef, 0));
-  expect(container.resolvedGraph.get(rootRef)?.slots[0]?.kind).toBe('omitted');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[0]?.kind).toBe(
+    'omitted',
+  );
 
   const second = setup(['child']);
   const childRef = new MutableRef(
@@ -169,10 +171,10 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
     new Map([[0, { ref: childRef, hint: 'child' }]]),
   );
   second.scheduling.restoreConsumedTreeSlot(context(second.rootRef, 0));
-  expect(second.container.resolvedGraph.getChildrenOf(second.rootRef)).toEqual([
-    childRef,
-  ]);
-  expect(second.container.resolvedGraph.getVisitStageOf(childRef)).toBe(
+  expect(
+    second.container.resolvedGraphView.getChildrenOf(second.rootRef),
+  ).toEqual([childRef]);
+  expect(second.container.resolvedGraphView.getVisitStageOf(childRef)).toBe(
     'COMPLETE',
   );
   reusable.reusableTreeChildren.set(
@@ -228,7 +230,7 @@ test('admits an early dependent only after both later prerequisites are pre-visi
   expect(scheduling.takeReady()).toBeNull();
   scheduling.markPreVisited(bRef);
   expect(scheduling.takeReady()).toBe(joinRef);
-  expect(container.resolvedGraph.get(joinRef)?.visitStage).toBe(
+  expect(container.resolvedGraphView.get(joinRef)?.visitStage).toBe(
     'INITIAL_VISIT_ELIGIBLE',
   );
 });
@@ -289,8 +291,8 @@ test('graph children have no work prerequisites unless explicitly declared', () 
     result('child', { id: 'child' }),
   )!;
 
-  expect(container.resolvedGraph.get(rootRef)?.dependsOnWork).toEqual([]);
-  expect(container.resolvedGraph.get(childRef)?.dependsOnWork).toEqual([]);
+  expect(container.resolvedGraphView.get(rootRef)?.dependsOnWork).toEqual([]);
+  expect(container.resolvedGraphView.get(childRef)?.dependsOnWork).toEqual([]);
   expect(scheduling.takeReady()).toBe(rootRef);
   expect(scheduling.takeReady()).toBe(childRef);
   expect(scheduling.takeReady()).toBeNull();
@@ -315,7 +317,7 @@ test('deduplicates dependencies with SameValueZero and accepts COMPLETION_VISIT_
       dependsOnWork: [dependencyId, dependencyId, NaN, NaN],
     }),
   )!;
-  expect(container.resolvedGraph.get(dependentRef)?.dependsOnWork).toEqual([
+  expect(container.resolvedGraphView.get(dependentRef)?.dependsOnWork).toEqual([
     dependencyId,
     NaN,
   ]);
@@ -357,7 +359,7 @@ test('an omission releases reverse dependents once and repeated omissions close 
   ).toBeNull();
   expect(scheduling.takeReady()).toBeNull();
   expect(
-    container.resolvedGraph.get(rootRef)?.slots.map((slot) => slot.kind),
+    container.resolvedGraphView.get(rootRef)?.slots.map((slot) => slot.kind),
   ).toEqual(['linked', 'omitted', 'omitted']);
 });
 
@@ -376,12 +378,12 @@ test('supports null and undefined ids while anonymous null results reserve no id
     result('undefined-live', { id: undefined, dependsOnWork: [] }),
   )!;
 
-  expect(container.resolvedGraph.getVertexRefById(null)).toBe(nullRef);
-  expect(container.resolvedGraph.getVertexRefById(undefined)).toBe(
+  expect(container.resolvedGraphView.getVertexRefById(null)).toBe(nullRef);
+  expect(container.resolvedGraphView.getVertexRefById(undefined)).toBe(
     undefinedRef,
   );
   expect(scheduling.acceptVertex(context(rootRef, 2), omitted())).toBeNull();
-  expect(container.resolvedGraph.getVertexRefs()).toEqual([
+  expect(container.resolvedGraphView.getVertexRefs()).toEqual([
     rootRef,
     nullRef,
     undefinedRef,
@@ -398,7 +400,9 @@ test('rejects content for an omitted identity without closing the conflicting sl
       result('conflict', { id: null }),
     ),
   ).toThrow(/omission.*content/i);
-  expect(container.resolvedGraph.get(rootRef)?.slots[1]?.kind).toBe('pending');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+    'pending',
+  );
 });
 
 test('a duplicate null result links the first live identity and preserves its content', () => {
@@ -411,7 +415,7 @@ test('a duplicate null result links the first live identity and preserves its co
   expect(scheduling.acceptVertex(context(rootRef, 1), omitted('same'))).toBe(
     firstRef,
   );
-  expect(container.resolvedGraph.getChildrenOf(rootRef)).toEqual([
+  expect(container.resolvedGraphView.getChildrenOf(rootRef)).toEqual([
     firstRef,
     firstRef,
   ]);
@@ -437,7 +441,7 @@ test('duplicate live results add edges but retain first content and dependencies
 
   expect(duplicateRef).toBe(firstRef);
   expect(firstRef.getValue().getData()).toBe('first');
-  expect(container.resolvedGraph.get(firstRef)?.dependsOnWork).toEqual([
+  expect(container.resolvedGraphView.get(firstRef)?.dependsOnWork).toEqual([
     'gate',
   ]);
   expect(scheduling.takeReady()).toBeNull();
@@ -469,8 +473,8 @@ test('uses authoritative hint identities and compares dual ids with SameValueZer
     { vertexId: 0 },
   );
 
-  expect(container.resolvedGraph.getVertexRefById(undefined)).toBe(hinted);
-  expect(container.resolvedGraph.getVertexRefById(NaN)).toBe(nan);
+  expect(container.resolvedGraphView.getVertexRefById(undefined)).toBe(hinted);
+  expect(container.resolvedGraphView.getVertexRefById(NaN)).toBe(nan);
   expect(() =>
     scheduling.acceptVertex(
       context(rootRef, 3),
@@ -478,7 +482,9 @@ test('uses authoritative hint identities and compares dual ids with SameValueZer
       { vertexId: {} },
     ),
   ).toThrow(/id.*mismatch/i);
-  expect(container.resolvedGraph.get(rootRef)?.slots[3]?.kind).toBe('pending');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[3]?.kind).toBe(
+    'pending',
+  );
 });
 
 test('detects result ids as own properties rather than inherited values', () => {
@@ -495,8 +501,10 @@ test('detects result ids as own properties rather than inherited values', () => 
 
   const rootRef = scheduling.acceptRoot(inherited)!;
 
-  expect(container.resolvedGraph.getVertexRefById('inherited')).toBeNull();
-  expect(container.resolvedGraph.getVertexId(rootRef)).toBe(rootRef.getRefId());
+  expect(container.resolvedGraphView.getVertexRefById('inherited')).toBeNull();
+  expect(container.resolvedGraphView.getVertexId(rootRef)).toBe(
+    rootRef.getRefId(),
+  );
 });
 
 test('retries generated UUID identities that are already indexed', () => {
@@ -511,7 +519,7 @@ test('retries generated UUID identities that are already indexed', () => {
       result('generated', { dependsOnWork: [] }),
     )!;
 
-    expect(container.resolvedGraph.getVertexId(generated)).toBe(
+    expect(container.resolvedGraphView.getVertexId(generated)).toBe(
       'fresh-generated-id',
     );
   } finally {
@@ -534,7 +542,9 @@ test('closes arrivals for deleted identities without restoring them', () => {
     ),
   ).toBeNull();
   expect(container.store.getIdState('deleted')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraph.get(rootRef)?.slots[1]?.kind).toBe('deleted');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+    'deleted',
+  );
 });
 
 test('tombstones a new identity whose dependency was already deleted', () => {
@@ -555,7 +565,9 @@ test('tombstones a new identity whose dependency was already deleted', () => {
     ),
   ).toBeNull();
   expect(container.store.getIdState('dependent')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraph.get(rootRef)?.slots[1]?.kind).toBe('deleted');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+    'deleted',
+  );
 });
 
 test('an explicitly identified null root records omission and creates no root', () => {
@@ -567,7 +579,7 @@ test('an explicitly identified null root records omission and creates no root', 
 
   expect(scheduling.acceptRoot(omitted('empty-root'))).toBeNull();
   expect(container.store.getIdState('empty-root')).toEqual({ kind: 'omitted' });
-  expect(container.resolvedGraph.getRoot()).toBeNull();
+  expect(container.resolvedGraphView.getRoot()).toBeNull();
   expect(scheduling.takeReady()).toBeNull();
 });
 
@@ -595,6 +607,8 @@ test('accepts a hint wrapper only when it carries an own vertexId', () => {
     inheritedHint,
   )!;
 
-  expect(container.resolvedGraph.getVertexRefById('inherited')).toBeNull();
-  expect(container.resolvedGraph.getVertexId(hinted)).toBe(hinted.getRefId());
+  expect(container.resolvedGraphView.getVertexRefById('inherited')).toBeNull();
+  expect(container.resolvedGraphView.getVertexId(hinted)).toBe(
+    hinted.getRefId(),
+  );
 });

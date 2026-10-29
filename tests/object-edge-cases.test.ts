@@ -194,7 +194,7 @@ describe('object traversal and rewriting edge cases', () => {
           if (options.isTreeRoot) {
             const originalTree = options.originalTreeView!;
             const originalRoot = originalTree.getRoot()!;
-            const currentRoot = options.resolvedTree.getRoot()!;
+            const currentRoot = options.resolvedTreeView.getRoot()!;
             const originalChildren = originalTree.getChildrenOf(originalRoot)!;
             snapshot = {
               rootIsIndependent: originalRoot !== currentRoot,
@@ -260,7 +260,7 @@ describe('object traversal and rewriting edge cases', () => {
     expect(result.outputAtReturn).toEqual({ value: 1 });
 
     result.traversalRunner.run();
-    const finalRoot = result.traversalRunner.getResolvedTreeStore().getRoot()!;
+    const finalRoot = result.traversalRunner.getResolvedTreeView().getRoot()!;
 
     expect(result.traversalRunner.getStatus()).toBe(
       TraversalRunnerStatus.FINISHED,

@@ -269,7 +269,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = t.createRunner();
     await runner.run();
     expect(seen).toEqual(['committed']);
-    expect(runner.getResolvedGraph().getRoot()!.getValue().getData()).toBe(
+    expect(runner.getResolvedGraphView().getRoot()!.getValue().getData()).toBe(
       'committed',
     );
     const generation = runner.summary().vertices.get('root')!.generation!;
@@ -397,7 +397,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = t.createRunner();
     await runner.run();
     expect(seen).toEqual(['same batch']);
-    expect(runner.getResolvedGraph().getRoot()).toBeNull();
+    expect(runner.getResolvedGraphView().getRoot()).toBeNull();
   });
   test(`${Constructor.name}: invalid group replacements are atomic and normalized policy remains owned by the group`, async () => {
     const seen: string[] = [];

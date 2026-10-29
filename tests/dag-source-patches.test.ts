@@ -55,7 +55,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         if (sourceKey === 'traversableGraph') {
           expect(
             runner
-              .getResolvedGraph()
+              .getResolvedGraphView()
               .getVertexRefById(
                 expected === 'original' ? originalId : replacementId,
               ),

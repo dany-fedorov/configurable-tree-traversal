@@ -46,7 +46,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       Order.ON_WORK_READY,
       filterDagDataVisitor(isTask, (data, options) => {
         seen.push(data, options.phase, options.vertexRef.getValue().getData());
-        expect(options.resolvedGraph.getVertexId(options.vertexRef)).toBe(
+        expect(options.resolvedGraphView.getVertexId(options.vertexRef)).toBe(
           'task',
         );
         expect(options.registration.priority).toBe(12);
@@ -83,10 +83,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await runner.run();
     expect(seen).toEqual([task, Order.ON_WORK_READY, task, 'after']);
     expect(
-      runner.getResolvedGraph().getVertexRefById('group')!.getValue().getData(),
+      runner
+        .getResolvedGraphView()
+        .getVertexRefById('group')!
+        .getValue()
+        .getData(),
     ).toBe(group);
     expect(
-      runner.getResolvedGraph().getVertexRefById('task')!.getValue().getData(),
+      runner
+        .getResolvedGraphView()
+        .getVertexRefById('task')!
+        .getValue()
+        .getData(),
     ).toEqual({ kind: 'task', label: 'TASK' });
   });
 
@@ -104,7 +112,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       })),
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, (_, options) => {
-      after.push(options.resolvedGraph.getVertexId(options.vertexRef));
+      after.push(options.resolvedGraphView.getVertexId(options.vertexRef));
     });
     const runner = traversal.createRunner();
     await runner.run();
@@ -169,7 +177,11 @@ test('async filtered callbacks await commands and preserve rejected values', asy
   const runner = traversal.createRunner();
   await runner.run();
   expect(
-    runner.getResolvedGraph().getVertexRefById('task')!.getValue().getData(),
+    runner
+      .getResolvedGraphView()
+      .getVertexRefById('task')!
+      .getValue()
+      .getData(),
   ).toEqual({ kind: 'task', label: 'task!' });
   traversal.addVisitorFor(
     Order.ON_SUBGRAPH_READY,

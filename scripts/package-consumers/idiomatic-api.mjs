@@ -81,7 +81,7 @@ for (const api of [esm, cjs]) {
     items.length = 0;
     first.label = 'caller mutation';
     const runner = new api.DagTraversal(input).createRunner().run();
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     assert.equal(graph.getVertexRefs().length, 3);
     const firstRef = graph.getVertexRefById(firstId);
     const leafRef = graph.getVertexRefById(undefined);
@@ -185,11 +185,11 @@ for (const api of [esm, cjs]) {
     },
   });
   const expanded = expansion.createRunner().run();
-  assert.equal(expanded.getResolvedGraph().getVertexRefs().length, 4);
-  const shared = expanded.getResolvedGraph().getVertexRefById('shared');
+  assert.equal(expanded.getResolvedGraphView().getVertexRefs().length, 4);
+  const shared = expanded.getResolvedGraphView().getVertexRefById('shared');
   assert.deepEqual(
     expanded
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getParentsOf(shared)
       .map((ref) => ref.getValue().getData()),
     ['right'],
@@ -303,10 +303,10 @@ for (const api of [esm, cjs]) {
     dag.settle(work.vertexId, { kind: 'workCompleted' }, work.generation),
     true,
   );
-  const graph = dag.getResolvedGraph();
+  const graph = dag.getResolvedGraphView();
   for (const key of ['getIdOf', 'getVertexById', 'getStatusOf'])
     assert.equal(key in graph, false);
-  assert.equal('delete' in tree.createRunner().getResolvedTreeStore(), false);
+  assert.equal('delete' in tree.createRunner().getResolvedTreeView(), false);
   for (const result of [{ vertexContent: vertex }, { vertexContent: null }])
     assert.throws(
       () =>

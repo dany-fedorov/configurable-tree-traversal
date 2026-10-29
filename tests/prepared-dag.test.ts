@@ -60,8 +60,8 @@ test('a prepared topology starts independent seeded runners without source I/O',
   const second = result.dag.createRunner({ completedWork: new Set(['a']) });
   expect(visited).toEqual([]);
   expect(first.getStopReason()).toBe('prepared');
-  expect(first.getResolvedGraph().getRoot()).not.toBe(
-    second.getResolvedGraph().getRoot(),
+  expect(first.getResolvedGraphView().getRoot()).not.toBe(
+    second.getResolvedGraphView().getRoot(),
   );
   first.run();
   expect(second.summary().completedWorkIds).toEqual(['a']);
@@ -351,8 +351,8 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
   ).toEqual(['root', 'work']);
   expect(
     runner
-      .getResolvedGraph()
-      .getParentsOf(runner.getResolvedGraph().getVertexRefById('remote')!),
+      .getResolvedGraphView()
+      .getParentsOf(runner.getResolvedGraphView().getVertexRefById('remote')!),
   ).toEqual([]);
 });
 
@@ -432,7 +432,7 @@ test('prepared forest completion joins retain structural sharing and order', () 
   );
   if (result.kind !== 'valid') throw new Error('Expected valid');
   const runner = result.dag.createRunner();
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   expect(graph.getRoot()).toBeNull();
   expect(
     graph
@@ -478,16 +478,23 @@ test('definition arrays are immutable while arbitrary IDs and data stay shallow'
   const second = await result.dag.createAsyncRunner();
   expect(
     first
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefs()
-      .map((ref) => first.getResolvedGraph().getVertexId(ref)),
+      .map((ref) => first.getResolvedGraphView().getVertexId(ref)),
   ).toEqual(ids);
   expect(
-    second.getResolvedGraph().getVertexRefById(undefined)!.getValue().getData(),
+    second
+      .getResolvedGraphView()
+      .getVertexRefById(undefined)!
+      .getValue()
+      .getData(),
   ).toBe(items[0]);
   expect(
-    second.getResolvedGraph().getVertexRefById(undefined)!.getValue().getData()
-      .label,
+    second
+      .getResolvedGraphView()
+      .getVertexRefById(undefined)!
+      .getValue()
+      .getData().label,
   ).toBe('updated');
   first.run();
   await second.run();

@@ -72,7 +72,7 @@ async function main() {
     'generate-parser',
     'app',
   ]);
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   const parser = graph.getVertexRefById('module:parser')!;
   assert.deepEqual(graph.getParentsOf(parser), []);
   assert.deepEqual(graph.getPathsTo(parser), [[parser]]);

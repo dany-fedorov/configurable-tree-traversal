@@ -104,15 +104,8 @@ test('projects level-order events and asynchronous visitor metadata', async () =
     Order.LEVEL_ORDER,
     Order.LEVEL_ORDER,
   ]);
-  expect(
-    events.map(({ isTreeRoot, isTraversalRoot }) => [
-      isTreeRoot,
-      isTraversalRoot,
-    ]),
-  ).toEqual([
-    [true, true],
-    [false, false],
-  ]);
+  expect(events.map(({ isTreeRoot }) => isTreeRoot)).toEqual([true, false]);
+  expect(events.every((event) => !('isTraversalRoot' in event))).toBe(true);
   expect(metadata).toEqual([
     ['root', 0, undefined],
     ['child', 1, 'root'],
@@ -166,7 +159,7 @@ test('deleting the root skips prefetched children and clears the tree root', asy
   }
   expect(yielded).toEqual([]);
   expect(calls).toEqual([]);
-  expect(runner.getResolvedTreeStore().getRoot()).toBeNull();
+  expect(runner.getResolvedTreeView().getRoot()).toBeNull();
 });
 
 test('preserves paused visitor outcomes through repeated resumptions', async () => {
@@ -372,11 +365,11 @@ test('snapshots builder configuration and reuses injected tree storage and state
   );
   await runner.run({ emitEvents: [] });
   expect(visitors).toEqual(['root', 'child']);
-  expect(runner.getResolvedTreeStore().getRoot()).toBe(
-    first.getResolvedTreeStore().getRoot(),
+  expect(runner.getResolvedTreeView().getRoot()).toBe(
+    first.getResolvedTreeView().getRoot(),
   );
-  expect(runner.getResolvedGraph().getRoot()).toBe(
-    first.getResolvedGraph().getRoot(),
+  expect(runner.getResolvedGraphView().getRoot()).toBe(
+    first.getResolvedGraphView().getRoot(),
   );
 });
 

@@ -1,6 +1,7 @@
+import { vertexHandle } from '../src/core/observationFacets';
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import { MutableRef } from '../src/core/CTTRef';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
 import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
@@ -57,7 +58,12 @@ test('the original graph retains first-accepted content and shared topology', ()
   container.acceptEdge(right, 0, shared);
 
   const snapshot = container.originalGraphView!;
-  const refs = container.originalGraphRefsMap!;
+  const refs = new Map(
+    [...container.originalGraphRefsMap!].map(([active, saved]) => [
+      active,
+      vertexHandle(saved),
+    ]),
+  );
   const savedRoot = refs.get(root)!;
   const savedLeft = refs.get(left)!;
   const savedRight = refs.get(right)!;
@@ -70,7 +76,7 @@ test('the original graph retains first-accepted content and shared topology', ()
   );
   container.deleteVertices(new Set([shared]));
 
-  expect(container.resolvedGraph.has(shared)).toBe(false);
+  expect(container.resolvedGraphView.has(shared)).toBe(false);
   expect(savedShared).not.toBe(shared);
   expect(savedShared.getValue()).not.toBe(shared.getValue());
   expect(savedShared.getValue().getData()).toBe(originalSharedData);
@@ -101,7 +107,12 @@ test('a rejected active edge does not mutate the original snapshot', () => {
   expect(() => container.acceptEdge(child, 0, root)).toThrow(/cycle/i);
 
   const snapshot = container.originalGraphView!;
-  const refs = container.originalGraphRefsMap!;
+  const refs = new Map(
+    [...container.originalGraphRefsMap!].map(([active, saved]) => [
+      active,
+      vertexHandle(saved),
+    ]),
+  );
   expect(snapshot.getChildrenOf(refs.get(child)!)).toEqual([]);
   expect(snapshot.getPathsTo(refs.get(child)!)).toEqual([
     [refs.get(root)!, refs.get(child)!],
@@ -134,15 +145,17 @@ test('tree acceptance uses supplied graph ids and dependencies', () => {
   );
 
   const snapshot = container.originalGraphView!;
-  const savedRoot = container.originalGraphRefsMap!.get(root)!;
-  const savedChild = container.originalGraphRefsMap!.get(child)!;
-  expect(container.resolvedGraph.getVertexId(root)).toBe('accepted-root');
-  expect(container.resolvedGraph.getVertexRefById('accepted-root')).toBe(root);
-  expect(container.resolvedGraph.getVertexId(child)).toBe('accepted-child');
-  expect(container.resolvedGraph.getVertexRefById('accepted-child')).toBe(
+  const savedRoot = vertexHandle(container.originalGraphRefsMap!.get(root)!);
+  const savedChild = vertexHandle(container.originalGraphRefsMap!.get(child)!);
+  expect(container.resolvedGraphView.getVertexId(root)).toBe('accepted-root');
+  expect(container.resolvedGraphView.getVertexRefById('accepted-root')).toBe(
+    root,
+  );
+  expect(container.resolvedGraphView.getVertexId(child)).toBe('accepted-child');
+  expect(container.resolvedGraphView.getVertexRefById('accepted-child')).toBe(
     child,
   );
-  expect(container.resolvedGraph.get(child)?.dependsOnWork).toEqual([
+  expect(container.resolvedGraphView.get(child)?.dependsOnWork).toEqual([
     'accepted-root',
   ]);
   expect(snapshot.getVertexId(savedRoot)).toBe('accepted-root');
@@ -176,8 +189,8 @@ test('tree acceptance validates saved parent mappings before graph insertion', (
   expect(() =>
     container.acceptVertex(child, 'child', ['root'], context(root, 0)),
   ).toThrow(/not mutated parent ref/i);
-  expect(container.resolvedGraph.has(child)).toBe(false);
-  expect(container.resolvedGraph.getVertexRefById('child')).toBeNull();
+  expect(container.resolvedGraphView.has(child)).toBe(false);
+  expect(container.resolvedGraphView.getVertexRefById('child')).toBeNull();
   expect(treeContainer.resolvedTree.get(child)).toBeNull();
   expect(container.originalGraphRefsMap!.has(child)).toBe(false);
   expect(container.originalGraphView!.getVertexRefById('child')).toBeNull();
@@ -185,7 +198,7 @@ test('tree acceptance validates saved parent mappings before graph insertion', (
   savedRefs.set(root, savedRoot);
   container.acceptVertex(child, 'child', ['root'], context(root, 0));
 
-  expect(container.resolvedGraph.getVertexRefById('child')).toBe(child);
+  expect(container.resolvedGraphView.getVertexRefById('child')).toBe(child);
   expect(treeContainer.resolvedTree.get(child)).not.toBeNull();
   expect(container.originalGraphRefsMap!.has(child)).toBe(true);
 });
@@ -241,9 +254,9 @@ test.each([
     expect(() =>
       fixture.container.acceptEdge(fixture.root, 0, fixture.child),
     ).toThrow(/not mutated/i);
-    expect(fixture.container.resolvedGraph.getChildrenOf(fixture.root)).toEqual(
-      [],
-    );
+    expect(
+      fixture.container.resolvedGraphView.getChildrenOf(fixture.root),
+    ).toEqual([]);
   },
 );
 

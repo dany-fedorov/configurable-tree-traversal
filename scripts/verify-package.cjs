@@ -120,7 +120,7 @@ try {
     assert(completeEvents.indexOf('W:join') > completeEvents.indexOf('C:bundle'));
     assert(completeEvents.indexOf('C:bundle') > completeEvents.indexOf('C:compile'));
     assert.deepEqual(completionRunner.summary().vertices.get('join').unmetSubgraphPrerequisiteIds, []);
-    assert.deepEqual(completionRunner.getResolvedGraph().get(completionRunner.getResolvedGraph().getVertexRefById('join')).dependsOnSubgraphCompletion, ['bundle']);
+    assert.deepEqual(completionRunner.getResolvedGraphView().get(completionRunner.getResolvedGraphView().getVertexRefById('join')).dependsOnSubgraphCompletion, ['bundle']);
 
     const lookupCalls = [];
     const lookupRunner = new dag.DagTraversal({ traversableGraph: {
@@ -129,8 +129,8 @@ try {
       resolvePrerequisite: id => { lookupCalls.push(id); return { kind: 'found', vertex: { dependsOnWork: id === 'parser' ? ['lexer'] : [], vertexContent: { $data: id, $childHints: [] } } }; },
     } }).createRunner().run();
     assert.deepEqual(lookupCalls, ['parser', 'lexer']);
-    const parser = lookupRunner.getResolvedGraph().getVertexRefById('parser');
-    assert.deepEqual(lookupRunner.getResolvedGraph().getParentsOf(parser), []);
+    const parser = lookupRunner.getResolvedGraphView().getVertexRefById('parser');
+    assert.deepEqual(lookupRunner.getResolvedGraphView().getParentsOf(parser), []);
     assert.equal(lookupRunner.summary().counts.subgraphCompleted, 3);
 
     const tree = new lib.ObjectTreeSource({ a: { b: 1 }, c: 2 });
@@ -310,7 +310,7 @@ try {
     path.join(consumer, 'consumer.ts'),
     `
     import { AsyncBreadthFirstTreeTraversal, AsyncDagTraversal, AsyncDepthFirstTreeTraversal, DepthFirstTreeTraversal, DepthFirstPhase, BreadthFirstTreeTraversal, DagTraversal, DagVisitorPhase, ObjectTreeSource, TraversalRunnerStatus, TraversalVisitorCommandName, core, objectRewrite, rewriteObject, traverseTreeBreadthFirstAsync, traverseDag, traverseDagAsync, traverseTreeDepthFirst, traverseTreeDepthFirstAsync } from 'configurable-tree-traversal';
-    import type { AsyncDagDiscoverySource, ChildSlot, TreeDagExecutionInspection, StructuralChildEdge, ResolvedGraphVertex, ResolvedVisitStage, HintVertexId, MaybePromise, ResolvedGraph, DepthFirstTreeRunner, DagDiscoverySource, TreeSource, VertexTypes, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
+    import type { AsyncDagDiscoverySource, ChildSlot, TreeDagExecutionInspection, StructuralChildEdge, ResolvedGraphVertex, ResolvedVisitStage, HintVertexId, MaybePromise, ResolvedGraphView, DepthFirstTreeRunner, DagDiscoverySource, TreeSource, VertexTypes, TraversalVisitorCommand, VertexId } from 'configurable-tree-traversal';
     import type { ChildSlot as CoreChildSlot, StructuralChildEdge as CoreGraphEdge, ResolvedGraphVertex as CoreGraphVertex, ResolvedVisitStage as CoreGraphVertexStatus, HintVertexId as CoreHintVertexId, MaybePromise as CoreMaybePromise, VertexId as CoreVertexId } from 'configurable-tree-traversal/core';
     import type { TraversalExecutionOptions, DepthFirstTreeOptions, DepthFirstTreeOptionsPatch } from 'configurable-tree-traversal';
     import { TraversalVisitorCommandName as Command } from 'configurable-tree-traversal';
@@ -386,7 +386,7 @@ try {
     const asyncGraph: AsyncDagDiscoverySource<Tree> = { ...graph, resolvePrerequisite: id => Promise.resolve(graph.resolvePrerequisite!(id)) };
     const dagConfig: TraversalExecutionOptions<DagVisitorPhase> = { emitEvents: ['workCompleted'] };
     const dag = new DagTraversal({ traversableGraph: graph }).createRunner();
-    const resolvedGraph: ResolvedGraph<Tree> = dag.run(dagConfig).getResolvedGraph();
+    const resolvedGraphView: ResolvedGraphView<Tree> = dag.run(dagConfig).getResolvedGraphView();
     const asyncDepth = new AsyncDepthFirstTreeTraversal({ traversableTree: abstractTree }).createRunner();
     const asyncBreadth = new AsyncBreadthFirstTreeTraversal({ traversableTree: abstractTree }).createRunner();
     const asyncDag = new AsyncDagTraversal({ traversableGraph: asyncGraph, concurrency: 2 }).createRunner();
@@ -397,7 +397,7 @@ try {
     const subpathSummary: SubpathSummary = asyncDag.summary();
     const entry: DagVertexProgress | undefined = summary.vertices.get('root');
     const completeGates: readonly VertexId[] | undefined = entry?.unmetSubgraphPrerequisiteIds;
-    const completeDeclaration: readonly VertexId[] | undefined = dag.getResolvedGraph().get(dag.getResolvedGraph().getRoot()!)?.dependsOnSubgraphCompletion;
+    const completeDeclaration: readonly VertexId[] | undefined = dag.getResolvedGraphView().get(dag.getResolvedGraphView().getRoot()!)?.dependsOnSubgraphCompletion;
     const legacyProgress: DagVertexProgress = { vertexId: 'old', work: 'pending', subgraphComplete: false, unmetPrerequisiteIds: [], unmetWorkPrerequisiteIds: [], unmetSubgraphPrerequisiteIds: [] };
     void [completeGates, completeDeclaration, legacyProgress];
     const state: DagWorkState | undefined = entry?.work;
@@ -417,7 +417,7 @@ try {
       traverseDagAsync({ ...{ traversableGraph: asyncGraph },  }),
     ];
     const syncDag = traverseDag({ ...{ traversableGraph: graph },  });
-    void [Vertex, CoreVertex, core.Vertex, value, status, failedStatus, convenience, resolvedGraph, inspection, publicTypes, asyncRuns, syncDag];
+    void [Vertex, CoreVertex, core.Vertex, value, status, failedStatus, convenience, resolvedGraphView, inspection, publicTypes, asyncRuns, syncDag];
   `,
   );
   fs.writeFileSync(
@@ -489,6 +489,7 @@ try {
   // the extracted package, never this checkout's source aliases.
   const typeFixtures = [
     'supported-exports',
+    'observation-facets',
     'uniform-api',
     'rewrite-output',
     'source-hint-contracts',
@@ -516,6 +517,7 @@ try {
   }
   for (const file of [
     'supported-exports.mjs',
+    'observation-facets.mjs',
     'idiomatic-diagnostics.mjs',
     'idiomatic-api.mjs',
     'uniform-api.mjs',

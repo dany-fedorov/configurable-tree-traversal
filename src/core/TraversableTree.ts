@@ -2,14 +2,13 @@ import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { VertexContentInput } from '@core/Vertex';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { ResolvedTreeStore } from '@core/ResolvedTree';
 
 export type TreeChildResolutionContext<
   TTP extends VertexTypes,
   RW_TTP extends VertexTypes,
 > = {
   resolutionContext: VertexResolutionContext<TTP | RW_TTP>;
-  resolvedTree: ResolvedTreeStore<TTP | RW_TTP>;
+  resolvedTreeView: ResolvedTreeView<TTP | RW_TTP>;
   originalTreeView: ResolvedTreeView<TTP> | null;
 };
 

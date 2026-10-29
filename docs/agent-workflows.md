@@ -209,3 +209,14 @@ Use `summary()` for DAG work readiness and diagnostics. Use `inspect()` for call
 ### Carrying completion facts into a revision
 
 Unknown `completedWork` IDs reject intentionally. Before seeding a revised definition, the host must revalidate which accepted artifacts still satisfy its task policy, then retain only IDs present in `dag.vertices` or `dag.definition.omittedIds`. Membership alone does not establish that an old result is valid for changed task data or dependencies. Keep accepted facts outside CTT; revision does not migrate them automatically. See the [revision example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts).
+
+### Observing traversal state
+
+Use `getResolvedTreeView()` or `getResolvedGraphView()` for live queries.
+Callbacks and sources receive `resolvedTreeView` or `resolvedGraphView` and
+canonical `VertexHandle` / `VertexView` facets. They cannot replace CTT state or
+edit its hint collections; use visitor commands for active rewrites and deletion.
+Caller data, IDs, and individual hints retain shallow identity. Captured event
+vertices remain historical even when their live handles change. Synthetic DAG
+entry source contexts have null parent vertex/ref fields; ordinary graph and tree
+parents remain visible. See [query contracts](reference.md#safe-tree-queries).

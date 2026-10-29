@@ -190,7 +190,7 @@ test('steps from an owned root request through visit and event backpressure', ()
 
   kernel.acknowledgeEvent(event.boundaryId);
   expect(kernel.poll('drive')).toEqual({ kind: 'FINISHED' });
-  expect(container.resolvedGraph.getRoot()).not.toBeNull();
+  expect(container.resolvedGraphView.getRoot()).not.toBeNull();
 });
 
 test('reports public request, halt, event, and failed-resume guards', () => {

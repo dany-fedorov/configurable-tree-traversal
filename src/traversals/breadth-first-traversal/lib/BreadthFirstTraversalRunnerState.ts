@@ -1,5 +1,5 @@
 import type { MutableRef } from '@core/CTTRef';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
@@ -23,7 +23,7 @@ export class BreadthFirstTraversalRunnerState<
   TTP extends VertexTypes = VertexTypes,
   RW_TTP extends VertexTypes = TTP,
 > {
-  queue: VertexResolutionContext<TTP | RW_TTP>[];
+  queue: InternalVertexResolutionContext<TTP | RW_TTP>[];
   queueIndex: number;
   visitorsState: BreadthFirstTraversalVisitorsState<TTP, RW_TTP>;
   traversalRootVertexRef: MutableRef<Vertex<TTP | RW_TTP>> | null;

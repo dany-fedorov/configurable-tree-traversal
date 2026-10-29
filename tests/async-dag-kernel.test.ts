@@ -290,7 +290,7 @@ test('accepts duplicate identities in resolver settlement order', async () => {
 
   expect(kernel.inspect().frames[0]?.pendingIndices).toEqual([0]);
   expect(
-    container.resolvedGraph
+    container.resolvedGraphView
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'second-won']);
@@ -303,11 +303,11 @@ test('accepts duplicate identities in resolver settlement order', async () => {
   await eventLoopTurn();
   driver.advance('drive');
   driver.advance('drive');
-  const rootRef = container.resolvedGraph.getRoot()!;
-  const children = container.resolvedGraph.getChildrenOf(rootRef)!;
+  const rootRef = container.resolvedGraphView.getRoot()!;
+  const children = container.resolvedGraphView.getChildrenOf(rootRef)!;
   expect(children).toHaveLength(2);
   expect(children[0]).toBe(children[1]);
-  expect(container.resolvedGraph.getVertexRefs()).toHaveLength(2);
+  expect(container.resolvedGraphView.getVertexRefs()).toHaveLength(2);
 });
 
 test('preserves resolver settlement order across a halt and resume', async () => {
@@ -405,7 +405,7 @@ test('preserves resolver settlement order across a halt and resume', async () =>
   await eventLoopTurn();
   expect(driver.advance('drain')).toEqual({ kind: 'WAIT' });
   expect(
-    container.resolvedGraph
+    container.resolvedGraphView
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'blocker']);
@@ -421,12 +421,12 @@ test('preserves resolver settlement order across a halt and resume', async () =>
   driver.resume();
   driver.advance('drive');
   expect(
-    container.resolvedGraph
+    container.resolvedGraphView
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).toContain('second-won');
   expect(
-    container.resolvedGraph
+    container.resolvedGraphView
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).not.toContain('first-lost');
@@ -751,7 +751,7 @@ test('finishes after deletion without awaiting an invalidated running callback',
     pendingRequests: [{ valid: false }],
   });
   expect(
-    container.resolvedGraph
+    container.resolvedGraphView
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).not.toContain('B');
@@ -834,12 +834,12 @@ test('retains the first live failure and discards a later chain mutation', async
   expect(driver.advance('settle')).toEqual({ kind: 'FAILED', error: failure });
   expect(kernel.getFailure()).toEqual({ error: failure });
   expect(
-    container.resolvedGraph
+    container.resolvedGraphView
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).toContain('B');
   expect(
-    container.resolvedGraph
+    container.resolvedGraphView
       .getVertexRefs()
       .map((ref) => ref.getValue().getData()),
   ).not.toContain('mutated');

@@ -1,4 +1,4 @@
-import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalRunnerStatus,
@@ -49,7 +49,7 @@ export type CallSpec<T extends VertexTypes, R extends VertexTypes = T> = {
   | { kind: 'RESOLVE_PREREQUISITE'; vertexId: VertexId }
   | { kind: 'SORT_HINTS'; hints: (T | R)['VertexHint'][] }
   | { kind: 'HINT_ID'; hint: (T | R)['VertexHint']; hintIndex: number }
-  | { kind: 'MAKE_VERTEX'; context: VertexResolutionContext<T | R> }
+  | { kind: 'MAKE_VERTEX'; context: InternalVertexResolutionContext<T | R> }
   | {
       kind: 'VISIT';
       ref: VertexRef<T | R>;
@@ -98,7 +98,6 @@ export type KernelEvent<T extends VertexTypes> = {
   vertexRef: VertexRef<T>;
   order: VisitPhase;
   isRoot: boolean;
-  isTraversalRoot: boolean;
 };
 
 export type KernelAction<T extends VertexTypes, R extends VertexTypes = T> =

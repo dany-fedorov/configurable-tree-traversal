@@ -1,10 +1,10 @@
 import type { OwnerToken } from '@core/effects/types';
 import type { VertexRef } from '@core/graph/types';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 
 export type BreadthFirstPolicyState<T extends VertexTypes> = {
-  queue: VertexResolutionContext<T>[];
+  queue: InternalVertexResolutionContext<T>[];
   queueIndex: number;
 };
 
@@ -17,7 +17,7 @@ type BreadthFirstExpansion<T extends VertexTypes> = {
 
 type BreadthFirstResolution<T extends VertexTypes> = {
   owner: OwnerToken;
-  context: VertexResolutionContext<T>;
+  context: InternalVertexResolutionContext<T>;
 };
 
 type ParentProgress = {
@@ -26,7 +26,7 @@ type ParentProgress = {
 };
 
 export type InjectedBreadthFirstFrontier<T extends VertexTypes> = {
-  contexts: readonly VertexResolutionContext<T>[];
+  contexts: readonly InternalVertexResolutionContext<T>[];
   consumedHintIndices: ReadonlySet<number>;
 };
 
@@ -41,7 +41,7 @@ export type BreadthFirstWork<T extends VertexTypes> =
       expansion: BreadthFirstExpansion<T>;
       hints: T['VertexHint'][];
     }
-  | { kind: 'MAKE_VERTEX'; context: VertexResolutionContext<T> }
+  | { kind: 'MAKE_VERTEX'; context: InternalVertexResolutionContext<T> }
   | { kind: 'CLEAR_QUEUE' };
 
 /** Queue policy preserving dequeue-time resolution and legacy public state. */
@@ -51,7 +51,7 @@ export class BreadthFirstPolicy<T extends VertexTypes> {
   private readonly injectedFrontiers = new Map<
     VertexRef<T>,
     {
-      contexts: VertexResolutionContext<T>[];
+      contexts: InternalVertexResolutionContext<T>[];
       consumedHintIndices: Set<number>;
     }
   >();
@@ -178,7 +178,7 @@ export class BreadthFirstPolicy<T extends VertexTypes> {
 
   startResolution(
     owner: OwnerToken,
-    context: VertexResolutionContext<T>,
+    context: InternalVertexResolutionContext<T>,
   ): void {
     if (this.pendingResolution !== null) {
       throw new Error('Breadth-first resolution is already pending');
@@ -187,7 +187,7 @@ export class BreadthFirstPolicy<T extends VertexTypes> {
   }
 
   completeResolution(owner: OwnerToken): {
-    context: VertexResolutionContext<T>;
+    context: InternalVertexResolutionContext<T>;
     closeParent: boolean;
   } {
     if (this.pendingResolution?.owner.id !== owner.id) {

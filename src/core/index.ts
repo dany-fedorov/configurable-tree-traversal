@@ -7,6 +7,7 @@ export type {
   InspectionFilters,
 } from './CoreInspection';
 export { MutableRef } from './CTTRef';
+export type { VertexHandle } from './CTTRef';
 export { DagDiscoveryCycleError } from './errors/DagDiscoveryCycleError';
 export { DagTraversalStallError } from './errors/DagTraversalStallError';
 export type {
@@ -23,7 +24,6 @@ export type {
   ResolvedVisitStage,
   StructuralChildEdge,
   VertexId,
-  VertexRef,
 } from './graph/types';
 export type {
   MutationRequest,
@@ -33,7 +33,7 @@ export type {
   TreeMutationCommandBinder,
   TreeMutationCommandBinderFactory,
 } from './MakeMutationCommandFunctionFactory';
-export type { ResolvedGraph, OriginalGraphView } from './ResolvedGraph';
+export type { ResolvedGraphView, OriginalGraphView } from './ResolvedGraphView';
 export { TreeVertexRecord, ResolvedTreeStore } from './ResolvedTree';
 export type {
   VertexResolutionContext,
@@ -96,7 +96,10 @@ export type {
 export type { VertexTypes } from './TreeTypeParameters';
 export { Vertex } from './Vertex';
 export type {
+  VertexView,
   VertexContent,
   VertexContentInput,
   VertexCloneContent,
 } from './Vertex';
+
+export type { VertexHandle as VertexRef } from './CTTRef';

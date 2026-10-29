@@ -24,7 +24,7 @@ const tree: AsyncTreeSource<Input, Output> = {
   }),
   resolveChild: (hint, options) => {
     const input: string = hint;
-    void [input, options.resolvedTree, options.originalTreeView];
+    void [input, options.resolvedTreeView, options.originalTreeView];
     return Promise.resolve({ kind: 'omitted' as const });
   },
 };

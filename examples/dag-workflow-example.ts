@@ -64,4 +64,4 @@ assert(readyTasks.indexOf('publish') > readyTasks.indexOf('test'));
 assert.equal(new Set(readyTasks).size, 5);
 assert.equal(completedSubtrees[0], 'publish');
 assert.equal(completedSubtrees.at(-1), 'root');
-assert.equal(hasSingleStructuralSink(runner.getResolvedGraph()), true);
+assert.equal(hasSingleStructuralSink(runner.getResolvedGraphView()), true);
