@@ -23,13 +23,17 @@ export function vertexView<T extends VertexTypes>(
 ): VertexView<T> {
   let view = vertices.get(vertex) as VertexView<T> | undefined;
   if (view === undefined) {
-    const hints = Object.freeze(vertex.getChildrenHints().slice());
+    // Cache the facet identity, not mutable standalone Vertex hint contents.
+    const getChildrenHints = () =>
+      Object.freeze(vertex.getChildrenHints().slice());
     view = Object.freeze({
       $data: vertex.getData(),
-      $childHints: hints,
+      get $childHints() {
+        return getChildrenHints();
+      },
       getData: () => vertex.getData(),
-      getChildrenHints: () => hints,
-      hasNoChildHints: () => hints.length === 0,
+      getChildrenHints,
+      hasNoChildHints: () => vertex.hasNoChildHints(),
       clone: (content?: VertexCloneContent<T>) => {
         const clone = vertex.clone(content);
         return new Vertex<T>({
@@ -138,6 +142,14 @@ export function resolvedGraphView<T extends VertexTypes, ID>(
           ? null
           : Object.freeze({
               ...record,
+              dependsOnWork: Object.freeze(record.dependsOnWork.slice()),
+              ...(record.dependsOnSubgraphCompletion === undefined
+                ? {}
+                : {
+                    dependsOnSubgraphCompletion: Object.freeze(
+                      record.dependsOnSubgraphCompletion.slice(),
+                    ),
+                  }),
               vertexRef: vertexHandle(record.vertexRef),
               vertex: vertexView(record.vertex),
               incoming: Object.freeze(

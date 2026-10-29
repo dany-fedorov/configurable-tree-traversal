@@ -364,7 +364,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const graph = runner.getResolvedGraphView();
     const stored = graph.get(graph.getVertexRefById('join')!)!;
     expect(stored.dependsOnSubgraphCompletion).toHaveLength(6);
-    (stored.dependsOnSubgraphCompletion as unknown[]).length = 0;
+    expect(Object.isFrozen(stored.dependsOnSubgraphCompletion)).toBe(true);
+    expect(Reflect.set(stored.dependsOnSubgraphCompletion!, 'length', 0)).toBe(
+      false,
+    );
     expect(
       graph.get(graph.getVertexRefById('join')!)!.dependsOnSubgraphCompletion,
     ).toHaveLength(6);
