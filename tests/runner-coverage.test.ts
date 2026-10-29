@@ -1,87 +1,102 @@
-import { CTTRef } from '../src/core/CTTRef';
-import type { TraversableTree } from '../src/core/TraversableTree';
+import { internalTreeStore } from './internal-runner-fixtures';
+import { treeResolution } from './source-result-fixtures';
+import { MutableRef } from '../src/core/CTTRef';
+import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName,
-  TraversalVisitorFunctionResolutionStyle,
-} from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
 import {
-  BreadthFirstTraversal,
-  BreadthFirstTraversalOrder,
-  traverseBreadthFirst,
+  BreadthFirstPhase,
+  BreadthFirstTreeTraversal,
+  traverseTreeBreadthFirst,
 } from '../src/traversals/breadth-first-traversal';
 import { BreadthFirstTraversalRunnerState } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerState';
 import {
-  DepthFirstTraversal,
-  DepthFirstTraversalOrder,
-  traverseDepthFirst,
+  DepthFirstPhase,
+  DepthFirstTreeTraversal,
+  traverseTreeDepthFirst,
 } from '../src/traversals/depth-first-traversal';
 import { shouldYieldForOrder } from '../src/traversals/depth-first-traversal/iterable-helpers/shouldYieldForOrder';
 import type { DepthFirstTraversalRunnerIterableConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
+import {
+  createInternalBreadthFirstTreeTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: Array<Node | null> };
-type Tree = TreeTypeParameters<string, Node | null>;
+type Node = { $data: string; $childHints: Array<Node | null> };
+type Tree = VertexTypes<string, Node | null>;
 
-const node = ($d: string, ...$c: Array<Node | null>): Node => ({ $d, $c });
-const adapter = (root: Node | null): TraversableTree<Tree> => ({
-  makeRoot: () => ({ vertexContent: root }),
-  makeVertex: (hint) => ({ vertexContent: hint }),
+const node = ($data: string, ...$childHints: Array<Node | null>): Node => ({
+  $data,
+  $childHints,
+});
+const adapter = (root: Node | null): TreeSource<Tree> => ({
+  resolveRoot: () => treeResolution(root),
+  resolveChild: (hint) => treeResolution(hint),
 });
 
 test('depth-first convenience visitors run at their requested orders', () => {
   const visits: string[] = [];
-  const runner = traverseDepthFirst(adapter(node('root', node('child'))), {
-    preOrderVisitor: (vertex, options) => {
-      visits.push(`${options.order}:${vertex.getData()}`);
-    },
-    inOrderVisitor: (vertex, options) => {
-      visits.push(`${options.order}:${vertex.getData()}`);
-    },
-    postOrderVisitor: (vertex, options) => {
-      visits.push(`${options.order}:${vertex.getData()}`);
+  const runner = traverseTreeDepthFirst({
+    traversableTree: adapter(node('root', node('child'))),
+    visitors: {
+      PRE_ORDER: (vertex, options) => {
+        visits.push(`${options.phase}:${vertex.getData()}`);
+      },
+      IN_ORDER: (vertex, options) => {
+        visits.push(`${options.phase}:${vertex.getData()}`);
+      },
+      POST_ORDER: (vertex, options) => {
+        visits.push(`${options.phase}:${vertex.getData()}`);
+      },
     },
   });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(visits).toEqual([
-    `${DepthFirstTraversalOrder.PRE_ORDER}:root`,
-    `${DepthFirstTraversalOrder.PRE_ORDER}:child`,
-    `${DepthFirstTraversalOrder.IN_ORDER}:child`,
-    `${DepthFirstTraversalOrder.POST_ORDER}:child`,
-    `${DepthFirstTraversalOrder.IN_ORDER}:root`,
-    `${DepthFirstTraversalOrder.POST_ORDER}:root`,
+    `${DepthFirstPhase.PRE_ORDER}:root`,
+    `${DepthFirstPhase.PRE_ORDER}:child`,
+    `${DepthFirstPhase.IN_ORDER}:child`,
+    `${DepthFirstPhase.POST_ORDER}:child`,
+    `${DepthFirstPhase.IN_ORDER}:root`,
+    `${DepthFirstPhase.POST_ORDER}:root`,
   ]);
 });
 
 test('depth-first convenience traversal accepts no visitors or config', () => {
-  const runner = traverseDepthFirst(adapter(node('root')), null);
+  const runner = traverseTreeDepthFirst({
+    traversableTree: adapter(node('root')),
+  });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-  expect(runner.getResolvedTree().getRoot()?.unref().getData()).toBe('root');
+  expect(internalTreeStore(runner).getRoot()?.getValue().getData()).toBe(
+    'root',
+  );
 });
 
 test('breadth-first convenience visitor receives sorted level-order vertices', () => {
   const visits: string[] = [];
-  const runner = traverseBreadthFirst(
-    adapter(node('root', node('a'), node('b'))),
-    (vertex, options) => {
-      visits.push(`${options.order}:${vertex.getData()}`);
+  const runner = traverseTreeBreadthFirst({
+    traversableTree: adapter(node('root', node('a'), node('b'))),
+    ...{ sortChildrenHints: <Hint>(hints: Hint[]) => hints.reverse() },
+    visitors: {
+      LEVEL_ORDER: (vertex, options) => {
+        visits.push(`${options.phase}:${vertex.getData()}`);
+      },
     },
-    { sortChildrenHints: (hints) => hints.reverse() },
-  );
+  });
 
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(visits).toEqual([
-    `${BreadthFirstTraversalOrder.LEVEL_ORDER}:root`,
-    `${BreadthFirstTraversalOrder.LEVEL_ORDER}:b`,
-    `${BreadthFirstTraversalOrder.LEVEL_ORDER}:a`,
+    `${BreadthFirstPhase.LEVEL_ORDER}:root`,
+    `${BreadthFirstPhase.LEVEL_ORDER}:b`,
+    `${BreadthFirstPhase.LEVEL_ORDER}:a`,
   ]);
 });
 
 test('breadth-first set/list visitors preserve priority order when executed', () => {
-  const traversal = new BreadthFirstTraversal<Tree>({
+  const traversal = new BreadthFirstTreeTraversal<Tree>({
     traversableTree: adapter(node('root')),
   });
   const visits: string[] = [];
@@ -92,51 +107,46 @@ test('breadth-first set/list visitors preserve priority order when executed', ()
     visits.push('higher');
   };
 
-  const returned = traversal.setVisitorsFor(
-    BreadthFirstTraversalOrder.LEVEL_ORDER,
-    [
-      {
-        addedIndex: 0,
-        priority: 10,
-        resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
-        visitor: lowerPriority,
-      },
-      {
-        addedIndex: 1,
-        priority: 20,
-        resolutionStyle: TraversalVisitorFunctionResolutionStyle.SEQUENTIAL,
-        visitor: higherPriority,
-      },
-    ],
-  );
+  const returned = traversal.setVisitorsFor(BreadthFirstPhase.LEVEL_ORDER, [
+    {
+      priority: 10,
+      commandCommitMode: 'afterEachVisitor' as const,
+      visitor: lowerPriority,
+    },
+    {
+      priority: 20,
+      commandCommitMode: 'afterEachVisitor' as const,
+      visitor: higherPriority,
+    },
+  ]);
 
   expect(returned).toBe(traversal);
   expect(
     traversal
-      .listVisitorsFor(BreadthFirstTraversalOrder.LEVEL_ORDER)
+      .listVisitorsFor(BreadthFirstPhase.LEVEL_ORDER)
       .map((record) => record.visitor),
   ).toEqual([higherPriority, lowerPriority]);
-  traversal.makeRunner().run();
+  traversal.createRunner().run();
   expect(visits).toEqual(['higher', 'lower']);
 });
 
 test('depth-first visitor listing reflects priority sorting', () => {
-  const traversal = new DepthFirstTraversal<Tree>({
+  const traversal = new DepthFirstTreeTraversal<Tree>({
     traversableTree: adapter(node('root')),
   });
   const lowerPriority = () => undefined;
   const higherPriority = () => undefined;
 
-  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, lowerPriority, {
+  traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, lowerPriority, {
     priority: 10,
   });
-  traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, higherPriority, {
+  traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, higherPriority, {
     priority: 20,
   });
 
   expect(
     traversal
-      .listVisitorsFor(DepthFirstTraversalOrder.PRE_ORDER)
+      .listVisitorsFor(DepthFirstPhase.PRE_ORDER)
       .map((record) => record.visitor),
   ).toEqual([higherPriority, lowerPriority]);
 });
@@ -147,24 +157,24 @@ test.each(['depth-first', 'breadth-first'] as const)(
     const root = node('root', node('child'));
     const values: string[] = [];
     if (strategy === 'depth-first') {
-      const traversal = new DepthFirstTraversal<Tree>({
+      const traversal = new DepthFirstTreeTraversal<Tree>({
         traversableTree: adapter(root),
       });
-      traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => ({
+      traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => ({
         commands: [{ commandName: TraversalVisitorCommandName.NOOP }],
       }));
-      for (const event of traversal.makeRunner().getIterable({
-        iterateOver: [DepthFirstTraversalOrder.PRE_ORDER],
+      for (const event of traversal.createRunner().iterateEvents({
+        emitEvents: [DepthFirstPhase.PRE_ORDER],
       }))
         values.push(event.vertex.getData());
     } else {
-      const traversal = new BreadthFirstTraversal<Tree>({
+      const traversal = new BreadthFirstTreeTraversal<Tree>({
         traversableTree: adapter(root),
       });
-      traversal.addVisitorFor(BreadthFirstTraversalOrder.LEVEL_ORDER, () => ({
+      traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, () => ({
         commands: [{ commandName: TraversalVisitorCommandName.NOOP }],
       }));
-      for (const event of traversal.makeRunner().getIterable())
+      for (const event of traversal.createRunner().iterateEvents())
         values.push(event.vertex.getData());
     }
 
@@ -177,27 +187,27 @@ test.each(['depth-first', 'breadth-first'] as const)(
   (strategy) => {
     const traversal =
       strategy === 'depth-first'
-        ? new DepthFirstTraversal<Tree>({
+        ? new DepthFirstTreeTraversal<Tree>({
             traversableTree: {
               ...adapter(node('unused')),
-              makeRoot: () => {
+              resolveRoot: () => {
                 throw new Error('Registered root must be reused');
               },
             },
           })
-        : new BreadthFirstTraversal<Tree>({
+        : new BreadthFirstTreeTraversal<Tree>({
             traversableTree: {
               ...adapter(node('unused')),
-              makeRoot: () => {
+              resolveRoot: () => {
                 throw new Error('Registered root must be reused');
               },
             },
           });
-    const runner = traversal.makeRunner();
-    const root = new CTTRef(new Vertex<Tree>(node('late-root')));
-    runner.resolvedTreesContainer.setRoot(root);
+    const runner = traversal.createRunner();
+    const root = new MutableRef(new Vertex<Tree>(node('late-root')));
+    runnerInternals(runner).resolvedTreesContainer.setRoot(root);
     expect(
-      [...runner.getIterable()].map((event) => event.vertex.getData()),
+      [...runner.iterateEvents()].map((event) => event.vertex.getData()),
     ).toEqual(
       strategy === 'depth-first'
         ? ['late-root', 'late-root', 'late-root']
@@ -207,65 +217,64 @@ test.each(['depth-first', 'breadth-first'] as const)(
 );
 
 test('depth-first hint rewrites outside pre-order fail the runner', () => {
-  const traversal = new DepthFirstTraversal<Tree>({
+  const traversal = new DepthFirstTreeTraversal<Tree>({
     traversableTree: adapter(node('root')),
   });
   traversal.addVisitorFor(
-    DepthFirstTraversalOrder.POST_ORDER,
+    DepthFirstPhase.POST_ORDER,
     () =>
       ({
         commands: [
           {
-            commandName:
-              TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+            commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
             commandArguments: { newHints: [node('late')] },
           },
         ],
       } as never),
   );
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
 
   expect(() => runner.run()).toThrow(/only be rewritten during pre-order/i);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.FAILED);
 });
 
 test('an enable list runs only named depth-first visitors while iteration filters independently', () => {
-  const traversal = new DepthFirstTraversal<Tree>({
+  const traversal = new DepthFirstTreeTraversal<Tree>({
     traversableTree: adapter(node('root')),
   });
-  const visits: DepthFirstTraversalOrder[] = [];
-  for (const order of Object.values(DepthFirstTraversalOrder)) {
+  const visits: DepthFirstPhase[] = [];
+  for (const order of Object.values(DepthFirstPhase)) {
     traversal.addVisitorFor(order, (_vertex, options) => {
-      visits.push(options.order);
+      visits.push(options.phase);
     });
   }
 
   const yielded = [
-    ...traversal.makeRunner().getIterable({
-      enableVisitorFunctionsFor: [DepthFirstTraversalOrder.PRE_ORDER],
-      iterateOver: [DepthFirstTraversalOrder.POST_ORDER],
+    ...traversal.createRunner().iterateEvents({
+      visitorPhases: { include: [DepthFirstPhase.PRE_ORDER] },
+      emitEvents: [DepthFirstPhase.POST_ORDER],
     }),
   ];
 
-  expect(visits).toEqual([DepthFirstTraversalOrder.PRE_ORDER]);
-  expect(yielded.map((event) => event.order)).toEqual([
-    DepthFirstTraversalOrder.POST_ORDER,
+  expect(visits).toEqual([DepthFirstPhase.PRE_ORDER]);
+  expect(yielded.map((event) => event.phase)).toEqual([
+    DepthFirstPhase.POST_ORDER,
   ]);
 });
 
 test('object-form fallback ranges control depth-first in-order boundaries', () => {
-  const traversal = new DepthFirstTraversal<Tree>({
+  const traversal = new DepthFirstTreeTraversal<Tree>({
     traversableTree: adapter(node('root', node('first'), node('second'))),
-    inOrderTraversalConfig: {
-      visitParentAfterChildren: { ranges: [99] },
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: { ranges: [0] },
+    inOrder: {
+      afterChildIndices: { indices: [99] },
+      fallbackChildIndices: { indices: [0] },
     },
   });
 
   expect(
     [
-      ...traversal.makeRunner().getIterable({
-        iterateOver: [DepthFirstTraversalOrder.IN_ORDER],
+      ...traversal.createRunner().iterateEvents({
+        emitEvents: [DepthFirstPhase.IN_ORDER],
       }),
     ].map((event) => event.vertex.getData()),
   ).toEqual(['first', 'root', 'second']);
@@ -277,9 +286,9 @@ test('the historical yield helper defaults to yielding for omitted JavaScript in
     disableVisitorFunctionsFor: null,
   } as unknown as DepthFirstTraversalRunnerIterableConfig;
 
-  expect(
-    shouldYieldForOrder(javascriptConfig, DepthFirstTraversalOrder.PRE_ORDER),
-  ).toBe(true);
+  expect(shouldYieldForOrder(javascriptConfig, DepthFirstPhase.PRE_ORDER)).toBe(
+    true,
+  );
 });
 
 test.each(['depth-first', 'breadth-first'] as const)(
@@ -288,26 +297,26 @@ test.each(['depth-first', 'breadth-first'] as const)(
     let visitorCalls = 0;
     const traversal =
       strategy === 'depth-first'
-        ? new DepthFirstTraversal<Tree>({
+        ? new DepthFirstTreeTraversal<Tree>({
             traversableTree: adapter(node('unused')),
           })
-        : new BreadthFirstTraversal<Tree>({
+        : new BreadthFirstTreeTraversal<Tree>({
             traversableTree: adapter(node('unused')),
           });
-    if (traversal instanceof DepthFirstTraversal) {
-      traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => {
+    if (traversal instanceof DepthFirstTreeTraversal) {
+      traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => {
         visitorCalls++;
       });
     } else {
-      traversal.addVisitorFor(BreadthFirstTraversalOrder.LEVEL_ORDER, () => {
+      traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, () => {
         visitorCalls++;
       });
     }
-    const runner = traversal.makeRunner();
-    const unregisteredRoot = new CTTRef(new Vertex<Tree>(node('detached')));
-    runner.getResolvedTree().setRoot(unregisteredRoot);
+    const runner = traversal.createRunner();
+    const unregisteredRoot = new MutableRef(new Vertex<Tree>(node('detached')));
+    internalTreeStore(runner).setRoot(unregisteredRoot);
 
-    expect([...runner.getIterable()]).toEqual([]);
+    expect([...runner.iterateEvents()]).toEqual([]);
     expect(visitorCalls).toBe(0);
     expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   },
@@ -316,20 +325,20 @@ test.each(['depth-first', 'breadth-first'] as const)(
 test.each(['missing', 'disabled'] as const)(
   'breadth-first injected state skips queued work whose parent is %s',
   (mode) => {
-    const seedRunner = new BreadthFirstTraversal<Tree>({
+    const seedRunner = new BreadthFirstTreeTraversal<Tree>({
       traversableTree: adapter(node('root')),
     })
-      .makeRunner()
+      .createRunner()
       .run();
-    const rootRef = seedRunner.getResolvedTree().getRoot()!;
-    const missingParentRef = new CTTRef(new Vertex<Tree>(node('removed')));
+    const rootRef = internalTreeStore(seedRunner).getRoot()!;
+    const missingParentRef = new MutableRef(new Vertex<Tree>(node('removed')));
     const parentRef = mode === 'missing' ? missingParentRef : rootRef;
     const state = new BreadthFirstTraversalRunnerState<Tree, Tree>({
       queue: [
         {
           depth: 1,
           hintIndex: 0,
-          parentVertex: parentRef.unref(),
+          parentVertex: parentRef.getValue(),
           parentVertexRef: parentRef,
           vertexHint: node('queued'),
         },
@@ -340,25 +349,26 @@ test.each(['missing', 'disabled'] as const)(
         mode === 'disabled' ? new Set([rootRef]) : new Set(),
     });
     let childResolutionCalls = 0;
-    const traversal = new BreadthFirstTraversal<Tree>({
+    const traversal = createInternalBreadthFirstTreeTraversal<Tree>({
       traversableTree: {
-        makeRoot: () => {
+        resolveRoot: () => {
           throw new Error('the injected resolved root should be reused');
         },
-        makeVertex: (hint) => {
+        resolveChild: (hint) => {
           childResolutionCalls++;
-          return { vertexContent: hint };
+          return treeResolution(hint);
         },
       },
       traversalRunnerInternalObjects: {
-        resolvedTreesContainer: seedRunner.resolvedTreesContainer,
+        resolvedTreesContainer:
+          runnerInternals(seedRunner).resolvedTreesContainer,
         state,
       },
     });
 
-    const runner = traversal.makeRunner().run();
+    const runner = traversal.createRunner().run();
     expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
     expect(childResolutionCalls).toBe(0);
-    expect(runner.getResolvedTree().getRoot()).toBe(rootRef);
+    expect(internalTreeStore(runner).getRoot()).toBe(rootRef);
   },
 );

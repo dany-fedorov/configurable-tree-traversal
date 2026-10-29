@@ -1,4 +1,4 @@
-export enum DagTraversalOrder {
-  ON_READY = 'ON_READY',
-  ON_COMPLETE = 'ON_COMPLETE',
+export enum DagVisitorPhase {
+  ON_WORK_READY = 'ON_WORK_READY',
+  ON_SUBGRAPH_READY = 'ON_SUBGRAPH_READY',
 }

@@ -1,52 +1,61 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
-  TraversalVisitor,
+  DeletionCommandName,
+  TreeVisitor,
   TraversalVisitorCommand,
 } from '@core/TraversalVisitor';
 import type { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
-export type MakeMutationCommandFunctionInput<RW_V> = {
-  rewrite?: RW_V;
-  delete?: boolean;
-};
+export type MutationRequest<RW_V> =
+  | { kind: 'rewrite'; value: RW_V; patch?: never }
+  | { kind: 'delete'; value?: never; patch?: never }
+  | { kind: 'keep'; value?: never; patch?: never };
 
-export type MakeMutationCommandFunctionResult<TTP extends TreeTypeParameters> =
-  TraversalVisitorCommand<
-    TTP,
-    | TraversalVisitorCommandName.DELETE_VERTEX
-    | TraversalVisitorCommandName.REWRITE_VERTEX_DATA
-    | TraversalVisitorCommandName.NOOP
-  >;
+export type MutationCommand<
+  TTP extends VertexTypes,
+  Delete extends DeletionCommandName = DeletionCommandName,
+> = TraversalVisitorCommand<
+  TTP,
+  | Delete
+  | TraversalVisitorCommandName.REWRITE_VERTEX_DATA
+  | TraversalVisitorCommandName.NOOP
+>;
 
-export type MakeMutationCommandFactoryResult<
-  OUT_TTP extends TreeTypeParameters,
+export type MutationCommands<
+  OUT_TTP extends VertexTypes,
   RewriteInput = OUT_TTP['VertexData'],
+  Delete extends DeletionCommandName = DeletionCommandName,
 > = {
-  makeMutationCommand: MakeMutationCommandFunction<OUT_TTP, RewriteInput>;
+  makeMutationCommand: MutationCommandBuilder<OUT_TTP, RewriteInput, Delete>;
 };
 
 /** Generic builders replace complete output data; adapters can name another input. */
-export type MakeMutationCommandFunction<
-  OUT_TTP extends TreeTypeParameters,
+export type MutationCommandBuilder<
+  OUT_TTP extends VertexTypes,
+  RewriteInput = OUT_TTP['VertexData'],
+  Delete extends DeletionCommandName = DeletionCommandName,
+> = (
+  request?: MutationRequest<RewriteInput>,
+) => MutationCommand<OUT_TTP, Delete>;
+
+export type TreeMutationCommandBinder<
+  Phase extends string,
+  IN_TTP extends VertexTypes,
+  OUT_TTP extends VertexTypes,
   RewriteInput = OUT_TTP['VertexData'],
 > = (
-  input_2?: MakeMutationCommandFunctionInput<RewriteInput>,
-) => MakeMutationCommandFunctionResult<OUT_TTP>;
+  ...visitorArguments: Parameters<TreeVisitor<Phase, IN_TTP, OUT_TTP>>
+) => MutationCommands<
+  OUT_TTP,
+  RewriteInput,
+  TraversalVisitorCommandName.DELETE_TREE_SUBTREE
+>;
 
-export type MakeMutationCommandFunctionFactory_2<
-  ORDER extends string,
-  IN_TTP extends TreeTypeParameters,
-  OUT_TTP extends TreeTypeParameters,
-  RewriteInput = OUT_TTP['VertexData'],
-> = (
-  ...visitorArguments: Parameters<TraversalVisitor<ORDER, IN_TTP, OUT_TTP>>
-) => MakeMutationCommandFactoryResult<OUT_TTP, RewriteInput>;
-
-export type MakeMutationCommandFunctionFactory<Configuration = unknown> = <
-  ORDER extends string,
-  IN_TTP extends TreeTypeParameters,
-  OUT_TTP extends TreeTypeParameters,
+export type TreeMutationCommandBinderFactory<Configuration = unknown> = <
+  Phase extends string,
+  IN_TTP extends VertexTypes,
+  OUT_TTP extends VertexTypes,
   RewriteInput = OUT_TTP['VertexData'],
 >(
-  input_0?: Configuration,
-) => MakeMutationCommandFunctionFactory_2<ORDER, IN_TTP, OUT_TTP, RewriteInput>;
+  options?: Configuration,
+) => TreeMutationCommandBinder<Phase, IN_TTP, OUT_TTP, RewriteInput>;

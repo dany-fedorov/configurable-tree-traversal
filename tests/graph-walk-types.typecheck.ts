@@ -1,36 +1,42 @@
+import type {
+  AsyncGraphWalkOptions,
+  AsyncGraphWalkOptionsPatch,
+  AsyncGraphWalkSource,
+  GraphWalkEvent,
+  GraphWalkEventFor,
+  GraphWalkOptions,
+  GraphWalkOptionsPatch,
+  GraphWalkSource,
+  GraphWalkTarget,
+  GraphWalkVisitorResult,
+} from '../src';
 import {
-  GraphWalk,
   AsyncGraphWalk,
+  DepthFirstPhase,
+  GraphWalk,
+  GraphWalkPhase as Phase,
   TraversalVisitorCommandName as Command,
-  DepthFirstTraversalOrder,
 } from '../src';
 import type { InspectionFilters } from '../src/core/CoreInspection';
-import { GraphWalkPhase as Phase } from '../src';
-import type {
-  GraphWalkSource,
-  AsyncGraphWalkSource,
-  GraphWalkTarget,
-} from '../src';
-import type {
-  GraphWalkOptions,
-  AsyncGraphWalkOptions,
-  GraphWalkConfigureInput,
-  AsyncGraphWalkConfigureInput,
-} from '../src';
-import type { GraphWalkEvent, GraphWalkEventFor } from '../src';
-import type { GraphWalkVisitorResult } from '../src';
 
 const source: GraphWalkSource<string, number, undefined> = {
+  hydration: 'inlineOrCached' as const,
   roots: () => [
-    { vertexId: undefined, resolution: { kind: 'found', data: 'root' } },
+    {
+      kind: 'inline' as const,
+      vertexId: undefined,
+      resolution: { kind: 'found', data: 'root' },
+    },
   ],
-  outgoing: (vertex) => [{ target: { vertexId: vertex.vertexId }, data: 1 }],
+  outgoing: (vertex) => [
+    { target: { kind: 'cached' as const, vertexId: vertex.vertexId }, data: 1 },
+  ],
 };
 const asyncSource: AsyncGraphWalkSource<string, number, undefined> = source;
 const asyncOptions: AsyncGraphWalkOptions<string, number, undefined> = {
   source: asyncSource,
-  followEdge: async () => true,
-  expandVertex: async () => false,
+  shouldFollowEdge: async () => true,
+  shouldExpandVertex: async () => false,
   visitors: {
     [Phase.EDGE]: async (event) => {
       const id: undefined = event.edge.to;
@@ -56,25 +62,29 @@ const syncOptions: GraphWalkOptions<string, number, undefined> = {
       void vertices;
     },
   },
-  expandVertex: (_vertex, context) =>
+  shouldExpandVertex: (_vertex, context) =>
     context.revisit === 'once' || context.path.depth >= 0,
-  followEdge: (_edge, context) => {
+  shouldFollowEdge: (_edge, context) => {
     const data: string = context.source.data;
     void data;
     return true;
   },
 };
-const patch: GraphWalkConfigureInput<string, number, undefined> = {
+const patch: GraphWalkOptionsPatch<string, number, undefined> = {
   revisit: 'walks',
 };
-const asyncPatch: AsyncGraphWalkConfigureInput<string, number, undefined> =
-  patch;
+const asyncPatch: AsyncGraphWalkOptionsPatch<string, number, undefined> = patch;
 const symbol = Symbol('id');
 const target: GraphWalkTarget<string, typeof symbol> = { vertexId: symbol };
 const objectId = { vertexId: 'arbitrary', resolution: 'id field' };
 const objectSource: GraphWalkSource<undefined, undefined, typeof objectId> = {
+  hydration: 'inlineOrCached' as const,
   roots: () => [
-    { vertexId: objectId, resolution: { kind: 'found', data: undefined } },
+    {
+      kind: 'inline' as const,
+      vertexId: objectId,
+      resolution: { kind: 'found', data: undefined },
+    },
   ],
   outgoing: (vertex) => {
     const id: typeof objectId = vertex.vertexId;
@@ -83,6 +93,7 @@ const objectSource: GraphWalkSource<undefined, undefined, typeof objectId> = {
   },
 };
 const symbolSource: GraphWalkSource<string, number, typeof symbol> = {
+  hydration: 'resolver' as const,
   roots: () => [target],
   outgoing: () => [],
   resolveVertex: () => ({ kind: 'omitted' }),
@@ -98,11 +109,11 @@ const unionEvent = (event: GraphWalkEvent<string, number, undefined>) => {
 };
 const command: GraphWalkVisitorResult = {
   commands: [
-    { commandName: Command.HALT_TRAVERSAL },
+    { commandName: Command.PAUSE_TRAVERSAL },
     { commandName: Command.NOOP },
   ],
 };
-// @ts-expect-error Route enumeration requires maxDepth or maxSteps.
+// @ts-expect-error Route enumeration requires maxDepth or maxCandidateReadAttempts.
 const unbounded: GraphWalkOptions<string, number, undefined> = {
   source,
   revisit: 'walks',
@@ -111,7 +122,7 @@ const unbounded: GraphWalkOptions<string, number, undefined> = {
 const occurrenceBound: GraphWalkOptions<string, number, undefined> = {
   source,
   revisit: 'simplePaths',
-  limits: { maxOccurrences: 4 },
+  limits: { maxAdmittedTargets: 4 },
 };
 const promiseRoots: GraphWalkSource<string, number, undefined> = {
   ...source,
@@ -133,7 +144,7 @@ const promiseOutgoing: GraphWalkSource<string, number, undefined> = {
 const promisePredicate: GraphWalkOptions<string, number, undefined> = {
   source,
   // @ts-expect-error Sync predicates cannot return promises.
-  followEdge: async () => true,
+  shouldFollowEdge: async () => true,
 };
 const promiseVisitor: GraphWalkOptions<string, number, undefined> = {
   source,
@@ -143,21 +154,21 @@ const promiseVisitor: GraphWalkOptions<string, number, undefined> = {
 const wrongPhase: GraphWalkOptions<string, number, undefined> = {
   source,
   // @ts-expect-error Walking rejects another family's phases.
-  emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
+  emitEvents: [DepthFirstPhase.PRE_ORDER],
 };
-// @ts-expect-error Canonical and legacy emission selectors are exclusive.
 const mixedSelectors: GraphWalkOptions<string, number, undefined> = {
   source,
-  emitPhases: [Phase.EDGE],
+  emitEvents: [Phase.EDGE],
+  // @ts-expect-error Legacy selectors are not canonical input.
   iterateOver: [Phase.PATH],
 };
 const defer: GraphWalkVisitorResult = {
   // @ts-expect-error Walking has no settlement command.
-  commands: [{ commandName: Command.DEFER_READY }],
+  commands: [{ commandName: Command.DEFER_WORK_COMPLETION }],
 };
 const argumentsCommand: GraphWalkVisitorResult = {
   // @ts-expect-error The shared halt command forbids arguments.
-  commands: [{ commandName: Command.HALT_TRAVERSAL, commandArguments: {} }],
+  commands: [{ commandName: Command.PAUSE_TRAVERSAL, commandArguments: {} }],
 };
 const rewrite: GraphWalkVisitorResult = {
   commands: [
@@ -175,10 +186,10 @@ const concurrency: GraphWalkOptions<string, number, undefined> = {
   concurrency: 1,
 };
 declare const filters: InspectionFilters<Phase>;
-const selected: readonly Phase[] = filters.emitPhases;
+const selected: readonly `${Phase}`[] = filters.emitEvents;
 declare const legacy: InspectionFilters;
 // @ts-expect-error Default inspection phases remain tree/DAG phases.
-const widened: readonly Phase[] = legacy.emitPhases;
+const widened: readonly Phase[] = legacy.emitEvents;
 void [
   asyncOptions,
   syncOptions,
@@ -207,7 +218,7 @@ void [
 ];
 
 // Inferred concrete runners retain exact data/ID types and the broad capability.
-const runner = new GraphWalk({ source }).makeRunner();
+const runner = new GraphWalk({ source }).createRunner();
 const execution: import('../src').SyncTraversalExecution<
   Phase,
   GraphWalkEvent<string, number, undefined>,
@@ -222,20 +233,20 @@ const edgeEvents: Generator<
   GraphWalkEventFor<string, number, Phase.EDGE, undefined>,
   void,
   unknown
-> = runner.getIterable({ emitPhases: [Phase.EDGE] });
+> = runner.iterateEvents({ emitEvents: [Phase.EDGE] });
 const allEvents: Generator<
   GraphWalkEvent<string, number, undefined>,
   void,
   unknown
-> = runner.getIterable();
+> = runner.iterateEvents();
 // @ts-expect-error Unselected calls cannot promise only edge events.
-const unsafeEdges: typeof edgeEvents = runner.getIterable();
-// @ts-expect-error Legacy selectors intentionally retain the full event union.
-const legacyEdges: typeof edgeEvents = runner.getIterable({
+const unsafeEdges: typeof edgeEvents = runner.iterateEvents();
+const legacyEdges: typeof edgeEvents = runner.iterateEvents({
+  // @ts-expect-error Legacy selectors are not canonical execution inputs.
   iterateOver: [Phase.EDGE],
 });
 // @ts-expect-error A walking runner cannot accept another family's phase.
-runner.getIterable({ emitPhases: [DepthFirstTraversalOrder.PRE_ORDER] });
+runner.iterateEvents({ emitEvents: [DepthFirstPhase.PRE_ORDER] });
 // @ts-expect-error Function-property variance forbids phase widening.
 const wideExecution: import('../src').SyncTraversalExecution<
   string,
@@ -255,20 +266,20 @@ void [
 // Only explicit canonical selectors narrow; persisted selectors are runtime state.
 const persisted = new GraphWalk({
   source,
-  emitPhases: [Phase.EDGE],
-}).makeRunner();
-const persistedAll: typeof allEvents = persisted.getIterable();
-const emptyPatchAll: typeof allEvents = persisted.getIterable({});
+  emitEvents: [Phase.EDGE],
+}).createRunner();
+const persistedAll: typeof allEvents = persisted.iterateEvents();
+const emptyPatchAll: typeof allEvents = persisted.iterateEvents({});
 // @ts-expect-error Empty patches retain the full union.
-const unsafeEmptyPatch: typeof edgeEvents = persisted.getIterable({});
-const noEvents: Generator<never, void, unknown> = runner.getIterable({
-  emitPhases: [],
+const unsafeEmptyPatch: typeof edgeEvents = persisted.iterateEvents({});
+const noEvents: Generator<never, void, unknown> = runner.iterateEvents({
+  emitEvents: [],
 });
 const mixedEvents: Generator<
   GraphWalkEventFor<string, number, Phase.VERTEX | Phase.EDGE, undefined>,
   void,
   unknown
-> = runner.getIterable({ emitPhases: [Phase.VERTEX, Phase.EDGE] });
+> = runner.iterateEvents({ emitEvents: [Phase.VERTEX, Phase.EDGE] });
 // @ts-expect-error Explicit mixed selectors exclude paths.
 const unsafePaths: Generator<
   GraphWalkEventFor<string, number, Phase.PATH, undefined>,
@@ -276,9 +287,9 @@ const unsafePaths: Generator<
   unknown
 > = mixedEvents;
 const promisedCounts: {
-  foundVertices: number;
-  omittedVertices: number;
-  observedLinks: number;
+  uniqueFoundVertices: number;
+  uniqueOmittedVertices: number;
+  discoveredLinks: number;
 } = runner.summary().counts;
 // @ts-expect-error Interim short counter names are not public.
 runner.summary().counts.found;
@@ -296,14 +307,14 @@ const registered = new GraphWalk({ source });
 const sameFactory: typeof registered = registered.addVisitorFor(
   Phase.EDGE,
   (event, context) => {
-    const phase: Phase.EDGE = context.order;
+    const phase: Phase.EDGE = context.phase;
     const kind: 'edge' = event.kind;
     const edgeData: number = event.edge.data;
     const id: undefined = event.source.vertexId;
     // @ts-expect-error Exact phase registration cannot see a vertex event.
     event.vertex;
     // @ts-expect-error Context metadata exposes no executable callback.
-    context.visitorRecord.visitor;
+    context.registration.visitor;
     void [phase, kind, edgeData, id];
     return { commands: [{ commandName: Command.NOOP }] };
   },
@@ -319,7 +330,7 @@ registered.addVisitorGroupFor(Phase.PATH, {
   ],
 });
 registered.setVisitorsFor(Phase.VERTEX, (event, context) => {
-  const phase: Phase.VERTEX = context.order;
+  const phase: Phase.VERTEX = context.phase;
   const data: string = event.vertex.data;
   void [phase, data];
 });
@@ -330,7 +341,7 @@ const exactRecords: import('../src/core/graph/types').VisitorRecord<
 registered.addVisitorFor(Phase.VERTEX, async () => undefined);
 registered.addVisitorFor(Phase.EDGE, () => ({
   // @ts-expect-error Invalid return commands must not widen the registered phase.
-  commands: [{ commandName: Command.DELETE_VERTEX }],
+  commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
 }));
 registered.addVisitorGroupFor(Phase.EDGE, {
   visitors: [
@@ -354,7 +365,7 @@ const asyncRegistered: typeof asyncWalk = asyncWalk.addVisitorFor(
     const kind: 'edge' = event.kind;
     const data: number = event.edge.data;
     const id: undefined = event.edge.to;
-    const phase: Phase.EDGE = context.order;
+    const phase: Phase.EDGE = context.phase;
     // @ts-expect-error Exact async phase inference does not widen.
     event.vertex;
     void [kind, data, id, phase];
@@ -385,9 +396,9 @@ asyncWalk.setVisitorsFor(
 );
 // @ts-expect-error Walking cannot accept topology commands.
 asyncWalk.addVisitorFor(Phase.VERTEX, async () => ({
-  commands: [{ commandName: Command.DELETE_VERTEX }],
+  commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
 }));
-const asyncRunner = asyncWalk.makeRunner();
+const asyncRunner = asyncWalk.createRunner();
 const asyncCapability: import('../src').AsyncTraversalExecution<
   Phase,
   GraphWalkEvent<string, number, undefined>,
@@ -398,21 +409,21 @@ const asyncEdges: AsyncGenerator<
   GraphWalkEventFor<string, number, Phase.EDGE, undefined>,
   void,
   unknown
-> = asyncRunner.getIterable({ emitPhases: [Phase.EDGE] });
+> = asyncRunner.iterateEvents({ emitEvents: [Phase.EDGE] });
 const asyncAll: AsyncGenerator<
   GraphWalkEvent<string, number, undefined>,
   void,
   unknown
-> = asyncRunner.getIterable();
+> = asyncRunner.iterateEvents();
 // @ts-expect-error No-selector iteration includes persisted mixed phases.
-const asyncNarrowAll: typeof asyncEdges = asyncRunner.getIterable();
-// @ts-expect-error Legacy selector does not narrow.
-const asyncNarrowLegacy: typeof asyncEdges = asyncRunner.getIterable({
+const asyncNarrowAll: typeof asyncEdges = asyncRunner.iterateEvents();
+const asyncNarrowLegacy: typeof asyncEdges = asyncRunner.iterateEvents({
+  // @ts-expect-error Legacy selectors are not canonical execution inputs.
   iterateOver: [Phase.EDGE],
 });
-asyncCapability.getIterable({
+asyncCapability.iterateEvents({
   // @ts-expect-error Walking phases remain family-safe.
-  emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
+  emitEvents: [DepthFirstPhase.PRE_ORDER],
 });
 void [
   asyncRegistered,
@@ -428,8 +439,8 @@ void [
 new GraphWalk({
   source,
   revisit: 'walks',
-  limits: { maxSteps: 10 },
-  followEdge(edge, context) {
+  limits: { maxCandidateReadAttempts: 10 },
+  shouldFollowEdge(edge, context) {
     if (context.revisit === 'once') {
       // @ts-expect-error Once predicates do not expose alternative route context.
       void context.path;
@@ -449,7 +460,7 @@ new AsyncGraphWalk({
   source: asyncSource,
   revisit: 'simplePaths',
   limits: { maxDepth: 2 },
-  async expandVertex(vertex, context) {
+  async shouldExpandVertex(vertex, context) {
     if (context.revisit !== 'once') {
       const path: GraphWalkEventFor<string, number, Phase.PATH, undefined> =
         context.path;
@@ -463,53 +474,126 @@ new AsyncGraphWalk({
 // Null explicitly clears optional predicates in both initial options and patches.
 const nullSyncOptions: GraphWalkOptions<string, number, undefined> = {
   source,
-  followEdge: null,
-  expandVertex: null,
+  shouldFollowEdge: null,
+  shouldExpandVertex: null,
 };
 const nullAsyncOptions: AsyncGraphWalkOptions<string, number, undefined> = {
   source: asyncSource,
-  followEdge: null,
-  expandVertex: null,
+  shouldFollowEdge: null,
+  shouldExpandVertex: null,
 };
-const nullPatch: GraphWalkConfigureInput<string, number, undefined> = {
-  followEdge: null,
-  expandVertex: null,
+const nullPatch: GraphWalkOptionsPatch<string, number, undefined> = {
+  shouldFollowEdge: null,
+  shouldExpandVertex: null,
 };
-const nullAsyncPatch: AsyncGraphWalkConfigureInput<string, number, undefined> =
+const nullAsyncPatch: AsyncGraphWalkOptionsPatch<string, number, undefined> =
   nullPatch;
 new GraphWalk(nullSyncOptions).configure(nullPatch);
 new AsyncGraphWalk(nullAsyncOptions).configure(nullAsyncPatch);
-const invalidPredicates: GraphWalkConfigureInput<string, number, undefined> = {
+const invalidPredicates: GraphWalkOptionsPatch<string, number, undefined> = {
   // @ts-expect-error Predicates accept callbacks or null, never booleans.
-  followEdge: false,
+  shouldFollowEdge: false,
   // @ts-expect-error Predicates accept callbacks or null, never numbers.
-  expandVertex: 0,
+  shouldExpandVertex: 0,
 };
-const invalidAsyncPredicates: AsyncGraphWalkConfigureInput<
+const invalidAsyncPredicates: AsyncGraphWalkOptionsPatch<
   string,
   number,
   undefined
 > = {
   // @ts-expect-error Async predicates accept callbacks or null, never booleans.
-  followEdge: false,
+  shouldFollowEdge: false,
   // @ts-expect-error Async predicates accept callbacks or null, never numbers.
-  expandVertex: 0,
+  shouldExpandVertex: 0,
 };
 void [invalidPredicates, invalidAsyncPredicates];
 
 new GraphWalk({
   source,
-  followEdge: undefined,
-  expandVertex: undefined,
+  shouldFollowEdge: undefined,
+  shouldExpandVertex: undefined,
 }).configure({
-  followEdge: undefined,
-  expandVertex: undefined,
+  shouldFollowEdge: undefined,
+  shouldExpandVertex: undefined,
 });
 new AsyncGraphWalk({
   source: asyncSource,
-  followEdge: undefined,
-  expandVertex: undefined,
+  shouldFollowEdge: undefined,
+  shouldExpandVertex: undefined,
 }).configure({
-  followEdge: undefined,
-  expandVertex: undefined,
+  shouldFollowEdge: undefined,
+  shouldExpandVertex: undefined,
 });
+
+const edgePredicate: import('../src').GraphWalkEdgePredicate<
+  string,
+  number,
+  undefined
+> = () => true;
+const expansionPredicate: import('../src').GraphWalkExpansionPredicate<
+  string,
+  number,
+  undefined
+> = () => true;
+const asyncEdgePredicate: import('../src').AsyncGraphWalkEdgePredicate<
+  string,
+  number,
+  undefined
+> = async () => true;
+const asyncExpansionPredicate: import('../src').AsyncGraphWalkExpansionPredicate<
+  string,
+  number,
+  undefined
+> = async () => true;
+void [
+  edgePredicate,
+  expansionPredicate,
+  asyncEdgePredicate,
+  asyncExpansionPredicate,
+];
+// @ts-expect-error Previous predicate type names are removed.
+type RemovedEdgePredicate = import('../src').GraphWalkFollowEdge<
+  string,
+  number,
+  undefined
+>;
+// @ts-expect-error Previous expansion type names are removed.
+type RemovedExpansionPredicate = import('../src').GraphWalkExpandVertex<
+  string,
+  number,
+  undefined
+>;
+// @ts-expect-error Previous predicate options are removed.
+new GraphWalk({ source, followEdge: () => true });
+// @ts-expect-error Previous read budget is removed, including in bounded revisit mode.
+new GraphWalk({ source, revisit: 'walks', limits: { maxSteps: 1 } });
+// @ts-expect-error Previous admission budget is removed.
+new GraphWalk({ source, limits: { maxOccurrences: 1 } });
+const canonicalCounts: {
+  candidateReadAttempts: number;
+  admittedTargets: number;
+  processedObservations: Readonly<Record<Phase, number>>;
+} = runner.summary().counts;
+// @ts-expect-error Previous count fields are removed.
+runner.summary().counts.steps;
+// @ts-expect-error Previous inspection field is removed.
+runner.inspect().iterableConfig;
+// @ts-expect-error Previous visitor coordinate is removed.
+runner.inspect().activeVisitor?.position;
+registered.addVisitorFor(Phase.EDGE, (event, context) => {
+  const coordinates: readonly number[] = [
+    context.admissionIndex,
+    context.phaseObservationIndex,
+    event.edge.outgoingIndex,
+  ];
+  // @ts-expect-error Previous admission coordinate is removed.
+  context.occurrenceIndex;
+  // @ts-expect-error Previous phase observation coordinate is removed.
+  context.observationIndex;
+  // @ts-expect-error Previous edge coordinate is removed.
+  event.edge.index;
+  void coordinates;
+});
+void (null as unknown as RemovedEdgePredicate);
+void (null as unknown as RemovedExpansionPredicate);
+void canonicalCounts;

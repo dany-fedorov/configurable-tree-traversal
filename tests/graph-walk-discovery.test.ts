@@ -14,6 +14,7 @@ it('deduplicates arbitrary IDs by SameValueZero without coercion', () => {
   const resolutions: unknown[] = [];
   const openings: unknown[] = [];
   const source: GraphWalkSource<unknown, undefined, unknown> = {
+    hydration: 'resolver' as const,
     roots: () => [...ids, ...ids, 0].map((vertexId) => ({ vertexId })),
     resolveVertex(vertexId) {
       resolutions.push(vertexId);
@@ -24,9 +25,9 @@ it('deduplicates arbitrary IDs by SameValueZero without coercion', () => {
       return [{ target: { vertexId: vertex.vertexId }, data: undefined }];
     },
   };
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   const events = [
-    ...runner.getIterable({ emitPhases: [Phase.VERTEX, Phase.EDGE] }),
+    ...runner.iterateEvents({ emitEvents: [Phase.VERTEX, Phase.EDGE] }),
   ];
   expect(
     events.flatMap((event) =>
@@ -36,25 +37,38 @@ it('deduplicates arbitrary IDs by SameValueZero without coercion', () => {
   expect(resolutions).toEqual(ids);
   expect(openings).toEqual(ids);
   expect(runner.summary().counts).toMatchObject({
-    foundVertices: 6,
-    omittedVertices: 0,
-    occurrences: 12,
-    observedLinks: 6,
-    steps: 26,
+    uniqueFoundVertices: 6,
+    uniqueOmittedVertices: 0,
+    admittedTargets: 12,
+    discoveredLinks: 6,
+    candidateReadAttempts: 26,
   });
 });
 
 it('caches first accepted inline hydration and omission, copying wrappers but sharing caller data', () => {
   const data = { label: 'A' };
-  const root = { vertexId: 'A', resolution: { kind: 'found' as const, data } };
+  const root = {
+    kind: 'inline' as const,
+    vertexId: 'A',
+    resolution: { kind: 'found' as const, data },
+  };
   const link = {
-    target: { vertexId: 'B', resolution: { kind: 'omitted' as const } },
+    target: {
+      kind: 'inline' as const,
+      vertexId: 'B',
+      resolution: { kind: 'omitted' as const },
+    },
     data: { relation: true },
   };
   const source: GraphWalkSource<typeof data, typeof link.data, string> = {
+    hydration: 'inlineOrCached' as const,
     roots: () => [
       root,
-      { vertexId: 'missing', resolution: { kind: 'omitted' } },
+      {
+        kind: 'inline' as const,
+        vertexId: 'missing',
+        resolution: { kind: 'omitted' },
+      },
     ],
     outgoing: (vertex) =>
       vertex.vertexId !== 'A'
@@ -63,15 +77,19 @@ it('caches first accepted inline hydration and omission, copying wrappers but sh
             link,
             link,
             {
-              target: { vertexId: 'B', resolution: { kind: 'found', data } },
+              target: {
+                kind: 'inline' as const,
+                vertexId: 'B',
+                resolution: { kind: 'found', data },
+              },
               data: link.data,
             },
             { target: root, data: link.data },
           ],
   };
-  const runner = new GraphWalk({ source }).makeRunner();
-  const iterator = runner.getIterable({
-    emitPhases: [Phase.VERTEX, Phase.EDGE],
+  const runner = new GraphWalk({ source }).createRunner();
+  const iterator = runner.iterateEvents({
+    emitEvents: [Phase.VERTEX, Phase.EDGE],
   });
   const first = iterator.next().value!;
   expect(first).toMatchObject({
@@ -90,7 +108,7 @@ it('caches first accepted inline hydration and omission, copying wrappers but sh
             [
               event.edge.from,
               event.edge.to,
-              event.edge.index,
+              event.edge.outgoingIndex,
               event.target.kind,
             ],
           ]
@@ -103,8 +121,8 @@ it('caches first accepted inline hydration and omission, copying wrappers but sh
     ['A', 'changed', 3, 'found'],
   ]);
   expect(runner.summary().counts).toMatchObject({
-    foundVertices: 2,
-    omittedVertices: 2,
+    uniqueFoundVertices: 2,
+    uniqueOmittedVertices: 2,
   });
   expect(Object.isFrozen(data)).toBe(false);
 });
@@ -113,6 +131,7 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
   'walks a 20,000-vertex chain iteratively with %s',
   (strategy) => {
     const source: GraphWalkSource<number, undefined, number> = {
+      hydration: 'resolver' as const,
       roots: () => [{ vertexId: 0 }],
       resolveVertex: (id) => ({ kind: 'found', data: id }),
       outgoing: (vertex) =>
@@ -120,20 +139,21 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
           ? []
           : [{ target: { vertexId: vertex.vertexId + 1 }, data: undefined }],
     };
-    const runner = new GraphWalk({ source, strategy, emitPhases: [] })
-      .makeRunner()
+    const runner = new GraphWalk({ source, strategy, emitEvents: [] })
+      .createRunner()
       .run();
     expect(runner.summary().counts).toMatchObject({
-      foundVertices: 20000,
-      observedLinks: 19999,
-      occurrences: 20000,
-      steps: 40001,
+      uniqueFoundVertices: 20000,
+      discoveredLinks: 19999,
+      admittedTargets: 20000,
+      candidateReadAttempts: 40001,
     });
   },
 );
 
 it('keeps independent runner caches and captured callback receivers', () => {
   const source = {
+    hydration: 'resolver' as const,
     label: 'old',
     roots() {
       return [{ vertexId: this.label }];
@@ -146,37 +166,38 @@ it('keeps independent runner caches and captured callback receivers', () => {
     },
   };
   const factory = new GraphWalk({ source });
-  const first = factory.makeRunner();
+  const first = factory.createRunner();
   source.roots = () => {
     throw new Error('re-read callback');
   };
   source.label = 'new';
-  const second = factory.makeRunner();
-  expect([...first.getIterable()]).toEqual([...second.getIterable()]);
-  expect(first.summary().counts.foundVertices).toBe(1);
-  expect(second.summary().counts.foundVertices).toBe(1);
+  const second = factory.createRunner();
+  expect([...first.iterateEvents()]).toEqual([...second.iterateEvents()]);
+  expect(first.summary().counts.uniqueFoundVertices).toBe(1);
+  expect(second.summary().counts.uniqueFoundVertices).toBe(1);
 });
 
 it('exhausts empty roots and skips omitted roots without opening adjacency', () => {
   expect(
-    new GraphWalk({ source: idGraph([], []) }).makeRunner().run().summary()
-      .counts.steps,
+    new GraphWalk({ source: idGraph([], []) }).createRunner().run().summary()
+      .counts.candidateReadAttempts,
   ).toBe(1);
   const runner = new GraphWalk({
     source: {
+      hydration: 'resolver' as const,
       roots: () => [{ vertexId: 0 }, { vertexId: 0 }],
       resolveVertex: () => ({ kind: 'omitted' as const }),
       outgoing: () => {
         throw new Error('omitted');
       },
     },
-  }).makeRunner();
-  expect([...runner.getIterable()]).toEqual([]);
+  }).createRunner();
+  expect([...runner.iterateEvents()]).toEqual([]);
   expect(runner.summary().counts).toMatchObject({
-    occurrences: 1,
-    omittedVertices: 1,
-    foundVertices: 0,
-    steps: 3,
+    admittedTargets: 1,
+    uniqueOmittedVertices: 1,
+    uniqueFoundVertices: 0,
+    candidateReadAttempts: 3,
   });
 });
 
@@ -184,12 +205,13 @@ it.each([undefined, null, false, 0, 'failure', { error: true }])(
   'retains exact thrown source values: %p',
   (error) => {
     const source = {
+      hydration: 'inlineOrCached' as const,
       roots() {
         throw error;
       },
       outgoing: () => [],
     };
-    const runner = new GraphWalk({ source }).makeRunner();
+    const runner = new GraphWalk({ source }).createRunner();
     let caught: unknown = 'not thrown';
     try {
       runner.run();
@@ -210,12 +232,16 @@ it.each([undefined, null, false, 0, 'failure', { error: true }])(
   },
 );
 
-it('fails only when an admitted unresolved ID actually needs a fallback resolver', () => {
+it('rejects a first-use cached target only at admission', () => {
   const runner = new GraphWalk({
-    source: { roots: () => [{ vertexId: 'A' }], outgoing: () => [] },
-  }).makeRunner();
+    source: {
+      hydration: 'inlineOrCached' as const,
+      roots: () => [{ kind: 'cached' as const, vertexId: 'A' }],
+      outgoing: () => [],
+    },
+  }).createRunner();
   expect(() => runner.run()).toThrow(TypeError);
-  expect(runner.summary().counts.occurrences).toBe(1);
+  expect(runner.summary().counts.admittedTargets).toBe(1);
 });
 
 it.each([
@@ -234,27 +260,35 @@ it.each([
   { outgoing: () => Promise.resolve([]) },
 ])('rejects malformed sync source protocols %#', (patch) => {
   const source = {
+    hydration: 'resolver',
     roots: () => [{ vertexId: 'A' }],
     resolveVertex: () => ({ kind: 'found', data: 1 }),
     outgoing: () => [],
     ...patch,
   } as unknown as GraphWalkSource<number, undefined, string>;
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(runner.getStatus()).toBe(Status.FAILED);
 });
 
 it('counts a candidate before rejecting malformed inline hydration', () => {
   const source = {
-    roots: () => [{ vertexId: 'A', resolution: { kind: 'missing' } }],
+    hydration: 'inlineOrCached' as const,
+    roots: () => [
+      {
+        kind: 'inline' as const,
+        vertexId: 'A',
+        resolution: { kind: 'missing' },
+      },
+    ],
     outgoing: () => [],
   } as unknown as GraphWalkSource<string, undefined, string>;
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(runner.summary().counts).toMatchObject({
-    occurrences: 1,
-    foundVertices: 0,
-    omittedVertices: 0,
+    admittedTargets: 1,
+    uniqueFoundVertices: 0,
+    uniqueOmittedVertices: 0,
   });
 });
 
@@ -262,10 +296,11 @@ it.each([false, {}, { [Symbol.iterator]: 1 }])(
   'rejects noniterable source values: %p',
   (value) => {
     const source = {
+      hydration: 'inlineOrCached' as const,
       roots: () => value,
       outgoing: () => [],
     } as unknown as GraphWalkSource<unknown, unknown, unknown>;
-    expect(() => new GraphWalk({ source }).makeRunner().run()).toThrow(
+    expect(() => new GraphWalk({ source }).createRunner().run()).toThrow(
       TypeError,
     );
   },
@@ -275,18 +310,22 @@ it('observes rejected thenables returned from callbacks and next methods', async
   const error = new Error('rejection');
   const rejected = Promise.reject(error);
   const source = {
+    hydration: 'inlineOrCached' as const,
     roots: () => rejected,
     outgoing: () => [],
   } as unknown as GraphWalkSource<unknown, unknown, unknown>;
-  expect(() => new GraphWalk({ source }).makeRunner().run()).toThrow(TypeError);
+  expect(() => new GraphWalk({ source }).createRunner().run()).toThrow(
+    TypeError,
+  );
   const iteratorSource = {
+    hydration: 'inlineOrCached' as const,
     roots: () => ({
       [Symbol.iterator]: () => ({ next: () => Promise.reject(error) }),
     }),
     outgoing: () => [],
   } as unknown as GraphWalkSource<unknown, unknown, unknown>;
   expect(() =>
-    new GraphWalk({ source: iteratorSource }).makeRunner().run(),
+    new GraphWalk({ source: iteratorSource }).createRunner().run(),
   ).toThrow(TypeError);
   await Promise.resolve();
 });
@@ -301,6 +340,7 @@ it.each(['target', 'resolution', 'kind', 'data', 'done', 'then'] as const)(
       },
     });
     const source = {
+      hydration: 'resolver' as const,
       roots: () =>
         key === 'then'
           ? bad
@@ -320,7 +360,7 @@ it.each(['target', 'resolution', 'kind', 'data', 'done', 'then'] as const)(
           ? [{ target: Object.assign(bad, { vertexId: 'B' }) }]
           : [],
     } as unknown as GraphWalkSource<unknown, unknown, unknown>;
-    const runner = new GraphWalk({ source }).makeRunner();
+    const runner = new GraphWalk({ source }).createRunner();
     let caught: unknown;
     try {
       runner.run();
@@ -334,26 +374,32 @@ it.each(['target', 'resolution', 'kind', 'data', 'done', 'then'] as const)(
 
 it('ignores later inline hydration without reading its getters', () => {
   const poisoned = {
+    kind: 'inline' as const,
     vertexId: 'A',
     get resolution(): never {
       throw new Error('cached inline value must not be read');
     },
   };
   const source: GraphWalkSource<string, undefined, string> = {
+    hydration: 'inlineOrCached' as const,
     roots: () => [
-      { vertexId: 'A', resolution: { kind: 'found', data: 'first' } },
+      {
+        kind: 'inline' as const,
+        vertexId: 'A',
+        resolution: { kind: 'found', data: 'first' },
+      },
       poisoned,
     ],
     outgoing: () => [{ target: poisoned, data: undefined }],
   };
-  const runner = new GraphWalk({ source }).makeRunner();
-  expect([...runner.getIterable({ emitPhases: [Phase.EDGE] })]).toMatchObject([
-    { target: { kind: 'found', vertex: { vertexId: 'A', data: 'first' } } },
-  ]);
+  const runner = new GraphWalk({ source }).createRunner();
+  expect([...runner.iterateEvents({ emitEvents: [Phase.EDGE] })]).toMatchObject(
+    [{ target: { kind: 'found', vertex: { vertexId: 'A', data: 'first' } } }],
+  );
   expect(runner.summary().counts).toMatchObject({
-    foundVertices: 1,
-    occurrences: 2,
-    observedLinks: 1,
+    uniqueFoundVertices: 1,
+    admittedTargets: 2,
+    discoveredLinks: 1,
   });
 });
 
@@ -382,13 +428,20 @@ it.each(['roots', 'outgoing'] as const)(
     });
     const malformed = { [Symbol.iterator]: () => rejected };
     const source = {
+      hydration: 'inlineOrCached' as const,
       roots: () =>
         location === 'roots'
           ? malformed
-          : [{ vertexId: 'A', resolution: { kind: 'found', data: 'A' } }],
+          : [
+              {
+                kind: 'inline' as const,
+                vertexId: 'A',
+                resolution: { kind: 'found', data: 'A' },
+              },
+            ],
       outgoing: () => malformed,
     } as unknown as GraphWalkSource<string, undefined, string>;
-    const runner = new GraphWalk({ source }).makeRunner();
+    const runner = new GraphWalk({ source }).createRunner();
     let failure: unknown;
     try {
       runner.run();

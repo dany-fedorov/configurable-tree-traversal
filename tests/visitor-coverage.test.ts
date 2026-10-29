@@ -1,26 +1,28 @@
 import {
-  BreadthFirstTraversal,
-  BreadthFirstTraversalOrder,
-  DepthFirstTraversal,
-  DepthFirstTraversalOrder,
+  BreadthFirstPhase,
+  BreadthFirstTreeTraversal,
+  DepthFirstPhase,
+  DepthFirstTreeTraversal,
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-  type TraversalVisitor,
-  type TreeTypeParameters,
+  type CommandCommitMode,
+  type TreeVisitor,
+  type VertexTypes,
 } from '../src';
 
-type Node = { $d: string; $c: Node[] };
-type Tree = TreeTypeParameters<string, Node>;
-type Visitor = TraversalVisitor<
-  DepthFirstTraversalOrder | BreadthFirstTraversalOrder,
-  Tree,
-  Tree
->;
-const root: Node = { $d: 'root', $c: [] };
+type Node = { $data: string; $childHints: Node[] };
+type Tree = VertexTypes<string, Node>;
+type Visitor = TreeVisitor<DepthFirstPhase | BreadthFirstPhase, Tree, Tree>;
+const root: Node = { $data: 'root', $childHints: [] };
 const adapter = {
-  makeRoot: () => ({ vertexContent: root }),
-  makeVertex: (hint: Node) => ({ vertexContent: hint }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: root },
+  }),
+  resolveChild: (hint: Node) => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: hint },
+  }),
 };
 
 describe.each(['depth-first', 'breadth-first'] as const)(
@@ -29,34 +31,30 @@ describe.each(['depth-first', 'breadth-first'] as const)(
     function makeTraversal() {
       const traversal =
         strategy === 'depth-first'
-          ? new DepthFirstTraversal<Tree>({ traversableTree: adapter })
-          : new BreadthFirstTraversal<Tree>({ traversableTree: adapter });
-      const add = (visitor: Visitor, resolutionStyle: Style) => {
-        if (traversal instanceof DepthFirstTraversal) {
-          traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, visitor, {
-            resolutionStyle,
+          ? new DepthFirstTreeTraversal<Tree>({ traversableTree: adapter })
+          : new BreadthFirstTreeTraversal<Tree>({ traversableTree: adapter });
+      const add = (visitor: Visitor, commandCommitMode: CommandCommitMode) => {
+        if (traversal instanceof DepthFirstTreeTraversal) {
+          traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, visitor, {
+            commandCommitMode,
           });
         } else {
-          traversal.addVisitorFor(
-            BreadthFirstTraversalOrder.LEVEL_ORDER,
-            visitor,
-            {
-              resolutionStyle,
-            },
-          );
+          traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, visitor, {
+            commandCommitMode,
+          });
         }
       };
       return { traversal, add };
     }
 
-    test('rejects an unknown visitor style during registration', () => {
+    test('rejects an unknown command commit mode during registration', () => {
       const { add } = makeTraversal();
       const calls: string[] = [];
       expect(() =>
         add(() => {
           calls.push('invalid');
-        }, 'ASYNC' as Style),
-      ).toThrow(/unknown visitor resolution style/i);
+        }, 'ASYNC' as CommandCommitMode),
+      ).toThrow(/unknown visitor command commit mode/i);
       expect(calls).toEqual([]);
     });
 
@@ -65,8 +63,8 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       const calls: unknown[] = [];
       add((vertex) => {
         calls.push(['halt', vertex.getData()]);
-        return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
-      }, Style.CONCURRENT);
+        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+      }, 'afterGroup');
       add((vertex) => {
         calls.push(['rewrite', vertex.getData()]);
         return {
@@ -76,27 +74,23 @@ describe.each(['depth-first', 'breadth-first'] as const)(
               commandArguments: { newData: 'rewritten' },
             },
             {
-              commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-              commandArguments: { vertexVisitorsChainState: 'group finished' },
+              commandName: Command.SET_VISITOR_CHAIN_STATE,
+              commandArguments: { state: 'group finished' },
             },
           ],
         };
-      }, Style.CONCURRENT);
+      }, 'afterGroup');
       add((vertex, options) => {
-        calls.push([
-          'sequential',
-          vertex.getData(),
-          options.vertexVisitorsChainState,
-        ]);
-      }, Style.SEQUENTIAL);
-      const runner = traversal.makeRunner().run();
+        calls.push(['sequential', vertex.getData(), options.visitorChainState]);
+      }, 'afterEachVisitor');
+      const runner = traversal.createRunner().run();
 
       expect(runner.getStatus()).toBe(Status.HALTED);
       expect(calls).toEqual([
         ['halt', 'root'],
         ['rewrite', 'root'],
       ]);
-      expect(runner.getResolvedTree().getRoot()?.unref().getData()).toBe(
+      expect(runner.getResolvedTreeView().getRoot()?.getValue().getData()).toBe(
         'rewritten',
       );
 
@@ -115,19 +109,19 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       const calls: string[] = [];
       add(() => {
         calls.push('delete');
-        return { commands: [{ commandName: Command.DELETE_VERTEX }] };
-      }, Style.CONCURRENT);
+        return { commands: [{ commandName: Command.DELETE_TREE_SUBTREE }] };
+      }, 'afterGroup');
       add((vertex) => {
         calls.push(vertex.getData());
-      }, Style.CONCURRENT);
+      }, 'afterGroup');
       add(() => {
         calls.push('must not run');
-      }, Style.SEQUENTIAL);
-      const runner = traversal.makeRunner();
+      }, 'afterEachVisitor');
+      const runner = traversal.createRunner();
 
-      expect([...runner.getIterable()]).toEqual([]);
+      expect([...runner.iterateEvents()]).toEqual([]);
       expect(calls).toEqual(['delete', 'root']);
-      expect(runner.getResolvedTree().getRoot()).toBeNull();
+      expect(runner.getResolvedTreeView().getRoot()).toBeNull();
       expect(runner.getStatus()).toBe(Status.FINISHED);
     });
   },

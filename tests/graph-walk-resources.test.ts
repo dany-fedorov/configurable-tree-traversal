@@ -30,10 +30,15 @@ function failingResourceSource(
   cleanup: unknown,
 ): GraphWalkSource<string, undefined, string> {
   return {
+    hydration: 'inlineOrCached' as const,
     roots: () =>
       manual('roots', returns, () => ({
         done: false,
-        value: { vertexId: 'A', resolution: { kind: 'found', data: 'A' } },
+        value: {
+          kind: 'inline' as const,
+          vertexId: 'A',
+          resolution: { kind: 'found', data: 'A' },
+        },
       })),
     outgoing: () =>
       manual(
@@ -56,7 +61,7 @@ it.each([null, undefined, false, 0, { reason: 'source' }])(
     const runner = new GraphWalk({
       strategy: 'depthFirst',
       source: failingResourceSource(returns, primary, { reason: 'cleanup' }),
-    }).makeRunner();
+    }).createRunner();
     let caught = false;
     try {
       runner.run();
@@ -79,10 +84,15 @@ it('cleans an acquired iterator even when its next getter fails before first nex
   const returns: string[] = [];
   const primary = { reason: 'next getter' };
   const source: GraphWalkSource<string, undefined, string> = {
+    hydration: 'inlineOrCached' as const,
     roots: () =>
       manual('roots', returns, () => ({
         done: false,
-        value: { vertexId: 'A', resolution: { kind: 'found', data: 'A' } },
+        value: {
+          kind: 'inline' as const,
+          vertexId: 'A',
+          resolution: { kind: 'found', data: 'A' },
+        },
       })),
     outgoing: () => ({
       [Symbol.iterator]() {
@@ -98,7 +108,10 @@ it('cleans an acquired iterator even when its next getter fails before first nex
       },
     }),
   };
-  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).makeRunner();
+  const runner = new GraphWalk({
+    source,
+    strategy: 'depthFirst',
+  }).createRunner();
   expect(() => runner.run()).toThrow();
   expect(runner.summary().outcome).toEqual({ kind: 'failed', error: primary });
   expect(returns).toEqual(['edges:A', 'roots']);
@@ -109,7 +122,7 @@ it('async failure awaits reverse cleanup and retains arbitrary primary errors', 
   const runner = new AsyncGraphWalk({
     strategy: 'depthFirst',
     source: failingResourceSource(returns, undefined, null),
-  }).makeRunner();
+  }).createRunner();
   let caught = false;
   try {
     await runner.run();
@@ -126,8 +139,8 @@ it('public iterator return retains sources, terminal close releases them once an
   const returns: string[] = [];
   const runner = new GraphWalk({
     source: failingResourceSource(returns, 'unused', 'unused'),
-  }).makeRunner();
-  const iterator = runner.getIterable();
+  }).createRunner();
+  const iterator = runner.iterateEvents();
   iterator.next();
   expect(() => runner.close()).toThrow('owner');
   iterator.return();
@@ -137,7 +150,7 @@ it('public iterator return retains sources, terminal close releases them once an
   runner.close();
   expect(returns).toEqual(['roots']);
   expect(runner.summary().outcome).toEqual({ kind: 'closed' });
-  expect([...runner.getIterable()]).toEqual([]);
+  expect([...runner.iterateEvents()]).toEqual([]);
   expect(runner.inspect().openSourceIteratorCount).toBe(0);
 });
 
@@ -147,6 +160,7 @@ it.each([null, undefined, false, 0, { reason: 'cleanup' }])(
     for (const factory of [GraphWalk, AsyncGraphWalk]) {
       const returns: string[] = [];
       const source: GraphWalkSource<string, undefined, string> = {
+        hydration: 'inlineOrCached' as const,
         roots: () =>
           manual(
             'roots',
@@ -154,6 +168,7 @@ it.each([null, undefined, false, 0, { reason: 'cleanup' }])(
             () => ({
               done: false,
               value: {
+                kind: 'inline' as const,
                 vertexId: 'A',
                 resolution: { kind: 'found', data: 'A' },
               },
@@ -170,6 +185,7 @@ it.each([null, undefined, false, 0, { reason: 'cleanup' }])(
               done: false,
               value: {
                 target: {
+                  kind: 'inline' as const,
                   vertexId: 'B',
                   resolution: { kind: 'found', data: 'B' },
                 },
@@ -184,8 +200,8 @@ it.each([null, undefined, false, 0, { reason: 'cleanup' }])(
       const runner = new factory({
         source,
         strategy: 'depthFirst',
-        limits: { maxOccurrences: 2 },
-      }).makeRunner();
+        limits: { maxAdmittedTargets: 2 },
+      }).createRunner();
       let caught = false;
       try {
         await runner.run();
@@ -220,6 +236,7 @@ it('releases nested DFS iterators in reverse order on a global bound without ope
   const returns: string[] = [];
   const opens: string[] = [];
   const source: GraphWalkSource<string, undefined, string> = {
+    hydration: 'resolver' as const,
     roots: () =>
       manual('roots', returns, () => ({
         done: false,
@@ -240,15 +257,15 @@ it('releases nested DFS iterators in reverse order on a global bound without ope
   const runner = new GraphWalk({
     source,
     strategy: 'depthFirst',
-    limits: { maxSteps: 3 },
+    limits: { maxCandidateReadAttempts: 3 },
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(opens).toEqual(['A', 'B']);
   expect(returns).toEqual(['edges:B', 'edges:A', 'roots']);
   expect(runner.summary().outcome).toEqual({
     kind: 'limited',
-    reasons: ['maxSteps'],
+    reasons: ['maxCandidateReadAttempts'],
   });
   expect(Object.isFrozen(runner.summary().outcome)).toBe(true);
   const outcome = runner.summary().outcome;
@@ -272,8 +289,13 @@ it('removes exhausted iterators without reading their return and preserves exhau
       },
     };
     const runner = new factory({
-      source: { roots: () => roots, outgoing: () => [] },
-    }).makeRunner();
+      source: {
+        hydration: 'resolver' as const,
+        resolveVertex: () => ({ kind: 'omitted' }),
+        roots: () => roots,
+        outgoing: () => [],
+      },
+    }).createRunner();
     await runner.run();
     await runner.close();
     expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
@@ -285,10 +307,12 @@ it('does not close exhausted outgoing iterators when a later branch fails', () =
   const returns: string[] = [];
   let rootIndex = 0;
   const source: GraphWalkSource<string, undefined, string> = {
+    hydration: 'inlineOrCached' as const,
     roots: () =>
       manual('roots', returns, () => ({
         done: false,
         value: {
+          kind: 'inline' as const,
           vertexId: ['A', 'B'][rootIndex++]!,
           resolution: { kind: 'found', data: 'data' },
         },
@@ -299,7 +323,10 @@ it('does not close exhausted outgoing iterators when a later branch fails', () =
         return { done: true, value: undefined };
       }),
   };
-  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).makeRunner();
+  const runner = new GraphWalk({
+    source,
+    strategy: 'depthFirst',
+  }).createRunner();
   expect(() => runner.run()).toThrow();
   expect(returns).toEqual(['edges:B', 'roots']);
 });
@@ -308,6 +335,7 @@ it('close on INITIAL performs no source work and remains terminal', async () => 
   for (const factory of [GraphWalk, AsyncGraphWalk]) {
     const runner = new factory({
       source: {
+        hydration: 'inlineOrCached' as const,
         roots() {
           throw new Error('Must not open');
         },
@@ -315,14 +343,14 @@ it('close on INITIAL performs no source work and remains terminal', async () => 
           throw new Error('Must not open');
         },
       },
-    }).makeRunner();
+    }).createRunner();
     await runner.close();
     await runner.close();
     await runner.run();
     expect(runner.summary()).toMatchObject({
       status: Status.FINISHED,
       outcome: { kind: 'closed' },
-      counts: { steps: 0, occurrences: 0 },
+      counts: { candidateReadAttempts: 0, admittedTargets: 0 },
     });
   }
 });
@@ -332,12 +360,17 @@ it('attempts cleanup after a throwing return getter and tolerates missing return
   const returns: string[] = [];
   const runner = new GraphWalk({
     strategy: 'depthFirst',
-    limits: { maxOccurrences: 2 },
+    limits: { maxAdmittedTargets: 2 },
     source: {
+      hydration: 'inlineOrCached' as const,
       roots: () =>
         manual('roots', returns, () => ({
           done: false,
-          value: { vertexId: 'A', resolution: { kind: 'found', data: 1 } },
+          value: {
+            kind: 'inline' as const,
+            vertexId: 'A',
+            resolution: { kind: 'found', data: 1 },
+          },
         })),
       outgoing: () => ({
         [Symbol.iterator]() {
@@ -346,6 +379,7 @@ it('attempts cleanup after a throwing return getter and tolerates missing return
               done: false,
               value: {
                 target: {
+                  kind: 'inline' as const,
                   vertexId: 'B',
                   resolution: { kind: 'found', data: 2 },
                 },
@@ -359,19 +393,24 @@ it('attempts cleanup after a throwing return getter and tolerates missing return
         },
       }),
     },
-  }).makeRunner();
+  }).createRunner();
   expect(() => runner.run()).toThrow();
   expect(returns).toEqual(['roots']);
   expect(runner.summary().outcome).toEqual({ kind: 'failed', error: cleanup });
   const withoutReturn = new GraphWalk({
-    limits: { maxOccurrences: 1 },
+    limits: { maxAdmittedTargets: 1 },
     source: {
+      hydration: 'inlineOrCached' as const,
       roots: () => ({
         [Symbol.iterator]() {
           return {
             next: () => ({
               done: false,
-              value: { vertexId: 1, resolution: { kind: 'found', data: 1 } },
+              value: {
+                kind: 'inline' as const,
+                vertexId: 1,
+                resolution: { kind: 'found', data: 1 },
+              },
             }),
           };
         },
@@ -379,11 +418,11 @@ it('attempts cleanup after a throwing return getter and tolerates missing return
       outgoing: () => [],
     },
   })
-    .makeRunner()
+    .createRunner()
     .run();
   expect(withoutReturn.summary().outcome).toEqual({
     kind: 'limited',
-    reasons: ['maxOccurrences'],
+    reasons: ['maxAdmittedTargets'],
   });
 });
 
@@ -399,6 +438,7 @@ it('overlapping async terminal closes join, await cleanup, and exclude execution
   let returns = 0;
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'inlineOrCached' as const,
       roots: () => ({
         [Symbol.asyncIterator]() {
           return {
@@ -406,6 +446,7 @@ it('overlapping async terminal closes join, await cleanup, and exclude execution
               return {
                 done: false,
                 value: {
+                  kind: 'inline' as const,
                   vertexId: 'A',
                   resolution: { kind: 'found', data: 1 },
                 },
@@ -422,8 +463,8 @@ it('overlapping async terminal closes join, await cleanup, and exclude execution
       }),
       outgoing: () => [],
     },
-  }).makeRunner();
-  const iterator = runner.getIterable();
+  }).createRunner();
+  const iterator = runner.iterateEvents();
   await iterator.next();
   await expect(runner.close()).rejects.toThrow('owner');
   expect(runner.getStatus()).toBe(Status.RUNNING);
@@ -454,13 +495,18 @@ it.each([null, undefined])(
     const returns: string[] = [];
     const runner = new AsyncGraphWalk({
       source: {
+        hydration: 'inlineOrCached' as const,
         roots: () =>
           manual(
             'roots',
             returns,
             () => ({
               done: false,
-              value: { vertexId: 1, resolution: { kind: 'found', data: 1 } },
+              value: {
+                kind: 'inline' as const,
+                vertexId: 1,
+                resolution: { kind: 'found', data: 1 },
+              },
             }),
             () => {
               throw failure;
@@ -468,8 +514,8 @@ it.each([null, undefined])(
           ),
         outgoing: () => [],
       },
-    }).makeRunner();
-    const iterator = runner.getIterable();
+    }).createRunner();
+    const iterator = runner.iterateEvents();
     await iterator.next();
     await iterator.return();
     const closing = runner.close();
@@ -498,10 +544,15 @@ it('terminal close does not acquire a returned iterable that has never been open
     const runner = new factory({
       strategy: 'depthFirst',
       source: {
+        hydration: 'inlineOrCached' as const,
         roots: () =>
           manual('roots', returns, () => ({
             done: false,
-            value: { vertexId: 'A', resolution: { kind: 'found', data: 'A' } },
+            value: {
+              kind: 'inline' as const,
+              vertexId: 'A',
+              resolution: { kind: 'found', data: 'A' },
+            },
           })),
         outgoing() {
           runner.requestPause();
@@ -512,7 +563,7 @@ it('terminal close does not acquire a returned iterable that has never been open
           };
         },
       },
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     expect(runner.getStatus()).toBe(Status.HALTED);
     expect(runner.inspect().openSourceIteratorCount).toBe(1);
@@ -537,6 +588,7 @@ it.each([null, undefined])(
     const runner = new AsyncGraphWalk({
       strategy: 'depthFirst',
       source: {
+        hydration: 'inlineOrCached' as const,
         roots: () =>
           manual(
             'roots',
@@ -544,6 +596,7 @@ it.each([null, undefined])(
             () => ({
               done: false,
               value: {
+                kind: 'inline' as const,
                 vertexId: 'A',
                 resolution: { kind: 'found', data: 'A' },
               },
@@ -568,7 +621,7 @@ it.each([null, undefined])(
           },
         }),
       },
-    }).makeRunner();
+    }).createRunner();
     let caught = false;
     const running = runner.run().catch((error) => {
       caught = true;
@@ -640,6 +693,7 @@ it.each([GraphWalk, AsyncGraphWalk])(
           },
         };
         const source: GraphWalkSource<string, undefined, string> = {
+          hydration: 'inlineOrCached' as const,
           roots: () =>
             location === 'roots'
               ? acquired
@@ -649,6 +703,7 @@ it.each([GraphWalk, AsyncGraphWalk])(
                   () => ({
                     done: false,
                     value: {
+                      kind: 'inline' as const,
                       vertexId: 'A',
                       resolution: { kind: 'found', data: 'A' },
                     },
@@ -662,7 +717,7 @@ it.each([GraphWalk, AsyncGraphWalk])(
         const runner = new factory({
           source,
           strategy: 'depthFirst',
-        }).makeRunner();
+        }).createRunner();
         let caught = false;
         try {
           await runner.run();
@@ -719,10 +774,11 @@ it.each([GraphWalk, AsyncGraphWalk])(
     void rejected.catch(() => undefined);
     for (const value of [callable, 42]) {
       const source = {
+        hydration: 'inlineOrCached' as const,
         roots: () => ({ [Symbol.iterator]: () => value }),
         outgoing: () => [],
       } as unknown as GraphWalkSource<never, never, never>;
-      const runner = new factory({ source }).makeRunner();
+      const runner = new factory({ source }).createRunner();
       let caught = false;
       try {
         await runner.run();

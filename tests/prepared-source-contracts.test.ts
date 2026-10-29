@@ -2,10 +2,10 @@ import {
   prepareDag,
   prepareDagAsync,
 } from '../src/traversals/dag-traversal/prepareDag';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 
 for (const prepare of [prepareDag, prepareDagAsync]) {
   test(`${prepare.name} preserves non-enumerable own undefined identity`, async () => {
@@ -16,8 +16,11 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     );
     const result = await prepare<G, unknown>({
       traversableGraph: {
-        makeRoot: () => ({ kind: 'found', vertex }),
-        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveRoot: () => ({ kind: 'found', vertex }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted',
+        }),
       },
     });
     if (result.kind !== 'valid') throw new Error('Expected valid DAG');
@@ -45,14 +48,17 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     await expect(async () => {
       await prepare<G, string>({
         traversableGraph: {
-          makeRoot: () => ({ kind: 'found', vertex }),
-          makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+          resolveRoot: () => ({ kind: 'found', vertex }),
+          resolveChild: () => ({
+            satisfiesDependencies: true as const,
+            kind: 'omitted',
+          }),
         },
       });
     }).rejects.toThrow(/priority metadata is not supported/);
   });
 
-  test.each(['vertexId', 'dependsOn', 'dependsOnComplete'])(
+  test.each(['vertexId', 'dependsOnWork', 'dependsOnSubgraphCompletion'])(
     `${prepare.name} preserves exact non-enumerable %s getter errors`,
     async (field) => {
       const error = { field };
@@ -69,10 +75,10 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       await expect(async () => {
         await prepare<G, string>({
           traversableGraph: {
-            makeRoot: () => ({ kind: 'found', vertex }),
-            makeVertex: () => ({
+            resolveRoot: () => ({ kind: 'found', vertex }),
+            resolveChild: () => ({
+              satisfiesDependencies: true as const,
               kind: 'omitted',
-              satisfiesDependencies: true,
             }),
           },
         });
@@ -80,7 +86,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     },
   );
 
-  test(`${prepare.name} preserves legacy inherited content and both dependency kinds`, async () => {
+  test(`${prepare.name} preserves inherited content and both dependency kinds`, async () => {
     class Entry {
       constructor(readonly vertexId: string) {}
       get vertexContent() {
@@ -89,25 +95,27 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
           $childHints: this.vertexId === 'root' ? ['a', 'b', 'c'] : [],
         };
       }
-      get dependsOn() {
+      get dependsOnWork() {
         return this.vertexId === 'b' ? ['a'] : [];
       }
-      get dependsOnComplete() {
+      get dependsOnSubgraphCompletion() {
         return this.vertexId === 'c' ? ['b'] : [];
       }
     }
-    const source: TraversableGraph<G, G, string> = {
-      makeRoot: () => new Entry('root'),
-      makeVertex: (id) => new Entry(id),
+    const source: DagDiscoverySource<G, G, string> = {
+      resolveRoot: () => ({ kind: 'found', vertex: new Entry('root') }),
+      resolveChild: (id) => ({ kind: 'found', vertex: new Entry(id) }),
     };
     const result = await prepare<G, string>({ traversableGraph: source });
     if (result.kind !== 'valid') throw new Error('Expected valid DAG');
     expect(
-      result.dag.vertices.map(({ vertexId, dependsOn, dependsOnComplete }) => [
-        vertexId,
-        dependsOn,
-        dependsOnComplete,
-      ]),
+      result.dag.vertices.map(
+        ({ vertexId, dependsOnWork, dependsOnSubgraphCompletion }) => [
+          vertexId,
+          dependsOnWork,
+          dependsOnSubgraphCompletion,
+        ],
+      ),
     ).toEqual([
       ['root', [], []],
       ['a', [], []],
@@ -137,7 +145,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       const inherited = Object.create(prototype) as { vertexId: string };
       const result = await prepare<G, string>({
         traversableGraph: {
-          makeRoot: () => ({
+          resolveRoot: () => ({
             kind: 'found',
             vertex: {
               vertexId: 'root',
@@ -145,7 +153,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
             },
           }),
           getVertexIdFromHint: () => inherited,
-          makeVertex: () => ({
+          resolveChild: () => ({
             kind: 'found',
             vertex: {
               vertexId: 'b',
@@ -173,7 +181,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       };
       const result = await prepare<G, unknown>({
         traversableGraph: {
-          makeRoot: () => ({
+          resolveRoot: () => ({
             kind: 'found',
             vertex: {
               vertexId: 'root',
@@ -182,14 +190,14 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
           }),
           getVertexIdFromHint: (hint) =>
             hint === 'skip' ? wrapper : { vertexId: hint },
-          makeVertex: (hint) =>
+          resolveChild: (hint) =>
             hint === 'skip'
               ? { kind: 'omitted', satisfiesDependencies: true }
               : {
                   kind: 'found',
                   vertex: {
                     vertexId: 'b',
-                    dependsOn: [id],
+                    dependsOnWork: [id],
                     vertexContent: { $data: 'b', $childHints: [] },
                   },
                 },
@@ -197,9 +205,9 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       });
       if (result.kind !== 'valid') throw new Error('Expected valid DAG');
       expect(
-        result.dag.vertices.map(({ vertexId, dependsOn }) => [
+        result.dag.vertices.map(({ vertexId, dependsOnWork }) => [
           vertexId,
-          dependsOn,
+          dependsOnWork,
         ]),
       ).toEqual([
         ['root', []],

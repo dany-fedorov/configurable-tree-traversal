@@ -74,25 +74,40 @@ function createInspection(
     syntheticRoot: true,
     completedWork: completed,
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         counters.root++;
-        return { vertexContent: { $d: 'catalog', $c: fixture.ids } };
+        return {
+          kind: 'found',
+          vertex: {
+            vertexContent: { $data: 'catalog', $childHints: fixture.ids },
+          },
+        };
       },
-      makeVertex: (id) => {
+      resolveChild: (id) => {
         counters.vertex++;
         return {
-          vertexId: id,
-          dependsOn: fixture.prerequisites[indexes.get(id)],
-          vertexContent: { $d: id, $c: [] },
+          kind: 'found',
+          vertex: {
+            vertexId: id,
+            dependsOnWork: fixture.prerequisites[indexes.get(id)],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         };
       },
     },
   });
-  traversal.addVisitorFor(library.DagTraversalOrder.ON_READY, () => {
+  traversal.addVisitorFor(library.DagVisitorPhase.ON_WORK_READY, () => {
     if (counters.ready++ === 0) onFirstReady();
-    return library.DEFER_READY;
+    return {
+      commands: [
+        {
+          commandName:
+            library.TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+        },
+      ],
+    };
   });
-  return { runner: traversal.makeRunner(), counters };
+  return { runner: traversal.createRunner(), counters };
 }
 
 function sample(library, shape, count, seedCount, summaryIterations) {
@@ -119,7 +134,7 @@ function sample(library, shape, count, seedCount, summaryIterations) {
   const runToQuiescenceMs = performance.now() - runStart;
   // All correctness checks are outside measured regions. Summaries allocate detached snapshots.
   const before = runner.summary();
-  assert.deepEqual(before.readyIds, baseline.readyIds);
+  assert.deepEqual(before.readyOrDeferredIds, baseline.readyIds);
   assert.deepEqual(before.completedWorkIds, [...completed]);
   assert.equal(before.discovery.complete, true);
   assert.equal(before.diagnostics, null);
@@ -127,7 +142,7 @@ function sample(library, shape, count, seedCount, summaryIterations) {
   assert.equal(counters.root, 1);
   assert.equal(counters.vertex, count);
   assert.equal(counters.ready, baseline.readyIds.length);
-  assert.equal(before.counts.deferred, baseline.readyIds.length);
+  assert.equal(before.counts.deferredWork, baseline.readyIds.length);
   const calls = { ...counters };
   const status = runner.getStatus();
   let last;
@@ -280,9 +295,9 @@ function main(args) {
       fixtureConstructionMs:
         'IDs and prerequisite arrays only; excludes completedWork seed creation',
       runnerConstructionMs:
-        'adapter index, traversal construction, visitor registration and makeRunner',
+        'adapter index, traversal construction, visitor registration and createRunner',
       eagerToFirstReadyMs:
-        'run entry to first ON_READY callback; includes traversal setup, full eager discovery and validation; overlaps runToQuiescenceMs',
+        'run entry to first ON_WORK_READY callback; includes traversal setup, full eager discovery and validation; overlaps runToQuiescenceMs',
       runToQuiescenceMs:
         'run entry to return; includes discovery, validation and deferral admission; stops at HALTED frontier, no business work or settlement',
       kahnIndexAndFrontierMs:

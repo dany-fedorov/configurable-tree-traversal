@@ -55,34 +55,49 @@ function parseArguments(args) {
 function createLifecycleInspection(library, fixture, completed, options) {
   const counters = { root: 0, vertex: 0, ready: 0 };
   const indexes = new Map(fixture.ids.map((id, i) => [id, i]));
-  const Traversal =
+  const TreeTraversal =
     options.mode === 'async' ? library.AsyncDagTraversal : library.DagTraversal;
-  const traversal = new Traversal({
+  const traversal = new TreeTraversal({
     discovery: options.discovery,
     syntheticRoot: true,
     completedWork: new Set(completed),
     ...(options.mode === 'async' ? { concurrency: options.concurrency } : {}),
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         counters.root++;
-        return { vertexContent: { $d: 'catalog', $c: fixture.ids } };
+        return {
+          kind: 'found',
+          vertex: {
+            vertexContent: { $data: 'catalog', $childHints: fixture.ids },
+          },
+        };
       },
-      makeVertex: (id) => {
+      resolveChild: (id) => {
         counters.vertex++;
         return {
-          vertexId: id,
-          dependsOn: fixture.prerequisites[indexes.get(id)],
-          vertexContent: { $d: id, $c: [] },
+          kind: 'found',
+          vertex: {
+            vertexId: id,
+            dependsOnWork: fixture.prerequisites[indexes.get(id)],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         };
       },
     },
   });
   const visit = () => {
     counters.ready++;
-    return library.DEFER_READY;
+    return {
+      commands: [
+        {
+          commandName:
+            library.TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+        },
+      ],
+    };
   };
   traversal.addVisitorFor(
-    library.DagTraversalOrder.ON_READY,
+    library.DagVisitorPhase.ON_WORK_READY,
     options.mode === 'async'
       ? async () => {
           await Promise.resolve();
@@ -90,7 +105,7 @@ function createLifecycleInspection(library, fixture, completed, options) {
         }
       : visit,
   );
-  return { runner: traversal.makeRunner(), counters };
+  return { runner: traversal.createRunner(), counters };
 }
 
 async function timeRun(inspection, mode) {
@@ -149,16 +164,16 @@ function assertBoundary(inspection, snapshot, fixture, completed) {
   // The flat catalog resolves all declarations even while lazy expansion remains open.
   assert.equal(snapshot.counts.discovered, fixture.ids.length);
   assert.equal(snapshot.diagnostics, null);
-  assert.equal(snapshot.counts.inFlight, 0);
+  assert.equal(snapshot.counts.activeVisitorVertices, 0);
   assert.equal(snapshot.counts.workCompleted, completed.size);
   assert.deepEqual(new Set(snapshot.completedWorkIds), completed);
   assert.deepEqual(snapshot.unusedCompletedWorkIds, []);
   const ready = kahnFrontier(fixture, completed).readyIds.filter((id) =>
     snapshot.vertices.has(id),
   );
-  assert.deepEqual(new Set(snapshot.readyIds), new Set(ready));
-  assert.deepEqual(new Set(snapshot.deferredIds), new Set(ready));
-  assert.equal(snapshot.counts.deferred, ready.length);
+  assert.deepEqual(new Set(snapshot.readyOrDeferredIds), new Set(ready));
+  assert.deepEqual(new Set(snapshot.deferredWorkIds), new Set(ready));
+  assert.equal(snapshot.counts.deferredWork, ready.length);
   assert.equal(inspection.counters.root, 1);
   assert.equal(inspection.counters.vertex, fixture.ids.length);
   return ready; // Fixture order supplies a deterministic rank outside timing.
@@ -167,16 +182,16 @@ function assertBoundary(inspection, snapshot, fixture, completed) {
 function assertReconstructed(retained, reconstructed) {
   assert.deepEqual(reconstructed.counts, retained.counts);
   for (const key of [
-    'readyIds',
-    'deferredIds',
+    'readyOrDeferredIds',
+    'deferredWorkIds',
     'completedWorkIds',
-    'completedSubtreeIds',
+    'completedSubgraphIds',
   ])
     assert.deepEqual(new Set(reconstructed[key]), new Set(retained[key]));
   for (const [id, progress] of retained.vertices) {
     const rebuilt = reconstructed.vertices.get(id);
     assert.equal(rebuilt.work, progress.work);
-    assert.equal(rebuilt.subtreeComplete, progress.subtreeComplete);
+    assert.equal(rebuilt.subgraphComplete, progress.subgraphComplete);
     assert.deepEqual(
       rebuilt.unmetPrerequisiteIds,
       progress.unmetPrerequisiteIds,
@@ -238,7 +253,9 @@ async function runLifecycleSample(library, fixture, seeds, options) {
     const accepted = [];
     start = performance.now();
     for (const [id, generation] of settlements)
-      accepted.push(retained.runner.settle(id, { ok: true }, generation));
+      accepted.push(
+        retained.runner.settle(id, { kind: 'workCompleted' }, generation),
+      );
     const settlementBatchMs = performance.now() - start;
     assert.ok(accepted.every((value) => value === true));
     acceptedIds.forEach((id) => completed.add(id));
@@ -416,7 +433,7 @@ async function main(args) {
       completedWorkSeeds: 'empty or first floor(V/2) IDs; prerequisite-closed',
       batchRanking: 'fixture ID order, outside measured regions',
       asyncVisitor:
-        'await Promise.resolve() then DEFER_READY; callback scheduling overhead, no external I/O',
+        'await Promise.resolve() then DEFER_WORK_COMPLETION; callback scheduling overhead, no external I/O',
       frontierScope:
         'pre-run summaries and open lazy boundaries are partial-discovery; full-fixture Kahn retains all prerequisite edges and projects ready IDs onto discovered IDs. Global readiness claims only at discovery.complete boundaries; the flat synthetic catalog resolves all V declarations before its first quiescent frontier',
       memory:
@@ -428,7 +445,7 @@ async function main(args) {
       fixtureConstructionMs:
         'IDs/prerequisite arrays only, one shared fixture per shape outside samples; seed construction excluded',
       runnerConstructionMs:
-        'adapter index, copied completed seeds, constructor, visitor registration and makeRunner',
+        'adapter index, copied completed seeds, constructor, visitor registration and createRunner',
       initialRunMs:
         'run entry to quiescence, includes discovery, validation and deferred callback scheduling; async awaits run completion',
       settlementBatchMs:

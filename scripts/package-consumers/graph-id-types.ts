@@ -2,43 +2,42 @@
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder,
+  DagVisitorPhase,
   traverseDag,
   traverseDagAsync,
 } from 'configurable-tree-traversal';
 import type {
-  AsyncTraversableGraph,
-  TraversableGraph,
-  TraversableTree,
-  TreeTypeParameters,
-  SourceVertexResult,
-  FoundVertexResult,
-  MakeVertexResult,
-  OmittedVertexResult,
+  AsyncDagDiscoverySource,
+  DagDiscoverySource,
+  TreeSource,
+  VertexTypes,
+  DagVertexResolution,
+  DagVertexFound,
+  DagVertexOmitted,
   HintVertexId,
-  ResolvedGraph,
-  ResolvedGraphSnapshot,
+  ResolvedGraphView,
+  OriginalGraphView,
   DagSummary,
   DagVertexProgress,
   DagTraversalStallDiagnostics,
 } from 'configurable-tree-traversal';
 
-type W = TreeTypeParameters<string, string>;
-type R = TreeTypeParameters<number, { next: string }>;
-const source: TraversableGraph<W, W, string> = {
-  makeRoot: () => ({
+type W = VertexTypes<string, string>;
+type R = VertexTypes<number, { next: string }>;
+const source: DagDiscoverySource<W, W, string> = {
+  resolveRoot: () => ({
     kind: 'found',
     vertex: {
       vertexId: 'a',
       vertexContent: { $data: 'a', $childHints: [] },
-      dependsOn: ['b'],
-      dependsOnComplete: ['c'],
+      dependsOnWork: ['b'],
+      dependsOnSubgraphCompletion: ['c'],
     },
   }),
-  makeVertex: (id, options) => {
-    const graph: ResolvedGraph<W, string> = options.resolvedGraph;
-    const snapshot: ResolvedGraphSnapshot<W, string> | null =
-      options.notMutatedResolvedGraph;
+  resolveChild: (id, options) => {
+    const graph: ResolvedGraphView<W, string> = options.resolvedGraphView;
+    const snapshot: OriginalGraphView<W, string> | null =
+      options.originalGraphView;
     graph.getVertexRefById(id);
     // @ts-expect-error Selected ID domain applies to source graph views.
     graph.getVertexRefById(1);
@@ -58,29 +57,30 @@ const traversal = new DagTraversal<W, W, string>({
   traversableGraph: source,
   completedWork: new Set(['b']),
 });
-const runner = traversal.makeRunner();
-const ids: readonly string[] = runner.summary().readyIds;
+const runner = traversal.createRunner();
+const ids: readonly string[] = runner.summary().readyOrDeferredIds;
 const summary: DagSummary<string> = runner.summary();
 const progress: DagVertexProgress<string> | undefined =
   summary.vertices.get('a');
 const diagnostics: DagTraversalStallDiagnostics<string> | null =
   summary.diagnostics;
-const graph = runner.getResolvedGraph();
+const graph = runner.getResolvedGraphView();
 const ref = graph.getVertexRefById('a');
 if (ref !== null) {
   const id: string = graph.getVertexId(ref);
-  const alias: string = graph.getIdOf(ref);
-  const dependencies: readonly string[] | undefined = graph.get(ref)?.dependsOn;
+  const alias: string = graph.getVertexId(ref);
+  const dependencies: readonly string[] | undefined =
+    graph.get(ref)?.dependsOnWork;
   void [id, alias, dependencies];
 }
-graph.getVertexById('a');
+graph.getVertexRefById('a');
 runner.settle('a', { kind: 'workCompleted' }, Symbol());
 // @ts-expect-error String IDs reject numbers at settlement.
 runner.settle(42, { kind: 'workCompleted' }, Symbol());
 // @ts-expect-error String IDs reject objects at lookup.
 graph.getVertexRefById({});
 // @ts-expect-error Compatibility aliases preserve the same ID domain.
-graph.getVertexById(42);
+graph.getVertexRefById(42);
 // @ts-expect-error Source prerequisite lookup accepts only strings.
 source.resolvePrerequisite?.(42);
 // @ts-expect-error Progress map lookup preserves ID.
@@ -92,84 +92,93 @@ new DagTraversal<W, W, string>({
   // @ts-expect-error Constructor completed work must use the selected ID domain.
   completedWork: new Set([{}]),
 });
-traversal.addVisitorFor(DagTraversalOrder.ON_READY, (_vertex, options) => {
-  const view: ResolvedGraph<W, string> = options.resolvedGraph;
+traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (_vertex, options) => {
+  const view: ResolvedGraphView<W, string> = options.resolvedGraphView;
   // @ts-expect-error Visitor graph ID lookup is checked.
   view.getVertexRefById(42);
 });
 
-const inferred = new DagTraversal({ traversableGraph: source }).makeRunner();
-const inferredIds: readonly string[] = inferred.summary().readyIds;
+const inferred = new DagTraversal({ traversableGraph: source }).createRunner();
+const inferredIds: readonly string[] = inferred.summary().readyOrDeferredIds;
 // @ts-expect-error Constructor inference retains the source ID domain.
 inferred.settle(42, { kind: 'workCompleted' }, Symbol());
 const helper = traverseDag({ traversableGraph: source });
-const helperIds: readonly string[] = helper.summary().readyIds;
+const helperIds: readonly string[] = helper.summary().readyOrDeferredIds;
 // @ts-expect-error New helper inference retains the source ID domain.
-helper.getResolvedGraph().getVertexRefById(42);
-const legacyHelper = traverseDag({ traversableGraph: source }, null);
-const legacyIds: readonly string[] = legacyHelper.summary().readyIds;
+helper.getResolvedGraphView().getVertexRefById(42);
+const legacyHelper = traverseDag({ ...{ traversableGraph: source } });
+const legacyIds: readonly string[] = legacyHelper.summary().readyOrDeferredIds;
 // @ts-expect-error Deprecated helper inference retains the source ID domain.
 legacyHelper.settle({}, { kind: 'workCompleted' }, Symbol());
 
-const asyncSource: AsyncTraversableGraph<W, W, string> = source;
+const asyncSource: AsyncDagDiscoverySource<W, W, string> = source;
 const asyncTraversal = new AsyncDagTraversal({ traversableGraph: asyncSource });
-const asyncRunner = asyncTraversal.makeRunner();
-const asyncIds: readonly string[] = asyncRunner.summary().readyIds;
+const asyncRunner = asyncTraversal.createRunner();
+const asyncIds: readonly string[] = asyncRunner.summary().readyOrDeferredIds;
 // @ts-expect-error Async inferred settlement uses string IDs.
 asyncRunner.settle(42, { kind: 'workCompleted' }, Symbol());
 // @ts-expect-error Async configure checks completed work IDs.
 asyncTraversal.configure({ completedWork: new Set([42]) });
 async function asyncHelpers() {
   const current = await traverseDagAsync({ traversableGraph: asyncSource });
-  const old = await traverseDagAsync({ traversableGraph: asyncSource }, null);
-  const a: readonly string[] = current.summary().readyIds;
-  const b: readonly string[] = old.summary().readyIds;
+  const old = await traverseDagAsync({ ...{ traversableGraph: asyncSource } });
+  const a: readonly string[] = current.summary().readyOrDeferredIds;
+  const b: readonly string[] = old.summary().readyOrDeferredIds;
   // @ts-expect-error Async helper inferred ID domain.
   current.settle(42, { kind: 'workCompleted' }, Symbol());
   // @ts-expect-error Async deprecated helper inferred ID domain.
-  old.getResolvedGraph().getVertexById({});
+  old.getResolvedGraphView().getVertexRefById({});
   void [a, b];
 }
 
-const missingTagged: FoundVertexResult<W, string> = {
+const missingTagged: DagVertexFound<W, string> = {
   kind: 'found',
   // @ts-expect-error Typed found content cannot fall back to a generated UUID.
   vertex: { vertexContent: { $data: 'a', $childHints: [] } },
 };
-// @ts-expect-error Legacy live content also requires a typed ID.
-const missingLegacy: MakeVertexResult<W, string> = {
+const canonicalFound: DagVertexResolution<W, string> = {
+  kind: 'found',
+  vertex: { vertexId: 'a', vertexContent: { $data: 'a', $childHints: [] } },
+};
+const missingLegacy: DagVertexResolution<W, string> = {
+  // @ts-expect-error Untagged live source content is removed.
   vertexContent: { $data: 'a', $childHints: [] },
 };
-const missingUnion: SourceVertexResult<W, string> = {
+void canonicalFound;
+const missingUnion: DagVertexResolution<W, string> = {
   kind: 'found',
   // @ts-expect-error Source union must not admit tagged missing IDs.
   vertex: { vertexContent: { $data: 'a', $childHints: [] } },
 };
-const omitted: OmittedVertexResult<string> = {
+const omitted: DagVertexOmitted<string> = {
   kind: 'omitted',
   satisfiesDependencies: true,
 };
-const legacyOmitted: MakeVertexResult<W, string> = { vertexContent: null };
-const wrongDependency: FoundVertexResult<W, string> = {
+// @ts-expect-error Untagged graph omission is removed.
+const legacyOmitted: DagVertexResolution<W, string> = { vertexContent: null };
+const wrongDependency: DagVertexFound<W, string> = {
   kind: 'found',
   vertex: {
     vertexId: 'a',
     vertexContent: { $data: 'a', $childHints: [] },
     // @ts-expect-error Work dependencies use the selected ID type.
-    dependsOn: [42],
+    dependsOnWork: [42],
   },
 };
-const wrongComplete: MakeVertexResult<W, string> = {
-  vertexId: 'a',
-  vertexContent: { $data: 'a', $childHints: [] },
-  // @ts-expect-error Completion dependencies use the selected ID type.
-  dependsOnComplete: [{}],
+const wrongComplete: DagVertexFound<W, string> = {
+  kind: 'found' as const,
+  vertex: {
+    vertexId: 'a',
+    vertexContent: { $data: 'a', $childHints: [] },
+    // @ts-expect-error Completion dependencies use the selected ID type.
+    dependsOnSubgraphCompletion: [{}],
+  },
 };
 // @ts-expect-error Hint IDs use the selected domain independently of hints.
 const wrongHint: HintVertexId<string> = { vertexId: 42 };
-const tree: TraversableTree<W> = {
-  makeRoot: () => ({ vertexContent: null }),
-  makeVertex: () => ({ vertexContent: null }),
+const tree: TreeSource<W> = {
+  resolveRoot: () => ({ kind: 'omitted' }),
+  resolveChild: () => ({ kind: 'omitted' }),
 };
 // @ts-expect-error Generated tree identities cannot promise a string ID domain.
 new DagTraversal<W, W, string>({ traversableTree: tree });
@@ -183,21 +192,21 @@ traverseDagAsync<W, W, string>({ traversableTree: tree });
 traversal.configure({ traversableTree: tree });
 
 function arbitraryIds<ID>(id: ID) {
-  const typed: TraversableGraph<W, W, ID> = {
-    makeRoot: () => ({
+  const typed: DagDiscoverySource<W, W, ID> = {
+    resolveRoot: () => ({
       kind: 'found',
       vertex: { vertexId: id, vertexContent: { $data: 'a', $childHints: [] } },
     }),
-    makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+    resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
     getVertexIdFromHint: () => ({ vertexId: id }),
   };
   const run = new DagTraversal<W, W, ID>({
     traversableGraph: typed,
     completedWork: new Set([id]),
-  }).makeRunner();
+  }).createRunner();
   run.settle(id, { kind: 'workCompleted' }, Symbol());
-  run.getResolvedGraph().getVertexRefById(id);
-  const result: readonly ID[] = run.summary().readyIds;
+  run.getResolvedGraphView().getVertexRefById(id);
+  const result: readonly ID[] = run.summary().readyOrDeferredIds;
   return result;
 }
 declare const branded: string & { readonly taskId: unique symbol };
@@ -207,33 +216,43 @@ arbitraryIds(Symbol());
 arbitraryIds(undefined);
 arbitraryIds<string | undefined>('a');
 arbitraryIds<string | number>(42);
-const unknownSource: TraversableGraph<W> = {
-  makeRoot: () => ({ vertexContent: { $data: 'a', $childHints: [] } }),
-  makeVertex: () => ({
+const unknownSource: DagDiscoverySource<W> = {
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'a', $childHints: [] } },
+  }),
+  resolveChild: () => ({
     kind: 'found',
     vertex: { vertexContent: { $data: 'a', $childHints: [] } },
   }),
 };
 new DagTraversal({ traversableGraph: unknownSource })
-  .makeRunner()
+  .createRunner()
   .settle({}, { kind: 'workCompleted' }, Symbol());
 new DagTraversal({ traversableTree: tree });
-const rewriteSource: TraversableGraph<W, R, string> = {
-  makeRoot: source.makeRoot,
-  makeVertex: (hint, options) => {
-    const rewrittenGraph: ResolvedGraph<W | R, string> = options.resolvedGraph;
-    const original: ResolvedGraphSnapshot<W, string> | null =
-      options.notMutatedResolvedGraph;
+const rewriteSource: DagDiscoverySource<W, R, string> = {
+  resolveRoot: source.resolveRoot,
+  resolveChild: (hint, options) => {
+    const rewrittenGraph: ResolvedGraphView<W | R, string> =
+      options.resolvedGraphView;
+    const original: OriginalGraphView<W, string> | null =
+      options.originalGraphView;
     const data: string = hint;
     void [rewrittenGraph, original];
-    return { vertexId: hint, vertexContent: { $data: data, $childHints: [] } };
+    return {
+      kind: 'found' as const,
+      vertex: {
+        vertexId: hint,
+        vertexContent: { $data: data, $childHints: [] },
+      },
+    };
   },
 };
 new DagTraversal<W, R, string>({
   traversableGraph: rewriteSource,
-}).addVisitorFor(DagTraversalOrder.ON_READY, (vertex, options) => {
+}).addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex, options) => {
   const data: string | number = vertex.$data;
-  const view: ResolvedGraph<W | R, string> = options.resolvedGraph;
+  const view: ResolvedGraphView<W | R, string> = options.resolvedGraphView;
   void [data, view];
 });
 void [
@@ -255,75 +274,82 @@ void [
   wrongHint,
 ];
 
-const containerGraph: ResolvedGraph<W, string | symbol> =
-  runner.resolvedGraphsContainer.resolvedGraph;
-const containerSnapshot: ResolvedGraphSnapshot<W, string> | null =
-  runner.resolvedGraphsContainer.notMutatedResolvedGraph;
-// @ts-expect-error Exposed container graph lookups retain the ID domain.
-runner.resolvedGraphsContainer.publicResolvedGraph.getVertexRefById(42);
-// @ts-expect-error The exposed store lookup retains the ID domain.
-runner.resolvedGraphsContainer.store.getIdState(42);
+const containerGraph: ResolvedGraphView<W, string> =
+  runner.getResolvedGraphView();
+const containerSnapshot: OriginalGraphView<W, string> | null =
+  runner.originalGraphView;
+// @ts-expect-error Public graph lookups retain the ID domain.
+runner.getResolvedGraphView().getVertexRefById(42);
+// @ts-expect-error Raw container state is not a public capability.
+runner.resolvedGraphsContainer;
 // @ts-expect-error The exposed snapshot alias retains the ID domain.
-containerSnapshot?.getVertexById(42);
+containerSnapshot?.getVertexRefById(42);
 // @ts-expect-error The runner snapshot retains the ID domain.
-runner.notMutatedResolvedGraph?.getVertexRefById(42);
+runner.originalGraphView?.getVertexRefById(42);
 // @ts-expect-error Inferred constructors cannot seed wrong-domain completed work.
 new DagTraversal({ traversableGraph: source, completedWork: new Set([42]) });
 // @ts-expect-error Inferred new helpers cannot seed wrong-domain completed work.
 traverseDag({ traversableGraph: source, completedWork: new Set([42]) });
-traverseDag({ traversableGraph: source }, null, {
-  // @ts-expect-error Inferred old helpers cannot seed wrong-domain completed work.
-  completedWork: new Set([42]),
-});
-// @ts-expect-error Inferred async constructors cannot seed wrong-domain completed work.
+// @ts-expect-error Options-object helpers cannot seed wrong-domain work.
+traverseDag({ traversableGraph: source, completedWork: new Set([42]) });
 new AsyncDagTraversal({
   traversableGraph: asyncSource,
+  // @ts-expect-error Inferred async constructors cannot seed wrong-domain completed work.
   completedWork: new Set([42]),
 });
 traverseDagAsync({
-  // @ts-expect-error Inferred async helpers cannot seed wrong-domain completed work.
   traversableGraph: asyncSource,
+  // @ts-expect-error Inferred async helpers cannot seed wrong-domain completed work.
   completedWork: new Set([42]),
 });
-traverseDagAsync({ traversableGraph: asyncSource }, null, {
-  // @ts-expect-error Inferred async old helpers cannot seed wrong-domain completed work.
+traverseDagAsync({
+  traversableGraph: asyncSource,
+  // @ts-expect-error Options-object helpers cannot seed wrong-domain work.
   completedWork: new Set([42]),
 });
-const missingRoot: TraversableGraph<W, W, string> = {
-  makeRoot: () => ({
+const missingRoot: DagDiscoverySource<W, W, string> = {
+  resolveRoot: () => ({
     kind: 'found',
     // @ts-expect-error Actual source root callbacks require an explicit live identity.
     vertex: { vertexContent: { $data: 'a', $childHints: [] } },
   }),
-  makeVertex: source.makeVertex,
+  resolveChild: source.resolveChild,
 };
-const missingChild: AsyncTraversableGraph<W, W, string> = {
-  makeRoot: source.makeRoot,
+const missingChild: AsyncDagDiscoverySource<W, W, string> = {
+  resolveRoot: source.resolveRoot,
   // @ts-expect-error Async legacy source child callbacks require an explicit live identity.
-  makeVertex: async () => ({ vertexContent: { $data: 'a', $childHints: [] } }),
+  resolveChild: async () => ({
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: 'a', $childHints: [] },
+    },
+  }),
 };
-const wrongSourceDependency: TraversableGraph<W, W, string> = {
+const wrongSourceDependency: DagDiscoverySource<W, W, string> = {
   // prettier-ignore
   // @ts-expect-error Actual source callbacks reject wrong-domain dependencies.
-  makeRoot: () => ({ vertexId: 'a', dependsOn: [42], vertexContent: { $data: 'a', $childHints: [] } }),
-  makeVertex: source.makeVertex,
+  resolveRoot: () => ({ kind: 'found' as const, vertex: { vertexId: 'a', dependsOnWork: [42], vertexContent: { $data: 'a', $childHints: [] } } }),
+  resolveChild: source.resolveChild,
 };
-declare const brandedSource: TraversableGraph<W, W, typeof branded>;
+declare const brandedSource: DagDiscoverySource<W, W, typeof branded>;
 const brandedRunner = new DagTraversal({
   traversableGraph: brandedSource,
-}).makeRunner();
+}).createRunner();
 brandedRunner.settle(branded, { kind: 'workCompleted' }, Symbol());
 // @ts-expect-error Unbranded strings cannot settle branded-ID work.
 brandedRunner.settle('a', { kind: 'workCompleted' }, Symbol());
 const rewriting = new DagTraversal({ traversableGraph: rewriteSource });
 const rewritingIds: readonly string[] = rewriting
-  .makeRunner()
-  .summary().readyIds;
-rewriting.addVisitorFor(DagTraversalOrder.ON_COMPLETE, (_vertex, options) => {
-  const view: ResolvedGraph<W | R, string> = options.resolvedGraph;
-  // @ts-expect-error Rewriting does not broaden the ID domain.
-  view.getVertexById({});
-});
+  .createRunner()
+  .summary().readyOrDeferredIds;
+rewriting.addVisitorFor(
+  DagVisitorPhase.ON_SUBGRAPH_READY,
+  (_vertex, options) => {
+    const view: ResolvedGraphView<W | R, string> = options.resolvedGraphView;
+    // @ts-expect-error Rewriting does not broaden the ID domain.
+    view.getVertexRefById({});
+  },
+);
 void [
   containerGraph,
   missingRoot,
@@ -332,21 +358,22 @@ void [
   rewritingIds,
 ];
 
-// Raw bookkeeping can expose the private synthetic root, unlike the public forest view.
+// Public views retain the caller's identity domain and hide synthetic holders.
 if (ref !== null) {
-  const rawId: string | symbol = containerGraph.getVertexId(ref);
-  // @ts-expect-error The raw container may return its private synthetic symbol.
-  const unsafeRawId: string = containerGraph.getVertexId(ref);
-  const publicId: string =
-    runner.resolvedGraphsContainer.publicResolvedGraph.getVertexId(ref);
-  void [rawId, unsafeRawId, publicId];
+  const publicId: string = containerGraph.getVertexId(ref);
+  // @ts-expect-error Public string IDs cannot become synthetic symbols.
+  const syntheticId: symbol = containerGraph.getVertexId(ref);
+  void [publicId, syntheticId];
 }
 
-// Default legacy results remain object types usable by existing extending interfaces.
-interface DefaultLegacyResult extends MakeVertexResult<W> {
+// Canonical found results remain extensible object types.
+interface DefaultFoundResult extends DagVertexFound<W> {
   note?: string;
 }
-const extendedDefault: DefaultLegacyResult = {
-  vertexContent: { $data: 'a', $childHints: [] },
+const extendedDefault: DefaultFoundResult = {
+  kind: 'found' as const,
+  vertex: {
+    vertexContent: { $data: 'a', $childHints: [] },
+  },
 };
 void extendedDefault;

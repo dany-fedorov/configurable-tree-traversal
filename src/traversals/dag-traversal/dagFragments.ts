@@ -1,8 +1,9 @@
+import { assertOwnKeys, captureOptionFields } from '@core/assertPublicOptions';
 import { defineDag } from './defineDag';
 import { DagFragmentValidationError } from './lib/DagFragmentValidationError';
 import type {
   DagDefinition,
-  DagDefinitionResult,
+  PrepareDagResult,
   DagDefinitionSlot,
 } from './lib/DagDefinition';
 import type {
@@ -56,6 +57,10 @@ export function instantiateDagFragment<Data, ID, Port extends string, MappedID>(
   fragment: DagFragment<Data, ID, Port>,
   options: { mapId: (id: ID) => MappedID },
 ): DagFragmentInstance<Data, MappedID, Port> {
+  assertOwnKeys(options, ['mapId']);
+  const { mapId } = captureOptionFields(options, ['mapId']);
+  if (typeof mapId !== 'function')
+    throw new TypeError('mapId must be a function');
   const local = defineDagFragment(fragment.definition, fragment.ports);
   const mapped = new Map<ID, MappedID>();
   const used = new Set<MappedID>();
@@ -63,7 +68,7 @@ export function instantiateDagFragment<Data, ID, Port extends string, MappedID>(
     ...local.definition.vertices.map((vertex) => vertex.vertexId),
     ...local.definition.omittedIds,
   ]) {
-    const next = options.mapId(id);
+    const next = mapId.call(options, id);
     if (used.has(next))
       throw new TypeError('Mapped DAG fragment identities collide');
     used.add(next);
@@ -86,15 +91,16 @@ export function instantiateDagFragment<Data, ID, Port extends string, MappedID>(
       vertexId: remap(vertex.vertexId),
       data: vertex.data,
       slots: vertex.slots.map(slot),
-      dependsOn: vertex.dependsOn.map(remap),
-      dependsOnComplete: vertex.dependsOnComplete.map(remap),
+      dependsOnWork: vertex.dependsOnWork.map(remap),
+      dependsOnSubgraphCompletion:
+        vertex.dependsOnSubgraphCompletion.map(remap),
     })),
     omittedIds: local.definition.omittedIds.map(remap),
     entry:
       entry.kind === 'root'
         ? { kind: 'root', vertexId: remap(entry.vertexId) }
-        : entry.kind === 'forest'
-        ? { kind: 'forest', slots: entry.slots.map(slot) }
+        : entry.kind === 'roots'
+        ? { kind: 'roots', slots: entry.slots.map(slot) }
         : { kind: 'empty' },
   });
   const ports = Object.freeze(
@@ -116,13 +122,15 @@ function requireWireFields(value: unknown, fields: readonly string[]): void {
     fields.some((field) => !Object.prototype.hasOwnProperty.call(value, field))
   )
     throw new TypeError('DAG wires require own endpoint and milestone fields');
+  assertOwnKeys(value, fields);
 }
 
 /** Combine ordered entries, append explicit links, then validate the whole DAG. */
 export function composeDag<Data, ID>(
   instances: readonly DagFragmentInstance<Data, ID>[],
   options: DagCompositionOptions<InferredDagId<ID>> = {},
-): DagDefinitionResult<Data, ID> {
+): PrepareDagResult<Data, ID> {
+  assertOwnKeys(options, ['children', 'dependencies']);
   const definitions = instances.map((instance) =>
     defineDag(instance.definition),
   );
@@ -130,8 +138,8 @@ export function composeDag<Data, ID>(
     definition.vertices.map((vertex) => ({
       ...vertex,
       slots: [...vertex.slots],
-      dependsOn: [...vertex.dependsOn],
-      dependsOnComplete: [...vertex.dependsOnComplete],
+      dependsOnWork: [...vertex.dependsOnWork],
+      dependsOnSubgraphCompletion: [...vertex.dependsOnSubgraphCompletion],
     })),
   );
   const omittedIds = definitions.flatMap((definition) => [
@@ -156,7 +164,7 @@ export function composeDag<Data, ID>(
     const entry = definition.entry;
     if (entry.kind === 'root')
       return [{ kind: 'vertex', vertexId: entry.vertexId }];
-    if (entry.kind === 'forest') return [...entry.slots];
+    if (entry.kind === 'roots') return [...entry.slots];
     return definition.omittedIds.map((vertexId) => ({
       kind: 'omitted',
       identity: { vertexId },
@@ -177,14 +185,14 @@ export function composeDag<Data, ID>(
     const { vertexId, milestone } = prerequisite;
     if (!all.has(vertexId))
       throw new TypeError('Unknown DAG wire prerequisite');
-    if (milestone === 'work') dependent.dependsOn.push(vertexId);
-    else if (milestone === 'completion')
-      dependent.dependsOnComplete.push(vertexId);
+    if (milestone === 'work') dependent.dependsOnWork.push(vertexId);
+    else if (milestone === 'subgraphCompletion')
+      dependent.dependsOnSubgraphCompletion.push(vertexId);
     else throw new TypeError('Unknown DAG wire milestone');
   }
   return prepareDagDefinition({
     vertices,
     omittedIds,
-    entry: { kind: 'forest', slots },
+    entry: { kind: 'roots', slots },
   });
 }

@@ -1,34 +1,34 @@
-import type { CTTRef } from '@core/CTTRef';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { MutableRef } from '@core/CTTRef';
+import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import { BreadthFirstTraversalOrder } from './BreadthFirstTraversalOrder';
+import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
 import type { BreadthFirstTraversalVisitorsState } from './BreadthFirstTraversalVisitorsState';
 
 export function initBreadthFirstVisitorsState<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 >(): BreadthFirstTraversalVisitorsState<TTP, RW_TTP> {
   return {
-    [BreadthFirstTraversalOrder.LEVEL_ORDER]: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+    [BreadthFirstPhase.LEVEL_ORDER]: {
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
   };
 }
 
 export class BreadthFirstTraversalRunnerState<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > {
-  queue: VertexResolutionContext<TTP | RW_TTP>[];
+  queue: InternalVertexResolutionContext<TTP | RW_TTP>[];
   queueIndex: number;
   visitorsState: BreadthFirstTraversalVisitorsState<TTP, RW_TTP>;
-  traversalRootVertexRef: CTTRef<Vertex<TTP | RW_TTP>> | null;
+  traversalRootVertexRef: MutableRef<Vertex<TTP | RW_TTP>> | null;
   status: TraversalRunnerStatus;
-  subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<TTP | RW_TTP>>>;
+  subtreeTraversalDisabledRefs: Set<MutableRef<Vertex<TTP | RW_TTP>>>;
 
   constructor(
     from?: Partial<BreadthFirstTraversalRunnerState<TTP, RW_TTP>> | null,

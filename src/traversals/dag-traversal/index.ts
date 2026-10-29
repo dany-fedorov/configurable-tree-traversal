@@ -1,58 +1,105 @@
-export * from './AsyncDagTraversal';
-export * from './DagTraversal';
-export * from './hasSingleSink';
-export * from './traverseDag';
-export * from './traverseDagAsync';
-export * from './lib/AsyncDagTraversalInstanceConfig';
-export * from './lib/AsyncDagTraversalRunner';
-export * from './lib/DagTraversalInstanceConfig';
-export * from './lib/DagTraversalOrder';
-export * from './lib/DagTraversalRunner';
-export * from './lib/DagTraversalRunnerInternalObjects';
-export * from './lib/DagTraversalRunnerIterableConfig';
-export * from './lib/DagTraversalRunnerState';
-export * from './lib/DagTraversalVisitor';
-export * from '../../core/errors/DagTraversalStallError';
-export * from '../../core/errors/DagDiscoveryCycleError';
-export * from './lib/DagProgress';
-export * from './coordinateDag';
-export * from './prepareDag';
-export * from './lib/PreparedDag';
-export * from './filterDagVisitor';
-export * from './inspectDag';
+export { DagDiscoveryCycleError } from '../../core/errors/DagDiscoveryCycleError';
+export { DagTraversalStallError } from '../../core/errors/DagTraversalStallError';
 export type {
-  DagInspection,
-  DagMilestoneStatus,
+  DagMilestone,
+  DagWaitEdge,
+  DagTraversalStallDiagnostics,
+} from '../../core/errors/DagTraversalStallError';
+export { AsyncDagTraversal } from './AsyncDagTraversal';
+export {
+  createDagWorkSession,
+  createAsyncDagWorkSession,
+} from './coordinateDag';
+export type {
+  DagWorkTicket,
+  DagWorkBoundary,
+  DagSettlementReceipt,
+  DagWorkSession,
+  AsyncDagWorkSession,
+} from './coordinateDag';
+export {
+  defineDagFragment,
+  instantiateDagFragment,
+  composeDag,
+} from './dagFragments';
+export { DagTraversal } from './DagTraversal';
+export { defineDag } from './defineDag';
+export { diffDagDefinitions } from './diffDagDefinitions';
+export {
+  filterDagDataVisitor,
+  filterAsyncDagDataVisitor,
+} from './filterDagVisitor';
+export { hasSingleStructuralSink } from './hasSingleSink';
+export { inspectDagMilestones } from './inspectDag';
+export type {
+  AsyncDagOptions,
+  AsyncDagOptionsPatch,
+} from './lib/AsyncDagTraversalInstanceConfig';
+export type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
+export type {
+  DagDefinition,
+  DagDefinitionIssue,
+  DagDefinitionSlot,
+  DagDefinitionVertex,
+  PrepareDagResult,
+} from './lib/DagDefinition';
+export type {
+  DagCompositionOptions,
+  DagFragment,
+  DagFragmentInstance,
+} from './lib/DagFragment';
+export { DagFragmentValidationError } from './lib/DagFragmentValidationError';
+export type {
   DagBlocker,
   DagExplanation,
   DagMilestoneQueryOptions,
   DagMilestoneQueryResult,
+  DagMilestoneSnapshot,
+  DagMilestoneStatus,
 } from './lib/DagInspection';
-export * from './defineDag';
 export type {
-  DagDefinition,
-  DagDefinitionSlot,
-  DagDefinitionVertex,
-} from './lib/DagDefinition';
-export * from './prepareDagDefinition';
-export type {
-  DagDefinitionIssue,
-  DagDefinitionResult,
-} from './lib/DagDefinition';
-export * from './dagFragments';
-export type {
-  DagFragment,
-  DagFragmentInstance,
-  DagCompositionOptions,
-} from './lib/DagFragment';
-export * from './diffDagDefinitions';
+  DagSettlementGeneration,
+  DagDeferredWork,
+  DagSettlementOutcome,
+  DagWorkState,
+  DagVertexProgress,
+  DagSummary,
+} from './lib/DagProgress';
 export type {
   DagDefinitionChangeAspect,
-  DagDefinitionVertexChange,
   DagDefinitionDiff,
+  DagDefinitionVertexChange,
   DagRevisionOperation,
   DagRevisionResult,
 } from './lib/DagRevision';
-
-export * from './reviseDag';
-export * from './lib/DagFragmentValidationError';
+export type {
+  DagSchedulingOptions,
+  DagOptions,
+  DagOptionsPatch,
+} from './lib/DagTraversalInstanceConfig';
+export { DagVisitorPhase } from './lib/DagTraversalOrder';
+export type { DagTraversalRunner } from './lib/DagTraversalRunner';
+export type {
+  DagVisitorContext,
+  DagVisitor,
+  AsyncDagVisitor,
+  DagEvent,
+} from './lib/DagTraversalVisitor';
+export type {
+  PreparedDagVertex,
+  PreparedDagRunnerOptions,
+  PreparedAsyncDagRunnerOptions,
+  DagWorkSessionOptions,
+  AsyncDagWorkSessionOptions,
+  PreparedDag,
+} from './lib/PreparedDag';
+export { prepareDag, prepareDagAsync } from './prepareDag';
+export type {
+  PrepareDagOptions,
+  PrepareDagInput,
+  PrepareAsyncDagInput,
+} from './prepareDag';
+export { prepareDagDefinition } from './prepareDagDefinition';
+export { reviseDag } from './reviseDag';
+export { traverseDag } from './traverseDag';
+export { traverseDagAsync } from './traverseDagAsync';

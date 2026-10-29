@@ -1,27 +1,33 @@
 import {
-  BreadthFirstTraversal,
-  CTTRef,
-  DepthFirstTraversal,
-  DepthFirstTraversalOrder,
-  ResolvedTree,
+  BreadthFirstTreeTraversal,
+  MutableRef,
+  DepthFirstTreeTraversal,
+  DepthFirstPhase,
+  ResolvedTreeStore,
   TraversalVisitorCommandName,
   Vertex,
-  VertexResolved,
+  TreeVertexRecord,
 } from '../src';
 import type { TestGraph } from './helpers/graph-fixtures';
 
 test('BFS resolves one queued child at the next visit boundary', () => {
   const calls: string[] = [];
-  const traversal = new BreadthFirstTraversal<TestGraph>({
+  const traversal = new BreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
-      makeVertex: (hint) => {
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: ['A', 'B'] } },
+      }),
+      resolveChild: (hint) => {
         calls.push(hint);
-        return { vertexContent: { $d: hint, $c: [] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        };
       },
     },
   });
-  const iterator = traversal.makeRunner().getIterable();
+  const iterator = traversal.createRunner().iterateEvents();
   expect(iterator.next().value?.vertex.getData()).toBe('root');
   expect(calls).toEqual([]);
   expect(iterator.next().value?.vertex.getData()).toBe('A');
@@ -31,33 +37,43 @@ test('BFS resolves one queued child at the next visit boundary', () => {
 
 test('DFS preserves callback boundaries and observes in-order parent rewrites', () => {
   const trace: string[] = [];
-  const traversal = new DepthFirstTraversal<TestGraph>({
+  const traversal = new DepthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         trace.push('adapter:root');
-        return { vertexContent: { $d: 'root', $c: ['left', 'right'] } };
+        return {
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'root', $childHints: ['left', 'right'] },
+          },
+        };
       },
-      makeVertex: (hint, { resolutionContext, resolvedTree }) => {
+      resolveChild: (
+        hint,
+        { resolutionContext, resolvedTreeView: resolvedTree },
+      ) => {
         const root = resolvedTree.getRoot();
         const resolved = root === null ? [] : resolvedTree.getChildrenOf(root);
         trace.push(
-          `adapter:${hint}:parent=${resolutionContext.parentVertex.getData()}:depth=${resolutionContext.depth}:index=${resolutionContext.hintIndex}:resolved=${[
-            root?.unref().getData(),
-            ...(resolved?.map((ref) => ref.unref().getData()) ?? []),
+          `adapter:${hint}:parent=${resolutionContext.parentVertex.getData()}:depth=${
+            resolutionContext.depth
+          }:index=${resolutionContext.hintIndex}:resolved=${[
+            root?.getValue().getData(),
+            ...(resolved?.map((ref) => ref.getValue().getData()) ?? []),
           ].join(',')}`,
         );
-        return { vertexContent: { $d: hint, $c: [] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        };
       },
     },
   });
 
-  for (const order of Object.values(DepthFirstTraversalOrder)) {
+  for (const order of Object.values(DepthFirstPhase)) {
     traversal.addVisitorFor(order, (vertex) => {
       trace.push(`visitor:${order}:${vertex.getData()}`);
-      if (
-        order === DepthFirstTraversalOrder.IN_ORDER &&
-        vertex.getData() === 'root'
-      ) {
+      if (order === DepthFirstPhase.IN_ORDER && vertex.getData() === 'root') {
         return {
           commands: [
             {
@@ -71,18 +87,18 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
     });
   }
 
-  const runner = traversal.makeRunner();
-  for (const event of runner.getIterable()) {
-    trace.push(`iterator:${event.order}:${event.vertex.getData()}`);
+  const runner = traversal.createRunner();
+  for (const event of runner.iterateEvents()) {
+    trace.push(`iterator:${event.phase}:${event.vertex.getData()}`);
   }
 
-  const resolvedTree = runner.getResolvedTree();
+  const resolvedTree = runner.getResolvedTreeView();
   const rootRef = resolvedTree.getRoot();
   if (rootRef === null) throw new Error('Expected a resolved root');
   trace.push(
-    `tree:${rootRef.unref().getData()}:${resolvedTree
+    `tree:${rootRef.getValue().getData()}:${resolvedTree
       .getChildrenOf(rootRef)
-      ?.map((ref) => ref.unref().getData())
+      ?.map((ref) => ref.getValue().getData())
       .join(',')}`,
   );
 
@@ -112,18 +128,18 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
   ]);
 });
 
-test('ResolvedTree retains supplied records and their child arrays', () => {
-  const tree = new ResolvedTree<TestGraph>();
-  const rootRef = new CTTRef(
-    new Vertex<TestGraph>({ $d: 'root', $c: ['child'] }),
+test('ResolvedTreeStore retains supplied records and their child arrays', () => {
+  const tree = new ResolvedTreeStore<TestGraph>();
+  const rootRef = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'root', $childHints: ['child'] }),
   );
-  const childRef = new CTTRef(
-    new Vertex<TestGraph>({ $d: 'child', $c: [] }),
+  const childRef = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
   );
   const children = [childRef];
-  const suppliedRecord = new VertexResolved<TestGraph>({
-    $d: { resolutionContext: null },
-    $c: children,
+  const suppliedRecord = new TreeVertexRecord<TestGraph>({
+    metadata: { resolutionContext: null },
+    children: children,
   });
 
   tree.setRoot(rootRef);

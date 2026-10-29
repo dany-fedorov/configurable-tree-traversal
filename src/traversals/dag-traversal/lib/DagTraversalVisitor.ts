@@ -1,82 +1,64 @@
-import type { DEFER_READY } from './DagProgress';
-import type { CTTRef } from '@core/CTTRef';
-import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
+import type { VertexHandle } from '@core/CTTRef';
+import type {
+  ResolvedGraphView,
+  OriginalGraphView,
+} from '@core/ResolvedGraphView';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexView } from '@core/Vertex';
 import type { MaybePromise, VisitResult } from '@core/graph/types';
 import type { VisitorRegistrationMetadata } from '@core/TraversalVisitor';
-import type { DagTraversalOrder } from './DagTraversalOrder';
+import type { DagVisitorPhase } from './DagTraversalOrder';
 
-export type DagVisitorOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+export type DagVisitorContext<
+  T extends VertexTypes,
+  R extends VertexTypes = T,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
 > = {
-  resolvedGraph: ResolvedGraph<T | R, ID>;
-  notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
-  vertexRef: CTTRef<Vertex<T | R>>;
-  order: ORDER;
+  resolvedGraphView: ResolvedGraphView<T | R, ID>;
+  originalGraphView: OriginalGraphView<T, ID> | null;
+  vertexRef: VertexHandle<T | R>;
+  phase: ORDER;
   isGraphRoot: boolean;
-  isTraversalRoot: boolean;
-  vertexVisitIndex: number;
-  curVertexVisitorVisitIndex: number;
-  previousVisitedVertexRef: CTTRef<Vertex<T | R>> | null;
-  vertexVisitorsChainState: unknown;
-  visitorRecord: VisitorRegistrationMetadata;
+  phaseVisitIndex: number;
+  visitorIndex: number;
+  previousPhaseVertexRef: VertexHandle<T | R> | null;
+  visitorChainState: unknown;
+  registration: VisitorRegistrationMetadata;
 };
 
 export type DagVisitor<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
-> =
-  | VisitResult<R, ORDER>
-  | ([ORDER] extends ['ON_READY']
-      ? typeof DEFER_READY
-      : never) extends infer RESULT
+> = VisitResult<R, ORDER, 'dag', T['VertexHint']> extends infer RESULT
   ? (
-      vertex: Vertex<T | R>,
-      options: DagVisitorOptions<T, R, ORDER, ID>,
+      vertex: VertexView<T | R>,
+      options: DagVisitorContext<T, R, ORDER, ID>,
     ) => RESULT
   : never;
 
-export type AsyncDagVisitorOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
-  ID = unknown,
-> = DagVisitorOptions<T, R, ORDER, ID>;
-
 export type AsyncDagVisitor<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-  ORDER extends DagTraversalOrder = DagTraversalOrder,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
+  ORDER extends DagVisitorPhase = DagVisitorPhase,
   ID = unknown,
-> =
-  | VisitResult<R, ORDER>
-  | ([ORDER] extends ['ON_READY']
-      ? typeof DEFER_READY
-      : never) extends infer RESULT
+> = VisitResult<R, ORDER, 'dag', T['VertexHint']> extends infer RESULT
   ? (
-      vertex: Vertex<T | R>,
-      options: AsyncDagVisitorOptions<T, R, ORDER, ID>,
+      vertex: VertexView<T | R>,
+      options: DagVisitorContext<T, R, ORDER, ID>,
     ) => MaybePromise<RESULT>
   : never;
 
 /**
- * Committed milestone observation: `ON_READY`/`workCompleted` emits after W,
- * including deferred settlement, while an `ON_READY` visitor runs before work.
+ * Committed milestone observation: `workCompleted` emits after W, including
+ * deferred settlement, while an `ON_WORK_READY` visitor runs before work.
  * Dispatch external work from coordinator frontier tickets or a pre-work visitor.
  */
-export type DagEvent<T extends TreeTypeParameters, ID = unknown> = {
+export type DagEvent<T extends VertexTypes, ID = unknown> = {
   vertexId: ID;
-  vertex: Vertex<T>;
-  vertexRef: CTTRef<Vertex<T>>;
+  vertex: VertexView<T>;
+  vertexRef: VertexHandle<T>;
   isGraphRoot: boolean;
-  isTraversalRoot: boolean;
-} & (
-  | { kind: 'workCompleted'; order: DagTraversalOrder.ON_READY }
-  | { kind: 'subgraphCompleted'; order: DagTraversalOrder.ON_COMPLETE }
-);
+} & ({ kind: 'workCompleted' } | { kind: 'subgraphCompleted' });

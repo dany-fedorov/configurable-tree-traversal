@@ -1,6 +1,6 @@
-import type { TreeTypeParameters } from '../../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../../src/core/TreeTypeParameters';
 
-export type TestGraph = TreeTypeParameters<string, string>;
+export type TestGraph = VertexTypes<string, string>;
 export type GraphFixture = Record<
   string,
   {
@@ -21,12 +21,15 @@ export function graphAdapter(nodes: GraphFixture = diamond) {
     const entry = nodes[id];
     if (entry === undefined) throw new Error(`Unknown fixture id: ${id}`);
     return {
-      vertexId: id,
-      dependsOn: entry.dependencies.slice(),
-      vertexContent: { $d: id, $c: entry.children.slice() },
+      kind: 'found' as const,
+      vertex: {
+        vertexId: id,
+        dependsOnWork: entry.dependencies.slice(),
+        vertexContent: { $data: id, $childHints: entry.children.slice() },
+      },
     };
   }
-  return { makeRoot: () => result('root'), makeVertex: result };
+  return { resolveRoot: () => result('root'), resolveChild: result };
 }
 
 export function deferred<T>() {

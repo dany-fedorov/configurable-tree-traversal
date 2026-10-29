@@ -44,8 +44,8 @@ function sameEntry<ID>(
       return after.kind === 'empty';
     case 'root':
       return after.kind === 'root' && sameId(before.vertexId, after.vertexId);
-    case 'forest':
-      return after.kind === 'forest' && sameSlots(before.slots, after.slots);
+    case 'roots':
+      return after.kind === 'roots' && sameSlots(before.slots, after.slots);
   }
 }
 
@@ -80,10 +80,15 @@ export function diffDagDefinitions<BeforeData, AfterData, ID = unknown>(
     const aspects: DagDefinitionChangeAspect[] = [];
     if (!Object.is(vertex.data, next.data)) aspects.push('data');
     if (!sameSlots(vertex.slots, next.slots)) aspects.push('slots');
-    if (!sameIds(vertex.dependsOn, next.dependsOn))
+    if (!sameIds(vertex.dependsOnWork, next.dependsOnWork))
       aspects.push('workDependencies');
-    if (!sameIds(vertex.dependsOnComplete, next.dependsOnComplete))
-      aspects.push('completionDependencies');
+    if (
+      !sameIds(
+        vertex.dependsOnSubgraphCompletion,
+        next.dependsOnSubgraphCompletion,
+      )
+    )
+      aspects.push('subgraphCompletionDependencies');
     if (aspects.length > 0)
       changedVertices.push(
         Object.freeze({

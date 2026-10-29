@@ -1,41 +1,49 @@
-import type { NoInferPhase } from '@core/TraversalVisitor';
+import { assertOwnKeys, definedOptions } from '@core/assertPublicOptions';
+import {
+  assertPublicOptions,
+  TREE_OPTION_KEYS,
+} from '@core/assertPublicOptions';
+import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
+import { sortVisitorRecords } from '@core/executeVisitors';
+import type { VisitorRecord } from '@core/graph/types';
+import type {
+  NoInferPhase,
+  TraversalVisitorFunctionOptions,
+  VisitorGroupDefinition,
+  VisitorPhaseInput,
+} from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
-import type {
-  VisitorPhaseInput,
-  VisitorGroupDefinition,
-} from '@core/TraversalVisitor';
-import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
-import { sortVisitorRecords } from '@core/executeVisitors';
-import type { VisitorRecord } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { TraversalVisitorFunctionOptions } from '@core/TraversalVisitor';
 import {
   ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncBreadthFirstTraversalInstanceConfigs,
-  type AsyncBreadthFirstTraversalInstanceConfig,
-  type AsyncBreadthFirstTraversalInstanceConfigInput,
   type AsyncBreadthFirstTraversalVisitors,
+  type AsyncBreadthFirstTreeOptions,
+  type AsyncBreadthFirstTreeOptionsPatch,
+  type AsyncBreadthFirstTreeResolvedOptions,
 } from './lib/AsyncBreadthFirstTraversalInstanceConfig';
-import { AsyncBreadthFirstTraversalRunner } from './lib/AsyncBreadthFirstTraversalRunner';
-import type { BreadthFirstTraversalOrder } from './lib/BreadthFirstTraversalOrder';
+import {
+  InternalAsyncBreadthFirstTreeRunner,
+  type AsyncBreadthFirstTreeRunner,
+} from './lib/AsyncBreadthFirstTraversalRunner';
+import type { BreadthFirstPhase } from './lib/BreadthFirstTraversalOrder';
 
-export class AsyncBreadthFirstTraversal<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+export class AsyncBreadthFirstTreeTraversal<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > {
-  icfg: AsyncBreadthFirstTraversalInstanceConfig<TTP, RW_TTP>;
-  visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
+  private icfg: AsyncBreadthFirstTreeResolvedOptions<TTP, RW_TTP>;
+  private visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
 
-  constructor(
-    icfgInput: AsyncBreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-  ) {
+  constructor(icfgInput: AsyncBreadthFirstTreeOptions<TTP, RW_TTP>) {
+    assertPublicOptions(icfgInput, [...TREE_OPTION_KEYS, 'concurrency']);
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(
-      ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncBreadthFirstTraversalInstanceConfig<
+      ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncBreadthFirstTreeResolvedOptions<
         TTP,
         RW_TTP
       >,
@@ -44,9 +52,8 @@ export class AsyncBreadthFirstTraversal<
     this.visitors = this.initVisitors(this.icfg.visitors);
   }
 
-  configure(
-    icfgInput: AsyncBreadthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-  ): this {
+  configure(icfgInput: AsyncBreadthFirstTreeOptionsPatch<TTP, RW_TTP>): this {
+    assertPublicOptions(icfgInput, [...TREE_OPTION_KEYS, 'concurrency']);
     this.icfg = mergeAsyncBreadthFirstTraversalInstanceConfigs(
       { ...this.icfg, visitors: this.visitors },
       icfgInput,
@@ -55,73 +62,70 @@ export class AsyncBreadthFirstTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends BreadthFirstTraversalOrder>(
-    order: ORDER,
-    visitor: AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>,
+  addVisitorFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
+    visitor: AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
+    assertOwnKeys(options, ['priority', 'commandCommitMode']);
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<AsyncTreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] = appendVisitorDefinition<
-      AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
-    >(
-      this.visitors[order] as VisitorRecord<
-        AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
+    )[phase] = appendVisitorDefinition<AsyncTreeVisitor<Phase, TTP, RW_TTP>>(
+      this.visitors[phase] as VisitorRecord<
+        AsyncTreeVisitor<Phase, TTP, RW_TTP>
       >[],
-      { visitor, ...options },
+      { visitor, ...definedOptions(options) },
     );
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends BreadthFirstTraversalOrder>(
-    order: ORDER,
+  addVisitorGroupFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
     group: VisitorGroupDefinition<
-      AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
+      AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>
     >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<AsyncTreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] = appendVisitorGroup<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>(
-      this.visitors[order] as VisitorRecord<
-        AsyncTraversalVisitor<ORDER, TTP, RW_TTP>
+    )[phase] = appendVisitorGroup<AsyncTreeVisitor<Phase, TTP, RW_TTP>>(
+      this.visitors[phase] as VisitorRecord<
+        AsyncTreeVisitor<Phase, TTP, RW_TTP>
       >[],
       group,
     );
     return this;
   }
 
-  listVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
-    order: ORDER,
-  ): AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>[ORDER] {
-    return copyVisitorRecords(this.visitors[order]);
+  listVisitorsFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
+  ): AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>[Phase] {
+    return copyVisitorRecords(this.visitors[phase]);
   }
 
-  setVisitorsFor<ORDER extends BreadthFirstTraversalOrder>(
-    order: ORDER,
+  setVisitorsFor<Phase extends BreadthFirstPhase>(
+    phase: Phase,
     input: VisitorPhaseInput<
-      AsyncTraversalVisitor<NoInferPhase<ORDER>, TTP, RW_TTP>
+      AsyncTreeVisitor<NoInferPhase<Phase>, TTP, RW_TTP>
     >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>[]
+        Phase,
+        VisitorRecord<AsyncTreeVisitor<Phase, TTP, RW_TTP>>[]
       >
-    )[order] =
-      normalizeVisitorDefinitions<AsyncTraversalVisitor<ORDER, TTP, RW_TTP>>(
-        input,
-      );
+    )[phase] =
+      normalizeVisitorDefinitions<AsyncTreeVisitor<Phase, TTP, RW_TTP>>(input);
     return this;
   }
 
-  makeRunner(): AsyncBreadthFirstTraversalRunner<TTP, RW_TTP> {
-    return new AsyncBreadthFirstTraversalRunner({
+  createRunner(): AsyncBreadthFirstTreeRunner<TTP, RW_TTP> {
+    return new InternalAsyncBreadthFirstTreeRunner({
       ...this.icfg,
       visitors: this.visitors,
     });
@@ -131,8 +135,8 @@ export class AsyncBreadthFirstTraversal<
     visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>,
   ): AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP> {
     return Object.fromEntries(
-      Object.entries(visitors).map(([order, records]) => [
-        order,
+      Object.entries(visitors).map(([phase, records]) => [
+        phase,
         sortVisitorRecords(records),
       ]),
     ) as AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;

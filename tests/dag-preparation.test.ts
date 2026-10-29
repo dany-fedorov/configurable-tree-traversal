@@ -1,13 +1,20 @@
+import { graphResolution } from './source-result-fixtures';
+import { treeResolution } from './source-result-fixtures';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
-import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
+import {
+  createInternalAsyncDagTraversal,
+  createInternalDagTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   for (const discovery of ['lazy', 'eager'] as const) {
     test(`${Constructor.name} ${discovery} prepares without work and reuses discovery`, async () => {
@@ -16,7 +23,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const traversal = new Constructor<G>({
         discovery,
         traversableGraph: {
-          makeRoot: () => {
+          resolveRoot: () => {
             calls.push('a');
             return {
               kind: 'found',
@@ -26,36 +33,36 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               },
             };
           },
-          makeVertex: (id) => {
+          resolveChild: (id) => {
             calls.push(id);
             return {
               kind: 'found',
               vertex: {
                 vertexId: id,
-                dependsOn: ['a'],
+                dependsOnWork: ['a'],
                 vertexContent: { $data: id, $childHints: [] },
               },
             };
           },
         },
-      }).addVisitorFor(Order.ON_READY, (vertex) => {
+      }).addVisitorFor(Order.ON_WORK_READY, (vertex) => {
         visits.push(vertex.getData());
       });
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       expect(await runner.prepare()).toBe(runner);
       expect(runner.getStatus()).toBe(Status.HALTED);
       expect(runner.getStopReason()).toBe('prepared');
       expect(runner.summary()).toMatchObject({
         discovery: { mode: 'eager', complete: true },
         completedWorkIds: [],
-        completedSubtreeIds: [],
-        deferredFrontier: [],
+        completedSubgraphIds: [],
+        awaitingSettlement: [],
       });
       expect(visits).toEqual([]);
       expect(calls).toEqual(['a', 'b']);
       await runner.prepare();
       const events = [];
-      for await (const event of runner.getIterable())
+      for await (const event of runner.iterateEvents())
         events.push([event.vertex.getData(), event.kind]);
       expect(events).toEqual([
         ['a', 'workCompleted'],
@@ -79,31 +86,43 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       } roots`, async () => {
         const calls: string[] = [];
         const source = {
-          makeRoot: () => {
+          resolveRoot: () => {
             calls.push('root');
             return empty
-              ? {
-                  vertexContent: null,
-                }
-              : { vertexContent: { $data: 'root', $childHints: ['child'] } };
+              ? { kind: 'omitted' as const }
+              : {
+                  kind: 'found' as const,
+                  vertex: {
+                    vertexContent: { $data: 'root', $childHints: ['child'] },
+                  },
+                };
           },
-          makeVertex: () => {
+          resolveChild: () => {
             calls.push('child');
-            return { vertexContent: { $data: 'child', $childHints: [] } };
+            return {
+              kind: 'found' as const,
+              vertex: { vertexContent: { $data: 'child', $childHints: [] } },
+            };
           },
         };
         const runner = new Constructor<G>(
           sourceMode === 'tree'
             ? { traversableTree: source }
-            : { traversableGraph: source },
-        ).makeRunner();
+            : {
+                traversableGraph: {
+                  ...source,
+                  resolveRoot: () => graphResolution(source.resolveRoot()),
+                  resolveChild: () => graphResolution(source.resolveChild()),
+                },
+              },
+        ).createRunner();
         await runner.prepare();
         await runner.prepare();
         expect(runner.getStopReason()).toBe('prepared');
         expect(runner.summary().counts).toMatchObject({
           discovered: empty ? 0 : 2,
           workCompleted: 0,
-          subtreeCompleted: 0,
+          subgraphCompleted: 0,
         });
         expect(calls).toEqual(empty ? ['root'] : ['root', 'child']);
         await runner.run();
@@ -118,23 +137,34 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const runner = new Constructor<G>({
         syntheticRoot: true,
         traversableGraph: {
-          makeRoot: () =>
+          resolveRoot: () =>
             empty
-              ? { vertexContent: null }
-              : { vertexContent: { $data: 'synthetic', $childHints: ['a'] } },
-          makeVertex: () => ({
-            vertexId: 'a',
-            vertexContent: { $data: 'a', $childHints: [] },
+              ? {
+                  kind: 'omitted' as const,
+                  satisfiesDependencies: true as const,
+                }
+              : {
+                  kind: 'found' as const,
+                  vertex: {
+                    vertexContent: { $data: 'synthetic', $childHints: ['a'] },
+                  },
+                },
+          resolveChild: () => ({
+            kind: 'found' as const,
+            vertex: {
+              vertexId: 'a',
+              vertexContent: { $data: 'a', $childHints: [] },
+            },
           }),
         },
-      }).makeRunner();
+      }).createRunner();
       await runner.prepare();
       expect(runner.getStopReason()).toBe('prepared');
       expect(runner.summary()).toMatchObject({
         counts: { discovered: empty ? 0 : 1 },
         completedWorkIds: [],
-        completedSubtreeIds: [],
-        deferredFrontier: [],
+        completedSubgraphIds: [],
+        awaitingSettlement: [],
       });
       await runner.run();
       expect(runner.getStopReason()).toBe('finished');
@@ -147,46 +177,55 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       completedWork: new Set(['lookup']),
       traversableGraph: {
-        makeRoot: () => ({
-          vertexId: 'root',
-          dependsOnComplete: ['lookup'],
-          vertexContent: { $data: 'root', $childHints: [] },
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            dependsOnSubgraphCompletion: ['lookup'],
+            vertexContent: { $data: 'root', $childHints: [] },
+          },
         }),
-        makeVertex: (id) => ({
-          vertexId: id,
-          vertexContent: { $data: id, $childHints: [] },
+        resolveChild: (id) => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            vertexContent: { $data: id, $childHints: [] },
+          },
         }),
         resolvePrerequisite: (id) => {
           calls.push(id);
           return {
-            vertexId: id,
-            vertexContent: { $data: 'lookup', $childHints: ['child'] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: id,
+              vertexContent: { $data: 'lookup', $childHints: ['child'] },
+            },
           };
         },
       },
     })
-      .addVisitorFor(Order.ON_READY, (vertex) => {
+      .addVisitorFor(Order.ON_WORK_READY, (vertex) => {
         visits.push(vertex.getData());
       })
-      .makeRunner();
+      .createRunner();
     await runner.prepare();
     expect(calls).toEqual(['lookup']);
     expect(visits).toEqual([]);
     expect(runner.summary()).toMatchObject({
       completedWorkIds: ['lookup'],
-      completedSubtreeIds: [],
-      deferredFrontier: [],
+      completedSubgraphIds: [],
+      awaitingSettlement: [],
       counts: { discovered: 3 },
     });
     const events = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       events.push([event.vertex.getData(), event.kind]);
       if (event.kind === 'workCompleted')
         expect(runner.summary().completedWorkIds).toContain(
           event.vertex.getData(),
         );
       else
-        expect(runner.summary().completedSubtreeIds).toContain(
+        expect(runner.summary().completedSubgraphIds).toContain(
           event.vertex.getData(),
         );
     }
@@ -217,32 +256,41 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           ? { completedWork: new Set(['unknown']) }
           : {}),
         traversableGraph: {
-          makeRoot: () => ({
-            vertexId: 'root',
-            dependsOn: issue === 'unknownSeed' ? [] : ['lookup'],
-            vertexContent: { $data: 'root', $childHints: [] },
+          resolveRoot: () => ({
+            kind: 'found' as const,
+            vertex: {
+              vertexId: 'root',
+              dependsOnWork: issue === 'unknownSeed' ? [] : ['lookup'],
+              vertexContent: { $data: 'root', $childHints: [] },
+            },
           }),
-          makeVertex: () => ({ vertexContent: null }),
+          resolveChild: () => ({
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+          }),
           resolvePrerequisite: () =>
             issue === 'missing'
               ? { kind: 'missing' }
               : {
-                  vertexId: 'lookup',
-                  ...(issue === 'completionCycle'
-                    ? { dependsOnComplete: ['root'] }
-                    : { dependsOn: ['root'] }),
-                  vertexContent: { $data: 'lookup', $childHints: [] },
+                  kind: 'found' as const,
+                  vertex: {
+                    vertexId: 'lookup',
+                    ...(issue === 'completionCycle'
+                      ? { dependsOnSubgraphCompletion: ['root'] }
+                      : { dependsOnWork: ['root'] }),
+                    vertexContent: { $data: 'lookup', $childHints: [] },
+                  },
                 },
         },
       })
-        .addVisitorFor(Order.ON_READY, () => {
+        .addVisitorFor(Order.ON_WORK_READY, () => {
           visits++;
         })
-        .makeRunner();
+        .createRunner();
       await expect(async () => runner.prepare()).rejects.toThrow();
       expect(visits).toBe(0);
       expect(runner.getStatus()).toBe(Status.FAILED);
-      expect(runner.summary().deferredFrontier).toEqual([]);
+      expect(runner.summary().awaitingSettlement).toEqual([]);
     });
   }
 
@@ -255,25 +303,28 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       )}`, async () => {
         const runner = new Constructor<G>({
           traversableGraph: {
-            makeRoot: () => {
+            resolveRoot: () => {
               if (stage === 'root') throw error;
               return {
-                vertexId: 'root',
-                dependsOn: stage === 'lookup' ? ['lookup'] : [],
-                vertexContent: {
-                  $data: 'root',
-                  $childHints: stage === 'child' ? ['child'] : [],
+                kind: 'found' as const,
+                vertex: {
+                  vertexId: 'root',
+                  dependsOnWork: stage === 'lookup' ? ['lookup'] : [],
+                  vertexContent: {
+                    $data: 'root',
+                    $childHints: stage === 'child' ? ['child'] : [],
+                  },
                 },
               };
             },
-            makeVertex: () => {
+            resolveChild: () => {
               throw error;
             },
             resolvePrerequisite: () => {
               throw error;
             },
           },
-        }).makeRunner();
+        }).createRunner();
         await expect(async () => runner.prepare()).rejects.toBe(error);
         await expect(async () => runner.prepare()).rejects.toBe(error);
         await expect(async () => runner.run()).rejects.toBe(error);
@@ -284,11 +335,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 }
 
 const single = {
-  makeRoot: () => ({
-    vertexId: 'root',
-    vertexContent: { $data: 'root', $childHints: [] },
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'root',
+      vertexContent: { $data: 'root', $childHints: [] },
+    },
   }),
-  makeVertex: () => ({ vertexContent: null }),
+  resolveChild: () => ({
+    kind: 'omitted' as const,
+    satisfiesDependencies: true as const,
+  }),
 };
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   for (const injection of ['state', 'container', 'both'] as const) {
@@ -298,7 +355,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         sourceMode: 'graph',
         saveOriginal: false,
       });
-      const runner = new Constructor<G>({
+      const runner = (
+        Constructor === DagTraversal
+          ? createInternalDagTraversal
+          : createInternalAsyncDagTraversal
+      )<G>({
         traversableGraph: single,
         traversalRunnerInternalObjects: {
           ...(injection !== 'container' ? { state } : {}),
@@ -306,7 +367,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             ? { resolvedGraphsContainer: container }
             : {}),
         },
-      }).makeRunner();
+      }).createRunner();
       const before = runner.inspect();
       await expect(async () => runner.prepare()).rejects.toThrow(/injected/i);
       expect(runner.inspect()).toEqual(before);
@@ -319,8 +380,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} rejects prepare during suspended execution without poisoning`, async () => {
     const runner = new Constructor<G>({
       traversableGraph: single,
-    }).makeRunner();
-    const iterator = runner.getIterable();
+    }).createRunner();
+    const iterator = runner.iterateEvents();
     expect((await iterator.next()).done).toBe(false);
     await expect(async () => runner.prepare()).rejects.toThrow(
       /active iterator/i,
@@ -334,10 +395,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} invalid execution options do not prevent preparation`, async () => {
     const runner = new Constructor<G>({
       traversableGraph: single,
-    }).makeRunner();
+    }).createRunner();
     await expect(async () =>
       // @ts-expect-error Invalid phases also reject recoverably for JavaScript callers.
-      runner.run({ emitPhases: ['PRE_ORDER'] }),
+      runner.run({ emitEvents: ['PRE_ORDER'] }),
     ).rejects.toThrow();
     await runner.prepare();
     expect(runner.getStopReason()).toBe('prepared');
@@ -348,15 +409,26 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   for (const sourceMode of ['graph', 'tree'] as const) {
     test(`${Constructor.name} prepared ${sourceMode} topology stays frozen`, async () => {
       const source = {
-        makeRoot: () => ({ vertexContent: { $data: 'root', $childHints: [] } }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'root', $childHints: [] },
+          },
+        }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       };
       const runner = new Constructor<G>(
         sourceMode === 'graph'
-          ? { traversableGraph: source }
+          ? {
+              traversableGraph: {
+                ...source,
+                resolveRoot: () => graphResolution(source.resolveRoot()),
+                resolveChild: () => graphResolution(source.resolveChild()),
+              },
+            }
           : { traversableTree: source },
       )
-        .addVisitorFor(Order.ON_READY, () => ({
+        .addVisitorFor(Order.ON_WORK_READY, () => ({
           commands: [
             {
               commandName: Command.REWRITE_CHILD_HINTS,
@@ -364,7 +436,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             },
           ],
         }))
-        .makeRunner();
+        .createRunner();
       await runner.prepare();
       await expect(async () => runner.run()).rejects.toThrow(/topology|eager/i);
       expect(runner.summary().counts.workCompleted).toBe(0);
@@ -389,30 +461,36 @@ for (const adopt of [false, true]) {
     const runner = new AsyncDagTraversal<G>({
       concurrency: 1,
       traversableGraph: {
-        makeRoot: () => {
+        resolveRoot: () => {
           calls.push('root');
           return {
-            vertexId: 'root',
-            vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: 'root',
+              vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
+            },
           };
         },
-        makeVertex: async (id) => {
+        resolveChild: async (id) => {
           calls.push(id);
           if (id === 'a') {
             entered();
             await gate;
           }
           return {
-            vertexId: id,
-            vertexContent: { $data: id, $childHints: [] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: id,
+              vertexContent: { $data: id, $childHints: [] },
+            },
           };
         },
       },
     })
-      .addVisitorFor(Order.ON_READY, (vertex) => {
+      .addVisitorFor(Order.ON_WORK_READY, (vertex) => {
         visits.push(vertex.getData());
       })
-      .makeRunner();
+      .createRunner();
     let finished = false;
     const preparing = runner.prepare().then(() => {
       finished = true;
@@ -451,17 +529,31 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   for (const injection of ['state', 'container'] as const) {
     test(`${Constructor.name} rejects injected tree ${injection} without changing continuation`, async () => {
       const tree = {
-        makeRoot: () => ({ vertexContent: { $data: 'root', $childHints: [] } }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'root', $childHints: [] },
+          },
+        }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       };
-      const fresh = new Constructor<G>({ traversableTree: tree }).makeRunner();
-      const runner = new Constructor<G>({
+      const fresh = new Constructor<G>({
+        traversableTree: tree,
+      }).createRunner();
+      const runner = (
+        Constructor === DagTraversal
+          ? createInternalDagTraversal
+          : createInternalAsyncDagTraversal
+      )<G>({
         traversableTree: tree,
         traversalRunnerInternalObjects:
           injection === 'state'
-            ? { state: fresh.state }
-            : { resolvedGraphsContainer: fresh.resolvedGraphsContainer },
-      }).makeRunner();
+            ? { state: runnerInternals(fresh).state }
+            : {
+                resolvedGraphsContainer:
+                  runnerInternals(fresh).resolvedGraphsContainer,
+              },
+      }).createRunner();
       const before = runner.inspect();
       await expect(async () => runner.prepare()).rejects.toThrow(/injected/i);
       expect(runner.inspect()).toEqual(before);
@@ -470,7 +562,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     });
   }
   test(`${Constructor.name} injected failure wins over preparation validation`, async () => {
-    const runner = new Constructor<G>({
+    const runner = (
+      Constructor === DagTraversal
+        ? createInternalDagTraversal
+        : createInternalAsyncDagTraversal
+    )<G>({
       traversableGraph: single,
       traversalRunnerInternalObjects: {
         state: new DagTraversalRunnerState<G>({
@@ -478,7 +574,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           failure: { error: undefined },
         }),
       },
-    }).makeRunner();
+    }).createRunner();
     await expect(async () => runner.prepare()).rejects.toBeUndefined();
   });
 
@@ -486,11 +582,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     test(`${Constructor.name} preparation retains ${stage} source pipeline failure`, async () => {
       const error = Symbol(stage);
       const source = {
-        makeRoot: () => {
+        resolveRoot: () => {
           if (stage === 'root') throw error;
-          return { vertexContent: { $data: 'root', $childHints: ['child'] } };
+          return {
+            kind: 'found' as const,
+            vertex: {
+              vertexContent: { $data: 'root', $childHints: ['child'] },
+            },
+          };
         },
-        makeVertex: () => {
+        resolveChild: () => {
           throw error;
         },
       };
@@ -512,7 +613,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               },
             }
           : {}),
-      }).makeRunner();
+      }).createRunner();
       await expect(async () => runner.prepare()).rejects.toBe(error);
       await expect(async () => runner.run()).rejects.toBe(error);
     });
@@ -521,18 +622,22 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
 test('sync preparation is owned during callbacks and can pause at the root', () => {
   let rootCalls = 0;
-  const runner: ReturnType<DagTraversal<G>['makeRunner']> = new DagTraversal<G>({
-    traversableTree: {
-      makeRoot: () => {
-        rootCalls++;
-        expect(() => runner.prepare()).toThrow(/active iterator/i);
-        expect(() => runner.run()).toThrow(/active iterator/i);
-        expect(runner.requestPause()).toBe(true);
-        return { vertexContent: { $data: 'root', $childHints: [] } };
+  const runner: ReturnType<DagTraversal<G>['createRunner']> =
+    new DagTraversal<G>({
+      traversableTree: {
+        resolveRoot: () => {
+          rootCalls++;
+          expect(() => runner.prepare()).toThrow(/active iterator/i);
+          expect(() => runner.run()).toThrow(/active iterator/i);
+          expect(runner.requestPause()).toBe(true);
+          return {
+            kind: 'found' as const,
+            vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+          };
+        },
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
-      makeVertex: () => ({ vertexContent: null }),
-    },
-  }).makeRunner();
+    }).createRunner();
   runner.prepare();
   expect(runner.getStopReason()).toBe('paused');
   runner.prepare();
@@ -557,17 +662,17 @@ for (const omitted of [false, true]) {
     let calls = 0;
     const runner = new AsyncDagTraversal<G>({
       traversableTree: {
-        makeRoot: async () => {
+        resolveRoot: async () => {
           calls++;
           entered();
           await gate;
-          return {
-            vertexContent: omitted ? null : { $data: 'root', $childHints: [] },
-          };
+          return treeResolution(
+            omitted ? null : { $data: 'root', $childHints: [] },
+          );
         },
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
-    }).makeRunner();
+    }).createRunner();
     const preparing = runner.prepare();
     await started;
     expect(runner.requestPause()).toBe(true);

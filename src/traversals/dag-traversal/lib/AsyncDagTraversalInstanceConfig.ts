@@ -1,52 +1,56 @@
+import {
+  assertTraversalFields,
+  definedOptions,
+} from '@core/assertPublicOptions';
+import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
+import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
+import type { VisitorRecord } from '@core/graph/types';
+import type { AsyncDagDiscoverySource } from '@core/TraversableGraph';
 import type { VisitorInputs } from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import { assertDagWorkCompletion } from './DagTraversalInstanceConfig';
-import type { DagDiscoveryOptions } from './DagTraversalInstanceConfig';
-import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
-import type { MaybePromise, VisitorRecord } from '@core/graph/types';
-import type { AsyncTraversableGraph } from '@core/TraversableGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import { deepFreeze } from '@utils/deepFreeze';
-import { captureDagSourcePatch, captureDagConfigPatch } from './dagSourcePatch';
+import { captureDagConfigPatch, captureDagSourcePatch } from './dagSourcePatch';
+import type { DagSchedulingOptions } from './DagTraversalInstanceConfig';
+import {
+  assertDagWorkCompletion,
+  assertDagDependencyPolicies,
+} from './DagTraversalInstanceConfig';
+import { DagVisitorPhase } from './DagTraversalOrder';
 import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
-import { DagTraversalOrder } from './DagTraversalOrder';
 import type { AsyncDagVisitor } from './DagTraversalVisitor';
 
 export type AsyncDagSource<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > =
   | {
-      traversableGraph: AsyncTraversableGraph<T, R, ID>;
+      traversableGraph: AsyncDagDiscoverySource<T, R, ID>;
       traversableTree?: undefined;
     }
   | {
-      traversableTree: unknown extends ID ? AsyncTraversableTree<T, R> : never;
+      traversableTree: unknown extends ID ? AsyncTreeSource<T, R> : never;
       traversableGraph?: undefined;
     };
 
 export type AsyncDagTraversalVisitors<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = {
-  [K in DagTraversalOrder]: VisitorRecord<AsyncDagVisitor<T, R, K, ID>>[];
+  [K in DagVisitorPhase]: VisitorRecord<AsyncDagVisitor<T, R, K, ID>>[];
 };
 
-export type AsyncDagSortChildrenHintsFn<T extends TreeTypeParameters> = (
-  childrenHints: T['VertexHint'][],
-) => MaybePromise<T['VertexHint'][]>;
-
 type AsyncDagTraversalOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
-> = DagDiscoveryOptions & {
-  completedWork?: ReadonlySet<ID>;
-  sortChildrenHints: AsyncDagSortChildrenHintsFn<T> | null;
+> = DagSchedulingOptions & {
+  completedWork?: ReadonlySet<ID> | undefined;
+  sortChildrenHints: AsyncChildHintSorter<T> | null;
   visitors: AsyncDagTraversalVisitors<T, R, ID>;
-  saveNotMutatedResolvedGraph: boolean;
+  retainOriginalGraphStructure: boolean;
   concurrency: number;
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer:
@@ -56,47 +60,50 @@ type AsyncDagTraversalOptions<
   };
 };
 
-export type AsyncDagTraversalInstanceConfig<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export type AsyncDagResolvedOptions<
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = AsyncDagSource<T, R, ID> & AsyncDagTraversalOptions<T, R, ID>;
 
 type AsyncDagTraversalOptionsInput<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
-> = Partial<
-  Omit<
-    AsyncDagTraversalOptions<T, R, ID>,
-    'visitors' | 'traversalRunnerInternalObjects'
-  >
-> & {
-  visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R, ID>>;
-  traversalRunnerInternalObjects?: Partial<
-    AsyncDagTraversalOptions<T, R, ID>['traversalRunnerInternalObjects']
-  >;
+> = DagSchedulingOptions & {
+  completedWork?: ReadonlySet<ID> | undefined;
+  sortChildrenHints?: AsyncChildHintSorter<T> | null | undefined;
+  visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R, ID>> | undefined;
+  retainOriginalGraphStructure?: boolean | undefined;
+  concurrency?: number | undefined;
 };
 
-export type AsyncDagTraversalInstanceConfigInput<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export type AsyncDagOptions<
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
-> = AsyncDagSource<T, R, ID> & AsyncDagTraversalOptionsInput<T, R, ID>;
+> = AsyncDagSource<T, R, ID> &
+  AsyncDagTraversalOptionsInput<T, R, ID> &
+  (
+    | { traversableGraph: AsyncDagDiscoverySource<T, R, ID> }
+    | { rootWorkDependencies?: never; omittedWorkDependencies?: never }
+  );
 
-export type AsyncDagTraversalConfigureInput<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export type AsyncDagOptionsPatch<
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = AsyncDagTraversalOptionsInput<T, R, ID> &
   (
     | {
-        traversableGraph?: AsyncTraversableGraph<T, R, ID> | undefined;
+        traversableGraph?: AsyncDagDiscoverySource<T, R, ID> | undefined;
         traversableTree?: undefined;
       }
     | {
+        rootWorkDependencies?: never;
+        omittedWorkDependencies?: never;
         traversableTree?:
-          | (unknown extends ID ? AsyncTraversableTree<T, R> : never)
+          | (unknown extends ID ? AsyncTreeSource<T, R> : never)
           | undefined;
         traversableGraph?: undefined;
       }
@@ -105,48 +112,57 @@ export type AsyncDagTraversalConfigureInput<
 export const ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG = deepFreeze({
   sortChildrenHints: null,
   visitors: {
-    [DagTraversalOrder.ON_READY]: [],
-    [DagTraversalOrder.ON_COMPLETE]: [],
+    [DagVisitorPhase.ON_WORK_READY]: [],
+    [DagVisitorPhase.ON_SUBGRAPH_READY]: [],
   },
-  saveNotMutatedResolvedGraph: false,
+  retainOriginalGraphStructure: false,
   concurrency: Infinity,
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer: null,
     state: null,
   },
 }) as unknown as Omit<
-  AsyncDagTraversalInstanceConfig<TreeTypeParameters>,
+  AsyncDagResolvedOptions<VertexTypes>,
   'traversableGraph' | 'traversableTree'
 >;
 
 export function mergeAsyncDagTraversalInstanceConfigs<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 >(
-  base: AsyncDagTraversalInstanceConfig<T, R, ID>,
-  input: AsyncDagTraversalConfigureInput<T, R, ID>,
+  base: AsyncDagResolvedOptions<T, R, ID>,
+  input: AsyncDagOptionsPatch<T, R, ID>,
   sources = captureDagSourcePatch(input),
-): AsyncDagTraversalInstanceConfig<T, R, ID> {
+): AsyncDagResolvedOptions<T, R, ID> {
   const capturedInput = captureDagConfigPatch(input, sources);
+  assertTraversalFields(capturedInput, Object.values(DagVisitorPhase));
   assertDagWorkCompletion(capturedInput.workCompletion);
-  const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
+  assertDagDependencyPolicies(
+    capturedInput,
+    sources.traversableGraph !== undefined ||
+      base.traversableGraph !== undefined,
+    input,
+  );
+  const visitors = {
+    ...base.visitors,
+    ...definedOptions(capturedInput.visitors ?? {}),
+  };
   const merged = {
     ...base,
-    ...capturedInput,
+    ...definedOptions(capturedInput),
     visitors: {
-      [DagTraversalOrder.ON_READY]: normalizeVisitorDefinitions(
-        visitors[DagTraversalOrder.ON_READY],
+      [DagVisitorPhase.ON_WORK_READY]: normalizeVisitorDefinitions(
+        visitors[DagVisitorPhase.ON_WORK_READY],
       ),
-      [DagTraversalOrder.ON_COMPLETE]: normalizeVisitorDefinitions(
-        visitors[DagTraversalOrder.ON_COMPLETE],
+      [DagVisitorPhase.ON_SUBGRAPH_READY]: normalizeVisitorDefinitions(
+        visitors[DagVisitorPhase.ON_SUBGRAPH_READY],
       ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
-      ...(input.traversalRunnerInternalObjects ?? {}),
     },
-  } as AsyncDagTraversalInstanceConfig<T, R, ID>;
+  } as AsyncDagResolvedOptions<T, R, ID>;
   if (
     merged.concurrency !== Infinity &&
     (!Number.isInteger(merged.concurrency) || merged.concurrency <= 0)

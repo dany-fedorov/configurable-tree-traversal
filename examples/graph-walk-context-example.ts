@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
 import {
   GraphWalk,
   GraphWalkPhase,
   type GraphWalkSource,
   type GraphWalkTarget,
 } from '../src';
+import assert from 'node:assert/strict';
 
 type Context =
   | { kind: 'document'; title: string }
@@ -37,6 +37,7 @@ const hydrated = (vertexId: string): GraphWalkTarget<Context, string> => ({
 });
 const resolved: string[] = [];
 const source: GraphWalkSource<Context, Relation, string> = {
+  hydration: 'resolver' as const,
   roots: () => [hydrated('A'), hydrated('E')],
   resolveVertex(vertexId) {
     resolved.push(vertexId);
@@ -59,13 +60,13 @@ const runner = new GraphWalk({ source })
   .addVisitorFor(GraphWalkPhase.EDGE, ({ edge, target }) => {
     assert.equal(target.kind, 'found');
     relationships.push(
-      `${edge.from}:${edge.index}:${edge.data.kind}:${edge.to}`,
+      `${edge.from}:${edge.outgoingIndex}:${edge.data.kind}:${edge.to}`,
     );
   })
-  .makeRunner();
+  .createRunner();
 const observations = [
-  ...runner.getIterable({
-    emitPhases: [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE],
+  ...runner.iterateEvents({
+    emitEvents: [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE],
   }),
 ];
 assert.deepEqual(vertices, ['A', 'E', 'B', 'C', 'D']);

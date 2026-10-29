@@ -1,6 +1,6 @@
-import { TraversableObjectTree } from '@traversable-object-tree/index';
-import { DepthFirstTraversal } from '@depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { ObjectTreeSource } from '@traversable-object-tree/index';
+import { DepthFirstTreeTraversal } from '@depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
 const obj = {
@@ -10,31 +10,31 @@ const obj = {
   d: [{ d1: { d11: 'd11', d12: 'd12' } }],
 };
 
-const tree = new TraversableObjectTree(obj);
-const t = new DepthFirstTraversal({
+const tree = new ObjectTreeSource(obj);
+const t = new DepthFirstTreeTraversal({
   traversableTree: tree,
 });
-t.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
+t.addVisitorFor(DepthFirstPhase.PRE_ORDER, (v) => {
   console.log('PRE_ORDER', v.getData());
 });
-t.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) => {
+t.addVisitorFor(DepthFirstPhase.POST_ORDER, (v) => {
   console.log('POST_ORDER', v.getData());
   if (v.getData().key === 'a') {
     return {
       commands: [
         {
-          commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+          commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
         },
       ],
     };
   }
   return {};
 });
-t.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
+t.addVisitorFor(DepthFirstPhase.IN_ORDER, (v) => {
   console.log('IN_ORDER', v.getData());
 });
 
-const runner = t.makeRunner();
+const runner = t.createRunner();
 runner.run();
 console.log(runner.getStatus());
 runner.run();

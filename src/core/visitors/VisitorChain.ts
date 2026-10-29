@@ -1,8 +1,7 @@
 import { getVisitorBatchEnds } from './getVisitorBatchEnds';
-import { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
 import { normalizeVisitorOptions } from './normalizeVisitorOptions';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
 import type {
   VisitorBatchCommit,
@@ -12,19 +11,22 @@ import type {
   VisitorOutcome,
 } from '@core/visitors/types';
 
-export class VisitorChain<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-> {
+export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
   private readonly canDeferReady: boolean;
   private readonly ref: VisitorChainInput<T, R>['ref'];
   private readonly batchEnds: boolean[];
   private readonly metadata: VisitorChainMetadata<T | R>;
   private position = 0;
   private awaitingOutcome = false;
-  private pendingCommands: TraversalVisitorCommand<R>[] | null = null;
+  private pendingCommands:
+    | TraversalVisitorCommand<R, TraversalVisitorCommandName, T['VertexHint']>[]
+    | null = null;
   private commandsEmitted = false;
-  private readonly bufferedCommands: TraversalVisitorCommand<R>[] = [];
+  private readonly bufferedCommands: TraversalVisitorCommand<
+    R,
+    TraversalVisitorCommandName,
+    T['VertexHint']
+  >[] = [];
   private paused = false;
   private deleted = false;
   private done = false;
@@ -32,11 +34,12 @@ export class VisitorChain<
 
   constructor(input: VisitorChainInput<T, R>) {
     this.ref = input.ref;
-    this.canDeferReady = input.family === 'dag' && input.order === 'ON_READY';
+    this.canDeferReady =
+      input.family === 'dag' && input.order === 'ON_WORK_READY';
     this.metadata = {
       ...input.metadata,
-      curVertexVisitorVisitIndex: 0,
-      vertexVisitorsChainState: null,
+      visitorIndex: 0,
+      visitorChainState: null,
     };
 
     const records = input.records.map((record) => ({
@@ -60,17 +63,14 @@ export class VisitorChain<
     }
 
     if (this.position < this.batchEnds.length) {
-      return this.emitVisit(
-        this.position,
-        this.metadata.vertexVisitorsChainState,
-      );
+      return this.emitVisit(this.position, this.metadata.visitorChainState);
     }
 
     this.done = true;
     return { kind: 'DONE' };
   }
 
-  submit(outcome: VisitorOutcome<R>): void {
+  submit(outcome: VisitorOutcome<R, T['VertexHint']>): void {
     if (!this.valid || !this.awaitingOutcome) {
       throw new Error('Visitor chain is not waiting for an outcome');
     }
@@ -80,27 +80,24 @@ export class VisitorChain<
     }
 
     this.awaitingOutcome = false;
-    this.metadata.curVertexVisitorVisitIndex++;
-    const value =
-      outcome.value === DEFER_READY
-        ? {
-            commands: [
-              { commandName: TraversalVisitorCommandName.DEFER_READY as const },
-            ],
-          }
-        : outcome.value;
+    this.metadata.visitorIndex++;
+    const value = outcome.value;
+    if (typeof value === 'symbol') {
+      throw new TypeError('Invalid visitor result; use canonical commands');
+    }
     const commands = value?.commands ?? [];
     if (
       commands.some(
         (command) =>
-          command.commandName === TraversalVisitorCommandName.DEFER_READY,
+          command.commandName ===
+          TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
       )
     ) {
       if (commands.length !== 1)
-        throw new TypeError('DEFER_READY must be the sole command');
+        throw new TypeError('DEFER_WORK_COMPLETION must be the sole command');
       if (!this.canDeferReady)
         throw new TypeError(
-          'DEFER_READY is only valid for DAG ON_READY visitors',
+          'DEFER_WORK_COMPLETION is only valid for DAG ON_WORK_READY visitors',
         );
       this.bufferedCommands.length = 0;
       this.pendingCommands = commands.slice();
@@ -119,12 +116,10 @@ export class VisitorChain<
 
     const ownHalt = this.pendingCommands.some(
       (command) =>
-        command.commandName === TraversalVisitorCommandName.HALT_TRAVERSAL,
+        command.commandName === TraversalVisitorCommandName.PAUSE_TRAVERSAL,
     );
-    if (
-      Object.prototype.hasOwnProperty.call(result, 'vertexVisitorsChainState')
-    ) {
-      this.metadata.vertexVisitorsChainState = result.vertexVisitorsChainState;
+    if (Object.prototype.hasOwnProperty.call(result, 'visitorChainState')) {
+      this.metadata.visitorChainState = result.visitorChainState;
     }
     this.pendingCommands = null;
     this.commandsEmitted = false;
@@ -155,7 +150,7 @@ export class VisitorChain<
       recordIndex,
       metadata: {
         ...this.metadata,
-        vertexVisitorsChainState: chainState,
+        visitorChainState: chainState,
       },
     };
   }

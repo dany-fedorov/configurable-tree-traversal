@@ -1,32 +1,36 @@
+import { assertOwnKeys, definedOptions } from '@core/assertPublicOptions';
+import type { VisitorRecord } from '@core/graph/types';
 import type {
   NoInferPhase,
   TraversalVisitorFunctionOptions,
   VisitorGroupDefinition,
   VisitorPhaseInput,
 } from '@core/TraversalVisitor';
-import type { VisitorRecord } from '@core/graph/types';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
-import { GraphWalkPhase } from './GraphWalkPhase';
-import type { GraphWalkVisitor } from './GraphWalkVisitor';
 import type {
   GraphWalkOptions,
-  GraphWalkConfigureInput,
+  GraphWalkOptionsPatch,
 } from './GraphWalkOptions';
-import { GraphWalkRunner } from './GraphWalkRunner';
+import { GraphWalkPhase } from './GraphWalkPhase';
+import {
+  InternalGraphWalkRunner,
+  type GraphWalkRunner,
+} from './GraphWalkRunner';
+import type { GraphWalkVisitor } from './GraphWalkVisitor';
+import type { GraphWalkResolvedOptions } from './lib/normalizeWalkOptions';
 import { normalizeWalkOptions } from './lib/normalizeWalkOptions';
-import type { NormalizedWalkOptions } from './lib/normalizeWalkOptions';
 
 export class GraphWalk<Data, Edge, ID> {
-  private options: NormalizedWalkOptions<Data, Edge, ID>;
+  private options: GraphWalkResolvedOptions<Data, Edge, ID>;
   constructor(options: GraphWalkOptions<Data, Edge, ID>) {
     this.options = normalizeWalkOptions(options);
   }
-  configure(patch: GraphWalkConfigureInput<Data, Edge, ID>): this {
+  configure(patch: GraphWalkOptionsPatch<Data, Edge, ID>): this {
     this.options = normalizeWalkOptions(patch, this.options);
     return this;
   }
@@ -35,9 +39,10 @@ export class GraphWalk<Data, Edge, ID> {
     visitor: GraphWalkVisitor<Data, Edge, NoInferPhase<Phase>, ID>,
     options: Partial<TraversalVisitorFunctionOptions> = {},
   ): this {
+    assertOwnKeys(options, ['priority', 'commandCommitMode']);
     const records = appendVisitorDefinition(this.recordsFor(phase), {
       visitor,
-      ...options,
+      ...definedOptions(options),
     });
     this.options = {
       ...this.options,
@@ -87,7 +92,7 @@ export class GraphWalk<Data, Edge, ID> {
       GraphWalkVisitor<Data, Edge, Phase, ID>
     >[];
   }
-  makeRunner(): GraphWalkRunner<Data, Edge, ID> {
-    return new GraphWalkRunner(normalizeWalkOptions({}, this.options));
+  createRunner(): GraphWalkRunner<Data, Edge, ID> {
+    return new InternalGraphWalkRunner(normalizeWalkOptions({}, this.options));
   }
 }

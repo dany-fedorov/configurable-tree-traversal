@@ -6,7 +6,7 @@ import type {
 } from '../GraphWalkOptions';
 import type { GraphWalkPhase } from '../GraphWalkPhase';
 import type { GraphWalkCounts } from './GraphWalkSummary';
-import type { WalkOperation } from './WalkEffects';
+import type { GraphWalkOperation } from '../GraphWalkOperation';
 
 export interface GraphWalkInspection extends ExecutionInspection {
   readonly kind: 'graph-walk';
@@ -14,18 +14,18 @@ export interface GraphWalkInspection extends ExecutionInspection {
   readonly concurrency: 1;
   readonly strategy: GraphWalkStrategy;
   readonly revisit: GraphWalkRevisitPolicy;
-  readonly iterableConfig: InspectionFilters<GraphWalkPhase>;
+  readonly executionOptions: InspectionFilters<GraphWalkPhase>;
   readonly counts: GraphWalkCounts;
   readonly frontierSize: number;
   readonly openSourceIteratorCount: number;
   readonly pendingObservationKinds: readonly GraphWalkPhase[];
   readonly activeVisitor: Readonly<{
     phase: GraphWalkPhase;
-    position: number;
+    visitorIndex: number;
   }> | null;
   readonly pendingRequests: readonly Readonly<{
     requestId: number;
-    operation: WalkOperation;
+    operation: GraphWalkOperation;
     /** Stable runner-local identity; never a caller vertex ID. */
     vertexToken?: symbol | undefined;
   }>[];

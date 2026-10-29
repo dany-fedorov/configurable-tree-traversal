@@ -2,12 +2,15 @@ import {
   getTraversalExecutionPhases,
   detachTraversalExecutionOptions,
 } from '@core/normalizeTraversalExecutionOptions';
-import type { AsyncCoreExecution } from '@core/AsyncCoreExecution';
-import type { CoreInspection } from '@core/CoreInspection';
+import type {
+  SelectedTraversalEvent,
+  AsyncTraversalExecution,
+} from '@core/TraversalExecution';
+import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
-import type { PumpMode, VisitOrder } from '@core/effects/types';
+import type { PumpMode, VisitPhase } from '@core/effects/types';
 import type { AsyncSessionControl } from '@core/kernelTypes';
 import { Wakeup } from '@core/drivers/Wakeup';
 
@@ -24,7 +27,7 @@ type CloseWaiter = {
 
 type IteratorState<E> = {
   phase: 'unopened' | 'active' | 'closing' | 'closed';
-  config: TraversalIterableConfigInput<VisitOrder> | undefined;
+  config: TraversalIterableConfigInput<VisitPhase> | undefined;
   preparation?: () => void;
   nextWaiters: NextWaiter<E>[];
   closeWaiters: CloseWaiter[];
@@ -38,7 +41,13 @@ const done = Object.freeze({ done: true, value: undefined }) as IteratorResult<
 >;
 
 export class AsyncRunnerSession<E>
-  implements AsyncCoreExecution<E, VisitOrder>
+  implements
+    AsyncTraversalExecution<
+      VisitPhase,
+      E,
+      TreeDagExecutionInspection,
+      import('../TraversalRunnerIterableConfig').EmissionKind<VisitPhase>
+    >
 {
   private readonly bufferedEvents: BufferedEvent<E>[] = [];
   private activeIterator: IteratorState<E> | null = null;
@@ -76,7 +85,7 @@ export class AsyncRunnerSession<E>
     return true;
   }
 
-  public inspect(): CoreInspection {
+  public inspect(): TreeDagExecutionInspection {
     return Object.freeze({
       ...this.control.inspect(),
       status: this.getStatus(),
@@ -85,8 +94,19 @@ export class AsyncRunnerSession<E>
     });
   }
 
-  public getIterable(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+  public iterateEvents(): AsyncGenerator<E, void, unknown>;
+  public iterateEvents<
+    Kind extends import('../TraversalRunnerIterableConfig').EmissionKind<VisitPhase>,
+  >(
+    config: TraversalIterableConfigInput<VisitPhase, Kind> & {
+      emitEvents: readonly Kind[];
+    },
+  ): AsyncGenerator<SelectedTraversalEvent<E, Kind>, void, unknown>;
+  public iterateEvents(
+    config?: TraversalIterableConfigInput<VisitPhase>,
+  ): AsyncGenerator<E, void, unknown>;
+  public iterateEvents(
+    config?: TraversalIterableConfigInput<VisitPhase>,
   ): AsyncGenerator<E, void, unknown> {
     return this.makeIterator(config);
   }
@@ -99,7 +119,7 @@ export class AsyncRunnerSession<E>
   }
 
   private makeIterator(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
     preparation?: () => void,
   ): AsyncGenerator<E, void, unknown> {
     const state: IteratorState<E> = {
@@ -121,9 +141,9 @@ export class AsyncRunnerSession<E>
   }
 
   public async run(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
   ): Promise<this> {
-    const iterator = this.getIterable(config);
+    const iterator = this.iterateEvents(config);
     while (!(await iterator.next()).done) {
       // Draining through next() preserves the same lease and boundaries as consumers.
     }
@@ -164,7 +184,7 @@ export class AsyncRunnerSession<E>
           try {
             // Validate caller input before claiming the underlying runtime. Keep
             // internal control failures on the normal terminal failure path.
-            state.config = detachTraversalExecutionOptions(
+            state.config = detachTraversalExecutionOptions<VisitPhase>(
               phases,
               state.config,
             );
@@ -239,8 +259,12 @@ export class AsyncRunnerSession<E>
       this.bufferedEvents.length > 0
     ) {
       this.acknowledgeDeliveredBoundary();
-      const waiter = state.nextWaiters.shift()!;
       const buffered = this.bufferedEvents.shift()!;
+      if (!this.control.shouldEmitEvent(buffered.event)) {
+        this.control.acknowledgeEvent(buffered.boundaryId);
+        continue;
+      }
+      const waiter = state.nextWaiters.shift()!;
       this.deliveredBoundaryId = buffered.boundaryId;
       waiter.resolve({ done: false, value: buffered.event });
       if (state.nextWaiters.length > 0) this.acknowledgeDeliveredBoundary();

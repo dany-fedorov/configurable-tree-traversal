@@ -19,7 +19,14 @@ it('captures passive frozen detached mechanical state while a visitor is pending
   let calls = 0;
   const runner = new AsyncGraphWalk({
     source: {
-      roots: () => [{ vertexId: id, resolution: { kind: 'found', data } }],
+      hydration: 'inlineOrCached' as const,
+      roots: () => [
+        {
+          kind: 'inline' as const,
+          vertexId: id,
+          resolution: { kind: 'found', data },
+        },
+      ],
       outgoing: () => {
         calls++;
         return [];
@@ -31,7 +38,7 @@ it('captures passive frozen detached mechanical state while a visitor is pending
         await pending;
       },
     },
-  }).makeRunner();
+  }).createRunner();
   const running = runner.run();
   await started;
   const snapshot = runner.inspect();
@@ -46,8 +53,8 @@ it('captures passive frozen detached mechanical state while a visitor is pending
     frontierSize: 0,
     openSourceIteratorCount: 1,
     pendingObservationKinds: [Phase.VERTEX, Phase.PATH],
-    activeVisitor: { phase: Phase.VERTEX, position: 0 },
-    pendingRequests: [{ operation: 'visitor' }],
+    activeVisitor: { phase: Phase.VERTEX, visitorIndex: 0 },
+    pendingRequests: [{ operation: 'visit' }],
   });
   const token = snapshot.pendingRequests[0]!.vertexToken;
   expect(typeof token).toBe('symbol');
@@ -63,7 +70,9 @@ it('captures passive frozen detached mechanical state while a visitor is pending
     }
   }
   check(snapshot);
-  expect(() => Object.assign(snapshot.counts, { steps: 900 })).toThrow();
+  expect(() =>
+    Object.assign(snapshot.counts, { candidateReadAttempts: 900 }),
+  ).toThrow();
   expect(runner.inspect()).toEqual(snapshot);
   expect(runner.inspect()).not.toBe(snapshot);
   expect(calls).toBe(0);
@@ -91,12 +100,13 @@ it('freezes owned summary records without freezing arbitrary failure objects', (
   const error = { reason: 'caller error' };
   const runner = new GraphWalk({
     source: {
+      hydration: 'inlineOrCached' as const,
       roots() {
         throw error;
       },
       outgoing: () => [],
     },
-  }).makeRunner();
+  }).createRunner();
   try {
     runner.run();
   } catch (observed) {
@@ -105,7 +115,7 @@ it('freezes owned summary records without freezing arbitrary failure objects', (
   const summary = runner.summary();
   expect(Object.isFrozen(summary)).toBe(true);
   expect(Object.isFrozen(summary.counts)).toBe(true);
-  expect(Object.isFrozen(summary.counts.observations)).toBe(true);
+  expect(Object.isFrozen(summary.counts.processedObservations)).toBe(true);
   expect(Object.isFrozen(summary.outcome)).toBe(true);
   expect(Object.isFrozen(error)).toBe(false);
   expect(runner.summary()).not.toBe(summary);
@@ -128,8 +138,9 @@ it('uses consistent private tokens across source, predicate, observation, and cl
   }
   const runner = new GraphWalk({
     strategy: 'depthFirst',
-    limits: { maxOccurrences: 2 },
+    limits: { maxAdmittedTargets: 2 },
     source: {
+      hydration: 'resolver' as const,
       roots: () => [{ vertexId: id }],
       resolveVertex: () => {
         snapshot();
@@ -156,25 +167,25 @@ it('uses consistent private tokens across source, predicate, observation, and cl
         };
       },
     },
-    followEdge: () => {
+    shouldFollowEdge: () => {
       snapshot();
       return true;
     },
-    expandVertex: () => {
+    shouldExpandVertex: () => {
       snapshot();
       return true;
     },
     visitors: { [Phase.VERTEX]: snapshot, [Phase.EDGE]: snapshot },
-  }).makeRunner();
+  }).createRunner();
   runner.run();
   expect(operations).toEqual([
     'resolveVertex',
-    'visitor',
-    'expandVertex',
+    'visit',
+    'shouldExpandVertex',
     'outgoing',
     'edgeNext',
-    'followEdge',
-    'visitor',
+    'shouldFollowEdge',
+    'visit',
     'iteratorReturn',
   ]);
   expect(typeof tokens[0]).toBe('symbol');
@@ -195,6 +206,7 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
   let returns = 0;
   const factory = new AsyncGraphWalk({
     source: {
+      hydration: 'resolver' as const,
       roots: () => ({
         [Symbol.asyncIterator]() {
           return {
@@ -216,8 +228,8 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
       outgoing: () => [],
     },
   });
-  const runner = factory.makeRunner();
-  const iterator = runner.getIterable();
+  const runner = factory.createRunner();
+  const iterator = runner.iterateEvents();
   const next = iterator.next();
   await started;
   const returned = iterator.return();
@@ -236,8 +248,8 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
   started = new Promise<void>((resolve) => {
     entered = resolve;
   });
-  const other = factory.makeRunner();
-  const otherIterator = other.getIterable();
+  const other = factory.createRunner();
+  const otherIterator = other.iterateEvents();
   const otherNext = otherIterator.next();
   await started;
   const otherReturn = otherIterator.return();

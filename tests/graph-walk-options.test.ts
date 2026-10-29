@@ -5,6 +5,7 @@ import type { GraphWalkSource } from '../src/traversals/graph-walk/GraphWalkSour
 import { normalizeWalkOptions } from '../src/traversals/graph-walk/lib/normalizeWalkOptions';
 
 const source: GraphWalkSource<string, undefined, string> = {
+  hydration: 'inlineOrCached' as const,
   roots: () => [],
   outgoing: () => [],
 };
@@ -13,6 +14,7 @@ describe('walking configuration snapshots', () => {
   test('defaults are once/BFS with vertex emissions and all visitors, without source I/O', () => {
     const calls: string[] = [];
     const lazySource = {
+      hydration: 'inlineOrCached' as const,
       roots() {
         calls.push('roots');
         return [];
@@ -27,14 +29,14 @@ describe('walking configuration snapshots', () => {
     expect(config.strategy).toBe('breadthFirst');
     expect(config.revisit).toBe('once');
     expect(config.limits).toEqual({});
-    expect(config.execution.emitPhases).toEqual([Phase.VERTEX]);
+    expect(config.execution.emitEvents).toEqual([Phase.VERTEX]);
     expect(config.execution.visitorPhases).toBe('all');
     expect(config.visitors).toEqual({ vertex: [], edge: [], path: [] });
     expect(config.source.receiver).toBe(lazySource);
     expect(config.source.roots).toBe(lazySource.roots);
     expect(config.source.resolveVertex).toBeUndefined();
-    expect(config.followEdge).toBeUndefined();
-    expect(config.expandVertex).toBeUndefined();
+    expect(config.shouldFollowEdge).toBeUndefined();
+    expect(config.shouldExpandVertex).toBeUndefined();
   });
 
   test('construction and patches require a depth or step bound for enumeration', () => {
@@ -46,7 +48,7 @@ describe('walking configuration snapshots', () => {
         normalizeWalkOptions({
           source,
           revisit,
-          limits: { maxOccurrences: 2 },
+          limits: { maxAdmittedTargets: 2 },
         }),
       ).toThrow(TypeError);
       expect(
@@ -54,8 +56,11 @@ describe('walking configuration snapshots', () => {
           .revisit,
       ).toBe(revisit);
       expect(
-        normalizeWalkOptions({ source, revisit, limits: { maxSteps: 0 } })
-          .revisit,
+        normalizeWalkOptions({
+          source,
+          revisit,
+          limits: { maxCandidateReadAttempts: 0 },
+        }).revisit,
       ).toBe(revisit);
     }
     const unbounded = normalizeWalkOptions({ source });
@@ -77,7 +82,11 @@ describe('walking configuration snapshots', () => {
   test.each([-1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1, '1', null])(
     'rejects invalid bounds %p',
     (value) => {
-      for (const key of ['maxDepth', 'maxSteps', 'maxOccurrences']) {
+      for (const key of [
+        'maxDepth',
+        'maxCandidateReadAttempts',
+        'maxAdmittedTargets',
+      ]) {
         expect(() =>
           normalizeWalkOptions({ source, limits: { [key]: value } }),
         ).toThrow(TypeError);
@@ -86,30 +95,34 @@ describe('walking configuration snapshots', () => {
   );
 
   test('copies selectors, limits and registration wrappers while retaining callbacks and receiver', () => {
-    const emitPhases = [Phase.VERTEX];
+    const emitEvents = [Phase.VERTEX];
     const include = [Phase.EDGE];
-    const limits = { maxDepth: 4, maxSteps: undefined };
+    const limits = { maxDepth: 4, maxCandidateReadAttempts: undefined };
     const callback = () => undefined;
     const records = [{ visitor: callback, priority: 5 }];
     const resolver = () => ({ kind: 'omitted' as const });
-    const hydrated = { ...source, resolveVertex: resolver };
+    const hydrated = {
+      ...source,
+      hydration: 'resolver' as const,
+      resolveVertex: resolver,
+    };
     const config = normalizeWalkOptions({
       source: hydrated,
-      emitPhases,
+      emitEvents,
       visitorPhases: { include },
       limits,
       visitors: { vertex: records },
-      followEdge: callback,
-      expandVertex: callback,
+      shouldFollowEdge: callback,
+      shouldExpandVertex: callback,
     });
-    emitPhases.length = 0;
+    emitEvents.length = 0;
     include.length = 0;
     limits.maxDepth = 99;
     records[0]!.priority = 99;
     hydrated.roots = () => {
       throw new Error('changed');
     };
-    expect(config.execution.emitPhases).toEqual([Phase.VERTEX]);
+    expect(config.execution.emitEvents).toEqual([Phase.VERTEX]);
     expect(config.execution.visitorPhases).toEqual({ include: [Phase.EDGE] });
     expect(config.limits).toEqual({ maxDepth: 4 });
     expect(config.visitors.vertex[0]!.priority).toBe(5);
@@ -117,8 +130,8 @@ describe('walking configuration snapshots', () => {
     expect(config.source.receiver).toBe(hydrated);
     expect(config.source.roots).toBe(source.roots);
     expect(config.source.resolveVertex).toBe(resolver);
-    expect(config.followEdge).toBe(callback);
-    expect(config.expandVertex).toBe(callback);
+    expect(config.shouldFollowEdge).toBe(callback);
+    expect(config.shouldExpandVertex).toBe(callback);
     expect(Object.isFrozen(hydrated)).toBe(false);
     const copy = normalizeWalkOptions({}, config);
     expect(copy.visitors.vertex[0]).not.toBe(config.visitors.vertex[0]);
@@ -127,19 +140,19 @@ describe('walking configuration snapshots', () => {
   });
 
   test('uses shared selector validation and field-wise legacy patches', () => {
-    const config = normalizeWalkOptions({ source, iterateOver: [Phase.EDGE] });
-    expect(config.execution.emitPhases).toEqual([Phase.EDGE]);
+    const config = normalizeWalkOptions({ source, emitEvents: [Phase.EDGE] });
+    expect(config.execution.emitEvents).toEqual([Phase.EDGE]);
     const patched = normalizeWalkOptions(
       { visitorPhases: { exclude: [Phase.PATH] } },
       config,
     );
-    expect(patched.execution.emitPhases).toEqual([Phase.EDGE]);
+    expect(patched.execution.emitEvents).toEqual([Phase.EDGE]);
     expect(patched.execution.visitorPhases).toEqual({ exclude: [Phase.PATH] });
     expect(() =>
-      normalizeWalkOptions({ source, emitPhases: [], iterateOver: [] }),
+      normalizeWalkOptions({ source, emitEvents: [], iterateOver: [] }),
     ).toThrow(TypeError);
     expect(() =>
-      normalizeWalkOptions({ source, emitPhases: ['ON_READY'] }),
+      normalizeWalkOptions({ source, emitEvents: ['ON_WORK_READY'] }),
     ).toThrow(TypeError);
   });
 
@@ -155,20 +168,22 @@ describe('walking configuration snapshots', () => {
     null,
     [],
     1,
-    {},
+    { hydration: 'inlineOrCached' },
     {
+      hydration: 'inlineOrCached',
       roots: 1,
       outgoing() {
         return [];
       },
     },
     {
+      hydration: 'inlineOrCached' as const,
       roots() {
         return [];
       },
       outgoing: null,
     },
-    { ...source, resolveVertex: 1 },
+    { ...source, hydration: 'resolver', resolveVertex: 1 },
   ])('rejects malformed sources %p', (value) => {
     expect(() => normalizeWalkOptions({ source: value })).toThrow(TypeError);
   });
@@ -181,12 +196,12 @@ describe('walking configuration snapshots', () => {
     { limits: null },
     { limits: [] },
     { limits: 1 },
-    { followEdge: false },
-    { expandVertex: false },
+    { shouldFollowEdge: false },
+    { shouldExpandVertex: false },
     { visitors: null },
     { visitors: [] },
     { visitors: 1 },
-    { visitors: { ON_READY: [] } },
+    { visitors: { ON_WORK_READY: [] } },
     { visitors: { vertex: 1 } },
   ])('rejects malformed fields %p', (patch) => {
     expect(() => normalizeWalkOptions({ source, ...patch })).toThrow(TypeError);
@@ -214,11 +229,11 @@ describe('walking configuration snapshots', () => {
       source,
       strategy: 'depthFirst',
       revisit: 'once',
-      limits: { maxOccurrences: 0 },
-      followEdge: () => true,
-      expandVertex: () => false,
+      limits: { maxAdmittedTargets: 0 },
+      shouldFollowEdge: () => true,
+      shouldExpandVertex: () => false,
       visitors: { edge: [] },
-      emitPhases: [Phase.PATH],
+      emitEvents: [Phase.PATH],
     };
     for (const [key, value] of Object.entries(values))
       Object.defineProperty(input, key, {
@@ -248,6 +263,10 @@ describe('walking configuration snapshots', () => {
   test('captures nested source, limit and phase getters once without invoking callbacks', () => {
     const reads: string[] = [];
     const capturedSource = {
+      get hydration() {
+        reads.push('hydration');
+        return 'inlineOrCached' as const;
+      },
       get roots() {
         reads.push('roots');
         return source.roots;
@@ -277,6 +296,7 @@ describe('walking configuration snapshots', () => {
       },
     });
     expect(reads).toEqual([
+      'hydration',
       'roots',
       'outgoing',
       'resolveVertex',
@@ -302,8 +322,15 @@ describe('walking configuration snapshots', () => {
 for (const Factory of [GraphWalk, AsyncGraphWalk]) {
   test(`${Factory.name} rejects unknown options and limit keys before discovery and preserves configuration`, async () => {
     const roots = jest.fn(() => []);
-    const lazy = { roots, outgoing: () => [] };
-    const traversal = new Factory({ source: lazy, limits: { maxSteps: 0 } });
+    const lazy = {
+      hydration: 'inlineOrCached' as const,
+      roots,
+      outgoing: () => [],
+    };
+    const traversal = new Factory({
+      source: lazy,
+      limits: { maxCandidateReadAttempts: 0 },
+    });
     for (const key of ['stratgey', Symbol('option')]) {
       const bad = Object.defineProperty({}, key, { value: 'depthFirst' });
       expect(
@@ -315,14 +342,16 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
       () =>
         new Factory({
           source: lazy,
-          limits: { maxSteps: 2, maxDepht: 1 } as never,
+          limits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never,
         }),
     ).toThrow(TypeError);
     expect(() =>
-      traversal.configure({ limits: { maxSteps: 2, maxDepht: 1 } as never }),
+      traversal.configure({
+        limits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never,
+      }),
     ).toThrow(TypeError);
     expect(roots).not.toHaveBeenCalled();
-    await traversal.makeRunner().run();
+    await traversal.createRunner().run();
     expect(roots).not.toHaveBeenCalled();
   });
 }
@@ -337,16 +366,16 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
           ['child', []],
         ],
       ),
-      followEdge: null,
-      expandVertex: null,
+      shouldFollowEdge: null,
+      shouldExpandVertex: null,
     });
-    const runner = walk.makeRunner();
+    const runner = walk.createRunner();
     await runner.run();
-    expect(runner.summary().counts.foundVertices).toBe(2);
-    expect(runner.summary().counts.observedLinks).toBe(1);
+    expect(runner.summary().counts.uniqueFoundVertices).toBe(2);
+    expect(runner.summary().counts.discoveredLinks).toBe(1);
   });
 
-  test.each(['followEdge', 'expandVertex'] as const)(
+  test.each(['shouldFollowEdge', 'shouldExpandVertex'] as const)(
     `${Factory.name} resets %s with null and retains it with undefined or omission atomically`,
     async (predicate) => {
       const walk = new Factory({
@@ -360,16 +389,16 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
         [predicate]: () => false,
       });
       async function found() {
-        const runner = walk.makeRunner();
+        const runner = walk.createRunner();
         await runner.run();
-        return runner.summary().counts.foundVertices;
+        return runner.summary().counts.uniqueFoundVertices;
       }
       expect(await found()).toBe(1);
       walk.configure({ [predicate]: undefined });
       walk.configure({});
       expect(await found()).toBe(1);
       expect(() =>
-        walk.configure({ [predicate]: null, emitPhases: ['invalid'] as never }),
+        walk.configure({ [predicate]: null, emitEvents: ['invalid'] as never }),
       ).toThrow(TypeError);
       expect(await found()).toBe(1);
       walk.configure({ [predicate]: null });
@@ -377,3 +406,30 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
     },
   );
 }
+
+it.each(['followEdge', 'expandVertex'])(
+  'rejects removed predicate option %s instead of retaining an alias',
+  (key) => {
+    const source = {
+      hydration: 'inlineOrCached' as const,
+      roots: () => [],
+      outgoing: () => [],
+    };
+    expect(() => new GraphWalk({ source, [key]: () => true } as never)).toThrow(
+      TypeError,
+    );
+  },
+);
+it.each(['maxSteps', 'maxOccurrences'])(
+  'rejects removed walking limit %s instead of retaining an alias',
+  (key) => {
+    const source = {
+      hydration: 'inlineOrCached' as const,
+      roots: () => [],
+      outgoing: () => [],
+    };
+    expect(
+      () => new GraphWalk({ source, limits: { [key]: 1 } } as never),
+    ).toThrow(TypeError);
+  },
+);

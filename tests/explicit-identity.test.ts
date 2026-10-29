@@ -1,41 +1,45 @@
+import { vertexHandle } from '../src/core/observationFacets';
 import {
-  CTTRef,
+  MutableRef,
   core,
-  ResolvedTree,
+  ResolvedTreeStore,
   Vertex,
-  VertexResolved,
-  type TreeTypeParameters,
+  TreeVertexRecord,
+  type VertexTypes,
 } from '../src';
-import { CTTRef as CoreRef } from '../src/core';
+import { MutableRef as CoreRef } from '../src/core';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 
-type T = TreeTypeParameters<string, string>;
+type T = VertexTypes<string, string>;
 const makeRef = (data: string) =>
-  new CTTRef(new Vertex<T>({ $data: data, $childHints: [] }));
+  new MutableRef(new Vertex<T>({ $data: data, $childHints: [] }));
 
 test('reference UUID names share the public constructor and remain stable after retargeting', () => {
-  expect(CTTRef).toBe(core.CTTRef);
-  expect(CTTRef).toBe(CoreRef);
+  expect(MutableRef).toBe(core.MutableRef);
+  expect(MutableRef).toBe(CoreRef);
   const ref = makeRef('before');
   const id = ref.getRefId();
-  ref.setPointsTo(new Vertex<T>({ $data: 'after', $childHints: [] }));
+  ref.setValue(new Vertex<T>({ $data: 'after', $childHints: [] }));
   expect(ref.getRefId()).toBe(id);
-  expect(ref.getId()).toBe(id);
+  expect(ref.getRefId()).toBe(id);
   expect(makeRef('other').getRefId()).not.toBe(id);
 });
 
 test('tree-generated vertex identities equal their reference UUIDs', () => {
-  const tree = new ResolvedTree<T>();
+  const tree = new ResolvedTreeStore<T>();
   const root = makeRef('root');
   tree.set(
     root,
-    new VertexResolved<T>({ $d: { resolutionContext: null }, $c: [] }),
+    new TreeVertexRecord<T>({
+      metadata: { resolutionContext: null },
+      children: [],
+    }),
   );
-  const graph = tree.getResolvedGraph();
+  const graph = tree.getResolvedGraphView();
   expect(graph.getVertexId(root)).toBe(root.getRefId());
-  expect(graph.getIdOf(root)).toBe(root.getRefId());
-  expect(graph.getVertexRefById(root.getRefId())).toBe(root);
-  expect(graph.getVertexById(root.getRefId())).toBe(root);
+  expect(graph.getVertexId(root)).toBe(root.getRefId());
+  expect(graph.getVertexRefById(root.getRefId())).toBe(vertexHandle(root));
+  expect(graph.getVertexRefById(root.getRefId())).toBe(vertexHandle(root));
 });
 
 for (const syntheticRoot of [false, true]) {
@@ -53,30 +57,29 @@ for (const syntheticRoot of [false, true]) {
       container.acceptRoot(root, hiddenId);
       container.acceptVertex(child, id, [], {
         parentVertexRef: root,
-        parentVertex: root.unref(),
+        parentVertex: root.getValue(),
         depth: 1,
         hintIndex: 0,
         vertexHint: 'child',
       });
-      const saved = container.notMutatedResolvedGraph!;
-      const savedChild = container.notMutatedResolvedGraphRefsMap!.get(child)!;
+      const saved = container.originalGraphView!;
+      const savedChild = container.originalGraphRefsMap!.get(child)!;
       for (const [graph, expectedRef] of [
-        [container.resolvedGraph, child],
-        [container.publicResolvedGraph, child],
-        [saved, savedChild],
+        [container.publicResolvedGraph, vertexHandle(child)],
+        [saved, vertexHandle(savedChild)],
       ] as const) {
         expect(graph.getVertexRefById(id)).toBe(expectedRef);
-        expect(graph.getVertexById(id)).toBe(expectedRef);
+        expect(graph.getVertexRefById(id)).toBe(expectedRef);
         expect(graph.getVertexId(expectedRef)).toBe(id);
-        expect(graph.getIdOf(expectedRef)).toBe(id);
+        expect(graph.getVertexId(expectedRef)).toBe(id);
         expect(graph.getVertexId(expectedRef)).not.toBe(expectedRef.getRefId());
         expect(graph.getVertexRefById({})).toBeNull();
-        expect(graph.getVertexById({})).toBeNull();
+        expect(graph.getVertexRefById({})).toBeNull();
         const unknown = makeRef('unknown');
         expect(() => graph.getVertexId(unknown)).toThrow(
           'Unknown vertex reference',
         );
-        expect(() => graph.getIdOf(unknown)).toThrow(
+        expect(() => graph.getVertexId(unknown)).toThrow(
           'Unknown vertex reference',
         );
       }
@@ -85,12 +88,12 @@ for (const syntheticRoot of [false, true]) {
           container.publicResolvedGraph.getVertexRefById(hiddenId),
         ).toBeNull();
         expect(
-          container.publicResolvedGraph.getVertexById(hiddenId),
+          container.publicResolvedGraph.getVertexRefById(hiddenId),
         ).toBeNull();
         expect(() => container.publicResolvedGraph.getVertexId(root)).toThrow(
           'Unknown vertex reference',
         );
-        expect(() => container.publicResolvedGraph.getIdOf(root)).toThrow(
+        expect(() => container.publicResolvedGraph.getVertexId(root)).toThrow(
           'Unknown vertex reference',
         );
       }

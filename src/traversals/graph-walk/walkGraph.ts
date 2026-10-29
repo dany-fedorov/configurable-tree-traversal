@@ -5,5 +5,5 @@ import type { GraphWalkRunner } from './GraphWalkRunner';
 export function walkGraph<Data, Edge, ID>(
   options: GraphWalkOptions<Data, Edge, ID>,
 ): GraphWalkRunner<Data, Edge, ID> {
-  return new GraphWalk(options).makeRunner().run();
+  return new GraphWalk(options).createRunner().run();
 }

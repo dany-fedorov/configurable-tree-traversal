@@ -1,7 +1,7 @@
 import { makeEffectiveDepthFirstTraversalRunnerIterableConfig as depthConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
 import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig as breadthConfig } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
-import { DepthFirstTraversalOrder as DepthOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { BreadthFirstTraversalOrder as BreadthOrder } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
+import { DepthFirstPhase as DepthOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { BreadthFirstPhase as BreadthOrder } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
 
 test('effective depth-first options do not mutate future defaults', () => {
   const options = depthConfig();
@@ -33,11 +33,11 @@ test('caller option arrays are copied for each effective configuration', () => {
   const enable = [DepthOrder.PRE_ORDER];
   const disable = [DepthOrder.POST_ORDER];
   const options = depthConfig({
-    enableVisitorFunctionsFor: enable,
-    disableVisitorFunctionsFor: disable,
+    visitorPhases: { include: enable },
   });
   enable.length = 0;
+  const excluded = depthConfig({ visitorPhases: { exclude: disable } });
   disable.length = 0;
   expect(options.enableVisitorFunctionsFor).toEqual([DepthOrder.PRE_ORDER]);
-  expect(options.disableVisitorFunctionsFor).toEqual([DepthOrder.POST_ORDER]);
+  expect(excluded.disableVisitorFunctionsFor).toEqual([DepthOrder.POST_ORDER]);
 });

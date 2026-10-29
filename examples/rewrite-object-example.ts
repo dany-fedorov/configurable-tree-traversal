@@ -1,9 +1,9 @@
-import { rewriteObject } from '../src/tools/rewrite-object/rewriteObject';
-import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
-import type { TraversableObjectProp } from '../src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectProp';
-import type { MakeMutationCommandFunctionInput } from '../src/core/MakeMutationCommandFunctionFactory';
-import type { TraversableObjectPropKey } from '../src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversableObject } from '../src/traversable-tree-implementations/traversable-object-tree/lib/TraversableObject';
+import {
+  rewriteObject,
+  type ObjectPropertyPatch,
+  type ObjectTreeVertexTypes,
+  type TraversableObjectPropKey,
+} from '../src';
 
 const obj = {
   F: {
@@ -19,11 +19,15 @@ const obj = {
 };
 
 console.log('Input');
-console.log(jsonStringifySafe(obj, 2));
+console.log(JSON.stringify(obj, null, 2));
 console.log();
 
 const result = rewriteObject(obj, {
-  resolveVertexHook: (vertexHint) => {
+  convertRootValue(value, { complete }) {
+    if (!complete) throw new Error('Expected the initial traversal to finish');
+    return JSON.stringify(value, null, 2);
+  },
+  resolveChildHook: (vertexHint) => {
     if (vertexHint.value === null) {
       return { kind: 'omitted' };
     }
@@ -31,27 +35,22 @@ const result = rewriteObject(obj, {
   },
   rewrite: function rewrite({ key, value }, options) {
     const depth =
-      options.resolvedTree.getResolutionContextOf(options.vertexRef)?.depth ??
-      0;
+      options.resolvedTreeView.getResolutionContextOf(options.vertexRef)
+        ?.depth ?? 0;
     console.log(
       'depth:',
       depth,
       '; path:',
       options.getKeyPath({ noRoot: true }).join('.').padEnd(7),
       '; value:',
-      jsonStringifySafe(value),
+      JSON.stringify(value),
     );
-    const rewriteCmd: MakeMutationCommandFunctionInput<
-      Partial<
-        TraversableObjectProp<
-          TraversableObjectPropKey,
-          TraversableObject<TraversableObjectPropKey, unknown> | unknown
-        >
-      >
-    >['rewrite'] = {};
+    const rewriteCmd: ObjectPropertyPatch<
+      ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>
+    > = {};
     if (value === 2) {
       return {
-        delete: true,
+        kind: 'delete',
       };
     }
     if (value === 1) {
@@ -61,13 +60,13 @@ const result = rewriteObject(obj, {
       const newKey = [key, depth].join('__');
       rewriteCmd.key = newKey;
     }
-    return { rewrite: rewriteCmd };
+    return { kind: 'rewrite', patch: rewriteCmd };
   },
 });
 
 console.log();
 console.log('Output');
-console.log(jsonStringifySafe(result.getOutput(), 2));
+console.log(result.getOutput());
 
 /*
 Input

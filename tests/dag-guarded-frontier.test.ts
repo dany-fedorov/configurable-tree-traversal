@@ -1,32 +1,46 @@
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} exposes atomic readiness separately from committed events`, async () => {
     const runner = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
-          vertexId: 'a',
-          vertexContent: { $data: 'a', $childHints: ['b'] },
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'a',
+            vertexContent: { $data: 'a', $childHints: ['b'] },
+          },
         }),
-        makeVertex: (id) => ({
-          vertexId: id,
-          dependsOn: ['a'],
-          vertexContent: { $data: id, $childHints: [] },
+        resolveChild: (id) => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnWork: ['a'],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         }),
       },
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     await runner.prepare();
-    expect(runner.summary().deferredFrontier).toEqual([]);
-    await runner.run({ emitPhases: [] });
-    const first = runner.summary().deferredFrontier;
+    expect(runner.summary().awaitingSettlement).toEqual([]);
+    await runner.run({ emitEvents: [] });
+    const first = runner.summary().awaitingSettlement;
     expect(first).toEqual([{ vertexId: 'a', generation: expect.any(Symbol) }]);
     expect(runner.summary().completedWorkIds).toEqual([]);
+    expect(runner.summary().readyOrDeferredIds).toEqual(['a']);
+    expect(runner.summary().deferredWorkIds).toEqual(['a']);
+    expect(runner.summary().activeVisitorVertexIds).toEqual([]);
+    expect(runner.summary().counts).toMatchObject({
+      readyOrDeferred: 1,
+      deferredWork: 1,
+      activeVisitorVertices: 0,
+    });
     expect(
       runner.settle(
         first[0]!.vertexId,
@@ -34,25 +48,35 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         first[0]!.generation,
       ),
     ).toBe(true);
-    expect(runner.summary().deferredFrontier).toEqual([]);
+    expect(runner.summary().awaitingSettlement).toEqual([]);
+    // Successful settlement commits W immediately.
+    expect(runner.summary().completedWorkIds).toEqual(['a']);
+    expect(runner.summary().deferredWorkIds).toEqual([]);
+    expect(runner.summary().readyOrDeferredIds).toEqual(['b']);
+    expect(runner.summary().vertices.get('a')).toMatchObject({
+      vertexId: 'a',
+      work: 'completed',
+      subgraphComplete: false,
+    });
     const events = [];
-    for await (const event of runner.getIterable({
-      emitPhases: [Order.ON_READY, Order.ON_COMPLETE],
+    for await (const event of runner.iterateEvents({
+      emitEvents: ['workCompleted', 'subgraphCompleted'],
     }))
       events.push(event.kind);
-    // The first chain captured its suppressed event selection before settlement.
-    expect(events).toEqual([]);
+    // Settlement records W independently of the old selector; delivery selects it now.
+    expect(events).toEqual(['workCompleted']);
     expect(
-      runner.summary().deferredFrontier.map((work) => work.vertexId),
+      runner.summary().awaitingSettlement.map((work) => work.vertexId),
     ).toEqual(['b']);
-    const second = runner.summary().deferredFrontier[0]!;
+    const second = runner.summary().awaitingSettlement[0]!;
     runner.settle(
       second.vertexId,
       { kind: 'workCompleted' },
       second.generation,
     );
-    for await (const event of runner.getIterable()) events.push(event.kind);
+    for await (const event of runner.iterateEvents()) events.push(event.kind);
     expect(events).toEqual([
+      'workCompleted',
       'workCompleted',
       'subgraphCompleted',
       'subgraphCompleted',
@@ -72,22 +96,28 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         discovery,
         syntheticRoot: true,
         traversableGraph: {
-          makeRoot: () => ({
-            vertexContent: {
-              $data: 'hidden',
-              $childHints: ['0', '1', '2', '3'],
+          resolveRoot: () => ({
+            kind: 'found' as const,
+            vertex: {
+              vertexContent: {
+                $data: 'hidden',
+                $childHints: ['0', '1', '2', '3'],
+              },
             },
           }),
-          makeVertex: (index) => ({
-            vertexId: ids[Number(index)],
-            vertexContent: { $data: index, $childHints: [] },
+          resolveChild: (index) => ({
+            kind: 'found' as const,
+            vertex: {
+              vertexId: ids[Number(index)],
+              vertexContent: { $data: index, $childHints: [] },
+            },
           }),
         },
         workCompletion: 'externalSettlement',
-      }).makeRunner();
-      expect(runner.summary().deferredFrontier).toEqual([]);
-      await runner.run({ emitPhases: [], visitorPhases: { include: [] } });
-      const snapshot = runner.summary().deferredFrontier;
+      }).createRunner();
+      expect(runner.summary().awaitingSettlement).toEqual([]);
+      await runner.run({ emitEvents: [], visitorPhases: { include: [] } });
+      const snapshot = runner.summary().awaitingSettlement;
       expect(snapshot.map((work) => work.vertexId)).toEqual(ids);
       expect(new Set(snapshot.map((work) => work.generation)).size).toBe(4);
       expect(snapshot[0]!.vertexId).toBe(objectId);
@@ -96,7 +126,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         vertexId: 'tampered',
         generation: Symbol('tampered'),
       });
-      expect(runner.summary().deferredFrontier[0]).toEqual(original);
+      expect(runner.summary().awaitingSettlement[0]).toEqual(original);
       expect(
         runner.settle(
           original.vertexId,
@@ -105,16 +135,16 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         ),
       ).toBe(true);
       expect(
-        runner.summary().deferredFrontier.map((work) => work.vertexId),
+        runner.summary().awaitingSettlement.map((work) => work.vertexId),
       ).toEqual(ids.slice(1));
-      for (const work of runner.summary().deferredFrontier)
+      for (const work of runner.summary().awaitingSettlement)
         runner.settle(
           work.vertexId,
           { kind: 'workCompleted' },
           work.generation,
         );
       await runner.run();
-      expect(runner.summary().deferredFrontier).toEqual([]);
+      expect(runner.summary().awaitingSettlement).toEqual([]);
       expect(runner.getStopReason()).toBe('finished');
       expect(Object.isFrozen(objectId)).toBe(false);
     });
@@ -123,22 +153,38 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} rejected work is no longer in the unsettled frontier`, async () => {
     const runner = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
-          vertexId: 'a',
-          vertexContent: { $data: 'a', $childHints: [] },
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'a',
+            vertexContent: { $data: 'a', $childHints: [] },
+          },
         }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({
+          kind: 'omitted' as const,
+          satisfiesDependencies: true as const,
+        }),
       },
       workCompletion: 'externalSettlement',
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
-    const work = runner.summary().deferredFrontier[0]!;
+    const work = runner.summary().awaitingSettlement[0]!;
     runner.settle(
       work.vertexId,
       { kind: 'traversalFailed', error: null },
       work.generation,
     );
-    expect(runner.summary().deferredFrontier).toEqual([]);
+    expect(runner.summary().awaitingSettlement).toEqual([]);
+    // Accepted failure leaves W uncommitted but removes dispatch eligibility.
+    expect(runner.summary().deferredWorkIds).toEqual(['a']);
+    expect(runner.summary().readyOrDeferredIds).toEqual(['a']);
+    expect(runner.summary().activeVisitorVertexIds).toEqual([]);
+    expect(runner.summary().completedWorkIds).toEqual([]);
+    expect(runner.summary().vertices.get('a')).toMatchObject({
+      vertexId: 'a',
+      work: 'deferred',
+      subgraphComplete: false,
+    });
     await expect(async () => runner.prepare()).rejects.toBe(null);
   });
 }
@@ -156,31 +202,37 @@ test('async frontier excludes running and queued work until chains defer', async
     concurrency: 1,
     discovery: 'eager',
     traversableGraph: {
-      makeRoot: () => ({
-        vertexId: 'a',
-        vertexContent: { $data: 'a', $childHints: ['b'] },
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'a',
+          vertexContent: { $data: 'a', $childHints: ['b'] },
+        },
       }),
-      makeVertex: () => ({
-        vertexId: 'b',
-        vertexContent: { $data: 'b', $childHints: [] },
+      resolveChild: () => ({
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'b',
+          vertexContent: { $data: 'b', $childHints: [] },
+        },
       }),
     },
     workCompletion: 'externalSettlement',
   })
-    .addVisitorFor(Order.ON_READY, async () => {
+    .addVisitorFor(Order.ON_WORK_READY, async () => {
       entered();
       await gate;
     })
-    .makeRunner();
+    .createRunner();
   const running = runner.run();
   await started;
-  expect(runner.summary().inFlightIds).toEqual(['a']);
-  expect(runner.summary().readyIds).toEqual(['b']);
-  expect(runner.summary().deferredFrontier).toEqual([]);
+  expect(runner.summary().activeVisitorVertexIds).toEqual(['a']);
+  expect(runner.summary().readyOrDeferredIds).toEqual(['b']);
+  expect(runner.summary().awaitingSettlement).toEqual([]);
   release();
   await running;
   expect(
-    runner.summary().deferredFrontier.map((work) => work.vertexId),
+    runner.summary().awaitingSettlement.map((work) => work.vertexId),
   ).toEqual(['a', 'b']);
 });
 
@@ -188,40 +240,45 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} explicit deferral emits committed events and excludes deletion`, async () => {
     const runner = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({
-          vertexId: 'root',
-          vertexContent: {
-            $data: 'root',
-            $childHints: ['deleted', 'deferred'],
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            vertexContent: {
+              $data: 'root',
+              $childHints: ['deleted', 'deferred'],
+            },
           },
         }),
-        makeVertex: (id) => ({
-          vertexId: id,
-          vertexContent: { $data: id, $childHints: [] },
+        resolveChild: (id) => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            vertexContent: { $data: id, $childHints: [] },
+          },
         }),
       },
     })
-      .addVisitorFor(Order.ON_READY, (vertex) => {
+      .addVisitorFor(Order.ON_WORK_READY, (vertex) => {
         if (vertex.getData() === 'deleted')
-          return { commands: [{ commandName: Command.DELETE_VERTEX }] };
+          return {
+            commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }],
+          };
         if (vertex.getData() === 'deferred')
-          return { commands: [{ commandName: Command.DEFER_READY }] };
+          return { commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] };
         return undefined;
       })
-      .makeRunner();
+      .createRunner();
     const events = [];
-    for await (const event of runner.getIterable())
+    for await (const event of runner.iterateEvents())
       events.push([event.vertex.getData(), event.kind]);
     expect(events).toEqual([['root', 'workCompleted']]);
     expect(
-      runner.summary().deferredFrontier.map((work) => work.vertexId),
+      runner.summary().awaitingSettlement.map((work) => work.vertexId),
     ).toEqual(['deferred']);
-    const work = runner.summary().deferredFrontier[0]!;
+    const work = runner.summary().awaitingSettlement[0]!;
     runner.settle(work.vertexId, { kind: 'workCompleted' }, work.generation);
-    for await (const event of runner.getIterable()) {
-      expect(event.kind).toBe(
-        event.order === Order.ON_READY ? 'workCompleted' : 'subgraphCompleted',
-      );
+    for await (const event of runner.iterateEvents()) {
       events.push([event.vertex.getData(), event.kind]);
     }
     expect(events).toEqual([
@@ -230,6 +287,6 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ['deferred', 'subgraphCompleted'],
       ['root', 'subgraphCompleted'],
     ]);
-    expect(runner.summary().deferredFrontier).toEqual([]);
+    expect(runner.summary().awaitingSettlement).toEqual([]);
   });
 }

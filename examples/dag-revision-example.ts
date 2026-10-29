@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
 import {
   defineDag,
   prepareDagDefinition,
   reviseDag,
   diffDagDefinitions,
 } from '../src';
+import assert from 'node:assert/strict';
 
 async function main() {
   const initial = prepareDagDefinition(
@@ -14,20 +14,20 @@ async function main() {
           vertexId: 'build',
           data: 'build',
           slots: [],
-          dependsOn: [],
-          dependsOnComplete: [],
+          dependsOnWork: [],
+          dependsOnSubgraphCompletion: [],
         },
         {
           vertexId: 'review',
           data: 'review v1',
           slots: [],
-          dependsOn: ['build'],
-          dependsOnComplete: [],
+          dependsOnWork: ['build'],
+          dependsOnSubgraphCompletion: [],
         },
       ],
       omittedIds: [],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'build' },
           { kind: 'vertex', vertexId: 'review' },
@@ -36,13 +36,13 @@ async function main() {
     }),
   );
   if (initial.kind !== 'valid') throw new Error('Invalid initial definition');
-  const old = initial.dag.createSession();
+  const old = initial.dag.createWorkSession();
   const build = old.advance();
   if (build.kind !== 'awaitingSettlement') throw new Error('Expected build');
-  old.complete(build.frontier[0]!);
+  old.completeWork(build.workTickets[0]!);
   const review = old.advance();
   if (review.kind !== 'awaitingSettlement') throw new Error('Expected review');
-  const oldTicket = review.frontier[0]!;
+  const oldTicket = review.workTickets[0]!;
   const revised = reviseDag(initial.dag, [
     {
       kind: 'replaceVertex',
@@ -58,13 +58,13 @@ async function main() {
     { vertexId: 'review', aspects: ['data'] },
   ]);
   for (const fresh of [
-    revised.dag.createSession(),
-    await revised.dag.createAsyncSession(),
+    revised.dag.createWorkSession(),
+    await revised.dag.createAsyncWorkSession(),
   ]) {
     assert.deepEqual(fresh.summary().completedWorkIds, []);
-    assert.throws(() => fresh.complete(oldTicket), TypeError);
+    assert.throws(() => fresh.completeWork(oldTicket), TypeError);
   }
-  assert.equal(old.complete(oldTicket).kind, 'accepted');
+  assert.equal(old.completeWork(oldTicket).kind, 'accepted');
   assert.equal(old.advance().kind, 'finished');
   // The host independently accepts build's unchanged artifact for the new revision.
   // It deliberately does not carry the old review artifact forward.
@@ -73,7 +73,7 @@ async function main() {
     ...revised.dag.vertices.map((vertex) => vertex.vertexId),
     ...revised.dag.definition.omittedIds,
   ]);
-  const next = await revised.dag.createAsyncSession({
+  const next = await revised.dag.createAsyncWorkSession({
     completedWork: new Set(
       acceptedForRevision.filter((id) => knownIds.has(id)),
     ),
@@ -82,10 +82,10 @@ async function main() {
   if (nextReview.kind !== 'awaitingSettlement')
     throw new Error('Expected revised review');
   assert.deepEqual(
-    nextReview.frontier.map((ticket) => ticket.vertexId),
+    nextReview.workTickets.map((ticket) => ticket.vertexId),
     ['review'],
   );
-  next.complete(nextReview.frontier[0]!);
+  next.completeWork(nextReview.workTickets[0]!);
   assert.equal((await next.advance()).kind, 'finished');
   console.log(
     'Validated DAG revisions: isolated tickets and host-selected facts passed',

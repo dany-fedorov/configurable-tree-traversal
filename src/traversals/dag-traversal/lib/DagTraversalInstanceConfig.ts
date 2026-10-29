@@ -1,58 +1,59 @@
-import type { VisitorInputs } from '@core/TraversalVisitor';
-import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import type { TraversableGraph } from '@core/TraversableGraph';
-import type { TraversableTree } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import {
+  assertTraversalFields,
+  definedOptions,
+} from '@core/assertPublicOptions';
+import type { ChildHintSorter } from '@core/ChildHintSorter';
 import type { VisitorRecord } from '@core/graph/types';
+import type { DagDiscoverySource } from '@core/TraversableGraph';
+import type { TreeSource } from '@core/TraversableTree';
+import type { VisitorInputs } from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import { deepFreeze } from '@utils/deepFreeze';
-import { captureDagSourcePatch, captureDagConfigPatch } from './dagSourcePatch';
+import { captureDagConfigPatch, captureDagSourcePatch } from './dagSourcePatch';
+import { DagVisitorPhase } from './DagTraversalOrder';
 import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInternalObjects';
-import { DagTraversalOrder } from './DagTraversalOrder';
 import type { DagVisitor } from './DagTraversalVisitor';
 
-export type DagDiscoveryOptions = {
-  workCompletion?: 'visitorReturn' | 'externalSettlement';
-  discovery?: 'lazy' | 'eager';
-  rootDependencies?: 'honor' | 'ignore';
-  implicitParentDependency?: boolean;
-  syntheticRoot?: boolean;
+export type DagSchedulingOptions = {
+  workCompletion?: 'afterWorkReadyChain' | 'externalSettlement' | undefined;
+  discovery?: 'lazy' | 'eager' | undefined;
+  rootWorkDependencies?: 'honor' | 'ignore' | undefined;
+  omittedWorkDependencies?: 'none' | 'discoveryParentWork' | undefined;
+  syntheticRoot?: boolean | undefined;
 };
 
 export type DagSource<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > =
   | {
-      traversableGraph: TraversableGraph<T, R, ID>;
+      traversableGraph: DagDiscoverySource<T, R, ID>;
       traversableTree?: undefined;
     }
   | {
-      traversableTree: unknown extends ID ? TraversableTree<T, R> : never;
+      traversableTree: unknown extends ID ? TreeSource<T, R> : never;
       traversableGraph?: undefined;
     };
 
 export type DagTraversalVisitors<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = {
-  [K in DagTraversalOrder]: VisitorRecord<DagVisitor<T, R, K, ID>>[];
+  [K in DagVisitorPhase]: VisitorRecord<DagVisitor<T, R, K, ID>>[];
 };
 
-export type DagSortChildrenHintsFn<T extends TreeTypeParameters> = (
-  childrenHints: T['VertexHint'][],
-) => T['VertexHint'][];
-
 type DagTraversalOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
-> = DagDiscoveryOptions & {
-  completedWork?: ReadonlySet<ID>;
-  sortChildrenHints: DagSortChildrenHintsFn<T> | null;
+> = DagSchedulingOptions & {
+  completedWork?: ReadonlySet<ID> | undefined;
+  sortChildrenHints: ChildHintSorter<T> | null;
   visitors: DagTraversalVisitors<T, R, ID>;
-  saveNotMutatedResolvedGraph: boolean;
+  retainOriginalGraphStructure: boolean;
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer:
       | DagTraversalRunnerInternalObjects<T, R, ID>['resolvedGraphsContainer']
@@ -61,62 +62,64 @@ type DagTraversalOptions<
   };
 };
 
-export type DagTraversalInstanceConfig<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export type DagResolvedOptions<
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = DagSource<T, R, ID> & DagTraversalOptions<T, R, ID>;
 
 type DagTraversalOptionsInput<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
-> = Partial<
-  Omit<
-    DagTraversalOptions<T, R, ID>,
-    'visitors' | 'traversalRunnerInternalObjects'
-  >
-> & {
-  visitors?: VisitorInputs<DagTraversalVisitors<T, R, ID>>;
-  traversalRunnerInternalObjects?: Partial<
-    DagTraversalOptions<T, R, ID>['traversalRunnerInternalObjects']
-  >;
+> = DagSchedulingOptions & {
+  completedWork?: ReadonlySet<ID> | undefined;
+  sortChildrenHints?: ChildHintSorter<T> | null | undefined;
+  visitors?: VisitorInputs<DagTraversalVisitors<T, R, ID>> | undefined;
+  retainOriginalGraphStructure?: boolean | undefined;
 };
 
-export type DagTraversalInstanceConfigInput<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export type DagOptions<
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
-> = DagSource<T, R, ID> & DagTraversalOptionsInput<T, R, ID>;
+> = DagSource<T, R, ID> &
+  DagTraversalOptionsInput<T, R, ID> &
+  (
+    | { traversableGraph: DagDiscoverySource<T, R, ID> }
+    | { rootWorkDependencies?: never; omittedWorkDependencies?: never }
+  );
 
-export type DagTraversalConfigureInput<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export type DagOptionsPatch<
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = DagTraversalOptionsInput<T, R, ID> &
   (
     | {
-        traversableGraph?: TraversableGraph<T, R, ID> | undefined;
+        traversableGraph?: DagDiscoverySource<T, R, ID> | undefined;
         traversableTree?: undefined;
       }
     | {
+        rootWorkDependencies?: never;
+        omittedWorkDependencies?: never;
         traversableTree?:
-          | (unknown extends ID ? TraversableTree<T, R> : never)
+          | (unknown extends ID ? TreeSource<T, R> : never)
           | undefined;
         traversableGraph?: undefined;
       }
   );
 
 export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
-  TreeTypeParameters,
-  TreeTypeParameters
+  VertexTypes,
+  VertexTypes
 > = deepFreeze({
   sortChildrenHints: null,
   visitors: {
-    [DagTraversalOrder.ON_READY]: [],
-    [DagTraversalOrder.ON_COMPLETE]: [],
+    [DagVisitorPhase.ON_WORK_READY]: [],
+    [DagVisitorPhase.ON_SUBGRAPH_READY]: [],
   },
-  saveNotMutatedResolvedGraph: false,
+  retainOriginalGraphStructure: false,
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer: null,
     state: null,
@@ -124,44 +127,84 @@ export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
 });
 
 export function mergeDagTraversalInstanceConfigs<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID = unknown,
 >(
-  base: DagTraversalInstanceConfig<T, R, ID>,
-  input: DagTraversalConfigureInput<T, R, ID>,
+  base: DagResolvedOptions<T, R, ID>,
+  input: DagOptionsPatch<T, R, ID>,
   sources = captureDagSourcePatch(input),
-): DagTraversalInstanceConfig<T, R, ID> {
+): DagResolvedOptions<T, R, ID> {
   const capturedInput = captureDagConfigPatch(input, sources);
+  assertTraversalFields(capturedInput, Object.values(DagVisitorPhase));
   assertDagWorkCompletion(capturedInput.workCompletion);
-  const visitors = { ...base.visitors, ...(input.visitors ?? {}) };
+  assertDagDependencyPolicies(
+    capturedInput,
+    sources.traversableGraph !== undefined ||
+      base.traversableGraph !== undefined,
+    input,
+  );
+  const visitors = {
+    ...base.visitors,
+    ...definedOptions(capturedInput.visitors ?? {}),
+  };
   return {
     ...base,
-    ...capturedInput,
+    ...definedOptions(capturedInput),
     visitors: {
-      [DagTraversalOrder.ON_READY]: normalizeVisitorDefinitions(
-        visitors[DagTraversalOrder.ON_READY],
+      [DagVisitorPhase.ON_WORK_READY]: normalizeVisitorDefinitions(
+        visitors[DagVisitorPhase.ON_WORK_READY],
       ),
-      [DagTraversalOrder.ON_COMPLETE]: normalizeVisitorDefinitions(
-        visitors[DagTraversalOrder.ON_COMPLETE],
+      [DagVisitorPhase.ON_SUBGRAPH_READY]: normalizeVisitorDefinitions(
+        visitors[DagVisitorPhase.ON_SUBGRAPH_READY],
       ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
-      ...(input.traversalRunnerInternalObjects ?? {}),
     },
-  } as DagTraversalInstanceConfig<T, R, ID>;
+  } as DagResolvedOptions<T, R, ID>;
 }
 
 /** Validate configuration before changing traversal ownership or executing callbacks. */
 export function assertDagWorkCompletion(policy: unknown): void {
   if (
     policy !== undefined &&
-    policy !== 'visitorReturn' &&
+    policy !== 'afterWorkReadyChain' &&
     policy !== 'externalSettlement'
   ) {
     throw new TypeError(
-      'workCompletion must be visitorReturn or externalSettlement',
+      'workCompletion must be afterWorkReadyChain or externalSettlement',
+    );
+  }
+}
+
+/** Explicit dependency policies apply only to graph discovery, never tree ordering. */
+export function assertDagDependencyPolicies(
+  input: DagSchedulingOptions,
+  graphSource: boolean,
+  originalInput: object,
+): void {
+  if (
+    !graphSource &&
+    ('rootWorkDependencies' in originalInput ||
+      'omittedWorkDependencies' in originalInput)
+  ) {
+    throw new TypeError('Dependency policies require a graph discovery source');
+  }
+  if (
+    input.rootWorkDependencies !== undefined &&
+    input.rootWorkDependencies !== 'honor' &&
+    input.rootWorkDependencies !== 'ignore'
+  ) {
+    throw new TypeError('rootWorkDependencies must be honor or ignore');
+  }
+  if (
+    input.omittedWorkDependencies !== undefined &&
+    input.omittedWorkDependencies !== 'none' &&
+    input.omittedWorkDependencies !== 'discoveryParentWork'
+  ) {
+    throw new TypeError(
+      'omittedWorkDependencies must be none or discoveryParentWork',
     );
   }
 }

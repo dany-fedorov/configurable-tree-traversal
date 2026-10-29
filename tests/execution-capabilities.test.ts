@@ -1,16 +1,18 @@
+import * as publicApi from '../src';
+import * as publicCore from '../src/core';
 import {
-  AsyncBreadthFirstTraversal,
+  AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
-  BreadthFirstTraversalOrder as BFS,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
+  BreadthFirstPhase as BFS,
   DagTraversal,
-  DagTraversalOrder as DAG,
-  DepthFirstTraversal,
-  DepthFirstTraversalOrder as DFS,
+  DagVisitorPhase as DAG,
+  DepthFirstTreeTraversal,
+  DepthFirstPhase as DFS,
   TraversalRunnerStatus as Status,
   type TraversalExecutionState,
-  type TreeTypeParameters,
+  type VertexTypes,
 } from '../src';
 import {
   deferred,
@@ -18,17 +20,17 @@ import {
   graphAdapter,
 } from './helpers/graph-fixtures';
 
-type Tree = TreeTypeParameters<string, string>;
+type Tree = VertexTypes<string, string>;
 function source(calls: string[]) {
   return {
-    makeRoot: () => {
+    resolveRoot: () => {
       calls.push('root');
       return {
         kind: 'found' as const,
         vertex: { vertexContent: { $data: 'root', $childHints: ['child'] } },
       };
     },
-    makeVertex: (hint: string) => {
+    resolveChild: (hint: string) => {
       calls.push(hint);
       return {
         kind: 'found' as const,
@@ -41,60 +43,60 @@ const syncFamilies = [
   {
     name: 'DFS',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
-      new DepthFirstTraversal<Tree>({ traversableTree: tree })
+      new DepthFirstTreeTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(DFS.PRE_ORDER, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'BFS',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
-      new BreadthFirstTraversal<Tree>({ traversableTree: tree })
+      new BreadthFirstTreeTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(BFS.LEVEL_ORDER, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'DAG tree',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
       new DagTraversal<Tree>({ traversableTree: tree })
-        .addVisitorFor(DAG.ON_READY, visit)
-        .makeRunner(),
+        .addVisitorFor(DAG.ON_WORK_READY, visit)
+        .createRunner(),
   },
   {
     name: 'DAG graph',
     make: (tree: ReturnType<typeof source>, visit: () => void) =>
       new DagTraversal<Tree>({ traversableGraph: tree })
-        .addVisitorFor(DAG.ON_READY, visit)
-        .makeRunner(),
+        .addVisitorFor(DAG.ON_WORK_READY, visit)
+        .createRunner(),
   },
 ];
 const asyncFamilies = [
   {
     name: 'DFS',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
-      new AsyncDepthFirstTraversal<Tree>({ traversableTree: tree })
+      new AsyncDepthFirstTreeTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(DFS.PRE_ORDER, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'BFS',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
-      new AsyncBreadthFirstTraversal<Tree>({ traversableTree: tree })
+      new AsyncBreadthFirstTreeTraversal<Tree>({ traversableTree: tree })
         .addVisitorFor(BFS.LEVEL_ORDER, visit)
-        .makeRunner(),
+        .createRunner(),
   },
   {
     name: 'DAG tree',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
       new AsyncDagTraversal<Tree>({ traversableTree: tree })
-        .addVisitorFor(DAG.ON_READY, visit)
-        .makeRunner(),
+        .addVisitorFor(DAG.ON_WORK_READY, visit)
+        .createRunner(),
   },
   {
     name: 'DAG graph',
     make: (tree: ReturnType<typeof source>, visit: () => Promise<void>) =>
       new AsyncDagTraversal<Tree>({ traversableGraph: tree })
-        .addVisitorFor(DAG.ON_READY, visit)
-        .makeRunner(),
+        .addVisitorFor(DAG.ON_WORK_READY, visit)
+        .createRunner(),
   },
 ];
 
@@ -115,7 +117,7 @@ describe.each(syncFamilies)('$name sync execution', ({ make }) => {
     expect(runner.run()).toBe(runner);
     expect(state.isHalted()).toBe(true);
     expect(state.getStopReason()).toBe('paused');
-    expect(state.inspect().haltRequested).toBe(true);
+    expect(state.inspect().pauseRequested).toBe(true);
     expect(state.requestPause()).toBe(false);
     expect(sources).toEqual(['root']);
     runner.run();
@@ -130,7 +132,7 @@ describe.each(syncFamilies)('$name sync execution', ({ make }) => {
     const runner = make(source([]), () => {
       throw error;
     });
-    const owner = runner.getIterable();
+    const owner = runner.iterateEvents();
     expect(() => owner.next()).toThrow();
     expect(runner.getStatus()).toBe(Status.FAILED);
     expect(runner.requestPause()).toBe(false);
@@ -144,10 +146,10 @@ describe.each(syncFamilies)('$name sync execution', ({ make }) => {
 
   test('a suspended iterator retains ownership until the pause boundary is driven', () => {
     const runner = make(source([]), () => undefined);
-    const owner = runner.getIterable();
+    const owner = runner.iterateEvents();
     expect(owner.next().done).toBe(false);
     expect(runner.requestPause()).toBe(true);
-    expect(() => runner.getIterable().next()).toThrow(/active iterator/);
+    expect(() => runner.iterateEvents().next()).toThrow(/active iterator/);
     expect(owner.next().done).toBe(true);
     expect(runner.isHalted()).toBe(true);
     runner.run();
@@ -197,10 +199,10 @@ describe.each(asyncFamilies)('$name async execution', ({ make }) => {
       if (++visits === 1) expect(runner.requestPause()).toBe(true);
     });
     const events: string[] = [];
-    for await (const event of runner.getIterable())
+    for await (const event of runner.iterateEvents())
       events.push(event.vertex.getData());
     expect(runner.isHalted()).toBe(true);
-    for await (const event of runner.getIterable())
+    for await (const event of runner.iterateEvents())
       events.push(event.vertex.getData());
     // Each family may emit additional completion phases; work events are never lost.
     expect(events).toContain('root');
@@ -242,7 +244,7 @@ test('async pause drains admitted chains and retains undelivered events for the 
       B: { children: [], dependencies: ['root'] },
     }),
   });
-  traversal.addVisitorFor(DAG.ON_READY, async (vertex) => {
+  traversal.addVisitorFor(DAG.ON_WORK_READY, async (vertex) => {
     const id = vertex.getData();
     visits.push(`${id}:first`);
     if (id === 'A') {
@@ -254,16 +256,18 @@ test('async pause drains admitted chains and retains undelivered events for the 
       await finishB.promise;
     }
   });
-  traversal.addVisitorFor(DAG.ON_READY, (vertex) => {
+  traversal.addVisitorFor(DAG.ON_WORK_READY, (vertex) => {
     visits.push(`${vertex.getData()}:second`);
   });
-  const runner = traversal.makeRunner();
-  const owner = runner.getIterable({ emitPhases: [DAG.ON_READY] });
+  const runner = traversal.createRunner();
+  const owner = runner.iterateEvents({ emitEvents: ['workCompleted'] });
   expect((await owner.next()).value?.vertex.getData()).toBe('root');
   const pending = owner.next();
   await Promise.all([startedA.promise, startedB.promise]);
   expect(runner.requestPause()).toBe(true);
-  await expect(runner.getIterable().next()).rejects.toThrow(/active iterator/);
+  await expect(runner.iterateEvents().next()).rejects.toThrow(
+    /active iterator/,
+  );
   finishA.resolve();
   expect((await pending).value?.vertex.getData()).toBe('A');
   expect(runner.getStatus()).toBe(Status.RUNNING);
@@ -280,24 +284,23 @@ test('async pause drains admitted chains and retains undelivered events for the 
     'B:second',
   ]);
   expect((await owner.next()).done).toBe(true);
-  // Changing filters must not discard an event already committed while draining.
-  const resumed = runner.getIterable({ emitPhases: [] });
-  expect((await resumed.next()).value?.vertex.getData()).toBe('B');
+  // Buffered observations use the resumed selector without replaying committed work.
+  const resumed = runner.iterateEvents({ emitEvents: [] });
   expect((await resumed.next()).done).toBe(true);
   expect(visits).toHaveLength(6);
   expect(runner.getStatus()).toBe(Status.FINISHED);
 });
 
 const queuedSourceFamilies = [
-  { name: 'DFS', Traversal: AsyncDepthFirstTraversal<Tree> },
-  { name: 'BFS', Traversal: AsyncBreadthFirstTraversal<Tree> },
-  { name: 'DAG tree', Traversal: AsyncDagTraversal<Tree> },
-  { name: 'DAG graph', Traversal: AsyncDagTraversal<Tree> },
+  { name: 'DFS', TreeTraversal: AsyncDepthFirstTreeTraversal<Tree> },
+  { name: 'BFS', TreeTraversal: AsyncBreadthFirstTreeTraversal<Tree> },
+  { name: 'DAG tree', TreeTraversal: AsyncDagTraversal<Tree> },
+  { name: 'DAG graph', TreeTraversal: AsyncDagTraversal<Tree> },
 ];
 
 test.each(queuedSourceFamilies)(
   '$name stops queued source admission when a callback pauses within a scheduler batch',
-  async ({ name, Traversal }) => {
+  async ({ name, TreeTraversal }) => {
     const found = (data: string, hints: string[] = []) => ({
       kind: 'found' as const,
       vertex: { vertexContent: { $data: data, $childHints: hints } },
@@ -307,8 +310,8 @@ test.each(queuedSourceFamilies)(
     const sources: string[] = [];
     const requests: boolean[] = [];
     const tree = {
-      makeRoot: () => found('root', ['A', 'B', 'C', 'D', 'E']),
-      makeVertex: (hint: string) => {
+      resolveRoot: () => found('root', ['A', 'B', 'C', 'D', 'E']),
+      resolveChild: (hint: string) => {
         sources.push(hint);
         if (hint === 'A') return finishA.promise;
         if (hint === 'B') return finishB.promise;
@@ -321,11 +324,11 @@ test.each(queuedSourceFamilies)(
         ? new AsyncDagTraversal<Tree>({
             concurrency: 2,
             traversableGraph: tree,
-          }).makeRunner()
-        : new Traversal({
+          }).createRunner()
+        : new TreeTraversal({
             concurrency: 2,
             traversableTree: tree,
-          }).makeRunner();
+          }).createRunner();
     const running = runner.run();
     await eventLoopTurn();
     expect(sources).toEqual(['A', 'B']);
@@ -343,3 +346,15 @@ test.each(queuedSourceFamilies)(
     expect(runner.getStatus()).toBe(Status.FINISHED);
   },
 );
+
+test('public namespaces omit retired empty runtime bases', () => {
+  for (const name of [
+    'TreeTraversal',
+    'TreeTraversalRunner',
+    'TreeTraversalIterable',
+    'AbstractTreeSource',
+  ]) {
+    expect(publicApi).not.toHaveProperty(name);
+    expect(publicCore).not.toHaveProperty(name);
+  }
+});

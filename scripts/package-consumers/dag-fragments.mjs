@@ -22,20 +22,20 @@ const definition = cjs.defineDag({
       vertexId: 'start',
       data: { task: 'build' },
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     },
     {
       vertexId: 'finish',
       data: { task: 'review' },
       slots: [],
-      dependsOn: ['start'],
-      dependsOnComplete: [],
+      dependsOnWork: ['start'],
+      dependsOnSubgraphCompletion: [],
     },
   ],
   omittedIds: [],
   entry: {
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'vertex', vertexId: 'start' },
       { kind: 'vertex', vertexId: 'finish' },
@@ -56,13 +56,16 @@ const result = cjsDag.composeDag([first, second], {
   dependencies: [
     {
       dependent: second.ports.start,
-      prerequisite: { vertexId: first.ports.finish, milestone: 'completion' },
+      prerequisite: {
+        vertexId: first.ports.finish,
+        milestone: 'subgraphCompletion',
+      },
     },
   ],
 });
 assert.equal(result.kind, 'valid');
 assert.equal(
-  result.dag.definition.vertices[2].dependsOnComplete[0],
+  result.dag.definition.vertices[2].dependsOnSubgraphCompletion[0],
   first.ports.finish,
 );
 for (const runner of [
@@ -70,14 +73,14 @@ for (const runner of [
   await result.dag.createAsyncRunner(),
 ]) {
   const seen = [];
-  for await (const event of runner.getIterable())
+  for await (const event of runner.iterateEvents())
     seen.push([event.vertexId, event.kind]);
   assert.equal(seen[0][0], first.ports.start);
   assert.equal(seen[3][0], first.ports.finish);
   assert.equal(seen[3][1], 'subgraphCompleted');
   assert.equal(seen[4][0], second.ports.start);
   assert.equal(seen[7][0], second.ports.finish);
-  assert.equal(runner.summary().counts.subtreeCompleted, 4);
+  assert.equal(runner.summary().counts.subgraphCompleted, 4);
 }
 assert.throws(() => esm.composeDag([first, first]), TypeError);
 assert.equal(
@@ -87,12 +90,15 @@ assert.equal(
         dependent: first.ports.start,
         prerequisite: {
           vertexId: second.ports.finish,
-          milestone: 'completion',
+          milestone: 'subgraphCompletion',
         },
       },
       {
         dependent: second.ports.start,
-        prerequisite: { vertexId: first.ports.finish, milestone: 'completion' },
+        prerequisite: {
+          vertexId: first.ports.finish,
+          milestone: 'subgraphCompletion',
+        },
       },
     ],
   }).kind,
@@ -109,8 +115,8 @@ assert.throws(
             vertexId: objectId,
             data: null,
             slots: [],
-            dependsOn: [undefined],
-            dependsOnComplete: [],
+            dependsOnWork: [undefined],
+            dependsOnSubgraphCompletion: [],
           },
         ],
         omittedIds: [],
@@ -125,8 +131,8 @@ assert.throws(
     const edge = error.issues[0].diagnostics.dependencyEdges.find(
       (edge) => edge.reason === 'workDependency',
     );
-    assert.equal(edge.from.vertexId, objectId);
-    assert.equal(edge.to.vertexId, undefined);
+    assert.equal(edge.waiter.vertexId, objectId);
+    assert.equal(edge.prerequisite.vertexId, undefined);
     return true;
   },
 );

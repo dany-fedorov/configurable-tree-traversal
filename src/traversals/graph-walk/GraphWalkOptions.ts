@@ -1,30 +1,35 @@
+type UndefinedPatch<T> = { [K in keyof T]?: T[K] | undefined };
 import type { MaybePromise } from '@core/graph/types';
+import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
 import type { VisitorPhaseInput } from '@core/TraversalVisitor';
-import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
+import type { GraphWalkEdge, GraphWalkPathEvent } from './GraphWalkEvent';
 import type { GraphWalkPhase } from './GraphWalkPhase';
 import type {
-  GraphWalkSource,
   AsyncGraphWalkSource,
+  GraphWalkSource,
   GraphWalkVertex,
 } from './GraphWalkSource';
-import type { GraphWalkEdge, GraphWalkPathEvent } from './GraphWalkEvent';
 import type {
-  GraphWalkVisitor,
   AsyncGraphWalkVisitor,
+  GraphWalkVisitor,
 } from './GraphWalkVisitor';
 
 export type GraphWalkStrategy = 'breadthFirst' | 'depthFirst';
 export type GraphWalkRevisitPolicy = 'once' | 'simplePaths' | 'walks';
 export type GraphWalkLimits = {
+  /** Maximum route depth; gates expansion after the expansion predicate. */
   maxDepth?: number;
-  maxOccurrences?: number;
-  maxSteps?: number;
+  /** Distinct roots and eligible followed links, including returning/omitted targets. */
+  maxAdmittedTargets?: number;
+  /** Root/link read attempts, including exhaustion, filtering, and cached replay. */
+  maxCandidateReadAttempts?: number;
 };
 export type GraphWalkRevisitOptions =
   | { revisit?: 'once'; limits?: GraphWalkLimits }
   | {
       revisit: 'simplePaths' | 'walks';
-      limits: GraphWalkLimits & ({ maxDepth: number } | { maxSteps: number });
+      limits: GraphWalkLimits &
+        ({ maxDepth: number } | { maxCandidateReadAttempts: number });
     };
 
 export type GraphWalkRouteContext<Data, Edge, ID> =
@@ -51,19 +56,19 @@ export type GraphWalkFollowContext<Data, Edge, ID> = GraphWalkRouteContext<
     source: GraphWalkVertex<Data, ID>;
     depth: number;
   }>;
-export type GraphWalkExpandVertex<Data, Edge, ID> = (
+export type GraphWalkExpansionPredicate<Data, Edge, ID> = (
   vertex: GraphWalkVertex<Data, ID>,
   context: GraphWalkExpandContext<Data, Edge, ID>,
 ) => boolean;
-export type AsyncGraphWalkExpandVertex<Data, Edge, ID> = (
+export type AsyncGraphWalkExpansionPredicate<Data, Edge, ID> = (
   vertex: GraphWalkVertex<Data, ID>,
   context: GraphWalkExpandContext<Data, Edge, ID>,
 ) => MaybePromise<boolean>;
-export type GraphWalkFollowEdge<Data, Edge, ID> = (
+export type GraphWalkEdgePredicate<Data, Edge, ID> = (
   edge: GraphWalkEdge<Edge, ID>,
   context: GraphWalkFollowContext<Data, Edge, ID>,
 ) => boolean;
-export type AsyncGraphWalkFollowEdge<Data, Edge, ID> = (
+export type AsyncGraphWalkEdgePredicate<Data, Edge, ID> = (
   edge: GraphWalkEdge<Edge, ID>,
   context: GraphWalkFollowContext<Data, Edge, ID>,
 ) => MaybePromise<boolean>;
@@ -72,28 +77,37 @@ type GraphWalkFields<Data, Edge, ID> = {
   source: GraphWalkSource<Data, Edge, ID>;
   strategy?: GraphWalkStrategy;
   /** Null clears the predicate; omitted/undefined patches retain it. */
-  followEdge?: GraphWalkFollowEdge<Data, Edge, ID> | null | undefined;
+  shouldFollowEdge?: GraphWalkEdgePredicate<Data, Edge, ID> | null | undefined;
   /** Null clears the predicate; omitted/undefined patches retain it. */
-  expandVertex?: GraphWalkExpandVertex<Data, Edge, ID> | null | undefined;
+  shouldExpandVertex?:
+    | GraphWalkExpansionPredicate<Data, Edge, ID>
+    | null
+    | undefined;
   visitors?: {
-    [Phase in GraphWalkPhase]?: VisitorPhaseInput<
-      GraphWalkVisitor<Data, Edge, Phase, ID>
-    >;
+    [Phase in GraphWalkPhase]?:
+      | VisitorPhaseInput<GraphWalkVisitor<Data, Edge, Phase, ID>>
+      | undefined;
   };
-} & TraversalIterableConfigInput<GraphWalkPhase>;
+} & TraversalExecutionOptions<GraphWalkPhase>;
 type AsyncGraphWalkFields<Data, Edge, ID> = {
   source: AsyncGraphWalkSource<Data, Edge, ID>;
   strategy?: GraphWalkStrategy;
   /** Null clears the predicate; omitted/undefined patches retain it. */
-  followEdge?: AsyncGraphWalkFollowEdge<Data, Edge, ID> | null | undefined;
+  shouldFollowEdge?:
+    | AsyncGraphWalkEdgePredicate<Data, Edge, ID>
+    | null
+    | undefined;
   /** Null clears the predicate; omitted/undefined patches retain it. */
-  expandVertex?: AsyncGraphWalkExpandVertex<Data, Edge, ID> | null | undefined;
+  shouldExpandVertex?:
+    | AsyncGraphWalkExpansionPredicate<Data, Edge, ID>
+    | null
+    | undefined;
   visitors?: {
-    [Phase in GraphWalkPhase]?: VisitorPhaseInput<
-      AsyncGraphWalkVisitor<Data, Edge, Phase, ID>
-    >;
+    [Phase in GraphWalkPhase]?:
+      | VisitorPhaseInput<AsyncGraphWalkVisitor<Data, Edge, Phase, ID>>
+      | undefined;
   };
-} & TraversalIterableConfigInput<GraphWalkPhase>;
+} & TraversalExecutionOptions<GraphWalkPhase>;
 
 export type GraphWalkOptions<Data, Edge, ID> = GraphWalkFields<Data, Edge, ID> &
   GraphWalkRevisitOptions;
@@ -104,17 +118,17 @@ export type AsyncGraphWalkOptions<Data, Edge, ID> = AsyncGraphWalkFields<
 > &
   GraphWalkRevisitOptions;
 /** Atomic top-level patch. Supplied limits replace the previous limits record;
- * the merged revisit policy must still have a depth or step bound. */
-export type GraphWalkConfigureInput<Data, Edge, ID> = Partial<
+ * the merged revisit policy must still have a depth or candidate-read bound. */
+export type GraphWalkOptionsPatch<Data, Edge, ID> = UndefinedPatch<
   GraphWalkFields<Data, Edge, ID>
 > & {
-  revisit?: GraphWalkRevisitPolicy;
-  limits?: GraphWalkLimits;
+  revisit?: GraphWalkRevisitPolicy | undefined;
+  limits?: GraphWalkLimits | undefined;
 };
 /** Async counterpart with the same atomic patch and limits replacement rules. */
-export type AsyncGraphWalkConfigureInput<Data, Edge, ID> = Partial<
+export type AsyncGraphWalkOptionsPatch<Data, Edge, ID> = UndefinedPatch<
   AsyncGraphWalkFields<Data, Edge, ID>
 > & {
-  revisit?: GraphWalkRevisitPolicy;
-  limits?: GraphWalkLimits;
+  revisit?: GraphWalkRevisitPolicy | undefined;
+  limits?: GraphWalkLimits | undefined;
 };

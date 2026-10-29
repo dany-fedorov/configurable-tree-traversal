@@ -21,6 +21,7 @@ it('return immediately pauses a pending resolver, retains its vertex, and drains
   const resolution = deferred<GraphWalkVertexResult<string>>();
   let lookups = 0;
   const source: AsyncGraphWalkSource<string, undefined, string> = {
+    hydration: 'resolver' as const,
     roots: () => [{ vertexId: 'A' }],
     resolveVertex: () => {
       lookups++;
@@ -29,8 +30,8 @@ it('return immediately pauses a pending resolver, retains its vertex, and drains
     },
     outgoing: () => [],
   };
-  const runner = new AsyncGraphWalk({ source }).makeRunner();
-  const iterator = runner.getIterable();
+  const runner = new AsyncGraphWalk({ source }).createRunner();
+  const iterator = runner.iterateEvents();
   const pending = iterator.next();
   const queued = iterator.next();
   await started.promise;
@@ -38,7 +39,7 @@ it('return immediately pauses a pending resolver, retains its vertex, and drains
   const closingAgain = iterator.return(undefined);
   const afterClose = iterator.next();
   expect(runner.inspect()).toMatchObject({
-    haltRequested: true,
+    pauseRequested: true,
     inFlightCallbackCount: 1,
     pendingRequests: [{ operation: 'resolveVertex' }],
   });
@@ -52,7 +53,7 @@ it('return immediately pauses a pending resolver, retains its vertex, and drains
   ]))
     expect(result).toEqual({ done: true, value: undefined });
   expect(runner.isHalted()).toBe(true);
-  const resumed = runner.getIterable({ emitPhases: [Phase.VERTEX] });
+  const resumed = runner.iterateEvents({ emitEvents: [Phase.VERTEX] });
   expect((await resumed.next()).value).toMatchObject({ kind: 'vertex' });
   await resumed.return(undefined);
   expect(lookups).toBe(1);
@@ -62,22 +63,22 @@ it('does not expand after delivery and rejects owners without changing their sel
   const calls: string[] = [];
   const runner = new AsyncGraphWalk({
     source: idGraph(['A'], [['A', []]]),
-    expandVertex: async () => {
+    shouldExpandVertex: async () => {
       calls.push('expand');
       return true;
     },
-  }).makeRunner();
-  const owner = runner.getIterable();
+  }).createRunner();
+  const owner = runner.iterateEvents();
   expect((await owner.next()).value).toMatchObject({ kind: 'vertex' });
   await Promise.resolve();
   expect(calls).toEqual([]);
-  await expect(runner.run({ emitPhases: [] })).rejects.toThrow(
+  await expect(runner.run({ emitEvents: [] })).rejects.toThrow(
     'execution owner',
   );
-  await expect(runner.getIterable({ emitPhases: [] }).next()).rejects.toThrow(
+  await expect(runner.iterateEvents({ emitEvents: [] }).next()).rejects.toThrow(
     'execution owner',
   );
-  expect(runner.inspect().iterableConfig.emitPhases).toEqual([Phase.VERTEX]);
+  expect(runner.inspect().executionOptions.emitEvents).toEqual([Phase.VERTEX]);
   await owner.return(undefined);
   expect(calls).toEqual([]);
   expect(await runner.run()).toBe(runner);
@@ -98,8 +99,8 @@ it('return drains a serial visitor chain while preserving its undelivered observ
   walk.addVisitorFor(Phase.VERTEX, async () => {
     trace.push('second');
   });
-  const runner = walk.makeRunner();
-  const iterator = runner.getIterable();
+  const runner = walk.createRunner();
+  const iterator = runner.iterateEvents();
   const pending = iterator.next();
   await started.promise;
   const closing = iterator.return(undefined);
@@ -109,8 +110,8 @@ it('return drains a serial visitor chain while preserving its undelivered observ
   await closing;
   expect(trace).toEqual(['first', 'settled', 'second']);
   expect(runner.isHalted()).toBe(true);
-  expect(runner.summary().counts.observations.vertex).toBe(0);
-  const resumed = runner.getIterable({ visitorPhases: { include: [] } });
+  expect(runner.summary().counts.processedObservations.vertex).toBe(0);
+  const resumed = runner.iterateEvents({ visitorPhases: { include: [] } });
   expect((await resumed.next()).value).toMatchObject({ kind: 'vertex' });
   await resumed.return(undefined);
   expect(trace).toEqual(['first', 'settled', 'second']);
@@ -121,8 +122,8 @@ it.each([
   'rootNext',
   'outgoing',
   'edgeNext',
-  'followEdge',
-  'expandVertex',
+  'shouldFollowEdge',
+  'shouldExpandVertex',
 ] as const)(
   'return pauses pending %s without pulling another item or losing continuation',
   async (operation) => {
@@ -140,6 +141,7 @@ it.each([
       return value;
     };
     const source: AsyncGraphWalkSource<string, undefined, string> = {
+      hydration: 'resolver' as const,
       roots: () =>
         step('roots', {
           [Symbol.asyncIterator]() {
@@ -178,11 +180,11 @@ it.each([
     };
     const runner = new AsyncGraphWalk({
       source,
-      emitPhases: [],
-      followEdge: () => step('followEdge', true),
-      expandVertex: () => step('expandVertex', true),
-    }).makeRunner();
-    const iterator = runner.getIterable();
+      emitEvents: [],
+      shouldFollowEdge: () => step('shouldFollowEdge', true),
+      shouldExpandVertex: () => step('shouldExpandVertex', true),
+    }).createRunner();
+    const iterator = runner.iterateEvents();
     const pending = iterator.next();
     await started.promise;
     const before = [...calls];
@@ -195,8 +197,8 @@ it.each([
     expect(runner.isHalted()).toBe(true);
     await runner.run();
     expect(runner.summary().counts).toMatchObject({
-      foundVertices: 2,
-      observedLinks: 1,
+      uniqueFoundVertices: 2,
+      discoveredLinks: 1,
     });
     expect(calls.filter((call) => call === 'resolve:A')).toHaveLength(1);
     expect(calls.filter((call) => call === 'resolve:B')).toHaveLength(1);
@@ -210,7 +212,7 @@ it.each([undefined, null, false, 0, '', Symbol('error')])(
     const runner = new AsyncGraphWalk({
       source: idGraph(['A'], [['A', []]]),
       visitors: { vertex: () => Promise.reject(error) },
-    }).makeRunner();
+    }).createRunner();
     for (let attempt = 0; attempt < 2; attempt++) {
       let caught = false;
       try {
@@ -231,6 +233,7 @@ it('throw pauses pending work, preserves source failure, and rejects close with 
   const result = deferred<GraphWalkVertexResult<string>>();
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'resolver' as const,
       roots: () => [{ vertexId: 'A' }],
       resolveVertex: () => {
         started.resolve();
@@ -238,8 +241,8 @@ it('throw pauses pending work, preserves source failure, and rejects close with 
       },
       outgoing: () => [],
     },
-  }).makeRunner();
-  const iterator = runner.getIterable();
+  }).createRunner();
+  const iterator = runner.iterateEvents();
   const pending = iterator.next();
   await started.promise;
   const throwing = iterator.throw(undefined);
@@ -258,16 +261,18 @@ it('throw pauses pending work, preserves source failure, and rejects close with 
 it('unopened and closed returns/throws never acquire ownership or change runner progress', async () => {
   const runner = new AsyncGraphWalk({
     source: idGraph(['A'], [['A', []]]),
-  }).makeRunner();
-  const fresh = runner.getIterable();
+  }).createRunner();
+  const fresh = runner.iterateEvents();
   await expect(fresh.throw(undefined)).rejects.toBeUndefined();
   expect(await fresh.next()).toEqual({ done: true, value: undefined });
   expect(runner.getStopReason()).toBe(null);
   expect(runner.requestPause()).toBe(false);
-  const owner = runner.getIterable();
+  const owner = runner.iterateEvents();
   await owner.next();
-  await runner.getIterable().return(undefined);
-  await expect(runner.getIterable().throw('consumer')).rejects.toBe('consumer');
+  await runner.iterateEvents().return(undefined);
+  await expect(runner.iterateEvents().throw('consumer')).rejects.toBe(
+    'consumer',
+  );
   expect(runner.isHalted()).toBe(false);
   await owner.return(undefined);
   expect(await owner.return(undefined)).toEqual({
@@ -295,15 +300,15 @@ it('serves queued demand in order and lets independent runners progress while an
       ],
     ),
   });
-  const independent = walk.makeRunner();
+  const independent = walk.createRunner();
   walk.addVisitorFor(Phase.VERTEX, async (event) => {
     if (event.vertex.vertexId === 'A') {
       started.resolve();
       await finish.promise;
     }
   });
-  const runner = walk.makeRunner();
-  const iterator = runner.getIterable();
+  const runner = walk.createRunner();
+  const iterator = runner.iterateEvents();
   const first = iterator.next();
   const second = iterator.next();
   const final = iterator.next();
@@ -328,13 +333,13 @@ it('cooperative pause drains a selected chain and delivers its observation befor
   walk.addVisitorFor(Phase.VERTEX, async () => {
     calls.push('second');
   });
-  const runner = walk.makeRunner();
-  const iterator = runner.getIterable();
+  const runner = walk.createRunner();
+  const iterator = runner.iterateEvents();
   expect((await iterator.next()).value).toMatchObject({ kind: 'vertex' });
   expect(await iterator.next()).toEqual({ done: true, value: undefined });
   expect(runner.isHalted()).toBe(true);
-  const paths = runner.getIterable({
-    emitPhases: [Phase.PATH],
+  const paths = runner.iterateEvents({
+    emitEvents: [Phase.PATH],
     visitorPhases: { include: [] },
   });
   expect((await paths.next()).value).toMatchObject({ kind: 'path' });
@@ -345,13 +350,13 @@ it('cooperative pause drains a selected chain and delivers its observation befor
 it('acknowledges pause between deliveries without new demand or expansion', async () => {
   const runner = new AsyncGraphWalk({
     source: idGraph(['A'], [['A', []]]),
-  }).makeRunner();
-  const iterator = runner.getIterable();
+  }).createRunner();
+  const iterator = runner.iterateEvents();
   await iterator.next();
   expect(runner.requestPause()).toBe(true);
   await iterator.return(undefined);
   expect(runner.getStopReason()).toBe('paused');
-  expect(runner.summary().counts.observations).toEqual({
+  expect(runner.summary().counts.processedObservations).toEqual({
     vertex: 1,
     edge: 0,
     path: 0,
@@ -362,11 +367,11 @@ it('retains the admitted async chain across HALT and uses the new lease emission
   const calls: string[] = [];
   const walk = new AsyncGraphWalk({ source: idGraph(['A'], [['A', []]]) });
   walk.addVisitorGroupFor(Phase.VERTEX, {
-    commandCommitMode: 'afterGroup',
+    commandCommitMode: 'afterGroup' as const,
     visitors: [
       async () => {
         calls.push('halt');
-        return { commands: [{ commandName: C.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: C.PAUSE_TRAVERSAL }] };
       },
       async () => {
         calls.push('group-end');
@@ -376,13 +381,13 @@ it('retains the admitted async chain across HALT and uses the new lease emission
   walk.addVisitorFor(Phase.VERTEX, async () => {
     calls.push('tail');
   });
-  const runner = walk.makeRunner();
+  const runner = walk.createRunner();
   await runner.run();
   expect(runner.isHalted()).toBe(true);
   expect(calls).toEqual(['halt', 'group-end']);
   const phases = [Phase.PATH];
-  const resumed = runner.getIterable({
-    emitPhases: phases,
+  const resumed = runner.iterateEvents({
+    emitEvents: phases,
     visitorPhases: { include: [] },
   });
   phases[0] = Phase.VERTEX;
@@ -403,17 +408,17 @@ it('consumer exceptions and successful pending throw pause without failing the r
         ['B', []],
       ],
     ),
-  }).makeRunner();
+  }).createRunner();
   let caught = false;
   try {
-    for await (const _event of runner.getIterable()) throw error;
+    for await (const _event of runner.iterateEvents()) throw error;
   } catch (value) {
     caught = true;
     expect(value).toBe(error);
   }
   expect(caught).toBe(true);
   expect(runner.isHalted()).toBe(true);
-  const next = runner.getIterable();
+  const next = runner.iterateEvents();
   expect((await next.next()).value).toMatchObject({
     vertex: { vertexId: 'B' },
   });
@@ -427,28 +432,29 @@ it('consumer exceptions and successful pending throw pause without failing the r
 it('invalid selectors fail before acquisition and immediate return admits no source work', async () => {
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'inlineOrCached' as const,
       roots: () => {
         throw new Error('source must not be called');
       },
       outgoing: () => [],
     },
-  }).makeRunner();
+  }).createRunner();
   expect(() =>
-    runner.getIterable({ emitPhases: ['invalid' as Phase] }),
+    runner.iterateEvents({ emitEvents: ['invalid' as Phase] }),
   ).toThrow(TypeError);
-  const iterator = runner.getIterable();
+  const iterator = runner.iterateEvents();
   const pending = iterator.next();
   await iterator.return(undefined);
   expect(await pending).toEqual({ done: true, value: undefined });
   expect(runner.isHalted()).toBe(true);
-  expect(runner.summary().counts.steps).toBe(0);
+  expect(runner.summary().counts.candidateReadAttempts).toBe(0);
 });
 
 it('completion records cannot corrupt later iterator completion', async () => {
-  const runner = new AsyncGraphWalk({ source: idGraph([], []) }).makeRunner();
-  const first = await runner.getIterable().next();
+  const runner = new AsyncGraphWalk({ source: idGraph([], []) }).createRunner();
+  const first = await runner.iterateEvents().next();
   Reflect.set(first, 'done', false);
-  expect(await runner.getIterable().next()).toEqual({
+  expect(await runner.iterateEvents().next()).toEqual({
     done: true,
     value: undefined,
   });

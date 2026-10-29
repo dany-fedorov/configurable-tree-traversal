@@ -2,18 +2,18 @@ import {
   TraversalVisitorCommandName as Command,
   type TraversalVisitorCommand,
 } from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type Tree = TreeTypeParameters<number, string>;
+type Tree = VertexTypes<number, string>;
 const halt: TraversalVisitorCommand<Tree> = {
-  commandName: Command.HALT_TRAVERSAL,
+  commandName: Command.PAUSE_TRAVERSAL,
 };
 const rewrite: TraversalVisitorCommand<Tree> = {
   commandName: Command.REWRITE_VERTEX_DATA,
   commandArguments: { newData: 42 },
 };
 const hints: TraversalVisitorCommand<Tree> = {
-  commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+  commandName: Command.REWRITE_CHILD_HINTS,
   commandArguments: { newHints: ['child'] },
 };
 // @ts-expect-error Rewrite commands need their data payload.
@@ -27,7 +27,7 @@ const wrongPayload: TraversalVisitorCommand<Tree> = {
 };
 // @ts-expect-error Halt commands have no payload.
 const extraPayload: TraversalVisitorCommand<Tree> = {
-  commandName: Command.HALT_TRAVERSAL,
+  commandName: Command.PAUSE_TRAVERSAL,
   commandArguments: { newData: 42 },
 };
 function readData(command: TraversalVisitorCommand<Tree>): number | undefined {

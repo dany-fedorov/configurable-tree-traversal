@@ -1,37 +1,45 @@
-import type { VisitorPhaseSelection } from './TraversalRunnerIterableConfig';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { OwnerToken, VisitPhase } from '@core/effects/types';
 import type {
   TraversalRunnerStatus,
   TraversalStopReason,
 } from '@core/TraversalRunner';
 import type {
-  CallbackValues,
-  OwnerToken,
-  VisitOrder,
-} from '@core/effects/types';
+  EmissionKind,
+  VisitorPhaseSelection,
+} from './TraversalRunnerIterableConfig';
 
-export type InspectionFilters<Phase extends string = VisitOrder> = Readonly<{
-  emitPhases: readonly Phase[];
+export type InspectionFilters<
+  Phase extends string = VisitPhase,
+  EmittedKind extends string = EmissionKind<Phase>,
+> = Readonly<{
+  emitEvents: readonly EmittedKind[];
   visitorPhases: VisitorPhaseSelection<Phase>;
-  iterateOver: readonly Phase[];
-  enableVisitorFunctionsFor: readonly Phase[] | null;
-  disableVisitorFunctionsFor: readonly Phase[] | null;
 }>;
 
-export type KernelInspection = Readonly<{
+/** Public callbacks observed by a tree or DAG runner. Engine effect keys stay private. */
+export type TreeDagInspectionOperation =
+  | 'resolveRoot'
+  | 'resolveChild'
+  | 'resolvePrerequisite'
+  | 'sortChildrenHints'
+  | 'getVertexIdFromHint'
+  | 'visit';
+
+export type KernelInspection<Phase extends string = VisitPhase> = Readonly<{
   status: TraversalRunnerStatus;
   stopReason: TraversalStopReason | null;
-  haltRequested: boolean;
+  pauseRequested: boolean;
   kind: 'depth-first' | 'breadth-first' | 'dag';
   execution: 'sync' | 'async';
   sourceMode: 'tree' | 'graph';
   concurrency: number;
   hasSorter: boolean;
   hasHintIds: boolean;
-  iterableConfig: InspectionFilters;
+  /** Current delivery selector and default admission policy for new chains. */
+  executionOptions: InspectionFilters<Phase>;
   readyVisits: readonly Readonly<{
     vertexRefId: string;
-    order: VisitOrder;
+    phase: Phase;
   }>[];
   frames: readonly Readonly<{
     owner: Readonly<OwnerToken>;
@@ -47,26 +55,25 @@ export type KernelInspection = Readonly<{
   chains: readonly Readonly<{
     owner: Readonly<OwnerToken>;
     vertexRefId: string;
-    order: VisitOrder;
-    phase: 'running' | 'paused' | 'done' | 'invalid';
+    phase: Phase;
+    state: 'running' | 'paused' | 'done' | 'invalid';
     commandCommitMode: import('@core/TraversalVisitor').CommandCommitMode;
-    /** @deprecated Use commandCommitMode. */
-    group: 'concurrent' | 'sequential';
-    position: number;
+    visitorIndex: number;
     waitingFor: 'none' | 'callback' | 'batch';
-    config: InspectionFilters;
+    /** Admission snapshot: visitorPhases governs this chain; emitEvents is historical. */
+    executionOptions: InspectionFilters<Phase>;
   }>[];
   pendingRequests: readonly Readonly<{
     requestId: number;
-    kind: keyof CallbackValues<TreeTypeParameters>;
+    operation: TreeDagInspectionOperation;
     owner: Readonly<OwnerToken>;
     valid: boolean;
   }>[];
   pendingEventBoundaryCount: number;
 }>;
 
-export type DriverInspection = KernelInspection &
-  Readonly<{ inFlightCallbackCount: number }>;
+export type DriverInspection<Phase extends string = VisitPhase> =
+  KernelInspection<Phase> & Readonly<{ inFlightCallbackCount: number }>;
 
-export type CoreInspection = DriverInspection &
-  Readonly<{ bufferedEventCount: number }>;
+export type TreeDagExecutionInspection<Phase extends string = VisitPhase> =
+  DriverInspection<Phase> & Readonly<{ bufferedEventCount: number }>;

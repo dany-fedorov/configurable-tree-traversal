@@ -1,55 +1,61 @@
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
-import { DagTraversalOrder as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
+import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import { runnerInternals } from './internal-runner-fixtures';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} hides synthetic roots from visits, events and graph paths`, async () => {
     const traversal = new Constructor<G>({
       ...{ discovery: 'eager' as const, syntheticRoot: true },
-      saveNotMutatedResolvedGraph: true,
+      retainOriginalGraphStructure: true,
       traversableGraph: {
-        makeRoot: () => ({
-          vertexId: 'a',
-          vertexContent: { $d: 'catalog', $c: ['a', 'b'] },
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'a',
+            vertexContent: { $data: 'catalog', $childHints: ['a', 'b'] },
+          },
         }),
-        makeVertex: (hint) => ({
-          vertexId: hint,
-          vertexContent: { $d: hint, $c: [] },
+        resolveChild: (hint) => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: hint,
+            vertexContent: { $data: hint, $childHints: [] },
+          },
         }),
       },
     });
     const seen: string[] = [];
-    for (const order of [Order.ON_READY, Order.ON_COMPLETE])
+    for (const order of [Order.ON_WORK_READY, Order.ON_SUBGRAPH_READY])
       traversal.addVisitorFor(order, (vertex, options) => {
         seen.push(vertex.getData());
         expect(options.isGraphRoot).toBe(false);
-        expect(options.isTraversalRoot).toBe(false);
-        expect(options.resolvedGraph.getRoot()).toBeNull();
-        expect(options.resolvedGraph.get(options.vertexRef)!.dependsOn).toEqual(
-          [],
-        );
-        expect(options.resolvedGraph.get(options.vertexRef)!.incoming).toEqual(
-          [],
-        );
+        expect(options.isGraphRoot).toBe(false);
+        expect(options.resolvedGraphView.getRoot()).toBeNull();
+        expect(
+          options.resolvedGraphView.get(options.vertexRef)!.dependsOnWork,
+        ).toEqual([]);
+        expect(
+          options.resolvedGraphView.get(options.vertexRef)!.incoming,
+        ).toEqual([]);
       });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     const events: string[] = [];
-    for await (const event of runner.getIterable())
+    for await (const event of runner.iterateEvents())
       events.push(event.vertex.getData());
     expect(events.sort()).toEqual(['a', 'a', 'b', 'b']);
     expect(seen.sort()).toEqual(events);
     for (const graph of [
-      runner.getResolvedGraph(),
-      runner.notMutatedResolvedGraph!,
+      runner.getResolvedGraphView(),
+      runner.originalGraphView!,
     ]) {
       expect(graph.getRoot()).toBeNull();
-      expect(graph.getVertexRefs().map((ref) => graph.getIdOf(ref))).toEqual([
-        'a',
-        'b',
-      ]);
-      const a = graph.getVertexById('a')!;
+      expect(
+        graph.getVertexRefs().map((ref) => graph.getVertexId(ref)),
+      ).toEqual(['a', 'b']);
+      const a = graph.getVertexRefById('a')!;
       expect(graph.getParentsOf(a)).toEqual([]);
       expect(graph.getPathsTo(a)).toEqual([[a]]);
       expect(graph.getPathsTo(a, { noRoot: true })).toEqual([[a]]);
@@ -63,17 +69,23 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const traversal = new Constructor<G>({
         ...{ discovery: 'eager' as const, syntheticRoot: true },
         traversableGraph: {
-          makeRoot: () => ({
-            vertexContent: { $d: 'catalog', $c: ['a', 'a'] },
+          resolveRoot: () => ({
+            kind: 'found' as const,
+            vertex: {
+              vertexContent: { $data: 'catalog', $childHints: ['a', 'a'] },
+            },
           }),
-          makeVertex: (hint) => ({
-            ...(invalid === 'duplicate' ? { vertexId: hint } : {}),
-            vertexContent: { $d: hint, $c: [] },
+          resolveChild: (hint) => ({
+            kind: 'found' as const,
+            vertex: {
+              ...(invalid === 'duplicate' ? { vertexId: hint } : {}),
+              vertexContent: { $data: hint, $childHints: [] },
+            },
           }),
         },
       });
       await expect(async () => {
-        await traversal.makeRunner().run();
+        await traversal.createRunner().run();
       }).rejects.toThrow(/catalog/i);
     },
   );
@@ -82,14 +94,20 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       ...{ syntheticRoot: true },
       traversableGraph: {
-        makeRoot: () => ({ vertexContent: { $d: 'catalog', $c: [] } }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: 'catalog', $childHints: [] } },
+        }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
       },
-    }).makeRunner();
+    }).createRunner();
     const events = [];
-    for await (const event of runner.getIterable()) events.push(event);
+    for await (const event of runner.iterateEvents()) events.push(event);
     expect(events).toEqual([]);
-    expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
+    expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
   });
 }
 
@@ -101,21 +119,30 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const traversal = new Constructor<G>({
         syntheticRoot: true,
         discovery: 'eager',
-        saveNotMutatedResolvedGraph: true,
+        retainOriginalGraphStructure: true,
         sortChildrenHints: (hints) => hints.slice(),
         traversableGraph: {
-          makeRoot: () => ({
-            vertexContent: { $d: 'catalog', $c: ['a', 'b', 'shared'] },
+          resolveRoot: () => ({
+            kind: 'found' as const,
+            vertex: {
+              vertexContent: {
+                $data: 'catalog',
+                $childHints: ['a', 'b', 'shared'],
+              },
+            },
           }),
-          makeVertex: (hint, options) => {
-            expect(options.resolvedGraph.getRoot()).toBeNull();
+          resolveChild: (hint, options) => {
+            expect(options.resolvedGraphView.getRoot()).toBeNull();
             resolved.push(hint);
             return {
-              vertexId: hint,
-              dependsOn: [],
-              vertexContent: {
-                $d: hint,
-                $c: hint === 'shared' ? [] : ['shared'],
+              kind: 'found' as const,
+              vertex: {
+                vertexId: hint,
+                dependsOnWork: [],
+                vertexContent: {
+                  $data: hint,
+                  $childHints: hint === 'shared' ? [] : ['shared'],
+                },
               },
             };
           },
@@ -124,18 +151,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             : {}),
         },
       });
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       await runner.run();
       expect(resolved.filter((id) => id === 'shared').length).toBe(
         identify ? 1 : 3,
       );
       for (const graph of [
-        runner.getResolvedGraph(),
-        runner.notMutatedResolvedGraph!,
+        runner.getResolvedGraphView(),
+        runner.originalGraphView!,
       ]) {
-        const shared = graph.getVertexById('shared')!;
-        const a = graph.getVertexById('a')!;
-        const b = graph.getVertexById('b')!;
+        const shared = graph.getVertexRefById('shared')!;
+        const a = graph.getVertexRefById('a')!;
+        const b = graph.getVertexRefById('b')!;
         expect(graph.getParentsOf(shared)).toEqual([a, b]);
         expect(graph.getChildrenOf(a)).toEqual([shared]);
         expect(graph.getPathsTo(shared)).toEqual([
@@ -146,15 +173,15 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           graph.getPathsTo(shared, { noSelf: true, noRoot: true }),
         ).toEqual([[a], [b]]);
       }
-      const graph = runner.getResolvedGraph();
-      const shared = graph.getVertexById('shared')!;
+      const graph = runner.getResolvedGraphView();
+      const shared = graph.getVertexRefById('shared')!;
       expect(
         graph
           .get(shared)!
-          .incoming.map((edge) => graph.getIdOf(edge.parentRef)),
+          .incoming.map((edge) => graph.getVertexId(edge.parentRef)),
       ).toEqual(['a', 'b']);
       expect(graph.has(shared)).toBe(true);
-      expect(graph.getStatusOf(shared)).toBe('COMPLETE');
+      expect(graph.getVisitStageOf(shared)).toBe('COMPLETE');
     },
   );
 
@@ -164,16 +191,24 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       discovery: 'eager',
       traversableGraph: {
-        makeRoot: () => ({ vertexContent: { $d: 'catalog', $c: ['a', 'a'] } }),
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'catalog', $childHints: ['a', 'a'] },
+          },
+        }),
         getVertexIdFromHint: (hint) => ({ vertexId: hint }),
-        makeVertex: () => ({ vertexContent: { $d: 'a', $c: [] } }),
+        resolveChild: () => ({
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: 'a', $childHints: [] } },
+        }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       visited = true;
     });
     await expect(async () => {
-      await traversal.makeRunner().run();
+      await traversal.createRunner().run();
     }).rejects.toThrow(/catalog/);
     expect(visited).toBe(false);
   });
@@ -185,23 +220,32 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       discovery: 'eager',
       completedWork: new Set(['a', 'b']),
       traversableGraph: {
-        makeRoot: () => ({
-          vertexContent: { $d: 'catalog', $c: ['source', 'a', 'b'] },
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: {
+              $data: 'catalog',
+              $childHints: ['source', 'a', 'b'],
+            },
+          },
         }),
-        makeVertex: (hint) => ({
-          vertexId: hint,
-          dependsOn: hint === 'source' ? [] : [hint === 'a' ? 'b' : 'a'],
-          vertexContent: { $d: hint, $c: [] },
+        resolveChild: (hint) => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: hint,
+            dependsOnWork: hint === 'source' ? [] : [hint === 'a' ? 'b' : 'a'],
+            vertexContent: { $data: hint, $childHints: [] },
+          },
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, () => {
+    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
       visited = true;
     });
     await expect(async () => {
-      await traversal.makeRunner().run();
+      await traversal.createRunner().run();
     }).rejects.toMatchObject({
-      diagnostics: { dependencyCycles: [['a', 'b']] },
+      diagnostics: { dependencyCycleComponents: [['a', 'b']] },
     });
     expect(visited).toBe(false);
   });
@@ -210,39 +254,52 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       syntheticRoot: true,
       traversableGraph: {
-        makeRoot: () => ({ vertexContent: { $d: 'catalog', $c: ['a'] } }),
-        makeVertex: () => ({
-          vertexId: 'a',
-          vertexContent: { $d: 'a', $c: [] },
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: 'catalog', $childHints: ['a'] } },
+        }),
+        resolveChild: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'a',
+            vertexContent: { $data: 'a', $childHints: [] },
+          },
         }),
       },
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
-    const graph = runner.getResolvedGraph();
-    const internal = runner.resolvedGraphsContainer.resolvedGraph;
+    const graph = runner.getResolvedGraphView();
+    const internal =
+      runnerInternals(runner).resolvedGraphsContainer.resolvedGraphView;
     const hidden = internal.getRoot()!;
     expect(graph.get(hidden)).toBeNull();
     expect(graph.has(hidden)).toBe(false);
-    expect(graph.getVertexById(internal.getIdOf(hidden))).toBeNull();
-    expect(graph.getVertexById('absent')).toBeNull();
-    expect(() => graph.getIdOf(hidden)).toThrow();
+    expect(graph.getVertexRefById(internal.getVertexId(hidden))).toBeNull();
+    expect(graph.getVertexRefById('absent')).toBeNull();
+    expect(() => graph.getVertexId(hidden)).toThrow();
     expect(() => graph.getPathsTo(hidden)).toThrow();
     expect(graph.getParentsOf(hidden)).toBeNull();
     expect(graph.getChildrenOf(hidden)).toBeNull();
-    expect(graph.getStatusOf(hidden)).toBeNull();
+    expect(graph.getVisitStageOf(hidden)).toBeNull();
     const foreign = new Constructor<G>({
       traversableGraph: {
-        makeRoot: () => ({ vertexContent: { $d: 'foreign', $c: [] } }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: 'foreign', $childHints: [] } },
+        }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
       },
-    }).makeRunner();
+    }).createRunner();
     await foreign.run();
-    const unknown = foreign.getResolvedGraph().getRoot()!;
+    const unknown = foreign.getResolvedGraphView().getRoot()!;
     expect(graph.get(unknown)).toBeNull();
     expect(graph.has(unknown)).toBe(false);
     expect(graph.getParentsOf(unknown)).toBeNull();
     expect(graph.getChildrenOf(unknown)).toBeNull();
-    expect(graph.getStatusOf(unknown)).toBeNull();
+    expect(graph.getVisitStageOf(unknown)).toBeNull();
   });
 }
 
@@ -254,26 +311,35 @@ test('synthetic catalog preserves arbitrary IDs without freezing or consuming it
     discovery: 'eager',
     completedWork: new Set(ids),
     traversableGraph: {
-      makeRoot: async () => ({
-        vertexId: objectId,
-        vertexContent: { $d: 'catalog', $c: ['0', '1', '2', '3', '4'] },
+      resolveRoot: async () => ({
+        kind: 'found' as const,
+        vertex: {
+          vertexId: objectId,
+          vertexContent: {
+            $data: 'catalog',
+            $childHints: ['0', '1', '2', '3', '4'],
+          },
+        },
       }),
       getVertexIdFromHint: async (hint) => ({ vertexId: ids[Number(hint)] }),
-      makeVertex: async (hint) => ({ vertexContent: { $d: hint, $c: [] } }),
+      resolveChild: async (hint) => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+      }),
     },
   });
   const seen: string[] = [];
-  traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
     seen.push(vertex.getData());
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   await runner.run();
   expect(seen).toEqual([]);
   expect(
     runner
-      .getResolvedGraph()
+      .getResolvedGraphView()
       .getVertexRefs()
-      .map((ref) => runner.getResolvedGraph().getIdOf(ref)),
+      .map((ref) => runner.getResolvedGraphView().getVertexId(ref)),
   ).toEqual(ids);
   expect(Object.isFrozen(objectId)).toBe(false);
 });
@@ -285,11 +351,19 @@ test.each([undefined, null, NaN])(
       syntheticRoot: true,
       discovery: 'eager',
       traversableGraph: {
-        makeRoot: () => ({ vertexContent: { $d: 'catalog', $c: ['a', 'b'] } }),
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: { $data: 'catalog', $childHints: ['a', 'b'] },
+          },
+        }),
         getVertexIdFromHint: () => ({ vertexId: id }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({
+          kind: 'omitted' as const,
+          satisfiesDependencies: true as const,
+        }),
       },
-    }).makeRunner();
+    }).createRunner();
     expect(() => runner.run()).toThrow(/Duplicate catalog/);
   },
 );

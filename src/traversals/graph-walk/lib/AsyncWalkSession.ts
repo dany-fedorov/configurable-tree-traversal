@@ -33,7 +33,7 @@ export class AsyncWalkSession<Data, Edge, ID> {
         new Error('Graph walk already has an execution owner'),
       );
     this.kernel.beginClose();
-    this.terminalClose = this.getIterable()
+    this.terminalClose = this.iterateEvents()
       .next()
       .then(() => undefined);
     return this.terminalClose;
@@ -46,7 +46,7 @@ export class AsyncWalkSession<Data, Edge, ID> {
     }
     return requested;
   }
-  getIterable(
+  iterateEvents(
     config?: TraversalIterableConfigInput<GraphWalkPhase>,
   ): AsyncGenerator<GraphWalkEvent<Data, Edge, ID>, void, unknown> {
     const lease: Lease<GraphWalkEvent<Data, Edge, ID>> = {

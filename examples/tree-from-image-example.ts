@@ -1,5 +1,4 @@
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstTreeTraversal, DepthFirstPhase } from '../src';
 
 /**
  * Utils
@@ -21,11 +20,11 @@ const ANSI_ESCAPE =
 
 function getFgColorFor(order: unknown): string {
   switch (order) {
-    case DepthFirstTraversalOrder.PRE_ORDER:
+    case DepthFirstPhase.PRE_ORDER:
       return RED_FG;
-    case DepthFirstTraversalOrder.IN_ORDER:
+    case DepthFirstPhase.IN_ORDER:
       return GREEN_FG;
-    case DepthFirstTraversalOrder.POST_ORDER:
+    case DepthFirstPhase.POST_ORDER:
       return BLUE_FG;
     default:
       return '';
@@ -34,7 +33,7 @@ function getFgColorFor(order: unknown): string {
 
 const seq: string[] = [];
 
-function reportVisit(order: DepthFirstTraversalOrder, data: any) {
+function reportVisit(order: DepthFirstPhase, data: any) {
   seq.push([WHITE_BG, getFgColorFor(order), data, BLACK_FG, '-'].join(''));
 }
 
@@ -61,7 +60,7 @@ logWhiteRow('');
 logWhiteRow(
   [
     LEFT_PADDING,
-    getFgColorFor(DepthFirstTraversalOrder.PRE_ORDER),
+    getFgColorFor(DepthFirstPhase.PRE_ORDER),
     'Pre-order'.padEnd(10),
     BLACK_FG,
   ].join(''),
@@ -69,7 +68,7 @@ logWhiteRow(
 logWhiteRow(
   [
     LEFT_PADDING,
-    getFgColorFor(DepthFirstTraversalOrder.IN_ORDER),
+    getFgColorFor(DepthFirstPhase.IN_ORDER),
     'In-order'.padEnd(10),
     BLACK_FG,
   ].join(''),
@@ -77,7 +76,7 @@ logWhiteRow(
 logWhiteRow(
   [
     LEFT_PADDING,
-    getFgColorFor(DepthFirstTraversalOrder.POST_ORDER),
+    getFgColorFor(DepthFirstPhase.POST_ORDER),
     'Post-order'.padEnd(10),
     BLACK_FG,
   ].join(''),
@@ -113,28 +112,28 @@ const treeData =
           { $data: 'I', $childHints: [
               { $data: 'H', $childHints: [] }] }] }] };
 
-const traversal = new DepthFirstTraversal({
+const traversal = new DepthFirstTreeTraversal({
   traversableTree: {
-    makeRoot: () => ({
+    resolveRoot: () => ({
       kind: 'found' as const,
       vertex: { vertexContent: treeData },
     }),
-    makeVertex: (childHint: any) =>
+    resolveChild: (childHint: any) =>
       childHint === null
         ? { kind: 'omitted' }
         : { kind: 'found', vertex: { vertexContent: childHint } },
   },
 });
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) =>
-  reportVisit(DepthFirstTraversalOrder.PRE_ORDER, vertex.getData()),
+traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) =>
+  reportVisit(DepthFirstPhase.PRE_ORDER, vertex.getData()),
 );
-traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (vertex) =>
-  reportVisit(DepthFirstTraversalOrder.IN_ORDER, vertex.getData()),
+traversal.addVisitorFor(DepthFirstPhase.IN_ORDER, (vertex) =>
+  reportVisit(DepthFirstPhase.IN_ORDER, vertex.getData()),
 );
-traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (vertex) =>
-  reportVisit(DepthFirstTraversalOrder.POST_ORDER, vertex.getData()),
+traversal.addVisitorFor(DepthFirstPhase.POST_ORDER, (vertex) =>
+  reportVisit(DepthFirstPhase.POST_ORDER, vertex.getData()),
 );
-traversal.makeRunner().run();
+traversal.createRunner().run();
 
 /*
     Pre-order

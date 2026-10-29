@@ -1,33 +1,41 @@
+import type { VertexView } from '../src';
 import {
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
   DagTraversal,
   AsyncDagTraversal,
-  DepthFirstTraversalOrder as F,
-  BreadthFirstTraversalOrder as B,
-  DagTraversalOrder as D,
+  DepthFirstPhase as F,
+  BreadthFirstPhase as B,
+  DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
-  TraversalVisitorFunctionResolutionStyle as Style,
-  type Vertex,
 } from '../src';
 
 type T = { VertexData: string; VertexHint: string };
 type Shape = 'empty' | 'single' | 'flat' | 'grouped';
 const traversableTree = {
-  makeRoot: () => ({
-    vertexContent: { $data: 'root', $childHints: [] as string[] },
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: 'root', $childHints: [] as string[] },
+    },
   }),
-  makeVertex: () => ({ vertexContent: null }),
+  resolveChild: () => ({ kind: 'omitted' as const }),
 };
 const traversableGraph = {
-  makeRoot: () => ({ vertexId: 'root', ...traversableTree.makeRoot() }),
-  makeVertex: () => ({ vertexContent: null }),
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexId: 'root', ...traversableTree.resolveRoot().vertex },
+  }),
+  resolveChild: () => ({
+    satisfiesDependencies: true as const,
+    kind: 'omitted' as const,
+  }),
 };
 
 function definitions(calls: string[], shape: Shape) {
-  const rewrite = (label: string) => (vertex: Vertex<T>) => {
+  const rewrite = (label: string) => (vertex: VertexView<T>) => {
     calls.push(`${label}:${vertex.getData()}`);
     return {
       commands: [
@@ -64,15 +72,15 @@ function definitions(calls: string[], shape: Shape) {
 // Each closure retains its concrete builder, visitor signature and phase.
 const families = [
   {
-    name: 'DepthFirstTraversal',
+    name: 'DepthFirstTreeTraversal',
     create(calls: string[], shape: Shape) {
-      const traversal = new DepthFirstTraversal<T>({
+      const traversal = new DepthFirstTreeTraversal<T>({
         traversableTree,
         visitors: { [F.PRE_ORDER]: definitions(calls, shape) },
       });
       return {
         list: () => traversal.listVisitorsFor(F.PRE_ORDER),
-        run: () => traversal.makeRunner().run(),
+        run: () => traversal.createRunner().run(),
         roundTrip: () =>
           traversal.setVisitorsFor(
             F.PRE_ORDER,
@@ -94,15 +102,15 @@ const families = [
     },
   },
   {
-    name: 'AsyncDepthFirstTraversal',
+    name: 'AsyncDepthFirstTreeTraversal',
     create(calls: string[], shape: Shape) {
-      const traversal = new AsyncDepthFirstTraversal<T>({
+      const traversal = new AsyncDepthFirstTreeTraversal<T>({
         traversableTree,
         visitors: { [F.PRE_ORDER]: definitions(calls, shape) },
       });
       return {
         list: () => traversal.listVisitorsFor(F.PRE_ORDER),
-        run: () => traversal.makeRunner().run(),
+        run: () => traversal.createRunner().run(),
         roundTrip: () =>
           traversal.setVisitorsFor(
             F.PRE_ORDER,
@@ -124,15 +132,15 @@ const families = [
     },
   },
   {
-    name: 'BreadthFirstTraversal',
+    name: 'BreadthFirstTreeTraversal',
     create(calls: string[], shape: Shape) {
-      const traversal = new BreadthFirstTraversal<T>({
+      const traversal = new BreadthFirstTreeTraversal<T>({
         traversableTree,
         visitors: { [B.LEVEL_ORDER]: definitions(calls, shape) },
       });
       return {
         list: () => traversal.listVisitorsFor(B.LEVEL_ORDER),
-        run: () => traversal.makeRunner().run(),
+        run: () => traversal.createRunner().run(),
         roundTrip: () =>
           traversal.setVisitorsFor(
             B.LEVEL_ORDER,
@@ -154,15 +162,15 @@ const families = [
     },
   },
   {
-    name: 'AsyncBreadthFirstTraversal',
+    name: 'AsyncBreadthFirstTreeTraversal',
     create(calls: string[], shape: Shape) {
-      const traversal = new AsyncBreadthFirstTraversal<T>({
+      const traversal = new AsyncBreadthFirstTreeTraversal<T>({
         traversableTree,
         visitors: { [B.LEVEL_ORDER]: definitions(calls, shape) },
       });
       return {
         list: () => traversal.listVisitorsFor(B.LEVEL_ORDER),
-        run: () => traversal.makeRunner().run(),
+        run: () => traversal.createRunner().run(),
         roundTrip: () =>
           traversal.setVisitorsFor(
             B.LEVEL_ORDER,
@@ -188,26 +196,26 @@ const families = [
     create(calls: string[], shape: Shape) {
       const traversal = new DagTraversal<T, T, string>({
         traversableGraph,
-        visitors: { [D.ON_READY]: definitions(calls, shape) },
+        visitors: { [D.ON_WORK_READY]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(D.ON_READY),
-        run: () => traversal.makeRunner().run(),
+        list: () => traversal.listVisitorsFor(D.ON_WORK_READY),
+        run: () => traversal.createRunner().run(),
         roundTrip: () =>
           traversal.setVisitorsFor(
-            D.ON_READY,
-            traversal.listVisitorsFor(D.ON_READY),
+            D.ON_WORK_READY,
+            traversal.listVisitorsFor(D.ON_WORK_READY),
           ),
         replace: () =>
           traversal.configure({
             visitors: {
-              [D.ON_READY]: () => {
+              [D.ON_WORK_READY]: () => {
                 calls.push('configured');
               },
             },
           }),
         add: () =>
-          traversal.addVisitorFor(D.ON_READY, () => {
+          traversal.addVisitorFor(D.ON_WORK_READY, () => {
             calls.push('added');
           }),
       };
@@ -218,26 +226,26 @@ const families = [
     create(calls: string[], shape: Shape) {
       const traversal = new AsyncDagTraversal<T, T, string>({
         traversableGraph,
-        visitors: { [D.ON_READY]: definitions(calls, shape) },
+        visitors: { [D.ON_WORK_READY]: definitions(calls, shape) },
       });
       return {
-        list: () => traversal.listVisitorsFor(D.ON_READY),
-        run: () => traversal.makeRunner().run(),
+        list: () => traversal.listVisitorsFor(D.ON_WORK_READY),
+        run: () => traversal.createRunner().run(),
         roundTrip: () =>
           traversal.setVisitorsFor(
-            D.ON_READY,
-            traversal.listVisitorsFor(D.ON_READY),
+            D.ON_WORK_READY,
+            traversal.listVisitorsFor(D.ON_WORK_READY),
           ),
         replace: () =>
           traversal.configure({
             visitors: {
-              [D.ON_READY]: () => {
+              [D.ON_WORK_READY]: () => {
                 calls.push('configured');
               },
             },
           }),
         add: () =>
-          traversal.addVisitorFor(D.ON_READY, () => {
+          traversal.addVisitorFor(D.ON_WORK_READY, () => {
             calls.push('added');
           }),
       };
@@ -273,7 +281,7 @@ for (const { name, create } of families) {
         if (field === 'priority') records[1]!.priority = -100;
         if (field === 'mode') {
           records[1]!.commandCommitMode = 'afterEachVisitor';
-          records[1]!.resolutionStyle = Style.SEQUENTIAL;
+          records[1]!.commandCommitMode = 'afterEachVisitor';
         }
         await traversal.run();
         expect(calls).toEqual(['high:root', 'middle:high', 'low:high']);
@@ -285,7 +293,7 @@ for (const { name, create } of families) {
         }
         expect(earlier[1]!.priority).toBe(20);
         expect(earlier[1]!.commandCommitMode).toBe('afterGroup');
-        expect(earlier[1]!.resolutionStyle).toBe(Style.CONCURRENT);
+        expect(earlier[1]!.commandCommitMode).toBe('afterGroup');
         if (field === 'callback')
           expect(fresh[1]!.visitor).not.toBe(records[1]!.visitor);
         expect(fresh[1]!.priority).toBe(20);

@@ -1,23 +1,23 @@
 import type { OwnerToken } from '@core/effects/types';
-import type { Ref } from '@core/graph/types';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexRef } from '@core/graph/types';
+import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 
-export type BreadthFirstPolicyState<T extends TreeTypeParameters> = {
-  queue: VertexResolutionContext<T>[];
+export type BreadthFirstPolicyState<T extends VertexTypes> = {
+  queue: InternalVertexResolutionContext<T>[];
   queueIndex: number;
 };
 
-type BreadthFirstExpansion<T extends TreeTypeParameters> = {
+type BreadthFirstExpansion<T extends VertexTypes> = {
   owner: OwnerToken;
-  vertexRef: Ref<T>;
+  vertexRef: VertexRef<T>;
   depth: number;
   stage: 'prepare' | 'sort-wait';
 };
 
-type BreadthFirstResolution<T extends TreeTypeParameters> = {
+type BreadthFirstResolution<T extends VertexTypes> = {
   owner: OwnerToken;
-  context: VertexResolutionContext<T>;
+  context: InternalVertexResolutionContext<T>;
 };
 
 type ParentProgress = {
@@ -25,12 +25,12 @@ type ParentProgress = {
   closeWhenDone: boolean;
 };
 
-export type InjectedBreadthFirstFrontier<T extends TreeTypeParameters> = {
-  contexts: readonly VertexResolutionContext<T>[];
+export type InjectedBreadthFirstFrontier<T extends VertexTypes> = {
+  contexts: readonly InternalVertexResolutionContext<T>[];
   consumedHintIndices: ReadonlySet<number>;
 };
 
-export type BreadthFirstWork<T extends TreeTypeParameters> =
+export type BreadthFirstWork<T extends VertexTypes> =
   | {
       kind: 'PREPARE_HINTS';
       expansion: BreadthFirstExpansion<T>;
@@ -41,17 +41,17 @@ export type BreadthFirstWork<T extends TreeTypeParameters> =
       expansion: BreadthFirstExpansion<T>;
       hints: T['VertexHint'][];
     }
-  | { kind: 'MAKE_VERTEX'; context: VertexResolutionContext<T> }
+  | { kind: 'MAKE_VERTEX'; context: InternalVertexResolutionContext<T> }
   | { kind: 'CLEAR_QUEUE' };
 
 /** Queue policy preserving dequeue-time resolution and legacy public state. */
-export class BreadthFirstPolicy<T extends TreeTypeParameters> {
+export class BreadthFirstPolicy<T extends VertexTypes> {
   private readonly expansions: BreadthFirstExpansion<T>[] = [];
-  private readonly progressByParent = new Map<Ref<T>, ParentProgress>();
+  private readonly progressByParent = new Map<VertexRef<T>, ParentProgress>();
   private readonly injectedFrontiers = new Map<
-    Ref<T>,
+    VertexRef<T>,
     {
-      contexts: VertexResolutionContext<T>[];
+      contexts: InternalVertexResolutionContext<T>[];
       consumedHintIndices: Set<number>;
     }
   >();
@@ -78,7 +78,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
   }
 
   takeInjectedFrontier(
-    parent: Ref<T>,
+    parent: VertexRef<T>,
   ): InjectedBreadthFirstFrontier<T> | null {
     const frontier = this.injectedFrontiers.get(parent);
     if (frontier === undefined) return null;
@@ -86,14 +86,18 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
     return frontier;
   }
 
-  activateInjectedFrontier(parent: Ref<T>): boolean {
+  activateInjectedFrontier(parent: VertexRef<T>): boolean {
     const progress = this.progressByParent.get(parent);
     if (progress === undefined) return true;
     progress.closeWhenDone = true;
     return false;
   }
 
-  enqueueExpansion(owner: OwnerToken, vertexRef: Ref<T>, depth: number): void {
+  enqueueExpansion(
+    owner: OwnerToken,
+    vertexRef: VertexRef<T>,
+    depth: number,
+  ): void {
     this.expansions.push({
       owner,
       vertexRef,
@@ -103,8 +107,8 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
   }
 
   next(
-    hasVertex: (ref: Ref<T>) => boolean,
-    isDisabled: (ref: Ref<T>) => boolean,
+    hasVertex: (ref: VertexRef<T>) => boolean,
+    isDisabled: (ref: VertexRef<T>) => boolean,
   ): BreadthFirstWork<T> | null {
     for (;;) {
       const expansion = this.expansions[0];
@@ -116,7 +120,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
         if (expansion.stage === 'sort-wait') return null;
         const hints = isDisabled(expansion.vertexRef)
           ? []
-          : expansion.vertexRef.unref().getChildrenHints().slice();
+          : expansion.vertexRef.getValue().getChildrenHints().slice();
         if (this.hasSorter && !isDisabled(expansion.vertexRef)) {
           expansion.stage = 'sort-wait';
           return { kind: 'SORT_HINTS', expansion, hints };
@@ -149,7 +153,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
     for (let hintIndex = 0; hintIndex < hints.length; hintIndex += 1) {
       this.state.queue.push({
         depth: expansion.depth + 1,
-        parentVertex: expansion.vertexRef.unref(),
+        parentVertex: expansion.vertexRef.getValue(),
         parentVertexRef: expansion.vertexRef,
         hintIndex,
         vertexHint: hints[hintIndex]!,
@@ -163,7 +167,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
   setSortedHints(
     owner: OwnerToken,
     hints: T['VertexHint'][],
-  ): { vertexRef: Ref<T>; empty: boolean } {
+  ): { vertexRef: VertexRef<T>; empty: boolean } {
     const expansion = this.expansions[0];
     if (expansion?.owner.id !== owner.id) {
       throw new Error('Unknown breadth-first expansion owner');
@@ -174,7 +178,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
 
   startResolution(
     owner: OwnerToken,
-    context: VertexResolutionContext<T>,
+    context: InternalVertexResolutionContext<T>,
   ): void {
     if (this.pendingResolution !== null) {
       throw new Error('Breadth-first resolution is already pending');
@@ -183,7 +187,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
   }
 
   completeResolution(owner: OwnerToken): {
-    context: VertexResolutionContext<T>;
+    context: InternalVertexResolutionContext<T>;
     closeParent: boolean;
   } {
     if (this.pendingResolution?.owner.id !== owner.id) {
@@ -204,7 +208,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
 
   getFrames(): readonly Readonly<{
     owner: OwnerToken;
-    vertexRef: Ref<T>;
+    vertexRef: VertexRef<T>;
     stage: 'sort' | 'resolve';
     pendingIndices: readonly number[];
   }>[] {
@@ -247,7 +251,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
   }
 
   private addParentProgress(
-    parent: Ref<T>,
+    parent: VertexRef<T>,
     count: number,
     closeWhenDone: boolean,
   ): void {
@@ -259,7 +263,7 @@ export class BreadthFirstPolicy<T extends TreeTypeParameters> {
     });
   }
 
-  private consumeParentProgress(parent: Ref<T>): boolean {
+  private consumeParentProgress(parent: VertexRef<T>): boolean {
     const progress = this.progressByParent.get(parent);
     if (progress === undefined || progress.remaining < 1) {
       throw new Error('Unknown breadth-first parent expansion');

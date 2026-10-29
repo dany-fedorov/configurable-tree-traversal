@@ -1,8 +1,8 @@
-import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
-import type { CTTRef } from '@core/CTTRef';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { MutableRef } from '@core/CTTRef';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
+  TraversalVisitorCommandName,
   VisitorRegistrationMetadata,
 } from '@core/TraversalVisitor';
 import type { Vertex } from '@core/Vertex';
@@ -12,44 +12,52 @@ export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
 export type RegistrationMetadata = VisitorRegistrationMetadata;
 
-export type VisitorChainMetadata<T extends TreeTypeParameters> = {
-  vertexVisitIndex: number;
-  curVertexVisitorVisitIndex: number;
-  previousVisitedVertexRef: CTTRef<Vertex<T>> | null;
-  vertexVisitorsChainState: unknown;
+export type VisitorChainMetadata<T extends VertexTypes> = {
+  phaseVisitIndex: number;
+  visitorIndex: number;
+  previousPhaseVertexRef: MutableRef<Vertex<T>> | null;
+  visitorChainState: unknown;
 };
 
 export type VisitorChainPoll<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > =
   | {
       kind: 'VISIT';
-      ref: CTTRef<Vertex<T | R>>;
+      ref: MutableRef<Vertex<T | R>>;
       recordIndex: number;
       metadata: VisitorChainMetadata<T | R>;
     }
-  | { kind: 'COMMANDS'; commands: TraversalVisitorCommand<R>[] }
+  | {
+      kind: 'COMMANDS';
+      commands: TraversalVisitorCommand<
+        R,
+        TraversalVisitorCommandName,
+        T['VertexHint']
+      >[];
+    }
   | { kind: 'WAIT' | 'PAUSED' | 'DONE' };
 
 export type VisitorBatchCommit = {
   deferred?: boolean;
   halt: boolean;
   deleted: boolean;
-  vertexVisitorsChainState?: unknown;
+  visitorChainState?: unknown;
 };
 
 export type VisitorChainInput<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = {
-  ref: CTTRef<Vertex<T | R>>;
+  ref: MutableRef<Vertex<T | R>>;
   records: readonly RegistrationMetadata[];
   metadata: VisitorChainMetadata<T | R>;
   family: 'tree' | 'dag';
   order?: string;
 };
 
-export type VisitorOutcome<R extends TreeTypeParameters> = Outcome<
-  VisitResult<R> | typeof DEFER_READY
->;
+export type VisitorOutcome<
+  R extends VertexTypes,
+  SourceHint = R['VertexHint'],
+> = Outcome<VisitResult<R, never, 'tree' | 'dag', SourceHint>>;

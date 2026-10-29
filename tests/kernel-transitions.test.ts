@@ -1,22 +1,22 @@
-import type { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
-import { TraversalKernel } from '../src/core/TraversalKernel';
-import type { CallbackReply, VisitOrder } from '../src/core/effects/types';
-import type { Outcome } from '../src/core/effects/types';
-import type { MakeVertexResult } from '../src/core/TraversableTree';
-import type { Ref } from '../src/core/graph/types';
-import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
+import { MutableRef } from '../src/core/CTTRef';
+import type {
+  CallbackReply,
+  Outcome,
+  VisitPhase,
+} from '../src/core/effects/types';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { TestGraph } from './helpers/graph-fixtures';
-import { CTTRef } from '../src/core/CTTRef';
+import type { VertexRef } from '../src/core/graph/types';
+import type { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
+import type { MakeVertexResult } from '../src/core/TraversableTree';
+import { TraversalKernel } from '../src/core/TraversalKernel';
+import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
+import type { TestGraph } from './helpers/graph-fixtures';
 
 function makeKernel(
   visitorCount = 1,
-  options: { includeCompletion?: boolean; iterateOver?: VisitOrder[] } = {},
+  options: { includeCompletion?: boolean; iterateOver?: VisitPhase[] } = {},
 ) {
   const container = new ResolvedGraphsContainer<TestGraph>({
     sourceMode: 'graph',
@@ -25,7 +25,7 @@ function makeKernel(
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
     visitorsState: {},
   };
   const kernel = new TraversalKernel<TestGraph>({
@@ -35,25 +35,25 @@ function makeKernel(
     container,
     stateBridge,
     visitorMetadata: {
-      ON_READY: Array.from({ length: visitorCount }, (_, addedIndex) => ({
+      ON_WORK_READY: Array.from({ length: visitorCount }, (_, addedIndex) => ({
         addedIndex,
         priority: 100,
-        resolutionStyle: Style.SEQUENTIAL,
+        commandCommitMode: 'afterEachVisitor' as const,
       })),
       ...(options.includeCompletion
         ? {
-            ON_COMPLETE: [
+            ON_SUBGRAPH_READY: [
               {
                 addedIndex: 0,
                 priority: 100,
-                resolutionStyle: Style.SEQUENTIAL,
+                commandCommitMode: 'afterEachVisitor' as const,
               },
             ],
           }
         : {}),
     },
     iterableConfig: {
-      iterateOver: options.iterateOver ?? ['ON_READY'],
+      iterateOver: options.iterateOver ?? ['ON_WORK_READY'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
@@ -65,6 +65,16 @@ function makeKernel(
   return { kernel, container, stateBridge };
 }
 
+function acknowledgeObservation(
+  kernel: TraversalKernel<TestGraph>,
+  order: VisitPhase,
+) {
+  const observation = kernel.poll('drive');
+  expect(observation).toMatchObject({ kind: 'EVENT', event: { order } });
+  if (observation.kind !== 'EVENT') throw new Error('Expected observation');
+  kernel.acknowledgeEvent(observation.boundaryId);
+}
+
 function makeBreadthKernel() {
   const container = new ResolvedGraphsContainer<TestGraph>({
     sourceMode: 'graph',
@@ -73,7 +83,7 @@ function makeBreadthKernel() {
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<Ref<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -121,10 +131,10 @@ function makeDepthKernel() {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: {
-      visitParentAfterChildren: 0,
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: 0,
-      visitUpOneChildParents: true,
-      considerVisitAfterNullContentVertices: true,
+      afterChildIndices: { indices: [0] },
+      fallbackChildIndices: { indices: [0] },
+      visitSingleChildParent: true,
+      visitAfterOmittedChildren: true,
     },
     hasSorter: false,
     hasHintIds: false,
@@ -139,11 +149,7 @@ function rootReply(
   return { requestId, kind: 'MAKE_ROOT', outcome };
 }
 
-function invokePrivate<R>(
-  target: object,
-  name: string,
-  ...args: unknown[]
-): R {
+function invokePrivate<R>(target: object, name: string, ...args: unknown[]): R {
   const method = (target as unknown as Record<string, unknown>)[name] as (
     ...values: unknown[]
   ) => R;
@@ -171,14 +177,14 @@ test('steps from an owned root request through visit and event backpressure', ()
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'root', $c: [] },
+        vertexContent: { $data: 'root', $childHints: [] },
       },
     }),
   );
   const visit = kernel.poll('drive');
   expect(visit.kind).toBe('CALL');
   if (visit.kind !== 'CALL') throw new Error('Expected visitor call');
-  expect(visit.call).toMatchObject({ kind: 'VISIT', order: 'ON_READY' });
+  expect(visit.call).toMatchObject({ kind: 'VISIT', order: 'ON_WORK_READY' });
 
   kernel.submit({
     requestId: visit.call.requestId,
@@ -193,8 +199,9 @@ test('steps from an owned root request through visit and event backpressure', ()
   expect(kernel.poll('drive')).toEqual(event);
 
   kernel.acknowledgeEvent(event.boundaryId);
+  acknowledgeObservation(kernel, 'ON_SUBGRAPH_READY');
   expect(kernel.poll('drive')).toEqual({ kind: 'FINISHED' });
-  expect(container.resolvedGraph.getRoot()).not.toBeNull();
+  expect(container.resolvedGraphView.getRoot()).not.toBeNull();
 });
 
 test('reports public request, halt, event, and failed-resume guards', () => {
@@ -229,50 +236,47 @@ test('resume copies every optional filter shape without retaining caller arrays'
   const { kernel } = makeKernel();
   kernel.resume({});
   kernel.resume({
-    iterateOver: ['ON_COMPLETE'],
-    enableVisitorFunctionsFor: ['ON_READY'],
-    disableVisitorFunctionsFor: ['ON_COMPLETE'],
+    emitEvents: ['subgraphCompleted'],
+    visitorPhases: { include: ['ON_WORK_READY'] },
   });
-  const configured = kernel.inspect().iterableConfig;
+  const configured = kernel.inspect().executionOptions;
   kernel.resume({});
-  expect(kernel.inspect().iterableConfig).toEqual(configured);
+  expect(kernel.inspect().executionOptions).toEqual(configured);
   kernel.resume({
-    enableVisitorFunctionsFor: null,
-    disableVisitorFunctionsFor: null,
+    visitorPhases: 'all',
   });
-  expect(kernel.inspect().iterableConfig).toMatchObject({
-    enableVisitorFunctionsFor: null,
-    disableVisitorFunctionsFor: null,
+  expect(kernel.inspect().executionOptions).toEqual({
+    emitEvents: ['subgraphCompleted'],
+    visitorPhases: 'all',
   });
 });
 
-test.each([
-  'advanceChains',
-  'admitEligibleVisit',
-  'admitExpansion',
-] as const)('converts a thrown %s transition to FAILED', (method) => {
-  const { kernel } = makeKernel();
-  if (method === 'admitExpansion') {
-    setPrivate(kernel, 'admitEligibleVisit', () => false);
-  }
-  setPrivate(kernel, method, () => {
-    throw new Error(`${method} failed`);
-  });
-  expect(kernel.poll('drive')).toMatchObject({
-    kind: 'FAILED',
-    error: expect.objectContaining({ message: `${method} failed` }),
-  });
-});
+test.each(['advanceChains', 'admitEligibleVisit', 'admitExpansion'] as const)(
+  'converts a thrown %s transition to FAILED',
+  (method) => {
+    const { kernel } = makeKernel();
+    if (method === 'admitExpansion') {
+      setPrivate(kernel, 'admitEligibleVisit', () => false);
+    }
+    setPrivate(kernel, method, () => {
+      throw new Error(`${method} failed`);
+    });
+    expect(kernel.poll('drive')).toMatchObject({
+      kind: 'FAILED',
+      error: expect.objectContaining({ message: `${method} failed` }),
+    });
+  },
+);
 
 test('private invalidation removes frames and boundaries and is idempotent', () => {
   const { kernel } = makeKernel();
-  const vertexRef = new CTTRef(
-    new Vertex<TestGraph>({ $d: 'removed', $c: [] }),
+  const vertexRef = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'removed', $childHints: [] }),
   );
   const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
   const fields = kernel as unknown as {
-    boundaries: Array<{ event: { vertexRef: Ref<TestGraph> } }>;
-    frames: Map<number, { owner: typeof owner; ref: Ref<TestGraph> }>;
+    boundaries: Array<{ event: { vertexRef: VertexRef<TestGraph> } }>;
+    frames: Map<number, { owner: typeof owner; ref: VertexRef<TestGraph> }>;
     pendingRequests: Map<
       number,
       { call: { owner: typeof owner }; submitted: boolean }
@@ -280,12 +284,11 @@ test('private invalidation removes frames and boundaries and is idempotent', () 
   };
   fields.frames.set(owner.id, { owner, ref: vertexRef });
   fields.boundaries.push({ event: { vertexRef } });
-  invokePrivate<void>(
-    kernel,
-    'invalidateRefs',
-    new Set([vertexRef]),
-    { kind: 'chain', id: 99, epoch: 0 },
-  );
+  invokePrivate<void>(kernel, 'invalidateRefs', new Set([vertexRef]), {
+    kind: 'chain',
+    id: 99,
+    epoch: 0,
+  });
   expect(fields.frames.size).toBe(0);
   expect(fields.boundaries).toEqual([]);
 
@@ -313,14 +316,14 @@ test('detects a running chain when deciding whether a halt can settle', () => {
 
 test('kernel inspection maps breadth-first policy frames', () => {
   const kernel = makeBreadthKernel();
-  const vertexRef = new CTTRef(
-    new Vertex<TestGraph>({ $d: 'parent', $c: [] }),
+  const vertexRef = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'parent', $childHints: [] }),
   );
   const fields = kernel as unknown as {
     breadthFirstPolicy: {
       enqueueExpansion(
         owner: { kind: 'frame'; id: number; epoch: number },
-        ref: Ref<TestGraph>,
+        ref: VertexRef<TestGraph>,
         depth: number,
       ): void;
     };
@@ -331,31 +334,36 @@ test('kernel inspection maps breadth-first policy frames', () => {
     0,
   );
   expect(kernel.inspect().frames).toEqual([
-    expect.objectContaining({ vertexRefId: vertexRef.getId(), stage: 'resolve' }),
+    expect.objectContaining({
+      vertexRefId: vertexRef.getRefId(),
+      stage: 'resolve',
+    }),
   ]);
 
   const scheduling = (
     kernel as unknown as {
-      scheduling: { eligible: Array<{ ref: Ref<TestGraph>; order: string }> };
+      scheduling: {
+        eligible: Array<{ ref: VertexRef<TestGraph>; order: string }>;
+      };
     }
   ).scheduling;
-  scheduling.eligible.push({ ref: vertexRef, order: 'ON_COMPLETE' });
+  scheduling.eligible.push({ ref: vertexRef, order: 'ON_SUBGRAPH_READY' });
   expect(kernel.inspect().readyVisits).toEqual([
-    { vertexRefId: vertexRef.getId(), order: 'LEVEL_ORDER' },
+    { vertexRefId: vertexRef.getRefId(), phase: 'LEVEL_ORDER' },
   ]);
 });
 
 test('kernel inspection reports a depth-first child-wait frame index', () => {
   const kernel = makeDepthKernel();
-  const vertexRef = new CTTRef(
-    new Vertex<TestGraph>({ $d: 'parent', $c: ['child'] }),
+  const vertexRef = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'parent', $childHints: ['child'] }),
   );
   const policy = (
     kernel as unknown as {
       depthFirstPolicy: {
         push(
           owner: { kind: 'frame'; id: number; epoch: number },
-          ref: Ref<TestGraph>,
+          ref: VertexRef<TestGraph>,
           depth: number,
         ): void;
         getFrames(): Array<{ stage: string; nextChild: number }>;
@@ -383,8 +391,8 @@ test.each(['identify', 'resolve'] as const)(
   (stage) => {
     const { kernel } = makeKernel();
     const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
-    const vertexRef = new CTTRef(
-      new Vertex<TestGraph>({ $d: 'parent', $c: ['child'] }),
+    const vertexRef = new MutableRef(
+      new Vertex<TestGraph>({ $data: 'parent', $childHints: ['child'] }),
     );
     const fields = kernel as unknown as {
       frames: Map<number, object>;
@@ -431,7 +439,7 @@ test('reports an incomplete-work DAG stall without dependency ids', () => {
   ).scheduling;
   const vertexRef = scheduling.acceptRoot({
     vertexId: 'incomplete',
-    vertexContent: { $d: 'incomplete', $c: [] },
+    vertexContent: { $data: 'incomplete', $childHints: [] },
   })!;
   scheduling.takeReady();
   scheduling.markPreVisited(vertexRef);
@@ -471,9 +479,7 @@ test('validates request ids and reply kinds exactly once', () => {
     ),
   ).toThrow(/already submitted/i);
   expect(() =>
-    kernel.submit(
-      rootReply(999, { ok: true, value: { vertexContent: null } }),
-    ),
+    kernel.submit(rootReply(999, { ok: true, value: { vertexContent: null } })),
   ).toThrow(/request/i);
 });
 
@@ -481,7 +487,9 @@ test('retains a thrown undefined value in terminal failure state', () => {
   const { kernel } = makeKernel();
   const root = kernel.poll('drive');
   if (root.kind !== 'CALL') throw new Error('Expected root call');
-  kernel.submit(rootReply(root.call.requestId, { ok: false, error: undefined }));
+  kernel.submit(
+    rootReply(root.call.requestId, { ok: false, error: undefined }),
+  );
 
   expect(kernel.poll('drive')).toEqual({ kind: 'FAILED', error: undefined });
   expect(kernel.getFailure()).toEqual({ error: undefined });
@@ -510,7 +518,7 @@ test('commits a halting command batch once and resumes at the next visitor', () 
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $d: 'root', $c: [] } },
+      value: { vertexContent: { $data: 'root', $childHints: [] } },
     }),
   );
   const first = kernel.poll('drive');
@@ -525,10 +533,10 @@ test('commits a halting command batch once and resumes at the next visitor', () 
       value: {
         commands: [
           {
-            commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-            commandArguments: { vertexVisitorsChainState: 'once' },
+            commandName: Command.SET_VISITOR_CHAIN_STATE,
+            commandArguments: { state: 'once' },
           },
-          { commandName: Command.HALT_TRAVERSAL },
+          { commandName: Command.PAUSE_TRAVERSAL },
         ],
       },
     },
@@ -536,8 +544,8 @@ test('commits a halting command batch once and resumes at the next visitor', () 
 
   expect(kernel.poll('drive')).toEqual({ kind: 'HALTED' });
   expect(kernel.inspect().chains[0]).toMatchObject({
-    phase: 'paused',
-    position: 1,
+    state: 'paused',
+    visitorIndex: 1,
     waitingFor: 'none',
   });
   kernel.resume();
@@ -547,8 +555,8 @@ test('commits a halting command batch once and resumes at the next visitor', () 
   }
   expect(second.call.recordIndex).toBe(1);
   expect(second.call.metadata).toMatchObject({
-    curVertexVisitorVisitIndex: 1,
-    vertexVisitorsChainState: 'once',
+    visitorIndex: 1,
+    visitorChainState: 'once',
   });
 });
 
@@ -559,7 +567,9 @@ test('disables an unexpanded subtree without failing its current chain', () => {
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $d: 'root', $c: ['never-resolved'] } },
+      value: {
+        vertexContent: { $data: 'root', $childHints: ['never-resolved'] },
+      },
     }),
   );
   const visit = kernel.poll('drive');
@@ -571,7 +581,7 @@ test('disables an unexpanded subtree without failing its current chain', () => {
     kind: 'VISIT',
     outcome: {
       ok: true,
-      value: { commands: [{ commandName: Command.DISABLE_SUBTREE_TRAVERSAL }] },
+      value: { commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }] },
     },
   });
 
@@ -579,6 +589,7 @@ test('disables an unexpanded subtree without failing its current chain', () => {
   expect(event.kind).toBe('EVENT');
   if (event.kind !== 'EVENT') throw new Error('Expected event');
   kernel.acknowledgeEvent(event.boundaryId);
+  acknowledgeObservation(kernel, 'ON_SUBGRAPH_READY');
   expect(kernel.poll('drive')).toEqual({ kind: 'FINISHED' });
 });
 
@@ -589,7 +600,7 @@ test('drains an already started chain before reporting HALTED', () => {
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $d: 'root', $c: [] } },
+      value: { vertexContent: { $data: 'root', $childHints: [] } },
     }),
   );
   const first = kernel.poll('drive');
@@ -617,7 +628,7 @@ test('drains an already started chain before reporting HALTED', () => {
   const event = kernel.poll('drain');
   if (event.kind !== 'EVENT') throw new Error('Expected retained event');
   expect(kernel.inspect()).toMatchObject({
-    haltRequested: true,
+    pauseRequested: true,
     chains: [],
     pendingRequests: [],
     pendingEventBoundaryCount: 1,
@@ -635,7 +646,7 @@ test('does not hide a submitted live failure behind a halt request', () => {
   kernel.submit(
     rootReply(root.call.requestId, {
       ok: true,
-      value: { vertexContent: { $d: 'root', $c: [] } },
+      value: { vertexContent: { $data: 'root', $childHints: [] } },
     }),
   );
   const visit = kernel.poll('drive');
@@ -662,7 +673,7 @@ test('delivers an event committed from an earlier reply before a later failure',
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'root', $c: ['a', 'b'] },
+        vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
       },
     }),
   );
@@ -688,7 +699,7 @@ test('delivers an event committed from an earlier reply before a later failure',
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'a', vertexContent: { $d: 'a', $c: [] } },
+      value: { vertexId: 'a', vertexContent: { $data: 'a', $childHints: [] } },
     },
   });
   const makeB = kernel.poll('drive');
@@ -700,7 +711,7 @@ test('delivers an event committed from an earlier reply before a later failure',
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'b', vertexContent: { $d: 'b', $c: [] } },
+      value: { vertexId: 'b', vertexContent: { $data: 'b', $childHints: [] } },
     },
   });
   const visitA = kernel.poll('drive');
@@ -743,7 +754,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'root', $c: ['a', 'b'] },
+        vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
       },
     }),
   );
@@ -756,6 +767,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
     kind: 'VISIT',
     outcome: { ok: true, value: undefined },
   });
+  acknowledgeObservation(kernel, 'ON_WORK_READY');
   const makeA = kernel.poll('drive');
   if (makeA.kind !== 'CALL' || makeA.call.kind !== 'MAKE_VERTEX') {
     throw new Error('Expected first child request');
@@ -767,8 +779,8 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       ok: true,
       value: {
         vertexId: 'a',
-        dependsOn: ['root'],
-        vertexContent: { $d: 'a', $c: [] },
+        dependsOnWork: ['root'],
+        vertexContent: { $data: 'a', $childHints: [] },
       },
     },
   });
@@ -783,8 +795,8 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
       ok: true,
       value: {
         vertexId: 'b',
-        dependsOn: ['a'],
-        vertexContent: { $d: 'b', $c: [] },
+        dependsOnWork: ['a'],
+        vertexContent: { $data: 'b', $childHints: [] },
       },
     },
   });
@@ -797,6 +809,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
     kind: 'VISIT',
     outcome: { ok: true, value: undefined },
   });
+  acknowledgeObservation(kernel, 'ON_WORK_READY');
   const visitB = kernel.poll('drive');
   if (visitB.kind !== 'CALL' || visitB.call.kind !== 'VISIT') {
     throw new Error('Expected B visitor call');
@@ -805,14 +818,14 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
   if (completeA.kind !== 'CALL' || completeA.call.kind !== 'VISIT') {
     throw new Error('Expected A completion visitor call');
   }
-  expect(completeA.call.order).toBe('ON_COMPLETE');
+  expect(completeA.call.order).toBe('ON_SUBGRAPH_READY');
 
   kernel.submit({
     requestId: completeA.call.requestId,
     kind: 'VISIT',
     outcome: {
       ok: true,
-      value: { commands: [{ commandName: Command.DELETE_VERTEX }] },
+      value: { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] },
     },
   });
   kernel.poll('drive');
@@ -846,7 +859,7 @@ test('retains every started-chain event in FIFO order while halting', () => {
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'root', $c: ['a', 'b'] },
+        vertexContent: { $data: 'root', $childHints: ['a', 'b'] },
       },
     }),
   );
@@ -872,7 +885,7 @@ test('retains every started-chain event in FIFO order while halting', () => {
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'a', vertexContent: { $d: 'a', $c: [] } },
+      value: { vertexId: 'a', vertexContent: { $data: 'a', $childHints: [] } },
     },
   });
   const makeB = kernel.poll('drive');
@@ -884,7 +897,7 @@ test('retains every started-chain event in FIFO order while halting', () => {
     kind: 'MAKE_VERTEX',
     outcome: {
       ok: true,
-      value: { vertexId: 'b', vertexContent: { $d: 'b', $c: [] } },
+      value: { vertexId: 'b', vertexContent: { $data: 'b', $childHints: [] } },
     },
   });
   const visitA = kernel.poll('drive');
@@ -917,7 +930,8 @@ test('retains every started-chain event in FIFO order while halting', () => {
   expect(kernel.inspect().pendingEventBoundaryCount).toBe(1);
 
   const second = kernel.poll('drain');
-  if (second.kind !== 'EVENT') throw new Error('Expected second retained event');
+  if (second.kind !== 'EVENT')
+    throw new Error('Expected second retained event');
   expect(second.boundaryId).not.toBe(first.boundaryId);
   expect(second.event.vertex.getData()).toBe('b');
   kernel.acknowledgeEvent(second.boundaryId);

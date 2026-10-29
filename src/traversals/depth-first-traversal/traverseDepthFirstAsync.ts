@@ -1,103 +1,16 @@
-import type { VisitorPhaseInput } from '@core/TraversalVisitor';
-import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
-import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import { AsyncDepthFirstTraversal } from './AsyncDepthFirstTraversal';
-import type { AsyncDepthFirstTraversalInstanceConfigInput } from './lib/AsyncDepthFirstTraversalInstanceConfig';
-import { DepthFirstTraversalOrder } from './lib/DepthFirstTraversalOrder';
-import type { AsyncDepthFirstTraversalRunner } from './lib/AsyncDepthFirstTraversalRunner';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import { AsyncDepthFirstTreeTraversal } from './AsyncDepthFirstTraversal';
+import type { AsyncDepthFirstTreeOptions } from './lib/AsyncDepthFirstTraversalInstanceConfig';
+import type { AsyncDepthFirstTreeRunner } from './lib/AsyncDepthFirstTraversalRunner';
 
-export type AsyncDepthFirstTraversalVisitorsSimple<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> = {
-  preOrderVisitor?: AsyncTraversalVisitor<
-    DepthFirstTraversalOrder.PRE_ORDER,
-    TTP,
-    RW_TTP
-  >;
-  postOrderVisitor?: AsyncTraversalVisitor<
-    DepthFirstTraversalOrder.POST_ORDER,
-    TTP,
-    RW_TTP
-  >;
-  inOrderVisitor?: AsyncTraversalVisitor<
-    DepthFirstTraversalOrder.IN_ORDER,
-    TTP,
-    RW_TTP
-  >;
-};
-
-/** Options for a single-call DepthFirst traversal with phase-keyed callbacks. */
-export type AsyncDepthFirstTraversalHelperOptions<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
-> = Omit<
-  AsyncDepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-  'visitors' | 'traversableTree'
-> & { traversableTree: AsyncTraversableTree<TTP, RW_TTP> } & {
-  visitors?: {
-    [K in DepthFirstTraversalOrder]?: VisitorPhaseInput<
-      AsyncTraversalVisitor<K, TTP, RW_TTP>
-    >;
-  };
-};
-
-export function traverseDepthFirstAsync<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+export function traverseTreeDepthFirstAsync<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 >(
-  options: AsyncDepthFirstTraversalHelperOptions<TTP, RW_TTP>,
-): Promise<AsyncDepthFirstTraversalRunner<TTP, RW_TTP>>;
-/** @deprecated Pass a single options object with a phase-keyed visitors map. */
-export function traverseDepthFirstAsync<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
->(
-  traversableTree: AsyncTraversableTree<TTP, RW_TTP>,
-  visitors: AsyncDepthFirstTraversalVisitorsSimple<TTP, RW_TTP> | null,
-  config?: AsyncDepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-): Promise<AsyncDepthFirstTraversalRunner<TTP, RW_TTP>>;
-export function traverseDepthFirstAsync<
-  TTP extends TreeTypeParameters = TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
->(
-  sourceOrOptions:
-    | AsyncTraversableTree<TTP, RW_TTP>
-    | AsyncDepthFirstTraversalHelperOptions<TTP, RW_TTP>,
-  visitors?: AsyncDepthFirstTraversalVisitorsSimple<TTP, RW_TTP> | null,
-  config?: AsyncDepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-): Promise<AsyncDepthFirstTraversalRunner<TTP, RW_TTP>> {
-  let traversalConfig: AsyncDepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>;
-  const preOrderVisitor = visitors?.preOrderVisitor;
-  const inOrderVisitor = visitors?.inOrderVisitor;
-  const postOrderVisitor = visitors?.postOrderVisitor;
-  if (arguments.length === 1) {
-    traversalConfig = sourceOrOptions as AsyncDepthFirstTraversalHelperOptions<
-      TTP,
-      RW_TTP
-    >;
-  } else {
-    traversalConfig = {
-      traversableTree: sourceOrOptions as AsyncTraversableTree<TTP, RW_TTP>,
-      ...config,
-    };
-  }
-  const traversal = new AsyncDepthFirstTraversal<TTP, RW_TTP>(traversalConfig);
-  if (preOrderVisitor) {
-    traversal.addVisitorFor(
-      DepthFirstTraversalOrder.PRE_ORDER,
-      preOrderVisitor,
-    );
-  }
-  if (inOrderVisitor) {
-    traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, inOrderVisitor);
-  }
-  if (postOrderVisitor) {
-    traversal.addVisitorFor(
-      DepthFirstTraversalOrder.POST_ORDER,
-      postOrderVisitor,
-    );
-  }
-  return traversal.makeRunner().run();
+  options: AsyncDepthFirstTreeOptions<TTP, RW_TTP>,
+): Promise<AsyncDepthFirstTreeRunner<TTP, RW_TTP>> {
+  if (arguments.length !== 1)
+    throw new TypeError('Traversal helpers require a single options object');
+  const traversal = new AsyncDepthFirstTreeTraversal<TTP, RW_TTP>(options);
+  return traversal.createRunner().run();
 }

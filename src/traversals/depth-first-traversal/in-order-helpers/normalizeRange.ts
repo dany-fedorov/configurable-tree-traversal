@@ -1,7 +1,5 @@
-import type { IndexRange } from '@depth-first-traversal/in-order-helpers/IndexRange';
-
 export function normalizeRange(
-  r: IndexRange,
+  r: number | readonly [number, number],
   arrLength: number,
 ): [number, number] | null {
   const rr = (Array.isArray(r) ? r : [r, r]).map((n, i) => {

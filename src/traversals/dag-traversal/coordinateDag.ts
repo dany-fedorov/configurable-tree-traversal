@@ -1,60 +1,63 @@
 import type { TraversalExecutionState } from '@core/TraversalExecution';
-import { inspectDag } from './inspectDag';
-import type { DagInspection } from './lib/DagInspection';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import { inspectDagMilestones } from './inspectDag';
 import type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
-import type { DagTraversalRunner } from './lib/DagTraversalRunner';
+import type { DagMilestoneSnapshot } from './lib/DagInspection';
 import type {
   DagDeferredWork,
   DagSettlementOutcome,
   DagSummary,
 } from './lib/DagProgress';
+import { dagRunnerCapabilities } from './lib/dagRunnerCapabilities';
+import type { DagTraversalRunner } from './lib/DagTraversalRunner';
 
-declare const ticketBrand: unique symbol;
+/** Declaration only: issued objects use WeakMap ownership, with no constructor value. */
+declare class NominalDagWorkTicket<ID> {
+  private constructor();
+  private readonly ticketIdentity: never;
+  readonly vertexId: ID;
+}
 
 /** Local settlement capability issued by one coordinator; copying loses ownership. */
-export type DagWorkTicket<ID = unknown> = Readonly<{
-  vertexId: ID;
-  [ticketBrand]: never;
-}>;
+export type DagWorkTicket<ID = unknown> = NominalDagWorkTicket<ID>;
 
-export type DagCoordinationBoundary<ID = unknown> =
+export type DagWorkBoundary<ID = unknown> =
   | Readonly<{
       kind: 'awaitingSettlement';
-      frontier: readonly DagWorkTicket<ID>[];
+      workTickets: readonly DagWorkTicket<ID>[];
     }>
   | Readonly<{ kind: 'paused' }>
   | Readonly<{ kind: 'finished' }>;
 
-export type DagCoordinationResult =
+export type DagSettlementReceipt =
   | Readonly<{ kind: 'accepted' }>
   | Readonly<{ kind: 'alreadyAccepted' }>;
 
 interface DagCoordinationControl<ID> extends TraversalExecutionState {
-  complete(ticket: DagWorkTicket<ID>): DagCoordinationResult;
+  completeWork(ticket: DagWorkTicket<ID>): DagSettlementReceipt;
   /** Fatal for the whole traversal; keep retryable work deferred instead. */
   failTraversal(
     ticket: DagWorkTicket<ID>,
     error: unknown,
-  ): DagCoordinationResult;
+  ): DagSettlementReceipt;
   /** Capture dependency explanations without advancing the coordinated runner. */
-  inspectDag(): DagInspection<ID>;
+  inspectMilestones(): DagMilestoneSnapshot<ID>;
   summary(): DagSummary<ID>;
   requestPause(): boolean;
 }
 
-export interface DagCoordinator<ID = unknown>
+export interface DagWorkSession<ID = unknown>
   extends DagCoordinationControl<ID> {
-  advance(): DagCoordinationBoundary<ID>;
+  advance(): DagWorkBoundary<ID>;
 }
 
-export interface AsyncDagCoordinator<ID = unknown>
+export interface AsyncDagWorkSession<ID = unknown>
   extends DagCoordinationControl<ID> {
-  advance(): Promise<DagCoordinationBoundary<ID>>;
+  advance(): Promise<DagWorkBoundary<ID>>;
 }
 
 type SettlementRunner<ID> = Pick<
-  DagTraversalRunner<TreeTypeParameters, TreeTypeParameters, ID>,
+  DagTraversalRunner<VertexTypes, VertexTypes, ID>,
   | 'settle'
   | 'summary'
   | 'requestPause'
@@ -62,15 +65,15 @@ type SettlementRunner<ID> = Pick<
   | 'getStatus'
   | 'isHalted'
   | 'inspect'
-> & {
-  readonly icfg: { workCompletion?: 'visitorReturn' | 'externalSettlement' };
-};
+>;
 
 function makeCoordination<ID>(
   runner: SettlementRunner<ID>,
-  inspectDependencies: () => DagInspection<ID>,
+  inspectDependencies: () => DagMilestoneSnapshot<ID>,
 ) {
-  if (runner.icfg.workCompletion !== 'externalSettlement') {
+  if (
+    dagRunnerCapabilities.get(runner)?.workCompletion !== 'externalSettlement'
+  ) {
     throw new TypeError(
       'DAG coordination requires externalSettlement work completion',
     );
@@ -79,7 +82,7 @@ function makeCoordination<ID>(
   const settle = (
     ticket: DagWorkTicket<ID>,
     outcome: DagSettlementOutcome,
-  ): DagCoordinationResult => {
+  ): DagSettlementReceipt => {
     const work = tickets.get(ticket);
     if (work === undefined) {
       throw new TypeError('Unknown or foreign DAG work ticket');
@@ -93,23 +96,23 @@ function makeCoordination<ID>(
   const failTraversal = (ticket: DagWorkTicket<ID>, error: unknown) =>
     settle(ticket, { kind: 'traversalFailed', error });
   return {
-    complete: (ticket: DagWorkTicket<ID>) =>
+    completeWork: (ticket: DagWorkTicket<ID>) =>
       settle(ticket, { kind: 'workCompleted' }),
     failTraversal,
     getStatus: () => runner.getStatus(),
     getStopReason: () => runner.getStopReason(),
     isHalted: () => runner.isHalted(),
     inspect: () => runner.inspect(),
-    inspectDag: inspectDependencies,
+    inspectMilestones: inspectDependencies,
     summary: () => runner.summary(),
     requestPause: () => runner.requestPause(),
-    boundary: (): DagCoordinationBoundary<ID> => {
+    boundary: (): DagWorkBoundary<ID> => {
       const reason = runner.getStopReason();
       if (reason === 'finished') return { kind: 'finished' };
       if (reason === 'paused') return { kind: 'paused' };
       return {
         kind: 'awaitingSettlement',
-        frontier: runner.summary().deferredFrontier.map((work) => {
+        workTickets: runner.summary().awaitingSettlement.map((work) => {
           // The private WeakMap, not a copyable field, proves ticket ownership.
           const ticket = Object.freeze({
             vertexId: work.vertexId,
@@ -123,13 +126,13 @@ function makeCoordination<ID>(
 }
 
 /** Wrap an external-settlement runner without executing or acquiring it. */
-export function coordinateDag<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+export function createDagWorkSession<
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID,
->(runner: DagTraversalRunner<T, R, ID>): DagCoordinator<ID> {
+>(runner: DagTraversalRunner<T, R, ID>): DagWorkSession<ID> {
   const { boundary, ...control } = makeCoordination(runner, () =>
-    inspectDag(runner),
+    inspectDagMilestones(runner),
   );
   return {
     ...control,
@@ -141,13 +144,13 @@ export function coordinateDag<
 }
 
 /** Async execution uses the runner's existing ownership and drain semantics. */
-export function coordinateDagAsync<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
+export function createAsyncDagWorkSession<
+  T extends VertexTypes,
+  R extends VertexTypes,
   ID,
->(runner: AsyncDagTraversalRunner<T, R, ID>): AsyncDagCoordinator<ID> {
+>(runner: AsyncDagTraversalRunner<T, R, ID>): AsyncDagWorkSession<ID> {
   const { boundary, ...control } = makeCoordination(runner, () =>
-    inspectDag(runner),
+    inspectDagMilestones(runner),
   );
   return {
     ...control,

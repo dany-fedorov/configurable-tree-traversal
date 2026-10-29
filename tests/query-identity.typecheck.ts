@@ -1,32 +1,36 @@
+import type { VertexHandle } from '../src';
 import {
-  CTTRef,
+  MutableRef,
   core,
-  ResolvedTree,
+  ResolvedTreeStore,
   type ResolvedTreeView,
-  type ResolvedGraph,
-  type ResolvedGraphSnapshot,
-  type TreeTypeParameters,
+  type ResolvedGraphView,
+  type OriginalGraphView,
+  type VertexTypes,
   type Vertex,
-  type DepthFirstTraversalRunner,
-  type AsyncDepthFirstTraversalRunner,
-  type BreadthFirstTraversalRunner,
-  type AsyncBreadthFirstTraversalRunner,
+  type DepthFirstTreeRunner,
+  type AsyncDepthFirstTreeRunner,
+  type BreadthFirstTreeRunner,
+  type AsyncBreadthFirstTreeRunner,
   type DagTraversalRunner,
   type AsyncDagTraversalRunner,
 } from '../src';
-import { CTTRef as CoreRef } from '../src/core';
+import { MutableRef as CoreRef } from '../src/core';
 import type { ResolvedTreeView as CoreView } from '../src/core';
 
-type T = TreeTypeParameters<{ label: string }, { label: string }>;
-declare const ref: CTTRef<Vertex<T>>;
-const constructors: [typeof CTTRef, typeof CTTRef] = [core.CTTRef, CoreRef];
+type T = VertexTypes<{ label: string }, { label: string }>;
+declare const ref: VertexHandle<T>;
+const constructors: [typeof MutableRef, typeof MutableRef] = [
+  core.MutableRef,
+  CoreRef,
+];
 const id: string = ref.getRefId();
-const oldId: string = ref.getId();
-const tree = new ResolvedTree<T>();
+const oldId: string = ref.getRefId();
+const tree = new ResolvedTreeStore<T>();
 const view: ResolvedTreeView<T> = tree.asReadOnly();
 const coreView: CoreView<T> = view;
-const children: readonly CTTRef<Vertex<T>>[] | null = view.getChildrenOf(ref);
-const path: readonly CTTRef<Vertex<T>>[] = view.getPathTo(ref);
+const children: readonly VertexHandle<T>[] | null = view.getChildrenOf(ref);
+const path: readonly VertexHandle<T>[] = view.getPathTo(ref);
 // @ts-expect-error Query facade exposes no deletion operation.
 view.delete(ref);
 // @ts-expect-error Query facade exposes no mutable records.
@@ -42,23 +46,25 @@ view.getResolutionContextOf(ref)!.depth = 2;
 // Opaque data, hints, refs, and vertices remain shallow identities.
 view.getResolutionContextOf(ref)!.vertexHint.label = 'edited';
 view.getResolutionContextOf(ref)!.parentVertex.getData().label = 'edited';
-view.getRoot()?.setPointsTo(ref.unref());
-// Advanced container queries retain mutable detached return types.
-tree.getChildrenOf(ref)!.push(ref);
-tree.getResolutionContextOf(ref)!.depth = 2;
-declare const graph: ResolvedGraph<T>;
-declare const snapshot: ResolvedGraphSnapshot<T>;
+// @ts-expect-error observation handles cannot mutate
+view.getRoot()?.setValue(ref.getValue());
+// Advanced standalone container queries retain mutable detached return types.
+declare const mutableRef: MutableRef<Vertex<T>>;
+tree.getChildrenOf(mutableRef)!.push(mutableRef);
+tree.getResolutionContextOf(mutableRef)!.depth = 2;
+declare const graph: ResolvedGraphView<T>;
+declare const snapshot: OriginalGraphView<T>;
 for (const facade of [graph, snapshot]) {
   const vertexId: unknown = facade.getVertexId(ref);
-  const oldVertexId: unknown = facade.getIdOf(ref);
-  const byId: CTTRef<Vertex<T>> | null = facade.getVertexRefById(undefined);
-  const oldById: CTTRef<Vertex<T>> | null = facade.getVertexById(Symbol());
+  const oldVertexId: unknown = facade.getVertexId(ref);
+  const byId: VertexHandle<T> | null = facade.getVertexRefById(undefined);
+  const oldById: VertexHandle<T> | null = facade.getVertexRefById(Symbol());
   void [vertexId, oldVertexId, byId, oldById];
 }
-declare const dfs: DepthFirstTraversalRunner<T, T>;
-declare const asyncDfs: AsyncDepthFirstTraversalRunner<T, T>;
-declare const bfs: BreadthFirstTraversalRunner<T>;
-declare const asyncBfs: AsyncBreadthFirstTraversalRunner<T, T>;
+declare const dfs: DepthFirstTreeRunner<T, T>;
+declare const asyncDfs: AsyncDepthFirstTreeRunner<T, T>;
+declare const bfs: BreadthFirstTreeRunner<T>;
+declare const asyncBfs: AsyncBreadthFirstTreeRunner<T, T>;
 declare const dag: DagTraversalRunner<T>;
 declare const asyncDag: AsyncDagTraversalRunner<T>;
 const treeViews: ResolvedTreeView<T>[] = [

@@ -1,33 +1,106 @@
-export * from './CTTAbstractParent';
-export * from './CTTRef';
-export * from './MakeMutationCommandFunctionFactory';
-export * from './ResolvedTree';
-export * from './ResolvedTreeView';
-export * from './ResolvedTreeTypeParameters';
-export * from './TraversableTree';
-export * from './TraversalVisitor';
-export * from './TreeTypeParameters';
-export * from './Vertex';
-export * from './Traversal';
-export * from './TraversalRunner';
-export * from './TraversalRunnerIterableConfig';
-export * from './AsyncCoreExecution';
-export * from './TraversalExecution';
-export * from './ExecutionInspection';
-export * from './AsyncTraversableTree';
-export * from './AsyncTraversalVisitor';
-export * from './CoreInspection';
-export * from './ResolvedGraph';
-export * from './TraversableGraph';
+export type { AsyncTreeSource } from './AsyncTraversableTree';
+export type { AsyncTreeVisitor } from './AsyncTraversalVisitor';
+export type { AsyncChildHintSorter, ChildHintSorter } from './ChildHintSorter';
+export type {
+  TreeDagExecutionInspection,
+  TreeDagInspectionOperation,
+  InspectionFilters,
+} from './CoreInspection';
+export { MutableRef } from './CTTRef';
+export type { VertexHandle } from './CTTRef';
+export { DagDiscoveryCycleError } from './errors/DagDiscoveryCycleError';
+export { DagTraversalStallError } from './errors/DagTraversalStallError';
+export type {
+  DagMilestone,
+  DagWaitEdge,
+  DagTraversalStallDiagnostics,
+} from './errors/DagTraversalStallError';
+export type { ExecutionInspection } from './ExecutionInspection';
 export type {
   ChildSlot,
-  GraphEdge,
-  GraphVertex,
-  GraphVertexStatus,
   HintVertexId,
   MaybePromise,
+  ResolvedGraphVertex,
+  ResolvedVisitStage,
+  StructuralChildEdge,
   VertexId,
 } from './graph/types';
-export * from './errors/DagTraversalStallError';
+export type {
+  MutationRequest,
+  MutationCommand,
+  MutationCommands,
+  MutationCommandBuilder,
+  TreeMutationCommandBinder,
+  TreeMutationCommandBinderFactory,
+} from './MakeMutationCommandFunctionFactory';
+export type { ResolvedGraphView, OriginalGraphView } from './ResolvedGraphView';
+export { TreeVertexRecord, ResolvedTreeStore } from './ResolvedTree';
+export type {
+  VertexResolutionContext,
+  TreeVertexMetadata,
+  TreeVertexRecordContent,
+  ResolvedTreeMap,
+  GetPathToOptions,
+} from './ResolvedTree';
+export type { ResolvedTreeVertexTypes } from './ResolvedTreeVertexTypes';
+export type { ResolvedTreeView } from './ResolvedTreeView';
+export type {
+  DagChildResolutionContext,
+  DagDiscoverySource,
+  AsyncDagDiscoverySource,
+} from './TraversableGraph';
+export type {
+  TreeChildResolutionContext,
+  DagVertexFound,
+  DagVertexOmitted,
+  PrerequisiteMissing,
+  DagVertexResolution,
+  DagPrerequisiteResolution,
+  TreeVertexFound,
+  TreeVertexOmitted,
+  TreeVertexResolution,
+  TreeSource,
+} from './TraversableTree';
+export type {
+  SelectedTraversalEvent,
+  TraversalExecutionState,
+  SyncTraversalExecution,
+  AsyncTraversalExecution,
+} from './TraversalExecution';
+export { TraversalRunnerStatus } from './TraversalRunner';
+export type {
+  TreeTraversalEvent,
+  TraversalStopReason,
+} from './TraversalRunner';
+export type {
+  EmissionKind,
+  VisitorPhaseSelection,
+  TraversalExecutionOptions,
+} from './TraversalRunnerIterableConfig';
+export { TraversalVisitorCommandName } from './TraversalVisitor';
+export type {
+  TraversalVisitorCommandArguments,
+  TraversalVisitorCommand,
+  TraversalVisitorResult,
+  TreeVisitorContext,
+  CommandCommitMode,
+  TraversalVisitorFunctionOptions,
+  VisitorDefinition,
+  VisitorGroupMember,
+  VisitorGroupDefinition,
+  VisitorPhaseInput,
+  VisitorGroupMetadata,
+  VisitorRegistrationMetadata,
+  TreeVisitorRecord,
+  TreeVisitor,
+} from './TraversalVisitor';
+export type { VertexTypes } from './TreeTypeParameters';
+export { Vertex } from './Vertex';
+export type {
+  VertexView,
+  VertexContent,
+  VertexContentInput,
+  VertexCloneContent,
+} from './Vertex';
 
-export * from './errors/DagDiscoveryCycleError';
+export type { VertexHandle as VertexRef } from './CTTRef';

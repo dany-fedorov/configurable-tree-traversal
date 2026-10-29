@@ -8,7 +8,7 @@ import {
   type DagFragment,
   type DagFragmentInstance,
   type DagCompositionOptions,
-  type DagDefinitionResult,
+  type PrepareDagResult,
 } from 'configurable-tree-traversal';
 import * as dag from 'configurable-tree-traversal/traversals/dag-traversal';
 type Local = 'start' | 'finish';
@@ -18,20 +18,20 @@ const definition = defineDag<number, Local>({
       vertexId: 'start',
       data: 1,
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     },
     {
       vertexId: 'finish',
       data: 2,
       slots: [],
-      dependsOn: ['start'],
-      dependsOnComplete: [],
+      dependsOnWork: ['start'],
+      dependsOnSubgraphCompletion: [],
     },
   ],
   omittedIds: [],
   entry: {
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'vertex', vertexId: 'start' },
       { kind: 'vertex', vertexId: 'finish' },
@@ -69,7 +69,7 @@ composeDag(instances, {
       dependent: instance.ports.start,
       prerequisite: {
         vertexId: instance.ports.finish,
-        milestone: 'completion',
+        milestone: 'subgraphCompletion',
       },
     },
   ],
@@ -88,7 +88,7 @@ composeDag([fragment], {
     {
       dependent: 'start',
       // @ts-expect-error Foreign prerequisite cannot widen ID from options.
-      prerequisite: { vertexId: 'foreign', milestone: 'completion' },
+      prerequisite: { vertexId: 'foreign', milestone: 'subgraphCompletion' },
     },
   ],
 });
@@ -112,8 +112,8 @@ const second = defineDagFragment(
         vertexId: 3,
         data: 'text',
         slots: [],
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
       },
     ],
     omittedIds: [],
@@ -121,7 +121,7 @@ const second = defineDagFragment(
   }),
   { end: 3 },
 );
-const union: DagDefinitionResult<number | string, Local | number> = composeDag<
+const union: PrepareDagResult<number | string, Local | number> = composeDag<
   number | string,
   Local | number
 >([fragment, second], { children: [{ parent: 'start', child: 3 }] });
@@ -137,7 +137,7 @@ const packedInstance: dag.DagFragmentInstance<
   { local: Local },
   'start' | 'finish'
 > = instance;
-const validated: dag.DagDefinitionResult<number, Local> =
+const validated: dag.PrepareDagResult<number, Local> =
   dag.prepareDagDefinition(packedDefinition);
 void [packedInstance, validated];
 
@@ -159,7 +159,8 @@ const invalidFragmentError = new DagFragmentValidationError<Local>([
 ]);
 const fragmentIssue = fragmentError.issues[0]!;
 if (fragmentIssue.kind === 'milestone') {
-  const id: Local = fragmentIssue.diagnostics.dependencyEdges[0]!.to.vertexId;
+  const id: Local =
+    fragmentIssue.diagnostics.dependencyEdges[0]!.prerequisite.vertexId;
   // @ts-expect-error Typed diagnostic IDs are not foreign IDs.
   const wrong: 'other' = id;
   void wrong;

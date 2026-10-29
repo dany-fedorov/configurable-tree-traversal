@@ -1,38 +1,28 @@
-import type { AsyncTraversableGraph } from '@core/TraversableGraph';
+import type { AsyncDagDiscoverySource } from '@core/TraversableGraph';
 import type {
   MakeVertexResult,
-  PrerequisiteResolutionResult,
+  DagVertexResolution,
+  DagPrerequisiteResolution,
 } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { normalizeSourceResult } from '@core/drivers/normalizeSourceResult';
 import type { MaybePromise } from '@core/graph/types';
 
-/** Capture omission candidates and distinguish source failures from engine validation. */
-export function capturePreparedSource<T extends TreeTypeParameters, ID>(
-  source: AsyncTraversableGraph<T, T, ID>,
+/** Capture omission candidates while preserving source receiver and error behavior. */
+export function capturePreparedSource<T extends VertexTypes, ID>(
+  source: AsyncDagDiscoverySource<T, T, ID>,
   asynchronous: boolean,
 ) {
   const candidates = new Set<ID>();
-  const errors = new Set<unknown>();
 
   function syncCall<I, O>(invoke: () => I, receive: (value: I) => O): O {
-    try {
-      return receive(invoke());
-    } catch (error) {
-      errors.add(error);
-      throw error;
-    }
+    return receive(invoke());
   }
   async function asyncCall<I, O>(
     invoke: () => MaybePromise<I>,
     receive: (value: I) => O,
   ): Promise<O> {
-    try {
-      return receive(await invoke());
-    } catch (error) {
-      errors.add(error);
-      throw error;
-    }
+    return receive(await invoke());
   }
   const call = <I, O>(
     invoke: () => MaybePromise<I>,
@@ -43,21 +33,21 @@ export function capturePreparedSource<T extends TreeTypeParameters, ID>(
       : syncCall(invoke as () => I, receive);
 
   const record = (
-    value: PrerequisiteResolutionResult<T, ID>,
+    value: DagPrerequisiteResolution<T, ID>,
     prerequisite: boolean,
   ) => {
     const normalized = normalizeSourceResult<T, ID>(value, prerequisite);
-    if (normalized === undefined) return undefined;
+    if (normalized === undefined) return { kind: 'missing' as const };
     // These fields use ordinary property access in the engine, so inherited and
     // non-enumerable source properties must survive capture too.
     const copied: MakeVertexResult<T> & { priority?: unknown } = {
       vertexContent: normalized.vertexContent,
     };
-    const dependsOn = normalized.dependsOn;
-    const dependsOnComplete = normalized.dependsOnComplete;
-    if (dependsOn !== undefined) copied.dependsOn = dependsOn;
-    if (dependsOnComplete !== undefined)
-      copied.dependsOnComplete = dependsOnComplete;
+    const dependsOnWork = normalized.dependsOnWork;
+    const dependsOnSubgraphCompletion = normalized.dependsOnSubgraphCompletion;
+    if (dependsOnWork !== undefined) copied.dependsOnWork = dependsOnWork;
+    if (dependsOnSubgraphCompletion !== undefined)
+      copied.dependsOnSubgraphCompletion = dependsOnSubgraphCompletion;
     if (Object.prototype.hasOwnProperty.call(normalized, 'vertexId')) {
       copied.vertexId = normalized.vertexId;
       candidates.add(copied.vertexId as ID);
@@ -65,21 +55,33 @@ export function capturePreparedSource<T extends TreeTypeParameters, ID>(
     // The engine rejects own priority metadata by presence without reading it.
     if (Object.prototype.hasOwnProperty.call(normalized, 'priority'))
       copied.priority = undefined;
-    return copied;
+    if (copied.vertexContent === null) {
+      return Object.prototype.hasOwnProperty.call(copied, 'vertexId')
+        ? {
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+            vertexId: copied.vertexId as ID,
+          }
+        : { kind: 'omitted' as const, satisfiesDependencies: true as const };
+    }
+    return { kind: 'found' as const, vertex: copied } as DagVertexResolution<
+      T,
+      ID
+    >;
   };
 
-  const adapter: AsyncTraversableGraph<T, T, ID> = {
-    makeRoot: () =>
+  const adapter: AsyncDagDiscoverySource<T, T, ID> = {
+    resolveRoot: () =>
       call(
-        () => source.makeRoot(),
+        () => source.resolveRoot(),
         (value) => {
-          return record(value, false)! as MakeVertexResult<T, ID>;
+          return record(value, false)! as DagVertexResolution<T, ID>;
         },
       ),
-    makeVertex: (hint, options) =>
+    resolveChild: (hint, options) =>
       call(
-        () => source.makeVertex(hint, options),
-        (value) => record(value, false)! as MakeVertexResult<T, ID>,
+        () => source.resolveChild(hint, options),
+        (value) => record(value, false)! as DagVertexResolution<T, ID>,
       ),
   };
   if (source.getVertexIdFromHint !== undefined) {
@@ -103,9 +105,9 @@ export function capturePreparedSource<T extends TreeTypeParameters, ID>(
       candidates.add(id);
       return call(
         () => source.resolvePrerequisite!(id),
-        (value) => record(value, true) as MakeVertexResult<T, ID> | undefined,
+        (value) => record(value, true) as DagPrerequisiteResolution<T, ID>,
       );
     };
   }
-  return { adapter, candidates, errors };
+  return { adapter, candidates };
 }

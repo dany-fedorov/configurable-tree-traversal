@@ -1,24 +1,23 @@
 import type {
-  TraversalVisitorInputOptions,
+  TreeVisitorContext,
   TraversalVisitorResult,
 } from '@core/TraversalVisitor';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexView } from '@core/Vertex';
 import type { MaybePromise } from '@core/graph/types';
 
-export type AsyncTraversalVisitorInputOptions<
-  ORDER extends string,
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-> = TraversalVisitorInputOptions<ORDER, T, R>;
-
-export type AsyncTraversalVisitor<
-  ORDER extends string = string,
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-> = TraversalVisitorResult<R, ORDER> extends infer RESULT
+export type AsyncTreeVisitor<
+  Phase extends string = string,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
+> = TraversalVisitorResult<
+  R,
+  Phase,
+  'tree',
+  T['VertexHint']
+> extends infer RESULT
   ? (
-      vertex: Vertex<T | R>,
-      options: AsyncTraversalVisitorInputOptions<ORDER, T, R>,
+      vertex: VertexView<T | R>,
+      options: TreeVisitorContext<Phase, T, R>,
     ) => MaybePromise<RESULT | undefined | void>
   : never;

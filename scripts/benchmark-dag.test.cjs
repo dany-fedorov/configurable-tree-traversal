@@ -46,11 +46,11 @@ for (const [shape, edges, empty, prefix] of cases) {
       );
       inspection.runner.run();
       const before = inspection.runner.summary();
-      assert.deepEqual(before.readyIds, expected);
+      assert.deepEqual(before.readyOrDeferredIds, expected);
       assert.deepEqual(before.completedWorkIds, completed);
       assert.equal(before.discovery.complete, true);
       assert.equal(before.counts.discovered, 7);
-      assert.equal(before.counts.deferred, expected.length);
+      assert.equal(before.counts.deferredWork, expected.length);
       assert.equal(inspection.counters.root, 1);
       assert.equal(inspection.counters.vertex, 7);
       assert.equal(inspection.counters.ready, expected.length);

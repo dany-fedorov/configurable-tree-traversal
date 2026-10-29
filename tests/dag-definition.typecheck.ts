@@ -6,8 +6,8 @@ import {
   prepareDag,
   prepareDagDefinition,
   type DagDefinitionIssue,
-  type DagDefinitionResult,
-  graphFrom,
+  type PrepareDagResult,
+  materializeDagInputFromRecords,
 } from '../src';
 
 import { prepareDagDefinition as requirePrepareDagDefinition } from '../src/traversals/dag-traversal';
@@ -22,8 +22,8 @@ const vertex: DagDefinitionVertex<Data, ID> = {
   vertexId: 'a',
   data: { label: 'A' },
   slots: [slot],
-  dependsOn: [],
-  dependsOnComplete: [],
+  dependsOnWork: [],
+  dependsOnSubgraphCompletion: [],
 };
 const definition: DagDefinition<Data, ID> = defineDag({
   vertices: [vertex],
@@ -40,20 +40,21 @@ defineDag<Data, ID>({
   omittedIds: ['wrong'],
   entry: { kind: 'empty' },
 });
-const prepared = prepareDag(graphFrom<Data, ID>([], { id: () => 'a' }));
+const prepared = prepareDag(
+  materializeDagInputFromRecords<Data, ID>([], { id: () => 'a' }),
+);
 if (prepared.kind === 'valid') {
   const captured: DagDefinition<Data, ID> = prepared.dag.definition;
   const runner = prepared.dag.createRunner();
-  for (const event of runner.getIterable()) {
-    const hints: ID[] = event.vertex.getChildrenHints();
+  for (const event of runner.iterateEvents()) {
+    const hints: readonly ID[] = event.vertex.getChildrenHints();
     void hints;
   }
   void captured;
 }
 void definition;
 
-const validated: DagDefinitionResult<Data, ID> =
-  prepareDagDefinition(definition);
+const validated: PrepareDagResult<Data, ID> = prepareDagDefinition(definition);
 if (validated.kind === 'valid') {
   const id: ID = validated.dag.vertices[0]!.vertexId;
   const data: Data = validated.dag.vertices[0]!.data;
@@ -66,7 +67,7 @@ if (validated.kind === 'valid') {
   validated.dag;
   for (const issue of issues) {
     if (issue.kind === 'milestone') {
-      const ids: ID[] = issue.diagnostics.unknownPrerequisiteIds;
+      const ids: readonly ID[] = issue.diagnostics.unknownPrerequisiteIds;
       void ids;
     } else if (issue.kind === 'missingStructuralEndpoint') {
       const parent: { vertexId: ID } | null = issue.parent;

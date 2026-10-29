@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
 import {
-  graphFrom,
+  materializeDagInputFromRecords,
   prepareDag,
-  type DagCoordinationBoundary,
+  type DagWorkBoundary,
   type DagWorkTicket,
 } from '../src';
+import assert from 'node:assert/strict';
 
 type TaskId = 'research' | 'implement' | 'testPlan' | 'review';
 type Task = { id: TaskId; requires: TaskId[] };
@@ -16,30 +16,30 @@ const tasks: Task[] = [
 ];
 
 function work(
-  boundary: DagCoordinationBoundary<TaskId>,
+  boundary: DagWorkBoundary<TaskId>,
 ): readonly DagWorkTicket<TaskId>[] {
   assert.equal(boundary.kind, 'awaitingSettlement');
   if (boundary.kind !== 'awaitingSettlement') throw new Error('Expected work');
-  return boundary.frontier;
+  return boundary.workTickets;
 }
 
 async function main(): Promise<void> {
-  const source = graphFrom(tasks, {
+  const source = materializeDagInputFromRecords(tasks, {
     id: (task) => task.id,
-    dependsOn: (task) => task.requires,
+    dependsOnWork: (task) => task.requires,
   });
   let sourceCalls = 0;
   const prepared = prepareDag({
     ...source,
     traversableGraph: {
       ...source.traversableGraph,
-      makeRoot: () => {
+      resolveRoot: () => {
         sourceCalls++;
-        return source.traversableGraph.makeRoot();
+        return source.traversableGraph.resolveRoot();
       },
-      makeVertex: (hint, context) => {
+      resolveChild: (hint, context) => {
         sourceCalls++;
-        return source.traversableGraph.makeVertex(hint, context);
+        return source.traversableGraph.resolveChild(hint, context);
       },
     },
   });
@@ -48,17 +48,18 @@ async function main(): Promise<void> {
   // vertices is a live-child projection; definition carries ordered slots.
   assert.equal(dag.vertices.length, 4);
   assert.equal(dag.definition.vertices.length, 4);
-  assert.equal(dag.definition.entry.kind, 'forest');
+  assert.equal(dag.definition.entry.kind, 'roots');
   const discoveryCalls = sourceCalls;
 
   // This set stands in for completion facts durably accepted by the host.
   const accepted = new Set<TaskId>(['research']);
-  const session = dag.createSession({ completedWork: accepted });
-  const fresh = dag.createSession();
+  const session = dag.createWorkSession({ completedWork: accepted });
+  const fresh = dag.createWorkSession();
   assert.equal(session.getStopReason(), 'prepared');
   assert.equal(
-    session.inspectDag().explain({ vertexId: 'review', milestone: 'work' })
-      .kind,
+    session
+      .inspectMilestones()
+      .explain({ vertexId: 'review', milestone: 'work' }).kind,
     'known',
   );
   const candidates = work(session.advance());
@@ -68,32 +69,32 @@ async function main(): Promise<void> {
   );
   const research = work(fresh.advance())[0]!;
   assert.equal(research.vertexId, 'research');
-  assert.throws(() => session.complete(research), TypeError);
+  assert.throws(() => session.completeWork(research), TypeError);
 
   // Dispatch only these frontier tickets through host claims/capacity.
-  // ON_READY workCompleted events observe accepted work after settlement.
+  // workCompleted observations follow successful settlement.
   // Validate results before reporting them to the session.
   for (const ticket of candidates) {
     accepted.add(ticket.vertexId); // Persist acceptance before completing locally.
-    assert.deepEqual(session.complete(ticket), { kind: 'accepted' });
-    assert.deepEqual(session.complete(ticket), { kind: 'alreadyAccepted' });
+    assert.deepEqual(session.completeWork(ticket), { kind: 'accepted' });
+    assert.deepEqual(session.completeWork(ticket), { kind: 'alreadyAccepted' });
   }
   const review = work(session.advance())[0]!;
   assert.equal(review.vertexId, 'review');
   accepted.add(review.vertexId);
-  session.complete(review);
+  session.completeWork(review);
   assert.deepEqual(session.advance(), { kind: 'finished' });
 
   // Independent sessions own their progress and local ticket generations.
   assert.deepEqual(fresh.summary().completedWorkIds, []);
-  fresh.complete(research);
+  fresh.completeWork(research);
   assert.deepEqual(
     work(fresh.advance()).map((ticket) => ticket.vertexId),
     ['implement', 'testPlan'],
   );
 
   // Recovery uses accepted facts, never serialized tickets or runner state.
-  const recovered = await dag.createAsyncSession({
+  const recovered = await dag.createAsyncWorkSession({
     completedWork: accepted,
     concurrency: 2,
   });

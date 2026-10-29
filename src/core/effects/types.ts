@@ -1,6 +1,5 @@
-import type { DEFER_READY } from '../../traversals/dag-traversal/lib/DagProgress';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalRunnerStatus,
   TraversalStopReason,
@@ -11,19 +10,19 @@ import type { Vertex } from '@core/Vertex';
 import type {
   HintVertexId,
   MaybePromise,
-  Ref,
+  VertexRef,
   VertexId,
   VisitResult,
 } from '@core/graph/types';
 import type { KernelInspection } from '@core/CoreInspection';
 
-export type VisitOrder =
+export type VisitPhase =
   | 'PRE_ORDER'
   | 'IN_ORDER'
   | 'POST_ORDER'
   | 'LEVEL_ORDER'
-  | 'ON_READY'
-  | 'ON_COMPLETE';
+  | 'ON_WORK_READY'
+  | 'ON_SUBGRAPH_READY';
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
@@ -35,47 +34,41 @@ export type OwnerToken = {
   epoch: number;
 };
 
-export type VisitMetadata<T extends TreeTypeParameters> = {
-  vertexVisitIndex: number;
-  curVertexVisitorVisitIndex: number;
-  previousVisitedVertexRef: Ref<T> | null;
-  vertexVisitorsChainState: unknown;
+export type VisitMetadata<T extends VertexTypes> = {
+  phaseVisitIndex: number;
+  visitorIndex: number;
+  previousPhaseVertexRef: VertexRef<T> | null;
+  visitorChainState: unknown;
 };
 
-export type CallSpec<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-> = { requestId: number; owner: OwnerToken } & (
+export type CallSpec<T extends VertexTypes, R extends VertexTypes = T> = {
+  requestId: number;
+  owner: OwnerToken;
+} & (
   | { kind: 'MAKE_ROOT' }
   | { kind: 'RESOLVE_PREREQUISITE'; vertexId: VertexId }
   | { kind: 'SORT_HINTS'; hints: (T | R)['VertexHint'][] }
   | { kind: 'HINT_ID'; hint: (T | R)['VertexHint']; hintIndex: number }
-  | { kind: 'MAKE_VERTEX'; context: VertexResolutionContext<T | R> }
+  | { kind: 'MAKE_VERTEX'; context: InternalVertexResolutionContext<T | R> }
   | {
       kind: 'VISIT';
-      ref: Ref<T | R>;
-      order: VisitOrder;
+      ref: VertexRef<T | R>;
+      order: VisitPhase;
       recordIndex: number;
       metadata: VisitMetadata<T | R>;
     }
 );
 
-export type CallbackValues<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-> = {
+export type CallbackValues<T extends VertexTypes, R extends VertexTypes = T> = {
   MAKE_ROOT: MakeVertexResult<T>;
   RESOLVE_PREREQUISITE: MakeVertexResult<T> | undefined;
   MAKE_VERTEX: MakeVertexResult<T>;
   SORT_HINTS: (T | R)['VertexHint'][];
   HINT_ID: HintVertexId | undefined;
-  VISIT: VisitResult<R> | typeof DEFER_READY;
+  VISIT: VisitResult<R, never, 'tree' | 'dag', T['VertexHint']>;
 };
 
-export type CallbackReply<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-> = {
+export type CallbackReply<T extends VertexTypes, R extends VertexTypes = T> = {
   [K in keyof CallbackValues<T, R>]: {
     requestId: number;
     kind: K;
@@ -84,8 +77,8 @@ export type CallbackReply<
 }[keyof CallbackValues<T, R>];
 
 export type RawCallbackResult<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > = {
   [K in keyof CallbackValues<T, R>]: {
     kind: K;
@@ -94,24 +87,20 @@ export type RawCallbackResult<
 }[keyof CallbackValues<T, R>];
 
 export interface CallbackBindings<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > {
   invoke(call: CallSpec<T, R>): RawCallbackResult<T, R>;
 }
 
-export type KernelEvent<T extends TreeTypeParameters> = {
+export type KernelEvent<T extends VertexTypes> = {
   vertex: Vertex<T>;
-  vertexRef: Ref<T>;
-  order: VisitOrder;
+  vertexRef: VertexRef<T>;
+  order: VisitPhase;
   isRoot: boolean;
-  isTraversalRoot: boolean;
 };
 
-export type KernelAction<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-> =
+export type KernelAction<T extends VertexTypes, R extends VertexTypes = T> =
   | { kind: 'CALL'; call: CallSpec<T, R> }
   | { kind: 'EVENT'; event: KernelEvent<T | R>; boundaryId: number }
   | { kind: 'WAIT' }
@@ -119,17 +108,15 @@ export type KernelAction<
   | { kind: 'FINISHED' }
   | { kind: 'FAILED'; error: unknown };
 
-export interface KernelPort<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-> {
+export interface KernelPort<T extends VertexTypes, R extends VertexTypes = T> {
   poll(mode: PumpMode): KernelAction<T, R>;
   submit(reply: CallbackReply<T, R>): void;
   discardRequest(requestId: number): void;
   acknowledgeEvent(boundaryId: number): void;
+  shouldEmit(phase: VisitPhase): boolean;
   requestHalt(): void;
   resume(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
     preparation?: boolean,
   ): void;
   isRequestEligible(requestId: number, mode: PumpMode): boolean;

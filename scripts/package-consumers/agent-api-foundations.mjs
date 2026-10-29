@@ -2,32 +2,29 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import * as esm from 'configurable-tree-traversal';
 import * as dag from 'configurable-tree-traversal/traversals/dag-traversal';
-import * as sources from 'configurable-tree-traversal/sources/index';
-import * as graphModule from 'configurable-tree-traversal/sources/graphFrom.js';
+import * as sources from 'configurable-tree-traversal/sources';
 
 const require = createRequire(import.meta.url);
 const cjs = require('configurable-tree-traversal');
-const cjsSources = require('configurable-tree-traversal/sources/index');
+const cjsSources = require('configurable-tree-traversal/sources');
 const cjsDag = require('configurable-tree-traversal/traversals/dag-traversal');
 for (const name of [
-  'graphFrom',
-  'forestFrom',
-  'graphFromAsync',
-  'forestFromAsync',
+  'materializeDagInputFromRecords',
+  'materializeDagInputFromRoots',
+  'materializeDagInputFromRecordsAsync',
+  'materializeDagInputFromRootsAsync',
 ]) {
   assert.equal(esm[name], cjs[name]);
   assert.equal(sources[name], cjs[name]);
   assert.equal(cjsSources[name], cjs[name]);
 }
-assert.equal(graphModule.graphFrom, esm.graphFrom);
-assert.equal(graphModule.graphFromAsync, esm.graphFromAsync);
 for (const name of [
   'prepareDag',
   'prepareDagAsync',
-  'coordinateDag',
-  'coordinateDagAsync',
-  'filterDagVisitor',
-  'filterAsyncDagVisitor',
+  'createDagWorkSession',
+  'createAsyncDagWorkSession',
+  'filterDagDataVisitor',
+  'filterAsyncDagDataVisitor',
 ]) {
   assert.equal(esm[name], cjs[name]);
   assert.equal(dag[name], cjs[name]);
@@ -40,11 +37,11 @@ const drain = async (coordinator) => {
     const boundary = await coordinator.advance();
     if (boundary.kind === 'finished') return ids;
     assert.equal(boundary.kind, 'awaitingSettlement');
-    assert(boundary.frontier.length > 0);
-    for (const ticket of boundary.frontier) {
+    assert(boundary.workTickets.length > 0);
+    for (const ticket of boundary.workTickets) {
       ids.push(ticket.vertexId);
-      assert.deepEqual(coordinator.complete(ticket), { kind: 'accepted' });
-      assert.deepEqual(coordinator.complete(ticket), {
+      assert.deepEqual(coordinator.completeWork(ticket), { kind: 'accepted' });
+      assert.deepEqual(coordinator.completeWork(ticket), {
         kind: 'alreadyAccepted',
       });
     }
@@ -59,12 +56,12 @@ for (const api of [cjs, esm]) {
     { id: ids[1], requires: [ids[0]] },
     { id: ids[2], requires: [ids[0]] },
   ];
-  const source = api.graphFrom(items, {
+  const source = api.materializeDagInputFromRecords(items, {
     id: (item) => {
       selections++;
       return item.id;
     },
-    dependsOn: (item) => item.requires,
+    dependsOnWork: (item) => item.requires,
   });
   let lookups = 0;
   const countedSource = {
@@ -89,8 +86,8 @@ for (const api of [cjs, esm]) {
     prepared.dag.vertices.map((vertex) => vertex.vertexId),
     ids,
   );
-  const first = prepared.dag.createSession();
-  const seeded = prepared.dag.createSession({
+  const first = prepared.dag.createWorkSession();
+  const seeded = prepared.dag.createWorkSession({
     completedWork: new Set([ids[0]]),
   });
   const initial = first.advance();
@@ -98,15 +95,15 @@ for (const api of [cjs, esm]) {
   assert.equal(initial.kind, 'awaitingSettlement');
   assert.equal(resumed.kind, 'awaitingSettlement');
   assert.deepEqual(
-    initial.frontier.map((ticket) => ticket.vertexId),
+    initial.workTickets.map((ticket) => ticket.vertexId),
     [ids[0]],
   );
   assert.deepEqual(
-    resumed.frontier.map((ticket) => ticket.vertexId),
+    resumed.workTickets.map((ticket) => ticket.vertexId),
     ids.slice(1),
   );
-  assert.throws(() => seeded.complete(initial.frontier[0]), TypeError);
-  assert.throws(() => first.complete({ vertexId: ids[0] }), TypeError);
+  assert.throws(() => seeded.completeWork(initial.workTickets[0]), TypeError);
+  assert.throws(() => first.completeWork({ vertexId: ids[0] }), TypeError);
   assert.deepEqual(await drain(first), ids);
   assert.deepEqual(await drain(seeded), ids.slice(1));
   assert.equal(
@@ -116,11 +113,11 @@ for (const api of [cjs, esm]) {
   );
   assert.equal(selections, 3);
 
-  const coordinator = api.coordinateDag(
+  const coordinator = api.createDagWorkSession(
     prepared.dag.createRunner({ workCompletion: 'externalSettlement' }),
   );
   assert.deepEqual(await drain(coordinator), ids);
-  const asyncCoordinator = api.coordinateDagAsync(
+  const asyncCoordinator = api.createAsyncDagWorkSession(
     await prepared.dag.createAsyncRunner({
       workCompletion: 'externalSettlement',
     }),
@@ -128,7 +125,7 @@ for (const api of [cjs, esm]) {
   assert.deepEqual(await drain(asyncCoordinator), ids);
   assert.deepEqual(
     await drain(
-      await prepared.dag.createAsyncSession({
+      await prepared.dag.createAsyncWorkSession({
         completedWork: new Set([ids[0]]),
         concurrency: 2,
       }),
@@ -141,15 +138,15 @@ for (const api of [cjs, esm]) {
     yield { id: undefined };
     yield { id: NaN };
   }
-  const asyncSource = await api.graphFromAsync(catalog(), {
+  const asyncSource = await api.materializeDagInputFromRecordsAsync(catalog(), {
     id: async (item) => item.id,
   });
   const asyncPrepared = await api.prepareDagAsync(asyncSource);
   assert.equal(asyncPrepared.kind, 'valid');
-  assert.deepEqual(await drain(await asyncPrepared.dag.createAsyncSession()), [
-    undefined,
-    NaN,
-  ]);
+  assert.deepEqual(
+    await drain(await asyncPrepared.dag.createAsyncWorkSession()),
+    [undefined, NaN],
+  );
 
   const leaf = { id: Symbol('leaf'), children: [] };
   const roots = [
@@ -161,8 +158,8 @@ for (const api of [cjs, esm]) {
     children: (item) => item.children,
   };
   for (const forest of [
-    api.forestFrom(roots, selectors),
-    await api.forestFromAsync(roots, {
+    api.materializeDagInputFromRoots(roots, selectors),
+    await api.materializeDagInputFromRootsAsync(roots, {
       id: async (item) => item.id,
       children: async (item) => item.children,
     }),
@@ -171,7 +168,7 @@ for (const api of [cjs, esm]) {
     assert.equal(result.kind, 'valid');
     const runner = result.dag.createRunner();
     runner.run();
-    const graph = runner.getResolvedGraph();
+    const graph = runner.getResolvedGraphView();
     assert.equal(graph.getVertexRefs().length, 3);
     assert.deepEqual(
       graph
@@ -192,15 +189,15 @@ for (const api of [cjs, esm]) {
       { id: taskId, kind: 'task', label: 'build' },
       { id: groupId, kind: 'group', label: 'bundle' },
     ];
-    const Traversal = asyncMode ? api.AsyncDagTraversal : api.DagTraversal;
-    const traversal = new Traversal(
-      api.graphFrom(records, { id: (item) => item.id }),
+    const TreeTraversal = asyncMode ? api.AsyncDagTraversal : api.DagTraversal;
+    const traversal = new TreeTraversal(
+      api.materializeDagInputFromRecords(records, { id: (item) => item.id }),
     );
     const calls = [];
     const callback = (data, options) => {
       calls.push(data);
       assert.equal(
-        options.resolvedGraph.getVertexId(options.vertexRef),
+        options.resolvedGraphView.getVertexId(options.vertexRef),
         taskId,
       );
       return {
@@ -213,25 +210,21 @@ for (const api of [cjs, esm]) {
       };
     };
     traversal.addVisitorFor(
-      api.DagTraversalOrder.ON_READY,
+      api.DagVisitorPhase.ON_WORK_READY,
       asyncMode
-        ? api.filterAsyncDagVisitor(
+        ? api.filterAsyncDagDataVisitor(
             (data) => data.kind === 'task',
             async (data, options) => callback(data, options),
           )
-        : api.filterDagVisitor((data) => data.kind === 'task', callback),
+        : api.filterDagDataVisitor((data) => data.kind === 'task', callback),
     );
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     const events = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       events.push(event);
       assert(event.vertexId === taskId || event.vertexId === groupId);
-      assert.equal(
-        event.order,
-        event.kind === 'workCompleted'
-          ? api.DagTraversalOrder.ON_READY
-          : api.DagTraversalOrder.ON_COMPLETE,
-      );
+      assert(!('order' in event));
+      assert(!('phase' in event));
     }
     assert.deepEqual(calls, [records[0]]);
     assert.equal(events.filter((event) => event.vertexId === taskId).length, 2);
@@ -240,13 +233,19 @@ for (const api of [cjs, esm]) {
       2,
     );
     assert.equal(
-      runner.getResolvedGraph().getVertexRefById(taskId).unref().getData()
-        .label,
+      runner
+        .getResolvedGraphView()
+        .getVertexRefById(taskId)
+        .getValue()
+        .getData().label,
       'built',
     );
     assert.equal(
-      runner.getResolvedGraph().getVertexRefById(groupId).unref().getData()
-        .label,
+      runner
+        .getResolvedGraphView()
+        .getVertexRefById(groupId)
+        .getValue()
+        .getData().label,
       'bundle',
     );
   }
@@ -258,21 +257,23 @@ assert.equal(cjsDag.DagDiscoveryCycleError, esm.DagDiscoveryCycleError);
 for (const api of [esm, cjs]) {
   assert.throws(
     () =>
-      api.prepareDag(
-        api.graphFrom([{ id: 'a', children: ['a'] }], {
+      new api.DagTraversal(
+        api.materializeDagInputFromRecords([{ id: 'a', children: ['a'] }], {
           id: (item) => item.id,
           children: (item) => item.children,
         }),
-      ),
+      )
+        .createRunner()
+        .run(),
     (error) =>
       error instanceof esm.DagDiscoveryCycleError &&
       error.vertexIds.join(',') === 'a,a',
   );
   for (const prepare of [api.prepareDag, api.prepareDagAsync]) {
     const invalid = await prepare(
-      api.graphFrom([{ id: 'b', deps: ['missing'] }], {
+      api.materializeDagInputFromRecords([{ id: 'b', deps: ['missing'] }], {
         id: (item) => item.id,
-        dependsOn: (item) => item.deps,
+        dependsOnWork: (item) => item.deps,
       }),
     );
     assert.equal(invalid.kind, 'invalid');
@@ -284,27 +285,80 @@ for (const api of [esm, cjs]) {
     ]);
   }
   const prepared = api.prepareDag(
-    api.graphFrom([{ id: 'a' }], { id: (item) => item.id }),
+    api.materializeDagInputFromRecords([{ id: 'a' }], {
+      id: (item) => item.id,
+    }),
   );
   for (const session of [
-    prepared.dag.createSession(),
-    await prepared.dag.createAsyncSession(),
+    prepared.dag.createWorkSession(),
+    await prepared.dag.createAsyncWorkSession(),
   ]) {
     assert.equal(session.getStopReason(), 'prepared');
     assert.equal(session.isHalted(), true);
     assert.equal(session.inspect().status, session.getStatus());
     assert.equal(
-      session.inspectDag().explain({ vertexId: 'a', milestone: 'work' })
+      session.inspectMilestones().explain({ vertexId: 'a', milestone: 'work' })
         .satisfied,
       false,
     );
     const boundary = await session.advance();
     assert.equal('fail' in session, false);
     const error = { fatal: true };
-    session.failTraversal(boundary.frontier[0], error);
+    session.failTraversal(boundary.workTickets[0], error);
     await assert.rejects(
       async () => session.advance(),
       (value) => value === error,
     );
+  }
+}
+
+for (const api of [esm, cjs, dag, cjsDag, esm.dagTraversal, cjs.dagTraversal]) {
+  assert.equal(Object.hasOwn(api, 'DagWorkTicket'), false);
+  const cyclic =
+    api === dag ||
+    api === cjsDag ||
+    api === esm.dagTraversal ||
+    api === cjs.dagTraversal
+      ? esm.materializeDagInputFromRecords([{ id: 'a', children: ['a'] }], {
+          id: (v) => v.id,
+          children: (v) => v.children,
+        })
+      : api.materializeDagInputFromRecords([{ id: 'a', children: ['a'] }], {
+          id: (v) => v.id,
+          children: (v) => v.children,
+        });
+  for (const prepare of [api.prepareDag, api.prepareDagAsync])
+    assert.deepEqual(await prepare(cyclic), {
+      kind: 'invalid',
+      issues: [{ kind: 'discoveryCycle', vertexIds: ['a', 'a'] }],
+    });
+}
+for (const api of [esm, cjs]) {
+  for (const Constructor of [api.DagTraversal, api.AsyncDagTraversal]) {
+    const input = api.materializeDagInputFromRecords([{ id: 'a' }], {
+      id: (v) => v.id,
+    });
+    assert.throws(
+      () => new Constructor({ ...input, workCompletion: 'visitorReturn' }),
+      TypeError,
+    );
+    const runner = new Constructor({
+      ...input,
+      workCompletion: 'afterWorkReadyChain',
+    }).createRunner();
+    await runner.run();
+    assert.deepEqual(runner.summary().completedWorkIds, ['a']);
+    const progress = runner.summary().vertices.get('a');
+    assert.deepEqual(progress.unmetWorkPrerequisiteIds, []);
+    assert.deepEqual(progress.unmetSubgraphPrerequisiteIds, []);
+    const session = api.createDagWorkSession(
+      new api.DagTraversal({
+        ...input,
+        workCompletion: 'externalSettlement',
+      }).createRunner(),
+    );
+    const ticket = session.advance().workTickets[0];
+    assert.throws(() => session.completeWork({ ...ticket }), TypeError);
+    assert.deepEqual(session.completeWork(ticket), { kind: 'accepted' });
   }
 }

@@ -1,6 +1,6 @@
 import {
-  TraversableObjectTree,
-  rewriteObject as rewriteApi,
+  ObjectTreeSource,
+  objectRewrite as rewriteApi,
   rewriteObjectAs,
 } from '../src';
 import {
@@ -9,23 +9,27 @@ import {
 } from '../src/tools/rewrite-object';
 
 // @ts-expect-error Reconstruction alone does not preserve arbitrary input shape.
-rewriteObject({ count: 1 }).outputObject!.count;
+rewriteObject({ count: 1 }).outputAtReturn!.count;
 const changed = rewriteObject(
   { count: 1 },
   {
     rewrite: ({ key }) =>
-      key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
+      key === 'count'
+        ? { kind: 'rewrite', patch: { key: 'renamed' } }
+        : undefined,
   },
 );
 // @ts-expect-error Arbitrary rewrites do not preserve the input shape.
-changed.outputObject!.count;
+changed.outputAtReturn!.count;
 // @ts-expect-error The final output default is conservative too.
 changed.getOutput()!.count;
 const typed = rewriteObjectAs<{ renamed: number }>(
   { count: 1 },
   {
     rewrite: ({ key }) =>
-      key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
+      key === 'count'
+        ? { kind: 'rewrite', patch: { key: 'renamed' } }
+        : undefined,
   },
 );
 const value: number = typed.getOutput()!.renamed;
@@ -34,10 +38,11 @@ const namespaceValue: number = rewriteApi
   .getOutput()!;
 const subpathValue: number = subpathRewriteObjectAs<number>(1).getOutput()!;
 const inferred = rewriteObject(1, {
-  getOutputObjectFromRootValue: () => ({ converted: true }),
+  convertRootValue: () => ({ converted: true }),
 });
 const converted: boolean = inferred.getOutput()!.converted;
-const snapshotConverted: boolean = inferred.outputObject!.converted;
+const snapshotConverted: boolean = inferred.outputAtReturn!.converted;
+// @ts-expect-error A generic output selection requires a converter.
 const explicit = rewriteObject<
   Record<string, never>,
   PropertyKey,
@@ -47,7 +52,7 @@ const explicit = rewriteObject<
   unknown
 >({});
 const explicitValue: number = explicit.getOutput()!.renamed;
-const source = new TraversableObjectTree({ count: 1 });
+const source = new ObjectTreeSource({ count: 1 });
 // @ts-expect-error The rewrite helper owns its source.
 rewriteObject({}, { traversableTree: source });
 // @ts-expect-error Presence is invalid even with undefined.

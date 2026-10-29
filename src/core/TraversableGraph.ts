@@ -1,50 +1,65 @@
-import type { ResolvedGraph, ResolvedGraphSnapshot } from '@core/ResolvedGraph';
+import type {
+  ResolvedGraphView,
+  OriginalGraphView,
+} from '@core/ResolvedGraphView';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
 import type {
-  SourceVertexResult,
-  PrerequisiteResolutionResult,
+  DagVertexResolution,
+  DagPrerequisiteResolution,
 } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { HintVertexId, MaybePromise } from '@core/graph/types';
 
-export type MakeGraphVertexOptions<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export type DagChildResolutionContext<
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > = {
-  resolutionContext: VertexResolutionContext<T | R>;
-  resolvedGraph: ResolvedGraph<T | R, ID>;
-  notMutatedResolvedGraph: ResolvedGraphSnapshot<T, ID> | null;
+  resolutionContext:
+    | VertexResolutionContext<T | R>
+    | Readonly<
+        Omit<
+          VertexResolutionContext<T | R>,
+          'parentVertex' | 'parentVertexRef'
+        > & {
+          /** Synthetic entry-slot parent is private; both parent fields are null. */
+          parentVertex: null;
+          parentVertexRef: null;
+        }
+      >;
+  resolvedGraphView: ResolvedGraphView<T | R, ID>;
+  originalGraphView: OriginalGraphView<T, ID> | null;
 };
 
-export interface TraversableGraph<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+/** Input T owns discovery hints/results; callbacks must accept the full T | R live context. */
+export interface DagDiscoverySource<
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > {
-  resolvePrerequisite?(id: ID): PrerequisiteResolutionResult<T, ID>;
-  makeRoot(): SourceVertexResult<T, ID>;
-  makeVertex(
+  resolvePrerequisite?: (id: ID) => DagPrerequisiteResolution<T, ID>;
+  resolveRoot: () => DagVertexResolution<T, ID>;
+  resolveChild: (
     hint: T['VertexHint'],
-    options: MakeGraphVertexOptions<T, R, ID>,
-  ): SourceVertexResult<T, ID>;
-  getVertexIdFromHint?(hint: T['VertexHint']): HintVertexId<ID> | undefined;
+    options: DagChildResolutionContext<T, R, ID>,
+  ) => DagVertexResolution<T, ID>;
+  getVertexIdFromHint?: (hint: T['VertexHint']) => HintVertexId<ID> | undefined;
 }
 
-export interface AsyncTraversableGraph<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+export interface AsyncDagDiscoverySource<
+  T extends VertexTypes,
+  R extends VertexTypes = T,
   ID = unknown,
 > {
-  resolvePrerequisite?(
+  resolvePrerequisite?: (
     id: ID,
-  ): MaybePromise<PrerequisiteResolutionResult<T, ID>>;
-  makeRoot(): MaybePromise<SourceVertexResult<T, ID>>;
-  makeVertex(
+  ) => MaybePromise<DagPrerequisiteResolution<T, ID>>;
+  resolveRoot: () => MaybePromise<DagVertexResolution<T, ID>>;
+  resolveChild: (
     hint: T['VertexHint'],
-    options: MakeGraphVertexOptions<T, R, ID>,
-  ): MaybePromise<SourceVertexResult<T, ID>>;
-  getVertexIdFromHint?(
+    options: DagChildResolutionContext<T, R, ID>,
+  ) => MaybePromise<DagVertexResolution<T, ID>>;
+  getVertexIdFromHint?: (
     hint: T['VertexHint'],
-  ): MaybePromise<HintVertexId<ID> | undefined>;
+  ) => MaybePromise<HintVertexId<ID> | undefined>;
 }

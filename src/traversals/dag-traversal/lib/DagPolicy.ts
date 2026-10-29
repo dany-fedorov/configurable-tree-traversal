@@ -1,14 +1,14 @@
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { DagTraversalRunnerState } from './DagTraversalRunnerState';
 
 const runtimeOwners = new WeakMap<object, object>();
 
 /** Validates and tracks the public data-only DAG continuation boundary. */
 export class DagPolicy<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes,
+  R extends VertexTypes = T,
 > {
   private readonly owner = {};
 

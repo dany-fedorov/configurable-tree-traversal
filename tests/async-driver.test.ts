@@ -10,7 +10,7 @@ import { createAsyncDriver } from '../src/core/drivers/runAsync';
 import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
-import type { Ref } from '../src/core/graph/types';
+import type { VertexRef } from '../src/core/graph/types';
 
 function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
   return new TraversalKernel<TestGraph>({
@@ -34,10 +34,10 @@ function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: {
-      visitParentAfterChildren: 0,
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: 0,
-      visitUpOneChildParents: true,
-      considerVisitAfterNullContentVertices: true,
+      afterChildIndices: { indices: [0] },
+      fallbackChildIndices: { indices: [0] },
+      visitSingleChildParent: true,
+      visitAfterOmittedChildren: true,
     },
     hasSorter: false,
     hasHintIds: false,
@@ -46,7 +46,9 @@ function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
 }
 
 test('closes while root resolution is pending and consumes it after resume', async () => {
-  const root = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
+  const root = deferred<{
+    vertexContent: { $data: string; $childHints: string[] };
+  }>();
   const kernel = makeKernel(['PRE_ORDER']);
   const bindings: CallbackBindings<TestGraph> = {
     invoke: (call) => {
@@ -56,7 +58,7 @@ test('closes while root resolution is pending and consumes it after resume', asy
   };
   const driver = createAsyncDriver(kernel, bindings, 1);
   const session = new AsyncRunnerSession(driver);
-  const first = session.getIterable();
+  const first = session.iterateEvents();
   const pending = first.next();
   await eventLoopTurn();
   expect(driver.inspect().inFlightCallbackCount).toBe(1);
@@ -68,15 +70,15 @@ test('closes while root resolution is pending and consumes it after resume', asy
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
   expect(kernel.getStatus()).toBe(TraversalRunnerStatus.HALTED);
 
-  root.resolve({ vertexContent: { $d: 'root', $c: [] } });
+  root.resolve({ vertexContent: { $data: 'root', $childHints: [] } });
   await eventLoopTurn();
   expect(driver.inspect().inFlightCallbackCount).toBe(0);
   expect(kernel.inspect().pendingRequests).toHaveLength(1);
 
-  const resumed = session.getIterable();
+  const resumed = session.iterateEvents();
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'root' }, order: 'PRE_ORDER' },
+    value: { vertex: { $data: 'root' }, order: 'PRE_ORDER' },
   });
   await expect(resumed.next()).resolves.toEqual({
     done: true,
@@ -170,7 +172,9 @@ test('deletion cancels queued callbacks while an invalid running permit drains',
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $d: 'root', $c: ['A', 'B', 'C'] } },
+            value: {
+              vertexContent: { $data: 'root', $childHints: ['A', 'B', 'C'] },
+            },
           };
         }
         if (call.kind === 'MAKE_VERTEX') {
@@ -192,9 +196,11 @@ test('deletion cancels queued callbacks while an invalid running permit drains',
   expect(driver.inspect().inFlightCallbackCount).toBe(1);
 
   const internals = kernel as unknown as {
-    scheduling: { deleteVertex(ref: Ref<TestGraph>): Set<Ref<TestGraph>> };
+    scheduling: {
+      deleteVertex(ref: VertexRef<TestGraph>): Set<VertexRef<TestGraph>>;
+    };
     invalidateRefs(
-      refs: ReadonlySet<Ref<TestGraph>>,
+      refs: ReadonlySet<VertexRef<TestGraph>>,
       except: {
         kind: 'chain';
         id: number;

@@ -1,20 +1,22 @@
-import {
-  BreadthFirstTraversal,
-  BreadthFirstTraversalOrder as Order,
-  traverseBreadthFirst,
-} from '../src/traversals/breadth-first-traversal';
+import { treeResolution } from './source-result-fixtures';
+import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
-import type { TraversableTree } from '../src/core/TraversableTree';
+  BreadthFirstPhase as Order,
+  BreadthFirstTreeTraversal,
+  traverseTreeBreadthFirst,
+} from '../src/traversals/breadth-first-traversal';
+import { runnerInternals } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: (Node | null)[] };
-type TTP = TreeTypeParameters<string, Node | null>;
+type Node = { $data: string; $childHints: (Node | null)[] };
+type TTP = VertexTypes<string, Node | null>;
 
-const node = ($d: string, ...$c: (Node | null)[]): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: (Node | null)[]): Node => ({
+  $data,
+  $childHints,
+});
 
 function setup(
   root: Node | null = node(
@@ -24,34 +26,34 @@ function setup(
   ),
 ) {
   const calls: string[] = [];
-  const tree: TraversableTree<TTP> = {
-    makeRoot: () => {
+  const tree: TreeSource<TTP> = {
+    resolveRoot: () => {
       calls.push('root');
-      return { vertexContent: root };
+      return treeResolution(root);
     },
-    makeVertex: (hint) => {
-      calls.push(`vertex:${hint?.$d ?? 'null'}`);
-      return { vertexContent: hint };
+    resolveChild: (hint) => {
+      calls.push(`vertex:${hint?.$data ?? 'null'}`);
+      return treeResolution(hint);
     },
   };
   return {
     calls,
     tree,
-    traversal: new BreadthFirstTraversal<TTP>({ traversableTree: tree }),
+    traversal: new BreadthFirstTreeTraversal<TTP>({ traversableTree: tree }),
   };
 }
 
 const yieldedValues = (
   runner: ReturnType<
     typeof setup
-  >['traversal'] extends BreadthFirstTraversal<TTP>
-    ? ReturnType<BreadthFirstTraversal<TTP>['makeRunner']>
+  >['traversal'] extends BreadthFirstTreeTraversal<TTP>
+    ? ReturnType<BreadthFirstTreeTraversal<TTP>['createRunner']>
     : never,
-) => [...runner.getIterable()].map((event) => event.vertex.getData());
+) => [...runner.iterateEvents()].map((event) => event.vertex.getData());
 
 describe('breadth-first traversal', () => {
   test('visits vertices in hand-checked level order', () => {
-    expect(yieldedValues(setup().traversal.makeRunner())).toEqual([
+    expect(yieldedValues(setup().traversal.createRunner())).toEqual([
       'A',
       'B',
       'C',
@@ -64,9 +66,9 @@ describe('breadth-first traversal', () => {
 
   test('resolves the root and children lazily', () => {
     const { traversal, calls } = setup();
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     expect(calls).toEqual([]);
-    const iterator = runner.getIterable();
+    const iterator = runner.iterateEvents();
     expect(calls).toEqual([]);
     expect(iterator.next().value?.vertex.getData()).toBe('A');
     expect(calls).toEqual(['root']);
@@ -78,11 +80,11 @@ describe('breadth-first traversal', () => {
 
   test('finishes an empty tree without resolving children', () => {
     const { traversal, calls } = setup(null);
-    const runner = traversal.makeRunner();
-    expect([...runner.getIterable()]).toEqual([]);
+    const runner = traversal.createRunner();
+    expect([...runner.iterateEvents()]).toEqual([]);
     expect(calls).toEqual(['root']);
     expect(runner.getStatus()).toBe(Status.FINISHED);
-    expect(runner.getResolvedTree().getRoot()).toBeNull();
+    expect(runner.getResolvedTreeView().getRoot()).toBeNull();
   });
 
   test('sorts a copy of each hint list and skips null results', () => {
@@ -91,8 +93,12 @@ describe('breadth-first traversal', () => {
     traversal.configure({
       sortChildrenHints: (hints) => hints.reverse(),
     });
-    expect(yieldedValues(traversal.makeRunner())).toEqual(['root', 'a', 'b']);
-    expect(root.$c.map((child) => child?.$d ?? null)).toEqual(['b', null, 'a']);
+    expect(yieldedValues(traversal.createRunner())).toEqual(['root', 'a', 'b']);
+    expect(root.$childHints.map((child) => child?.$data ?? null)).toEqual([
+      'b',
+      null,
+      'a',
+    ]);
   });
 
   test('orders visitors by priority and preserves them across configure', () => {
@@ -120,7 +126,7 @@ describe('breadth-first traversal', () => {
       { priority: 2 },
     );
     traversal.configure({ sortChildrenHints: null });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     traversal.addVisitorFor(Order.LEVEL_ORDER, () => {
       visits.push('late');
     });
@@ -135,19 +141,19 @@ describe('breadth-first traversal', () => {
         ? {
             commands: [
               {
-                commandName: Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+                commandName: Command.REWRITE_CHILD_HINTS,
                 commandArguments: { newHints: [node('new')] },
               },
             ],
           }
         : undefined,
     );
-    expect(yieldedValues(traversal.makeRunner())).toEqual(['root', 'new']);
+    expect(yieldedValues(traversal.createRunner())).toEqual(['root', 'new']);
   });
 
   test.each([
-    [Command.DISABLE_SUBTREE_TRAVERSAL],
-    [Command.DELETE_VERTEX],
+    [Command.SKIP_REMAINING_CHILDREN],
+    [Command.DELETE_TREE_SUBTREE],
   ] as const)(
     '%s suppresses descendants while later siblings continue',
     (commandName) => {
@@ -159,21 +165,21 @@ describe('breadth-first traversal', () => {
           ? { commands: [{ commandName }] }
           : undefined,
       );
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       expect(yieldedValues(runner)).toEqual(
-        commandName === Command.DELETE_VERTEX
+        commandName === Command.DELETE_TREE_SUBTREE
           ? ['root', 'sibling']
           : ['root', 'branch', 'sibling'],
       );
-      const rootRef = runner.getResolvedTree().getRoot();
+      const rootRef = runner.getResolvedTreeView().getRoot();
       expect(
         rootRef &&
           runner
-            .getResolvedTree()
+            .getResolvedTreeView()
             .getChildrenOf(rootRef)
-            ?.map((ref) => ref.unref().getData()),
+            ?.map((ref) => ref.getValue().getData()),
       ).toEqual(
-        commandName === Command.DELETE_VERTEX
+        commandName === Command.DELETE_TREE_SUBTREE
           ? ['sibling']
           : ['branch', 'sibling'],
       );
@@ -183,12 +189,12 @@ describe('breadth-first traversal', () => {
   test('deleting the root skips all child resolution and clears the resolved root', () => {
     const { traversal, calls } = setup(node('root', node('hidden')));
     traversal.addVisitorFor(Order.LEVEL_ORDER, () => ({
-      commands: [{ commandName: Command.DELETE_VERTEX }],
+      commands: [{ commandName: Command.DELETE_TREE_SUBTREE }],
     }));
-    const runner = traversal.makeRunner();
-    expect([...runner.getIterable()]).toEqual([]);
+    const runner = traversal.createRunner();
+    expect([...runner.iterateEvents()]).toEqual([]);
     expect(calls).toEqual(['root']);
-    expect(runner.getResolvedTree().getRoot()).toBeNull();
+    expect(runner.getResolvedTreeView().getRoot()).toBeNull();
   });
 
   test('halts with no yielded orders and resumes the remaining visitor chain', () => {
@@ -197,14 +203,14 @@ describe('breadth-first traversal', () => {
     traversal.addVisitorFor(Order.LEVEL_ORDER, (vertex) => {
       visits.push(`first:${vertex.getData()}`);
       return vertex.getData() === 'root'
-        ? { commands: [{ commandName: Command.HALT_TRAVERSAL }] }
+        ? { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] }
         : undefined;
     });
     traversal.addVisitorFor(Order.LEVEL_ORDER, (vertex) => {
       visits.push(`second:${vertex.getData()}`);
     });
-    const runner = traversal.makeRunner();
-    runner.run({ iterateOver: [] });
+    const runner = traversal.createRunner();
+    runner.run({ emitEvents: [] });
     expect(runner.getStatus()).toBe(Status.HALTED);
     expect(visits).toEqual(['first:root']);
     runner.run();
@@ -223,16 +229,16 @@ describe('breadth-first traversal', () => {
     for (let index = 0; index < 3; index++) {
       traversal.addVisitorFor(Order.LEVEL_ORDER, () => {
         visits.push(index);
-        return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
       });
     }
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     for (let index = 0; index < 3; index++) {
-      runner.run({ iterateOver: [] });
+      runner.run({ emitEvents: [] });
       expect(runner.getStatus()).toBe(Status.HALTED);
       expect(visits).toEqual(Array.from({ length: index + 1 }, (_, i) => i));
     }
-    runner.run({ iterateOver: [] });
+    runner.run({ emitEvents: [] });
     expect(runner.getStatus()).toBe(Status.FINISHED);
     expect(visits).toEqual([0, 1, 2]);
   });
@@ -243,17 +249,17 @@ describe('breadth-first traversal', () => {
     traversal.addVisitorFor(Order.LEVEL_ORDER, (vertex) => {
       visits.push(vertex.getData());
     });
-    const runner = traversal.makeRunner();
-    for (const _event of runner.getIterable({
-      disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+    const runner = traversal.createRunner();
+    for (const _event of runner.iterateEvents({
+      visitorPhases: { exclude: [Order.LEVEL_ORDER] },
     }))
       break;
     expect(runner.getStatus()).toBe(Status.HALTED);
     expect(visits).toEqual([]);
     expect([
-      ...runner.getIterable({
-        iterateOver: [],
-        enableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+      ...runner.iterateEvents({
+        emitEvents: [],
+        visitorPhases: { include: [Order.LEVEL_ORDER] },
       }),
     ]).toEqual([]);
     expect(visits).toEqual(['child']);
@@ -275,37 +281,37 @@ describe('breadth-first traversal', () => {
           ],
         };
       },
-      { resolutionStyle: Style.CONCURRENT },
+      { commandCommitMode: 'afterGroup' as const },
     );
     traversal.addVisitorFor(
       Order.LEVEL_ORDER,
       (vertex) => {
         seen.push(vertex.getData());
       },
-      { resolutionStyle: Style.CONCURRENT },
+      { commandCommitMode: 'afterGroup' as const },
     );
     traversal.addVisitorFor(Order.LEVEL_ORDER, (vertex) => {
       seen.push(vertex.getData());
       return {
         commands: [
           {
-            commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-            commandArguments: { vertexVisitorsChainState: 42 },
+            commandName: Command.SET_VISITOR_CHAIN_STATE,
+            commandArguments: { state: 42 },
           },
         ],
       };
     });
     traversal.addVisitorFor(Order.LEVEL_ORDER, (_vertex, options) => {
-      seen.push(options.vertexVisitorsChainState);
+      seen.push(options.visitorChainState);
     });
-    traversal.makeRunner().run();
+    traversal.createRunner().run();
     expect(seen).toEqual(['root', 'root', 'changed', 42]);
   });
 
   test('keeps an original resolved tree after data rewrite and deletion', () => {
     const { traversal } = setup(node('root', node('deleted'), node('kept')));
     let savedLabels: string[] = [];
-    traversal.configure({ saveNotMutatedResolvedTree: true });
+    traversal.configure({ retainOriginalTreeStructure: true });
     traversal.addVisitorFor(Order.LEVEL_ORDER, (vertex, options) => {
       if (vertex.getData() === 'root') {
         return {
@@ -318,20 +324,20 @@ describe('breadth-first traversal', () => {
         };
       }
       if (vertex.getData() === 'deleted') {
-        return { commands: [{ commandName: Command.DELETE_VERTEX }] };
+        return { commands: [{ commandName: Command.DELETE_TREE_SUBTREE }] };
       }
-      const saved = options.notMutatedResolvedTree;
+      const saved = options.originalTreeView;
       const savedRoot = saved?.getRoot();
       savedLabels = savedRoot
         ? [savedRoot, ...(saved?.getChildrenOf(savedRoot) ?? [])].map((ref) =>
-            ref.unref().getData(),
+            ref.getValue().getData(),
           )
         : [];
       return undefined;
     });
-    const runner = traversal.makeRunner().run();
+    const runner = traversal.createRunner().run();
     expect(savedLabels).toEqual(['root', 'deleted', 'kept']);
-    expect(runner.getResolvedTree().getRoot()?.unref().getData()).toBe(
+    expect(runner.getResolvedTreeView().getRoot()?.getValue().getData()).toBe(
       'changed-root',
     );
   });
@@ -339,10 +345,10 @@ describe('breadth-first traversal', () => {
   test('throws for simultaneous iterators and propagates callback errors', () => {
     const activeRunner = setup(
       node('root', node('child')),
-    ).traversal.makeRunner();
-    const first = activeRunner.getIterable();
+    ).traversal.createRunner();
+    const first = activeRunner.iterateEvents();
     expect(first.next().value?.vertex.getData()).toBe('root');
-    const second = activeRunner.getIterable();
+    const second = activeRunner.iterateEvents();
     expect(() => second.next()).toThrow(/one active iterator/i);
     first.return?.(undefined);
 
@@ -350,14 +356,16 @@ describe('breadth-first traversal', () => {
     traversal.addVisitorFor(Order.LEVEL_ORDER, () => {
       throw new Error('visitor failed');
     });
-    expect(() => traversal.makeRunner().run()).toThrow('visitor failed');
+    expect(() => traversal.createRunner().run()).toThrow('visitor failed');
   });
 
   test('the convenience helper accepts a null visitor and completed runners are reusable', () => {
     const { tree } = setup(node('root', node('child')));
-    const runner = traverseBreadthFirst(tree, null);
+    const runner = traverseTreeBreadthFirst({ traversableTree: tree });
     expect(runner.getStatus()).toBe(Status.FINISHED);
-    expect(runner.getResolvedTree().getRoot()?.unref().getData()).toBe('root');
+    expect(runner.getResolvedTreeView().getRoot()?.getValue().getData()).toBe(
+      'root',
+    );
     runner.run();
     expect(runner.getStatus()).toBe(Status.FINISHED);
   });
@@ -372,9 +380,9 @@ describe('breadth-first traversal', () => {
     traversal.addVisitorFor(Order.LEVEL_ORDER, () => {
       count++;
     });
-    const runner = traversal.makeRunner().run({ iterateOver: [] });
+    const runner = traversal.createRunner().run({ emitEvents: [] });
     expect(count).toBe(20_001);
-    expect(runner.state.queue).toEqual([]);
-    expect(runner.state.queueIndex).toBe(0);
+    expect(runnerInternals(runner).state.queue).toEqual([]);
+    expect(runnerInternals(runner).state.queueIndex).toBe(0);
   });
 });

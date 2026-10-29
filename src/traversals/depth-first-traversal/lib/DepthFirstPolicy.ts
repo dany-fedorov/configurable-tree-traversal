@@ -1,8 +1,8 @@
 import type { OwnerToken } from '@core/effects/types';
-import type { Ref } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { DepthFirstTraversalInOrderTraversalConfig } from './DepthFirstTraversalInOrderTraversalConfig';
-import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
+import type { VertexRef } from '@core/graph/types';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { InOrderOptions } from './DepthFirstTraversalInOrderTraversalConfig';
+import { DepthFirstPhase } from './DepthFirstTraversalOrder';
 import { shouldVisitParentOnInOrder } from '../in-order-helpers/shouldVisitParentOnInOrder';
 
 export type DepthFirstFrameStage =
@@ -18,9 +18,9 @@ export type DepthFirstFrameStage =
   | 'post-visit'
   | 'done';
 
-export type DepthFirstFrame<T extends TreeTypeParameters> = {
+export type DepthFirstFrame<T extends VertexTypes> = {
   owner: OwnerToken;
-  vertexRef: Ref<T>;
+  vertexRef: VertexRef<T>;
   depth: number;
   stage: DepthFirstFrameStage;
   hints: T['VertexHint'][];
@@ -29,11 +29,11 @@ export type DepthFirstFrame<T extends TreeTypeParameters> = {
   resumeAfterInOrder: 'children' | 'post';
 };
 
-export type DepthFirstWork<T extends TreeTypeParameters> =
+export type DepthFirstWork<T extends VertexTypes> =
   | {
       kind: 'VISIT';
       frame: DepthFirstFrame<T>;
-      order: DepthFirstTraversalOrder;
+      order: DepthFirstPhase;
     }
   | {
       kind: 'PREPARE_HINTS';
@@ -54,15 +54,15 @@ export type DepthFirstWork<T extends TreeTypeParameters> =
   | { kind: 'POP'; frame: DepthFirstFrame<T> };
 
 /** Explicit stack policy preserving the legacy synchronous DFS boundaries. */
-export class DepthFirstPolicy<T extends TreeTypeParameters> {
+export class DepthFirstPolicy<T extends VertexTypes> {
   private readonly frames: DepthFirstFrame<T>[] = [];
 
   constructor(
-    private readonly inOrderConfig: DepthFirstTraversalInOrderTraversalConfig,
+    private readonly inOrderConfig: InOrderOptions,
     private readonly hasSorter: boolean,
   ) {}
 
-  push(owner: OwnerToken, vertexRef: Ref<T>, depth: number): void {
+  push(owner: OwnerToken, vertexRef: VertexRef<T>, depth: number): void {
     this.frames.push({
       owner,
       vertexRef,
@@ -76,8 +76,8 @@ export class DepthFirstPolicy<T extends TreeTypeParameters> {
   }
 
   next(
-    hasVertex: (ref: Ref<T>) => boolean,
-    isDisabled: (ref: Ref<T>) => boolean,
+    hasVertex: (ref: VertexRef<T>) => boolean,
+    isDisabled: (ref: VertexRef<T>) => boolean,
   ): DepthFirstWork<T> | null {
     for (;;) {
       const frame = this.frames[this.frames.length - 1];
@@ -92,12 +92,12 @@ export class DepthFirstPolicy<T extends TreeTypeParameters> {
           return {
             kind: 'VISIT',
             frame,
-            order: DepthFirstTraversalOrder.PRE_ORDER,
+            order: DepthFirstPhase.PRE_ORDER,
           };
         case 'sort': {
           const hints = isDisabled(frame.vertexRef)
             ? []
-            : frame.vertexRef.unref().getChildrenHints().slice();
+            : frame.vertexRef.getValue().getChildrenHints().slice();
           if (this.hasSorter) {
             frame.stage = 'sort-wait';
             return { kind: 'SORT_HINTS', frame, hints };
@@ -110,7 +110,7 @@ export class DepthFirstPolicy<T extends TreeTypeParameters> {
             frame.completedChild = null;
             if (
               (completed.resolved ||
-                this.inOrderConfig.considerVisitAfterNullContentVertices) &&
+                this.inOrderConfig.visitAfterOmittedChildren) &&
               shouldVisitParentOnInOrder(
                 this.inOrderConfig,
                 completed.index,
@@ -122,7 +122,7 @@ export class DepthFirstPolicy<T extends TreeTypeParameters> {
               return {
                 kind: 'VISIT',
                 frame,
-                order: DepthFirstTraversalOrder.IN_ORDER,
+                order: DepthFirstPhase.IN_ORDER,
               };
             }
             continue;
@@ -144,14 +144,14 @@ export class DepthFirstPolicy<T extends TreeTypeParameters> {
           return {
             kind: 'VISIT',
             frame,
-            order: DepthFirstTraversalOrder.IN_ORDER,
+            order: DepthFirstPhase.IN_ORDER,
           };
         case 'post':
           frame.stage = 'post-visit';
           return {
             kind: 'VISIT',
             frame,
-            order: DepthFirstTraversalOrder.POST_ORDER,
+            order: DepthFirstPhase.POST_ORDER,
           };
         case 'done':
           this.frames.pop();
@@ -166,9 +166,9 @@ export class DepthFirstPolicy<T extends TreeTypeParameters> {
     }
   }
 
-  completeVisit(frame: DepthFirstFrame<T>, order: DepthFirstTraversalOrder): void {
-    if (order === DepthFirstTraversalOrder.PRE_ORDER) frame.stage = 'sort';
-    else if (order === DepthFirstTraversalOrder.IN_ORDER)
+  completeVisit(frame: DepthFirstFrame<T>, order: DepthFirstPhase): void {
+    if (order === DepthFirstPhase.PRE_ORDER) frame.stage = 'sort';
+    else if (order === DepthFirstPhase.IN_ORDER)
       frame.stage = frame.resumeAfterInOrder;
     else frame.stage = 'done';
   }

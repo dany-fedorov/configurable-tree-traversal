@@ -1,23 +1,23 @@
-import assert from 'node:assert/strict';
-import type { TreeTypeParameters } from '../src/core';
 import {
+  type VertexTypes,
   DagTraversal,
-  DagTraversalOrder,
-  hasSingleSink,
-} from '../src/traversals/dag-traversal';
+  DagVisitorPhase,
+  hasSingleStructuralSink,
+} from '../src';
+import assert from 'node:assert/strict';
 
-type Workflow = TreeTypeParameters<string, string>;
+type Workflow = VertexTypes<string, string>;
 type Task = {
   children: string[];
-  dependsOn: string[];
+  dependsOnWork: string[];
 };
 
 const tasks: Record<string, Task> = {
-  root: { children: ['build', 'test', 'publish'], dependsOn: [] },
-  build: { children: ['compile-module'], dependsOn: ['root'] },
-  'compile-module': { children: ['publish'], dependsOn: ['build'] },
-  test: { children: ['publish'], dependsOn: ['root'] },
-  publish: { children: [], dependsOn: ['compile-module', 'test'] },
+  root: { children: ['build', 'test', 'publish'], dependsOnWork: [] },
+  build: { children: ['compile-module'], dependsOnWork: ['root'] },
+  'compile-module': { children: ['publish'], dependsOnWork: ['build'] },
+  test: { children: ['publish'], dependsOnWork: ['root'] },
+  publish: { children: [], dependsOnWork: ['compile-module', 'test'] },
 };
 
 function resolveTask(id: string) {
@@ -27,7 +27,7 @@ function resolveTask(id: string) {
     kind: 'found' as const,
     vertex: {
       vertexId: id,
-      dependsOn: task.dependsOn,
+      dependsOnWork: task.dependsOnWork,
       vertexContent: { $data: id, $childHints: task.children },
     },
   };
@@ -35,15 +35,15 @@ function resolveTask(id: string) {
 
 const traversal = new DagTraversal<Workflow>({
   traversableGraph: {
-    makeRoot: () => resolveTask('root'),
-    makeVertex: resolveTask,
+    resolveRoot: () => resolveTask('root'),
+    resolveChild: resolveTask,
     getVertexIdFromHint: (hint) => ({ vertexId: hint }),
   },
 });
 const readyTasks: string[] = [];
 const completedSubtrees: string[] = [];
 
-traversal.addVisitorFor(DagTraversalOrder.ON_READY, (vertex) => {
+traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex) => {
   const task = vertex.getData();
   if (task === 'publish') {
     assert(readyTasks.includes('compile-module'));
@@ -53,15 +53,15 @@ traversal.addVisitorFor(DagTraversalOrder.ON_READY, (vertex) => {
   }
   readyTasks.push(task);
 });
-traversal.addVisitorFor(DagTraversalOrder.ON_COMPLETE, (vertex) => {
+traversal.addVisitorFor(DagVisitorPhase.ON_SUBGRAPH_READY, (vertex) => {
   completedSubtrees.push(vertex.getData());
 });
 
-const runner = traversal.makeRunner().run();
+const runner = traversal.createRunner().run();
 assert.equal(readyTasks[0], 'root');
 assert(readyTasks.indexOf('publish') > readyTasks.indexOf('compile-module'));
 assert(readyTasks.indexOf('publish') > readyTasks.indexOf('test'));
 assert.equal(new Set(readyTasks).size, 5);
 assert.equal(completedSubtrees[0], 'publish');
 assert.equal(completedSubtrees.at(-1), 'root');
-assert.equal(hasSingleSink(runner.getResolvedGraph()), true);
+assert.equal(hasSingleStructuralSink(runner.getResolvedGraphView()), true);

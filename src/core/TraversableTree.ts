@@ -1,15 +1,15 @@
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
 import type { VertexContentInput } from '@core/Vertex';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { VertexResolutionContext } from '@core/ResolvedTree';
-import type { ResolvedTree } from '@core/ResolvedTree';
 
-export type MakeVertexOptions<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+export type TreeChildResolutionContext<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = {
   resolutionContext: VertexResolutionContext<TTP | RW_TTP>;
-  resolvedTree: ResolvedTree<TTP | RW_TTP>;
-  notMutatedResolvedTree: ResolvedTree<TTP> | null;
+  resolvedTreeView: ResolvedTreeView<TTP | RW_TTP>;
+  originalTreeView: ResolvedTreeView<TTP> | null;
 };
 
 /** Explicit ID domains cannot use the generated-reference identity fallback. */
@@ -18,12 +18,12 @@ type RequiredGraphVertexIdentity<ID> =
   | (unknown extends ID ? unknown : never);
 
 type GraphDependencies<ID> = {
-  dependsOn?: readonly ID[];
-  dependsOnComplete?: readonly ID[];
+  dependsOnWork?: readonly ID[];
+  dependsOnSubgraphCompletion?: readonly ID[];
 };
 
 export type MakeVertexResult<
-  TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
   ID = unknown,
 > = GraphDependencies<ID> & {
   vertexContent: VertexContentInput<TTP> | null;
@@ -31,7 +31,7 @@ export type MakeVertexResult<
 } & (RequiredGraphVertexIdentity<ID> | { vertexContent: null });
 
 /** A source deliberately supplied a vertex with non-null content. */
-export type FoundVertexResult<T extends TreeTypeParameters, ID = unknown> = {
+export type DagVertexFound<T extends VertexTypes, ID = unknown> = {
   kind: 'found';
   vertex: GraphDependencies<ID> &
     RequiredGraphVertexIdentity<ID> & {
@@ -41,74 +41,54 @@ export type FoundVertexResult<T extends TreeTypeParameters, ID = unknown> = {
 };
 
 /** Deliberate omission satisfies both work and completion prerequisites. */
-export type OmittedVertexResult<ID = unknown> = {
+export type DagVertexOmitted<ID = unknown> = {
   kind: 'omitted';
   vertexId?: ID;
   satisfiesDependencies: true;
 };
 
 /** Prerequisite lookup did not find the requested identity. */
-export type MissingVertexResult = { kind: 'missing' };
+export type PrerequisiteMissing = { kind: 'missing' };
 
-export type SourceVertexResult<T extends TreeTypeParameters, ID = unknown> =
-  | FoundVertexResult<T, ID>
-  | OmittedVertexResult<ID>
-  /** @deprecated Return a tagged found or omitted result. */
-  | MakeVertexResult<T, ID>;
+export type DagVertexResolution<T extends VertexTypes, ID = unknown> =
+  | DagVertexFound<T, ID>
+  | DagVertexOmitted<ID>;
 
-export type PrerequisiteResolutionResult<
-  T extends TreeTypeParameters,
-  ID = unknown,
-> = SourceVertexResult<T, ID> | MissingVertexResult | undefined;
+export type DagPrerequisiteResolution<T extends VertexTypes, ID = unknown> =
+  | DagVertexResolution<T, ID>
+  | PrerequisiteMissing;
 
 /** Graph identity and prerequisites are unsupported by tree sources. */
 type TreeMetadataRestrictions = {
   vertexId?: never;
-  dependsOn?: never;
-  dependsOnComplete?: never;
+  dependsOnWork?: never;
+  dependsOnSubgraphCompletion?: never;
   satisfiesDependencies?: never;
 };
 
-/** @deprecated Return a tagged tree found or omitted result. */
-export type MakeTreeVertexResult<T extends TreeTypeParameters> =
-  TreeMetadataRestrictions & { vertexContent: VertexContentInput<T> | null };
-
-export type TreeFoundVertexResult<T extends TreeTypeParameters> =
+export type TreeVertexFound<T extends VertexTypes> =
   TreeMetadataRestrictions & {
     kind: 'found';
     vertex: TreeMetadataRestrictions & { vertexContent: VertexContentInput<T> };
   };
 
-export type TreeOmittedVertexResult = TreeMetadataRestrictions & {
+export type TreeVertexOmitted = TreeMetadataRestrictions & {
   kind: 'omitted';
 };
 
-export type TreeSourceVertexResult<T extends TreeTypeParameters> =
-  | TreeFoundVertexResult<T>
-  | TreeOmittedVertexResult
-  | MakeTreeVertexResult<T>;
+export type TreeVertexResolution<T extends VertexTypes> =
+  | TreeVertexFound<T>
+  | TreeVertexOmitted;
 
-export type TraversableTree<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+/** Input T owns discovery hints/results; callbacks must accept the full T | R live context. */
+export type TreeSource<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > = {
-  makeRoot(): TreeSourceVertexResult<TTP>;
+  resolveRoot: () => TreeVertexResolution<TTP>;
 
-  makeVertex(
+  resolveChild: (
     vertexHint: TTP['VertexHint'],
-    options: MakeVertexOptions<TTP, RW_TTP>,
-  ): TreeSourceVertexResult<TTP>;
+    options: TreeChildResolutionContext<TTP, RW_TTP>,
+  ) => TreeVertexResolution<TTP>;
 };
-
-export abstract class AbstractTraversableTree<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
-> implements TraversableTree<TTP, RW_TTP>
-{
-  abstract makeRoot(): TreeSourceVertexResult<TTP>;
-
-  abstract makeVertex(
-    vertexHint: TTP['VertexHint'],
-    options: MakeVertexOptions<TTP, RW_TTP>,
-  ): TreeSourceVertexResult<TTP>;
-}

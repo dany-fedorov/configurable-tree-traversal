@@ -1,22 +1,21 @@
-import type { CTTRef } from '@core/CTTRef';
+import type { VertexHandle } from '@core/CTTRef';
 import type {
   GetPathToOptions,
   VertexResolutionContext,
 } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 
 /** Live tree queries with detached collections and contexts; refs and caller data remain shallow. */
-export interface ResolvedTreeView<T extends TreeTypeParameters> {
-  getRoot(): CTTRef<Vertex<T>> | null;
-  has(ref: CTTRef<Vertex<T>>): boolean;
-  getChildrenOf(ref: CTTRef<Vertex<T>>): readonly CTTRef<Vertex<T>>[] | null;
-  getParentOf(ref: CTTRef<Vertex<T>>): CTTRef<Vertex<T>> | null;
+export interface ResolvedTreeView<T extends VertexTypes> {
+  getRoot(): VertexHandle<T> | null;
+  has(ref: VertexHandle<T>): boolean;
+  getChildrenOf(ref: VertexHandle<T>): readonly VertexHandle<T>[] | null;
+  getParentOf(ref: VertexHandle<T>): VertexHandle<T> | null;
   getPathTo(
-    ref: CTTRef<Vertex<T>>,
+    ref: VertexHandle<T>,
     options?: GetPathToOptions,
-  ): readonly CTTRef<Vertex<T>>[];
+  ): readonly VertexHandle<T>[];
   getResolutionContextOf(
-    ref: CTTRef<Vertex<T>>,
+    ref: VertexHandle<T>,
   ): Readonly<VertexResolutionContext<T>> | null;
 }

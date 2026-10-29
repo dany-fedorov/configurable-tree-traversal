@@ -1,38 +1,42 @@
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import {
-  CTTRef,
-  DepthFirstTraversal,
-  ResolvedTree,
-  type TreeTypeParameters,
+  DepthFirstTreeTraversal,
+  MutableRef,
+  ResolvedTreeStore,
+  TreeVertexRecord,
   Vertex,
-  VertexResolved,
-  type VertexResolutionContext,
+  type VertexTypes,
 } from '../src';
+import { runnerInternals } from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: Node[] };
-type TestTTP = TreeTypeParameters<string, Node>;
+type Node = { $data: string; $childHints: Node[] };
+type TestTTP = VertexTypes<string, Node>;
 
-const node = ($d: string, ...$c: Node[]): Node => ({ $d, $c });
+const node = ($data: string, ...$childHints: Node[]): Node => ({
+  $data,
+  $childHints,
+});
 
-function makeRef(data: string): CTTRef<Vertex<TestTTP>> {
-  return new CTTRef(new Vertex<TestTTP>({ $d: data, $c: [] }));
+function makeRef(data: string): MutableRef<Vertex<TestTTP>> {
+  return new MutableRef(new Vertex<TestTTP>({ $data: data, $childHints: [] }));
 }
 
 function makeResolved(
   context: VertexResolutionContext<TestTTP> | null,
-): VertexResolved<TestTTP> {
-  return new VertexResolved({
-    $d: { resolutionContext: context },
-    $c: [],
+): TreeVertexRecord<TestTTP> {
+  return new TreeVertexRecord({
+    metadata: { resolutionContext: context },
+    children: [],
   });
 }
 
 function makeContext(
-  parentVertexRef: CTTRef<Vertex<TestTTP>>,
+  parentVertexRef: MutableRef<Vertex<TestTTP>>,
   vertexHint: Node,
 ): VertexResolutionContext<TestTTP> {
   return {
     depth: 1,
-    parentVertex: parentVertexRef.unref(),
+    parentVertex: parentVertexRef.getValue(),
     parentVertexRef,
     hintIndex: 0,
     vertexHint,
@@ -40,34 +44,45 @@ function makeContext(
 }
 
 function makeSavingContainer() {
-  return new DepthFirstTraversal<TestTTP>({
-    traversableTree: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: (hint) => ({ vertexContent: hint }),
-    },
-    saveNotMutatedResolvedTree: true,
-  }).makeRunner().resolvedTreesContainer;
+  return runnerInternals(
+    new DepthFirstTreeTraversal<TestTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: (hint) => ({
+          kind: 'found' as const,
+          vertex: { vertexContent: hint },
+        }),
+      },
+      retainOriginalTreeStructure: true,
+    }).createRunner(),
+  ).resolvedTreesContainer;
 }
 
 describe('resolved-tree public fallbacks', () => {
   test('reports absent lookups and exposes unresolved refs as leaf adapter vertices', () => {
-    const tree = new ResolvedTree<TestTTP>();
+    const tree = new ResolvedTreeStore<TestTTP>();
     const unresolvedRef = makeRef('unresolved');
 
     expect(tree.getChildrenOf(unresolvedRef)).toBeNull();
     expect(tree.getResolutionContextOf(unresolvedRef)).toBeNull();
-    expect(tree.makeVertex(unresolvedRef)).toEqual({
-      vertexContent: { $data: unresolvedRef, $childHints: [] },
+    expect(tree.resolveChild(unresolvedRef)).toEqual({
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: unresolvedRef, $childHints: [] },
+      },
     });
 
     tree.setRoot(unresolvedRef);
-    expect(tree.makeRoot()).toEqual({
-      vertexContent: { $data: unresolvedRef, $childHints: [] },
+    expect(tree.resolveRoot()).toEqual({
+      kind: 'found' as const,
+      vertex: {
+        vertexContent: { $data: unresolvedRef, $childHints: [] },
+      },
     });
   });
 
   test('deleting duplicate public child edges visits the child only once', () => {
-    const tree = new ResolvedTree<TestTTP>();
+    const tree = new ResolvedTreeStore<TestTTP>();
     const rootRef = makeRef('root');
     const childRef = makeRef('child');
     tree.setRoot(rootRef);
@@ -75,7 +90,7 @@ describe('resolved-tree public fallbacks', () => {
     tree.set(childRef, makeResolved(makeContext(rootRef, node('child'))));
     tree.pushChildrenTo(rootRef, [childRef, childRef]);
 
-    tree.delete(rootRef);
+    tree.deleteSubtree(rootRef);
 
     expect(tree.getRoot()).toBeNull();
     expect(tree.has(rootRef)).toBe(false);
@@ -104,12 +119,12 @@ describe('saved-container consistency errors', () => {
       childRef,
       makeContext(rootRef, childHint),
     );
-    const savedTree = container.notMutatedResolvedTree;
-    const savedRootRef = container.notMutatedResolvedTreeRefsMap?.get(rootRef);
+    const savedTree = container.originalTreeView;
+    const savedRootRef = container.originalTreeRefsMap?.get(rootRef);
     if (savedTree === null || savedRootRef === undefined) {
       throw new Error('Expected saved root state');
     }
-    savedTree.delete(savedRootRef);
+    savedTree.deleteSubtree(savedRootRef);
 
     expect(() => container.pushChildrenTo(rootRef, [childRef])).toThrow(
       /could not find not mutated ref/i,

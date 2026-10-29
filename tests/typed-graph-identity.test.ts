@@ -1,34 +1,34 @@
 import {
   AsyncDagTraversal,
   DagTraversal,
-  type TraversableGraph,
-  type TreeTypeParameters,
+  type DagDiscoverySource,
+  type VertexTypes,
 } from '../src';
 
 type TaskId = { task: string } | symbol | undefined | number;
-type Task = TreeTypeParameters<string, TaskId>;
+type Task = VertexTypes<string, TaskId>;
 
-for (const Traversal of [
+for (const TreeTraversal of [
   DagTraversal<Task, Task, TaskId>,
   AsyncDagTraversal<Task, Task, TaskId>,
 ]) {
-  test(`${Traversal.name} preserves typed arbitrary identities through lookup, snapshots, and guarded settlement`, async () => {
+  test(`${TreeTraversal.name} preserves typed arbitrary identities through lookup, snapshots, and guarded settlement`, async () => {
     const root = { task: 'root' };
     const prerequisite = Symbol('prerequisite');
     const lookups: TaskId[] = [];
-    const source: TraversableGraph<Task, Task, TaskId> = {
-      makeRoot: () => ({
+    const source: DagDiscoverySource<Task, Task, TaskId> = {
+      resolveRoot: () => ({
         kind: 'found',
         vertex: {
           vertexId: root,
           vertexContent: { $data: 'root', $childHints: [undefined, NaN] },
         },
       }),
-      makeVertex: (id) => ({
+      resolveChild: (id) => ({
         kind: 'found',
         vertex: {
           vertexId: id,
-          dependsOn: [prerequisite],
+          dependsOnWork: [prerequisite],
           vertexContent: { $data: 'child', $childHints: [] },
         },
       }),
@@ -38,20 +38,20 @@ for (const Traversal of [
         return { kind: 'omitted', vertexId: id, satisfiesDependencies: true };
       },
     };
-    const runner = new Traversal({
+    const runner = new TreeTraversal({
       traversableGraph: source,
       workCompletion: 'externalSettlement',
       discovery: 'eager',
-      saveNotMutatedResolvedGraph: true,
-    }).makeRunner();
+      retainOriginalGraphStructure: true,
+    }).createRunner();
     await runner.run();
     expect(lookups).toEqual([prerequisite]);
-    const graph = runner.getResolvedGraph();
-    const snapshot = runner.notMutatedResolvedGraph!;
+    const graph = runner.getResolvedGraphView();
+    const snapshot = runner.originalGraphView!;
     for (const id of [root, undefined, NaN]) {
       const ref = graph.getVertexRefById(id)!;
       expect(graph.getVertexId(ref)).toBe(id);
-      expect(graph.getIdOf(ref)).toBe(id);
+      expect(graph.getVertexId(ref)).toBe(id);
       expect(snapshot.getVertexId(snapshot.getVertexRefById(id)!)).toBe(id);
       const generation = runner.summary().vertices.get(id)!.generation!;
       expect(() =>
@@ -67,7 +67,7 @@ for (const Traversal of [
   });
 }
 
-type NumericTask = TreeTypeParameters<string, number>;
+type NumericTask = VertexTypes<string, number>;
 class InheritedIdResult {
   get vertexId(): number {
     return 42;
@@ -76,61 +76,61 @@ class InheritedIdResult {
 }
 
 for (const asynchronous of [false, true]) {
-  for (const shape of ['tagged', 'legacy'] as const) {
+  for (const shape of ['tagged'] as const) {
     for (const callback of ['root', 'hint', 'prerequisite'] as const) {
       test(`${
         asynchronous ? 'async' : 'sync'
       } ${shape} ${callback} rejects an inherited ID before generated or prerequisite fallback`, async () => {
         const inherited = new InheritedIdResult();
-        const result = () =>
-          shape === 'tagged'
-            ? { kind: 'found' as const, vertex: inherited }
-            : inherited;
-        const source: TraversableGraph<NumericTask, NumericTask, number> = {
-          makeRoot: () =>
+        const result = () => ({ kind: 'found' as const, vertex: inherited });
+        const source: DagDiscoverySource<NumericTask, NumericTask, number> = {
+          resolveRoot: () =>
             callback === 'root'
               ? result()
               : {
-                  vertexId: 1,
-                  dependsOn: callback === 'prerequisite' ? [42] : [],
-                  vertexContent: {
-                    $data: 'root',
-                    $childHints: callback === 'hint' ? [42] : [],
+                  kind: 'found' as const,
+                  vertex: {
+                    vertexId: 1,
+                    dependsOnWork: callback === 'prerequisite' ? [42] : [],
+                    vertexContent: {
+                      $data: 'root',
+                      $childHints: callback === 'hint' ? [42] : [],
+                    },
                   },
                 },
-          makeVertex: result,
+          resolveChild: result,
           resolvePrerequisite: result,
         };
         const runner = asynchronous
           ? new AsyncDagTraversal<NumericTask, NumericTask, number>({
               traversableGraph: {
-                makeRoot: async () => source.makeRoot(),
-                makeVertex: async () => result(),
+                resolveRoot: async () => source.resolveRoot(),
+                resolveChild: async () => result(),
                 resolvePrerequisite: async () => result(),
               },
-            }).makeRunner()
+            }).createRunner()
           : new DagTraversal<NumericTask, NumericTask, number>({
               traversableGraph: source,
-            }).makeRunner();
+            }).createRunner();
         await expect(async () => {
           await runner.run();
         }).rejects.toThrow(/vertexId must be an own property/);
-        expect(runner.getResolvedGraph().getVertexRefs()).toHaveLength(
+        expect(runner.getResolvedGraphView().getVertexRefs()).toHaveLength(
           callback === 'root' ? 0 : 1,
         );
-        expect(runner.getResolvedGraph().getVertexRefById(42)).toBeNull();
+        expect(runner.getResolvedGraphView().getVertexRefById(42)).toBeNull();
       });
     }
   }
 }
 
-for (const Traversal of [
+for (const TreeTraversal of [
   DagTraversal<Task, Task, TaskId>,
   AsyncDagTraversal<Task, Task, TaskId>,
 ]) {
-  for (const shape of ['tagged', 'legacy'] as const) {
+  for (const shape of ['tagged'] as const) {
     test.each([42, undefined])(
-      `${Traversal.name} ${shape} accepts an own getter ID %p`,
+      `${TreeTraversal.name} ${shape} accepts an own getter ID %p`,
       async (id) => {
         const vertex = {
           get vertexId() {
@@ -138,18 +138,17 @@ for (const Traversal of [
           },
           vertexContent: { $data: 'root', $childHints: [] },
         };
-        const runner = new Traversal({
+        const runner = new TreeTraversal({
           traversableGraph: {
-            makeRoot: () =>
-              shape === 'tagged' ? { kind: 'found', vertex } : vertex,
-            makeVertex: () => ({
+            resolveRoot: () => ({ kind: 'found', vertex }),
+            resolveChild: () => ({
+              satisfiesDependencies: true as const,
               kind: 'omitted',
-              satisfiesDependencies: true,
             }),
           },
-        }).makeRunner();
+        }).createRunner();
         await runner.run();
-        const graph = runner.getResolvedGraph();
+        const graph = runner.getResolvedGraphView();
         const ref = graph.getVertexRefById(id)!;
         expect(graph.getVertexId(ref)).toBe(id);
         expect(runner.summary().completedWorkIds).toEqual([id]);
@@ -157,7 +156,7 @@ for (const Traversal of [
     );
 
     test.each([undefined, null, { original: true }])(
-      `${Traversal.name} ${shape} preserves an own ID getter error %p`,
+      `${TreeTraversal.name} ${shape} preserves an own ID getter error %p`,
       async (error) => {
         const vertex = {
           get vertexId(): number {
@@ -165,52 +164,54 @@ for (const Traversal of [
           },
           vertexContent: { $data: 'root', $childHints: [] },
         };
-        const runner = new Traversal({
+        const runner = new TreeTraversal({
           traversableGraph: {
-            makeRoot: () =>
-              shape === 'tagged' ? { kind: 'found', vertex } : vertex,
-            makeVertex: () => ({
+            resolveRoot: () => ({ kind: 'found', vertex }),
+            resolveChild: () => ({
+              satisfiesDependencies: true as const,
               kind: 'omitted',
-              satisfiesDependencies: true,
             }),
           },
-        }).makeRunner();
+        }).createRunner();
         await expect(async () => {
           await runner.run();
         }).rejects.toBe(error);
-        expect(runner.getResolvedGraph().getVertexRefs()).toEqual([]);
+        expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
       },
     );
   }
 }
 
-for (const Traversal of [
+for (const TreeTraversal of [
   DagTraversal<NumericTask, NumericTask, number>,
   AsyncDagTraversal<NumericTask, NumericTask, number>,
 ]) {
-  test(`${Traversal.name} validates and schedules the same captured tagged payload`, async () => {
+  test(`${TreeTraversal.name} validates and schedules the same captured tagged payload`, async () => {
     let reads = 0;
     const original = {
       vertexId: 7,
       vertexContent: { $data: 'own', $childHints: [] },
     };
     const inherited = new InheritedIdResult();
-    const runner = new Traversal({
+    const runner = new TreeTraversal({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           kind: 'found',
           get vertex() {
             reads += 1;
             return reads === 1 ? original : inherited;
           },
         }),
-        makeVertex: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted',
+        }),
       },
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     expect(reads).toBe(1);
     expect(runner.summary().completedWorkIds).toEqual([7]);
-    const graph = runner.getResolvedGraph();
-    expect(graph.getVertexRefById(7)!.unref().getData()).toBe('own');
+    const graph = runner.getResolvedGraphView();
+    expect(graph.getVertexRefById(7)!.getValue().getData()).toBe('own');
   });
 }

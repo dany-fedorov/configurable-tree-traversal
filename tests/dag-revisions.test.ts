@@ -1,6 +1,6 @@
 import {
-  coordinateDagAsync,
-  DagTraversalOrder,
+  createAsyncDagWorkSession,
+  DagVisitorPhase,
   defineDag,
   diffDagDefinitions,
   prepareDagDefinition,
@@ -19,8 +19,8 @@ const vertex = <ID>(
   vertexId,
   data: undefined,
   slots: [],
-  dependsOn: [],
-  dependsOnComplete: [],
+  dependsOnWork: [],
+  dependsOnSubgraphCompletion: [],
   ...patch,
 });
 
@@ -94,16 +94,16 @@ describe('diffDagDefinitions', () => {
       vertex('task', {
         data: { version: 1 },
         slots: [{ kind: 'vertex', vertexId: 'old' }],
-        dependsOn: ['a', 'b'],
-        dependsOnComplete: ['a', 'b'],
+        dependsOnWork: ['a', 'b'],
+        dependsOnSubgraphCompletion: ['a', 'b'],
       }),
     ]);
     const after = definition([
       vertex('task', {
         data: { version: 1 },
         slots: [{ kind: 'vertex', vertexId: 'new' }],
-        dependsOn: ['b', 'a'],
-        dependsOnComplete: ['b', 'a'],
+        dependsOnWork: ['b', 'a'],
+        dependsOnSubgraphCompletion: ['b', 'a'],
       }),
     ]);
     expect(diffDagDefinitions(before, after).changedVertices).toEqual([
@@ -113,19 +113,19 @@ describe('diffDagDefinitions', () => {
           'data',
           'slots',
           'workDependencies',
-          'completionDependencies',
+          'subgraphCompletionDependencies',
         ],
       },
     ]);
     expect(
       diffDagDefinitions(
-        definition([vertex('task', { dependsOn: ['a'] })]),
-        definition([vertex('task', { dependsOnComplete: ['a'] })]),
+        definition([vertex('task', { dependsOnWork: ['a'] })]),
+        definition([vertex('task', { dependsOnSubgraphCompletion: ['a'] })]),
       ).changedVertices,
     ).toEqual([
       {
         vertexId: 'task',
-        aspects: ['workDependencies', 'completionDependencies'],
+        aspects: ['workDependencies', 'subgraphCompletionDependencies'],
       },
     ]);
   });
@@ -141,8 +141,8 @@ describe('diffDagDefinitions', () => {
             { kind: 'omitted', identity: { vertexId: undefined } },
             { kind: 'omitted', identity: null },
           ],
-          dependsOn: [NaN, -0, id, slot],
-          dependsOnComplete: [undefined],
+          dependsOnWork: [NaN, -0, id, slot],
+          dependsOnSubgraphCompletion: [undefined],
         }),
       ],
       { omittedIds: [undefined, -0], entry: { kind: 'root', vertexId: NaN } },
@@ -155,8 +155,8 @@ describe('diffDagDefinitions', () => {
             { kind: 'omitted', identity: { vertexId: undefined } },
             { kind: 'omitted', identity: null },
           ],
-          dependsOn: [NaN, +0, id, slot],
-          dependsOnComplete: [undefined],
+          dependsOnWork: [NaN, +0, id, slot],
+          dependsOnSubgraphCompletion: [undefined],
         }),
       ],
       { omittedIds: [undefined, +0], entry: { kind: 'root', vertexId: NaN } },
@@ -272,28 +272,28 @@ describe('diffDagDefinitions', () => {
     ],
     [{ kind: 'root', vertexId: undefined }, { kind: 'empty' }, true],
     [{ kind: 'root', vertexId: 'a' }, { kind: 'root', vertexId: 'b' }, true],
-    [{ kind: 'forest', slots: [] }, { kind: 'empty' }, true],
+    [{ kind: 'roots', slots: [] }, { kind: 'empty' }, true],
     [
       {
-        kind: 'forest',
+        kind: 'roots',
         slots: [{ kind: 'omitted', identity: { vertexId: undefined } }],
       },
       {
-        kind: 'forest',
+        kind: 'roots',
         slots: [{ kind: 'omitted', identity: { vertexId: undefined } }],
       },
       false,
     ],
     [
       {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'a' },
           { kind: 'vertex', vertexId: 'b' },
         ],
       },
       {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'b' },
           { kind: 'vertex', vertexId: 'a' },
@@ -360,15 +360,17 @@ describe('reviseDag', () => {
   test('rejects a dangling prerequisite without touching the original session', () => {
     const result = prepareDagDefinition(
       definition(
-        [vertex('review', { dependsOn: ['research'] }), vertex('research')],
+        [vertex('review', { dependsOnWork: ['research'] }), vertex('research')],
         { entry: { kind: 'root', vertexId: 'review' } },
       ),
     );
     if (result.kind !== 'valid') throw new Error('Expected valid fixture');
     const original = result.dag;
-    const before = original.createSession();
+    const before = original.createWorkSession();
     expect(
-      reviseDag(original, [{ kind: 'removeVertex', vertexId: 'research' }]),
+      reviseDag(original, [
+        { kind: 'removeVertexDeclaration', vertexId: 'research' },
+      ]),
     ).toMatchObject({ kind: 'invalid', issues: [{ kind: 'milestone' }] });
     expect(original.definition.vertices.map((v) => v.vertexId)).toEqual([
       'review',
@@ -376,7 +378,7 @@ describe('reviseDag', () => {
     ]);
     expect(before.advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'research' }],
+      workTickets: [{ vertexId: 'research' }],
     });
   });
 });
@@ -388,7 +390,7 @@ const prepared = <ID>(
   const result = prepareDagDefinition(
     definition(vertices, {
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: vertices.map((v) => ({ kind: 'vertex', vertexId: v.vertexId })),
       },
       ...patch,
@@ -406,15 +408,15 @@ describe('ordered atomic revisions', () => {
     const original = prepared(
       [
         vertex('review', {
-          dependsOn: ['research'],
-          dependsOnComplete: ['research'],
+          dependsOnWork: ['research'],
+          dependsOnSubgraphCompletion: ['research'],
         }),
         vertex('research'),
       ],
       { entry: { kind: 'root', vertexId: 'review' } },
     );
     const result = reviseDag(original, [
-      { kind: 'removeVertex', vertexId: 'research' },
+      { kind: 'removeVertexDeclaration', vertexId: 'research' },
       { kind: 'replaceVertex', vertex: vertex('review') },
     ]);
     expect(result.kind).toBe('valid');
@@ -426,18 +428,18 @@ describe('ordered atomic revisions', () => {
       changedVertices: [
         {
           vertexId: 'review',
-          aspects: ['workDependencies', 'completionDependencies'],
+          aspects: ['workDependencies', 'subgraphCompletionDependencies'],
         },
       ],
       vertexOrderChanged: true,
     });
-    expect(result.dag.createSession().advance()).toMatchObject({
+    expect(result.dag.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'review' }],
+      workTickets: [{ vertexId: 'review' }],
     });
-    expect(original.createSession().advance()).toMatchObject({
+    expect(original.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'research' }],
+      workTickets: [{ vertexId: 'research' }],
     });
   });
 
@@ -445,7 +447,7 @@ describe('ordered atomic revisions', () => {
     const original = prepared([vertex('a'), vertex('b'), vertex('c')]);
     const result = reviseDag(original, [
       { kind: 'replaceVertex', vertex: vertex('c', { data: 1 }) },
-      { kind: 'removeVertex', vertexId: 'b' },
+      { kind: 'removeVertexDeclaration', vertexId: 'b' },
       { kind: 'addVertex', vertex: vertex('b', { data: 'new' }) },
       { kind: 'replaceVertex', vertex: vertex('c', { data: 2 }) },
     ]);
@@ -481,7 +483,7 @@ describe('ordered atomic revisions', () => {
       { entry: { kind: 'root', vertexId: 'root' } },
     );
     const invalid = reviseDag(original, [
-      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'removeVertexDeclaration', vertexId: 'root' },
     ]);
     expect(invalid).toEqual({
       kind: 'invalid',
@@ -491,7 +493,7 @@ describe('ordered atomic revisions', () => {
       ],
     });
     const result = reviseDag(original, [
-      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'removeVertexDeclaration', vertexId: 'root' },
       { kind: 'replaceEntry', entry: { kind: 'root', vertexId: 'child' } },
     ]);
     if (result.kind !== 'valid') throw new Error('Expected revision');
@@ -502,9 +504,9 @@ describe('ordered atomic revisions', () => {
       vertexOrderChanged: true,
       entryChanged: true,
     });
-    expect(original.createSession().advance()).toMatchObject({
+    expect(original.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'root' }, { vertexId: 'child' }],
+      workTickets: [{ vertexId: 'root' }, { vertexId: 'child' }],
     });
   });
 
@@ -514,7 +516,7 @@ describe('ordered atomic revisions', () => {
     });
     const result = reviseDag(original, [
       { kind: 'replaceEntry', entry: { kind: 'empty' } },
-      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'removeVertexDeclaration', vertexId: 'root' },
     ]);
     if (result.kind !== 'valid') throw new Error('Expected revision');
     expect(result.dag.definition).toEqual({
@@ -522,14 +524,14 @@ describe('ordered atomic revisions', () => {
       omittedIds: [],
       entry: { kind: 'empty' },
     });
-    expect(result.dag.createSession().advance().kind).toBe('finished');
+    expect(result.dag.createWorkSession().advance().kind).toBe('finished');
   });
 
   test('can replace omitted identities and entry slots in one batch', () => {
     const original = prepared<unknown>([vertex('root')], {
       omittedIds: ['old'],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'omitted', identity: { vertexId: 'old' } },
           { kind: 'vertex', vertexId: 'root' },
@@ -541,7 +543,7 @@ describe('ordered atomic revisions', () => {
       {
         kind: 'replaceEntry',
         entry: {
-          kind: 'forest',
+          kind: 'roots',
           slots: [
             { kind: 'vertex', vertexId: 'root' },
             { kind: 'omitted', identity: { vertexId: undefined } },
@@ -561,7 +563,9 @@ describe('ordered atomic revisions', () => {
 
   test('an empty batch creates a fresh unseeded prepared DAG and session', () => {
     const original = prepared([vertex('task')]);
-    const old = original.createSession({ completedWork: new Set(['task']) });
+    const old = original.createWorkSession({
+      completedWork: new Set(['task']),
+    });
     expect(old.advance().kind).toBe('finished');
     const result = reviseDag(original, []);
     if (result.kind !== 'valid') throw new Error('Expected revision');
@@ -571,9 +575,9 @@ describe('ordered atomic revisions', () => {
       original.definition.vertices[0],
     );
     expect(result.changes).toEqual(unchanged);
-    expect(result.dag.createSession().advance()).toMatchObject({
+    expect(result.dag.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'task' }],
+      workTickets: [{ vertexId: 'task' }],
     });
     expect(old.advance().kind).toBe('finished');
   });
@@ -613,7 +617,7 @@ describe('ordered atomic revisions', () => {
       operations: [
         {
           kind: 'replaceVertex',
-          vertex: vertex('root', { dependsOn: ['root'] }),
+          vertex: vertex('root', { dependsOnWork: ['root'] }),
         },
       ],
       issue: 'milestone',
@@ -623,7 +627,7 @@ describe('ordered atomic revisions', () => {
       operations: [
         {
           kind: 'replaceVertex',
-          vertex: vertex('root', { dependsOnComplete: ['root'] }),
+          vertex: vertex('root', { dependsOnSubgraphCompletion: ['root'] }),
         },
       ],
       issue: 'milestone',
@@ -646,7 +650,7 @@ describe('ordered atomic revisions', () => {
       const original = prepared([vertex('root')], {
         entry: { kind: 'root', vertexId: 'root' },
       });
-      const session = original.createSession();
+      const session = original.createWorkSession();
       const before = original.definition;
       expect(
         reviseDag(original, rawOperations<string>(operations)),
@@ -658,7 +662,7 @@ describe('ordered atomic revisions', () => {
       expect(original.definition.vertices).toEqual([vertex('root')]);
       expect(session.advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: 'root' }],
+        workTickets: [{ vertexId: 'root' }],
       });
     },
   );
@@ -666,14 +670,14 @@ describe('ordered atomic revisions', () => {
   test.each([
     { kind: 'addVertex', vertex: vertex('root') },
     { kind: 'replaceVertex', vertex: vertex('unknown') },
-    { kind: 'removeVertex', vertexId: 'unknown' },
+    { kind: 'removeVertexDeclaration', vertexId: 'unknown' },
     { kind: 'replaceOmissions', omittedIds: ['root'] },
     { kind: 'replaceOmissions', omittedIds: ['x', 'x'] },
   ])(
     'throws on programmer error $kind without adopting preceding edits',
     (operation) => {
       const original = prepared([vertex('root')]);
-      const session = original.createSession();
+      const session = original.createWorkSession();
       expect(() =>
         reviseDag(
           original,
@@ -689,7 +693,7 @@ describe('ordered atomic revisions', () => {
       expect(original.definition.vertices[0]!.data).toBeUndefined();
       expect(session.advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: 'root' }],
+        workTickets: [{ vertexId: 'root' }],
       });
     },
   );
@@ -698,7 +702,7 @@ describe('ordered atomic revisions', () => {
     const original = prepared([vertex('root')]);
     const result = reviseDag(original, [
       { kind: 'replaceOmissions', omittedIds: ['root'] },
-      { kind: 'removeVertex', vertexId: 'root' },
+      { kind: 'removeVertexDeclaration', vertexId: 'root' },
       { kind: 'replaceEntry', entry: { kind: 'empty' } },
     ]);
     if (result.kind !== 'valid') throw new Error('Expected revision');
@@ -726,11 +730,11 @@ describe('ordered atomic revisions', () => {
       { kind: 'replaceVertex', vertex: vertex(+0, { data: 'zero' }) },
       { kind: 'replaceVertex', vertex: vertex(id, { data: 'object' }) },
       { kind: 'replaceVertex', vertex: vertex(symbol, { data: 'symbol' }) },
-      { kind: 'removeVertex', vertexId: undefined },
+      { kind: 'removeVertexDeclaration', vertexId: undefined },
       {
         kind: 'replaceEntry',
         entry: {
-          kind: 'forest',
+          kind: 'roots',
           slots: [NaN, +0, id, symbol, other].map((vertexId) => ({
             kind: 'vertex',
             vertexId,
@@ -756,7 +760,10 @@ describe('ordered atomic revisions', () => {
       reviseDag(original, [{ kind: 'addVertex', vertex: vertex(+0) }]),
     ).toThrow(TypeError);
     expect(() =>
-      reviseDag(original, rawOperations<string>([{ kind: 'removeVertex' }])),
+      reviseDag(
+        original,
+        rawOperations<string>([{ kind: 'removeVertexDeclaration' }]),
+      ),
     ).toThrow(TypeError);
   });
 
@@ -768,8 +775,8 @@ describe('ordered atomic revisions', () => {
     [false],
     [[]],
     [{ kind: 'unknown' }],
-    [Object.create({ kind: 'removeVertex', vertexId: undefined })],
-    [{ kind: 'removeVertex' }],
+    [Object.create({ kind: 'removeVertexDeclaration', vertexId: undefined })],
+    [{ kind: 'removeVertexDeclaration' }],
     [{ kind: 'replaceVertex' }],
     [{ kind: 'addVertex', vertex: null }],
     [
@@ -778,8 +785,8 @@ describe('ordered atomic revisions', () => {
         vertex: {
           data: undefined,
           slots: [],
-          dependsOn: [],
-          dependsOnComplete: [],
+          dependsOnWork: [],
+          dependsOnSubgraphCompletion: [],
         },
       },
     ],
@@ -794,9 +801,9 @@ describe('ordered atomic revisions', () => {
       expect(() => reviseDag(original, rawOperations(value))).toThrow(
         TypeError,
       );
-      expect(original.createSession().advance()).toMatchObject({
+      expect(original.createWorkSession().advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: undefined }],
+        workTickets: [{ vertexId: undefined }],
       });
     },
   );
@@ -807,7 +814,7 @@ describe('ordered atomic revisions', () => {
     const original = prepared<unknown>([vertex(id)]);
     const reads: string[] = [];
     const slots: DagDefinitionSlot<unknown>[] = [];
-    const dependsOn: unknown[] = [];
+    const dependsOnWork: unknown[] = [];
     const replacement = {
       get vertexId() {
         reads.push('vertexId');
@@ -821,12 +828,12 @@ describe('ordered atomic revisions', () => {
         reads.push('slots');
         return slots;
       },
-      get dependsOn() {
-        reads.push('dependsOn');
-        return dependsOn;
+      get dependsOnWork() {
+        reads.push('dependsOnWork');
+        return dependsOnWork;
       },
-      get dependsOnComplete() {
-        reads.push('dependsOnComplete');
+      get dependsOnSubgraphCompletion() {
+        reads.push('dependsOnSubgraphCompletion');
         return [];
       },
     };
@@ -849,19 +856,19 @@ describe('ordered atomic revisions', () => {
       'vertexId',
       'data',
       'slots',
-      'dependsOn',
-      'dependsOnComplete',
+      'dependsOnWork',
+      'dependsOnSubgraphCompletion',
     ]);
     slots.push({ kind: 'vertex', vertexId: 'late' });
-    dependsOn.push('late');
+    dependsOnWork.push('late');
     data.version = 2;
     id.task = 'changed';
     expect(result.dag.definition.vertices[0]).toEqual({
       vertexId: id,
       data,
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     });
     expect(result.dag.definition.vertices[0]!.data).toBe(data);
     expect(result.dag.definition.vertices[0]!.vertexId).toBe(id);
@@ -877,8 +884,8 @@ describe('ordered atomic revisions', () => {
     'vertexId',
     'data',
     'slots',
-    'dependsOn',
-    'dependsOnComplete',
+    'dependsOnWork',
+    'dependsOnSubgraphCompletion',
     'entry',
     'omittedIds',
   ])('propagates exact caller getter errors at %s', (field) => {
@@ -892,9 +899,13 @@ describe('ordered atomic revisions', () => {
         ? { kind: 'replaceOmissions' }
         : { kind: 'replaceVertex', vertex: replacement };
     Object.defineProperty(
-      ['vertexId', 'data', 'slots', 'dependsOn', 'dependsOnComplete'].includes(
-        field,
-      )
+      [
+        'vertexId',
+        'data',
+        'slots',
+        'dependsOnWork',
+        'dependsOnSubgraphCompletion',
+      ].includes(field)
         ? replacement
         : operation,
       field,
@@ -911,9 +922,9 @@ describe('ordered atomic revisions', () => {
       caught = value;
     }
     expect(caught).toBe(error);
-    expect(original.createSession().advance()).toMatchObject({
+    expect(original.createWorkSession().advance()).toMatchObject({
       kind: 'awaitingSettlement',
-      frontier: [{ vertexId: 'root' }],
+      workTickets: [{ vertexId: 'root' }],
     });
   });
 });
@@ -928,7 +939,7 @@ test('adds a new reachable vertex with explicit parent and prerequisite edits', 
       kind: 'replaceVertex',
       vertex: vertex('root', {
         slots: [{ kind: 'vertex', vertexId: 'new' }],
-        dependsOn: ['new'],
+        dependsOnWork: ['new'],
       }),
     },
   ]);
@@ -941,13 +952,13 @@ test('adds a new reachable vertex with explicit parent and prerequisite edits', 
       { vertexId: 'root', aspects: ['slots', 'workDependencies'] },
     ],
   });
-  expect(result.dag.createSession().advance()).toMatchObject({
+  expect(result.dag.createWorkSession().advance()).toMatchObject({
     kind: 'awaitingSettlement',
-    frontier: [{ vertexId: 'new' }],
+    workTickets: [{ vertexId: 'new' }],
   });
-  expect(original.createSession().advance()).toMatchObject({
+  expect(original.createWorkSession().advance()).toMatchObject({
     kind: 'awaitingSettlement',
-    frontier: [{ vertexId: 'root' }],
+    workTickets: [{ vertexId: 'root' }],
   });
 });
 
@@ -957,55 +968,55 @@ describe('revision session isolation', () => {
     async (async) => {
       const original = prepared([
         vertex('build'),
-        vertex('review', { dependsOn: ['build'] }),
+        vertex('review', { dependsOnWork: ['build'] }),
       ]);
       const old = async
-        ? await original.createAsyncSession()
-        : original.createSession();
+        ? await original.createAsyncWorkSession()
+        : original.createWorkSession();
       const first = await old.advance();
       if (first.kind !== 'awaitingSettlement')
         throw new Error('Expected old frontier');
-      const build = first.frontier[0]!;
-      expect(old.complete(build)).toEqual({ kind: 'accepted' });
+      const build = first.workTickets[0]!;
+      expect(old.completeWork(build)).toEqual({ kind: 'accepted' });
       const waiting = await old.advance();
       if (waiting.kind !== 'awaitingSettlement')
         throw new Error('Expected review frontier');
-      const oldReview = waiting.frontier[0]!;
+      const oldReview = waiting.workTickets[0]!;
       const revision = reviseDag(original, [
         {
           kind: 'replaceVertex',
           vertex: vertex('review', {
             data: { instructions: 'revised' },
-            dependsOn: ['build'],
+            dependsOnWork: ['build'],
           }),
         },
       ]);
       if (revision.kind !== 'valid') throw new Error('Expected valid revision');
       const fresh = async
-        ? await revision.dag.createAsyncSession()
-        : revision.dag.createSession();
+        ? await revision.dag.createAsyncWorkSession()
+        : revision.dag.createWorkSession();
       expect(fresh.summary().completedWorkIds).toEqual([]);
       expect(await fresh.advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: 'build' }],
+        workTickets: [{ vertexId: 'build' }],
       });
-      expect(() => fresh.complete(oldReview)).toThrow(TypeError);
-      expect(old.complete(oldReview)).toEqual({ kind: 'accepted' });
+      expect(() => fresh.completeWork(oldReview)).toThrow(TypeError);
+      expect(old.completeWork(oldReview)).toEqual({ kind: 'accepted' });
       expect(await old.advance()).toEqual({ kind: 'finished' });
       expect(fresh.summary().completedWorkIds).toEqual([]);
       // The host has independently accepted build's unchanged artifact for this revision.
       const selectedFacts = new Set(['build']);
       const seeded = async
-        ? await revision.dag.createAsyncSession({
+        ? await revision.dag.createAsyncWorkSession({
             completedWork: selectedFacts,
           })
-        : revision.dag.createSession({ completedWork: selectedFacts });
+        : revision.dag.createWorkSession({ completedWork: selectedFacts });
       expect(await seeded.advance()).toMatchObject({
         kind: 'awaitingSettlement',
-        frontier: [{ vertexId: 'review' }],
+        workTickets: [{ vertexId: 'review' }],
       });
       expect(seeded.summary().completedWorkIds).toEqual(['build']);
-      expect(() => seeded.complete(oldReview)).toThrow(TypeError);
+      expect(() => seeded.completeWork(oldReview)).toThrow(TypeError);
     },
   );
 
@@ -1017,19 +1028,19 @@ describe('revision session isolation', () => {
     const oldRunner = await original.createAsyncRunner({
       workCompletion: 'externalSettlement',
       visitors: {
-        [DagTraversalOrder.ON_COMPLETE]: async (vertex) => {
+        [DagVisitorPhase.ON_SUBGRAPH_READY]: async (vertex) => {
           entered.resolve();
           await release.promise;
           completed.push(vertex.getData());
         },
       },
     });
-    const old = coordinateDagAsync(oldRunner);
+    const old = createAsyncDagWorkSession(oldRunner);
     const boundary = await old.advance();
     if (boundary.kind !== 'awaitingSettlement')
       throw new Error('Expected ticket');
-    const oldTicket = boundary.frontier[0]!;
-    old.complete(oldTicket);
+    const oldTicket = boundary.workTickets[0]!;
+    old.completeWork(oldTicket);
     let drained = false;
     const advancing = old.advance().then((value) => {
       drained = true;
@@ -1040,13 +1051,13 @@ describe('revision session isolation', () => {
       { kind: 'replaceVertex', vertex: vertex('task', { data: 'revised' }) },
     ]);
     if (revision.kind !== 'valid') throw new Error('Expected valid revision');
-    const fresh = await revision.dag.createAsyncSession();
+    const fresh = await revision.dag.createAsyncWorkSession();
     const freshBoundary = await fresh.advance();
     if (freshBoundary.kind !== 'awaitingSettlement')
       throw new Error('Expected fresh ticket');
-    expect(() => fresh.complete(oldTicket)).toThrow(TypeError);
+    expect(() => fresh.completeWork(oldTicket)).toThrow(TypeError);
     expect(fresh.summary().completedWorkIds).toEqual([]);
-    fresh.complete(freshBoundary.frontier[0]!);
+    fresh.completeWork(freshBoundary.workTickets[0]!);
     expect(await fresh.advance()).toEqual({ kind: 'finished' });
     await eventLoopTurn();
     expect(drained).toBe(false);
@@ -1054,6 +1065,6 @@ describe('revision session isolation', () => {
     release.resolve();
     expect(await advancing).toEqual({ kind: 'finished' });
     expect(completed).toEqual(['original']);
-    expect(old.complete(oldTicket)).toEqual({ kind: 'alreadyAccepted' });
+    expect(old.completeWork(oldTicket)).toEqual({ kind: 'alreadyAccepted' });
   });
 });

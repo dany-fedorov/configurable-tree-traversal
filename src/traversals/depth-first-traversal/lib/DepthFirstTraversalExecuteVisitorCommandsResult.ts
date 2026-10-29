@@ -1,3 +1,3 @@
 export type DepthFirstTraversalExecuteVisitorCommandsResult = {
-  vertexVisitorsChainState?: unknown; // Type this ?
+  visitorChainState?: unknown; // Type this ?
 };

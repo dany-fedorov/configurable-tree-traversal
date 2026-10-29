@@ -1,7 +1,6 @@
+import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import { TraversalVisitorFunctionResolutionStyle as Style } from '../src/core/TraversalVisitor';
-import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { TestGraph } from './helpers/graph-fixtures';
 
 function setup() {
@@ -21,16 +20,16 @@ function setup() {
       visitorsState: {},
     },
     visitorMetadata: {
-      ON_READY: [
+      ON_WORK_READY: [
         {
           addedIndex: 0,
           priority: 100,
-          resolutionStyle: Style.SEQUENTIAL,
+          commandCommitMode: 'afterEachVisitor' as const,
         },
       ],
     },
     iterableConfig: {
-      iterateOver: ['ON_READY'],
+      iterateOver: ['ON_WORK_READY'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
@@ -63,7 +62,7 @@ test('inspection is detached, deeply frozen, callback-free, and side-effect free
   expect(first.pendingRequests).toEqual([
     {
       requestId: action.call.requestId,
-      kind: 'MAKE_ROOT',
+      operation: 'resolveRoot',
       owner: { kind: 'root', id: 1, epoch: 0 },
       valid: true,
     },
@@ -73,7 +72,7 @@ test('inspection is detached, deeply frozen, callback-free, and side-effect free
     second.pendingRequests[0]!.owner,
   );
   expect(Object.isFrozen(first)).toBe(true);
-  expect(Object.isFrozen(first.iterableConfig.iterateOver)).toBe(true);
+  expect(Object.isFrozen(first.executionOptions.emitEvents)).toBe(true);
   expect(Object.isFrozen(first.pendingRequests[0]!.owner)).toBe(true);
   expect(JSON.stringify(first)).not.toMatch(/callback|promise|root data/i);
   expect(kernel.poll('drive')).toEqual({ kind: 'WAIT' });
@@ -120,7 +119,10 @@ test('inspection detaches and freezes populated chain and frame records', () => 
       ok: true,
       value: {
         vertexId: 'root',
-        vertexContent: { $d: 'private-root-data', $c: ['private-hint'] },
+        vertexContent: {
+          $data: 'private-root-data',
+          $childHints: ['private-hint'],
+        },
       },
     },
   });
@@ -138,7 +140,9 @@ test('inspection detaches and freezes populated chain and frame records', () => 
   expect(Object.isFrozen(firstChain.chains)).toBe(true);
   expect(Object.isFrozen(firstChain.chains[0])).toBe(true);
   expect(Object.isFrozen(firstChain.chains[0]!.owner)).toBe(true);
-  expect(Object.isFrozen(firstChain.chains[0]!.config.iterateOver)).toBe(true);
+  expect(
+    Object.isFrozen(firstChain.chains[0]!.executionOptions.emitEvents),
+  ).toBe(true);
   expect(JSON.stringify(firstChain)).not.toMatch(
     /private-root-data|private-hint|promise/i,
   );

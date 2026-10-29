@@ -18,8 +18,8 @@ const definition = defineDag<number, ID>({
       vertexId: 'task',
       data: 1,
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     },
   ],
   omittedIds: [],
@@ -64,15 +64,17 @@ if (prepared.kind === 'valid') {
   const namespaceResult: dagTraversal.DagRevisionResult<number, ID> = subResult;
   if (result.kind === 'valid') {
     const id: ID | undefined = result.changes.addedIds[0];
-    result.dag.createSession({ completedWork: new Set<ID>(['task']) });
+    result.dag.createWorkSession({ completedWork: new Set<ID>(['task']) });
     void id;
   } else {
     result.issues;
     // @ts-expect-error Invalid revisions expose no executable DAG.
     result.dag;
   }
-  // @ts-expect-error Operations cannot widen the prepared identity domain.
-  reviseDag(prepared.dag, [{ kind: 'removeVertex', vertexId: 'foreign' }]);
+  reviseDag(prepared.dag, [
+    // @ts-expect-error Operations cannot widen the prepared identity domain.
+    { kind: 'removeVertexDeclaration', vertexId: 'foreign' },
+  ]);
   reviseDag(prepared.dag, [
     {
       kind: 'replaceVertex',

@@ -15,7 +15,9 @@ type ObservedState = { [observationKey]?: DagTerminalObservation };
 const observations = new WeakMap<object, DagTerminalObservation | undefined>();
 
 function readObservation(state: object): DagTerminalObservation | undefined {
-  return observations.get(state) ?? (state as ObservedState)[observationKey];
+  return (
+    observations.get(state) ?? (state as ObservedState)[observationKey]
+  );
 }
 
 function retainObservation(
@@ -115,23 +117,18 @@ class DagTerminalObservation implements ObservationSource {
           {
             ...progress,
             unmetPrerequisiteIds: progress.unmetPrerequisiteIds.slice(),
-            unmetWorkPrerequisiteIds:
-              progress.unmetWorkPrerequisiteIds!.slice(),
-            ...(progress.unmetCompletePrerequisiteIds === undefined
-              ? {}
-              : {
-                  unmetCompletePrerequisiteIds:
-                    progress.unmetCompletePrerequisiteIds.slice(),
-                }),
+            unmetWorkPrerequisiteIds: progress.unmetWorkPrerequisiteIds.slice(),
+            unmetSubgraphPrerequisiteIds:
+              progress.unmetSubgraphPrerequisiteIds.slice(),
           },
         ]),
       ),
-      readyIds: summary.readyIds.slice(),
-      deferredIds: summary.deferredIds.slice(),
-      deferredFrontier: summary.deferredFrontier.map((item) => ({ ...item })),
-      inFlightIds: summary.inFlightIds.slice(),
+      readyOrDeferredIds: summary.readyOrDeferredIds.slice(),
+      deferredWorkIds: summary.deferredWorkIds.slice(),
+      awaitingSettlement: summary.awaitingSettlement.map((item) => ({ ...item })),
+      activeVisitorVertexIds: summary.activeVisitorVertexIds.slice(),
       completedWorkIds: summary.completedWorkIds.slice(),
-      completedSubtreeIds: summary.completedSubtreeIds.slice(),
+      completedSubgraphIds: summary.completedSubgraphIds.slice(),
       unusedCompletedWorkIds: summary.unusedCompletedWorkIds.slice(),
       diagnostics:
         diagnostics === null
@@ -143,12 +140,12 @@ class DagTerminalObservation implements ObservationSource {
               })),
               unknownPrerequisiteIds:
                 diagnostics.unknownPrerequisiteIds.slice(),
-              dependencyCycles: diagnostics.dependencyCycles.map((ids) =>
+              dependencyCycleComponents: diagnostics.dependencyCycleComponents.map((ids) =>
                 ids.slice(),
               ),
               dependencyEdges: diagnostics.dependencyEdges.map((edge) => ({
-                from: { ...edge.from },
-                to: { ...edge.to },
+                waiter: { ...edge.waiter },
+                prerequisite: { ...edge.prerequisite },
                 reason: edge.reason,
               })),
               dependencyBlockedIds: diagnostics.dependencyBlockedIds.slice(),

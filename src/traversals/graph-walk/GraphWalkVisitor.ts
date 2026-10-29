@@ -1,5 +1,5 @@
 import type { MaybePromise } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
   TraversalVisitorCommandName,
@@ -10,18 +10,18 @@ import type { GraphWalkEventFor } from './GraphWalkEvent';
 
 export type GraphWalkVisitorResult = void | {
   commands?: readonly TraversalVisitorCommand<
-    TreeTypeParameters,
-    | TraversalVisitorCommandName.HALT_TRAVERSAL
+    VertexTypes,
+    | TraversalVisitorCommandName.PAUSE_TRAVERSAL
     | TraversalVisitorCommandName.NOOP
   >[];
 };
 
 export type GraphWalkVisitorContext<Phase extends GraphWalkPhase> = Readonly<{
-  order: Phase;
-  occurrenceIndex: number;
-  observationIndex: number;
+  phase: Phase;
+  admissionIndex: number;
+  phaseObservationIndex: number;
   visitorIndex: number;
-  visitorRecord: VisitorRegistrationMetadata;
+  registration: VisitorRegistrationMetadata;
 }>;
 
 export type GraphWalkVisitor<Data, Edge, Phase extends GraphWalkPhase, ID> = (

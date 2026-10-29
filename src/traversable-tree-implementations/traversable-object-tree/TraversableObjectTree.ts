@@ -1,47 +1,55 @@
 import {
+  assertOwnKeys,
+  assertOptionalCallbacks,
+  OBJECT_SOURCE_OPTION_KEYS,
+  definedOptions,
+} from '@core/assertPublicOptions';
+import type { ObjectCurrentVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
+import {
   assertNoTreeMetadata,
   normalizeSourceResult,
 } from '@core/drivers/normalizeSourceResult';
-import { normalizeVertexContent } from '@core/Vertex';
-import {
-  AbstractTraversableTree,
-  MakeVertexOptions,
-  MakeTreeVertexResult,
-  TreeSourceVertexResult,
+import type {
+  TreeSource,
+  TreeVertexFound,
+  TreeChildResolutionContext,
+  TreeVertexResolution,
 } from '@core/TraversableTree';
+import { normalizeVertexContent } from '@core/Vertex';
+import { getChildrenOfPropertyDefault } from '@traversable-object-tree/lib/getChildrenOfPropertyDefault';
+import { createRootPropertyMapper } from '@traversable-object-tree/lib/createRootPropertyMapper';
+import { createObjectMutationBinder } from '@traversable-object-tree/lib/makeMutationCommandFactory';
 import type { TraversableObject } from '@traversable-object-tree/lib/TraversableObject';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
 import type {
-  TraversableObjectTreeInstanceConfig,
-  TraversableObjectTreeInstanceConfigInput,
+  ObjectTreeOptions,
+  ObjectTreeBaseOptions,
+  ObjectTreePropertyAdapters,
+  ObjectTreeResolvedOptions,
 } from '@traversable-object-tree/lib/TraversableObjectTreeInstanceConfig';
-import { getChildrenOfPropertyDefault } from '@traversable-object-tree/lib/getChildrenOfPropertyDefault';
-import { getRootPropertyFromInputObjectDefault } from '@traversable-object-tree/lib/getRootPropertyFromInputObjectDefault';
-import { makeMutationCommandFactory } from '@traversable-object-tree/lib/makeMutationCommandFactory';
+import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 
 type ObjectCycleState = {
   seenIdentities: WeakSet<object>;
   originalIdentityByVertexRef: WeakMap<object, object | null>;
 };
 
-export class TraversableObjectTree<
+export class ObjectTreeSource<
   In = TraversableObject<TraversableObjectPropKey, unknown>,
   InK extends TraversableObjectPropKey = TraversableObjectPropKey,
-  InV = TraversableObject<TraversableObjectPropKey, unknown> | unknown,
+  InV = unknown,
   OutK extends TraversableObjectPropKey = InK,
   OutV = InV,
-> extends AbstractTraversableTree<
-  TraversableObjectTTP<InK, InV>,
-  TraversableObjectTTP<OutK, OutV>
-> {
-  private readonly icfg: TraversableObjectTreeInstanceConfig<
-    In,
-    InK,
-    InV,
-    OutK,
-    OutV
-  >;
+> implements
+    TreeSource<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
+    >
+{
+  private readonly icfg: ObjectTreeResolvedOptions<In, InK, InV, OutK, OutV>;
   public readonly rootObject: In;
   private readonly cycleStateByResolvedTree = new WeakMap<
     object,
@@ -57,51 +65,80 @@ export class TraversableObjectTree<
   >();
 
   static getChildrenOfPropertyDefault = getChildrenOfPropertyDefault;
-  static getRootPropertyFromInputObjectDefault =
-    getRootPropertyFromInputObjectDefault;
+  static createRootPropertyMapper = createRootPropertyMapper;
+
+  static fromProperties<
+    In,
+    InK extends TraversableObjectPropKey,
+    InV,
+    OutK extends TraversableObjectPropKey = InK,
+    OutV = InV,
+  >(
+    rootObject: In,
+    options: ObjectTreeBaseOptions<In, InK, InV, OutK, OutV> &
+      ObjectTreePropertyAdapters<In, InK, InV>,
+  ): ObjectTreeSource<In, InK, InV, OutK, OutV> {
+    assertOwnKeys(options, OBJECT_SOURCE_OPTION_KEYS);
+    const {
+      getRootPropertyFromInputObject,
+      getChildrenOfProperty,
+      ...otherOptions
+    } = definedOptions(options);
+    if (
+      typeof getRootPropertyFromInputObject !== 'function' ||
+      typeof getChildrenOfProperty !== 'function'
+    ) {
+      throw new TypeError(
+        'fromProperties requires root and child property adapters',
+      );
+    }
+    return new ObjectTreeSource<In, InK, InV, OutK, OutV>(rootObject, {
+      ...otherOptions,
+      getRootPropertyFromInputObject,
+      getChildrenOfProperty,
+    });
+  }
 
   constructor(
     rootObject: In,
-    icfgInput?: TraversableObjectTreeInstanceConfigInput<
-      In,
-      InK,
-      InV,
-      OutK,
-      OutV
-    >,
+    options: ObjectTreeBaseOptions<In, InK, InV, OutK, OutV> &
+      ObjectTreePropertyAdapters<In, InK, InV>,
+  );
+
+  constructor(
+    rootObject: In,
+    ...args: [TraversableObjectPropKey, unknown] extends [InK, InV]
+      ? [options?: ObjectTreeOptions<In, InK, InV, OutK, OutV>]
+      : [options: ObjectTreeOptions<In, InK, InV, OutK, OutV>]
+  );
+  constructor(
+    rootObject: In,
+    options?: ObjectTreeBaseOptions<In, InK, InV, OutK, OutV>,
   ) {
-    super();
+    if (options !== undefined) {
+      assertOwnKeys(options, OBJECT_SOURCE_OPTION_KEYS);
+      options = definedOptions(options);
+      assertOptionalCallbacks(options, OBJECT_SOURCE_OPTION_KEYS);
+    }
     this.rootObject = rootObject;
-    const { resolveVertexHook, makeVertexHook, ...otherOptions } =
-      icfgInput ?? {};
-    if (
-      resolveVertexHook !== undefined &&
-      typeof resolveVertexHook !== 'function'
-    ) {
-      throw new TypeError('resolveVertexHook must be a function');
-    }
-    if (resolveVertexHook !== undefined && makeVertexHook != null) {
-      throw new TypeError(
-        'resolveVertexHook and makeVertexHook cannot both be active',
-      );
-    }
+    const { resolveChildHook, ...otherOptions } = options ?? {};
+    // The public signature requires both adapters for narrow domains. Default
+    // adapters are used only for PropertyKey/unknown discovery.
     this.icfg = {
       getChildrenOfProperty:
         otherOptions.getChildrenOfProperty ??
-        TraversableObjectTree.getChildrenOfPropertyDefault,
+        ObjectTreeSource.getChildrenOfPropertyDefault,
       getRootPropertyFromInputObject:
         otherOptions.getRootPropertyFromInputObject ??
-        TraversableObjectTree.getRootPropertyFromInputObjectDefault(),
-      ...otherOptions,
-      resolveVertexHook,
-      makeVertexHook: makeVertexHook ?? null,
-    };
+        ObjectTreeSource.createRootPropertyMapper(),
+      ...definedOptions(otherOptions),
+      resolveChildHook,
+    } as ObjectTreeResolvedOptions<In, InK, InV, OutK, OutV>;
   }
 
-  static makeMutationCommandFactory = makeMutationCommandFactory;
+  static createObjectMutationBinder = createObjectMutationBinder;
 
-  /** Retains the published untagged direct result; custom sources should use tagged results. */
-  makeRoot(): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
+  resolveRoot(): TreeVertexFound<ObjectTreeVertexTypes<InK, InV>> {
     const { getChildrenOfProperty, getRootPropertyFromInputObject } = this.icfg;
     const rootProp = getRootPropertyFromInputObject(this.rootObject);
     this.originalIdentityByVertexData.set(
@@ -110,24 +147,24 @@ export class TraversableObjectTree<
     );
     const children = getChildrenOfProperty(rootProp);
     return {
-      vertexContent: {
-        $data: rootProp,
-        $childHints: children,
-      },
+      kind: 'found',
+      vertex: { vertexContent: { $data: rootProp, $childHints: children } },
     };
   }
 
-  /** Retains direct vertexContent access, including null omission, for compatibility. */
-  makeVertex(
-    vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
-    options: MakeVertexOptions<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
+  resolveChild(
+    vertexHint: ObjectTreeVertexTypes<InK, InV>['VertexHint'],
+    options: TreeChildResolutionContext<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
-  ): MakeTreeVertexResult<TraversableObjectTTP<InK, InV>> {
-    const canonicalHook = this.icfg.resolveVertexHook;
+  ): TreeVertexResolution<ObjectTreeVertexTypes<InK, InV>> {
+    const canonicalHook = this.icfg.resolveChildHook;
     let result:
-      | TreeSourceVertexResult<TraversableObjectTTP<InK, InV>>
+      | TreeVertexResolution<ObjectTreeVertexTypes<InK, InV>>
       | undefined;
     if (canonicalHook !== undefined) {
       const resolved = canonicalHook(vertexHint, options);
@@ -141,37 +178,31 @@ export class TraversableObjectTree<
         }
         result = resolved;
       }
-    } else {
-      const legacy = this.icfg.makeVertexHook?.(vertexHint, options);
-      if (legacy != null) assertNoTreeMetadata(legacy);
-      const returnMe = legacy?.returnMe;
-      if (returnMe !== undefined) {
-        result = { vertexContent: returnMe };
-      }
     }
     if (result !== undefined) {
       const normalized = normalizeSourceResult(result, false, 'Tree source')!;
-      if (normalized.vertexContent === null) return { vertexContent: null };
+      if (normalized.vertexContent === null) return { kind: 'omitted' };
       const content = normalizeVertexContent(normalized.vertexContent);
       this.assertNoObjectIdentityCycle(content.$data, options);
-      return { vertexContent: content };
+      return { kind: 'found', vertex: { vertexContent: content } };
     }
     const { getChildrenOfProperty } = this.icfg;
     this.assertNoObjectIdentityCycle(vertexHint, options);
     const hints = getChildrenOfProperty(vertexHint);
     return {
-      vertexContent: {
-        $data: vertexHint,
-        $childHints: hints,
-      },
+      kind: 'found',
+      vertex: { vertexContent: { $data: vertexHint, $childHints: hints } },
     };
   }
 
   private assertNoObjectIdentityCycle(
-    prop: TraversableObjectTTP<InK, InV>['VertexData'],
-    options: MakeVertexOptions<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
+    prop: ObjectTreeVertexTypes<InK, InV>['VertexData'],
+    options: TreeChildResolutionContext<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
   ): void {
     const valueIdentity = getObjectIdentity(prop.value);
@@ -181,13 +212,13 @@ export class TraversableObjectTree<
       valueIdentity,
     );
 
-    let state = this.cycleStateByResolvedTree.get(options.resolvedTree);
+    let state = this.cycleStateByResolvedTree.get(options.resolvedTreeView);
     if (state === undefined) {
       state = {
         seenIdentities: new WeakSet(),
         originalIdentityByVertexRef: new WeakMap(),
       };
-      this.cycleStateByResolvedTree.set(options.resolvedTree, state);
+      this.cycleStateByResolvedTree.set(options.resolvedTreeView, state);
     }
 
     const parentRef = options.resolutionContext.parentVertexRef;
@@ -222,33 +253,39 @@ export class TraversableObjectTree<
             )}`,
           );
         }
-        ancestorRef = options.resolvedTree.getParentOf(ancestorRef);
+        ancestorRef = options.resolvedTreeView.getParentOf(ancestorRef);
       }
     }
     state.seenIdentities.add(valueIdentity);
   }
 
   private getOriginalIdentityOf(
-    vertexRef: MakeVertexOptions<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
+    vertexRef: TreeChildResolutionContext<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >['resolutionContext']['parentVertexRef'],
     state: ObjectCycleState,
-    options: MakeVertexOptions<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
+    options: TreeChildResolutionContext<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
   ): object | null {
     if (state.originalIdentityByVertexRef.has(vertexRef)) {
       return state.originalIdentityByVertexRef.get(vertexRef) ?? null;
     }
 
-    const vertexData = vertexRef.unref().getData();
+    const vertexData = vertexRef.getValue().getData();
     let identity = this.originalIdentityByVertexData.get(vertexData);
     if (identity === undefined) {
       // This cache tracks the identity of the accepted resolution context.
       const context =
-        options.resolvedTree.get(vertexRef)?.getResolutionContext() ?? null;
+        options.resolvedTreeView.getResolutionContextOf(vertexRef);
       identity =
         context !== null &&
         this.originalIdentityByResolutionContext.has(context)
@@ -264,21 +301,27 @@ export class TraversableObjectTree<
   }
 
   private formatPathTo(
-    vertexRef: MakeVertexOptions<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
+    vertexRef: TreeChildResolutionContext<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >['resolutionContext']['parentVertexRef'],
-    options: MakeVertexOptions<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
+    options: TreeChildResolutionContext<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
     finalKey?: TraversableObjectPropKey,
   ): string {
-    const keys: TraversableObjectPropKey[] = options.resolvedTree
+    const keys: TraversableObjectPropKey[] = options.resolvedTreeView
       .getPathTo(vertexRef, { noRoot: true })
       .map((ref) => {
-        const context = options.resolvedTree.getResolutionContextOf(ref);
-        return context?.vertexHint.key ?? ref.unref().getData().key;
+        const context = options.resolvedTreeView.getResolutionContextOf(ref);
+        return context?.vertexHint.key ?? ref.getValue().getData().key;
       });
     if (finalKey !== undefined) {
       keys.push(finalKey);

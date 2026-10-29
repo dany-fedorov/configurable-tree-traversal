@@ -4,12 +4,12 @@ import { contextFixture, idGraph } from './helpers/graph-walk-fixtures';
 it('observes vertices and every parallel/returning relationship in one pass', () => {
   const { source, calls } = contextFixture();
   const walker = new GraphWalk({ source });
-  const runner = walker.makeRunner();
+  const runner = walker.createRunner();
   expect(calls).toEqual([]);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.INITIAL);
   const events = [
-    ...runner.getIterable({
-      emitPhases: [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE],
+    ...runner.iterateEvents({
+      emitEvents: [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE],
     }),
   ];
   expect(
@@ -35,12 +35,12 @@ it('observes vertices and every parallel/returning relationship in one pass', ()
     status: TraversalRunnerStatus.FINISHED,
     outcome: { kind: 'exhausted' },
     counts: {
-      steps: 14,
-      occurrences: 8,
-      foundVertices: 5,
-      omittedVertices: 0,
-      observedLinks: 6,
-      observations: { vertex: 5, edge: 6, path: 5 },
+      candidateReadAttempts: 14,
+      admittedTargets: 8,
+      uniqueFoundVertices: 5,
+      uniqueOmittedVertices: 0,
+      discoveredLinks: 6,
+      processedObservations: { vertex: 5, edge: 6, path: 5 },
     },
   });
   expect(calls.filter((call) => call.startsWith('resolve:'))).toEqual([
@@ -61,8 +61,8 @@ it('observes vertices and every parallel/returning relationship in one pass', ()
 
 it('discovers depth first in source order without pulling the next root early', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).makeRunner();
-  const iterator = runner.getIterable({ emitPhases: [GraphWalkPhase.VERTEX] });
+  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).createRunner();
+  const iterator = runner.iterateEvents({ emitEvents: [GraphWalkPhase.VERTEX] });
   expect(iterator.next().value).toMatchObject({
     kind: 'vertex',
     vertex: { vertexId: 'A' },
@@ -87,13 +87,13 @@ it('projects first-discovery prefix paths including isolated roots', () => {
   );
   const events = [
     ...new GraphWalk({ source })
-      .makeRunner()
-      .getIterable({ emitPhases: [GraphWalkPhase.PATH] }),
+      .createRunner()
+      .iterateEvents({ emitEvents: [GraphWalkPhase.PATH] }),
   ];
   expect(
     events.map((event) => ({
       ids: event.vertices.map((vertex) => vertex.vertexId),
-      edges: event.edges.map((edge) => [edge.from, edge.index, edge.to]),
+      edges: event.edges.map((edge) => [edge.from, edge.outgoingIndex, edge.to]),
       depth: event.depth,
     })),
   ).toEqual([
@@ -105,19 +105,19 @@ it('projects first-discovery prefix paths including isolated roots', () => {
 
 it('selects edges independently and runs to exhaustion without selecting any records', () => {
   const { source } = contextFixture();
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect([
-    ...runner.getIterable({ emitPhases: [GraphWalkPhase.EDGE] }),
+    ...runner.iterateEvents({ emitEvents: [GraphWalkPhase.EDGE] }),
   ]).toHaveLength(6);
-  const hidden = new GraphWalk({ source, emitPhases: [] }).makeRunner();
+  const hidden = new GraphWalk({ source, emitEvents: [] }).createRunner();
   expect(hidden.run()).toBe(hidden);
   expect(hidden.summary()).toEqual(runner.summary());
-  expect([...runner.getIterable()]).toEqual([]);
+  expect([...runner.iterateEvents()]).toEqual([]);
 });
 
 it('pauses without expanding yielded occurrences and resumes pending phases with new selectors', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source }).makeRunner();
+  const runner = new GraphWalk({ source }).createRunner();
   expect(runner.requestPause()).toBe(false);
   expect(runner.getStopReason()).toBeNull();
   expect(runner.isHalted()).toBe(false);
@@ -128,7 +128,7 @@ it('pauses without expanding yielded occurrences and resumes pending phases with
     openSourceIteratorCount: 0,
     frontierSize: 0,
   });
-  const iterator = runner.getIterable({ emitPhases: [GraphWalkPhase.EDGE] });
+  const iterator = runner.iterateEvents({ emitEvents: [GraphWalkPhase.EDGE] });
   const edge = iterator.next().value!;
   expect(edge.kind).toBe('edge');
   expect(calls).not.toContain('outgoing:B');
@@ -145,11 +145,11 @@ it('pauses without expanding yielded occurrences and resumes pending phases with
   ]);
   expect(inspection.openSourceIteratorCount).toBe(1);
   expect(Object.isFrozen(inspection)).toBe(true);
-  expect(Object.isFrozen(inspection.counts.observations)).toBe(true);
-  expect(Object.isFrozen(inspection.iterableConfig.emitPhases)).toBe(true);
+  expect(Object.isFrozen(inspection.counts.processedObservations)).toBe(true);
+  expect(Object.isFrozen(inspection.executionOptions.emitEvents)).toBe(true);
   const vertices = [
-    ...runner.getIterable({
-      emitPhases: [GraphWalkPhase.VERTEX],
+    ...runner.iterateEvents({
+      emitEvents: [GraphWalkPhase.VERTEX],
       visitorPhases: { include: [] },
     }),
   ];
@@ -158,12 +158,12 @@ it('pauses without expanding yielded occurrences and resumes pending phases with
     'C',
     'D',
   ]);
-  expect(runner.inspect().iterableConfig.visitorPhases).toEqual({
+  expect(runner.inspect().executionOptions.visitorPhases).toEqual({
     include: [],
   });
   expect(runner.inspect().openSourceIteratorCount).toBe(0);
-  expect(idle.counts.occurrences).toBe(0);
-  expect(inspection.counts.occurrences).toBe(3);
+  expect(idle.counts.admittedTargets).toBe(0);
+  expect(inspection.counts.admittedTargets).toBe(3);
 });
 
 it('retains detached emitted wrappers across caller mutation', () => {
@@ -174,9 +174,9 @@ it('retains detached emitted wrappers across caller mutation', () => {
       ['B', []],
     ],
   );
-  const runner = new GraphWalk({ source }).makeRunner();
-  const iterator = runner.getIterable({
-    emitPhases: [GraphWalkPhase.EDGE, GraphWalkPhase.PATH],
+  const runner = new GraphWalk({ source }).createRunner();
+  const iterator = runner.iterateEvents({
+    emitEvents: [GraphWalkPhase.EDGE, GraphWalkPhase.PATH],
   });
   const root = iterator.next().value!;
   if (root.kind !== 'path') throw new Error('Expected path');
@@ -197,23 +197,23 @@ it('retains detached emitted wrappers across caller mutation', () => {
 it('protects execution ownership and validates selector patches atomically', () => {
   const runner = new GraphWalk({
     source: idGraph(['A'], [['A', []]]),
-  }).makeRunner();
-  const iterator = runner.getIterable();
+  }).createRunner();
+  const iterator = runner.iterateEvents();
   iterator.next();
   expect(() => runner.run()).toThrow('execution owner');
   expect(() =>
-    runner.getIterable({ emitPhases: ['wrong' as GraphWalkPhase] }),
+    runner.iterateEvents({ emitEvents: ['wrong' as GraphWalkPhase] }),
   ).toThrow(TypeError);
   iterator.return();
   const factory = new GraphWalk({ source: idGraph([], []) });
   expect(
     factory.configure({
-      emitPhases: [],
+      emitEvents: [],
       visitorPhases: { exclude: [GraphWalkPhase.EDGE] },
     }),
   ).toBe(factory);
-  const configured = factory.makeRunner();
-  expect(configured.inspect().iterableConfig.visitorPhases).toEqual({
+  const configured = factory.createRunner();
+  expect(configured.inspect().executionOptions.visitorPhases).toEqual({
     exclude: [GraphWalkPhase.EDGE],
   });
   expect(configured.run().getStopReason()).toBe('finished');
@@ -221,8 +221,8 @@ it('protects execution ownership and validates selector patches atomically', () 
 
 it('acknowledges an existing pause request when the iterator owner returns', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source }).makeRunner();
-  const iterator = runner.getIterable();
+  const runner = new GraphWalk({ source }).createRunner();
+  const iterator = runner.iterateEvents();
   iterator.next();
   expect(runner.requestPause()).toBe(true);
   const before = calls.slice();

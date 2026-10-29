@@ -1,8 +1,9 @@
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
-import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
+import {
+  ObjectTreeSource,
+  DepthFirstTreeTraversal,
+  DepthFirstPhase,
+  TraversalVisitorCommandName,
+} from '../src';
 
 const RED_FG = '\u001b[31m';
 // const RED_BG = '\u001b[41m';
@@ -27,19 +28,19 @@ const obj = {
   },
 };
 
-const traversableTree = new TraversableObjectTree(obj, {
-  resolveVertexHook: (vertexHint) => {
+const traversableTree = new ObjectTreeSource(obj, {
+  resolveChildHook: (vertexHint) => {
     if (vertexHint.value === null) {
       return { kind: 'omitted' };
     }
     return { kind: 'useDefault' };
   },
 });
-const traversal = new DepthFirstTraversal({
+const traversal = new DepthFirstTreeTraversal({
   traversableTree,
 });
 
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
+traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (v) => {
   console.log(
     '-',
     RED_FG,
@@ -48,10 +49,10 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
     'key:',
     v.getData().key,
     '; value:',
-    jsonStringifySafe(v.getData().value),
+    JSON.stringify(v.getData().value),
   );
 });
-traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) => {
+traversal.addVisitorFor(DepthFirstPhase.POST_ORDER, (v) => {
   console.log(
     '-',
     BLUE_FG,
@@ -60,20 +61,20 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) => {
     'key:',
     v.getData().key,
     '; value:',
-    jsonStringifySafe(v.getData().value),
+    JSON.stringify(v.getData().value),
   );
   if (v.getData().key === 'B') {
     return {
       commands: [
         {
-          commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+          commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
         },
       ],
     };
   }
   return {};
 });
-traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
+traversal.addVisitorFor(DepthFirstPhase.IN_ORDER, (v) => {
   console.log(
     '-',
     GREEN_FG,
@@ -82,21 +83,27 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
     'key:',
     v.getData().key,
     '; value:',
-    jsonStringifySafe(v.getData().value),
+    JSON.stringify(v.getData().value),
   );
 });
-const traversalRunner = traversal.makeRunner();
+const traversalRunner = traversal.createRunner();
 
 traversalRunner.run();
 
 console.log();
-console.log('First stop. Traversal runner status:', traversalRunner.getStatus());
+console.log(
+  'First stop. TreeTraversal runner status:',
+  traversalRunner.getStatus(),
+);
 console.log();
 
 traversalRunner.run();
 
 console.log();
-console.log('Second stop. Traversal runner status:', traversalRunner.getStatus());
+console.log(
+  'Second stop. TreeTraversal runner status:',
+  traversalRunner.getStatus(),
+);
 
 /*
 -  Pre-order   key: __TRAVERSABLE_OBJECT_TREE_DEFAULT_ROOT_KEY__ ; value: {"F":{"B":{"A":1,"D":["C","E"]},"G":{"_":null,"I":{"H":1}}}}

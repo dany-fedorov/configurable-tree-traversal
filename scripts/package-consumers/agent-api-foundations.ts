@@ -1,33 +1,33 @@
+import { TraversalVisitorCommandName as VisitorCommand } from 'configurable-tree-traversal';
 import {
-  graphFrom,
-  forestFrom,
-  graphFromAsync,
-  forestFromAsync,
+  materializeDagInputFromRecords,
+  materializeDagInputFromRoots,
+  materializeDagInputFromRecordsAsync,
+  materializeDagInputFromRootsAsync,
   prepareDag,
   prepareDagAsync,
-  coordinateDag,
-  coordinateDagAsync,
-  filterDagVisitor,
-  filterAsyncDagVisitor,
+  createDagWorkSession,
+  createAsyncDagWorkSession,
+  filterDagDataVisitor,
+  filterAsyncDagDataVisitor,
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder,
-  DEFER_READY,
+  DagVisitorPhase,
 } from 'configurable-tree-traversal';
 import type {
-  CollectionSource,
-  TreeTypeParameters,
+  MaterializedDagInput,
+  VertexTypes,
   PreparedDag,
   PrepareDagResult,
   DagEvent,
   DagWorkTicket,
-  DagCoordinator,
-  AsyncDagCoordinator,
-  DagVisitorOptions,
+  DagWorkSession,
+  AsyncDagWorkSession,
+  DagVisitorContext,
 } from 'configurable-tree-traversal';
-import * as sourceSubpath from 'configurable-tree-traversal/sources/index';
-import { graphFrom as explicitGraphFrom } from 'configurable-tree-traversal/sources/graphFrom.js';
-import type { CollectionSource as SubpathSource } from 'configurable-tree-traversal/sources/types';
+import * as sourceSubpath from 'configurable-tree-traversal/sources';
+import { materializeDagInputFromRecords as subpathMaterializeRecords } from 'configurable-tree-traversal/sources';
+import type { MaterializedDagInput as SubpathSource } from 'configurable-tree-traversal/sources';
 import type {
   PreparedDag as SubpathPreparedDag,
   DagEvent as SubpathEvent,
@@ -45,46 +45,54 @@ type Group = {
   requires: readonly ID[];
 };
 type Item = Task | Group;
-type T = TreeTypeParameters<Item, ID>;
+type T = VertexTypes<Item, ID>;
 declare const items: readonly Item[];
-const source = graphFrom(items, {
+const source = materializeDagInputFromRecords(items, {
   id: (item) => item.id,
-  dependsOn: (item) => item.requires,
+  dependsOnWork: (item) => item.requires,
 });
-const sourceIdentity: CollectionSource<Item, ID> = source;
+const sourceIdentity: MaterializedDagInput<Item, ID> = source;
 const subpathIdentity: SubpathSource<Item, ID> = sourceIdentity;
-const cjsIdentity: cjs.CollectionSource<Item, ID> = subpathIdentity;
-const factoryIdentity: typeof graphFrom = sourceSubpath.graphFrom;
-const explicitIdentity: typeof cjs.graphFrom = explicitGraphFrom;
-const forest: CollectionSource<Item, ID> = forestFrom(items, {
-  id: (item) => item.id,
-  children: (item) => (item.kind === 'group' ? item.children : []),
-});
-const asyncSource: Promise<CollectionSource<Item, ID>> = graphFromAsync(items, {
-  id: async (item) => item.id,
-  dependsOn: async (item) => item.requires,
-});
-const asyncForest: Promise<CollectionSource<Item, ID>> = forestFromAsync(
+const cjsIdentity: cjs.MaterializedDagInput<Item, ID> = subpathIdentity;
+const factoryIdentity: typeof materializeDagInputFromRecords =
+  sourceSubpath.materializeDagInputFromRecords;
+const explicitIdentity: typeof cjs.materializeDagInputFromRecords =
+  subpathMaterializeRecords;
+const forest: MaterializedDagInput<Item, ID> = materializeDagInputFromRoots(
   items,
   {
-    id: async (item) => item.id,
-    children: async (item) => (item.kind === 'group' ? item.children : []),
+    id: (item) => item.id,
+    children: (item) => (item.kind === 'group' ? item.children : []),
   },
 );
+const asyncSource: Promise<MaterializedDagInput<Item, ID>> =
+  materializeDagInputFromRecordsAsync(items, {
+    id: async (item) => item.id,
+    dependsOnWork: async (item) => item.requires,
+  });
+const asyncForest: Promise<MaterializedDagInput<Item, ID>> =
+  materializeDagInputFromRootsAsync(items, {
+    id: async (item) => item.id,
+    children: async (item) => (item.kind === 'group' ? item.children : []),
+  });
 
 const prepared: PrepareDagResult<Item, ID> = prepareDag(source);
 if (prepared.kind === 'valid') {
   const dag: PreparedDag<Item, ID> = prepared.dag;
   const subpath: SubpathPreparedDag<Item, ID> = dag;
   const required: cjs.PreparedDag<Item, ID> = subpath;
-  const session: DagCoordinator<ID> = required.createSession();
+  const session: DagWorkSession<ID> = required.createWorkSession();
   const boundary = session.advance();
   if (boundary.kind === 'awaitingSettlement') {
-    const ticket: DagWorkTicket<ID> = boundary.frontier[0]!;
+    const ticket: DagWorkTicket<ID> = boundary.workTickets[0]!;
     const subpathTicket: SubpathTicket<ID> = ticket;
     const requiredTicket: dagCjs.DagWorkTicket<ID> = subpathTicket;
     const id: ID = requiredTicket.vertexId;
-    session.complete(requiredTicket);
+    session.completeWork(requiredTicket);
+    // @ts-expect-error A spread loses nominal ticket ownership.
+    session.completeWork({ ...requiredTicket });
+    // @ts-expect-error A copied ticket cannot authorize fatal settlement either.
+    session.failTraversal({ ...ticket }, undefined);
     // @ts-expect-error Fatal settlement exposes only the canonical method.
     session.fail(requiredTicket, undefined);
     // @ts-expect-error Tickets retain their exact ID domain.
@@ -95,7 +103,7 @@ if (prepared.kind === 'valid') {
     ticket.vertexId = id;
     void [wrong, forged];
   }
-  const coordinator: DagCoordinator<ID> = coordinateDag(
+  const coordinator: DagWorkSession<ID> = createDagWorkSession(
     dag.createRunner({ workCompletion: 'externalSettlement' }),
   );
   const vertex = dag.vertices[0]!;
@@ -104,12 +112,16 @@ if (prepared.kind === 'valid') {
   // @ts-expect-error Definitions own their topology.
   dag.createRunner({ syntheticRoot: undefined });
   // @ts-expect-error Session seeds preserve the inferred ID domain.
-  dag.createSession({ completedWork: new Set(['wrong']) });
+  dag.createWorkSession({ completedWork: new Set(['wrong']) });
   // @ts-expect-error Exposed vertex descriptions are readonly.
   vertex.children.push(vertex.vertexId);
   void [coordinator, data, children];
 } else {
   for (const issue of prepared.issues) {
+    if (issue.kind === 'discoveryCycle') {
+      const witness: readonly ID[] = issue.vertexIds;
+      void witness;
+    }
     if (issue.kind === 'milestone') {
       const missing: readonly ID[] = issue.diagnostics.unknownPrerequisiteIds;
       void missing;
@@ -124,47 +136,55 @@ function inspect(event: DagEvent<T, ID>) {
   const required: cjs.DagEvent<T, ID> = subpath;
   const id: ID = required.vertexId;
   if (event.kind === 'workCompleted') {
-    const phase: DagTraversalOrder.ON_READY = event.order;
-    // @ts-expect-error Committed work events cannot have completion order.
-    const wrong: DagTraversalOrder.ON_COMPLETE = event.order;
-    void [phase, wrong];
-  } else {
-    const phase: DagTraversalOrder.ON_COMPLETE = event.order;
-    void phase;
+    const kind: 'workCompleted' = event.kind;
+    // @ts-expect-error Committed work cannot be subgraph completion.
+    const wrong: 'subgraphCompleted' = event.kind;
+    void [kind, wrong];
   }
+  // @ts-expect-error Committed events have no callback phase metadata.
+  event.phase;
+  // @ts-expect-error Removed order metadata is not a public event contract.
+  event.order;
   void id;
 }
 
 const isTask = (data: Item): data is Task => data.kind === 'task';
 const traversal = new DagTraversal(source);
 traversal.addVisitorFor(
-  DagTraversalOrder.ON_READY,
-  filterDagVisitor(isTask, (data, options) => {
+  DagVisitorPhase.ON_WORK_READY,
+  filterDagDataVisitor(isTask, (data, options) => {
     const narrowed: Task = data;
-    const context: DagVisitorOptions<T, T, DagTraversalOrder.ON_READY, ID> =
+    const context: DagVisitorContext<T, T, DagVisitorPhase.ON_WORK_READY, ID> =
       options;
     // @ts-expect-error A type guard narrows data, not the heterogeneous graph.
-    const invalid: Task = options.vertexRef.unref().getData();
+    const invalid: Task = options.vertexRef.getValue().getData();
     void [narrowed, context, invalid];
-    return DEFER_READY;
+    return {
+      commands: [
+        { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+      ],
+    };
   }),
 );
 traversal.addVisitorFor(
-  DagTraversalOrder.ON_COMPLETE,
-  // @ts-expect-error Completion phase cannot defer work through a filter.
-  filterDagVisitor(isTask, () => DEFER_READY),
+  DagVisitorPhase.ON_SUBGRAPH_READY,
+  filterDagDataVisitor(isTask, () => ({
+    // @ts-expect-error Completion phase cannot defer work through a filter.
+    commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+  })),
 );
-for (const event of traversal.makeRunner().getIterable()) inspect(event);
+for (const event of traversal.createRunner().iterateEvents()) inspect(event);
 
 async function checkAsync() {
   const result: PrepareDagResult<Item, ID> = await prepareDagAsync(
     await asyncSource,
   );
   if (result.kind !== 'valid') return;
-  const session: AsyncDagCoordinator<ID> = await result.dag.createAsyncSession({
-    concurrency: 2,
-  });
-  const coordinator: AsyncDagCoordinator<ID> = coordinateDagAsync(
+  const session: AsyncDagWorkSession<ID> =
+    await result.dag.createAsyncWorkSession({
+      concurrency: 2,
+    });
+  const coordinator: AsyncDagWorkSession<ID> = createAsyncDagWorkSession(
     await result.dag.createAsyncRunner({
       workCompletion: 'externalSettlement',
     }),
@@ -173,29 +193,36 @@ async function checkAsync() {
   await coordinator.advance();
   const asyncTraversal = new AsyncDagTraversal(await asyncForest);
   asyncTraversal.addVisitorFor(
-    DagTraversalOrder.ON_READY,
-    filterAsyncDagVisitor(isTask, async (data, options) => {
+    DagVisitorPhase.ON_WORK_READY,
+    filterAsyncDagDataVisitor(isTask, async (data, options) => {
       const task: Task = data;
-      const context: DagVisitorOptions<T, T, DagTraversalOrder.ON_READY, ID> =
-        options;
+      const context: DagVisitorContext<
+        T,
+        T,
+        DagVisitorPhase.ON_WORK_READY,
+        ID
+      > = options;
       void [task, context];
     }),
   );
-  for await (const event of asyncTraversal.makeRunner().getIterable())
+  for await (const event of asyncTraversal.createRunner().iterateEvents())
     inspect(event);
 }
 
-// @ts-expect-error Graph selectors accept IDs as structural children.
-graphFrom(items, { id: (item) => item.id, children: () => items });
+materializeDagInputFromRecords(items, {
+  // @ts-expect-error Graph selectors accept IDs as structural children.
+  id: (item) => item.id,
+  children: () => items,
+});
 // @ts-expect-error Preparation cannot accept completed execution facts.
 prepareDag({ ...source, completedWork: new Set<ID>() });
 void [cjsIdentity, factoryIdentity, explicitIdentity, forest, checkAsync];
 
-function inspectSession(session: DagCoordinator<ID> | AsyncDagCoordinator<ID>) {
+function inspectSession(session: DagWorkSession<ID> | AsyncDagWorkSession<ID>) {
   const state: import('configurable-tree-traversal').TraversalExecutionState =
     session;
-  const inspection: import('configurable-tree-traversal').DagInspection<ID> =
-    session.inspectDag();
+  const inspection: import('configurable-tree-traversal').DagMilestoneSnapshot<ID> =
+    session.inspectMilestones();
   const fatal: (ticket: DagWorkTicket<ID>, error: unknown) => unknown =
     session.failTraversal;
   const ErrorConstructor: typeof cjs.DagDiscoveryCycleError =
@@ -205,3 +232,21 @@ function inspectSession(session: DagCoordinator<ID> | AsyncDagCoordinator<ID>) {
   void [state, inspection, fatal, witness];
 }
 void inspectSession;
+
+// @ts-expect-error Work tickets are type-only, with no constructor value.
+new cjs.DagWorkTicket();
+// @ts-expect-error DAG-subpath tickets are also type-only.
+new dagCjs.DagWorkTicket();
+// @ts-expect-error The namespace does not expose a ticket constructor.
+new cjs.dagTraversal.DagWorkTicket();
+new DagTraversal({ ...source, workCompletion: 'afterWorkReadyChain' });
+// @ts-expect-error The retired completion literal is not accepted.
+new DagTraversal({ ...source, workCompletion: 'visitorReturn' });
+const exactProgress = new DagTraversal(source)
+  .createRunner()
+  .summary()
+  .vertices.get(items[0]!.id)!;
+const exactWork: readonly ID[] = exactProgress.unmetWorkPrerequisiteIds;
+const exactCompletion: readonly ID[] =
+  exactProgress.unmetSubgraphPrerequisiteIds;
+void [exactWork, exactCompletion];

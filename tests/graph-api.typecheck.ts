@@ -1,20 +1,18 @@
-import { CTTRef } from '../src/core/CTTRef';
+import type { AsyncTreeVisitor } from '../src/core/AsyncTraversalVisitor';
+import { MutableRef } from '../src/core/CTTRef';
 import type {
-  AsyncTraversableGraph,
-  TraversableGraph,
+  AsyncDagDiscoverySource,
+  DagDiscoverySource,
 } from '../src/core/TraversableGraph';
-import type { AsyncTraversableTree } from '../src/core/AsyncTraversableTree';
-import type {
-  AsyncTraversalVisitor,
-  AsyncTraversalVisitorInputOptions,
-} from '../src/core/AsyncTraversalVisitor';
-import type { ResolvedGraph } from '../src/core/ResolvedGraph';
-import type { TraversableTree } from '../src/core/TraversableTree';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
+import type { TreeVisitorContext } from '../src/core/TraversalVisitor';
+import type { ResolvedGraphView } from '../src/core/ResolvedGraphView';
+import type { TreeSource } from '../src/core/TraversableTree';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
 import type { HintVertexId } from '../src/core/graph/types';
-import type { DagTraversalOrder } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
+import type { DagVisitorPhase } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import type {
   AsyncDagVisitor,
   DagVisitor,
@@ -22,45 +20,59 @@ import type {
 import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import type { AsyncDagTraversalRunner } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalRunner';
 
-type Input = TreeTypeParameters<{ input: string }, string>;
-type Output = TreeTypeParameters<{ output: number }, number>;
+type Input = VertexTypes<{ input: string }, string>;
+type Output = VertexTypes<{ output: number }, number>;
 
-const graph: TraversableGraph<Input, Output> = {
-  makeRoot: () => ({
-    vertexContent: { $d: { input: 'root' }, $c: ['child'] },
-    vertexId: undefined,
-    dependsOn: [null, NaN],
+const graph: DagDiscoverySource<Input, Output> = {
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: {
+      vertexContent: { $data: { input: 'root' }, $childHints: ['child'] },
+      vertexId: undefined,
+      dependsOnWork: [null, NaN],
+    },
   }),
-  makeVertex: (hint, options) => {
-    const resolved: ResolvedGraph<Input | Output> = options.resolvedGraph;
+  resolveChild: (hint, options) => {
+    const resolved: ResolvedGraphView<Input | Output> =
+      options.resolvedGraphView;
     const input: string = hint;
-    void [resolved, input, options.notMutatedResolvedGraph];
+    void [resolved, input, options.originalGraphView];
     // @ts-expect-error Graph callbacks do not receive the tree facade.
-    options.resolvedTree;
-    return { vertexContent: null, vertexId: hint };
+    options.resolvedTreeView;
+    return {
+      kind: 'omitted' as const,
+      satisfiesDependencies: true as const,
+      vertexId: hint,
+    };
   },
   getVertexIdFromHint: (hint): HintVertexId => ({ vertexId: hint }),
   resolvePrerequisite: (id) =>
     typeof id === 'string'
       ? {
-          vertexId: id,
-          dependsOnComplete: [null],
-          vertexContent: { $d: { input: id }, $c: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnSubgraphCompletion: [null],
+            vertexContent: { $data: { input: id }, $childHints: [] },
+          },
         }
-      : undefined,
+      : { kind: 'missing' },
 };
 
-const asyncGraph: AsyncTraversableGraph<Input, Output> = {
+const asyncGraph: AsyncDagDiscoverySource<Input, Output> = {
   ...graph,
   resolvePrerequisite: (id) => Promise.resolve(graph.resolvePrerequisite!(id)),
 };
-const tree: TraversableTree<Input, Output> = {
-  makeRoot: () => ({ vertexContent: { $d: { input: 'root' }, $c: [] } }),
-  makeVertex: () => ({ vertexContent: null }),
+const tree: TreeSource<Input, Output> = {
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: { input: 'root' }, $childHints: [] } },
+  }),
+  resolveChild: () => ({ kind: 'omitted' as const }),
 };
-const asyncTree: AsyncTraversableTree<Input, Output> = tree;
+const asyncTree: AsyncTreeSource<Input, Output> = tree;
 
-const plainTreeVisitor: AsyncTraversalVisitor<'ORDER', Input, Output> = () => ({
+const plainTreeVisitor: AsyncTreeVisitor<'ORDER', Input, Output> = () => ({
   commands: [
     {
       commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
@@ -68,25 +80,24 @@ const plainTreeVisitor: AsyncTraversalVisitor<'ORDER', Input, Output> = () => ({
     },
   ],
 });
-const promisedTreeVisitor: AsyncTraversalVisitor<
+const promisedTreeVisitor: AsyncTreeVisitor<
   'ORDER',
   Input,
   Output
 > = async () => undefined;
 
-const dagVisitor: DagVisitor<Input, Output, DagTraversalOrder.ON_READY> = (
+const dagVisitor: DagVisitor<Input, Output, DagVisitorPhase.ON_WORK_READY> = (
   vertex,
   options,
 ) => {
   const data: { input: string } | { output: number } = vertex.getData();
-  const order: DagTraversalOrder = options.order;
-  void [data, order, options.resolvedGraph, options.visitorRecord.priority];
+  const order: DagVisitorPhase = options.phase;
+  void [data, order, options.resolvedGraphView, options.registration.priority];
   return {
     commands: [
       {
-        commandName:
-          TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
-        commandArguments: { newHints: [1, 2] },
+        commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
+        commandArguments: { newHints: ['one', 'two'] },
       },
     ],
   };
@@ -111,13 +122,9 @@ const invalidRewriteVisitor: DagVisitor<Input, Output> = () => ({
   ],
 });
 
-declare const asyncOptions: AsyncTraversalVisitorInputOptions<
-  'ORDER',
-  Input,
-  Output
->;
+declare const asyncOptions: TreeVisitorContext<'ORDER', Input, Output>;
 const asyncVisitorMetadata: import('../src').VisitorRegistrationMetadata =
-  asyncOptions.visitorRecord;
+  asyncOptions.registration;
 
 const asyncGraphTraversal = new AsyncDagTraversal<Input, Output>({
   traversableGraph: asyncGraph,
@@ -125,17 +132,12 @@ const asyncGraphTraversal = new AsyncDagTraversal<Input, Output>({
   sortChildrenHints: async (hints) => hints.reverse(),
 });
 asyncGraphTraversal.addVisitorFor(
-  'ON_READY' as DagTraversalOrder,
+  'ON_WORK_READY' as DagVisitorPhase,
   async (vertex, options) => {
     const data: { input: string } | { output: number } = vertex.getData();
     const metadata: import('../src').VisitorRegistrationMetadata =
-      options.visitorRecord;
-    void [
-      data,
-      metadata,
-      options.resolvedGraph,
-      options.notMutatedResolvedGraph,
-    ];
+      options.registration;
+    void [data, metadata, options.resolvedGraphView, options.originalGraphView];
     return {
       commands: [
         {
@@ -150,16 +152,15 @@ const asyncTreeTraversal = new AsyncDagTraversal<Input, Output>({
   traversableTree: asyncTree,
 });
 const asyncDagRunner: AsyncDagTraversalRunner<Input, Output> =
-  asyncGraphTraversal.makeRunner();
+  asyncGraphTraversal.createRunner();
 const asyncDagEvents: AsyncGenerator<
   {
-    order: DagTraversalOrder;
+    kind: 'workCompleted' | 'subgraphCompleted';
     isGraphRoot: boolean;
-    isTraversalRoot: boolean;
   },
   void,
   unknown
-> = asyncDagRunner.getIterable();
+> = asyncDagRunner.iterateEvents();
 const asyncDagRun: Promise<AsyncDagTraversalRunner<Input, Output>> =
   asyncDagRunner.run();
 void asyncDagRunner.inspect();
@@ -173,7 +174,9 @@ new AsyncDagTraversal<Input, Output>({
   traversableTree: asyncTree,
 });
 
-const ref = new CTTRef(new Vertex<Input>({ $d: { input: 'vertex' }, $c: [] }));
+const ref = new MutableRef(
+  new Vertex<Input>({ $data: { input: 'vertex' }, $childHints: [] }),
+);
 void [
   asyncGraph,
   asyncTree,

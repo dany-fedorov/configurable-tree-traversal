@@ -1,15 +1,15 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { TraversalVisitorCommandName as VisitorCommand } from '../src';
+import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
-import type { Ref } from '../src/core/graph/types';
+import type { VertexRef } from '../src/core/graph/types';
 import type { TestGraph } from './helpers/graph-fixtures';
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder as Order,
-  DEFER_READY,
+  DagVisitorPhase as Order,
   type DagSummary,
 } from '../src/traversals/dag-traversal';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
@@ -22,30 +22,37 @@ function setup() {
   const scheduling = new GraphScheduling(container);
   const root = scheduling.acceptRoot({
     vertexId: 'root',
-    vertexContent: { $d: 'root', $c: ['a', 'duplicate', 'omit', 'deleted'] },
+    vertexContent: {
+      $data: 'root',
+      $childHints: ['a', 'duplicate', 'omit', 'deleted'],
+    },
   })!;
-  const context = (index: number, parent: Ref<TestGraph> = root) => ({
+  const context = (index: number, parent: VertexRef<TestGraph> = root) => ({
     parentVertexRef: parent,
-    parentVertex: parent.unref(),
+    parentVertex: parent.getValue(),
     depth: 1,
     hintIndex: index,
-    vertexHint: parent.unref().getChildrenHints()[index]!,
+    vertexHint: parent.getValue().getChildrenHints()[index]!,
   });
   return { container, scheduling, root, context };
 }
 
 test('narrow graph reads detach records and preserve depth, ID and declaration identity', () => {
   const store = new GraphStore<TestGraph>('dag');
-  const root = new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: ['a'] }));
-  const child = new CTTRef(new Vertex<TestGraph>({ $d: 'a', $c: [] }));
+  const root = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'root', $childHints: ['a'] }),
+  );
+  const child = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'a', $childHints: [] }),
+  );
   const dependency = {};
   store.insertVertex({
     ref: root,
     id: undefined,
-    dependsOn: [dependency],
+    dependsOnWork: [dependency],
     depth: 4,
   });
-  store.insertVertex({ ref: child, id: NaN, dependsOn: [], depth: 5 });
+  store.insertVertex({ ref: child, id: NaN, dependsOnWork: [], depth: 5 });
   expect(store.getTraversalSlot(root, 0)).toBeUndefined();
   store.prepareSlots(root, ['a']);
   const slot = store.getTraversalSlot(root, 0)!;
@@ -53,7 +60,7 @@ test('narrow graph reads detach records and preserve depth, ID and declaration i
   const graph = store.graph.get(root)!;
   const declarations = store.getDeclaredDependencies(root);
   expect(store.getDiscoveryDepth(root)).toBe(4);
-  expect(store.graph.getIdOf(root)).toBeUndefined();
+  expect(store.graph.getVertexId(root)).toBeUndefined();
   expect(declarations[0]).toBe(dependency);
   declarations.length = 0;
   (slot as { hint: string }).hint = 'changed';
@@ -82,28 +89,28 @@ test('narrow graph reads detach records and preserve depth, ID and declaration i
 test('discovery accounting survives duplicates, omissions, deleted arrivals and reconstruction', () => {
   const { container, scheduling, root, context } = setup();
   expect(scheduling.isDiscoveryComplete()).toBe(false);
-  scheduling.prepareSlots(root, root.unref().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
   const a = scheduling.acceptVertex(context(0), {
     vertexId: 'a',
-    dependsOn: [],
-    vertexContent: { $d: 'a', $c: [] },
+    dependsOnWork: [],
+    vertexContent: { $data: 'a', $childHints: [] },
   })!;
   expect(
-    scheduling.acceptVertex(context(1), { vertexId: 'a', vertexContent: null }),
+    scheduling.acceptVertex(context(1), { vertexContent: null, vertexId: 'a' }),
   ).toBe(a);
   scheduling.acceptVertex(context(2), {
-    vertexId: 'omitted',
     vertexContent: null,
+    vertexId: 'omitted',
   });
   container.store.markDeleted('deleted');
   scheduling.acceptVertex(context(3), {
-    vertexId: 'deleted',
     vertexContent: null,
+    vertexId: 'deleted',
   });
   scheduling.closeExpansion(root);
   scheduling.closeExpansion(root);
   expect(scheduling.isDiscoveryComplete()).toBe(false);
-  const previous = container.resolvedGraph.get(root)!;
+  const previous = container.resolvedGraphView.get(root)!;
   scheduling.deleteVertex(a);
   expect(scheduling.isDiscoveryComplete()).toBe(true);
   expect(previous.slots[0]).toMatchObject({ kind: 'linked', childRef: a });
@@ -138,29 +145,31 @@ test('reconstructed unprepared discovery stays open until its resumed expansion 
 
 test('topology validation is reused through progress but invalidated by later declarations and deletion', () => {
   const { container, scheduling, root, context } = setup();
-  scheduling.prepareSlots(root, root.unref().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
   scheduling.validateDiscoveredGraph();
   expect(scheduling.diagnoseTopology([root])).toBeNull();
   scheduling.markPreVisited(root);
-  root.setPointsTo(root.unref().clone({ $d: 'rewritten' }));
+  root.setValue(root.getValue().clone({ $data: 'rewritten' }));
   expect(scheduling.diagnoseTopology([root])).toBeNull();
   const bad = scheduling.acceptVertex(context(0), {
     vertexId: 'bad',
-    dependsOn: ['missing'],
-    vertexContent: { $d: 'bad', $c: [] },
+    dependsOnWork: ['missing'],
+    vertexContent: { $data: 'bad', $childHints: [] },
   })!;
   expect(
     scheduling.diagnoseTopology([root, bad])!.unknownPrerequisiteIds,
   ).toEqual(['missing']);
   expect(() => scheduling.validateDiscoveredGraph()).toThrow();
   scheduling.acceptVertex(context(1), {
-    vertexId: 'missing',
     vertexContent: null,
+    vertexId: 'missing',
   });
   scheduling.validateDiscoveredGraph();
   expect(scheduling.diagnoseTopology([root, bad])).toBeNull();
   scheduling.deleteVertex(bad);
-  expect(scheduling.diagnoseTopology([root])!.dependencyCycles).toEqual([]);
+  expect(
+    scheduling.diagnoseTopology([root])!.dependencyCycleComponents,
+  ).toEqual([]);
   scheduling.validateDiscoveredGraph();
   container.store.markOmitted('unused');
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
@@ -171,9 +180,11 @@ test('topology reads do not certify validation and structural edits invalidate s
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
   scheduling.validateDiscoveredGraph();
-  scheduling.prepareSlots(root, root.unref().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
-  const child = new CTTRef(new Vertex<TestGraph>({ $d: 'child', $c: [] }));
+  const child = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
+  );
   container.acceptVertex(child, 'child', [], context(0));
   scheduling.validateDiscoveredGraph();
   container.acceptEdge(root, 0, child);
@@ -203,31 +214,37 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const traversal = new Constructor<TestGraph>({
       completedWork: new Set(['root', 'a']),
       traversableGraph: {
-        makeRoot: () => ({
-          vertexId: 'root',
-          dependsOn: ['a'],
-          vertexContent: { $d: 'root', $c: ['a'] },
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'root',
+            dependsOnWork: ['a'],
+            vertexContent: { $data: 'root', $childHints: ['a'] },
+          },
         }),
-        makeVertex: (id) => {
+        resolveChild: (id) => {
           if (id === 'probe') snapshots.push(runner.summary());
           return id === 'probe'
-            ? { vertexContent: null }
+            ? { kind: 'omitted' as const, satisfiesDependencies: true as const }
             : {
-                vertexId: 'a',
-                dependsOn: ['root'],
-                vertexContent: { $d: 'a', $c: ['probe'] },
+                kind: 'found' as const,
+                vertex: {
+                  vertexId: 'a',
+                  dependsOnWork: ['root'],
+                  vertexContent: { $data: 'a', $childHints: ['probe'] },
+                },
               };
         },
       },
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await expect(async () => {
       await runner.run();
     }).rejects.toMatchObject({
-      diagnostics: { dependencyCycles: [['root', 'a']] },
+      diagnostics: { dependencyCycleComponents: [['root', 'a']] },
     });
     expect(snapshots[0]!.discovery.complete).toBe(false);
-    expect(snapshots[0]!.diagnostics!.dependencyCycles).toEqual([
+    expect(snapshots[0]!.diagnostics!.dependencyCycleComponents).toEqual([
       ['root', 'a'],
     ]);
   });
@@ -238,44 +255,54 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       syntheticRoot: true,
       completedWork: new Set(['seed']),
       traversableGraph: {
-        makeRoot: () => ({
-          vertexContent: {
-            $d: '',
-            $c: ['seed', 'gate', 'remove', 'dependent'],
+        resolveRoot: () => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexContent: {
+              $data: '',
+              $childHints: ['seed', 'gate', 'remove', 'dependent'],
+            },
           },
         }),
-        makeVertex: (id) => ({
-          vertexId: id,
-          dependsOn:
-            id === 'gate'
-              ? ['seed']
-              : id === 'remove'
-              ? ['gate']
-              : id === 'dependent'
-              ? ['remove']
-              : [],
-          vertexContent: { $d: id, $c: [] },
+        resolveChild: (id) => ({
+          kind: 'found' as const,
+          vertex: {
+            vertexId: id,
+            dependsOnWork:
+              id === 'gate'
+                ? ['seed']
+                : id === 'remove'
+                ? ['gate']
+                : id === 'dependent'
+                ? ['remove']
+                : [],
+            vertexContent: { $data: id, $childHints: [] },
+          },
         }),
       },
     });
-    traversal.addVisitorFor(Order.ON_READY, (vertex) =>
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
       vertex.getData() === 'gate'
-        ? DEFER_READY
-        : { commands: [{ commandName: Command.DELETE_VERTEX }] },
+        ? {
+            commands: [
+              { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+            ],
+          }
+        : { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] },
     );
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     const before = runner.summary();
     const gate = before.vertices.get('gate')!.generation!;
-    expect(before.readyIds).toEqual(['gate']);
-    expect(runner.settle('gate', { ok: true }, gate)).toBe(true);
+    expect(before.readyOrDeferredIds).toEqual(['gate']);
+    expect(runner.settle('gate', { kind: 'workCompleted' }, gate)).toBe(true);
     await runner.run();
     const after = runner.summary();
     expect(after.completedWorkIds).toEqual(['seed', 'gate']);
     expect(after.counts.discovered).toBe(2);
     expect(after.diagnostics).toBeNull();
     expect(before.completedWorkIds).toEqual(['seed']);
-    expect(before.readyIds).toEqual(['gate']);
+    expect(before.readyOrDeferredIds).toEqual(['gate']);
     expect(before.vertices.get('dependent')!.unmetPrerequisiteIds).toEqual([
       'remove',
     ]);

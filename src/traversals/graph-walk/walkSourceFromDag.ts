@@ -1,3 +1,4 @@
+import { assertOwnKeys } from '@core/assertPublicOptions';
 import { defineDag } from '../dag-traversal/defineDag';
 import type {
   DagDefinition,
@@ -13,18 +14,22 @@ import type {
 export type GraphWalkDagRelation =
   | { kind: 'child'; slotIndex: number }
   | { kind: 'workDependency' }
-  | { kind: 'completionDependency' };
+  | { kind: 'subgraphCompletionDependency' };
 
 type RelationSelection =
   | 'children'
   | 'workDependencies'
-  | 'completionDependencies';
+  | 'subgraphCompletionDependencies';
 
 /** Explore explicit declaration relationships without DAG scheduling or validation. */
-export function walkSourceFromDag<Data, ID>(
+export function materializeWalkSourceFromDagDefinition<Data, ID>(
   definition: DagDefinition<Data, ID>,
   options: { relations: readonly [RelationSelection, ...RelationSelection[]] },
-): GraphWalkSource<Data, GraphWalkDagRelation, ID> {
+): Extract<
+  GraphWalkSource<Data, GraphWalkDagRelation, ID>,
+  { hydration: 'resolver' }
+> {
+  assertOwnKeys(options, ['relations']);
   const selection = options?.relations;
   if (!Array.isArray(selection) || selection.length === 0)
     throw new TypeError('Select at least one DAG relationship');
@@ -33,7 +38,7 @@ export function walkSourceFromDag<Data, ID>(
     if (
       relation !== 'children' &&
       relation !== 'workDependencies' &&
-      relation !== 'completionDependencies'
+      relation !== 'subgraphCompletionDependencies'
     )
       throw new TypeError('Unknown DAG relationship');
     if (relations.has(relation))
@@ -81,7 +86,7 @@ export function walkSourceFromDag<Data, ID>(
   if (snapshot.entry.kind === 'root') {
     lookup(snapshot.entry.vertexId);
     roots.push({ vertexId: snapshot.entry.vertexId });
-  } else if (snapshot.entry.kind === 'forest') {
+  } else if (snapshot.entry.kind === 'roots') {
     for (const slot of snapshot.entry.slots) {
       const target = slotTarget(slot);
       if (target !== null) roots.push(target);
@@ -96,20 +101,21 @@ export function walkSourceFromDag<Data, ID>(
           links.push({ target, data: { kind: 'child', slotIndex } });
       });
     if (relations.has('workDependencies'))
-      for (const vertexId of vertex.dependsOn) {
+      for (const vertexId of vertex.dependsOnWork) {
         lookup(vertexId);
         links.push({ target: { vertexId }, data: { kind: 'workDependency' } });
       }
-    if (relations.has('completionDependencies'))
-      for (const vertexId of vertex.dependsOnComplete) {
+    if (relations.has('subgraphCompletionDependencies'))
+      for (const vertexId of vertex.dependsOnSubgraphCompletion) {
         lookup(vertexId);
         links.push({
           target: { vertexId },
-          data: { kind: 'completionDependency' },
+          data: { kind: 'subgraphCompletionDependency' },
         });
       }
   }
   return {
+    hydration: 'resolver',
     roots: () => roots.map((target) => ({ vertexId: target.vertexId })),
     resolveVertex: (vertexId) => ({ ...lookup(vertexId).resolution }),
     outgoing: (vertex) =>

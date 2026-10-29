@@ -6,25 +6,30 @@ const cjs = require('configurable-tree-traversal');
 
 assert.equal(esm.TraversalVisitorCommandName, cjs.TraversalVisitorCommandName);
 assert.equal(esm.core.Vertex, cjs.core.Vertex);
-assert.equal(esm.DEFER_READY, cjs.DEFER_READY);
+assert.equal('DEFER_READY' in esm, false);
+assert.equal('DEFER_READY' in cjs, false);
 
 for (const [api, other] of [
   [cjs, esm],
   [esm, cjs],
 ]) {
-  const { TraversalVisitorCommandName: Command, DagTraversalOrder: Order } =
-    api;
-  const legacyVertex = new api.core.Vertex({ $d: 'legacy', $c: [] });
-  assert(legacyVertex instanceof other.core.Vertex);
-  assert.deepEqual({ ...legacyVertex }, { $data: 'legacy', $childHints: [] });
-  assert.deepEqual(JSON.parse(JSON.stringify(legacyVertex)), {
-    $data: 'legacy',
-    $childHints: [],
+  const { TraversalVisitorCommandName: Command, DagVisitorPhase: Order } = api;
+  const data = { label: 'canonical' };
+  const childHints = [];
+  const vertex = new api.core.Vertex({ $data: data, $childHints: childHints });
+  assert(vertex instanceof other.core.Vertex);
+  assert.deepEqual({ ...vertex }, { $data: data, $childHints: childHints });
+  assert.deepEqual(JSON.parse(JSON.stringify(vertex)), {
+    $data: data,
+    $childHints: childHints,
   });
-  assert.equal(legacyVertex.$d, legacyVertex.$data);
-  assert.equal(legacyVertex.$c, legacyVertex.$childHints);
-  assert.equal(legacyVertex.clone({ $data: undefined }).getData(), undefined);
+  assert.equal(vertex.$data, data);
+  assert.equal(vertex.$childHints, childHints);
+  assert.equal('$d' in vertex, false);
+  assert.equal('$c' in vertex, false);
+  assert.equal(vertex.clone({ $data: undefined }).getData(), undefined);
   assert.throws(() => new api.core.Vertex({ $data: '', $c: [] }), TypeError);
+  assert.throws(() => new api.core.Vertex({ $d: 'old', $c: [] }), TypeError);
 
   const found = (id, hints = [], declarations = {}) => ({
     kind: 'found',
@@ -39,17 +44,17 @@ for (const [api, other] of [
     vertex: { vertexContent: { $data: id, $childHints: hints } },
   });
   const tree = {
-    makeRoot: () => treeFound('root', ['leaf', 'skip']),
-    makeVertex: (id) => (id === 'skip' ? { kind: 'omitted' } : treeFound(id)),
+    resolveRoot: () => treeFound('root', ['leaf', 'skip']),
+    resolveChild: (id) => (id === 'skip' ? { kind: 'omitted' } : treeFound(id)),
   };
   const graphTree = {
-    makeRoot: () => found('root', ['leaf']),
-    makeVertex: (id) => found(id),
+    resolveRoot: () => found('root', ['leaf']),
+    resolveChild: (id) => found(id),
   };
   const families = [
-    ['traverseDepthFirst', api.DepthFirstTraversalOrder.POST_ORDER],
-    ['traverseBreadthFirst', api.BreadthFirstTraversalOrder.LEVEL_ORDER],
-    ['traverseDag', Order.ON_READY],
+    ['traverseTreeDepthFirst', api.DepthFirstPhase.POST_ORDER],
+    ['traverseTreeBreadthFirst', api.BreadthFirstPhase.LEVEL_ORDER],
+    ['traverseDag', Order.ON_WORK_READY],
   ];
   for (const [helper, phase] of families) {
     for (const suffix of ['', 'Async']) {
@@ -71,17 +76,28 @@ for (const [api, other] of [
       assert.equal(typeof view.add, 'undefined');
       const root = view.getRoot();
       const detached = view.getChildrenOf(root);
-      detached.length = 0;
+      assert.throws(() => { detached.length = 0; }, TypeError);
       assert.equal(view.getChildrenOf(root).length, 1);
       const child = view.getChildrenOf(root)[0];
       const context = view.getResolutionContextOf(child);
-      context.depth = 100;
+      assert.throws(() => { context.depth = 100; }, TypeError);
       assert.notEqual(view.getResolutionContextOf(child).depth, 100);
-      assert.equal(root.getRefId(), root.getId());
+      const rootRefId = root.getRefId();
+      const originalValue = root.getValue();
+      const replacement = originalValue.clone({ $data: 'replacement' });
+      assert.equal("setValue" in root, false);
+      const editable = new api.MutableRef(originalValue.clone());
+      editable.setValue(replacement);
+      assert.equal(editable.getValue(), replacement);
+      assert.equal(root.getRefId(), rootRefId);
+      assert.equal('getId' in root, false);
+      assert.equal(root.getValue(), originalValue);
 
       assert.deepEqual(
         visits,
-        helper === 'traverseDepthFirst' ? ['leaf', 'root'] : ['root', 'leaf'],
+        helper === 'traverseTreeDepthFirst'
+          ? ['leaf', 'root']
+          : ['root', 'leaf'],
       );
       const groupCalls = [];
       await api[helper + suffix]({
@@ -117,56 +133,59 @@ for (const [api, other] of [
       });
       assert.deepEqual(groupCalls, ['first', 'second', 'first', 'second']);
       const legacyVisitors =
-        helper === 'traverseDepthFirst'
+        helper === 'traverseTreeDepthFirst'
           ? { postOrderVisitor: () => {} }
           : helper === 'traverseDag'
           ? { onReadyVisitor: () => {} }
           : () => {};
       const legacySource =
         helper === 'traverseDag' ? { traversableTree: tree } : tree;
-      assert.equal(
-        (await api[helper + suffix](legacySource, legacyVisitors)).getStatus(),
-        'FINISHED',
+      assert.throws(
+        () => api[helper + suffix](legacySource, legacyVisitors),
+        TypeError,
       );
     }
   }
 
   for (const asyncMode of [false, true]) {
-    const Traversal = asyncMode ? api.AsyncDagTraversal : api.DagTraversal;
+    const TreeTraversal = asyncMode ? api.AsyncDagTraversal : api.DagTraversal;
     // The ordinary root's W applies even without seeds, eager discovery or lookup.
-    const blocked = new Traversal({
+    const blocked = new TreeTraversal({
       traversableGraph: {
-        makeRoot: () => found('root', [], { dependsOn: ['absent'] }),
-        makeVertex: (id) => found(id),
+        resolveRoot: () => found('root', [], { dependsOnWork: ['absent'] }),
+        resolveChild: (id) => found(id),
       },
-    }).makeRunner();
+    }).createRunner();
     if (asyncMode)
       await assert.rejects(blocked.run(), api.DagTraversalStallError);
     else assert.throws(() => blocked.run(), api.DagTraversalStallError);
-    const ignored = new Traversal({
-      rootDependencies: 'ignore',
+    const ignored = new TreeTraversal({
+      rootWorkDependencies: 'ignore',
       traversableGraph: {
-        makeRoot: () => found('root', [], { dependsOn: ['absent'] }),
-        makeVertex: (id) => found(id),
+        resolveRoot: () => found('root', [], { dependsOnWork: ['absent'] }),
+        resolveChild: (id) => found(id),
       },
-    }).makeRunner();
+    }).createRunner();
     await ignored.run();
     assert.equal(ignored.getStatus(), 'FINISHED');
 
     for (const inherit of [false, true]) {
-      const traversal = new Traversal({
-        implicitParentDependency: inherit,
+      const traversal = new TreeTraversal({
+        omittedWorkDependencies: inherit ? 'discoveryParentWork' : 'none',
         traversableGraph: graphTree,
       });
-      traversal.addVisitorFor(Order.ON_READY, () => ({
+      traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
         commands: [
-          { commandName: other.TraversalVisitorCommandName.DEFER_READY },
+          {
+            commandName:
+              other.TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+          },
         ],
       }));
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       await runner.run();
       assert.deepEqual(
-        runner.summary().readyIds,
+        runner.summary().readyOrDeferredIds,
         inherit ? ['root'] : ['root', 'leaf'],
       );
       const generation = runner.summary().vertices.get('root').generation;
@@ -174,61 +193,55 @@ for (const [api, other] of [
         runner.settle('root', { kind: 'workCompleted' }, generation),
         true,
       );
-      assert.equal(runner.settle('root', { ok: true }, generation), false);
+      assert.equal(
+        runner.settle('root', { kind: 'workCompleted' }, generation),
+        false,
+      );
       assert.equal(runner.summary().vertices.get('root').work, 'completed');
       await runner.run();
       const leafGeneration = runner.summary().vertices.get('leaf').generation;
-      runner.settle('leaf', { ok: true }, leafGeneration);
+      runner.settle('leaf', { kind: 'workCompleted' }, leafGeneration);
       await runner.run();
       assert.equal(runner.getStatus(), 'FINISHED');
     }
 
-    for (const entry of ['constructor', 'configure', 'runner']) {
+    for (const entry of ['constructor', 'configure']) {
       let reads = 0;
       const input = {
         traversableGraph: {
-          makeRoot: () => found('owned'),
-          makeVertex: (id) => found(id),
+          resolveRoot: () => found('owned'),
+          resolveChild: (id) => found(id),
         },
         get workCompletion() {
-          return ++reads === 1 ? 'externalSettlement' : 'visitorReturn';
+          return ++reads === 1 ? 'externalSettlement' : 'afterWorkReadyChain';
         },
       };
       const traversal =
         entry === 'constructor'
-          ? new Traversal(input)
-          : new Traversal({ traversableGraph: input.traversableGraph });
+          ? new TreeTraversal(input)
+          : new TreeTraversal({ traversableGraph: input.traversableGraph });
       if (entry === 'configure') traversal.configure(input);
-      const Runner = asyncMode
-        ? api.AsyncDagTraversalRunner
-        : api.DagTraversalRunner;
-      const runner =
-        entry === 'runner'
-          ? new Runner({
-              ...traversal.icfg,
-              get workCompletion() {
-                return input.workCompletion;
-              },
-            })
-          : traversal.makeRunner();
+      assert.equal('DagTraversalRunner' in api, false);
+      assert.equal('AsyncDagTraversalRunner' in api, false);
+      const runner = traversal.createRunner();
       await runner.run();
       assert.deepEqual(runner.summary().completedWorkIds, []);
-      assert.deepEqual(runner.summary().deferredIds, ['owned']);
+      assert.deepEqual(runner.summary().deferredWorkIds, ['owned']);
       assert.equal(runner.getStopReason(), 'awaitingSettlement');
       assert.equal(reads, 1);
     }
 
-    const external = new Traversal({
+    const external = new TreeTraversal({
       workCompletion: 'externalSettlement',
-      saveNotMutatedResolvedGraph: true,
+      retainOriginalGraphStructure: true,
       traversableGraph: {
-        makeRoot: () => found(undefined),
-        makeVertex: (id) => found(id),
+        resolveRoot: () => found(undefined),
+        resolveChild: (id) => found(id),
       },
-    }).makeRunner();
+    }).createRunner();
     const deferredEvents = [];
-    for await (const event of external.getIterable({
-      emitPhases: [Order.ON_READY],
+    for await (const event of external.iterateEvents({
+      emitEvents: ['workCompleted'],
       visitorPhases: { include: [] },
     }))
       deferredEvents.push(event);
@@ -236,70 +249,72 @@ for (const [api, other] of [
     assert.equal(external.getStopReason(), 'awaitingSettlement');
     assert.equal(external.inspect().stopReason, 'awaitingSettlement');
     assert.equal(external.getResolvedTreeView(), null);
-    const graph = external.getResolvedGraph();
+    const graph = external.getResolvedGraphView();
     const ref = graph.getVertexRefById(undefined);
-    assert.equal(ref, graph.getVertexById(undefined));
-    assert.equal(graph.getVertexId(ref), graph.getIdOf(ref));
-    const saved = external.notMutatedResolvedGraph;
+    assert.equal(ref, graph.getVertexRefById(undefined));
+    assert(ref);
+    assert.equal(graph.getVertexId(ref), undefined);
+    assert.equal('getIdOf' in graph, false);
+    assert.equal('getVertexById' in graph, false);
+    const saved = external.originalGraphView;
     const savedRef = saved.getVertexRefById(undefined);
     assert.equal(saved.getVertexId(savedRef), undefined);
-    assert.equal(savedRef, saved.getVertexById(undefined));
+    assert.equal(savedRef, saved.getVertexRefById(undefined));
     const token = external.summary().vertices.get(undefined).generation;
     external.settle(undefined, { kind: 'workCompleted' }, token);
     assert.equal(external.getStopReason(), 'awaitingSettlement');
-    // Emission-only update retains callback selection; ON_READY now emits.
-    for await (const event of external.getIterable({
-      emitPhases: [Order.ON_READY],
+    // Emission-only update retains callback selection; ON_WORK_READY now emits.
+    for await (const event of external.iterateEvents({
+      emitEvents: ['workCompleted'],
     }))
       deferredEvents.push(event);
     assert.equal(deferredEvents.length, 1);
     assert.equal(external.getStopReason(), 'finished');
 
     const selectedCalls = [];
-    const selected = new Traversal({
+    const selected = new TreeTraversal({
       traversableTree: tree,
       visitors: {
-        [Order.ON_READY]: {
+        [Order.ON_WORK_READY]: {
           visitor: () => {
             selectedCalls.push('ready');
           },
           priority: 1,
         },
       },
-    }).makeRunner();
-    await selected.run({ emitPhases: [], visitorPhases: { exclude: [] } });
+    }).createRunner();
+    await selected.run({ emitEvents: [], visitorPhases: { exclude: [] } });
     assert.deepEqual(selectedCalls, ['ready', 'ready']);
-    const legacySelected = new Traversal({
+    const legacySelected = new TreeTraversal({
       traversableTree: tree,
       visitors: {
-        [Order.ON_READY]: () => {
+        [Order.ON_WORK_READY]: () => {
           selectedCalls.push('legacy');
         },
       },
-    }).makeRunner();
+    }).createRunner();
     await legacySelected.run({
-      iterateOver: [],
-      enableVisitorFunctionsFor: [Order.ON_READY],
-      disableVisitorFunctionsFor: [Order.ON_READY],
+      emitEvents: [],
+      visitorPhases: { include: [Order.ON_WORK_READY] },
     });
     assert.deepEqual(selectedCalls, ['ready', 'ready', 'legacy', 'legacy']);
 
     const events = [];
-    const batched = new Traversal({
+    const batched = new TreeTraversal({
       traversableGraph: {
-        makeRoot: () => found('root'),
-        makeVertex: (id) => found(id),
+        resolveRoot: () => found('root'),
+        resolveChild: (id) => found(id),
       },
     });
     batched.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       (vertex) => {
         events.push(vertex.getData());
       },
       { priority: 1000 },
     );
     batched.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       () => {
         events.push('group');
         return {
@@ -314,21 +329,21 @@ for (const [api, other] of [
       { commandCommitMode: 'afterGroup', priority: 1 },
     );
     batched.addVisitorFor(
-      Order.ON_READY,
+      Order.ON_WORK_READY,
       (vertex) => {
         events.push(vertex.getData());
       },
       {
-        resolutionStyle: api.TraversalVisitorFunctionResolutionStyle.CONCURRENT,
+        commandCommitMode: 'afterGroup',
         priority: 0,
       },
     );
-    await batched.makeRunner().run();
+    await batched.createRunner().run();
     assert.deepEqual(events, ['root', 'group', 'root']);
 
     // Consumers that intend group-first execution express explicit ordered groups.
-    const [high, ...low] = batched.listVisitorsFor(Order.ON_READY);
-    batched.setVisitorsFor(Order.ON_READY, {
+    const [high, ...low] = batched.listVisitorsFor(Order.ON_WORK_READY);
+    batched.setVisitorsFor(Order.ON_WORK_READY, {
       groups: [
         {
           commandCommitMode: 'afterGroup',
@@ -338,27 +353,37 @@ for (const [api, other] of [
       ],
     });
     batched.setVisitorsFor(
-      Order.ON_READY,
-      batched.listVisitorsFor(Order.ON_READY),
+      Order.ON_WORK_READY,
+      batched.listVisitorsFor(Order.ON_WORK_READY),
     );
     events.length = 0;
-    await batched.makeRunner().run();
+    await batched.createRunner().run();
     assert.deepEqual(events, ['group', 'root', 'changed']);
 
-    const fatal = new Traversal({
+    const fatal = new TreeTraversal({
       traversableGraph: {
-        makeRoot: () => found('fatal'),
-        makeVertex: (id) => found(id),
+        resolveRoot: () => found('fatal'),
+        resolveChild: (id) => found(id),
       },
     });
-    fatal.addVisitorFor(Order.ON_READY, () => other.DEFER_READY);
-    const fatalRunner = fatal.makeRunner();
+    fatal.addVisitorFor(Order.ON_WORK_READY, () => ({
+      commands: [
+        {
+          commandName: other.TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+        },
+      ],
+    }));
+    const fatalRunner = fatal.createRunner();
     await fatalRunner.run();
     const generation = fatalRunner.summary().vertices.get('fatal').generation;
     const error = { exact: 'value' };
     fatalRunner.settle('fatal', { kind: 'traversalFailed', error }, generation);
     assert.equal(
-      fatalRunner.settle('fatal', { ok: false, error }, generation),
+      fatalRunner.settle(
+        'fatal',
+        { kind: 'traversalFailed', error },
+        generation,
+      ),
       false,
     );
     let caught;
@@ -369,71 +394,78 @@ for (const [api, other] of [
     }
     assert.equal(caught, error);
 
-    const lookup = new Traversal({
+    const lookup = new TreeTraversal({
       traversableGraph: {
-        makeRoot: () =>
+        resolveRoot: () =>
           found('app', [], {
-            dependsOn: ['optional'],
-            dependsOnComplete: ['optional'],
+            dependsOnWork: ['optional'],
+            dependsOnSubgraphCompletion: ['optional'],
           }),
-        makeVertex: (id) => found(id),
+        resolveChild: (id) => found(id),
         resolvePrerequisite: () => ({
           kind: 'omitted',
           satisfiesDependencies: true,
         }),
       },
-    }).makeRunner();
+    }).createRunner();
     await lookup.run();
     assert.equal(lookup.summary().vertices.get('app').work, 'completed');
   }
 
+  assert.throws(
+    () => new api.ObjectTreeSource({}, { makeVertexHook: () => ({}) }),
+    TypeError,
+  );
   for (const hook of [
     {
-      resolveVertexHook: (hint) =>
+      resolveChildHook: (hint) =>
         hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
     },
     {
-      makeVertexHook: (hint) => (hint.key === 'skip' ? { returnMe: null } : {}),
+      resolveChildHook: (hint) =>
+        hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
     },
   ]) {
-    const result = api.rewriteObject.rewriteObject(
+    const result = api.rewriteObject(
       { keep: 1, skip: 2 },
       {
         ...hook,
         rewrite: ({ key }) =>
-          key === 'keep' ? { rewrite: { value: undefined } } : undefined,
+          key === 'keep'
+            ? { kind: 'rewrite', patch: { value: undefined } }
+            : undefined,
       },
     );
-    assert.deepEqual(result.outputObject, { keep: undefined });
+    assert.deepEqual(result.outputAtReturn, { keep: undefined });
   }
   assert.throws(
     () =>
-      api.rewriteObject.rewriteObject(
+      api.rewriteObject(
         { a: 1 },
         {
-          rewrite: () => ({ rewrite: undefined }),
+          rewrite: () => ({ kind: 'rewrite', patch: undefined }),
         },
       ),
     TypeError,
   );
   for (const field of [
     'vertexId',
-    'dependsOn',
-    'dependsOnComplete',
+    'dependsOnWork',
+    'dependsOnSubgraphCompletion',
     'satisfiesDependencies',
   ]) {
     assert.throws(
       () =>
-        api.traverseDepthFirst({
+        api.traverseTreeDepthFirst({
           traversableTree: {
-            makeRoot: () => ({
+            resolveRoot: () => ({
               kind: 'found',
               vertex: {
                 [field]: undefined,
                 vertexContent: { $data: '', $childHints: [] },
               },
             }),
-            makeVertex: () => treeFound('unused'),
+            resolveChild: () => treeFound('unused'),
           },
         }),
       TypeError,
@@ -442,13 +474,13 @@ for (const [api, other] of [
 
   for (const commandName of [
     Command.REWRITE_CHILD_HINTS,
-    Command.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+    Command.REWRITE_CHILD_HINTS,
   ]) {
     const visits = [];
-    api.traverseDepthFirst({
+    api.traverseTreeDepthFirst({
       traversableTree: tree,
       visitors: {
-        [api.DepthFirstTraversalOrder.PRE_ORDER]: (vertex) => {
+        [api.DepthFirstPhase.PRE_ORDER]: (vertex) => {
           visits.push(vertex.getData());
           return {
             commands: [{ commandName, commandArguments: { newHints: [] } }],
@@ -458,4 +490,44 @@ for (const [api, other] of [
     });
     assert.deepEqual(visits, ['root']);
   }
+}
+
+// Both installed module identities enforce scoped command envelopes at runtime.
+for (const api of [cjs, esm]) {
+  const tree = {
+    resolveRoot: () => ({
+      kind: 'found',
+      vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+    }),
+    resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+  };
+  const dag = new api.DagTraversal({ traversableTree: tree });
+  dag.addVisitorFor(api.DagVisitorPhase.ON_WORK_READY, () => ({
+    commands: [
+      {
+        commandName: api.TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE,
+      },
+    ],
+  }));
+  assert.equal(
+    dag.createRunner().run().getResolvedGraphView().getVertexRefs().length,
+    0,
+  );
+  assert.throws(
+    () =>
+      new api.DagTraversal({
+        traversableTree: tree,
+        omittedWorkDependencies: 'none',
+      }),
+    /graph discovery source/,
+  );
+  const wrong = new api.DepthFirstTreeTraversal({ traversableTree: tree });
+  wrong.addVisitorFor(api.DepthFirstPhase.PRE_ORDER, () => ({
+    commands: [
+      {
+        commandName: api.TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE,
+      },
+    ],
+  }));
+  assert.throws(() => wrong.createRunner().run(), /traversal family/);
 }

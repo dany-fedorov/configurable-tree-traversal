@@ -17,12 +17,12 @@ it('runs mixed callbacks with emissions suppressed and unchanged source discover
   });
   traversal.addVisitorFor(Phase.EDGE, (event) => {
     seen.push(
-      `e:${event.source.vertexId}:${event.edge.index}:${event.target.kind}`,
+      `e:${event.source.vertexId}:${event.edge.outgoingIndex}:${event.target.kind}`,
     );
   });
-  expect([...traversal.makeRunner().getIterable({ emitPhases: [] })]).toEqual(
-    [],
-  );
+  expect([
+    ...traversal.createRunner().iterateEvents({ emitEvents: [] }),
+  ]).toEqual([]);
   expect(seen).toEqual([
     'v:A',
     'v:E',
@@ -61,11 +61,11 @@ it('halts after its group and resumes only the remaining callbacks', () => {
   const seen: string[] = [];
   const traversal = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
   traversal.addVisitorGroupFor(Phase.VERTEX, {
-    commandCommitMode: 'afterGroup',
+    commandCommitMode: 'afterGroup' as const,
     visitors: [
       () => {
         seen.push('first');
-        return { commands: [{ commandName: C.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: C.PAUSE_TRAVERSAL }] };
       },
       () => {
         seen.push('second');
@@ -75,12 +75,12 @@ it('halts after its group and resumes only the remaining callbacks', () => {
   traversal.addVisitorFor(Phase.VERTEX, () => {
     seen.push('third');
   });
-  const runner = traversal.makeRunner().run();
+  const runner = traversal.createRunner().run();
   expect(seen).toEqual(['first', 'second']);
   expect(runner.getStopReason()).toBe('paused');
   expect(runner.inspect().activeVisitor).toEqual({
     phase: Phase.VERTEX,
-    position: 2,
+    visitorIndex: 2,
   });
   runner.run();
   expect(seen).toEqual(['first', 'second', 'third']);
@@ -100,18 +100,18 @@ it('commits flat afterGroup batches at sorted mode boundaries and halts once per
       Phase.VERTEX,
       () => {
         seen.push(label);
-        return { commands: [{ commandName: C.HALT_TRAVERSAL }] };
+        return { commands: [{ commandName: C.PAUSE_TRAVERSAL }] };
       },
       { priority, commandCommitMode: mode },
     );
-  const runner = traversal.makeRunner().run();
+  const runner = traversal.createRunner().run();
   expect(seen).toEqual(['high', 'middle']);
   runner.run();
   expect(seen).toEqual(['high', 'middle', 'each']);
   runner.run();
   expect(seen).toEqual(['high', 'middle', 'each', 'tail']);
   expect(runner.isHalted()).toBe(true);
-  expect([...runner.getIterable()]).toMatchObject([
+  expect([...runner.iterateEvents()]).toMatchObject([
     { kind: 'vertex', vertex: { vertexId: 'A' } },
   ]);
 });
@@ -124,8 +124,8 @@ it('detaches list and context wrappers while preserving callback and group metad
     context,
   ) => {
     contexts.push(context);
-    expect('visitor' in context.visitorRecord).toBe(false);
-    (context.visitorRecord as { priority: number }).priority = -1;
+    expect('visitor' in context.registration).toBe(false);
+    (context.registration as { priority: number }).priority = -1;
     seen.push('first');
   };
   const t = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
@@ -141,16 +141,16 @@ it('detaches list and context wrappers while preserving callback and group metad
       seen.push('wrong');
     },
   });
-  t.makeRunner().run();
-  t.makeRunner().run();
+  t.createRunner().run();
+  t.createRunner().run();
   expect(seen).toEqual(['first', 'first']);
   expect(t.listVisitorsFor(Phase.VERTEX)[0]!.priority).toBe(100);
-  expect(contexts[0]!.visitorRecord.visitorGroup).toBe(group);
-  expect(contexts[0]!.visitorRecord).not.toBe(contexts[1]!.visitorRecord);
+  expect(contexts[0]!.registration.visitorGroup).toBe(group);
+  expect(contexts[0]!.registration).not.toBe(contexts[1]!.registration);
   expect(contexts[0]).toMatchObject({
-    order: Phase.VERTEX,
-    occurrenceIndex: 0,
-    observationIndex: 0,
+    phase: Phase.VERTEX,
+    admissionIndex: 0,
+    phaseObservationIndex: 0,
     visitorIndex: 0,
   });
 });
@@ -165,13 +165,13 @@ it('supplies logical phase and occurrence indices independently of emission and 
         ['B', []],
       ],
     ),
-    emitPhases: [],
+    emitEvents: [],
   });
   t.addVisitorFor(Phase.EDGE, (event, context) => {
     seen.push([
       event.kind,
-      context.occurrenceIndex,
-      context.observationIndex,
+      context.admissionIndex,
+      context.phaseObservationIndex,
       context.visitorIndex,
     ]);
   });
@@ -179,11 +179,11 @@ it('supplies logical phase and occurrence indices independently of emission and 
     seen.push([
       event.kind,
       event.vertices.map((v) => v.vertexId),
-      context.occurrenceIndex,
-      context.observationIndex,
+      context.admissionIndex,
+      context.phaseObservationIndex,
     ]);
   });
-  t.makeRunner().run({ visitorPhases: { exclude: [Phase.VERTEX] } });
+  t.createRunner().run({ visitorPhases: { exclude: [Phase.VERTEX] } });
   expect(seen).toEqual([
     ['path', ['A'], 0, 0],
     ['edge', 1, 0, 0],
@@ -203,14 +203,17 @@ it('keeps previous configuration after invalid phase/group/merged-bound patches'
     },
   });
   for (const patch of [
-    { visitors: { ON_READY: [] } },
+    { visitors: { ON_WORK_READY: [] } },
     {
       visitors: {
         vertex: {
           groups: [
             {
               visitors: [
-                { visitor: () => undefined, commandCommitMode: 'afterGroup' },
+                {
+                  visitor: () => undefined,
+                  commandCommitMode: 'afterGroup' as const,
+                },
               ],
             },
           ],
@@ -221,16 +224,16 @@ it('keeps previous configuration after invalid phase/group/merged-bound patches'
     { strategy: 'depthFirst', visitors: { edge: { groups: null } } },
   ])
     expect(() => t.configure(patch as never)).toThrow(TypeError);
-  expect(() => t.addVisitorFor('ON_READY' as Phase, () => undefined)).toThrow(
-    TypeError,
-  );
+  expect(() =>
+    t.addVisitorFor('ON_WORK_READY' as Phase, () => undefined),
+  ).toThrow(TypeError);
   expect(() =>
     t.addVisitorGroupFor(Phase.VERTEX, { visitors: null } as never),
   ).toThrow(TypeError);
   expect(() => t.setVisitorsFor(Phase.VERTEX, null as never)).toThrow(
     TypeError,
   );
-  t.makeRunner().run();
+  t.createRunner().run();
   expect(seen).toEqual(['original']);
 });
 
@@ -240,18 +243,18 @@ it('snapshots registrations, source identities and factory configuration per run
   t.addVisitorFor(Phase.VERTEX, () => {
     seen.push('first');
   });
-  const old = t.makeRunner();
+  const old = t.createRunner();
   t.configure({
     source: idGraph(['B'], [['B', []]]),
-    emitPhases: [Phase.PATH],
+    emitEvents: [Phase.PATH],
   });
   t.addVisitorFor(Phase.VERTEX, () => {
     seen.push('second');
   });
-  expect([...old.getIterable()]).toMatchObject([
+  expect([...old.iterateEvents()]).toMatchObject([
     { kind: 'vertex', vertex: { vertexId: 'A' } },
   ]);
-  expect([...t.makeRunner().getIterable()]).toMatchObject([
+  expect([...t.createRunner().iterateEvents()]).toMatchObject([
     { kind: 'path', vertices: [{ vertexId: 'B' }] },
   ]);
   expect(seen).toEqual(['first', 'first', 'second']);
@@ -261,16 +264,18 @@ it('validates the whole command batch before applying HALT', () => {
   const seen: string[] = [];
   const t = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
   t.addVisitorGroupFor(Phase.VERTEX, {
-    commandCommitMode: 'afterGroup',
+    commandCommitMode: 'afterGroup' as const,
     visitors: [
-      () => ({ commands: [{ commandName: C.HALT_TRAVERSAL }] }),
+      () => ({ commands: [{ commandName: C.PAUSE_TRAVERSAL }] }),
       () => {
         seen.push('invalid');
-        return { commands: [{ commandName: C.DELETE_VERTEX }] } as never;
+        return {
+          commands: [{ commandName: C.DELETE_DAG_VERTEX_CASCADE }],
+        } as never;
       },
     ],
   });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(seen).toEqual(['invalid']);
   expect(runner.getStatus()).toBe(Status.FAILED);
@@ -289,14 +294,14 @@ it.each([
   { commands: new Array<unknown>(1) },
   { commands: [{}] },
   { commands: [{ commandName: C.NOOP, commandArguments: {} }] },
-  { commands: [{ commandName: C.HALT_TRAVERSAL, commandArguments: {} }] },
-  { commands: [{ commandName: C.DEFER_READY }] },
+  { commands: [{ commandName: C.PAUSE_TRAVERSAL, commandArguments: {} }] },
+  { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] },
 ])('rejects malformed visitor results and unsupported commands %#', (value) => {
   const t = new GraphWalk({
     source: idGraph(['A'], [['A', []]]),
     visitors: { vertex: () => value as never },
   });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
   expect(() => runner.run()).toThrow(TypeError);
   expect(runner.getStatus()).toBe(Status.FAILED);
 });
@@ -313,7 +318,7 @@ it('accepts void, empty results, empty commands and NOOP without control changes
       ],
     },
   });
-  expect(t.makeRunner().run().getStatus()).toBe(Status.FINISHED);
+  expect(t.createRunner().run().getStatus()).toBe(Status.FINISHED);
 });
 
 it('defensively rejects thenables returned from synchronous visitors', async () => {
@@ -321,18 +326,18 @@ it('defensively rejects thenables returned from synchronous visitors', async () 
     source: idGraph(['A'], [['A', []]]),
     visitors: { vertex: () => Promise.reject('async visitor') as never },
   });
-  expect(() => t.makeRunner().run()).toThrow(TypeError);
+  expect(() => t.createRunner().run()).toThrow(TypeError);
   await Promise.resolve();
 });
 
 it('captures buffered command names before a later group callback mutates caller commands', () => {
   const command = {
-    commandName: C.HALT_TRAVERSAL as C.HALT_TRAVERSAL | C.NOOP,
+    commandName: C.PAUSE_TRAVERSAL as C.PAUSE_TRAVERSAL | C.NOOP,
   };
   const seen: string[] = [];
   const t = new GraphWalk({ source: idGraph(['A'], [['A', []]]) });
   t.addVisitorGroupFor(Phase.VERTEX, {
-    commandCommitMode: 'afterGroup',
+    commandCommitMode: 'afterGroup' as const,
     visitors: [
       () => ({ commands: [command] }),
       () => {
@@ -344,7 +349,7 @@ it('captures buffered command names before a later group callback mutates caller
   t.addVisitorFor(Phase.VERTEX, () => {
     seen.push('next group');
   });
-  const runner = t.makeRunner().run();
+  const runner = t.createRunner().run();
   expect(seen).toEqual(['same group']);
   expect(runner.getStatus()).toBe(Status.HALTED);
   runner.run();
@@ -361,14 +366,14 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
         ({
           commands: [
             { commandName: C.NOOP, commandArguments: undefined },
-            { commandName: C.HALT_TRAVERSAL, commandArguments: undefined },
+            { commandName: C.PAUSE_TRAVERSAL, commandArguments: undefined },
           ],
         } as never),
     );
     traversal.addVisitorFor(Phase.VERTEX, () => {
       seen.push('resumed');
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await runner.run();
     expect(runner.isHalted()).toBe(true);
     await runner.run();

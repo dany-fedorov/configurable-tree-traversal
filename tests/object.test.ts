@@ -1,12 +1,12 @@
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
+import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
 import {
   rewriteObject,
   rewriteObjectAs,
 } from '../src/tools/rewrite-object/rewriteObject';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal';
-import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { BreadthFirstTraversal } from '../src/traversals/breadth-first-traversal';
-import { BreadthFirstTraversalOrder } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
+import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { BreadthFirstTreeTraversal } from '../src/traversals/breadth-first-traversal';
+import { BreadthFirstPhase } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
 
 describe('object rewriting', () => {
@@ -16,14 +16,14 @@ describe('object rewriting', () => {
       sibling: ['x', 'y'],
     };
 
-    const { outputObject } = rewriteObject(input, {
+    const { outputAtReturn } = rewriteObject(input, {
       rewrite: ({ value }) =>
         typeof value === 'number'
-          ? { rewrite: { value: value + 10 } }
+          ? { kind: 'rewrite', patch: { value: value + 10 } }
           : undefined,
     });
 
-    expect(outputObject).toEqual({
+    expect(outputAtReturn).toEqual({
       branch: { keep: 11, change: 12 },
       sibling: ['x', 'y'],
     });
@@ -37,15 +37,15 @@ describe('object rewriting', () => {
     const secret = Symbol('secret');
     const input = { visible: 1, [secret]: 2 };
 
-    const { outputObject } = rewriteObject(input, {
+    const { outputAtReturn } = rewriteObject(input, {
       rewrite: ({ value }) =>
         typeof value === 'number'
-          ? { rewrite: { value: value * 10 } }
+          ? { kind: 'rewrite', patch: { value: value * 10 } }
           : undefined,
     });
 
-    expect(outputObject).toEqual({ visible: 10, [secret]: 20 });
-    expect(Reflect.ownKeys(outputObject as object)).toEqual([
+    expect(outputAtReturn).toEqual({ visible: 10, [secret]: 20 });
+    expect(Reflect.ownKeys(outputAtReturn as object)).toEqual([
       'visible',
       secret,
     ]);
@@ -63,24 +63,24 @@ describe('object rewriting', () => {
     input.label = 'array';
     input[metadata] = 'symbol';
 
-    const { outputObject } = rewriteObjectAs<typeof input>(input, {
+    const { outputAtReturn } = rewriteObjectAs<typeof input>(input, {
       rewrite: ({ value }) =>
         typeof value === 'string'
-          ? { rewrite: { value: value.toUpperCase() } }
+          ? { kind: 'rewrite', patch: { value: value.toUpperCase() } }
           : undefined,
     });
 
-    expect(outputObject).toHaveLength(2);
-    expect(Array.from(outputObject!)).toEqual(['ONE', 'THREE']);
-    expect(outputObject!.label).toBe('ARRAY');
-    expect(outputObject![metadata]).toBe('SYMBOL');
+    expect(outputAtReturn).toHaveLength(2);
+    expect(Array.from(outputAtReturn!)).toEqual(['ONE', 'THREE']);
+    expect(outputAtReturn!.label).toBe('ARRAY');
+    expect(outputAtReturn![metadata]).toBe('SYMBOL');
   });
 
   test('compacts numeric array children after deletion', () => {
     expect(
       rewriteObject([1, 2, 3], {
-        rewrite: ({ value }) => (value === 2 ? { delete: true } : undefined),
-      }).outputObject,
+        rewrite: ({ value }) => (value === 2 ? { kind: 'delete' } : undefined),
+      }).outputAtReturn,
     ).toEqual([1, 3]);
   });
 
@@ -90,22 +90,22 @@ describe('object rewriting', () => {
     ['number', 42],
     ['string', 'root'],
   ])('returns an unchanged %s root', (_name, input) => {
-    expect(rewriteObject(input).outputObject).toBe(input);
+    expect(rewriteObject(input).outputAtReturn).toBe(input);
   });
 
   test('rewrites a primitive root', () => {
     expect(
       rewriteObject(3, {
         rewrite: ({ value }) =>
-          value === 3 ? { rewrite: { value: 4 } } : undefined,
-      }).outputObject,
+          value === 3 ? { kind: 'rewrite', patch: { value: 4 } } : undefined,
+      }).outputAtReturn,
     ).toBe(4);
   });
 
   test('returns null when the root is deleted', () => {
     expect(
-      rewriteObject({ value: 1 }, { rewrite: () => ({ delete: true }) })
-        .outputObject,
+      rewriteObject({ value: 1 }, { rewrite: () => ({ kind: 'delete' }) })
+        .outputAtReturn,
     ).toBeNull();
   });
 
@@ -114,11 +114,10 @@ describe('object rewriting', () => {
       rewriteObject(
         { value: 1 },
         {
-          rewrite: () => ({ delete: true }),
-          getOutputObjectFromRootValue: (value) =>
-            value === null ? 'deleted' : 'present',
+          rewrite: () => ({ kind: 'delete' }),
+          convertRootValue: (value) => (value === null ? 'deleted' : 'present'),
         },
-      ).outputObject,
+      ).outputAtReturn,
     ).toBe('deleted');
   });
 
@@ -149,17 +148,17 @@ describe('object rewriting', () => {
   test('rejects cycles under breadth-first traversal with repeated branches', () => {
     const shared: { self?: unknown } = {};
     shared.self = shared;
-    const tree = new TraversableObjectTree({ a: shared, b: shared });
-    const traversal = new BreadthFirstTraversal({ traversableTree: tree });
+    const tree = new ObjectTreeSource({ a: shared, b: shared });
+    const traversal = new BreadthFirstTreeTraversal({ traversableTree: tree });
     let visits = 0;
-    traversal.addVisitorFor(BreadthFirstTraversalOrder.LEVEL_ORDER, () => {
+    traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, () => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
       }
     });
 
-    expect(() => traversal.makeRunner().run()).toThrow(
+    expect(() => traversal.createRunner().run()).toThrow(
       /object identity cycle/i,
     );
     expect(visits).toBeLessThanOrEqual(20);
@@ -167,10 +166,10 @@ describe('object rewriting', () => {
 
   test('detects cycles introduced by rewritten child hints', () => {
     const input = { child: {} };
-    const tree = new TraversableObjectTree(input);
-    const traversal = new DepthFirstTraversal({ traversableTree: tree });
+    const tree = new ObjectTreeSource(input);
+    const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
     let visits = 0;
-    traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (vertex) => {
+    traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
@@ -179,8 +178,7 @@ describe('object rewriting', () => {
         return {
           commands: [
             {
-              commandName:
-                TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER,
+              commandName: TraversalVisitorCommandName.REWRITE_CHILD_HINTS,
               commandArguments: {
                 newHints: [{ key: 'back', value: input }],
               },
@@ -191,7 +189,7 @@ describe('object rewriting', () => {
       return undefined;
     });
 
-    expect(() => traversal.makeRunner().run()).toThrow(
+    expect(() => traversal.createRunner().run()).toThrow(
       /object identity cycle/i,
     );
     expect(visits).toBeLessThanOrEqual(20);
@@ -200,21 +198,25 @@ describe('object rewriting', () => {
   test('keeps cycle ancestry isolated across concurrent adapter runs', () => {
     const input: { self?: unknown } = {};
     input.self = input;
-    const tree = new TraversableObjectTree(input);
-    const firstTraversal = new DepthFirstTraversal({ traversableTree: tree });
+    const tree = new ObjectTreeSource(input);
+    const firstTraversal = new DepthFirstTreeTraversal({
+      traversableTree: tree,
+    });
     let visits = 0;
-    firstTraversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, () => {
+    firstTraversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => {
       visits += 1;
       if (visits > 20) {
         throw new Error('cycle test guard exceeded');
       }
     });
-    const firstIterator = firstTraversal.makeRunner().getIterable();
+    const firstIterator = firstTraversal.createRunner().iterateEvents();
     expect(firstIterator.next().done).toBe(false);
 
-    const secondIterator = new DepthFirstTraversal({ traversableTree: tree })
-      .makeRunner()
-      .getIterable();
+    const secondIterator = new DepthFirstTreeTraversal({
+      traversableTree: tree,
+    })
+      .createRunner()
+      .iterateEvents();
     expect(secondIterator.next().done).toBe(false);
     secondIterator.return(undefined);
 
@@ -229,23 +231,27 @@ describe('object rewriting', () => {
   test('allows one object in separate branches', () => {
     const shared = { leaf: 1 };
 
-    expect(rewriteObject({ left: shared, right: shared }).outputObject).toEqual(
-      {
-        left: { leaf: 1 },
-        right: { leaf: 1 },
-      },
-    );
+    expect(
+      rewriteObject({ left: shared, right: shared }).outputAtReturn,
+    ).toEqual({
+      left: { leaf: 1 },
+      right: { leaf: 1 },
+    });
   });
 
   test('allows a traversable object adapter to be reused', () => {
     const input = { child: { leaf: 1 } };
-    const tree = new TraversableObjectTree(input);
+    const tree = new ObjectTreeSource(input);
 
     expect(() =>
-      new DepthFirstTraversal({ traversableTree: tree }).makeRunner().run(),
+      new DepthFirstTreeTraversal({ traversableTree: tree })
+        .createRunner()
+        .run(),
     ).not.toThrow();
     expect(() =>
-      new DepthFirstTraversal({ traversableTree: tree }).makeRunner().run(),
+      new DepthFirstTreeTraversal({ traversableTree: tree })
+        .createRunner()
+        .run(),
     ).not.toThrow();
   });
 });

@@ -1,30 +1,34 @@
+import { assertOwnKeys } from '@core/assertPublicOptions';
+import type { VisitorRecord } from '@core/graph/types';
 import { normalizeTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
+import type {
+  ResolvedTraversalExecutionOptions,
+  TraversalIterableConfigInput,
+} from '@core/TraversalRunnerIterableConfig';
+import type { VisitorPhaseInput } from '@core/TraversalVisitor';
 import {
   copyVisitorRecords,
   normalizeVisitorDefinitions,
 } from '@core/visitors/normalizeVisitorDefinitions';
-import type { VisitorPhaseInput } from '@core/TraversalVisitor';
-import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
-import type { EffectiveTraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
-import type { VisitorRecord } from '@core/graph/types';
-import type { GraphWalkSource, AsyncGraphWalkSource } from '../GraphWalkSource';
 import type {
-  GraphWalkStrategy,
-  GraphWalkRevisitPolicy,
+  AsyncGraphWalkEdgePredicate,
+  AsyncGraphWalkExpansionPredicate,
+  GraphWalkEdgePredicate,
+  GraphWalkExpansionPredicate,
   GraphWalkLimits,
-  GraphWalkFollowEdge,
-  AsyncGraphWalkFollowEdge,
-  GraphWalkExpandVertex,
-  AsyncGraphWalkExpandVertex,
+  GraphWalkRevisitPolicy,
+  GraphWalkStrategy,
 } from '../GraphWalkOptions';
-import type {
-  GraphWalkVisitor,
-  AsyncGraphWalkVisitor,
-} from '../GraphWalkVisitor';
 import { GraphWalkPhase } from '../GraphWalkPhase';
+import type { AsyncGraphWalkSource, GraphWalkSource } from '../GraphWalkSource';
+import type {
+  AsyncGraphWalkVisitor,
+  GraphWalkVisitor,
+} from '../GraphWalkVisitor';
 
 /** Captured methods retain the caller receiver without binding or freezing it. */
 export type NormalizedWalkSource<Data, Edge, ID> = {
+  hydration: 'resolver' | 'inlineOrCached';
   receiver:
     | GraphWalkSource<Data, Edge, ID>
     | AsyncGraphWalkSource<Data, Edge, ID>;
@@ -41,25 +45,25 @@ export type NormalizedWalkSource<Data, Edge, ID> = {
 export type WalkVisitor<Data, Edge, Phase extends GraphWalkPhase, ID> =
   | GraphWalkVisitor<Data, Edge, Phase, ID>
   | AsyncGraphWalkVisitor<Data, Edge, Phase, ID>;
-export type NormalizedWalkOptions<Data, Edge, ID> = {
+export type GraphWalkResolvedOptions<Data, Edge, ID> = {
   source: NormalizedWalkSource<Data, Edge, ID>;
   strategy: GraphWalkStrategy;
   revisit: GraphWalkRevisitPolicy;
   limits: GraphWalkLimits;
-  followEdge:
-    | GraphWalkFollowEdge<Data, Edge, ID>
-    | AsyncGraphWalkFollowEdge<Data, Edge, ID>
+  shouldFollowEdge:
+    | GraphWalkEdgePredicate<Data, Edge, ID>
+    | AsyncGraphWalkEdgePredicate<Data, Edge, ID>
     | undefined;
-  expandVertex:
-    | GraphWalkExpandVertex<Data, Edge, ID>
-    | AsyncGraphWalkExpandVertex<Data, Edge, ID>
+  shouldExpandVertex:
+    | GraphWalkExpansionPredicate<Data, Edge, ID>
+    | AsyncGraphWalkExpansionPredicate<Data, Edge, ID>
     | undefined;
   visitors: {
     [Phase in GraphWalkPhase]: VisitorRecord<
       WalkVisitor<Data, Edge, Phase, ID>
     >[];
   };
-  execution: EffectiveTraversalExecutionOptions<GraphWalkPhase>;
+  execution: ResolvedTraversalExecutionOptions<GraphWalkPhase>;
 };
 
 const phases = [
@@ -78,22 +82,32 @@ function object(value: unknown, message: string): Record<string, unknown> {
 function captureSource<Data, Edge, ID>(
   value: unknown,
 ): NormalizedWalkSource<Data, Edge, ID> {
-  const source = object(value, 'Walking source must be an object');
-  const roots = source['roots'];
-  const outgoing = source['outgoing'];
-  const resolveVertex = source['resolveVertex'];
+  if (
+    value === null ||
+    (typeof value !== 'object' && typeof value !== 'function') ||
+    Array.isArray(value)
+  )
+    throw new TypeError('Walking source must be an object or function');
+  const hydration: unknown = Reflect.get(value, 'hydration');
+  const roots: unknown = Reflect.get(value, 'roots');
+  const outgoing: unknown = Reflect.get(value, 'outgoing');
+  const resolveVertex: unknown = Reflect.get(value, 'resolveVertex');
   if (
     typeof roots !== 'function' ||
     typeof outgoing !== 'function' ||
-    (resolveVertex !== undefined && typeof resolveVertex !== 'function')
+    (hydration !== 'resolver' && hydration !== 'inlineOrCached') ||
+    (hydration === 'resolver'
+      ? typeof resolveVertex !== 'function'
+      : resolveVertex !== undefined)
   ) {
     throw new TypeError(
-      'Walking source requires roots/outgoing and an optional resolver',
+      'Walking source requires roots/outgoing and explicit hydration with a resolver only in resolver mode',
     );
   }
   // Only invocation signatures cross this unknown-input boundary. Callers are
   // invoked by the sessions, which validate their returned protocols/results.
   return {
+    hydration,
     receiver: value,
     roots,
     outgoing,
@@ -101,18 +115,19 @@ function captureSource<Data, Edge, ID>(
   } as NormalizedWalkSource<Data, Edge, ID>;
 }
 
-function assertKnownKeys(value: object, keys: readonly string[]): void {
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string' || !keys.includes(key))
-      throw new TypeError(`Unknown walking option: ${String(key)}`);
-  }
-}
-
 function copyLimits(input: unknown): GraphWalkLimits {
   const value = object(input, 'Walking limits must be an object');
-  assertKnownKeys(value, ['maxDepth', 'maxOccurrences', 'maxSteps']);
+  assertOwnKeys(value, [
+    'maxDepth',
+    'maxAdmittedTargets',
+    'maxCandidateReadAttempts',
+  ]);
   const result: GraphWalkLimits = {};
-  for (const key of ['maxDepth', 'maxOccurrences', 'maxSteps'] as const) {
+  for (const key of [
+    'maxDepth',
+    'maxAdmittedTargets',
+    'maxCandidateReadAttempts',
+  ] as const) {
     const bound = value[key];
     if (bound !== undefined) {
       if (
@@ -131,8 +146,8 @@ function copyLimits(input: unknown): GraphWalkLimits {
 /** Validate a detached candidate before a facade commits any configuration. */
 export function normalizeWalkOptions<Data, Edge, ID>(
   input: unknown,
-  previous?: NormalizedWalkOptions<Data, Edge, ID>,
-): NormalizedWalkOptions<Data, Edge, ID> {
+  previous?: GraphWalkResolvedOptions<Data, Edge, ID>,
+): GraphWalkResolvedOptions<Data, Edge, ID> {
   const value = object(input, 'Walking options must be an object');
   if (Object.prototype.hasOwnProperty.call(value, 'concurrency')) {
     throw new TypeError('Walking does not support a concurrency option');
@@ -143,16 +158,13 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     'strategy',
     'revisit',
     'limits',
-    'followEdge',
-    'expandVertex',
+    'shouldFollowEdge',
+    'shouldExpandVertex',
     'visitors',
-    'emitPhases',
-    'iterateOver',
+    'emitEvents',
     'visitorPhases',
-    'enableVisitorFunctionsFor',
-    'disableVisitorFunctionsFor',
   ];
-  assertKnownKeys(value, keys);
+  assertOwnKeys(value, keys);
   for (const key of keys) {
     if (Object.prototype.hasOwnProperty.call(value, key))
       snapshot[key] = value[key];
@@ -183,25 +195,29 @@ export function normalizeWalkOptions<Data, Edge, ID>(
   if (
     revisit !== 'once' &&
     limits.maxDepth === undefined &&
-    limits.maxSteps === undefined
+    limits.maxCandidateReadAttempts === undefined
   ) {
-    throw new TypeError('Route enumeration requires maxDepth or maxSteps');
+    throw new TypeError(
+      'Route enumeration requires maxDepth or maxCandidateReadAttempts',
+    );
   }
-  const followEdge =
-    snapshot['followEdge'] === undefined
-      ? previous?.followEdge
-      : snapshot['followEdge'] === null
+  const shouldFollowEdge =
+    snapshot['shouldFollowEdge'] === undefined
+      ? previous?.shouldFollowEdge
+      : snapshot['shouldFollowEdge'] === null
       ? undefined
-      : snapshot['followEdge'];
-  const expandVertex =
-    snapshot['expandVertex'] === undefined
-      ? previous?.expandVertex
-      : snapshot['expandVertex'] === null
+      : snapshot['shouldFollowEdge'];
+  const shouldExpandVertex =
+    snapshot['shouldExpandVertex'] === undefined
+      ? previous?.shouldExpandVertex
+      : snapshot['shouldExpandVertex'] === null
       ? undefined
-      : snapshot['expandVertex'];
+      : snapshot['shouldExpandVertex'];
   if (
-    (followEdge !== undefined && typeof followEdge !== 'function') ||
-    (expandVertex !== undefined && typeof expandVertex !== 'function')
+    (shouldFollowEdge !== undefined &&
+      typeof shouldFollowEdge !== 'function') ||
+    (shouldExpandVertex !== undefined &&
+      typeof shouldExpandVertex !== 'function')
   ) {
     throw new TypeError('Walking predicates must be callbacks');
   }
@@ -209,13 +225,7 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     snapshot['visitors'] === undefined
       ? {}
       : object(snapshot['visitors'], 'Walking visitors must be a phase map');
-  if (
-    Object.keys(visitorInput).some(
-      (key) => !phases.includes(key as GraphWalkPhase),
-    )
-  ) {
-    throw new TypeError('Unknown walking visitor phase');
-  }
+  assertOwnKeys(visitorInput, phases);
   function records<Phase extends GraphWalkPhase>(phase: Phase) {
     const entries = visitorInput[phase];
     return entries === undefined
@@ -225,12 +235,16 @@ export function normalizeWalkOptions<Data, Edge, ID>(
         );
   }
   const defaults = normalizeTraversalExecutionOptions(phases, {
-    emitPhases: [GraphWalkPhase.VERTEX],
+    emitEvents: [GraphWalkPhase.VERTEX],
     visitorPhases: 'all',
   });
   const execution = normalizeTraversalExecutionOptions(
     phases,
-    snapshot as TraversalIterableConfigInput<GraphWalkPhase>,
+    Object.fromEntries(
+      Object.entries(snapshot).filter(([key]) =>
+        ['emitEvents', 'visitorPhases'].includes(key),
+      ),
+    ) as TraversalIterableConfigInput<GraphWalkPhase>,
     previous?.execution ?? defaults,
   );
   return {
@@ -238,16 +252,16 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     strategy,
     revisit,
     limits,
-    followEdge: followEdge as NormalizedWalkOptions<
+    shouldFollowEdge: shouldFollowEdge as GraphWalkResolvedOptions<
       Data,
       Edge,
       ID
-    >['followEdge'],
-    expandVertex: expandVertex as NormalizedWalkOptions<
+    >['shouldFollowEdge'],
+    shouldExpandVertex: shouldExpandVertex as GraphWalkResolvedOptions<
       Data,
       Edge,
       ID
-    >['expandVertex'],
+    >['shouldExpandVertex'],
     visitors: {
       [GraphWalkPhase.VERTEX]: records(GraphWalkPhase.VERTEX),
       [GraphWalkPhase.EDGE]: records(GraphWalkPhase.EDGE),

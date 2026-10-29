@@ -3,7 +3,8 @@ import type { GraphWalkPhase } from './GraphWalkPhase';
 
 export type GraphWalkEdge<Edge, ID> = Readonly<{
   from: ID;
-  index: number;
+  /** Zero-based source adjacency position before filtering; stable on cached replay. */
+  outgoingIndex: number;
   to: ID;
   data: Edge;
 }>;
@@ -34,7 +35,7 @@ export type GraphWalkEvent<Data, Edge, ID> =
 export type GraphWalkEventFor<
   Data,
   Edge,
-  Phase extends GraphWalkPhase,
+  Phase extends `${GraphWalkPhase}`,
   ID,
 > = Extract<GraphWalkEvent<Data, Edge, ID>, { kind: `${Phase}` }>;
 

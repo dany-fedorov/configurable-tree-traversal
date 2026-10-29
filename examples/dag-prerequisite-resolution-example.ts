@@ -1,12 +1,12 @@
-import assert from 'node:assert/strict';
 import {
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
-} from '../src/traversals/dag-traversal';
-import type { FoundVertexResult } from '../src/core/TraversableTree';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+  DagVisitorPhase as Order,
+  type DagVertexFound,
+  type VertexTypes,
+} from '../src';
+import assert from 'node:assert/strict';
 
-type ModuleGraph = TreeTypeParameters<string, string>;
+type ModuleGraph = VertexTypes<string, string>;
 const modules = new Map([
   [
     'module:parser',
@@ -19,11 +19,11 @@ const moduleRegistry = {
     return modules.get(id);
   },
 };
-const generatedStep = (id: string): FoundVertexResult<ModuleGraph> => ({
+const generatedStep = (id: string): DagVertexFound<ModuleGraph> => ({
   kind: 'found' as const,
   vertex: {
     vertexId: id,
-    dependsOn: ['module:parser'],
+    dependsOnWork: ['module:parser'],
     vertexContent: { $data: id, $childHints: [] },
   },
 });
@@ -32,16 +32,16 @@ async function main() {
   const events: string[] = [];
   const traversal = new AsyncDagTraversal<ModuleGraph>({
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         kind: 'found' as const,
         vertex: {
           vertexId: 'app',
-          // C includes parser's generated child step. Use dependsOn for W alone.
-          dependsOnComplete: ['module:parser'],
+          // C includes parser's generated child step. Use dependsOnWork for W alone.
+          dependsOnSubgraphCompletion: ['module:parser'],
           vertexContent: { $data: 'app', $childHints: [] },
         },
       }),
-      makeVertex: generatedStep,
+      resolveChild: generatedStep,
       resolvePrerequisite: async (id) => {
         if (typeof id !== 'string') return { kind: 'missing' };
         const definition = await moduleRegistry.find(id);
@@ -51,7 +51,7 @@ async function main() {
               kind: 'found' as const,
               vertex: {
                 vertexId: id,
-                dependsOn: definition.imports,
+                dependsOnWork: definition.imports,
                 vertexContent: {
                   $data: id,
                   $childHints: definition.generatedSteps,
@@ -61,10 +61,10 @@ async function main() {
       },
     },
   });
-  traversal.addVisitorFor(Order.ON_READY, (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
     events.push(vertex.getData());
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   await runner.run();
   assert.deepEqual(events, [
     'module:lexer',
@@ -72,11 +72,11 @@ async function main() {
     'generate-parser',
     'app',
   ]);
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   const parser = graph.getVertexRefById('module:parser')!;
   assert.deepEqual(graph.getParentsOf(parser), []);
   assert.deepEqual(graph.getPathsTo(parser), [[parser]]);
-  assert.equal(runner.summary().counts.subtreeCompleted, 4);
+  assert.equal(runner.summary().counts.subgraphCompleted, 4);
   console.log(events.join('\n'));
 }
 void main();

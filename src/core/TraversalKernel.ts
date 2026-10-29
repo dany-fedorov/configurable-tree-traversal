@@ -1,25 +1,8 @@
 import {
-  getTraversalExecutionPhases,
-  normalizeTraversalExecutionOptions,
-} from './normalizeTraversalExecutionOptions';
-import type {
-  EffectiveTraversalExecutionOptions,
-  TraversalIterableConfigInput,
-} from './TraversalRunnerIterableConfig';
-import type {
-  DagSummary,
-  DagDeferredWork,
-  DagSettlementOutcome,
-  DagSettlementGeneration,
-  DagVertexProgress,
-} from '../traversals/dag-traversal/lib/DagProgress';
-import type { DagInspectionState, VertexId } from '@core/graph/types';
+  BreadthFirstPolicy,
+  type BreadthFirstPolicyState,
+} from '@breadth-first-traversal/lib/BreadthFirstPolicy';
 import type { KernelInspection } from '@core/CoreInspection';
-import { assertDagWorkCompletion } from '../traversals/dag-traversal/lib/DagTraversalInstanceConfig';
-import type { TraversalStopReason } from '@core/TraversalRunner';
-import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
-import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 import type {
   CallbackReply,
   CallSpec,
@@ -29,26 +12,48 @@ import type {
   Outcome,
   OwnerToken,
   PumpMode,
-  VisitOrder,
+  VisitPhase,
 } from '@core/effects/types';
-import type { Ref } from '@core/graph/types';
+import { engineDagValidationErrors } from '@core/errors/engineDagValidationErrors';
 import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
+import type {
+  DagInspectionState,
+  VertexId,
+  VertexRef,
+} from '@core/graph/types';
 import type { ChainState, FrameState, KernelOptions } from '@core/kernelTypes';
-import { PrerequisiteResolution } from '@core/scheduling/PrerequisiteResolution';
 import { GraphScheduling } from '@core/scheduling/GraphScheduling';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import { PrerequisiteResolution } from '@core/scheduling/PrerequisiteResolution';
+import type { TraversalStopReason } from '@core/TraversalRunner';
+import { TraversalRunnerStatus } from '@core/TraversalRunner';
+import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import { normalizeVisitorOptions } from '@core/visitors/normalizeVisitorOptions';
 import { VisitorChain } from '@core/visitors/VisitorChain';
-import { deepFreeze } from '@utils/deepFreeze';
 import {
   DepthFirstPolicy,
   type DepthFirstFrame,
 } from '@depth-first-traversal/lib/DepthFirstPolicy';
-import { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import {
-  BreadthFirstPolicy,
-  type BreadthFirstPolicyState,
-} from '@breadth-first-traversal/lib/BreadthFirstPolicy';
+import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { deepFreeze } from '@utils/deepFreeze';
 import { DagPolicy } from '../traversals/dag-traversal/lib/DagPolicy';
+import type {
+  DagDeferredWork,
+  DagSettlementGeneration,
+  DagSettlementOutcome,
+  DagSummary,
+  DagVertexProgress,
+} from '../traversals/dag-traversal/lib/DagProgress';
+import { assertDagWorkCompletion } from '../traversals/dag-traversal/lib/DagTraversalInstanceConfig';
+import {
+  getTraversalExecutionPhases,
+  normalizeTraversalExecutionOptions,
+  executionOptionsFromPhaseGates,
+} from './normalizeTraversalExecutionOptions';
+import type {
+  ResolvedTraversalExecutionOptions,
+  TraversalIterableConfigInput,
+} from './TraversalRunnerIterableConfig';
 
 type NormalizedDagSettlementOutcome =
   | { kind: 'workCompleted' }
@@ -69,71 +74,55 @@ function normalizeDagSettlementOutcome(
       if (kind === 'traversalFailed' && 'error' in outcome) {
         return { kind: 'traversalFailed', error: outcome.error };
       }
-    } else {
-      const ok = outcome.ok;
-      if (ok === true && !('error' in outcome)) {
-        return { kind: 'workCompleted' };
-      }
-      if (ok === false && 'error' in outcome) {
-        return { kind: 'traversalFailed', error: outcome.error };
-      }
     }
   }
   throw new TypeError('Invalid DAG settlement outcome');
 }
 
-type PendingRequest<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
-> = {
+type PendingRequest<T extends VertexTypes, R extends VertexTypes> = {
   call: CallSpec<T, R>;
   submitted: boolean;
   invoked?: boolean;
   storedReply?: CallbackReply<T, R>;
 };
 
-type ChainRuntime<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
-> = {
+type ChainRuntime<T extends VertexTypes, R extends VertexTypes> = {
   state: ChainState<T, R>;
   machine: VisitorChain<T, R>;
 };
 
-type Boundary<T extends TreeTypeParameters> = {
+type Boundary<T extends VertexTypes> = {
   id: number;
   event: KernelEvent<T>;
   expandAfter: boolean;
 };
 
-type CallAction<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
-> = Extract<KernelAction<T, R>, { kind: 'CALL' }>;
+type CallAction<T extends VertexTypes, R extends VertexTypes> = Extract<
+  KernelAction<T, R>,
+  { kind: 'CALL' }
+>;
 
 type PolicyOrders = {
-  initial: VisitOrder;
-  completion: VisitOrder | null;
+  initial: VisitPhase;
+  completion: VisitPhase | null;
 };
 
-type CallInput<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
-> = CallSpec<T, R> extends infer C
+type CallInput<T extends VertexTypes, R extends VertexTypes> = CallSpec<
+  T,
+  R
+> extends infer C
   ? C extends { requestId: number }
     ? Omit<C, 'requestId'>
     : never
   : never;
 
-type FrameCall<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters,
-> = Extract<CallSpec<T, R>, { kind: 'SORT_HINTS' | 'HINT_ID' | 'MAKE_VERTEX' }>;
+type FrameCall<T extends VertexTypes, R extends VertexTypes> = Extract<
+  CallSpec<T, R>,
+  { kind: 'SORT_HINTS' | 'HINT_ID' | 'MAKE_VERTEX' }
+>;
 
-export class TraversalKernel<
-  T extends TreeTypeParameters,
-  R extends TreeTypeParameters = T,
-> implements KernelPort<T, R>
+export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
+  implements KernelPort<T, R>
 {
   private readonly prerequisites: PrerequisiteResolution | null;
   private readonly scheduling: GraphScheduling<T, R>;
@@ -146,9 +135,9 @@ export class TraversalKernel<
   private readonly readyCalls: CallAction<T, R>[] = [];
   private readonly frames = new Map<number, FrameState<T, R>>();
   private readonly chains = new Map<number, ChainRuntime<T, R>>();
-  private readonly startedExpansions = new Set<Ref<T | R>>();
+  private readonly startedExpansions = new Set<VertexRef<T | R>>();
   private readonly deferred = new Map<
-    Ref<T | R>,
+    VertexRef<T | R>,
     {
       state: ChainState<T, R>;
       generation: DagSettlementGeneration;
@@ -158,7 +147,7 @@ export class TraversalKernel<
   private discoveryValidated = false;
   private preparing = false;
   private executionStarted = false;
-  private readonly expansionQueue: Ref<T | R>[] = [];
+  private readonly expansionQueue: VertexRef<T | R>[] = [];
   private readonly orders: PolicyOrders;
   private readonly depthFirstPolicy: DepthFirstPolicy<T | R> | null;
   private readonly breadthFirstPolicy: BreadthFirstPolicy<T | R> | null;
@@ -167,39 +156,35 @@ export class TraversalKernel<
     DepthFirstFrame<T | R>
   >();
   private breadthPendingContext:
-    | import('@core/ResolvedTree').VertexResolutionContext<T | R>
+    | import('@core/ResolvedTree').InternalVertexResolutionContext<T | R>
     | null = null;
   private nextRequestId = 1;
   private nextOwnerId = 2;
   private nextBoundaryId = 1;
   private rootRequested = false;
   private rootSettled = false;
-  private haltRequested = false;
+  private pauseRequested = false;
   private haltReason: 'prepared' | 'paused' | 'awaitingSettlement' | null =
     null;
   private failure: { error: unknown } | null = null;
   private readonly boundaries: Boundary<T | R>[] = [];
 
-  private readonly phases: readonly VisitOrder[];
-  private executionConfig: EffectiveTraversalExecutionOptions<VisitOrder>;
+  private readonly phases: readonly VisitPhase[];
+  private executionConfig: ResolvedTraversalExecutionOptions<VisitPhase>;
 
   constructor(private readonly options: KernelOptions<T, R>) {
     assertDagWorkCompletion(options.workCompletion);
     this.phases = getTraversalExecutionPhases(options.kind);
-    // Constructor compatibility fields may come from an already normalized family helper.
-    this.executionConfig = normalizeTraversalExecutionOptions(this.phases, {
-      iterateOver: options.iterableConfig.iterateOver,
-      enableVisitorFunctionsFor:
-        options.iterableConfig.enableVisitorFunctionsFor,
-      disableVisitorFunctionsFor:
-        options.iterableConfig.disableVisitorFunctionsFor,
-    });
+    this.executionConfig = normalizeTraversalExecutionOptions<VisitPhase>(
+      this.phases,
+      executionOptionsFromPhaseGates(options.iterableConfig),
+    );
     this.scheduling = new GraphScheduling(
       options.container,
       options.completedWork,
       options.discovery === 'eager',
-      options.rootDependencies,
-      options.implicitParentDependency,
+      options.rootWorkDependencies,
+      options.omittedWorkDependencies,
     );
     this.prerequisites =
       options.hasPrerequisiteResolver === true
@@ -218,16 +203,16 @@ export class TraversalKernel<
             options.hasSorter,
           )
         : null;
-    const existingRoot = options.container.resolvedGraph.getRoot();
+    const existingRoot = options.container.resolvedGraphView.getRoot();
     if (options.kind === 'dag' && options.dagSeed !== undefined) {
-      const refs = options.container.resolvedGraph.getVertexRefs();
+      const refs = options.container.resolvedGraphView.getVertexRefs();
       const traversalRoot = options.stateBridge.traversalRootVertexRef;
       if (
         (refs.length === 0 && traversalRoot !== null) ||
         (refs.length > 0 &&
           (existingRoot === null ||
             traversalRoot !== existingRoot ||
-            !options.container.resolvedGraph.has(existingRoot)))
+            !options.container.resolvedGraphView.has(existingRoot)))
       ) {
         throw new Error('Invalid injected DAG seed: traversal root mismatch');
       }
@@ -241,12 +226,13 @@ export class TraversalKernel<
         );
       }
       this.scheduling.restoreDagSeed(options.dagSeed.readyVisits);
-      const expansionRefs = new Set<Ref<T | R>>();
+      const expansionRefs = new Set<VertexRef<T | R>>();
       for (const ref of options.dagSeed.expansionQueue) {
         if (
           expansionRefs.has(ref) ||
-          !options.container.resolvedGraph.has(ref) ||
-          options.container.resolvedGraph.getStatusOf(ref) !== 'PRE_VISITED' ||
+          !options.container.resolvedGraphView.has(ref) ||
+          options.container.resolvedGraphView.getVisitStageOf(ref) !==
+            'INITIAL_VISIT_COMMITTED' ||
           options.container.store.getTraversalSlots(ref) !== null
         ) {
           throw new Error(
@@ -257,7 +243,8 @@ export class TraversalKernel<
       }
       for (const ref of refs) {
         if (
-          options.container.resolvedGraph.getStatusOf(ref) === 'PRE_VISITED' &&
+          options.container.resolvedGraphView.getVisitStageOf(ref) ===
+            'INITIAL_VISIT_COMMITTED' &&
           options.container.store.getTraversalSlots(ref) === null &&
           !expansionRefs.has(ref)
         ) {
@@ -279,14 +266,15 @@ export class TraversalKernel<
       this.rootRequested = true;
       this.rootSettled = true;
       options.stateBridge.traversalRootVertexRef = existingRoot;
-      if (options.container.resolvedGraph.has(existingRoot)) {
+      if (options.container.resolvedGraphView.has(existingRoot)) {
         this.scheduling.enrollExisting(existingRoot);
         if (this.depthFirstPolicy !== null) {
           this.scheduling.takeReady();
           this.depthFirstPolicy.push(
             this.newOwner('frame'),
             existingRoot,
-            options.container.resolvedGraph.get(existingRoot)!.discoveryDepth,
+            options.container.resolvedGraphView.get(existingRoot)!
+              .discoveryDepth,
           );
         }
       }
@@ -326,7 +314,7 @@ export class TraversalKernel<
       if (chainFailure !== null) {
         return { kind: 'FAILED', error: chainFailure.error };
       }
-      if (this.haltRequested) {
+      if (this.pauseRequested) {
         return this.hasRunningChain() ||
           (this.preparing &&
             Array.from(this.pendingRequests.values()).some(
@@ -400,7 +388,7 @@ export class TraversalKernel<
       if (!this.rootRequested && mode === 'drive') {
         this.rootRequested = true;
         this.setStatus(TraversalRunnerStatus.RUNNING);
-        const existingRoot = this.options.container.resolvedGraph.getRoot();
+        const existingRoot = this.options.container.resolvedGraphView.getRoot();
         if (
           (this.depthFirstPolicy !== null ||
             this.breadthFirstPolicy !== null) &&
@@ -408,14 +396,14 @@ export class TraversalKernel<
         ) {
           this.rootSettled = true;
           this.options.stateBridge.traversalRootVertexRef = existingRoot;
-          if (this.options.container.resolvedGraph.has(existingRoot)) {
+          if (this.options.container.resolvedGraphView.has(existingRoot)) {
             this.scheduling.enrollExisting(existingRoot);
             if (this.depthFirstPolicy !== null) {
               this.scheduling.takeReady();
               this.depthFirstPolicy.push(
                 this.newOwner('frame'),
                 existingRoot,
-                this.options.container.resolvedGraph.get(existingRoot)!
+                this.options.container.resolvedGraphView.get(existingRoot)!
                   .discoveryDepth,
               );
             }
@@ -466,6 +454,7 @@ export class TraversalKernel<
           const error = new DagTraversalStallError(
             this.scheduling.diagnoseStall(stall),
           );
+          engineDagValidationErrors.set(this.options.container.store, error);
           this.fail(error);
           return { kind: 'FAILED', error };
         }
@@ -521,7 +510,7 @@ export class TraversalKernel<
       this.options.stateBridge.status !== TraversalRunnerStatus.FINISHED &&
       this.options.stateBridge.status !== TraversalRunnerStatus.FAILED
     ) {
-      this.haltRequested = true;
+      this.pauseRequested = true;
     }
   }
 
@@ -538,11 +527,11 @@ export class TraversalKernel<
   }
 
   resume(
-    config?: TraversalIterableConfigInput<VisitOrder>,
+    config?: TraversalIterableConfigInput<VisitPhase>,
     preparation = false,
   ): void {
     if (this.failure !== null) return;
-    this.executionConfig = normalizeTraversalExecutionOptions(
+    this.executionConfig = normalizeTraversalExecutionOptions<VisitPhase>(
       this.phases,
       config,
       this.executionConfig,
@@ -554,7 +543,7 @@ export class TraversalKernel<
     } else {
       this.executionStarted = true;
     }
-    this.haltRequested = false;
+    this.pauseRequested = false;
     this.haltReason = null;
     for (const runtime of this.chains.values()) {
       if (runtime.state.phase === 'paused') {
@@ -567,6 +556,10 @@ export class TraversalKernel<
         ? TraversalRunnerStatus.RUNNING
         : TraversalRunnerStatus.INITIAL,
     );
+  }
+
+  shouldEmit(phase: VisitPhase): boolean {
+    return this.executionConfig.iterateOver.includes(phase);
   }
 
   isRequestEligible(requestId: number, mode: PumpMode): boolean {
@@ -584,7 +577,7 @@ export class TraversalKernel<
   }
 
   isHaltRequested(): boolean {
-    return this.haltRequested;
+    return this.pauseRequested;
   }
 
   getFailure(): { error: unknown } | null {
@@ -612,59 +605,65 @@ export class TraversalKernel<
     return deepFreeze({
       status: this.getStatus(),
       stopReason: this.getStopReason(),
-      haltRequested: this.haltRequested,
+      pauseRequested: this.pauseRequested,
       kind: this.options.kind,
       execution: this.options.execution,
       sourceMode: this.options.sourceMode,
       concurrency: this.options.concurrency,
       hasSorter: this.options.hasSorter,
       hasHintIds: this.options.hasHintIds,
-      iterableConfig: this.copyConfig(this.executionConfig),
+      executionOptions: this.inspectConfig(this.executionConfig),
       readyVisits: this.scheduling.inspectEligible().map((visit) => ({
-        vertexRefId: visit.ref.getId(),
-        order:
-          visit.order === 'ON_READY'
+        vertexRefId: visit.ref.getRefId(),
+        phase:
+          visit.order === 'ON_WORK_READY'
             ? this.orders.initial
             : this.orders.completion ?? this.orders.initial,
       })),
       frames: [
         ...Array.from(this.frames.values(), (frame) => ({
           owner: { ...frame.owner },
-          vertexRefId: frame.ref.getId(),
+          vertexRefId: frame.ref.getRefId(),
           stage: frame.stage,
           pendingIndices: Array.from(frame.pendingIndices),
         })),
         ...(this.depthFirstPolicy?.getFrames().map((frame) => ({
           owner: { ...frame.owner },
-          vertexRefId: frame.vertexRef.getId(),
+          vertexRefId: frame.vertexRef.getRefId(),
           stage: frame.stage,
           pendingIndices:
             frame.stage === 'child-wait' ? [frame.nextChild - 1] : [],
         })) ?? []),
         ...(this.breadthFirstPolicy?.getFrames().map((frame) => ({
           owner: { ...frame.owner },
-          vertexRefId: frame.vertexRef.getId(),
+          vertexRefId: frame.vertexRef.getRefId(),
           stage: frame.stage,
           pendingIndices: frame.pendingIndices.slice(),
         })) ?? []),
       ],
       chains: Array.from(this.chains.values(), ({ state }) => ({
         owner: { ...state.owner },
-        vertexRefId: state.ref.getId(),
-        order: state.order,
-        phase: state.phase,
-        group: state.group,
+        vertexRefId: state.ref.getRefId(),
+        phase: state.order,
+        state: state.phase,
         commandCommitMode:
           state.group === 'concurrent' ? 'afterGroup' : 'afterEachVisitor',
-        position: state.position,
+        visitorIndex: state.position,
         waitingFor: state.waitingFor,
-        config: this.copyConfig(state.config),
+        executionOptions: this.inspectConfig(state.config),
       })),
       pendingRequests: Array.from(
         this.pendingRequests.values(),
         ({ call }) => ({
           requestId: call.requestId,
-          kind: call.kind,
+          operation: {
+            MAKE_ROOT: 'resolveRoot' as const,
+            MAKE_VERTEX: 'resolveChild' as const,
+            RESOLVE_PREREQUISITE: 'resolvePrerequisite' as const,
+            SORT_HINTS: 'sortChildrenHints' as const,
+            HINT_ID: 'getVertexIdFromHint' as const,
+            VISIT: 'visit' as const,
+          }[call.kind],
           owner: { ...call.owner },
           valid: this.isOwnerValid(call.owner),
         }),
@@ -690,7 +689,7 @@ export class TraversalKernel<
   }
 
   summary(): DagSummary {
-    const graph = this.options.container.resolvedGraph;
+    const graph = this.options.container.resolvedGraphView;
     const work = this.scheduling
       .inspectWork()
       .filter(({ ref }) => ref !== this.options.container.syntheticRootRef);
@@ -698,51 +697,50 @@ export class TraversalKernel<
       Array.from(this.chains.values(), ({ state }) => state.ref),
     );
     const vertices = new Map<VertexId, DagVertexProgress>();
-    const readyIds: VertexId[] = [];
-    const deferredIds: VertexId[] = [];
-    const deferredFrontier: DagDeferredWork[] = [];
-    const inFlightIds: VertexId[] = [];
+    const readyOrDeferredIds: VertexId[] = [];
+    const deferredWorkIds: VertexId[] = [];
+    const awaitingSettlement: DagDeferredWork[] = [];
+    const activeVisitorVertexIds: VertexId[] = [];
     const completedWorkIds: VertexId[] = [];
-    const completedSubtreeIds: VertexId[] = [];
+    const completedSubgraphIds: VertexId[] = [];
     let pending = 0;
     for (const item of work) {
-      const id = graph.getIdOf(item.ref);
+      const id = graph.getVertexId(item.ref);
       const deferred = this.deferred.get(item.ref);
       const running = inFlight.has(item.ref);
       const state = item.initialCommitted
         ? 'completed'
         : running
-        ? 'running'
+        ? 'visiting'
         : deferred !== undefined
         ? 'deferred'
         : item.unmet.size === 0 && item.unmetComplete.size === 0
         ? 'ready'
         : 'pending';
       if (state === 'pending') pending += 1;
-      if (state === 'ready' || state === 'deferred') readyIds.push(id);
+      if (state === 'ready' || state === 'deferred')
+        readyOrDeferredIds.push(id);
       if (state === 'deferred') {
-        deferredIds.push(id);
+        deferredWorkIds.push(id);
         if (deferred!.outcome === undefined) {
-          deferredFrontier.push({
+          awaitingSettlement.push({
             vertexId: id,
             generation: deferred!.generation,
           });
         }
       }
-      if (running) inFlightIds.push(id);
+      if (running) activeVisitorVertexIds.push(id);
       if (item.initialCommitted) completedWorkIds.push(id);
-      if (item.completionCommitted) completedSubtreeIds.push(id);
+      if (item.completionCommitted) completedSubgraphIds.push(id);
       vertices.set(id, {
-        id,
+        vertexId: id,
         work: state,
-        subtreeComplete: item.completionCommitted,
+        subgraphComplete: item.completionCommitted,
         unmetWorkPrerequisiteIds: Array.from(item.unmet),
         unmetPrerequisiteIds: Array.from(
           new Set([...item.unmet, ...item.unmetComplete]),
         ),
-        ...(this.options.container.store.hasCompleteDependencies(item.ref)
-          ? { unmetCompletePrerequisiteIds: Array.from(item.unmetComplete) }
-          : {}),
+        unmetSubgraphPrerequisiteIds: Array.from(item.unmetComplete),
         ...(state === 'deferred' ? { generation: deferred!.generation } : {}),
       });
     }
@@ -759,7 +757,7 @@ export class TraversalKernel<
             !initialCommitted && (unmet.size > 0 || unmetComplete.size > 0),
         )
         .map(({ ref, unmet, unmetComplete }) => ({
-          id: graph.getIdOf(ref),
+          id: graph.getVertexId(ref),
           unmet: Array.from(new Set([...unmet, ...unmetComplete])),
         }));
       diagnostics.dependencyBlockedIds =
@@ -772,23 +770,23 @@ export class TraversalKernel<
       counts: {
         discovered: work.length,
         pending,
-        ready: readyIds.length,
-        deferred: deferredIds.length,
-        inFlight: inFlightIds.length,
+        readyOrDeferred: readyOrDeferredIds.length,
+        deferredWork: deferredWorkIds.length,
+        activeVisitorVertices: activeVisitorVertexIds.length,
         workCompleted: completedWorkIds.length,
-        subtreeCompleted: completedSubtreeIds.length,
+        subgraphCompleted: completedSubgraphIds.length,
       },
       vertices,
-      readyIds,
-      deferredIds,
-      deferredFrontier,
-      inFlightIds,
+      readyOrDeferredIds,
+      deferredWorkIds,
+      awaitingSettlement,
+      activeVisitorVertexIds,
       completedWorkIds,
-      completedSubtreeIds,
+      completedSubgraphIds,
       unusedCompletedWorkIds: this.scheduling.getUnusedCompletedWorkIds(),
       diagnostics:
         diagnostics !== null &&
-        (diagnostics.dependencyCycles.length > 0 ||
+        (diagnostics.dependencyCycleComponents.length > 0 ||
           (complete && diagnostics.unknownPrerequisiteIds.length > 0))
           ? diagnostics
           : null,
@@ -830,12 +828,12 @@ export class TraversalKernel<
     return Array.from(this.deferred.values()).some(
       ({ state, outcome }) =>
         outcome === undefined &&
-        this.options.container.resolvedGraph.has(state.ref),
+        this.options.container.resolvedGraphView.has(state.ref),
     );
   }
 
   private processSubmittedOutcomes(): void {
-    if (!this.haltRequested) {
+    if (!this.pauseRequested) {
       while (this.storedOutcomeRequests.length > 0) {
         const pending = this.storedOutcomeRequests.shift()!;
         const reply = pending.storedReply!;
@@ -866,7 +864,7 @@ export class TraversalKernel<
         this.storeFrameOutcome(pending.call as FrameCall<T, R>, reply);
         continue;
       }
-      if (this.haltRequested && pending.call.owner.kind !== 'chain') {
+      if (this.pauseRequested && pending.call.owner.kind !== 'chain') {
         pending.storedReply = reply;
         this.storedOutcomeRequests.push(pending);
         continue;
@@ -888,7 +886,7 @@ export class TraversalKernel<
           if (action !== null) this.readyCalls.push(action);
         }
       }
-      if (!this.haltRequested && this.boundaries.length > 0) {
+      if (!this.pauseRequested && this.boundaries.length > 0) {
         return;
       }
     }
@@ -955,17 +953,19 @@ export class TraversalKernel<
       case 'VISIT': {
         const runtime = this.chains.get(call.owner.id)!;
         runtime.machine.submit(
-          reply.outcome as import('@core/visitors/types').VisitorOutcome<R>,
+          reply.outcome as import('@core/visitors/types').VisitorOutcome<
+            R,
+            T['VertexHint']
+          >,
         );
         runtime.state.waitingFor = 'none';
         runtime.state.position += 1;
-        runtime.state.metadata.curVertexVisitorVisitIndex += 1;
+        runtime.state.metadata.visitorIndex += 1;
         if (this.depthFirstPolicy !== null) {
           const visitorState =
             this.options.stateBridge.visitorsState[runtime.state.order];
           if (visitorState !== undefined) {
-            visitorState.curVertexVisitorVisitIndex =
-              runtime.state.metadata.curVertexVisitorVisitIndex;
+            visitorState.visitorIndex = runtime.state.metadata.visitorIndex;
           }
         }
         return;
@@ -1140,8 +1140,8 @@ export class TraversalKernel<
           runtime.state.phase = 'done';
           if (
             this.options.workCompletion === 'externalSettlement' &&
-            runtime.state.order === 'ON_READY' &&
-            this.options.container.resolvedGraph.has(runtime.state.ref)
+            runtime.state.order === 'ON_WORK_READY' &&
+            this.options.container.resolvedGraphView.has(runtime.state.ref)
           ) {
             this.deferChain(id, runtime.state);
           } else {
@@ -1169,7 +1169,7 @@ export class TraversalKernel<
     deferred?: boolean;
     halt: boolean;
     deleted: boolean;
-    vertexVisitorsChainState?: unknown;
+    visitorChainState?: unknown;
   } {
     let halt = false;
     let deleted = false;
@@ -1179,9 +1179,7 @@ export class TraversalKernel<
       if (
         this.options.discovery === 'eager' &&
         (command.commandName ===
-          TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL ||
-          command.commandName ===
-            TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER ||
+          TraversalVisitorCommandName.SKIP_REMAINING_CHILDREN ||
           command.commandName ===
             TraversalVisitorCommandName.REWRITE_CHILD_HINTS)
       ) {
@@ -1190,22 +1188,32 @@ export class TraversalKernel<
         );
       }
       switch (command.commandName) {
-        case TraversalVisitorCommandName.DEFER_READY:
+        case TraversalVisitorCommandName.DEFER_WORK_COMPLETION:
           return { halt: false, deleted: false, deferred: true };
         case TraversalVisitorCommandName.NOOP:
           break;
-        case TraversalVisitorCommandName.HALT_TRAVERSAL:
+        case TraversalVisitorCommandName.PAUSE_TRAVERSAL:
           halt = true;
-          this.haltRequested = true;
+          this.pauseRequested = true;
           break;
-        case TraversalVisitorCommandName.DELETE_VERTEX: {
+        case TraversalVisitorCommandName.DELETE_TREE_SUBTREE:
+        case TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE: {
+          const expected =
+            this.options.kind === 'dag'
+              ? TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE
+              : TraversalVisitorCommandName.DELETE_TREE_SUBTREE;
+          if (command.commandName !== expected) {
+            throw new TypeError(
+              'Deletion command does not match traversal family',
+            );
+          }
           const removed = this.scheduling.deleteVertex(runtime.state.ref);
           this.scheduling.takeRemovedRefs();
           deleted = removed.has(runtime.state.ref);
           this.invalidateRefs(removed, runtime.state.owner);
           break;
         }
-        case TraversalVisitorCommandName.DISABLE_SUBTREE_TRAVERSAL:
+        case TraversalVisitorCommandName.SKIP_REMAINING_CHILDREN:
           this.options.stateBridge.subtreeTraversalDisabledRefs.add(
             runtime.state.ref,
           );
@@ -1216,7 +1224,7 @@ export class TraversalKernel<
           ) {
             this.scheduling.prepareSlots(
               runtime.state.ref,
-              runtime.state.ref.unref().getChildrenHints().slice(),
+              runtime.state.ref.getValue().getChildrenHints().slice(),
             );
           }
           if (
@@ -1226,47 +1234,64 @@ export class TraversalKernel<
             this.scheduling.disableSubtree(runtime.state.ref);
           } else if (
             this.depthFirstPolicy !== null &&
-            runtime.state.order !== DepthFirstTraversalOrder.PRE_ORDER
+            runtime.state.order !== DepthFirstPhase.PRE_ORDER
           ) {
             this.scheduling.disableSubtree(runtime.state.ref);
           }
           break;
-        case TraversalVisitorCommandName.SET_VERTEX_VISITORS_CHAIN_STATE:
+        case TraversalVisitorCommandName.SET_VISITOR_CHAIN_STATE:
+          if (
+            command.commandArguments === null ||
+            typeof command.commandArguments !== 'object' ||
+            !Object.prototype.hasOwnProperty.call(
+              command.commandArguments,
+              'state',
+            ) ||
+            Reflect.ownKeys(command.commandArguments).some(
+              (key) => key !== 'state',
+            )
+          ) {
+            throw new TypeError(
+              'SET_VISITOR_CHAIN_STATE requires only an own state field',
+            );
+          }
           hasState = true;
-          chainState = command.commandArguments.vertexVisitorsChainState;
+          chainState = command.commandArguments.state;
           break;
         case TraversalVisitorCommandName.REWRITE_VERTEX_DATA:
-          runtime.state.ref.setPointsTo(
-            runtime.state.ref.unref().clone({
+          runtime.state.ref.setValue(
+            runtime.state.ref.getValue().clone({
               $data: command.commandArguments.newData,
             }),
           );
           break;
         case TraversalVisitorCommandName.REWRITE_CHILD_HINTS:
-        case TraversalVisitorCommandName.REWRITE_VERTEX_HINTS_ON_PRE_ORDER:
           if (
             (this.depthFirstPolicy !== null &&
-              runtime.state.order !== DepthFirstTraversalOrder.PRE_ORDER) ||
-            (this.options.kind === 'dag' && runtime.state.order !== 'ON_READY')
+              runtime.state.order !== DepthFirstPhase.PRE_ORDER) ||
+            (this.options.kind === 'dag' &&
+              runtime.state.order !== 'ON_WORK_READY')
           ) {
             throw new Error(
               this.options.kind === 'dag'
-                ? 'Child hints can only be rewritten during ON_READY'
+                ? 'Child hints can only be rewritten during ON_WORK_READY'
                 : 'Child hints can only be rewritten during pre-order',
             );
           }
-          runtime.state.ref.setPointsTo(
-            runtime.state.ref.unref().clone({
+          runtime.state.ref.setValue(
+            runtime.state.ref.getValue().clone({
               $childHints: command.commandArguments.newHints.slice(),
             }),
           );
           break;
+        default:
+          throw new TypeError('Unknown visitor command');
       }
     }
     return {
       halt,
       deleted,
-      ...(hasState ? { vertexVisitorsChainState: chainState } : {}),
+      ...(hasState ? { visitorChainState: chainState } : {}),
     };
   }
 
@@ -1279,34 +1304,32 @@ export class TraversalKernel<
       visitorState !== undefined &&
       this.visitorsEnabledFor(state.config, state.order)
     ) {
-      visitorState.curVertexVisitorVisitIndex =
-        state.metadata.curVertexVisitorVisitIndex;
-      visitorState.vertexVisitIndex += 1;
-      visitorState.previousVisitedVertexRef = state.ref;
+      visitorState.visitorIndex = state.metadata.visitorIndex;
+      visitorState.phaseVisitIndex += 1;
+      visitorState.previousPhaseVertexRef = state.ref;
     }
     if (
       this.breadthFirstPolicy !== null &&
       visitorState !== undefined &&
       this.visitorsEnabledFor(state.config, state.order)
     ) {
-      visitorState.curVertexVisitorVisitIndex =
-        state.metadata.curVertexVisitorVisitIndex;
-      visitorState.vertexVisitIndex += 1;
-      visitorState.previousVisitedVertexRef = state.ref;
+      visitorState.visitorIndex = state.metadata.visitorIndex;
+      visitorState.phaseVisitIndex += 1;
+      visitorState.previousPhaseVertexRef = state.ref;
     }
-    if (!this.options.container.resolvedGraph.has(state.ref)) return;
+    if (!this.options.container.resolvedGraphView.has(state.ref)) return;
     const initial = state.order === this.orders.initial;
-    if (state.order === DepthFirstTraversalOrder.IN_ORDER) {
+    if (state.order === DepthFirstPhase.IN_ORDER) {
       this.depthFirstPolicy!.completeVisit(
         depthFirstFrame!,
-        DepthFirstTraversalOrder.IN_ORDER,
+        DepthFirstPhase.IN_ORDER,
       );
     } else if (initial) {
       this.scheduling.markPreVisited(state.ref);
       if (depthFirstFrame !== undefined && this.depthFirstPolicy !== null) {
         this.depthFirstPolicy.completeVisit(
           depthFirstFrame,
-          DepthFirstTraversalOrder.PRE_ORDER,
+          DepthFirstPhase.PRE_ORDER,
         );
       }
     } else {
@@ -1314,7 +1337,7 @@ export class TraversalKernel<
       if (depthFirstFrame !== undefined && this.depthFirstPolicy !== null) {
         this.depthFirstPolicy.completeVisit(
           depthFirstFrame,
-          DepthFirstTraversalOrder.POST_ORDER,
+          DepthFirstPhase.POST_ORDER,
         );
       }
     }
@@ -1323,30 +1346,22 @@ export class TraversalKernel<
       this.depthFirstPolicy === null &&
       this.breadthFirstPolicy === null
     ) {
-      visitorState.curVertexVisitorVisitIndex =
-        state.metadata.curVertexVisitorVisitIndex;
-      visitorState.previousVisitedVertexRef = state.ref;
+      visitorState.visitorIndex = state.metadata.visitorIndex;
+      visitorState.previousPhaseVertexRef = state.ref;
     }
-    if (state.config.emitPhases.includes(state.order)) {
-      this.boundaries.push({
-        id: this.nextBoundaryId++,
-        event: {
-          vertex: state.ref.unref(),
-          vertexRef: state.ref,
-          order: state.order,
-          isRoot: state.ref === this.options.container.resolvedGraph.getRoot(),
-          isTraversalRoot:
-            state.ref === this.options.stateBridge.traversalRootVertexRef,
-        },
-        expandAfter: initial && this.depthFirstPolicy === null,
-      });
-    } else if (initial && this.depthFirstPolicy === null) {
-      if (this.breadthFirstPolicy !== null) {
-        this.enqueueBreadthFirstExpansion(state.ref);
-      } else {
-        this.expansionQueue.push(state.ref);
-      }
-    }
+    // Record each committed observation independently of the admitted callback
+    // policy. A later iterator lease selects it only when delivering it.
+    this.boundaries.push({
+      id: this.nextBoundaryId++,
+      event: {
+        vertex: state.ref.getValue(),
+        vertexRef: state.ref,
+        order: state.order,
+        isRoot:
+          state.ref === this.options.container.resolvedGraphView.getRoot(),
+      },
+      expandAfter: initial && this.depthFirstPolicy === null,
+    });
   }
 
   private advanceDepthFirst(
@@ -1365,7 +1380,7 @@ export class TraversalKernel<
           if (frame.stage === 'child-wait') {
             const index = frame.nextChild - 1;
             const context = transportFrame.contexts.get(index)!;
-            let child: Ref<T | R> | null;
+            let child: VertexRef<T | R> | null;
             let resolved: boolean;
             if (transportFrame.knownIndices.has(index)) {
               this.scheduling.acceptKnownHint(
@@ -1402,7 +1417,7 @@ export class TraversalKernel<
     }
     if (mode !== 'drive') return null;
     const work = policy.next(
-      (ref) => this.options.container.resolvedGraph.has(ref),
+      (ref) => this.options.container.resolvedGraphView.has(ref),
       (ref) => this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref),
     );
     if (work === null) return null;
@@ -1448,7 +1463,7 @@ export class TraversalKernel<
         }
         const context = {
           parentVertexRef: work.frame.vertexRef,
-          parentVertex: work.frame.vertexRef.unref(),
+          parentVertex: work.frame.vertexRef.getValue(),
           depth: work.frame.depth + 1,
           hintIndex: work.index,
           vertexHint: work.frame.hints[work.index]!,
@@ -1498,7 +1513,7 @@ export class TraversalKernel<
         const completed = policy.completeResolution(frame.owner);
         this.breadthPendingContext = null;
         this.scheduling.acceptVertex(
-          completed.context,
+          frame.contexts.get(context.hintIndex)!,
           outcome.value,
           frame.hintIds.get(context.hintIndex),
         );
@@ -1514,7 +1529,7 @@ export class TraversalKernel<
     }
     const eligible = this.scheduling.takeEligible();
     if (eligible !== null) {
-      if (eligible.order === 'ON_COMPLETE') {
+      if (eligible.order === 'ON_SUBGRAPH_READY') {
         this.scheduling.markComplete(eligible.ref);
       } else {
         this.admitChain(eligible.ref, this.orders.initial);
@@ -1522,7 +1537,7 @@ export class TraversalKernel<
       return 'PROGRESSED';
     }
     const work = policy.next(
-      (ref) => this.options.container.resolvedGraph.has(ref),
+      (ref) => this.options.container.resolvedGraphView.has(ref),
       (ref) => this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref),
     );
     if (work === null) return null;
@@ -1586,8 +1601,8 @@ export class TraversalKernel<
     }
   }
 
-  private enqueueBreadthFirstExpansion(ref: Ref<T | R>): void {
-    const vertex = this.options.container.resolvedGraph.get(ref);
+  private enqueueBreadthFirstExpansion(ref: VertexRef<T | R>): void {
+    const vertex = this.options.container.resolvedGraphView.get(ref);
     if (vertex !== null) {
       const policy = this.breadthFirstPolicy!;
       if (!this.options.stateBridge.subtreeTraversalDisabledRefs.has(ref)) {
@@ -1663,7 +1678,7 @@ export class TraversalKernel<
         const index = frame.nextConsumeIndex;
         const context = {
           depth: this.options.container.store.getDiscoveryDepth(frame.ref) + 1,
-          parentVertex: frame.ref.unref(),
+          parentVertex: frame.ref.getValue(),
           parentVertexRef: frame.ref,
           hintIndex: index,
           vertexHint: frame.hints[index]!,
@@ -1727,7 +1742,7 @@ export class TraversalKernel<
         frame.nextAdmissionIndex += 1;
         const context = {
           depth: this.options.container.store.getDiscoveryDepth(frame.ref) + 1,
-          parentVertex: frame.ref.unref(),
+          parentVertex: frame.ref.getValue(),
           parentVertexRef: frame.ref,
           hintIndex: index,
           vertexHint: frame.hints[index]!,
@@ -1757,7 +1772,7 @@ export class TraversalKernel<
 
   private makeAsyncFrame(
     owner: OwnerToken,
-    ref: Ref<T | R>,
+    ref: VertexRef<T | R>,
     depth: number,
     hints: (T | R)['VertexHint'][],
     stage: FrameState<T, R>['stage'],
@@ -1792,7 +1807,7 @@ export class TraversalKernel<
     frame.nextIdentityIndex = 0;
     frame.nextAdmissionIndex = 0;
     frame.nextConsumeIndex = 0;
-    const parentVertex = frame.ref.unref();
+    const parentVertex = frame.ref.getValue();
     for (let index = 0; index < frame.hints.length; index += 1) {
       frame.contexts.set(index, {
         depth: frame.depth + 1,
@@ -1906,51 +1921,51 @@ export class TraversalKernel<
       return true;
     }
     const order =
-      eligible.order === 'ON_READY'
+      eligible.order === 'ON_WORK_READY'
         ? this.orders.initial
         : this.orders.completion!;
-    if (eligible.order === 'ON_READY') {
+    if (eligible.order === 'ON_WORK_READY') {
       this.scheduling.markPreVisiting(eligible.ref);
     }
     this.admitChain(eligible.ref, order);
     return true;
   }
 
-  private admitChain(ref: Ref<T | R>, order: VisitOrder): OwnerToken {
+  private admitChain(ref: VertexRef<T | R>, order: VisitPhase): OwnerToken {
     const owner = this.newOwner('chain');
     const config = this.copyConfig(this.executionConfig);
     const records = this.visitorsEnabled(order)
       ? (this.options.visitorMetadata[order] ?? []).slice()
       : [];
     const visitorState = (this.options.stateBridge.visitorsState[order] ??= {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     });
     const metadata = {
-      vertexVisitIndex: visitorState.vertexVisitIndex,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: visitorState.previousVisitedVertexRef,
-      vertexVisitorsChainState: null,
+      phaseVisitIndex: visitorState.phaseVisitIndex,
+      visitorIndex: 0,
+      previousPhaseVertexRef: visitorState.previousPhaseVertexRef,
+      visitorChainState: null,
     };
     if (
       records.length > 0 &&
       this.depthFirstPolicy === null &&
       this.breadthFirstPolicy === null
     ) {
-      visitorState.vertexVisitIndex += 1;
+      visitorState.phaseVisitIndex += 1;
     }
     if (
       this.depthFirstPolicy !== null &&
       this.visitorsEnabledFor(config, order)
     ) {
-      visitorState.curVertexVisitorVisitIndex = 0;
+      visitorState.visitorIndex = 0;
     }
     if (
       this.breadthFirstPolicy !== null &&
       this.visitorsEnabledFor(config, order)
     ) {
-      visitorState.curVertexVisitorVisitIndex = 0;
+      visitorState.visitorIndex = 0;
     }
     const state: ChainState<T, R> = {
       owner,
@@ -1982,7 +1997,10 @@ export class TraversalKernel<
       this.scheduling.takeDiscoveryExpansion() ??
       this.scheduling.takeSeededExpansion() ??
       this.expansionQueue.shift();
-    if (ref === undefined || !this.options.container.resolvedGraph.has(ref)) {
+    if (
+      ref === undefined ||
+      !this.options.container.resolvedGraphView.has(ref)
+    ) {
       return ref !== undefined;
     }
     if (this.startedExpansions.has(ref)) return true;
@@ -1991,7 +2009,7 @@ export class TraversalKernel<
       return true;
     }
     const owner = this.newOwner('frame');
-    const hints = ref.unref().getChildrenHints().slice();
+    const hints = ref.getValue().getChildrenHints().slice();
     const frame: FrameState<T, R> = {
       owner,
       ref,
@@ -2057,7 +2075,7 @@ export class TraversalKernel<
   private isFinished(): boolean {
     if (!this.rootSettled) return false;
     return (
-      this.options.container.resolvedGraph.getRoot() === null ||
+      this.options.container.resolvedGraphView.getRoot() === null ||
       (this.scheduling.getStall() === null &&
         this.scheduling.inspectEligible().length === 0 &&
         this.frames.size === 0 &&
@@ -2101,7 +2119,7 @@ export class TraversalKernel<
   }
 
   private invalidateRefs(
-    refs: ReadonlySet<Ref<T | R>>,
+    refs: ReadonlySet<VertexRef<T | R>>,
     except: OwnerToken,
   ): void {
     for (const owner of this.prerequisites?.invalidateUnused((id) =>
@@ -2186,13 +2204,13 @@ export class TraversalKernel<
     return null;
   }
 
-  private visitorsEnabled(order: VisitOrder): boolean {
+  private visitorsEnabled(order: VisitPhase): boolean {
     return this.visitorsEnabledFor(this.executionConfig, order);
   }
 
   private visitorsEnabledFor(
     config: typeof this.executionConfig,
-    order: VisitOrder,
+    order: VisitPhase,
   ): boolean {
     const selection = config.visitorPhases;
     return (
@@ -2201,6 +2219,11 @@ export class TraversalKernel<
         ? selection.include!.includes(order)
         : !selection.exclude.includes(order))
     );
+  }
+
+  private inspectConfig(config: typeof this.executionConfig) {
+    const { emitEvents, visitorPhases } = this.copyConfig(config);
+    return { emitEvents, visitorPhases };
   }
 
   private copyConfig(config: typeof this.executionConfig) {
@@ -2218,7 +2241,7 @@ export class TraversalKernel<
       case 'breadth-first':
         return { initial: 'LEVEL_ORDER', completion: null };
       case 'dag':
-        return { initial: 'ON_READY', completion: 'ON_COMPLETE' };
+        return { initial: 'ON_WORK_READY', completion: 'ON_SUBGRAPH_READY' };
     }
   }
 

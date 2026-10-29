@@ -1,37 +1,52 @@
-import { CTTRef } from '../src/core/CTTRef';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
-import type { TraversableTree } from '../src/core/TraversableTree';
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
+import { MutableRef } from '../src/core/CTTRef';
+import type { TreeSource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
 import type { DepthFirstTraversalRunnerState } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerState';
+import {
+  createInternalDepthFirstTreeTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: Node[] };
-type Tree = TreeTypeParameters<string, Node>;
+type Node = { $data: string; $childHints: Node[] };
+type Tree = VertexTypes<string, Node>;
 
-const node = ($d: string, ...$c: Node[]): Node => ({ $d, $c });
-const adapter = (root: Node): TraversableTree<Tree> => ({
-  makeRoot: () => ({ vertexContent: root }),
-  makeVertex: (hint) => ({ vertexContent: hint }),
+const node = ($data: string, ...$childHints: Node[]): Node => ({
+  $data,
+  $childHints,
 });
-const ref = (data: string) => new CTTRef(new Vertex<Tree>(node(data)));
+const adapter = (root: Node): TreeSource<Tree> => ({
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: root },
+  }),
+  resolveChild: (hint) => ({
+    kind: 'found' as const,
+    vertex: { vertexContent: hint },
+  }),
+});
+const ref = (data: string) => new MutableRef(new Vertex<Tree>(node(data)));
 const context = (
-  parentVertexRef: CTTRef<Vertex<Tree>>,
+  parentVertexRef: MutableRef<Vertex<Tree>>,
   data: string,
   hintIndex: number,
 ): VertexResolutionContext<Tree> => ({
   depth: 1,
   hintIndex,
-  parentVertex: parentVertexRef.unref(),
+  parentVertex: parentVertexRef.getValue(),
   parentVertexRef,
   vertexHint: node(data),
 });
 
 function makeState(): DepthFirstTraversalRunnerState<Tree, Tree> {
-  return new DepthFirstTraversal<Tree>({
-    traversableTree: adapter(node('root')),
-  }).makeRunner().state;
+  return runnerInternals(
+    new DepthFirstTreeTraversal<Tree>({
+      traversableTree: adapter(node('root')),
+    }).createRunner(),
+  ).state;
 }
 
 test('depth-first state injection retains supplied continuation objects', () => {
@@ -48,10 +63,12 @@ test('depth-first state injection retains supplied continuation objects', () => 
   source.traversalRootVertexRef = activeParentRef;
   source.status = TraversalRunnerStatus.HALTED;
 
-  const injected = new DepthFirstTraversal<Tree>({
-    traversableTree: adapter(node('unused')),
-    traversalRunnerInternalObjects: { state: source },
-  }).makeRunner().state;
+  const injected = runnerInternals(
+    createInternalDepthFirstTreeTraversal<Tree>({
+      traversableTree: adapter(node('unused')),
+      traversalRunnerInternalObjects: { state: source },
+    }).createRunner(),
+  ).state;
 
   expect(injected.STACK).toBe(source.STACK);
   expect(injected.postOrderNotVisitedChildrenCountMap).toBe(

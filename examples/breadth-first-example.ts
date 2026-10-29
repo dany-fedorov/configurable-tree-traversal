@@ -1,20 +1,20 @@
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
 import {
-  BreadthFirstTraversal,
-  BreadthFirstTraversalOrder,
-} from '../src/traversals/breadth-first-traversal';
+  ObjectTreeSource,
+  BreadthFirstTreeTraversal,
+  BreadthFirstPhase,
+} from '../src';
 
 const input = {
   first: { firstChild: 1 },
   second: { secondChild: 2 },
 };
 
-const traversal = new BreadthFirstTraversal({
-  traversableTree: new TraversableObjectTree(input),
+const traversal = new BreadthFirstTreeTraversal({
+  traversableTree: new ObjectTreeSource(input),
 });
 
-traversal.addVisitorFor(BreadthFirstTraversalOrder.LEVEL_ORDER, (vertex) =>
+traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, (vertex) =>
   console.log(vertex.getData()),
 );
 
-traversal.makeRunner().run();
+traversal.createRunner().run();

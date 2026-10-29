@@ -14,18 +14,14 @@ export function captureDagSourcePatch(input: object): DagSourcePatch {
   return sources;
 }
 
-/** Copy the usual enumerable options without reading source getters again. */
+/** Capture every own option once without reading source getters again. */
 export function captureDagConfigPatch<Input extends object>(
   input: Input,
   sources: DagSourcePatch,
 ): Input {
   const options: Record<PropertyKey, unknown> = {};
   for (const key of Reflect.ownKeys(input)) {
-    if (
-      key !== 'traversableGraph' &&
-      key !== 'traversableTree' &&
-      Object.prototype.propertyIsEnumerable.call(input, key)
-    ) {
+    if (key !== 'traversableGraph' && key !== 'traversableTree') {
       Object.defineProperty(options, key, {
         value: Reflect.get(input, key),
         enumerable: true,

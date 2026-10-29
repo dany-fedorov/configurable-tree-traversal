@@ -1,19 +1,28 @@
+import { TraversalVisitorCommandName as VisitorCommand } from '../src';
+import { inspectInternalDagState } from './internal-runner-fixtures';
+import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
 import {
   AsyncDagTraversal,
   DagTraversal,
-  DagTraversalOrder as Order,
-  DagTraversalRunnerState,
-  inspectDag,
-  graphFrom,
   DagTraversalStallError,
-  DEFER_READY,
+  DagVisitorPhase as Order,
+  inspectDagMilestones,
+  materializeDagInputFromRecords,
 } from '../src';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import {
+  createInternalAsyncDagTraversal,
+  createInternalAsyncDagTraversalRunner,
+  createInternalDagTraversal,
+  createInternalDagTraversalFor,
+  createInternalDagTraversalRunner,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
 import { captureDagTerminalObservation } from '../src/traversals/dag-traversal/lib/DagTerminalObservation';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   for (const scenario of [
@@ -28,57 +37,68 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       let sourceCalls = 0;
       let visits = 0;
       const traversableGraph = {
-        makeRoot: () => {
+        resolveRoot: () => {
           sourceCalls++;
           if (scenario === 'root source failure') throw failure;
           return {
-            vertexId: 'a',
-            vertexContent: {
-              $data: 'a',
-              $childHints: scenario === 'child source failure' ? ['b'] : [],
+            kind: 'found' as const,
+            vertex: {
+              vertexId: 'a',
+              vertexContent: {
+                $data: 'a',
+                $childHints: scenario === 'child source failure' ? ['b'] : [],
+              },
             },
           };
         },
-        makeVertex: (hint: string) => {
+        resolveChild: (hint: string) => {
           sourceCalls++;
           if (scenario === 'child source failure') throw failure;
           return {
-            vertexId: hint,
-            vertexContent: { $data: hint, $childHints: [] },
+            kind: 'found' as const,
+            vertex: {
+              vertexId: hint,
+              vertexContent: { $data: hint, $childHints: [] },
+            },
           };
         },
       };
       const traversal = new Constructor<G>({ traversableGraph });
-      traversal.addVisitorFor(Order.ON_READY, () => {
+      traversal.addVisitorFor(Order.ON_WORK_READY, () => {
         visits++;
         if (scenario === 'ready failure') throw failure;
       });
-      traversal.addVisitorFor(Order.ON_COMPLETE, () => {
+      traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, () => {
         visits++;
         if (scenario === 'completion failure') throw failure;
       });
-      const runner = traversal.makeRunner();
+      const runner = traversal.createRunner();
       if (scenario === 'finished') await runner.run();
       else await expect((async () => runner.run())()).rejects.toBe(failure);
       const expectedStatus =
         scenario === 'finished' ? Status.FINISHED : Status.FAILED;
       const before = { sourceCalls, visits };
-      const original = inspectDag(runner);
+      const original = inspectDagMilestones(runner);
       for (const state of [
-        runner.state,
-        new DagTraversalRunnerState(runner.state),
-        { ...runner.state },
-        Object.assign({}, runner.state),
+        runnerInternals(runner).state,
+        new DagTraversalRunnerState(runnerInternals(runner).state),
+        { ...runnerInternals(runner).state },
+        Object.assign({}, runnerInternals(runner).state),
       ]) {
-        const restored = new Constructor<G>({
+        const restored = (
+          Constructor === DagTraversal
+            ? createInternalDagTraversal
+            : createInternalAsyncDagTraversal
+        )<G>({
           traversableGraph,
           traversalRunnerInternalObjects: {
             state,
-            resolvedGraphsContainer: runner.resolvedGraphsContainer,
+            resolvedGraphsContainer:
+              runnerInternals(runner).resolvedGraphsContainer,
           },
-        }).makeRunner();
-        const captured = inspectDag(restored);
-        for (const milestone of ['work', 'completion'] as const) {
+        }).createRunner();
+        const captured = inspectDagMilestones(restored);
+        for (const milestone of ['work', 'subgraphCompletion'] as const) {
           const result = captured.explain({ vertexId: 'a', milestone });
           expect(result).toEqual(
             original.explain({ vertexId: 'a', milestone }),
@@ -99,7 +119,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             });
         }
         expect(restored.summary()).toEqual(runner.summary());
-        expect(restored.inspectDagState()).toEqual(runner.inspectDagState());
+        expect(inspectInternalDagState(restored)).toEqual(
+          inspectInternalDagState(runner),
+        );
         expect(restored.getStatus()).toBe(expectedStatus);
         expect(restored.requestPause()).toBe(false);
         if (scenario === 'finished') await restored.run();
@@ -109,11 +131,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         const summary = restored.summary();
         (summary.completedWorkIds as unknown[]).push('corruption');
         (summary.vertices as Map<unknown, unknown>).clear();
-        const facts = restored.inspectDagState();
+        const facts = inspectInternalDagState(restored);
         (facts.identityStates as unknown[]).pop();
         (facts.schedulingStates as unknown[]).pop();
         expect(restored.summary()).toEqual(runner.summary());
-        expect(restored.inspectDagState()).toEqual(runner.inspectDagState());
+        expect(inspectInternalDagState(restored)).toEqual(
+          inspectInternalDagState(runner),
+        );
         expect(captured.explain({ vertexId: 'a', milestone: 'work' })).toEqual(
           original.explain({ vertexId: 'a', milestone: 'work' }),
         );
@@ -126,28 +150,39 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} retains terminal tree-source milestone identities`, async () => {
     let calls = 0;
     const traversableTree = {
-      makeRoot: () => {
+      resolveRoot: () => {
         calls++;
-        return { vertexContent: { $data: 'root', $childHints: ['child'] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: 'root', $childHints: ['child'] } },
+        };
       },
-      makeVertex: (hint: string) => {
+      resolveChild: (hint: string) => {
         calls++;
-        return { vertexContent: { $data: hint, $childHints: [] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        };
       },
     };
-    const runner = new Constructor<G>({ traversableTree }).makeRunner();
+    const runner = new Constructor<G>({ traversableTree }).createRunner();
     await runner.run();
-    const restored = new Constructor<G>({
+    const restored = (
+      Constructor === DagTraversal
+        ? createInternalDagTraversal
+        : createInternalAsyncDagTraversal
+    )<G>({
       traversableTree,
       traversalRunnerInternalObjects: {
-        state: new DagTraversalRunnerState(runner.state),
-        resolvedGraphsContainer: runner.resolvedGraphsContainer,
+        state: new DagTraversalRunnerState(runnerInternals(runner).state),
+        resolvedGraphsContainer:
+          runnerInternals(runner).resolvedGraphsContainer,
       },
-    }).makeRunner();
-    const captured = inspectDag(restored);
-    const graph = runner.getResolvedGraph();
+    }).createRunner();
+    const captured = inspectDagMilestones(restored);
+    const graph = runner.getResolvedGraphView();
     for (const ref of graph.getVertexRefs()) {
-      for (const milestone of ['work', 'completion'] as const) {
+      for (const milestone of ['work', 'subgraphCompletion'] as const) {
         expect(
           captured.explain({ vertexId: graph.getVertexId(ref), milestone }),
         ).toMatchObject({
@@ -164,33 +199,34 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} retains failed preparation diagnostics and owns every copied observation wrapper`, async () => {
     const first = { name: 'first' };
     const second = { name: 'second' };
-    const source = graphFrom(
+    const source = materializeDagInputFromRecords(
       [
         { id: first, complete: [second] },
         { id: second, complete: [first] },
       ],
       {
         id: (item) => item.id,
-        dependsOnComplete: (item) => item.complete,
+        dependsOnSubgraphCompletion: (item) => item.complete,
       },
     );
-    const runner = new Constructor(source).makeRunner();
+    const runner = new Constructor(source).createRunner();
     await expect((async () => runner.prepare())()).rejects.toBeInstanceOf(
       DagTraversalStallError,
     );
-    const restored = new Constructor({
+    const restored = createInternalDagTraversalFor(Constructor, {
       traversableGraph: source.traversableGraph,
       traversalRunnerInternalObjects: {
-        state: runner.state,
-        resolvedGraphsContainer: runner.resolvedGraphsContainer,
+        state: runnerInternals(runner).state,
+        resolvedGraphsContainer:
+          runnerInternals(runner).resolvedGraphsContainer,
       },
-    }).makeRunner();
+    }).createRunner();
     const before = restored.summary();
     const expected = runner.summary();
     expect(before).toEqual(expected);
-    const original = inspectDag(runner).explain({
+    const original = inspectDagMilestones(runner).explain({
       vertexId: first,
-      milestone: 'completion',
+      milestone: 'subgraphCompletion',
     });
     expect(original).toMatchObject({
       kind: 'known',
@@ -198,25 +234,25 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       discoveryComplete: true,
     });
     expect(
-      inspectDag(restored).explain({
+      inspectDagMilestones(restored).explain({
         vertexId: first,
-        milestone: 'completion',
+        milestone: 'subgraphCompletion',
       }),
     ).toEqual(original);
-    expect(before.vertices.get(first)!.id).toBe(first);
+    expect(before.vertices.get(first)!.vertexId).toBe(first);
     const progress = before.vertices.get(first)!;
     (progress.unmetPrerequisiteIds as unknown[]).pop();
     (progress.unmetWorkPrerequisiteIds as unknown[]).push('changed');
-    (progress.unmetCompletePrerequisiteIds as unknown[]).pop();
+    (progress.unmetSubgraphPrerequisiteIds as unknown[]).pop();
     (progress as { work: string }).work = 'completed';
     (before.discovery as { complete: boolean }).complete = false;
     (before.counts as { discovered: number }).discovered = 99;
     for (const values of [
-      before.readyIds,
-      before.deferredIds,
-      before.inFlightIds,
+      before.readyOrDeferredIds,
+      before.deferredWorkIds,
+      before.activeVisitorVertexIds,
       before.completedWorkIds,
-      before.completedSubtreeIds,
+      before.completedSubgraphIds,
       before.unusedCompletedWorkIds,
     ])
       (values as unknown[]).push('changed');
@@ -224,29 +260,31 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     diagnostics.dependencies[0]!.unmet.pop();
     diagnostics.dependencies[0]!.id = 'changed' as unknown as typeof first;
     diagnostics.unknownPrerequisiteIds.push({ name: 'changed' });
-    diagnostics.dependencyCycles[0]!.pop();
-    diagnostics.dependencyEdges[0]!.from.vertexId = { name: 'changed' };
-    diagnostics.dependencyEdges[0]!.to.vertexId = { name: 'changed' };
+    diagnostics.dependencyCycleComponents[0]!.pop();
+    diagnostics.dependencyEdges[0]!.waiter.vertexId = { name: 'changed' };
+    diagnostics.dependencyEdges[0]!.prerequisite.vertexId = { name: 'changed' };
     diagnostics.dependencyBlockedIds.pop();
     diagnostics.structurallyIncompleteIds.push({ name: 'changed' });
-    const facts = restored.inspectDagState();
+    const facts = inspectInternalDagState(restored);
     (facts.identityStates[0] as { kind: string }).kind = 'deleted';
     (
       facts.schedulingStates[0] as { initialCommitted: boolean }
     ).initialCommitted = true;
     expect(restored.summary()).toEqual(expected);
-    expect(restored.inspectDagState()).toEqual(runner.inspectDagState());
+    expect(inspectInternalDagState(restored)).toEqual(
+      inspectInternalDagState(runner),
+    );
     expect(
-      inspectDag(restored).explain({
+      inspectDagMilestones(restored).explain({
         vertexId: first,
-        milestone: 'completion',
+        milestone: 'subgraphCompletion',
       }),
     ).toEqual(original);
     expect(Object.isFrozen(first)).toBe(false);
   });
 
   test(`${Constructor.name} retains deferred work and earlier commits when a later visitor fails`, async () => {
-    const source = graphFrom(
+    const source = materializeDagInputFromRecords(
       [{ id: 'done' }, { id: 'deferred' }, { id: 'failed' }],
       { id: (item) => item.id },
     );
@@ -256,36 +294,52 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       ...(Constructor === AsyncDagTraversal ? { concurrency: 1 } : {}),
     });
     const failure = { problem: 'later visitor' };
-    traversal.addVisitorFor(Order.ON_READY, (vertex) => {
-      if (vertex.getData().id === 'deferred') return DEFER_READY;
+    traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
+      if (vertex.getData().id === 'deferred')
+        return {
+          commands: [
+            { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+          ],
+        };
       if (vertex.getData().id === 'failed') throw failure;
       return undefined;
     });
-    const runner = traversal.makeRunner();
+    const runner = traversal.createRunner();
     await expect((async () => runner.run())()).rejects.toBe(failure);
-    const restored = new Constructor({
+    const restored = createInternalDagTraversalFor(Constructor, {
       traversableGraph: source.traversableGraph,
       traversalRunnerInternalObjects: {
-        state: runner.state,
-        resolvedGraphsContainer: runner.resolvedGraphsContainer,
+        state: runnerInternals(runner).state,
+        resolvedGraphsContainer:
+          runnerInternals(runner).resolvedGraphsContainer,
       },
-    }).makeRunner();
+    }).createRunner();
     expect(restored.summary()).toEqual(runner.summary());
     expect(
-      inspectDag(restored).explain({ vertexId: 'done', milestone: 'work' }),
+      inspectDagMilestones(restored).explain({
+        vertexId: 'done',
+        milestone: 'work',
+      }),
     ).toMatchObject({ kind: 'known', satisfied: true });
     expect(
-      inspectDag(restored).explain({ vertexId: 'deferred', milestone: 'work' }),
+      inspectDagMilestones(restored).explain({
+        vertexId: 'deferred',
+        milestone: 'work',
+      }),
     ).toMatchObject({
       kind: 'known',
       satisfied: false,
       progress: { work: 'deferred' },
     });
     expect(
-      inspectDag(restored).explain({ vertexId: 'failed', milestone: 'work' }),
+      inspectDagMilestones(restored).explain({
+        vertexId: 'failed',
+        milestone: 'work',
+      }),
     ).toMatchObject({ kind: 'known', satisfied: false });
     const summary = restored.summary();
-    (summary.deferredFrontier[0] as { vertexId: string }).vertexId = 'changed';
+    (summary.awaitingSettlement[0] as { vertexId: string }).vertexId =
+      'changed';
     expect(restored.summary()).toEqual(runner.summary());
   });
 }
@@ -303,7 +357,7 @@ test('terminal async observations stay stable after an invalidated callback sett
   const started = new Promise<void>((resolve) => {
     bothStarted = resolve;
   });
-  const source = graphFrom([{ id: 'a' }, { id: 'b' }], {
+  const source = materializeDagInputFromRecords([{ id: 'a' }, { id: 'b' }], {
     id: (item) => item.id,
   });
   const traversal = new AsyncDagTraversal({
@@ -312,7 +366,7 @@ test('terminal async observations stay stable after an invalidated callback sett
     discovery: 'eager',
   });
   let callbacks = 0;
-  traversal.addVisitorFor(Order.ON_READY, async (vertex) => {
+  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) => {
     callbacks++;
     if (vertex.getData().id === 'a') await failing;
     else {
@@ -320,20 +374,20 @@ test('terminal async observations stay stable after an invalidated callback sett
       await late;
     }
   });
-  const runner = traversal.makeRunner();
+  const runner = traversal.createRunner();
   const running = runner.run();
   await started;
   const failure = { error: 'failed first' };
   reject(failure);
   await expect(running).rejects.toBe(failure);
-  const restored = new AsyncDagTraversal({
+  const restored = createInternalAsyncDagTraversalRunner({
     traversableGraph: source.traversableGraph,
     traversalRunnerInternalObjects: {
-      state: runner.state,
-      resolvedGraphsContainer: runner.resolvedGraphsContainer,
+      state: runnerInternals(runner).state,
+      resolvedGraphsContainer: runnerInternals(runner).resolvedGraphsContainer,
     },
-  }).makeRunner();
-  const captured = inspectDag(restored);
+  });
+  const captured = inspectDagMilestones(restored);
   expect(captured.explain({ vertexId: 'a', milestone: 'work' })).toMatchObject({
     kind: 'known',
     satisfied: false,
@@ -345,9 +399,11 @@ test('terminal async observations stay stable after an invalidated callback sett
   release();
   await new Promise<void>((resolve) => setImmediate(resolve));
   expect(restored.summary()).toEqual(runner.summary());
-  expect(restored.inspectDagState()).toEqual(runner.inspectDagState());
+  expect(inspectInternalDagState(restored)).toEqual(
+    inspectInternalDagState(runner),
+  );
   expect(
-    inspectDag(runner).explain({ vertexId: 'b', milestone: 'work' }),
+    inspectDagMilestones(runner).explain({ vertexId: 'b', milestone: 'work' }),
   ).toEqual(captured.explain({ vertexId: 'b', milestone: 'work' }));
   await expect(restored.run()).rejects.toBe(failure);
   expect(callbacks).toBe(2);
@@ -357,16 +413,22 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} explains unavailable history for fabricated terminal state without changing lifecycle`, async () => {
     let calls = 0;
     const traversableGraph = {
-      makeRoot: () => {
+      resolveRoot: () => {
         calls++;
         return {
-          vertexId: 'a',
-          vertexContent: { $data: 'a', $childHints: [] },
+          kind: 'found' as const,
+          vertex: {
+            vertexId: 'a',
+            vertexContent: { $data: 'a', $childHints: [] },
+          },
         };
       },
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }),
     };
-    const original = new Constructor<G>({ traversableGraph }).makeRunner();
+    const original = new Constructor<G>({ traversableGraph }).createRunner();
     await original.run();
     for (const status of [Status.FINISHED, Status.FAILED]) {
       const error = { status };
@@ -374,14 +436,19 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         status,
         failure: { error },
       });
-      const restored = new Constructor<G>({
+      const restored = (
+        Constructor === DagTraversal
+          ? createInternalDagTraversal
+          : createInternalAsyncDagTraversal
+      )<G>({
         traversableGraph,
         traversalRunnerInternalObjects: {
           state,
-          resolvedGraphsContainer: original.resolvedGraphsContainer,
+          resolvedGraphsContainer:
+            runnerInternals(original).resolvedGraphsContainer,
         },
-      }).makeRunner();
-      expect(() => inspectDag(restored)).toThrow(
+      }).createRunner();
+      expect(() => inspectDagMilestones(restored)).toThrow(
         /terminal DAG observation.*unavailable/i,
       );
       expect(() => restored.summary()).toThrow(
@@ -391,12 +458,19 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       if (status === Status.FAILED)
         await expect((async () => restored.run())()).rejects.toBe(error);
       else await restored.run();
-      const empty = new Constructor<G>({
+      const empty = (
+        Constructor === DagTraversal
+          ? createInternalDagTraversal
+          : createInternalAsyncDagTraversal
+      )<G>({
         traversableGraph,
         traversalRunnerInternalObjects: { state },
-      }).makeRunner();
+      }).createRunner();
       expect(
-        inspectDag(empty).explain({ vertexId: 'a', milestone: 'work' }),
+        inspectDagMilestones(empty).explain({
+          vertexId: 'a',
+          milestone: 'work',
+        }),
       ).toMatchObject({ kind: 'unknown', discoveryComplete: false });
       expect(calls).toBe(1);
     }
@@ -443,25 +517,35 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         );
         let calls = 0;
         const traversableGraph = {
-          makeRoot: () => {
+          resolveRoot: () => {
             calls++;
             return {
-              vertexId: 'a',
-              vertexContent: { $data: 'a', $childHints: [] },
+              kind: 'found' as const,
+              vertex: {
+                vertexId: 'a',
+                vertexContent: { $data: 'a', $childHints: [] },
+              },
             };
           },
-          makeVertex: () => ({ vertexContent: null }),
+          resolveChild: () => ({
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+          }),
         };
-        const traversal = new Constructor<G>({
+        const traversal = (
+          Constructor === DagTraversal
+            ? createInternalDagTraversal
+            : createInternalAsyncDagTraversal
+        )<G>({
           traversableGraph,
           traversalRunnerInternalObjects: { state },
         });
         const failure = undefined;
-        traversal.addVisitorFor(Order.ON_READY, () => {
+        traversal.addVisitorFor(Order.ON_WORK_READY, () => {
           calls++;
           if (outcome === 'failure') throw failure;
         });
-        const runner = traversal.makeRunner();
+        const runner = traversal.createRunner();
         if (outcome === 'success') await runner.run();
         else await expect((async () => runner.run())()).rejects.toBe(failure);
         const status = outcome === 'success' ? Status.FINISHED : Status.FAILED;
@@ -478,16 +562,24 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         if (shape === 'sealed class' || shape === 'nonextensible class')
           copies.push({ ...state }, Object.assign({}, state));
         for (const copied of copies) {
-          const restored = new Constructor<G>({
+          const restored = (
+            Constructor === DagTraversal
+              ? createInternalDagTraversal
+              : createInternalAsyncDagTraversal
+          )<G>({
             traversableGraph,
             traversalRunnerInternalObjects: {
               state: copied,
-              resolvedGraphsContainer: runner.resolvedGraphsContainer,
+              resolvedGraphsContainer:
+                runnerInternals(runner).resolvedGraphsContainer,
             },
-          }).makeRunner();
-          for (const milestone of ['work', 'completion'] as const) {
+          }).createRunner();
+          for (const milestone of ['work', 'subgraphCompletion'] as const) {
             expect(
-              inspectDag(restored).explain({ vertexId: 'a', milestone }),
+              inspectDagMilestones(restored).explain({
+                vertexId: 'a',
+                milestone,
+              }),
             ).toMatchObject({
               kind: 'known',
               satisfied: outcome === 'success',
@@ -508,32 +600,50 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 test('retaining a terminal observation again preserves an immutable metadata descriptor', () => {
   const runner = new DagTraversal<G>({
     traversableGraph: {
-      makeRoot: () => ({
-        vertexId: 'a',
-        vertexContent: { $data: 'a', $childHints: [] },
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: {
+          vertexId: 'a',
+          vertexContent: { $data: 'a', $childHints: [] },
+        },
       }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }),
     },
-  }).makeRunner();
+  }).createRunner();
   runner.run();
-  for (const symbol of Object.getOwnPropertySymbols(runner.state))
-    Object.defineProperty(runner.state, symbol, {
+  for (const symbol of Object.getOwnPropertySymbols(
+    runnerInternals(runner).state,
+  ))
+    Object.defineProperty(runnerInternals(runner).state, symbol, {
       writable: false,
       configurable: false,
     });
-  const before = Object.getOwnPropertyDescriptors(runner.state);
+  const before = Object.getOwnPropertyDescriptors(
+    runnerInternals(runner).state,
+  );
   expect(() =>
-    captureDagTerminalObservation(runner.state, runner),
+    captureDagTerminalObservation(runnerInternals(runner).state, {
+      inspectDagState: () => inspectInternalDagState(runner),
+      summary: () => runner.summary(),
+    }),
   ).not.toThrow();
-  expect(Object.getOwnPropertyDescriptors(runner.state)).toEqual(before);
-  const restored = new DagTraversal<G>({
-    traversableGraph: runner.icfg.traversableGraph!,
-    traversalRunnerInternalObjects: {
-      state: new DagTraversalRunnerState(runner.state),
-      resolvedGraphsContainer: runner.resolvedGraphsContainer,
-    },
-  }).makeRunner();
   expect(
-    inspectDag(restored).explain({ vertexId: 'a', milestone: 'completion' }),
+    Object.getOwnPropertyDescriptors(runnerInternals(runner).state),
+  ).toEqual(before);
+  const restored = createInternalDagTraversalRunner<G>({
+    traversableGraph: runnerInternals(runner).icfg.traversableGraph!,
+    traversalRunnerInternalObjects: {
+      state: new DagTraversalRunnerState(runnerInternals(runner).state),
+      resolvedGraphsContainer: runnerInternals(runner).resolvedGraphsContainer,
+    },
+  });
+  expect(
+    inspectDagMilestones(restored).explain({
+      vertexId: 'a',
+      milestone: 'subgraphCompletion',
+    }),
   ).toMatchObject({ kind: 'known', satisfied: true });
 });

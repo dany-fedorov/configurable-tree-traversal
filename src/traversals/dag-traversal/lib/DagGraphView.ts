@@ -1,23 +1,23 @@
-import type { ResolvedGraph } from '@core/ResolvedGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { Ref } from '@core/graph/types';
+import type { InternalResolvedGraphView } from '@core/ResolvedGraphView';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexRef } from '@core/graph/types';
 
 /** A forest view: the scheduler's root remains private structural bookkeeping. */
-export function makeDagGraphView<T extends TreeTypeParameters, ID = unknown>(
-  graph: ResolvedGraph<T, ID>,
-  hiddenRoot: () => Ref<T> | null,
-): ResolvedGraph<T, ID> {
-  const visible = (ref: Ref<T>) => ref !== hiddenRoot();
+export function makeDagGraphView<T extends VertexTypes, ID = unknown>(
+  graph: InternalResolvedGraphView<T, ID>,
+  hiddenRoot: () => VertexRef<T> | null,
+): InternalResolvedGraphView<T, ID> {
+  const visible = (ref: VertexRef<T>) => ref !== hiddenRoot();
   const getVertexRefById = (id: ID) => {
     const ref = graph.getVertexRefById(id);
     return ref !== null && visible(ref) ? ref : null;
   };
-  const getVertexId = (ref: Ref<T>) => {
+  const getVertexId = (ref: VertexRef<T>) => {
     if (!visible(ref)) throw new Error('Unknown vertex reference');
     return graph.getVertexId(ref);
   };
   return Object.freeze({
-    get: (ref: Ref<T>) => {
+    get: (ref: VertexRef<T>) => {
       const vertex = visible(ref) ? graph.get(ref) : null;
       return vertex === null
         ? null
@@ -29,21 +29,19 @@ export function makeDagGraphView<T extends TreeTypeParameters, ID = unknown>(
             ),
           });
     },
-    has: (ref: Ref<T>) => visible(ref) && graph.has(ref),
+    has: (ref: VertexRef<T>) => visible(ref) && graph.has(ref),
     getRoot: () => null,
     getVertexRefs: () => graph.getVertexRefs().filter(visible),
     getVertexRefById,
     getVertexId,
-    getVertexById: getVertexRefById,
-    getIdOf: getVertexId,
-    getStatusOf: (ref: Ref<T>) =>
-      visible(ref) ? graph.getStatusOf(ref) : null,
-    getParentsOf: (ref: Ref<T>) =>
+    getVisitStageOf: (ref: VertexRef<T>) =>
+      visible(ref) ? graph.getVisitStageOf(ref) : null,
+    getParentsOf: (ref: VertexRef<T>) =>
       visible(ref) ? graph.getParentsOf(ref)?.filter(visible) ?? null : null,
-    getChildrenOf: (ref: Ref<T>) =>
+    getChildrenOf: (ref: VertexRef<T>) =>
       visible(ref) ? graph.getChildrenOf(ref) : null,
     getPathsTo: (
-      ref: Ref<T>,
+      ref: VertexRef<T>,
       options?: import('@core/ResolvedTree').GetPathToOptions,
     ) => {
       if (!visible(ref)) throw new Error('Unknown vertex reference');

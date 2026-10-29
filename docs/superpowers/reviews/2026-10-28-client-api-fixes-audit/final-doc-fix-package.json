@@ -1,0 +1,23 @@
+{
+  "command": [
+    "node",
+    "scripts/verify-package.cjs"
+  ],
+  "shellCommand": "CTT_TYPESCRIPT_COMPILER=/tmp/ctt-client-api-fixes-tools-20261029/node_modules/typescript/bin/tsc node scripts/verify-package.cjs",
+  "cwd": "/home/df/.codex/worktrees/04b4/configurable-tree-traversal",
+  "startedAt": "2026-10-29T09:24:04.802868+00:00",
+  "head": "7baeff97f2e437e5bae7fd008c16f625c52b5871",
+  "node": "v24.20.0",
+  "compilerPath": "/tmp/ctt-client-api-fixes-tools-20261029/node_modules/typescript/bin/tsc",
+  "compiler": "Version 4.7.4",
+  "environment": {
+    "CTT_TYPESCRIPT_COMPILER": "/tmp/ctt-client-api-fixes-tools-20261029/node_modules/typescript/bin/tsc"
+  },
+  "trackedInputCount": 529,
+  "changedInputsFromHistoricalEvidence": [
+    "docs/migration-client-api.md"
+  ],
+  "buildPolicy": "Existing final build reused; production unchanged.",
+  "exitCode": 0,
+  "finishedAt": "2026-10-29T09:24:35.650677+00:00"
+}

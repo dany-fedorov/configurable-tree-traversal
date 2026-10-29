@@ -1,12 +1,14 @@
-import { GraphWalk, GraphWalkRunner, GraphWalkPhase as Phase } from '../src';
-import { WalkKernel } from '../src/traversals/graph-walk/lib/WalkKernel';
-import { SyncWalkSession } from '../src/traversals/graph-walk/lib/SyncWalkSession';
+import { GraphWalk, GraphWalkPhase as Phase, GraphWalkRunner } from '../src';
+import { InternalGraphWalkRunner } from '../src/traversals/graph-walk/GraphWalkRunner';
 import { normalizeWalkOptions } from '../src/traversals/graph-walk/lib/normalizeWalkOptions';
+import { SyncWalkSession } from '../src/traversals/graph-walk/lib/SyncWalkSession';
+import { WalkKernel } from '../src/traversals/graph-walk/lib/WalkKernel';
 import { idGraph } from './helpers/graph-walk-fixtures';
 
 it('keeps poll passive and settles each issued request exactly once', () => {
   const calls: string[] = [];
   const source = {
+    hydration: 'inlineOrCached' as const,
     roots() {
       calls.push('roots');
       return [];
@@ -101,12 +103,13 @@ it('prevents a synchronous session from acquiring externally outstanding work', 
   kernel.resume();
   kernel.poll();
   const session = new SyncWalkSession(kernel);
-  expect(() => session.getIterable().next()).toThrow('unsettled request');
+  expect(() => session.iterateEvents().next()).toThrow('unsettled request');
 });
 
 it('reports in-flight requests passively from inside source calls', () => {
   const snapshots: unknown[] = [];
   const source = {
+    hydration: 'resolver' as const,
     roots() {
       snapshots.push(runner.inspect());
       return [{ vertexId: 'A' }];
@@ -122,8 +125,8 @@ it('reports in-flight requests passively from inside source calls', () => {
   };
   const runner: GraphWalkRunner<string, unknown, string> = new GraphWalk({
     source,
-  }).makeRunner();
-  const iterator = runner.getIterable({
+  }).createRunner();
+  const iterator = runner.iterateEvents({
     visitorPhases: { exclude: [Phase.PATH] },
   });
   iterator.next();
@@ -145,5 +148,5 @@ it('reports in-flight requests passively from inside source calls', () => {
       pendingRequests: [expect.objectContaining({ operation: 'outgoing' })],
     }),
   ]);
-  expect(runner).toBeInstanceOf(GraphWalkRunner);
+  expect(runner).toBeInstanceOf(InternalGraphWalkRunner);
 });

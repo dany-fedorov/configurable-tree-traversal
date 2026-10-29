@@ -1,0 +1,58 @@
+[
+  {
+    "id": "R1",
+    "requirement": "Review all client-facing API",
+    "completionEvidenceRequired": "Exact-set coverage for bindings, declarations, declared/nested members, inherited/mapped members, statics; supplemental literals/parameters/legacy inputs; all supported routes",
+    "status": "achieved",
+    "evidence": "coverage-verification.json; supplemental-verification.json; full exact sets independently rechecked before saving"
+  },
+  {
+    "id": "R2",
+    "requirement": "Assess idiomaticity",
+    "completionEvidenceRequired": "Astra high source-based review and retained-symbol rationale, with actionable findings distinguished from style",
+    "status": "achieved",
+    "evidence": "review.md F01-F15 and APIs deliberately retained; 318 explicit declaration rationales"
+  },
+  {
+    "id": "R3",
+    "requirement": "Disambiguate overlapping API",
+    "completionEvidenceRequired": "Cross-API vocabulary comparisons, concrete plausible misuse, coherent alternative shapes",
+    "status": "achieved",
+    "evidence": "review.md concrete misuse/recommended shape for every finding and cross-API vocabulary decisions"
+  },
+  {
+    "id": "R4",
+    "requirement": "Generic names require public generic/configurable behavior, else descriptive names",
+    "completionEvidenceRequired": "Per-finding scope/configurability analysis and explicit retention rationale",
+    "status": "achieved",
+    "evidence": "review.md generic/configurable vs descriptive scoped recommendations and retention reasoning"
+  },
+  {
+    "id": "R5",
+    "requirement": "Review each symbol in context of all exposed API",
+    "completionEvidenceRequired": "One reviewer examines entire fresh inventory and cross-family relationships; not isolated family samples",
+    "status": "achieved",
+    "evidence": "Astra full-inventory signature/source passes, decisions.py explicit owning judgments, reviewedVia relationships"
+  },
+  {
+    "id": "R6",
+    "requirement": "Use Astra high",
+    "completionEvidenceRequired": "Spawned /root/idiomatic_api_review with gpt-6-astra reasoning_effort high fork_turns none",
+    "status": "achieved",
+    "evidence": "controller-evidence.json: explicitly dispatched gpt-6-astra high, completed /root/idiomatic_api_review"
+  },
+  {
+    "id": "R7",
+    "requirement": "Breaking changes and deprecated removal permitted",
+    "completionEvidenceRequired": "Review brief explicitly permits removing APIs/aliases and rejects compatibility-only retention",
+    "status": "achieved",
+    "evidence": "review.md F03/F05/F06/F09 and migrations explicitly consider breaking changes and removals"
+  },
+  {
+    "id": "R8",
+    "requirement": "Deliver review without modifying implementation",
+    "completionEvidenceRequired": "Report/evidence saved in repository review convention; no source/runtime changes or remote writes",
+    "status": "achieved",
+    "evidence": "Only this report and evidence bundle added; source/HEAD unchanged, no remote writes, original drafts preserved"
+  }
+]

@@ -9,14 +9,14 @@ import * as dag from '../src/traversals/dag-traversal';
 
 const vertex = <ID>(
   vertexId: ID,
-  dependsOn: ID[] = [],
-  dependsOnComplete: ID[] = [],
+  dependsOnWork: ID[] = [],
+  dependsOnSubgraphCompletion: ID[] = [],
 ) => ({
   vertexId,
   data: { task: vertexId },
   slots: [],
-  dependsOn,
-  dependsOnComplete,
+  dependsOnWork,
+  dependsOnSubgraphCompletion,
 });
 
 test('two object-ID instances compose a completion wire without sharing local identities', () => {
@@ -27,7 +27,7 @@ test('two object-ID instances compose a completion wire without sharing local id
       vertices: [vertex(start), vertex(finish, [start])],
       omittedIds: [],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: start },
           { kind: 'vertex', vertexId: finish },
@@ -54,16 +54,19 @@ test('two object-ID instances compose a completion wire without sharing local id
     dependencies: [
       {
         dependent: second.ports.start,
-        prerequisite: { vertexId: first.ports.finish, milestone: 'completion' },
+        prerequisite: {
+          vertexId: first.ports.finish,
+          milestone: 'subgraphCompletion',
+        },
       },
     ],
   });
   if (result.kind !== 'valid') throw new Error('Expected valid composition');
-  expect(result.dag.definition.vertices[2]!.dependsOnComplete).toEqual([
-    firstIds.get(finish),
-  ]);
   expect(
-    [...result.dag.createRunner().getIterable()].map((e) => [
+    result.dag.definition.vertices[2]!.dependsOnSubgraphCompletion,
+  ).toEqual([firstIds.get(finish)]);
+  expect(
+    [...result.dag.createRunner().iterateEvents()].map((e) => [
       e.vertexId.name,
       e.kind,
     ]),
@@ -143,7 +146,7 @@ test('preserves forest order, detached prerequisites and empty-entry known omiss
       vertices: [vertex('a', ['remote']), vertex('remote')],
       omittedIds: ['skip'],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'omitted', identity: { vertexId: 'skip' } },
           { kind: 'vertex', vertexId: 'a' },
@@ -163,7 +166,7 @@ test('preserves forest order, detached prerequisites and empty-entry known omiss
   const result = composeDag([a, omitted, empty, single('b')]);
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(result.dag.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'omitted', identity: { vertexId: 'skip' } },
       { kind: 'vertex', vertexId: 'a' },
@@ -183,7 +186,7 @@ test('preserves forest order, detached prerequisites and empty-entry known omiss
   runner.run();
   expect(runner.summary().unusedCompletedWorkIds).toEqual([]);
   expect(
-    [...result.dag.createRunner().getIterable()]
+    [...result.dag.createRunner().iterateEvents()]
       .filter((e) => e.kind === 'workCompleted')
       .map((e) => e.vertexId),
   ).toEqual(['b', 'remote', 'a']);
@@ -201,7 +204,7 @@ test('structural links append independently of explicit work and completion wire
       { dependent: 'b', prerequisite: { vertexId: 'a', milestone: 'work' } },
       {
         dependent: 'c',
-        prerequisite: { vertexId: 'b', milestone: 'completion' },
+        prerequisite: { vertexId: 'b', milestone: 'subgraphCompletion' },
       },
     ],
   });
@@ -210,8 +213,8 @@ test('structural links append independently of explicit work and completion wire
     result.dag.definition.vertices.map((v) => ({
       id: v.vertexId,
       slots: v.slots,
-      w: v.dependsOn,
-      c: v.dependsOnComplete,
+      w: v.dependsOnWork,
+      c: v.dependsOnSubgraphCompletion,
     })),
   ).toEqual([
     {
@@ -231,7 +234,7 @@ test('structural links append independently of explicit work and completion wire
     children: [{ parent: 'a', child: 'b' }],
   });
   if (structuralOnly.kind !== 'valid') throw new Error('Expected valid');
-  expect(structuralOnly.dag.definition.vertices[1]!.dependsOn).toEqual([]);
+  expect(structuralOnly.dag.definition.vertices[1]!.dependsOnWork).toEqual([]);
 });
 
 test('composition validates structural and combined W/C cycles through the shared validator', () => {
@@ -252,14 +255,14 @@ test('composition validates structural and combined W/C cycles through the share
       dependencies: [
         {
           dependent: 'b',
-          prerequisite: { vertexId: 'a', milestone: 'completion' },
+          prerequisite: { vertexId: 'a', milestone: 'subgraphCompletion' },
         },
       ],
     }),
   ).toMatchObject({ kind: 'invalid', issues: [{ kind: 'milestone' }] });
   expect(composeDag([])).toMatchObject({
     kind: 'valid',
-    dag: { definition: { entry: { kind: 'forest', slots: [] } } },
+    dag: { definition: { entry: { kind: 'roots', slots: [] } } },
   });
 });
 
@@ -285,7 +288,7 @@ test('rejects unknown/omitted ports, malformed port maps and symbol port names',
     vertices: [vertex('a')],
     omittedIds: ['skip'],
     entry: {
-      kind: 'forest' as const,
+      kind: 'roots' as const,
       slots: [
         { kind: 'vertex' as const, vertexId: 'a' },
         { kind: 'omitted' as const, identity: { vertexId: 'skip' } },
@@ -312,7 +315,7 @@ test('maps SameValueZero identities and rejects mapped live/omitted collisions',
       vertices: [vertex<unknown>('a')],
       omittedIds: [undefined],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'a' },
           { kind: 'omitted', identity: { vertexId: undefined } },
@@ -428,7 +431,7 @@ test('remaps forest entry references and empty omission catalogs before composit
       vertices: [vertex('a')],
       omittedIds: ['skip'],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'omitted', identity: { vertexId: 'skip' } },
           { kind: 'vertex', vertexId: 'a' },
@@ -441,7 +444,7 @@ test('remaps forest entry references and empty omission catalogs before composit
     mapId: (id) => (id === 'a' ? 1 : 2),
   });
   expect(mapped.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'omitted', identity: { vertexId: 2 } },
       { kind: 'vertex', vertexId: 1 },
@@ -467,7 +470,7 @@ test('remaps forest entry references and empty omission catalogs before composit
       },
       {
         dependent: 1,
-        prerequisite: { vertexId: undefined, milestone: 'completion' },
+        prerequisite: { vertexId: undefined, milestone: 'subgraphCompletion' },
       },
     ],
   });
@@ -475,7 +478,7 @@ test('remaps forest entry references and empty omission catalogs before composit
   const events: unknown[] = [];
   for await (const event of (
     await result.dag.createAsyncRunner()
-  ).getIterable())
+  ).iterateEvents())
     events.push([event.vertexId, event.kind]);
   expect(events).toEqual([
     [1, 'workCompleted'],
@@ -540,7 +543,7 @@ test('composition retains omitted discovery positions before dependent siblings'
     await result.dag.createAsyncRunner(),
   ]) {
     const events: unknown[] = [];
-    for await (const event of runner.getIterable())
+    for await (const event of runner.iterateEvents())
       events.push([event.vertexId, event.kind]);
     expect(events).toEqual([
       ['root', 'workCompleted'],
@@ -722,11 +725,11 @@ test('forged fragments expose milestone validation before any mapping', () => {
     const edge = issue.diagnostics.dependencyEdges.find(
       (edge) => edge.reason === 'workDependency',
     )!;
-    expect(edge.from.vertexId).toBe(id);
-    expect(edge.to.vertexId).toBeUndefined();
-    expect(Object.prototype.hasOwnProperty.call(edge.to, 'vertexId')).toBe(
-      true,
-    );
+    expect(edge.waiter.vertexId).toBe(id);
+    expect(edge.prerequisite.vertexId).toBeUndefined();
+    expect(
+      Object.prototype.hasOwnProperty.call(edge.prerequisite, 'vertexId'),
+    ).toBe(true);
     expect(mappings).toBe(0);
   }
 });
@@ -763,7 +766,7 @@ test('fragment port and mapping failures retain their plain TypeError taxonomy',
             vertices: [vertex('a'), vertex('b')],
             omittedIds: [],
             entry: {
-              kind: 'forest',
+              kind: 'roots',
               slots: [
                 { kind: 'vertex', vertexId: 'a' },
                 { kind: 'vertex', vertexId: 'b' },
@@ -826,10 +829,10 @@ test.each(['structuralCycle', 'milestone'] as const)(
           expect(issue.vertexIds[0]).toBe(id);
         } else if (issue.kind === 'milestone') {
           const edge = issue.diagnostics.dependencyEdges.find(
-            (edge) => edge.reason === 'completionDependency',
+            (edge) => edge.reason === 'subgraphCompletionDependency',
           )!;
-          expect(edge.from.vertexId).toBeUndefined();
-          expect(edge.to.vertexId).toBe(id);
+          expect(edge.waiter.vertexId).toBeUndefined();
+          expect(edge.prerequisite.vertexId).toBe(id);
         }
       }
     }

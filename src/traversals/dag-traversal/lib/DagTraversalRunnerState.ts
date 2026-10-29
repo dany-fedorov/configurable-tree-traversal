@@ -1,44 +1,44 @@
-import type { CTTRef } from '@core/CTTRef';
-import type { VisitOrder } from '@core/effects/types';
+import type { MutableRef } from '@core/CTTRef';
+import type { VisitPhase } from '@core/effects/types';
 import type { VisitorExecutionState } from '@core/executeVisitors';
-import type { Ref } from '@core/graph/types';
+import type { VertexRef } from '@core/graph/types';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import { copyDagTerminalObservation } from './DagTerminalObservation';
-import { DagTraversalOrder } from './DagTraversalOrder';
+import { DagVisitorPhase } from './DagTraversalOrder';
 
-export type DagTraversalVisitorsState<T extends TreeTypeParameters> = {
-  [K in DagTraversalOrder]: VisitorExecutionState<T>;
+export type DagTraversalVisitorsState<T extends VertexTypes> = {
+  [K in DagVisitorPhase]: VisitorExecutionState<T>;
 };
 
 function initVisitorsState<
-  T extends TreeTypeParameters,
+  T extends VertexTypes,
 >(): DagTraversalVisitorsState<T> {
   return {
-    [DagTraversalOrder.ON_READY]: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+    [DagVisitorPhase.ON_WORK_READY]: {
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
-    [DagTraversalOrder.ON_COMPLETE]: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+    [DagVisitorPhase.ON_SUBGRAPH_READY]: {
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
   };
 }
 
 export class DagTraversalRunnerState<
-  T extends TreeTypeParameters = TreeTypeParameters,
-  R extends TreeTypeParameters = T,
+  T extends VertexTypes = VertexTypes,
+  R extends VertexTypes = T,
 > {
   status: TraversalRunnerStatus;
-  traversalRootVertexRef: CTTRef<Vertex<T | R>> | null;
-  subtreeTraversalDisabledRefs: Set<CTTRef<Vertex<T | R>>>;
-  visitorsState: Partial<Record<VisitOrder, VisitorExecutionState<T | R>>>;
-  readyVisits: Array<{ vertexRef: Ref<T | R>; order: DagTraversalOrder }>;
-  expansionQueue: Ref<T | R>[];
+  traversalRootVertexRef: MutableRef<Vertex<T | R>> | null;
+  subtreeTraversalDisabledRefs: Set<MutableRef<Vertex<T | R>>>;
+  visitorsState: Partial<Record<VisitPhase, VisitorExecutionState<T | R>>>;
+  readyVisits: Array<{ vertexRef: VertexRef<T | R>; order: DagVisitorPhase }>;
+  expansionQueue: VertexRef<T | R>[];
   failure: { error: unknown } | null;
 
   constructor(from?: Partial<DagTraversalRunnerState<T, R>> | null) {

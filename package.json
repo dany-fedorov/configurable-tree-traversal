@@ -79,7 +79,10 @@
     "docs/agent-workflows.md",
     "docs/reference.md",
     "docs/migration-uniform-api.md",
-    "docs/testing.md"
+    "docs/testing.md",
+    "docs/migration-api-clarity.md",
+    "docs/migration-idiomatic-api.md",
+    "docs/migration-client-api.md"
   ],
   "sideEffects": false,
   "exports": {
@@ -172,31 +175,23 @@
       },
       "default": "./dist/tools/rewrite-object/index.js"
     },
-    "./*.js": {
+    "./sources": {
       "import": {
-        "types": "./dist/*.d.mts",
-        "default": "./dist/*.mjs"
+        "types": "./dist/sources/index.d.mts",
+        "default": "./dist/sources/index.mjs"
       },
       "require": {
-        "types": "./dist/*.d.ts",
-        "default": "./dist/*.js"
+        "types": "./dist/sources/index.d.ts",
+        "default": "./dist/sources/index.js"
       },
-      "default": "./dist/*.js"
-    },
-    "./*": {
-      "import": {
-        "types": "./dist/*.d.mts",
-        "default": "./dist/*.mjs"
-      },
-      "require": {
-        "types": "./dist/*.d.ts",
-        "default": "./dist/*.js"
-      },
-      "default": "./dist/*.js"
+      "default": "./dist/sources/index.js"
     }
   },
   "typesVersions": {
     "*": {
+      "dist/index.d.ts": [
+        "dist/index.d.ts"
+      ],
       "core": [
         "dist/core/index.d.ts"
       ],
@@ -218,11 +213,11 @@
       "tools/rewrite-object": [
         "dist/tools/rewrite-object/index.d.ts"
       ],
-      "*": [
-        "dist/*"
+      "sources": [
+        "dist/sources/index.d.ts"
       ],
-      "dist/*": [
-        "dist/*"
+      "*": [
+        "__private_denied__/*"
       ]
     }
   },

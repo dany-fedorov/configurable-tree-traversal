@@ -1,8 +1,9 @@
-import { TraversableObjectTree } from '../src/traversable-tree-implementations/traversable-object-tree';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstTraversalOrder } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { TraversalVisitorCommandName } from '../src/core/TraversalVisitor';
-import { jsonStringifySafe } from '../src/utils/jsonStringifySafe';
+import {
+  ObjectTreeSource,
+  DepthFirstTreeTraversal,
+  DepthFirstPhase,
+  TraversalVisitorCommandName,
+} from '../src';
 
 const RED_FG = '\u001b[31m';
 // const RED_BG = '\u001b[41m';
@@ -16,11 +17,11 @@ const RESET = '\u001b[0m';
 
 function getFgColorFor(order: unknown): string {
   switch (order) {
-    case DepthFirstTraversalOrder.PRE_ORDER:
+    case DepthFirstPhase.PRE_ORDER:
       return RED_FG;
-    case DepthFirstTraversalOrder.IN_ORDER:
+    case DepthFirstPhase.IN_ORDER:
       return GREEN_FG;
-    case DepthFirstTraversalOrder.POST_ORDER:
+    case DepthFirstPhase.POST_ORDER:
       return BLUE_FG;
     default:
       return '';
@@ -40,19 +41,19 @@ const obj = {
   },
 };
 
-const traversableTree = new TraversableObjectTree(obj, {
-  resolveVertexHook: (vertexHint) => {
+const traversableTree = new ObjectTreeSource(obj, {
+  resolveChildHook: (vertexHint) => {
     if (vertexHint.value === null) {
       return { kind: 'omitted' };
     }
     return { kind: 'useDefault' };
   },
 });
-const traversal = new DepthFirstTraversal({
+const traversal = new DepthFirstTreeTraversal({
   traversableTree,
 });
 
-traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
+traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (v) => {
   console.log(
     '-',
     RED_FG,
@@ -61,10 +62,10 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.PRE_ORDER, (v) => {
     'key:',
     v.getData().key,
     '; value:',
-    jsonStringifySafe(v.getData().value),
+    JSON.stringify(v.getData().value),
   );
 });
-traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) => {
+traversal.addVisitorFor(DepthFirstPhase.POST_ORDER, (v) => {
   console.log(
     '-',
     BLUE_FG,
@@ -73,20 +74,20 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.POST_ORDER, (v) => {
     'key:',
     v.getData().key,
     '; value:',
-    jsonStringifySafe(v.getData().value),
+    JSON.stringify(v.getData().value),
   );
   if (v.getData().key === 'B') {
     return {
       commands: [
         {
-          commandName: TraversalVisitorCommandName.HALT_TRAVERSAL,
+          commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
         },
       ],
     };
   }
   return {};
 });
-traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
+traversal.addVisitorFor(DepthFirstPhase.IN_ORDER, (v) => {
   console.log(
     '-',
     GREEN_FG,
@@ -95,25 +96,25 @@ traversal.addVisitorFor(DepthFirstTraversalOrder.IN_ORDER, (v) => {
     'key:',
     v.getData().key,
     '; value:',
-    jsonStringifySafe(v.getData().value),
+    JSON.stringify(v.getData().value),
   );
 });
 
-const traversalRunner = traversal.makeRunner();
+const traversalRunner = traversal.createRunner();
 
-const traversalIterable = traversalRunner.getIterable({
-  visitorPhases: { include: [DepthFirstTraversalOrder.POST_ORDER] },
-  emitPhases: [DepthFirstTraversalOrder.PRE_ORDER],
+const traversalIterable = traversalRunner.iterateEvents({
+  visitorPhases: { include: [DepthFirstPhase.POST_ORDER] },
+  emitEvents: [DepthFirstPhase.PRE_ORDER],
 });
 
-for (const { vertex, order } of traversalIterable) {
+for (const { vertex, phase: order } of traversalIterable) {
   console.log(
     `Inside the loop on`,
     [getFgColorFor(order), order.padEnd(10), RESET].join(''),
     '; key:',
     vertex.getData().key,
     '; value:',
-    jsonStringifySafe(vertex.getData().value),
+    JSON.stringify(vertex.getData().value),
   );
   if (vertex.getData().key === 'D') {
     console.log('Found D!!');
@@ -124,36 +125,36 @@ for (const { vertex, order } of traversalIterable) {
 console.log('----');
 console.log('----');
 
-const traversalIterable2 = traversalRunner.getIterable({
+const traversalIterable2 = traversalRunner.iterateEvents({
   visitorPhases: { include: [] },
 });
 
-for (const { vertex, order } of traversalIterable2) {
+for (const { vertex, phase: order } of traversalIterable2) {
   console.log(
     `Inside the loop on`,
     [getFgColorFor(order), order.padEnd(10), RESET].join(''),
     '; key:',
     vertex.getData().key,
     '; value:',
-    jsonStringifySafe(vertex.getData().value),
+    JSON.stringify(vertex.getData().value),
   );
 }
 
 console.log('----');
 console.log('----');
 
-const traversalIterable3 = traversalRunner.getIterable({
+const traversalIterable3 = traversalRunner.iterateEvents({
   visitorPhases: { include: [] },
 });
 
-for (const { vertex, order } of traversalIterable3) {
+for (const { vertex, phase: order } of traversalIterable3) {
   console.log(
     `Inside the loop on`,
     [getFgColorFor(order), order.padEnd(10), RESET].join(''),
     '; key:',
     vertex.getData().key,
     '; value:',
-    jsonStringifySafe(vertex.getData().value),
+    JSON.stringify(vertex.getData().value),
   );
 }
 

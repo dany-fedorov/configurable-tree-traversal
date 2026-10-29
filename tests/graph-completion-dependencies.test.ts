@@ -1,10 +1,10 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import { dependencyMilestoneCycles } from '../src/core/scheduling/dependencyMilestones';
-import type { Ref, GraphVertexStatus } from '../src/core/graph/types';
+import type { VertexRef, ResolvedVisitStage } from '../src/core/graph/types';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -16,23 +16,26 @@ function setup() {
   const scheduling = new GraphScheduling(container);
   const root = scheduling.acceptRoot({
     vertexId: 'root',
-    vertexContent: { $d: 'root', $c: ['join', 'gate', 'later', 'duplicate'] },
+    vertexContent: {
+      $data: 'root',
+      $childHints: ['join', 'gate', 'later', 'duplicate'],
+    },
   })!;
   scheduling.takeReady();
   scheduling.markPreVisited(root);
-  scheduling.prepareSlots(root, root.unref().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
   const accept = (index: number, result: MakeVertexResult<TestGraph>) =>
     scheduling.acceptVertex(
       {
         parentVertexRef: root,
-        parentVertex: root.unref(),
+        parentVertex: root.getValue(),
         depth: 1,
         hintIndex: index,
-        vertexHint: root.unref().getChildrenHints()[index]!,
+        vertexHint: root.getValue().getChildrenHints()[index]!,
       },
       result,
     );
-  const finish = (ref: Ref<TestGraph>) => {
+  const finish = (ref: VertexRef<TestGraph>) => {
     scheduling.markPreVisited(ref);
     scheduling.prepareSlots(ref, []);
     scheduling.closeExpansion(ref);
@@ -45,30 +48,37 @@ const result = (
   complete: readonly unknown[] = [],
 ): MakeVertexResult<TestGraph> => ({
   vertexId: id,
-  dependsOn: [],
-  dependsOnComplete: complete,
-  vertexContent: { $d: String(id), $c: [] },
+  dependsOnWork: [],
+  dependsOnSubgraphCompletion: complete,
+  vertexContent: { $data: String(id), $childHints: [] },
 });
 
 test('omission releases W and C while a later omitted gate is immediately satisfied', () => {
   const { accept, scheduling } = setup();
-  const join = accept(0, { ...result('join', ['gate']), dependsOn: ['gate'] });
+  const join = accept(0, {
+    ...result('join', ['gate']),
+    dependsOnWork: ['gate'],
+  });
   expect(scheduling.takeReady()).toBeNull();
-  accept(1, { vertexId: 'gate', vertexContent: null });
+  accept(1, { vertexContent: null, vertexId: 'gate' });
   expect(scheduling.takeReady()).toBe(join);
   const later = accept(2, result('later', ['gate']));
   expect(scheduling.takeReady()).toBe(later);
-  accept(3, { vertexId: 'gate', vertexContent: null });
+  accept(3, { vertexContent: null, vertexId: 'gate' });
   expect(scheduling.takeReady()).toBeNull();
 });
 
-test.each(['PRE_VISITED', 'COMPLETING', 'COMPLETE'] as const)(
+test.each([
+  'INITIAL_VISIT_COMMITTED',
+  'COMPLETION_VISIT_ELIGIBLE',
+  'COMPLETE',
+] as const)(
   'a late C gate only accepts committed COMPLETE, not %s',
   (status) => {
     const { container, accept, scheduling } = setup();
     const gate = accept(1, result('gate'))!;
     scheduling.takeReady();
-    container.store.setStatus(gate, status);
+    container.store.setVisitStage(gate, status);
     const join = accept(0, result('join', ['gate']));
     expect(scheduling.takeReady()).toBe(status === 'COMPLETE' ? join : null);
   },
@@ -82,14 +92,12 @@ test('deleting a prerequisite cascades C dependents and tombstones later arrival
   finish(gate);
   finish(join);
   expect(scheduling.deleteVertex(gate)).toEqual(new Set([gate, join]));
-  expect(container.resolvedGraph.has(join)).toBe(false);
+  expect(container.resolvedGraphView.has(join)).toBe(false);
   expect(accept(3, result('future', ['gate']))).toBeNull();
-  expect(container.resolvedGraph.has(later)).toBe(false);
+  expect(container.resolvedGraphView.has(later)).toBe(false);
   expect(container.store.getIdState('future')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraph.getChildrenOf(root)).toEqual([]);
-  expect(
-    container.notMutatedResolvedGraph!.getVertexById('join'),
-  ).not.toBeNull();
+  expect(container.resolvedGraphView.getChildrenOf(root)).toEqual([]);
+  expect(container.originalGraphView!.getVertexRefById('join')).not.toBeNull();
 });
 
 test('C prerequisite arrays and inspected work detach from caller and snapshots', () => {
@@ -103,63 +111,67 @@ test('C prerequisite arrays and inspected work detach from caller and snapshots'
   expect(
     scheduling.inspectWork().find(({ ref }) => ref === join)!.unmetComplete,
   ).toEqual(new Set(['gate']));
-  expect(container.resolvedGraph.get(join)!.dependsOnComplete).toEqual([
-    'gate',
-  ]);
+  expect(
+    container.resolvedGraphView.get(join)!.dependsOnSubgraphCompletion,
+  ).toEqual(['gate']);
 });
 
 test('GraphStore copies completion inputs and keeps empty public vertex shapes unchanged', () => {
   const store = new GraphStore<TestGraph>('dag');
-  const ref = new CTTRef(new Vertex<TestGraph>({ $d: '', $c: [] }));
+  const ref = new MutableRef(
+    new Vertex<TestGraph>({ $data: '', $childHints: [] }),
+  );
   const declared = ['gate'];
   store.insertVertex({
     ref,
     id: 'join',
-    dependsOn: [],
-    dependsOnComplete: declared,
+    dependsOnWork: [],
+    dependsOnSubgraphCompletion: declared,
     depth: 0,
   });
   declared.length = 0;
-  expect(store.graph.get(ref)!.dependsOnComplete).toEqual(['gate']);
-  const empty = new CTTRef(ref.unref());
+  expect(store.graph.get(ref)!.dependsOnSubgraphCompletion).toEqual(['gate']);
+  const empty = new MutableRef(ref.getValue());
   store.insertVertex({
     ref: empty,
     id: 'empty',
-    dependsOn: [],
-    dependsOnComplete: [],
+    dependsOnWork: [],
+    dependsOnSubgraphCompletion: [],
     depth: 0,
   });
-  expect(store.graph.get(empty)).not.toHaveProperty('dependsOnComplete');
+  expect(store.graph.get(empty)).not.toHaveProperty(
+    'dependsOnSubgraphCompletion',
+  );
 });
 
 test.each([
   'DISCOVERED',
-  'READY',
-  'PRE_VISITED',
-  'COMPLETING',
+  'INITIAL_VISIT_ELIGIBLE',
+  'INITIAL_VISIT_COMMITTED',
+  'COMPLETION_VISIT_ELIGIBLE',
   'COMPLETE',
 ] as const)(
   'continuation validates %s against unsatisfied C gates',
-  (status: GraphVertexStatus) => {
+  (status: ResolvedVisitStage) => {
     const { container, scheduling, accept, root } = setup();
     const join = accept(0, result('join', ['gate']))!;
     const gate = accept(1, result('gate'))!;
     scheduling.closeSlot(root, 2, 'disabled');
     scheduling.closeSlot(root, 3, 'disabled');
     scheduling.closeExpansion(root);
-    container.store.setStatus(join, status);
+    container.store.setVisitStage(join, status);
     if (
-      status === 'PRE_VISITED' ||
-      status === 'COMPLETING' ||
+      status === 'INITIAL_VISIT_COMMITTED' ||
+      status === 'COMPLETION_VISIT_ELIGIBLE' ||
       status === 'COMPLETE'
     )
       container.store.prepareSlots(join, []);
     const visits = [
-      { ref: gate, order: 'ON_READY' as const },
-      ...(status === 'READY'
-        ? [{ ref: join, order: 'ON_READY' as const }]
-        : status === 'COMPLETING'
-        ? [{ ref: join, order: 'ON_COMPLETE' as const }]
+      { ref: gate, order: 'ON_WORK_READY' as const },
+      ...(status === 'INITIAL_VISIT_ELIGIBLE'
+        ? [{ ref: join, order: 'ON_WORK_READY' as const }]
+        : status === 'COMPLETION_VISIT_ELIGIBLE'
+        ? [{ ref: join, order: 'ON_SUBGRAPH_READY' as const }]
         : []),
     ];
     const restored = new GraphScheduling(container);
@@ -204,6 +216,6 @@ test('an ordinary root gated on a deleted prerequisite is tombstoned before admi
   expect(scheduling.acceptRoot(result('root', ['gate']))).toBeNull();
   expect(scheduling.takeReady()).toBeNull();
   expect(container.store.getIdState('root')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraph.getRoot()).toBeNull();
-  expect(container.notMutatedResolvedGraph!.getVertexRefs()).toEqual([]);
+  expect(container.resolvedGraphView.getRoot()).toBeNull();
+  expect(container.originalGraphView!.getVertexRefs()).toEqual([]);
 });

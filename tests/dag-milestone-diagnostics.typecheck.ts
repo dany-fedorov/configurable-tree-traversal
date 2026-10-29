@@ -2,49 +2,55 @@ import {
   DagTraversal,
   AsyncDagTraversal,
   DagTraversalStallError,
-  type DagDependencyMilestone,
-  type DagDependencyEdge,
+  type DagMilestone,
+  type DagWaitEdge,
   type DagSummary,
   type DagTraversalStallDiagnostics,
-  type TreeTypeParameters,
-  type TraversableGraph,
+  type VertexTypes,
+  type DagDiscoverySource,
 } from '../src';
-import type { DagDependencyEdge as CoreEdge } from '../src/core';
-import type { DagDependencyMilestone as DagMilestone } from '../src/traversals/dag-traversal';
+import type { DagWaitEdge as CoreEdge } from '../src/core';
+import type { DagMilestone as SubpathMilestone } from '../src/traversals/dag-traversal';
 type ID = 'root' | 'child';
-type G = TreeTypeParameters<string, ID>;
-const milestone: DagDependencyMilestone<ID> = {
+type G = VertexTypes<string, ID>;
+const milestone: DagMilestone<ID> = {
   vertexId: 'root',
   milestone: 'work',
 };
-const sameMilestone: DagMilestone<ID> = milestone;
-const edge: DagDependencyEdge<ID> = {
-  from: milestone,
-  to: { vertexId: 'child', milestone: 'completion' },
-  reason: 'completionDependency',
+const sameMilestone: SubpathMilestone<ID> = milestone;
+const edge: DagWaitEdge<ID> = {
+  waiter: milestone,
+  prerequisite: { vertexId: 'child', milestone: 'subgraphCompletion' },
+  reason: 'subgraphCompletionDependency',
 };
 const sameEdge: CoreEdge<ID> = edge;
-const source: TraversableGraph<G, G, ID> = {
-  makeRoot: () => ({
-    vertexId: 'root',
-    vertexContent: { $data: '', $childHints: [] },
+const source: DagDiscoverySource<G, G, ID> = {
+  resolveRoot: () => ({
+    kind: 'found' as const,
+    vertex: {
+      vertexId: 'root',
+      vertexContent: { $data: '', $childHints: [] },
+    },
   }),
-  makeVertex: (vertexId) => ({
-    vertexId,
-    vertexContent: { $data: '', $childHints: [] },
+  resolveChild: (vertexId) => ({
+    kind: 'found' as const,
+    vertex: {
+      vertexId,
+      vertexContent: { $data: '', $childHints: [] },
+    },
   }),
 };
 for (const Constructor of [
   DagTraversal<G, G, ID>,
   AsyncDagTraversal<G, G, ID>,
 ]) {
-  const runner = new Constructor({ traversableGraph: source }).makeRunner();
+  const runner = new Constructor({ traversableGraph: source }).createRunner();
   const summary: DagSummary<ID> = runner.summary();
   const diagnostics: DagTraversalStallDiagnostics<ID> | null =
     summary.diagnostics;
   if (diagnostics) {
-    const edges: DagDependencyEdge<ID>[] = diagnostics.dependencyEdges;
-    const vertexId: ID = edges[0]!.to.vertexId;
+    const edges: DagWaitEdge<ID>[] = diagnostics.dependencyEdges;
+    const vertexId: ID = edges[0]!.prerequisite.vertexId;
     // @ts-expect-error Edges preserve the selected ID domain.
     const other: 'other' = vertexId;
     void other;
@@ -54,25 +60,25 @@ for (const Constructor of [
 const incomplete: DagTraversalStallDiagnostics<ID> = {
   dependencies: [],
   unknownPrerequisiteIds: [],
-  dependencyCycles: [],
+  dependencyCycleComponents: [],
   dependencyBlockedIds: [],
   structurallyIncompleteIds: [],
 };
-const wrongPhase: DagDependencyMilestone<ID> = {
+const wrongPhase: DagMilestone<ID> = {
   vertexId: 'root',
   // @ts-expect-error Milestone names are restricted.
   milestone: 'ready',
 };
-const wrongReason: DagDependencyEdge<ID> = {
-  from: milestone,
-  to: milestone,
+const wrongReason: DagWaitEdge<ID> = {
+  waiter: milestone,
+  prerequisite: milestone,
   // @ts-expect-error Edge reasons are restricted.
   reason: 'child',
 };
 const legacy = new DagTraversalStallError({
   dependencies: [],
   unknownPrerequisiteIds: [],
-  dependencyCycles: [],
+  dependencyCycleComponents: [],
   dependencyBlockedIds: [],
   structurallyIncompleteIds: [],
 });

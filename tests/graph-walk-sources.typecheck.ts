@@ -4,12 +4,12 @@ import {
   GraphWalkPhase,
   defineDag,
   graphWalk,
-  walkSourceFrom,
-  walkSourceFromAsync,
-  walkSourceFromDag,
+  materializeWalkSourceFromRecords,
+  materializeWalkSourceFromRecordsAsync,
+  materializeWalkSourceFromDagDefinition,
 } from '../src';
 import type { GraphWalkSource, GraphWalkDagRelation } from '../src';
-import { walkSourceFrom as familyFactory } from '../src/traversals/graph-walk';
+import { materializeWalkSourceFromRecords as familyFactory } from '../src/traversals/graph-walk';
 import type { GraphWalkDagRelation as FamilyRelation } from '../src/traversals/graph-walk';
 
 type Item = { id: symbol; label: string };
@@ -17,14 +17,15 @@ type Link = { kind: 'reference' | 'import' };
 const id = Symbol('id');
 const items: Item[] = [{ id, label: 'root' }];
 const edge: Link = { kind: 'reference' };
-const source = walkSourceFrom(items, {
+const source = materializeWalkSourceFromRecords(items, {
   id: (item) => item.id,
   outgoing: () => [{ to: id, data: edge }],
   roots: [id],
 });
 const typed: GraphWalkSource<Item, Link, symbol> = source;
-const familyTyped: typeof walkSourceFrom = familyFactory;
-const namespaceTyped: typeof walkSourceFrom = graphWalk.walkSourceFrom;
+const familyTyped: typeof materializeWalkSourceFromRecords = familyFactory;
+const namespaceTyped: typeof materializeWalkSourceFromRecords =
+  graphWalk.materializeWalkSourceFromRecords;
 new GraphWalk({ source }).addVisitorFor(GraphWalkPhase.EDGE, (event) => {
   const vertexId: symbol = event.edge.to;
   const item: Item = event.source.data;
@@ -32,7 +33,7 @@ new GraphWalk({ source }).addVisitorFor(GraphWalkPhase.EDGE, (event) => {
   void [vertexId, item, relation];
 });
 const asynchronous: Promise<GraphWalkSource<Item, Link, symbol>> =
-  walkSourceFromAsync(
+  materializeWalkSourceFromRecordsAsync(
     (async function* () {
       yield items[0]!;
     })(),
@@ -59,20 +60,23 @@ const definition = defineDag({
       vertexId: undefined,
       data: items[0]!,
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     },
   ],
   omittedIds: [],
   entry: { kind: 'root', vertexId: undefined },
 });
-const dag = walkSourceFromDag(definition, {
-  relations: ['children', 'workDependencies', 'completionDependencies'],
+const dag = materializeWalkSourceFromDagDefinition(definition, {
+  relations: ['children', 'workDependencies', 'subgraphCompletionDependencies'],
 });
 const dagTyped: GraphWalkSource<Item, GraphWalkDagRelation, undefined> = dag;
+const adapterMode: 'resolver' = dag.hydration;
 const child: FamilyRelation = { kind: 'child', slotIndex: 0 };
 const work: GraphWalkDagRelation = { kind: 'workDependency' };
-const completion: GraphWalkDagRelation = { kind: 'completionDependency' };
+const completion: GraphWalkDagRelation = {
+  kind: 'subgraphCompletionDependency',
+};
 new GraphWalk({ source: dag }).addVisitorFor(GraphWalkPhase.EDGE, (event) => {
   const vertexId: undefined = event.edge.to;
   const item: Item = event.source.data;
@@ -87,29 +91,35 @@ new GraphWalk({ source: dag }).addVisitorFor(GraphWalkPhase.EDGE, (event) => {
 });
 
 // @ts-expect-error Catalog roots are explicit.
-walkSourceFrom(items, { id: (item) => item.id, outgoing: () => [] });
-walkSourceFrom(items, {
+materializeWalkSourceFromRecords(items, {
+  id: (item) => item.id,
+  outgoing: () => [],
+});
+materializeWalkSourceFromRecords(items, {
   // @ts-expect-error Sync catalog ID selectors cannot return promises.
   id: async (item) => item.id,
   outgoing: () => [],
   roots: [id],
 });
-walkSourceFrom(items, {
+materializeWalkSourceFromRecords(items, {
   id: (item) => item.id,
   // @ts-expect-error Sync catalog links cannot be asynchronous.
   outgoing: async () => [],
   roots: [id],
 });
 // @ts-expect-error DAG relation selection is required.
-walkSourceFromDag(definition);
+materializeWalkSourceFromDagDefinition(definition);
 // @ts-expect-error DAG relation selection cannot be empty.
-walkSourceFromDag(definition, { relations: [] });
-// @ts-expect-error DAG relation names are closed.
-walkSourceFromDag(definition, { relations: ['dependsOn'] });
+materializeWalkSourceFromDagDefinition(definition, { relations: [] });
+materializeWalkSourceFromDagDefinition(definition, {
+  // @ts-expect-error DAG relation names are closed.
+  relations: ['dependsOnWork'],
+});
 // @ts-expect-error Child relation metadata includes its authored slot index.
 const missingIndex: GraphWalkDagRelation = { kind: 'child' };
 
 void [
+  adapterMode,
   typed,
   familyTyped,
   namespaceTyped,

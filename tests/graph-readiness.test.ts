@@ -1,8 +1,8 @@
-import { CTTRef } from '../src/core/CTTRef';
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
+import { MutableRef } from '../src/core/CTTRef';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { HintVertexId, Ref } from '../src/core/graph/types';
+import type { HintVertexId, VertexRef } from '../src/core/graph/types';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { Vertex } from '../src/core/Vertex';
@@ -11,18 +11,18 @@ function result(
   label: string,
   options: {
     id?: unknown;
-    dependsOn?: readonly unknown[];
+    dependsOnWork?: readonly unknown[];
     hints?: string[];
   } = {},
 ): MakeVertexResult<TestGraph> {
   const value: MakeVertexResult<TestGraph> = {
-    vertexContent: { $d: label, $c: options.hints ?? [] },
+    vertexContent: { $data: label, $childHints: options.hints ?? [] },
   };
   if (Object.prototype.hasOwnProperty.call(options, 'id')) {
     value.vertexId = options.id;
   }
-  if (Object.prototype.hasOwnProperty.call(options, 'dependsOn')) {
-    value.dependsOn = options.dependsOn!;
+  if (Object.prototype.hasOwnProperty.call(options, 'dependsOnWork')) {
+    value.dependsOnWork = options.dependsOnWork!;
   }
   return value;
 }
@@ -34,15 +34,15 @@ function omitted(id?: unknown): MakeVertexResult<TestGraph> {
 }
 
 function context(
-  parentRef: Ref<TestGraph>,
+  parentRef: VertexRef<TestGraph>,
   hintIndex: number,
 ): VertexResolutionContext<TestGraph> {
   return {
     depth: 1,
-    parentVertex: parentRef.unref(),
+    parentVertex: parentRef.getValue(),
     parentVertexRef: parentRef,
     hintIndex,
-    vertexHint: parentRef.unref().getChildrenHints()[hintIndex]!,
+    vertexHint: parentRef.getValue().getChildrenHints()[hintIndex]!,
   };
 }
 
@@ -67,7 +67,9 @@ test('root acceptance honors existing live, omitted, and deleted identities', ()
   const scheduling = new GraphScheduling(container);
   container.store.markDeleted('deleted');
   container.store.markOmitted('omitted');
-  expect(scheduling.acceptRoot(result('deleted', { id: 'deleted' }))).toBeNull();
+  expect(
+    scheduling.acceptRoot(result('deleted', { id: 'deleted' })),
+  ).toBeNull();
   expect(scheduling.acceptRoot(omitted('omitted'))).toBeNull();
   expect(() =>
     scheduling.acceptRoot(result('conflict', { id: 'omitted' })),
@@ -75,8 +77,10 @@ test('root acceptance honors existing live, omitted, and deleted identities', ()
 
   const rootRef = scheduling.acceptRoot(result('root', { id: 'root' }))!;
   container.store.setRoot(null);
-  expect(scheduling.acceptRoot(result('ignored', { id: 'root' }))).toBe(rootRef);
-  expect(container.resolvedGraph.getRoot()).toBe(rootRef);
+  expect(scheduling.acceptRoot(result('ignored', { id: 'root' }))).toBe(
+    rootRef,
+  );
+  expect(container.resolvedGraphView.getRoot()).toBe(rootRef);
 });
 
 test('scheduling rejects unknown enrollment and duplicate expansion transitions', () => {
@@ -85,49 +89,53 @@ test('scheduling rejects unknown enrollment and duplicate expansion transitions'
     saveOriginal: false,
   });
   const scheduling = new GraphScheduling(container);
-  const unknown = new CTTRef(
-    new Vertex<TestGraph>({ $d: 'unknown', $c: [] }),
+  const unknown = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'unknown', $childHints: [] }),
   );
   expect(() => scheduling.markPreVisited(unknown)).toThrow(/unknown/i);
   container.store.insertVertex({
     ref: unknown,
     id: 'unknown',
-    dependsOn: [],
+    dependsOnWork: [],
     depth: 0,
   });
   expect(() => scheduling.markPreVisited(unknown)).toThrow(/not enrolled/i);
   expect(() => scheduling.markPreVisiting(unknown)).toThrow(/not enrolled/i);
-  expect(() => scheduling.disableSubtree(new CTTRef(unknown.unref()))).toThrow(
-    /unknown/i,
-  );
+  expect(() =>
+    scheduling.disableSubtree(new MutableRef(unknown.getValue())),
+  ).toThrow(/unknown/i);
 
   const rootRef = scheduling.acceptRoot(result('root', { id: 'root' }))!;
   expect(scheduling.getStall()).toBeNull();
   scheduling.prepareSlots(rootRef, []);
-  expect(() => scheduling.prepareSlots(rootRef, [])).toThrow(/already prepared/i);
+  expect(() => scheduling.prepareSlots(rootRef, [])).toThrow(
+    /already prepared/i,
+  );
   scheduling.markPreVisited(rootRef);
   scheduling.closeExpansion(rootRef);
   expect(() =>
     (
       scheduling as unknown as {
-        noteLinkedSlot(parent: Ref<TestGraph>, index: number): void;
+        noteLinkedSlot(parent: VertexRef<TestGraph>, index: number): void;
       }
     ).noteLinkedSlot(rootRef, 0),
   ).toThrow(/after expansion is closed/i);
-  expect(scheduling.deleteVertex(new CTTRef(rootRef.unref()))).toEqual(new Set());
+  expect(scheduling.deleteVertex(new MutableRef(rootRef.getValue()))).toEqual(
+    new Set(),
+  );
 });
 
 test('known-hint and consumed-tree restoration handle absent and reusable slots', () => {
   const { container, scheduling, rootRef } = setup(['child']);
   (
     scheduling as unknown as {
-      captureReusableTreeChildren(parent: Ref<TestGraph>): void;
+      captureReusableTreeChildren(parent: VertexRef<TestGraph>): void;
     }
   ).captureReusableTreeChildren(rootRef);
   expect(
     (
       scheduling as unknown as {
-        reusableTreeChildren: Map<Ref<TestGraph>, unknown>;
+        reusableTreeChildren: Map<VertexRef<TestGraph>, unknown>;
       }
     ).reusableTreeChildren.size,
   ).toBe(0);
@@ -138,17 +146,24 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
     scheduling.acceptKnownHint(context(rootRef, 0), { vertexId: 'missing' }),
   ).toBe(false);
   scheduling.restoreConsumedTreeSlot(context(rootRef, 0));
-  expect(container.resolvedGraph.get(rootRef)?.slots[0]?.kind).toBe('omitted');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[0]?.kind).toBe(
+    'omitted',
+  );
 
   const second = setup(['child']);
-  const childRef = new CTTRef(
-    new Vertex<TestGraph>({ $d: 'child', $c: [] }),
+  const childRef = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
   );
-  second.container.acceptVertex(childRef, 'child', [], context(second.rootRef, 0));
+  second.container.acceptVertex(
+    childRef,
+    'child',
+    [],
+    context(second.rootRef, 0),
+  );
   const reusable = second.scheduling as unknown as {
     reusableTreeChildren: Map<
-      Ref<TestGraph>,
-      Map<number, { ref: Ref<TestGraph>; hint: string }>
+      VertexRef<TestGraph>,
+      Map<number, { ref: VertexRef<TestGraph>; hint: string }>
     >;
   };
   reusable.reusableTreeChildren.set(
@@ -156,10 +171,12 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
     new Map([[0, { ref: childRef, hint: 'child' }]]),
   );
   second.scheduling.restoreConsumedTreeSlot(context(second.rootRef, 0));
-  expect(second.container.resolvedGraph.getChildrenOf(second.rootRef)).toEqual([
-    childRef,
-  ]);
-  expect(second.container.resolvedGraph.getStatusOf(childRef)).toBe('COMPLETE');
+  expect(
+    second.container.resolvedGraphView.getChildrenOf(second.rootRef),
+  ).toEqual([childRef]);
+  expect(second.container.resolvedGraphView.getVisitStageOf(childRef)).toBe(
+    'COMPLETE',
+  );
   reusable.reusableTreeChildren.set(
     second.rootRef,
     new Map([[0, { ref: childRef, hint: 'different' }]]),
@@ -169,19 +186,19 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
       second.scheduling as unknown as {
         findExistingTreeChild(
           value: VertexResolutionContext<TestGraph>,
-        ): Ref<TestGraph> | null;
+        ): VertexRef<TestGraph> | null;
       }
     ).findExistingTreeChild(context(second.rootRef, 0)),
   ).toBeNull();
 
-  const removals = new Set<Ref<TestGraph>>([second.rootRef]);
-  const pending: Ref<TestGraph>[] = [];
+  const removals = new Set<VertexRef<TestGraph>>([second.rootRef]);
+  const pending: VertexRef<TestGraph>[] = [];
   (
     second.scheduling as unknown as {
       addRemoval(
-        ref: Ref<TestGraph>,
-        refs: Set<Ref<TestGraph>>,
-        work: Ref<TestGraph>[],
+        ref: VertexRef<TestGraph>,
+        refs: Set<VertexRef<TestGraph>>,
+        work: VertexRef<TestGraph>[],
       ): void;
     }
   ).addRemoval(second.rootRef, removals, pending);
@@ -195,7 +212,7 @@ test('admits an early dependent only after both later prerequisites are pre-visi
   scheduling.markPreVisited(rootRef);
   const joinRef = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('join', { id: 'join', dependsOn: ['A', 'B'] }),
+    result('join', { id: 'join', dependsOnWork: ['A', 'B'] }),
   )!;
   expect(scheduling.takeReady()).toBeNull();
   const aRef = scheduling.acceptVertex(
@@ -213,7 +230,9 @@ test('admits an early dependent only after both later prerequisites are pre-visi
   expect(scheduling.takeReady()).toBeNull();
   scheduling.markPreVisited(bRef);
   expect(scheduling.takeReady()).toBe(joinRef);
-  expect(container.resolvedGraph.get(joinRef)?.status).toBe('READY');
+  expect(container.resolvedGraphView.get(joinRef)?.visitStage).toBe(
+    'INITIAL_VISIT_ELIGIBLE',
+  );
 });
 
 test('uses one FIFO for eligible visits and consumes each readiness once', () => {
@@ -226,9 +245,12 @@ test('uses one FIFO for eligible visits and consumes each readiness once', () =>
 
   expect(scheduling.takeEligible()).toEqual({
     ref: rootRef,
-    order: 'ON_READY',
+    order: 'ON_WORK_READY',
   });
-  expect(scheduling.takeEligible()).toEqual({ ref: aRef, order: 'ON_READY' });
+  expect(scheduling.takeEligible()).toEqual({
+    ref: aRef,
+    order: 'ON_WORK_READY',
+  });
   expect(scheduling.takeEligible()).toBeNull();
   scheduling.markPreVisited(aRef);
   scheduling.markPreVisited(aRef);
@@ -243,7 +265,7 @@ test('consumes a wide eligible FIFO with a cursor and preserves head blocking', 
   const refs = hints.map((hint, index) =>
     scheduling.acceptVertex(
       context(rootRef, index),
-      result(hint, { id: hint, dependsOn: [] }),
+      result(hint, { id: hint, dependsOnWork: [] }),
     ),
   );
   const shift = jest.spyOn(Array.prototype, 'shift');
@@ -251,7 +273,7 @@ test('consumes a wide eligible FIFO with a cursor and preserves head blocking', 
     expect(scheduling.takeCompleting()).toBeNull();
     expect(scheduling.takeReady()).toBe(rootRef);
     expect(scheduling.inspectEligible().slice(0, 3)).toEqual(
-      refs.slice(0, 3).map((ref) => ({ ref, order: 'ON_READY' })),
+      refs.slice(0, 3).map((ref) => ({ ref, order: 'ON_WORK_READY' })),
     );
     for (const ref of refs) expect(scheduling.takeReady()).toBe(ref);
     expect(scheduling.takeEligible()).toBeNull();
@@ -269,39 +291,41 @@ test('graph children have no work prerequisites unless explicitly declared', () 
     result('child', { id: 'child' }),
   )!;
 
-  expect(container.resolvedGraph.get(rootRef)?.dependsOn).toEqual([]);
-  expect(container.resolvedGraph.get(childRef)?.dependsOn).toEqual([]);
+  expect(container.resolvedGraphView.get(rootRef)?.dependsOnWork).toEqual([]);
+  expect(container.resolvedGraphView.get(childRef)?.dependsOnWork).toEqual([]);
   expect(scheduling.takeReady()).toBe(rootRef);
   expect(scheduling.takeReady()).toBe(childRef);
   expect(scheduling.takeReady()).toBeNull();
 });
 
-test('deduplicates dependencies with SameValueZero and accepts COMPLETING as satisfied', () => {
+test('deduplicates dependencies with SameValueZero and accepts COMPLETION_VISIT_ELIGIBLE as satisfied', () => {
   const dependencyId = {};
   const { container, scheduling, rootRef } = setup(['dependency', 'dependent']);
   scheduling.takeReady();
   scheduling.markPreVisited(rootRef);
   const dependencyRef = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('dependency', { id: dependencyId, dependsOn: [] }),
+    result('dependency', { id: dependencyId, dependsOnWork: [] }),
   )!;
   expect(scheduling.takeReady()).toBe(dependencyRef);
-  container.store.setStatus(dependencyRef, 'COMPLETING');
+  container.store.setVisitStage(dependencyRef, 'COMPLETION_VISIT_ELIGIBLE');
 
   const dependentRef = scheduling.acceptVertex(
     context(rootRef, 1),
     result('dependent', {
       id: 'dependent',
-      dependsOn: [dependencyId, dependencyId, NaN, NaN],
+      dependsOnWork: [dependencyId, dependencyId, NaN, NaN],
     }),
   )!;
-  expect(container.resolvedGraph.get(dependentRef)?.dependsOn).toEqual([
+  expect(container.resolvedGraphView.get(dependentRef)?.dependsOnWork).toEqual([
     dependencyId,
     NaN,
   ]);
   expect(scheduling.takeReady()).toBeNull();
 
-  const omittedParent = new CTTRef(rootRef.unref().clone({ $c: ['missing'] }));
+  const omittedParent = new MutableRef(
+    rootRef.getValue().clone({ $childHints: ['missing'] }),
+  );
   container.acceptVertex(
     omittedParent,
     'omitted-parent',
@@ -323,7 +347,7 @@ test('an omission releases reverse dependents once and repeated omissions close 
   scheduling.markPreVisited(rootRef);
   const dependentRef = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('dependent', { id: 'dependent', dependsOn: ['missing'] }),
+    result('dependent', { id: 'dependent', dependsOnWork: ['missing'] }),
   )!;
 
   expect(
@@ -335,7 +359,7 @@ test('an omission releases reverse dependents once and repeated omissions close 
   ).toBeNull();
   expect(scheduling.takeReady()).toBeNull();
   expect(
-    container.resolvedGraph.get(rootRef)?.slots.map((slot) => slot.kind),
+    container.resolvedGraphView.get(rootRef)?.slots.map((slot) => slot.kind),
   ).toEqual(['linked', 'omitted', 'omitted']);
 });
 
@@ -347,17 +371,19 @@ test('supports null and undefined ids while anonymous null results reserve no id
   ]);
   const nullRef = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('null-live', { id: null, dependsOn: [] }),
+    result('null-live', { id: null, dependsOnWork: [] }),
   )!;
   const undefinedRef = scheduling.acceptVertex(
     context(rootRef, 1),
-    result('undefined-live', { id: undefined, dependsOn: [] }),
+    result('undefined-live', { id: undefined, dependsOnWork: [] }),
   )!;
 
-  expect(container.resolvedGraph.getVertexById(null)).toBe(nullRef);
-  expect(container.resolvedGraph.getVertexById(undefined)).toBe(undefinedRef);
+  expect(container.resolvedGraphView.getVertexRefById(null)).toBe(nullRef);
+  expect(container.resolvedGraphView.getVertexRefById(undefined)).toBe(
+    undefinedRef,
+  );
   expect(scheduling.acceptVertex(context(rootRef, 2), omitted())).toBeNull();
-  expect(container.resolvedGraph.getVertexRefs()).toEqual([
+  expect(container.resolvedGraphView.getVertexRefs()).toEqual([
     rootRef,
     nullRef,
     undefinedRef,
@@ -374,24 +400,26 @@ test('rejects content for an omitted identity without closing the conflicting sl
       result('conflict', { id: null }),
     ),
   ).toThrow(/omission.*content/i);
-  expect(container.resolvedGraph.get(rootRef)?.slots[1]?.kind).toBe('pending');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+    'pending',
+  );
 });
 
 test('a duplicate null result links the first live identity and preserves its content', () => {
   const { container, scheduling, rootRef } = setup(['first', 'duplicate']);
   const firstRef = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('first', { id: 'same', dependsOn: [] }),
+    result('first', { id: 'same', dependsOnWork: [] }),
   )!;
 
   expect(scheduling.acceptVertex(context(rootRef, 1), omitted('same'))).toBe(
     firstRef,
   );
-  expect(container.resolvedGraph.getChildrenOf(rootRef)).toEqual([
+  expect(container.resolvedGraphView.getChildrenOf(rootRef)).toEqual([
     firstRef,
     firstRef,
   ]);
-  expect(firstRef.unref().getData()).toBe('first');
+  expect(firstRef.getValue().getData()).toBe('first');
 });
 
 test('duplicate live results add edges but retain first content and dependencies', () => {
@@ -404,16 +432,18 @@ test('duplicate live results add edges but retain first content and dependencies
   scheduling.markPreVisited(rootRef);
   const firstRef = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('first', { id: 'same', dependsOn: ['gate'] }),
+    result('first', { id: 'same', dependsOnWork: ['gate'] }),
   )!;
   const duplicateRef = scheduling.acceptVertex(
     context(rootRef, 1),
-    result('replacement', { id: 'same', dependsOn: [] }),
+    result('replacement', { id: 'same', dependsOnWork: [] }),
   );
 
   expect(duplicateRef).toBe(firstRef);
-  expect(firstRef.unref().getData()).toBe('first');
-  expect(container.resolvedGraph.get(firstRef)?.dependsOn).toEqual(['gate']);
+  expect(firstRef.getValue().getData()).toBe('first');
+  expect(container.resolvedGraphView.get(firstRef)?.dependsOnWork).toEqual([
+    'gate',
+  ]);
   expect(scheduling.takeReady()).toBeNull();
   scheduling.acceptVertex(context(rootRef, 2), omitted('gate'));
   expect(scheduling.takeReady()).toBe(firstRef);
@@ -429,30 +459,32 @@ test('uses authoritative hint identities and compares dual ids with SameValueZer
   ]);
   const hinted = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('hint', { dependsOn: [] }),
+    result('hint', { dependsOnWork: [] }),
     { vertexId: undefined },
   )!;
   const nan = scheduling.acceptVertex(
     context(rootRef, 1),
-    result('nan', { id: NaN, dependsOn: [] }),
+    result('nan', { id: NaN, dependsOnWork: [] }),
     { vertexId: NaN },
   )!;
   scheduling.acceptVertex(
     context(rootRef, 2),
-    result('zero', { id: -0, dependsOn: [] }),
+    result('zero', { id: -0, dependsOnWork: [] }),
     { vertexId: 0 },
   );
 
-  expect(container.resolvedGraph.getVertexById(undefined)).toBe(hinted);
-  expect(container.resolvedGraph.getVertexById(NaN)).toBe(nan);
+  expect(container.resolvedGraphView.getVertexRefById(undefined)).toBe(hinted);
+  expect(container.resolvedGraphView.getVertexRefById(NaN)).toBe(nan);
   expect(() =>
     scheduling.acceptVertex(
       context(rootRef, 3),
-      result('bad', { id: {}, dependsOn: [] }),
+      result('bad', { id: {}, dependsOnWork: [] }),
       { vertexId: {} },
     ),
   ).toThrow(/id.*mismatch/i);
-  expect(container.resolvedGraph.get(rootRef)?.slots[3]?.kind).toBe('pending');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[3]?.kind).toBe(
+    'pending',
+  );
 });
 
 test('detects result ids as own properties rather than inherited values', () => {
@@ -464,28 +496,30 @@ test('detects result ids as own properties rather than inherited values', () => 
   const inherited = Object.create({
     vertexId: 'inherited',
   }) as MakeVertexResult<TestGraph>;
-  inherited.vertexContent = { $d: 'root', $c: [] };
-  inherited.dependsOn = ['ignored'];
+  inherited.vertexContent = { $data: 'root', $childHints: [] };
+  inherited.dependsOnWork = ['ignored'];
 
   const rootRef = scheduling.acceptRoot(inherited)!;
 
-  expect(container.resolvedGraph.getVertexById('inherited')).toBeNull();
-  expect(container.resolvedGraph.getIdOf(rootRef)).toBe(rootRef.getId());
+  expect(container.resolvedGraphView.getVertexRefById('inherited')).toBeNull();
+  expect(container.resolvedGraphView.getVertexId(rootRef)).toBe(
+    rootRef.getRefId(),
+  );
 });
 
 test('retries generated UUID identities that are already indexed', () => {
   const { container, scheduling, rootRef } = setup(['generated']);
   const getId = jest
-    .spyOn(CTTRef.prototype, 'getId')
+    .spyOn(MutableRef.prototype, 'getRefId')
     .mockReturnValueOnce('root')
     .mockReturnValueOnce('fresh-generated-id');
   try {
     const generated = scheduling.acceptVertex(
       context(rootRef, 0),
-      result('generated', { dependsOn: [] }),
+      result('generated', { dependsOnWork: [] }),
     )!;
 
-    expect(container.resolvedGraph.getIdOf(generated)).toBe(
+    expect(container.resolvedGraphView.getVertexId(generated)).toBe(
       'fresh-generated-id',
     );
   } finally {
@@ -497,25 +531,27 @@ test('closes arrivals for deleted identities without restoring them', () => {
   const { container, scheduling, rootRef } = setup(['first', 'deleted']);
   const deletedRef = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('first', { id: 'deleted', dependsOn: [] }),
+    result('first', { id: 'deleted', dependsOnWork: [] }),
   )!;
   container.deleteVertices(new Set([deletedRef]));
 
   expect(
     scheduling.acceptVertex(
       context(rootRef, 1),
-      result('replacement', { id: 'deleted', dependsOn: [] }),
+      result('replacement', { id: 'deleted', dependsOnWork: [] }),
     ),
   ).toBeNull();
   expect(container.store.getIdState('deleted')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraph.get(rootRef)?.slots[1]?.kind).toBe('deleted');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+    'deleted',
+  );
 });
 
 test('tombstones a new identity whose dependency was already deleted', () => {
   const { container, scheduling, rootRef } = setup(['dependency', 'dependent']);
   const dependencyRef = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('dependency', { id: 'dependency', dependsOn: [] }),
+    result('dependency', { id: 'dependency', dependsOnWork: [] }),
   )!;
   container.deleteVertices(new Set([dependencyRef]));
 
@@ -524,12 +560,14 @@ test('tombstones a new identity whose dependency was already deleted', () => {
       context(rootRef, 1),
       result('dependent', {
         id: 'dependent',
-        dependsOn: ['dependency'],
+        dependsOnWork: ['dependency'],
       }),
     ),
   ).toBeNull();
   expect(container.store.getIdState('dependent')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraph.get(rootRef)?.slots[1]?.kind).toBe('deleted');
+  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+    'deleted',
+  );
 });
 
 test('an explicitly identified null root records omission and creates no root', () => {
@@ -541,7 +579,7 @@ test('an explicitly identified null root records omission and creates no root', 
 
   expect(scheduling.acceptRoot(omitted('empty-root'))).toBeNull();
   expect(container.store.getIdState('empty-root')).toEqual({ kind: 'omitted' });
-  expect(container.resolvedGraph.getRoot()).toBeNull();
+  expect(container.resolvedGraphView.getRoot()).toBeNull();
   expect(scheduling.takeReady()).toBeNull();
 });
 
@@ -565,10 +603,12 @@ test('accepts a hint wrapper only when it carries an own vertexId', () => {
   }) as HintVertexId;
   const hinted = scheduling.acceptVertex(
     context(rootRef, 0),
-    result('hint', { dependsOn: [] }),
+    result('hint', { dependsOnWork: [] }),
     inheritedHint,
   )!;
 
-  expect(container.resolvedGraph.getVertexById('inherited')).toBeNull();
-  expect(container.resolvedGraph.getIdOf(hinted)).toBe(hinted.getId());
+  expect(container.resolvedGraphView.getVertexRefById('inherited')).toBeNull();
+  expect(container.resolvedGraphView.getVertexId(hinted)).toBe(
+    hinted.getRefId(),
+  );
 });

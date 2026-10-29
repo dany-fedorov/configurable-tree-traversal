@@ -1,0 +1,349 @@
+{
+  "compiler": "4.9.5",
+  "runtime": "v24.20.0",
+  "runtimeEntries": 9,
+  "packageEntriesIncludingMetadata": 10,
+  "exportedBindings": 534,
+  "rootBindings": 268,
+  "rootRuntimeValues": 67,
+  "reachableDeclarations": 318,
+  "publicInheritedOrMappedMembers": 1085,
+  "staticMembers": 3,
+  "declaredMemberOccurrences": 897,
+  "runners": [
+    {
+      "name": "DepthFirstTreeRunner",
+      "members": [
+        "getResolvedGraph",
+        "getResolvedTreeStore",
+        "getResolvedTreeView",
+        "getStatus",
+        "getStopReason",
+        "inspect",
+        "isHalted",
+        "isTraversalLeaf",
+        "isTraversalRootVertex",
+        "isTreeRootVertex",
+        "iterateEvents",
+        "requestPause",
+        "run"
+      ]
+    },
+    {
+      "name": "AsyncDepthFirstTreeRunner",
+      "members": [
+        "getResolvedGraph",
+        "getResolvedTreeStore",
+        "getResolvedTreeView",
+        "getStatus",
+        "getStopReason",
+        "inspect",
+        "isHalted",
+        "isTraversalLeaf",
+        "isTraversalRootVertex",
+        "isTreeRootVertex",
+        "iterateEvents",
+        "requestPause",
+        "run"
+      ]
+    },
+    {
+      "name": "BreadthFirstTreeRunner",
+      "members": [
+        "getResolvedGraph",
+        "getResolvedTreeStore",
+        "getResolvedTreeView",
+        "getStatus",
+        "getStopReason",
+        "inspect",
+        "isHalted",
+        "isTraversalRootVertex",
+        "isTreeRootVertex",
+        "iterateEvents",
+        "requestPause",
+        "run"
+      ]
+    },
+    {
+      "name": "AsyncBreadthFirstTreeRunner",
+      "members": [
+        "getResolvedGraph",
+        "getResolvedTreeStore",
+        "getResolvedTreeView",
+        "getStatus",
+        "getStopReason",
+        "inspect",
+        "isHalted",
+        "isTraversalRootVertex",
+        "isTreeRootVertex",
+        "iterateEvents",
+        "requestPause",
+        "run"
+      ]
+    },
+    {
+      "name": "DagTraversalRunner",
+      "members": [
+        "getResolvedGraph",
+        "getResolvedTreeView",
+        "getStatus",
+        "getStopReason",
+        "inspect",
+        "inspectMilestones",
+        "isGraphRootVertex",
+        "isHalted",
+        "isTraversalRootVertex",
+        "iterateEvents",
+        "originalGraphView",
+        "prepare",
+        "requestPause",
+        "run",
+        "settle",
+        "summary"
+      ]
+    },
+    {
+      "name": "AsyncDagTraversalRunner",
+      "members": [
+        "getResolvedGraph",
+        "getResolvedTreeView",
+        "getStatus",
+        "getStopReason",
+        "inspect",
+        "inspectMilestones",
+        "isGraphRootVertex",
+        "isHalted",
+        "isTraversalRootVertex",
+        "iterateEvents",
+        "originalGraphView",
+        "prepare",
+        "requestPause",
+        "run",
+        "settle",
+        "summary"
+      ]
+    },
+    {
+      "name": "GraphWalkRunner",
+      "members": [
+        "close",
+        "getStatus",
+        "getStopReason",
+        "inspect",
+        "isHalted",
+        "iterateEvents",
+        "requestPause",
+        "run",
+        "summary"
+      ]
+    },
+    {
+      "name": "AsyncGraphWalkRunner",
+      "members": [
+        "close",
+        "getStatus",
+        "getStopReason",
+        "inspect",
+        "isHalted",
+        "iterateEvents",
+        "requestPause",
+        "run",
+        "summary"
+      ]
+    }
+  ],
+  "signatureSupport": [
+    {
+      "name": "DriverInspection",
+      "location": "dist/core/CoreInspection.d.ts:50"
+    },
+    {
+      "name": "KernelInspection",
+      "location": "dist/core/CoreInspection.d.ts:9"
+    },
+    {
+      "name": "CTTAbstractParent",
+      "location": "dist/core/CTTAbstractParent.d.ts:1"
+    },
+    {
+      "name": "VisitOrder",
+      "location": "dist/core/effects/types.d.ts:10"
+    },
+    {
+      "name": "OwnerToken",
+      "location": "dist/core/effects/types.d.ts:19"
+    },
+    {
+      "name": "CallbackValues",
+      "location": "dist/core/effects/types.d.ts:55"
+    },
+    {
+      "name": "DiagnosticId",
+      "location": "dist/core/errors/DagTraversalStallError.d.ts:24"
+    },
+    {
+      "name": "VisitResult",
+      "location": "dist/core/graph/types.d.ts:11"
+    },
+    {
+      "name": "VisitorRecord",
+      "location": "dist/core/graph/types.d.ts:49"
+    },
+    {
+      "name": "RequiredGraphVertexIdentity",
+      "location": "dist/core/TraversableTree.d.ts:12"
+    },
+    {
+      "name": "GraphDependencies",
+      "location": "dist/core/TraversableTree.d.ts:15"
+    },
+    {
+      "name": "MakeVertexResult",
+      "location": "dist/core/TraversableTree.d.ts:19"
+    },
+    {
+      "name": "TreeMetadataRestrictions",
+      "location": "dist/core/TraversableTree.d.ts:48"
+    },
+    {
+      "name": "MakeTreeVertexResult",
+      "location": "dist/core/TraversableTree.d.ts:55"
+    },
+    {
+      "name": "VisitorInputs",
+      "location": "dist/core/TraversalVisitor.d.ts:124"
+    },
+    {
+      "name": "NoInferPhase",
+      "location": "dist/core/TraversalVisitor.d.ts:50"
+    },
+    {
+      "name": "HintCommand",
+      "location": "dist/core/TraversalVisitor.d.ts:51"
+    },
+    {
+      "name": "CommonCommand",
+      "location": "dist/core/TraversalVisitor.d.ts:52"
+    },
+    {
+      "name": "TraversalVisitorFunctionResolutionStyle",
+      "location": "dist/core/TraversalVisitor.d.ts:74"
+    },
+    {
+      "name": "LegacyContentInput",
+      "location": "dist/core/Vertex.d.ts:13"
+    },
+    {
+      "name": "LegacyVertexContent",
+      "location": "dist/core/Vertex.d.ts:8"
+    },
+    {
+      "name": "CanonicalContentInput",
+      "location": "dist/core/Vertex.d.ts:9"
+    },
+    {
+      "name": "LegacyVisitorOptions",
+      "location": "dist/core/visitors/normalizeVisitorOptions.d.ts:2"
+    },
+    {
+      "name": "getChildrenOfPropertyDefault",
+      "location": "dist/traversable-tree-implementations/traversable-object-tree/lib/getChildrenOfPropertyDefault.d.ts:4"
+    },
+    {
+      "name": "getRootPropertyFromInputObjectDefault",
+      "location": "dist/traversable-tree-implementations/traversable-object-tree/lib/getRootPropertyFromInputObjectDefault.d.ts:3"
+    },
+    {
+      "name": "AsyncBreadthFirstTraversalVisitors",
+      "location": "dist/traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig.d.ts:9"
+    },
+    {
+      "name": "BreadthFirstTraversalVisitors",
+      "location": "dist/traversals/breadth-first-traversal/lib/BreadthFirstTraversalVisitors.d.ts:4"
+    },
+    {
+      "name": "DagCoordinationControl",
+      "location": "dist/traversals/dag-traversal/coordinateDag.d.ts:26"
+    },
+    {
+      "name": "ticketBrand",
+      "location": "dist/traversals/dag-traversal/coordinateDag.d.ts:7"
+    },
+    {
+      "name": "FilteredVisitor",
+      "location": "dist/traversals/dag-traversal/filterDagVisitor.d.ts:4"
+    },
+    {
+      "name": "AsyncFilteredVisitor",
+      "location": "dist/traversals/dag-traversal/filterDagVisitor.d.ts:5"
+    },
+    {
+      "name": "AsyncDagSource",
+      "location": "dist/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig.d.ts:11"
+    },
+    {
+      "name": "AsyncDagTraversalVisitors",
+      "location": "dist/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig.d.ts:18"
+    },
+    {
+      "name": "AsyncDagTraversalOptionsInput",
+      "location": "dist/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig.d.ts:33"
+    },
+    {
+      "name": "InferredDagId",
+      "location": "dist/traversals/dag-traversal/lib/DagFragment.d.ts:20"
+    },
+    {
+      "name": "WorkTarget",
+      "location": "dist/traversals/dag-traversal/lib/DagInspection.d.ts:20"
+    },
+    {
+      "name": "CompletionTarget",
+      "location": "dist/traversals/dag-traversal/lib/DagInspection.d.ts:24"
+    },
+    {
+      "name": "DagSource",
+      "location": "dist/traversals/dag-traversal/lib/DagTraversalInstanceConfig.d.ts:17"
+    },
+    {
+      "name": "DagTraversalVisitors",
+      "location": "dist/traversals/dag-traversal/lib/DagTraversalInstanceConfig.d.ts:24"
+    },
+    {
+      "name": "DagTraversalOptionsInput",
+      "location": "dist/traversals/dag-traversal/lib/DagTraversalInstanceConfig.d.ts:38"
+    },
+    {
+      "name": "OwnedOptions",
+      "location": "dist/traversals/dag-traversal/lib/PreparedDag.d.ts:15"
+    },
+    {
+      "name": "RevisionDomain",
+      "location": "dist/traversals/dag-traversal/reviseDag.d.ts:3"
+    },
+    {
+      "name": "AsyncDepthFirstTraversalVisitors",
+      "location": "dist/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalInstanceConfig.d.ts:10"
+    },
+    {
+      "name": "DepthFirstFrameStage",
+      "location": "dist/traversals/depth-first-traversal/lib/DepthFirstPolicy.d.ts:6"
+    },
+    {
+      "name": "DepthFirstTraversalVisitors",
+      "location": "dist/traversals/depth-first-traversal/lib/DepthFirstTraversalVisitors.d.ts:4"
+    },
+    {
+      "name": "GraphWalkFields",
+      "location": "dist/traversals/graph-walk/GraphWalkOptions.d.ts:47"
+    },
+    {
+      "name": "AsyncGraphWalkFields",
+      "location": "dist/traversals/graph-walk/GraphWalkOptions.d.ts:58"
+    },
+    {
+      "name": "RelationSelection",
+      "location": "dist/traversals/graph-walk/walkSourceFromDag.d.ts:11"
+    }
+  ]
+}

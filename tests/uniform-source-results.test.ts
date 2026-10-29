@@ -1,32 +1,33 @@
+import { treeResolution } from './source-result-fixtures';
 import {
-  AsyncBreadthFirstTraversal,
+  AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
   DagTraversal,
-  DepthFirstTraversal,
+  DepthFirstTreeTraversal,
 } from '../src';
-import type { AsyncTraversableTree, TreeTypeParameters } from '../src';
+import type { AsyncTreeSource, VertexTypes } from '../src';
 
-type T = TreeTypeParameters<string, string>;
+type T = VertexTypes<string, string>;
 
 for (const Constructor of [
-  DepthFirstTraversal<T>,
-  AsyncDepthFirstTraversal<T>,
-  BreadthFirstTraversal<T>,
-  AsyncBreadthFirstTraversal<T>,
+  DepthFirstTreeTraversal<T>,
+  AsyncDepthFirstTreeTraversal<T>,
+  BreadthFirstTreeTraversal<T>,
+  AsyncBreadthFirstTreeTraversal<T>,
   DagTraversal<T>,
   AsyncDagTraversal<T>,
 ]) {
   test(`${Constructor.name} accepts canonical found/omitted tree results in structural order`, async () => {
     const source = {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         kind: 'found' as const,
         vertex: {
           vertexContent: { $data: 'root', $childHints: ['a', 'omit', 'b'] },
         },
       }),
-      makeVertex: (hint: string) =>
+      resolveChild: (hint: string) =>
         hint === 'omit'
           ? { kind: 'omitted' as const }
           : {
@@ -34,9 +35,9 @@ for (const Constructor of [
               vertex: { vertexContent: { $data: hint, $childHints: [] } },
             },
     };
-    const runner = new Constructor({ traversableTree: source }).makeRunner();
+    const runner = new Constructor({ traversableTree: source }).createRunner();
     const seen: string[] = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       if (event !== null) seen.push(event.vertex.getData());
     }
     expect(seen.filter((data, index) => seen.indexOf(data) === index)).toEqual([
@@ -49,36 +50,36 @@ for (const Constructor of [
   test(`${Constructor.name} accepts an anonymous canonical omitted tree root`, async () => {
     const runner = new Constructor({
       traversableTree: {
-        makeRoot: () => ({ kind: 'omitted' }),
-        makeVertex: () => ({ kind: 'omitted' }),
+        resolveRoot: () => ({ kind: 'omitted' }),
+        resolveChild: () => ({ kind: 'omitted' }),
       },
-    }).makeRunner();
+    }).createRunner();
     await runner.run();
     const seen: unknown[] = [];
-    for await (const event of runner.getIterable()) seen.push(event);
+    for await (const event of runner.iterateEvents()) seen.push(event);
     expect(seen).toEqual([]);
   });
 }
 
 for (const Constructor of [
-  AsyncDepthFirstTraversal<T>,
-  AsyncBreadthFirstTraversal<T>,
+  AsyncDepthFirstTreeTraversal<T>,
+  AsyncBreadthFirstTreeTraversal<T>,
   AsyncDagTraversal<T>,
 ]) {
   test(`${Constructor.name} normalizes promised canonical tree results`, async () => {
-    const source: AsyncTraversableTree<T> = {
-      makeRoot: async () => ({
+    const source: AsyncTreeSource<T> = {
+      resolveRoot: async () => ({
         kind: 'found',
         vertex: { vertexContent: { $data: 'root', $childHints: ['child'] } },
       }),
-      makeVertex: async () => ({
+      resolveChild: async () => ({
         kind: 'found',
         vertex: { vertexContent: { $data: 'child', $childHints: [] } },
       }),
     };
-    const runner = new Constructor({ traversableTree: source }).makeRunner();
+    const runner = new Constructor({ traversableTree: source }).createRunner();
     const seen: string[] = [];
-    for await (const event of runner.getIterable()) {
+    for await (const event of runner.iterateEvents()) {
       if (event !== null) seen.push(event.vertex.getData());
     }
     expect(seen.filter((data, index) => seen.indexOf(data) === index)).toEqual([
@@ -99,7 +100,7 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
         async (originalError) => {
           let getterCalls = 0;
           const badResult = Object.defineProperty(
-            { vertexContent: null },
+            { kind: 'omitted' as const, satisfiesDependencies: true as const },
             'then',
             {
               get() {
@@ -112,22 +113,25 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
           );
           const runner = new Constructor({
             traversableGraph: {
-              makeRoot: () =>
+              resolveRoot: () =>
                 callback === 'root'
                   ? badResult
                   : {
-                      vertexId: 'root',
-                      dependsOn:
-                        callback === 'prerequisite' ? ['external'] : [],
-                      vertexContent: {
-                        $data: 'root',
-                        $childHints: callback === 'hint' ? ['child'] : [],
+                      kind: 'found' as const,
+                      vertex: {
+                        vertexId: 'root',
+                        dependsOnWork:
+                          callback === 'prerequisite' ? ['external'] : [],
+                        vertexContent: {
+                          $data: 'root',
+                          $childHints: callback === 'hint' ? ['child'] : [],
+                        },
                       },
                     },
-              makeVertex: () => badResult,
+              resolveChild: () => badResult,
               resolvePrerequisite: () => badResult,
             },
-          }).makeRunner();
+          }).createRunner();
           let failure: { error: unknown } | undefined;
           try {
             await runner.run();
@@ -152,29 +156,33 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
 }
 
 for (const Constructor of [
-  DepthFirstTraversal<T>,
-  AsyncDepthFirstTraversal<T>,
-  BreadthFirstTraversal<T>,
-  AsyncBreadthFirstTraversal<T>,
+  DepthFirstTreeTraversal<T>,
+  AsyncDepthFirstTreeTraversal<T>,
+  BreadthFirstTreeTraversal<T>,
+  AsyncBreadthFirstTreeTraversal<T>,
   DagTraversal<T>,
   AsyncDagTraversal<T>,
 ]) {
   test(`${Constructor.name} tree root observes a throwing then getter only once`, async () => {
     const originalError = {};
     let getterCalls = 0;
-    const badResult = Object.defineProperty({ vertexContent: null }, 'then', {
-      get() {
-        getterCalls += 1;
-        if (getterCalls === 1) throw originalError;
-        return undefined;
+    const badResult = Object.defineProperty(
+      { kind: 'omitted' as const },
+      'then',
+      {
+        get() {
+          getterCalls += 1;
+          if (getterCalls === 1) throw originalError;
+          return undefined;
+        },
       },
-    });
+    );
     const runner = new Constructor({
       traversableTree: {
-        makeRoot: () => badResult,
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => badResult,
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
-    }).makeRunner();
+    }).createRunner();
     let failure: { error: unknown } | undefined;
     try {
       await runner.run();
@@ -183,8 +191,8 @@ for (const Constructor of [
     }
     expect(failure).toBeDefined();
     if (
-      Constructor === DepthFirstTraversal ||
-      Constructor === BreadthFirstTraversal ||
+      Constructor === DepthFirstTreeTraversal ||
+      Constructor === BreadthFirstTreeTraversal ||
       Constructor === DagTraversal
     ) {
       expect(failure!.error).toBeInstanceOf(TypeError);
@@ -199,10 +207,10 @@ for (const Constructor of [
 }
 
 for (const Constructor of [
-  DepthFirstTraversal<T>,
-  AsyncDepthFirstTraversal<T>,
-  BreadthFirstTraversal<T>,
-  AsyncBreadthFirstTraversal<T>,
+  DepthFirstTreeTraversal<T>,
+  AsyncDepthFirstTreeTraversal<T>,
+  BreadthFirstTreeTraversal<T>,
+  AsyncBreadthFirstTreeTraversal<T>,
   DagTraversal<T>,
   AsyncDagTraversal<T>,
 ]) {
@@ -210,16 +218,15 @@ for (const Constructor of [
     for (const empty of [true, false]) {
       const runner = new Constructor({
         traversableTree: {
-          makeRoot: () => ({
-            vertexContent: empty
-              ? null
-              : { $data: 'root', $childHints: ['skip'] },
-          }),
-          makeVertex: () => ({ vertexContent: null }),
+          resolveRoot: () =>
+            treeResolution(
+              empty ? null : { $data: 'root', $childHints: ['skip'] },
+            ),
+          resolveChild: () => ({ kind: 'omitted' as const }),
         },
-      }).makeRunner();
+      }).createRunner();
       const seen: string[] = [];
-      for await (const event of runner.getIterable()) {
+      for await (const event of runner.iterateEvents()) {
         if (event !== null && !seen.includes(event.vertex.getData()))
           seen.push(event.vertex.getData());
       }
@@ -232,7 +239,7 @@ for (const Constructor of [
       for (const atRoot of [true, false]) {
         const runner = new Constructor({
           traversableTree: {
-            makeRoot: () => {
+            resolveRoot: () => {
               if (atRoot) throw failure;
               return {
                 kind: 'found',
@@ -241,11 +248,11 @@ for (const Constructor of [
                 },
               };
             },
-            makeVertex: () => {
+            resolveChild: () => {
               throw failure;
             },
           },
-        }).makeRunner();
+        }).createRunner();
         let caught = false;
         try {
           await runner.run();
@@ -259,14 +266,14 @@ for (const Constructor of [
   );
 }
 for (const Constructor of [
-  AsyncDepthFirstTraversal<T>,
-  AsyncBreadthFirstTraversal<T>,
+  AsyncDepthFirstTreeTraversal<T>,
+  AsyncBreadthFirstTreeTraversal<T>,
   AsyncDagTraversal<T>,
 ]) {
   test(`${Constructor.name} accepts promised plain root/child omissions`, async () => {
     for (const empty of [true, false]) {
-      const source: AsyncTraversableTree<T> = {
-        makeRoot: async () =>
+      const source: AsyncTreeSource<T> = {
+        resolveRoot: async () =>
           empty
             ? { kind: 'omitted' }
             : {
@@ -275,11 +282,13 @@ for (const Constructor of [
                   vertexContent: { $data: 'root', $childHints: ['skip'] },
                 },
               },
-        makeVertex: async () => ({ kind: 'omitted' }),
+        resolveChild: async () => ({ kind: 'omitted' }),
       };
-      const runner = new Constructor({ traversableTree: source }).makeRunner();
+      const runner = new Constructor({
+        traversableTree: source,
+      }).createRunner();
       const seen: string[] = [];
-      for await (const event of runner.getIterable()) {
+      for await (const event of runner.iterateEvents()) {
         if (event !== null && !seen.includes(event.vertex.getData()))
           seen.push(event.vertex.getData());
       }

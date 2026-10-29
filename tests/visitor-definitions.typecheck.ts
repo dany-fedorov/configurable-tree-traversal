@@ -1,117 +1,123 @@
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DepthFirstTraversal,
-  AsyncDepthFirstTraversal,
-  BreadthFirstTraversal,
-  AsyncBreadthFirstTraversal,
-  DagTraversalOrder as D,
-  DepthFirstTraversalOrder as F,
-  BreadthFirstTraversalOrder as B,
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
+  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversal,
+  DagVisitorPhase as D,
+  DepthFirstPhase as F,
+  BreadthFirstPhase as B,
   type VisitorPhaseInput,
   type VisitorGroupMember,
   type DagVisitor,
-  type TraversalVisitor,
-  type TraversableGraph,
-  type TraversableTree,
+  type TreeVisitor,
+  type DagDiscoverySource,
+  type TreeSource,
   traverseDag,
   traverseDagAsync,
-  traverseDepthFirst,
-  traverseDepthFirstAsync,
-  traverseBreadthFirst,
-  traverseBreadthFirstAsync,
+  traverseTreeDepthFirst,
+  traverseTreeDepthFirstAsync,
+  traverseTreeBreadthFirst,
+  traverseTreeBreadthFirstAsync,
 } from '../src';
 type T = { VertexData: string; VertexHint: string };
-declare const traversableGraph: TraversableGraph<T>;
-declare const traversableTree: TraversableTree<T>;
+declare const traversableGraph: DagDiscoverySource<T>;
+declare const traversableTree: TreeSource<T>;
 const common: DagVisitor<T> = () => undefined;
-const ready: VisitorPhaseInput<DagVisitor<T, T, D.ON_READY>> = {
+const ready: VisitorPhaseInput<DagVisitor<T, T, D.ON_WORK_READY>> = {
   groups: [
     {
-      commandCommitMode: 'afterGroup',
+      commandCommitMode: 'afterGroup' as const,
       visitors: [{ visitor: common, priority: 1 }, common],
     },
   ],
 };
-const visitors = { [D.ON_READY]: ready };
+const visitors = { [D.ON_WORK_READY]: ready };
 {
   const t = new DagTraversal({ traversableGraph, visitors });
   t.configure({ visitors });
-  t.setVisitorsFor(D.ON_READY, common);
-  t.setVisitorsFor(D.ON_READY, { visitor: common });
-  t.setVisitorsFor(D.ON_READY, [common]);
-  t.setVisitorsFor(D.ON_READY, t.listVisitorsFor(D.ON_READY));
-  t.addVisitorGroupFor(D.ON_READY, { visitors: [common] });
+  t.setVisitorsFor(D.ON_WORK_READY, common);
+  t.setVisitorsFor(D.ON_WORK_READY, { visitor: common });
+  t.setVisitorsFor(D.ON_WORK_READY, [common]);
+  t.setVisitorsFor(D.ON_WORK_READY, t.listVisitorsFor(D.ON_WORK_READY));
+  t.addVisitorGroupFor(D.ON_WORK_READY, { visitors: [common] });
 }
 {
   const t = new AsyncDagTraversal({ traversableGraph, visitors });
   t.configure({ visitors });
-  t.setVisitorsFor(D.ON_READY, common);
-  t.setVisitorsFor(D.ON_READY, { visitor: common });
-  t.setVisitorsFor(D.ON_READY, [common]);
-  t.setVisitorsFor(D.ON_READY, t.listVisitorsFor(D.ON_READY));
-  t.addVisitorGroupFor(D.ON_READY, { visitors: [common] });
+  t.setVisitorsFor(D.ON_WORK_READY, common);
+  t.setVisitorsFor(D.ON_WORK_READY, { visitor: common });
+  t.setVisitorsFor(D.ON_WORK_READY, [common]);
+  t.setVisitorsFor(D.ON_WORK_READY, t.listVisitorsFor(D.ON_WORK_READY));
+  t.addVisitorGroupFor(D.ON_WORK_READY, { visitors: [common] });
 }
 traverseDag({ traversableGraph, visitors });
 traverseDagAsync({ traversableGraph, visitors });
-const treeCommon: TraversalVisitor<string, T, T> = () => undefined;
+const treeCommon: TreeVisitor<string, T, T> = () => undefined;
 const dfs = { [F.PRE_ORDER]: { groups: [{ visitors: [treeCommon] }] } };
 {
-  const t = new DepthFirstTraversal({ traversableTree, visitors: dfs });
+  const t = new DepthFirstTreeTraversal({ traversableTree, visitors: dfs });
   t.configure({ visitors: dfs });
   t.setVisitorsFor(F.PRE_ORDER, treeCommon);
   t.setVisitorsFor(F.PRE_ORDER, t.listVisitorsFor(F.PRE_ORDER));
   t.addVisitorGroupFor(F.PRE_ORDER, { visitors: [treeCommon] });
 }
 {
-  const t = new AsyncDepthFirstTraversal({ traversableTree, visitors: dfs });
+  const t = new AsyncDepthFirstTreeTraversal({
+    traversableTree,
+    visitors: dfs,
+  });
   t.configure({ visitors: dfs });
   t.setVisitorsFor(F.PRE_ORDER, treeCommon);
   t.setVisitorsFor(F.PRE_ORDER, t.listVisitorsFor(F.PRE_ORDER));
   t.addVisitorGroupFor(F.PRE_ORDER, { visitors: [treeCommon] });
 }
-traverseDepthFirst({ traversableTree, visitors: dfs });
-traverseDepthFirstAsync({ traversableTree, visitors: dfs });
+traverseTreeDepthFirst({ traversableTree, visitors: dfs });
+traverseTreeDepthFirstAsync({ traversableTree, visitors: dfs });
 const bfs = { [B.LEVEL_ORDER]: { visitor: treeCommon } };
 {
-  const t = new BreadthFirstTraversal({ traversableTree, visitors: bfs });
+  const t = new BreadthFirstTreeTraversal({ traversableTree, visitors: bfs });
   t.configure({ visitors: bfs });
   t.setVisitorsFor(B.LEVEL_ORDER, treeCommon);
   t.setVisitorsFor(B.LEVEL_ORDER, t.listVisitorsFor(B.LEVEL_ORDER));
   t.addVisitorGroupFor(B.LEVEL_ORDER, { visitors: [treeCommon] });
 }
 {
-  const t = new AsyncBreadthFirstTraversal({ traversableTree, visitors: bfs });
+  const t = new AsyncBreadthFirstTreeTraversal({
+    traversableTree,
+    visitors: bfs,
+  });
   t.configure({ visitors: bfs });
   t.setVisitorsFor(B.LEVEL_ORDER, treeCommon);
   t.setVisitorsFor(B.LEVEL_ORDER, t.listVisitorsFor(B.LEVEL_ORDER));
   t.addVisitorGroupFor(B.LEVEL_ORDER, { visitors: [treeCommon] });
 }
-traverseBreadthFirst({ traversableTree, visitors: bfs });
-traverseBreadthFirstAsync({ traversableTree, visitors: bfs });
+traverseTreeBreadthFirst({ traversableTree, visitors: bfs });
+traverseTreeBreadthFirstAsync({ traversableTree, visitors: bfs });
 const bad: VisitorGroupMember<DagVisitor<T>> = {
   visitor: common,
   // @ts-expect-error Explicit group owns commit policy.
-  commandCommitMode: 'afterGroup',
+  commandCommitMode: 'afterGroup' as const,
 };
 void bad;
-declare const narrow: DagVisitor<T, T, D.ON_READY>;
+declare const narrow: DagVisitor<T, T, D.ON_WORK_READY>;
 declare const phase: D;
 const t = new DagTraversal({ traversableGraph });
 // @ts-expect-error Union phases cannot accept a ready-only callback.
 t.setVisitorsFor(phase, narrow);
 // @ts-expect-error Group members remain phase safe.
-t.addVisitorGroupFor(D.ON_COMPLETE, { visitors: [narrow] });
+t.addVisitorGroupFor(D.ON_SUBGRAPH_READY, { visitors: [narrow] });
 // @ts-expect-error List producer at a union phase cannot narrow its callbacks.
 t.setVisitorsFor(phase, t.listVisitorsFor(phase));
 
 // Definition and group callbacks infer their literal phase at each concrete public boundary.
 {
-  const traversal = new DepthFirstTraversal<T>({
+  const traversal = new DepthFirstTreeTraversal<T>({
     traversableTree,
     visitors: {
       [F.PRE_ORDER]: (_v, o) => {
-        const p: F.PRE_ORDER = o.order;
+        const p: F.PRE_ORDER = o.phase;
         void p;
       },
     },
@@ -120,7 +126,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
     visitors: {
       [F.PRE_ORDER]: {
         visitor: (_v, o) => {
-          const p: F.PRE_ORDER = o.order;
+          const p: F.PRE_ORDER = o.phase;
           void p;
         },
       },
@@ -128,7 +134,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
   traversal.setVisitorsFor(F.PRE_ORDER, [
     (_v, o) => {
-      const p: F.PRE_ORDER = o.order;
+      const p: F.PRE_ORDER = o.phase;
       void p;
     },
   ]);
@@ -136,13 +142,13 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: F.PRE_ORDER = o.order;
+          const p: F.PRE_ORDER = o.phase;
           void p;
         },
       },
     ],
   });
-  traverseDepthFirst({
+  traverseTreeDepthFirst({
     traversableTree,
     visitors: {
       [F.PRE_ORDER]: {
@@ -150,7 +156,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
           {
             visitors: [
               (_v, o) => {
-                const p: F.PRE_ORDER = o.order;
+                const p: F.PRE_ORDER = o.phase;
                 void p;
               },
             ],
@@ -161,11 +167,11 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new AsyncDepthFirstTraversal<T>({
+  const traversal = new AsyncDepthFirstTreeTraversal<T>({
     traversableTree,
     visitors: {
       [F.PRE_ORDER]: (_v, o) => {
-        const p: F.PRE_ORDER = o.order;
+        const p: F.PRE_ORDER = o.phase;
         void p;
       },
     },
@@ -174,7 +180,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
     visitors: {
       [F.PRE_ORDER]: {
         visitor: (_v, o) => {
-          const p: F.PRE_ORDER = o.order;
+          const p: F.PRE_ORDER = o.phase;
           void p;
         },
       },
@@ -182,7 +188,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
   traversal.setVisitorsFor(F.PRE_ORDER, [
     (_v, o) => {
-      const p: F.PRE_ORDER = o.order;
+      const p: F.PRE_ORDER = o.phase;
       void p;
     },
   ]);
@@ -190,13 +196,13 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: F.PRE_ORDER = o.order;
+          const p: F.PRE_ORDER = o.phase;
           void p;
         },
       },
     ],
   });
-  traverseDepthFirstAsync({
+  traverseTreeDepthFirstAsync({
     traversableTree,
     visitors: {
       [F.PRE_ORDER]: {
@@ -204,7 +210,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
           {
             visitors: [
               (_v, o) => {
-                const p: F.PRE_ORDER = o.order;
+                const p: F.PRE_ORDER = o.phase;
                 void p;
               },
             ],
@@ -215,11 +221,11 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new BreadthFirstTraversal<T>({
+  const traversal = new BreadthFirstTreeTraversal<T>({
     traversableTree,
     visitors: {
       [B.LEVEL_ORDER]: (_v, o) => {
-        const p: B.LEVEL_ORDER = o.order;
+        const p: B.LEVEL_ORDER = o.phase;
         void p;
       },
     },
@@ -228,7 +234,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
     visitors: {
       [B.LEVEL_ORDER]: {
         visitor: (_v, o) => {
-          const p: B.LEVEL_ORDER = o.order;
+          const p: B.LEVEL_ORDER = o.phase;
           void p;
         },
       },
@@ -236,7 +242,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
   traversal.setVisitorsFor(B.LEVEL_ORDER, [
     (_v, o) => {
-      const p: B.LEVEL_ORDER = o.order;
+      const p: B.LEVEL_ORDER = o.phase;
       void p;
     },
   ]);
@@ -244,13 +250,13 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: B.LEVEL_ORDER = o.order;
+          const p: B.LEVEL_ORDER = o.phase;
           void p;
         },
       },
     ],
   });
-  traverseBreadthFirst({
+  traverseTreeBreadthFirst({
     traversableTree,
     visitors: {
       [B.LEVEL_ORDER]: {
@@ -258,7 +264,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
           {
             visitors: [
               (_v, o) => {
-                const p: B.LEVEL_ORDER = o.order;
+                const p: B.LEVEL_ORDER = o.phase;
                 void p;
               },
             ],
@@ -269,11 +275,11 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
 }
 {
-  const traversal = new AsyncBreadthFirstTraversal<T>({
+  const traversal = new AsyncBreadthFirstTreeTraversal<T>({
     traversableTree,
     visitors: {
       [B.LEVEL_ORDER]: (_v, o) => {
-        const p: B.LEVEL_ORDER = o.order;
+        const p: B.LEVEL_ORDER = o.phase;
         void p;
       },
     },
@@ -282,7 +288,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
     visitors: {
       [B.LEVEL_ORDER]: {
         visitor: (_v, o) => {
-          const p: B.LEVEL_ORDER = o.order;
+          const p: B.LEVEL_ORDER = o.phase;
           void p;
         },
       },
@@ -290,7 +296,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   });
   traversal.setVisitorsFor(B.LEVEL_ORDER, [
     (_v, o) => {
-      const p: B.LEVEL_ORDER = o.order;
+      const p: B.LEVEL_ORDER = o.phase;
       void p;
     },
   ]);
@@ -298,13 +304,13 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: B.LEVEL_ORDER = o.order;
+          const p: B.LEVEL_ORDER = o.phase;
           void p;
         },
       },
     ],
   });
-  traverseBreadthFirstAsync({
+  traverseTreeBreadthFirstAsync({
     traversableTree,
     visitors: {
       [B.LEVEL_ORDER]: {
@@ -312,7 +318,7 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
           {
             visitors: [
               (_v, o) => {
-                const p: B.LEVEL_ORDER = o.order;
+                const p: B.LEVEL_ORDER = o.phase;
                 void p;
               },
             ],
@@ -326,33 +332,33 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   const traversal = new DagTraversal<T>({
     traversableGraph,
     visitors: {
-      [D.ON_READY]: (_v, o) => {
-        const p: D.ON_READY = o.order;
+      [D.ON_WORK_READY]: (_v, o) => {
+        const p: D.ON_WORK_READY = o.phase;
         void p;
       },
     },
   });
   traversal.configure({
     visitors: {
-      [D.ON_READY]: {
+      [D.ON_WORK_READY]: {
         visitor: (_v, o) => {
-          const p: D.ON_READY = o.order;
+          const p: D.ON_WORK_READY = o.phase;
           void p;
         },
       },
     },
   });
-  traversal.setVisitorsFor(D.ON_READY, [
+  traversal.setVisitorsFor(D.ON_WORK_READY, [
     (_v, o) => {
-      const p: D.ON_READY = o.order;
+      const p: D.ON_WORK_READY = o.phase;
       void p;
     },
   ]);
-  traversal.addVisitorGroupFor(D.ON_READY, {
+  traversal.addVisitorGroupFor(D.ON_WORK_READY, {
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: D.ON_READY = o.order;
+          const p: D.ON_WORK_READY = o.phase;
           void p;
         },
       },
@@ -361,12 +367,12 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   traverseDag({
     traversableGraph,
     visitors: {
-      [D.ON_READY]: {
+      [D.ON_WORK_READY]: {
         groups: [
           {
             visitors: [
               (_v, o) => {
-                const p: D.ON_READY = o.order;
+                const p: D.ON_WORK_READY = o.phase;
                 void p;
               },
             ],
@@ -380,33 +386,33 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   const traversal = new AsyncDagTraversal<T>({
     traversableGraph,
     visitors: {
-      [D.ON_READY]: (_v, o) => {
-        const p: D.ON_READY = o.order;
+      [D.ON_WORK_READY]: (_v, o) => {
+        const p: D.ON_WORK_READY = o.phase;
         void p;
       },
     },
   });
   traversal.configure({
     visitors: {
-      [D.ON_READY]: {
+      [D.ON_WORK_READY]: {
         visitor: (_v, o) => {
-          const p: D.ON_READY = o.order;
+          const p: D.ON_WORK_READY = o.phase;
           void p;
         },
       },
     },
   });
-  traversal.setVisitorsFor(D.ON_READY, [
+  traversal.setVisitorsFor(D.ON_WORK_READY, [
     (_v, o) => {
-      const p: D.ON_READY = o.order;
+      const p: D.ON_WORK_READY = o.phase;
       void p;
     },
   ]);
-  traversal.addVisitorGroupFor(D.ON_READY, {
+  traversal.addVisitorGroupFor(D.ON_WORK_READY, {
     visitors: [
       {
         visitor: (_v, o) => {
-          const p: D.ON_READY = o.order;
+          const p: D.ON_WORK_READY = o.phase;
           void p;
         },
       },
@@ -415,12 +421,12 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
   traverseDagAsync({
     traversableGraph,
     visitors: {
-      [D.ON_READY]: {
+      [D.ON_WORK_READY]: {
         groups: [
           {
             visitors: [
               (_v, o) => {
-                const p: D.ON_READY = o.order;
+                const p: D.ON_WORK_READY = o.phase;
                 void p;
               },
             ],
@@ -434,19 +440,25 @@ t.setVisitorsFor(phase, t.listVisitorsFor(phase));
 const legacyBatchMember: VisitorGroupMember<DagVisitor<T>> = {
   visitor: common,
   // @ts-expect-error Explicit groups also forbid deprecated member batching.
-  resolutionStyle: 'CONCURRENT',
+  commandCommitMode: 'afterGroup' as const,
 };
 void legacyBatchMember;
-declare const asyncNarrow: import('../src').AsyncDagVisitor<T, T, D.ON_READY>;
+declare const asyncNarrow: import('../src').AsyncDagVisitor<
+  T,
+  T,
+  D.ON_WORK_READY
+>;
 const at = new AsyncDagTraversal({ traversableGraph });
 // @ts-expect-error Async groups reject union-phase ready-only callbacks.
 at.addVisitorGroupFor(phase, { visitors: [asyncNarrow] });
 // @ts-expect-error Async list producer cannot turn a phase union into a safe union callback.
 at.setVisitorsFor(phase, at.listVisitorsFor(phase));
-// @ts-expect-error Full normalized records are sequences, not members of a new explicit group.
-t.addVisitorGroupFor(D.ON_READY, { visitors: t.listVisitorsFor(D.ON_READY) });
+t.addVisitorGroupFor(D.ON_WORK_READY, {
+  // @ts-expect-error Full normalized records are sequences, not members of a new explicit group.
+  visitors: t.listVisitorsFor(D.ON_WORK_READY),
+});
 traverseDag({
   traversableGraph,
   // @ts-expect-error Canonical helper groups preserve phase restrictions.
-  visitors: { [D.ON_COMPLETE]: { groups: [{ visitors: [narrow] }] } },
+  visitors: { [D.ON_SUBGRAPH_READY]: { groups: [{ visitors: [narrow] }] } },
 });

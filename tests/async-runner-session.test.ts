@@ -1,31 +1,27 @@
 import type { DriverInspection } from '../src/core/CoreInspection';
-import type { TraversalRunnerIterableConfig } from '../src/core/TraversalRunnerIterableConfig';
-import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import type { VisitOrder } from '../src/core/effects/types';
+import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
+import { Wakeup } from '../src/core/drivers/Wakeup';
+import type { VisitPhase } from '../src/core/effects/types';
 import type {
   AsyncSessionControl,
   SessionProgress,
 } from '../src/core/kernelTypes';
-import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
-import { Wakeup } from '../src/core/drivers/Wakeup';
+import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { eventLoopTurn } from './helpers/graph-fixtures';
 
 const inspection: DriverInspection = Object.freeze({
   status: TraversalRunnerStatus.INITIAL,
   stopReason: null,
-  haltRequested: false,
+  pauseRequested: false,
   kind: 'depth-first',
   execution: 'async',
   sourceMode: 'tree',
   concurrency: 2,
   hasSorter: false,
   hasHintIds: false,
-  iterableConfig: Object.freeze({
-    emitPhases: Object.freeze<VisitOrder[]>([]),
+  executionOptions: Object.freeze({
+    emitEvents: Object.freeze([]),
     visitorPhases: 'all' as const,
-    iterateOver: Object.freeze<VisitOrder[]>([]),
-    enableVisitorFunctionsFor: null,
-    disableVisitorFunctionsFor: null,
   }),
   readyVisits: Object.freeze([]),
   frames: Object.freeze([]),
@@ -36,11 +32,11 @@ const inspection: DriverInspection = Object.freeze({
 });
 
 class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
-  public haltRequested = false;
+  public pauseRequested = false;
   public readonly modes: string[] = [];
   public readonly acknowledged: number[] = [];
   public readonly resumedWith: (
-    | Partial<TraversalRunnerIterableConfig<VisitOrder>>
+    | import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitPhase>
     | undefined
   )[] = [];
   public advanceCount = 0;
@@ -79,25 +75,29 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
     return action;
   }
 
+  public shouldEmitEvent(): boolean {
+    return true;
+  }
+
   public acknowledgeEvent(boundaryId: number): void {
     this.acknowledged.push(boundaryId);
     this.outstandingBoundaries.delete(boundaryId);
   }
 
   public requestHalt(): void {
-    this.haltRequested = true;
+    this.pauseRequested = true;
     this.wakeup.notify();
   }
 
   public isHaltRequested(): boolean {
-    return this.haltRequested;
+    return this.pauseRequested;
   }
 
   public resume(
-    config?: Partial<TraversalRunnerIterableConfig<VisitOrder>>,
+    config?: import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitPhase>,
   ): void {
     this.resumedWith.push(config);
-    this.haltRequested = false;
+    this.pauseRequested = false;
     this.status = TraversalRunnerStatus.RUNNING;
   }
 
@@ -127,7 +127,7 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
       ...inspection,
       status: this.status,
       stopReason: this.getStopReason(),
-      haltRequested: this.haltRequested,
+      pauseRequested: this.pauseRequested,
     };
   }
 
@@ -156,10 +156,10 @@ test('return signals halt before an unresolved next and closes both at halt', as
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
 
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   const next = iterator.next();
   const close = iterator.return(undefined);
-  expect(control.haltRequested).toBe(true);
+  expect(control.pauseRequested).toBe(true);
   control.reachHalted();
   await expect(close).resolves.toEqual({ done: true, value: undefined });
   await expect(next).resolves.toEqual({ done: true, value: undefined });
@@ -167,7 +167,7 @@ test('return signals halt before an unresolved next and closes both at halt', as
 
 test('creation and closing before first next do not touch the runner', async () => {
   const control = new FakeAsyncSessionControl<string>();
-  const iterator = new AsyncRunnerSession(control).getIterable();
+  const iterator = new AsyncRunnerSession(control).iterateEvents();
 
   expect(iterator[Symbol.asyncIterator]()).toBe(iterator);
 
@@ -185,12 +185,12 @@ test('creation and closing before first next do not touch the runner', async () 
   });
   expect(control.advanceCount).toBe(0);
   expect(control.resumedWith).toEqual([]);
-  expect(control.haltRequested).toBe(false);
+  expect(control.pauseRequested).toBe(false);
 });
 
 test('throw before first next rejects with the original consumer value', async () => {
   const control = new FakeAsyncSessionControl<string>();
-  const iterator = new AsyncRunnerSession(control).getIterable();
+  const iterator = new AsyncRunnerSession(control).iterateEvents();
 
   await expect(iterator.throw(undefined)).rejects.toBeUndefined();
   await expect(iterator.next()).resolves.toEqual({
@@ -207,7 +207,7 @@ test('queues next calls, settles while idle, and acknowledges delivered boundari
     { kind: 'EVENT', event: 'second', boundaryId: 11 },
   );
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
 
   await expect(iterator.next()).resolves.toEqual({
     done: false,
@@ -228,7 +228,7 @@ test('new demand wakes a pump waiting on a conforming silent control', async () 
   const control = new FakeAsyncSessionControl<string>();
   control.enqueue({ kind: 'EVENT', event: 'first', boundaryId: 12 });
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   await iterator.next();
   await eventLoopTurn();
   const advancesBeforeDemand = control.advanceCount;
@@ -251,7 +251,7 @@ test('an idle traversal failure rejects the active iterator on its next demand',
     { kind: 'EVENT', event: 'first', boundaryId: 13 },
     { kind: 'FAILED', error },
   );
-  const iterator = new AsyncRunnerSession(control).getIterable();
+  const iterator = new AsyncRunnerSession(control).iterateEvents();
 
   await expect(iterator.next()).resolves.toEqual({
     done: false,
@@ -269,7 +269,7 @@ test('non-closing failure delivers committed buffered events before rejecting', 
     { kind: 'FAILED', error },
   );
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
 
   await expect(iterator.next()).resolves.toEqual({
     done: false,
@@ -288,7 +288,7 @@ test('retains events buffered during close and acknowledges the delivered bounda
   const control = new FakeAsyncSessionControl<string>();
   control.enqueue({ kind: 'EVENT', event: 'delivered', boundaryId: 20 });
   const session = new AsyncRunnerSession(control);
-  const firstIterator = session.getIterable();
+  const firstIterator = session.iterateEvents();
   await expect(firstIterator.next()).resolves.toEqual({
     done: false,
     value: 'delivered',
@@ -307,7 +307,7 @@ test('retains events buffered during close and acknowledges the delivered bounda
   expect(session.inspect().bufferedEventCount).toBe(1);
   expect(control.acknowledged).toEqual([]);
 
-  const secondIterator = session.getIterable();
+  const secondIterator = session.iterateEvents();
   await expect(secondIterator.next()).resolves.toEqual({
     done: false,
     value: 'buffered',
@@ -321,12 +321,12 @@ test('retains events buffered during close and acknowledges the delivered bounda
 test('keeps the lease through closing and releases it once for repeated return', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const owner = session.getIterable();
+  const owner = session.iterateEvents();
   const pending = owner.next();
 
   const firstClose = owner.return(undefined);
   const secondClose = owner.return(undefined);
-  const contender = session.getIterable();
+  const contender = session.iterateEvents();
   await expect(contender.next()).rejects.toThrow(/active iterator/i);
 
   control.reachHalted();
@@ -337,7 +337,7 @@ test('keeps the lease through closing and releases it once for repeated return',
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
   await expect(owner.next()).resolves.toEqual({ done: true, value: undefined });
 
-  const resumed = session.getIterable();
+  const resumed = session.iterateEvents();
   const resumedNext = resumed.next();
   const resumedClose = resumed.return(undefined);
   control.reachHalted();
@@ -349,7 +349,7 @@ test('keeps the lease through closing and releases it once for repeated return',
 test('consumer throw wins its call while traversal failure rejects close and pending next', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   const pending = iterator.next();
   const consumerError = new Error('consumer failed');
   const traversalError = new Error('traversal failed');
@@ -367,7 +367,7 @@ test('consumer throw wins its call while traversal failure rejects close and pen
 test('consumer throw cleans up successfully without poisoning the resumable session', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   const pending = iterator.next();
   const consumerError = new Error('stop consuming');
 
@@ -376,7 +376,7 @@ test('consumer throw cleans up successfully without poisoning the resumable sess
   await expect(thrown).rejects.toBe(consumerError);
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
 
-  const resumed = session.getIterable();
+  const resumed = session.iterateEvents();
   const resumedNext = resumed.next();
   const close = resumed.return(undefined);
   control.reachHalted();
@@ -387,7 +387,7 @@ test('consumer throw cleans up successfully without poisoning the resumable sess
 test('preserves an undefined traversal failure through close and later execution', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   const pending = iterator.next();
   const close = iterator.return(undefined);
 
@@ -406,7 +406,7 @@ test('captures an undefined control exception without rejecting the detached pum
 
   await expect(
     Promise.race([
-      session.getIterable().next(),
+      session.iterateEvents().next(),
       new Promise<never>((_resolve, reject) => {
         setTimeout(() => reject(new Error('session pump timed out')), 100);
       }),
@@ -422,7 +422,7 @@ test('fails the session when acknowledging a delivered boundary throws', async (
   const error = new Error('acknowledgement failed');
   control.enqueue({ kind: 'EVENT', event: 'value', boundaryId: 40 });
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   await expect(iterator.next()).resolves.toEqual({
     done: false,
     value: 'value',
@@ -441,7 +441,7 @@ test('rejects close and pending demand when requesting halt throws', async () =>
   const control = new FakeAsyncSessionControl<string>();
   const error = new Error('halt request failed');
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   const pending = iterator.next();
   control.requestHalt = () => {
     throw error;
@@ -461,14 +461,14 @@ test('run drains the session iterator, returns itself, and applies its config', 
     { kind: 'FINISHED' },
   );
   const session = new AsyncRunnerSession(control);
-  const config = { emitPhases: ['PRE_ORDER' as const] };
+  const config = { emitEvents: ['PRE_ORDER' as const] };
 
   await expect(session.run(config)).resolves.toBe(session);
   expect(control.resumedWith).toEqual([config]);
   expect(control.acknowledged).toEqual([30]);
   expect(session.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
   expect(session.isHalted()).toBe(false);
-  await expect(session.getIterable().next()).resolves.toEqual({
+  await expect(session.iterateEvents().next()).resolves.toEqual({
     done: true,
     value: undefined,
   });
@@ -489,7 +489,7 @@ test('run uses the iterator halt path when execution requests a halt', async () 
 test('run rejects while another iterator owns execution', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   const pending = iterator.next();
 
   await expect(session.run()).rejects.toThrow(/active iterator/i);
@@ -502,7 +502,7 @@ test('run rejects while another iterator owns execution', async () => {
 test('inspection is synchronous, detached, and does not advance pending work', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.getIterable();
+  const iterator = session.iterateEvents();
   const pending = iterator.next();
   const advancesBeforeInspection = control.advanceCount;
 
@@ -533,7 +533,7 @@ test('internal resume errors remain terminal with their exact thrown value', asy
   expect(session.getStopReason()).toBe('failed');
   expect(session.inspect().stopReason).toBe('failed');
   await expect(
-    session.run({ visitorPhases: { include: ['ON_READY'] } }),
+    session.run({ visitorPhases: { include: ['ON_WORK_READY'] } }),
   ).rejects.toBeUndefined();
   await expect(session.run()).rejects.toBeUndefined();
 });

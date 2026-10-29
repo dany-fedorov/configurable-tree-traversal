@@ -1,13 +1,14 @@
+import type { DagDiscoverySource, VertexTypes } from '../src';
 import {
-  DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
+  DagTraversal,
+  DagVisitorPhase as Order,
 } from '../src';
-import type { TraversableGraph, TreeTypeParameters } from '../src';
-import { mergeDagTraversalInstanceConfigs } from '../src/traversals/dag-traversal/lib/DagTraversalInstanceConfig';
 import { mergeAsyncDagTraversalInstanceConfigs } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig';
+import { mergeDagTraversalInstanceConfigs } from '../src/traversals/dag-traversal/lib/DagTraversalInstanceConfig';
+import { traversalInternals } from './internal-runner-fixtures';
 
-type Data = TreeTypeParameters<string, string>;
+type Data = VertexTypes<string, string>;
 
 for (const Factory of [DagTraversal, AsyncDagTraversal]) {
   for (const sourceKey of ['traversableGraph', 'traversableTree'] as const) {
@@ -17,9 +18,12 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       const calls: string[] = [];
       const originalId = { name: 'original' };
       const replacementId = Symbol('replacement');
-      function source(data: string, vertexId: unknown): TraversableGraph<Data> {
+      function source(
+        data: string,
+        vertexId: unknown,
+      ): DagDiscoverySource<Data> {
         return {
-          makeRoot() {
+          resolveRoot() {
             calls.push(data);
             return {
               kind: 'found',
@@ -29,7 +33,10 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
               },
             };
           },
-          makeVertex: () => ({ vertexContent: null }),
+          resolveChild: () => ({
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+          }),
         };
       }
       const original = source('original', originalId);
@@ -37,18 +44,18 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       const seen: string[] = [];
       const traversal = new Factory<Data>({ [sourceKey]: original } as never);
       traversal.addVisitorFor(
-        Order.ON_READY,
+        Order.ON_WORK_READY,
         (vertex) => void seen.push(vertex.getData()),
       );
       async function run(expected: string) {
         seen.length = 0;
-        const runner = traversal.makeRunner();
+        const runner = traversal.createRunner();
         await runner.run();
         expect(seen).toEqual([expected]);
         if (sourceKey === 'traversableGraph') {
           expect(
             runner
-              .getResolvedGraph()
+              .getResolvedGraphView()
               .getVertexRefById(
                 expected === 'original' ? originalId : replacementId,
               ),
@@ -82,7 +89,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         traversal.configure({
           [sourceKey]: replacement,
           [oppositeKey]: replacement,
-          visitors: { [Order.ON_READY]: [] },
+          visitors: { [Order.ON_WORK_READY]: [] },
         } as never),
       ).toThrow(/source mode/i);
       expect(calls).toEqual([]);
@@ -91,6 +98,28 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       expect(calls).toEqual(['original']);
       await run('replacement');
     });
+
+    test.each([null, 0, {}])(
+      `${Factory.name} ${sourceKey} rejects malformed opposite source %p without mutation or callbacks`,
+      async (opposite) => {
+        const { traversal, replacement, calls, run } = fixture();
+        const before = traversalInternals(traversal).icfg;
+        const visitors = traversal.listVisitorsFor(Order.ON_WORK_READY);
+        expect(() =>
+          traversal.configure({
+            [sourceKey]: replacement,
+            [oppositeKey]: opposite,
+            visitors: { [Order.ON_WORK_READY]: [] },
+          } as never),
+        ).toThrow(TypeError);
+        expect(calls).toEqual([]);
+        expect(traversalInternals(traversal).icfg).toBe(before);
+        expect(traversal.listVisitorsFor(Order.ON_WORK_READY)).toEqual(
+          visitors,
+        );
+        await run('original');
+      },
+    );
 
     test.each([true, false])(
       `${Factory.name} ${sourceKey} captures source getters once (enumerable=%s)`,
@@ -111,10 +140,10 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         reads = 0;
         const constructed = new Factory<Data>(patch as never);
         expect(reads).toBe(1);
-        constructed.addVisitorFor(Order.ON_READY, (vertex) =>
+        constructed.addVisitorFor(Order.ON_WORK_READY, (vertex) =>
           expect(vertex.getData()).toBe('replacement'),
         );
-        await constructed.makeRunner().run();
+        await constructed.createRunner().run();
       },
     );
 
@@ -137,94 +166,45 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
       expect(() => new Factory<Data>(patch as never)).toThrow(/exactly one/i);
     });
 
-    test(`${Factory.name} ${sourceKey} treats only source properties as nonenumerable options`, async () => {
-      const { traversal, original, replacement, calls, run } = fixture();
+    test(`${Factory.name} ${sourceKey} validates nonenumerable defined options atomically`, async () => {
+      const { traversal, replacement, calls, run } = fixture();
+      const failure = new Error('nonenumerable ordinary option');
       const patch = Object.defineProperty(
         { [sourceKey]: replacement },
         'workCompletion',
         {
           get() {
-            throw new Error('nonenumerable ordinary option');
+            throw failure;
           },
         },
       );
-      traversal.configure(patch);
+      expect(() => traversal.configure(patch)).toThrow(failure);
       expect(calls).toEqual([]);
-      await run('replacement');
-      const constructed = new Factory<Data>({
-        [sourceKey]: original,
-        [oppositeKey]: undefined,
-      } as never);
-      await constructed.makeRunner().run();
-    });
-
-    if (sourceKey === 'traversableGraph') {
-      test.each(['hidden', 'deleted', 'made enumerable'] as const)(
-        `${Factory.name} ${sourceKey} checks ordinary descriptors after earlier getters (%s)`,
-        async (change) => {
-          const { traversal, calls, run } = fixture();
-          if (change === 'deleted') {
-            traversal.configure({ workCompletion: 'externalSettlement' });
-          }
-          const patch = {
-            get discovery() {
-              if (change === 'deleted') {
-                Reflect.deleteProperty(patch, 'workCompletion');
-              } else {
-                Object.defineProperty(patch, 'workCompletion', {
-                  enumerable: change === 'made enumerable',
-                });
-              }
-              return 'eager' as const;
-            },
-          };
-          Object.defineProperty(patch, 'workCompletion', {
-            configurable: true,
-            enumerable: change !== 'made enumerable',
-            value:
-              change === 'deleted' ? 'visitorReturn' : 'externalSettlement',
-          });
-          traversal.configure(patch);
-          expect(calls).toEqual([]);
-          const runner = await run('original');
-          expect(runner.getStopReason()).toBe(
-            change === 'hidden' ? 'finished' : 'awaitingSettlement',
-          );
-        },
+      await run('original');
+      expect(() =>
+        traversal.configure(
+          Object.defineProperty({}, 'workCompletion', { value: 'invalid' }),
+        ),
+      ).toThrow(TypeError);
+      traversal.configure(
+        Object.defineProperty({}, 'workCompletion', { value: undefined }),
       );
-    }
-
-    test(`${Factory.name} ${sourceKey} preserves ordinary symbol and own __proto__ options`, async () => {
-      const { traversal, calls, run } = fixture();
-      const symbol = Symbol('ordinary option');
-      const value = {};
-      const patch = Object.create(null) as object;
-      Object.defineProperty(patch, '__proto__', { enumerable: true, value });
-      Object.defineProperty(patch, symbol, {
-        enumerable: true,
-        get: () => value,
-      });
-      traversal.configure(patch);
-      expect(calls).toEqual([]);
-      expect(Object.getPrototypeOf(traversal.icfg)).toBe(Object.prototype);
-      expect(
-        Object.getOwnPropertyDescriptor(traversal.icfg, '__proto__')?.value,
-      ).toBe(value);
-      expect(Reflect.get(traversal.icfg, symbol)).toBe(value);
       await run('original');
     });
 
-    test.each([null, 0, {}])(
-      `${Factory.name} ${sourceKey} rejects defined malformed opposite sources (%p)`,
-      async (value) => {
-        const { traversal, calls, run } = fixture();
-        expect(() =>
-          traversal.configure({ [oppositeKey]: value } as never),
-        ).toThrow(/source mode/i);
-        expect(calls).toEqual([]);
-        await run('original');
-      },
-    );
+    test(`${Factory.name} ${sourceKey} rejects symbol and own __proto__ options atomically`, async () => {
+      const { traversal, run } = fixture();
+      const before = traversalInternals(traversal).icfg;
+      for (const key of ['__proto__', Symbol('ordinary option')]) {
+        const patch = Object.defineProperty({}, key, {
+          enumerable: true,
+          value: undefined,
+        });
+        expect(() => traversal.configure(patch)).toThrow(TypeError);
+        expect(traversalInternals(traversal).icfg).toBe(before);
+      }
+      await run('original');
+    });
 
     test(`${Factory.name} ${sourceKey} never reads inherited source getters`, async () => {
       const { traversal, original, run } = fixture();
@@ -238,7 +218,7 @@ for (const Factory of [DagTraversal, AsyncDagTraversal]) {
         [sourceKey]: original,
       });
       const constructed = new Factory<Data>(input as never);
-      await constructed.makeRunner().run();
+      await constructed.createRunner().run();
       await run('original');
       expect(
         () =>
@@ -282,12 +262,20 @@ for (const merge of [
   mergeAsyncDagTraversalInstanceConfigs,
 ]) {
   test(`${merge.name} retains a source for an ignored direct patch`, () => {
-    const source: TraversableGraph<Data> = {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
+    const source: DagDiscoverySource<Data> = {
+      resolveRoot: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
+      resolveChild: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted' as const,
+      }),
     };
     const base = {
-      ...new DagTraversal<Data>({ traversableGraph: source }).icfg,
+      ...traversalInternals(
+        new DagTraversal<Data>({ traversableGraph: source }),
+      ).icfg,
       concurrency: Infinity,
     };
     const merged = merge<Data, Data>(base, {

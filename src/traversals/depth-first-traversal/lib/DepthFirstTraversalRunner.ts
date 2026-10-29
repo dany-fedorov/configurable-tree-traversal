@@ -1,56 +1,76 @@
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { TraversalStopReason } from '@core/TraversalRunner';
-import type { CoreInspection } from '@core/CoreInspection';
-import type { ResolvedGraph } from '@core/ResolvedGraph';
-import type { ResolvedTree } from '@core/ResolvedTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type {
-  TraversalRunner,
-  TraversalRunnerIteratorResultContent,
-} from '@core/TraversalRunner';
-import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { CTTRef } from '@core/CTTRef';
-import type { Vertex } from '@core/Vertex';
-import { TraversalKernel } from '@core/TraversalKernel';
-import type { CallbackBindings } from '@core/effects/types';
+import { vertexHandle, vertexView, internalRef } from '@core/observationFacets';
+import type { VertexHandle } from '@core/CTTRef';
+import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import {
   bindTreeSource,
   createCallbackBindings,
 } from '@core/drivers/callbackBindings';
 import { runSync, type SyncDriverState } from '@core/drivers/runSync';
+import type { CallbackBindings } from '@core/effects/types';
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
+import type { ResolvedGraphView } from '@core/ResolvedGraphView';
+import type { ResolvedTreeStore } from '@core/ResolvedTree';
+import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type {
+  SelectedTraversalEvent,
+  SyncTraversalExecution,
+} from '@core/TraversalExecution';
+import { TraversalKernel } from '@core/TraversalKernel';
+import type {
+  TraversalStopReason,
+  TreeTraversalEvent,
+} from '@core/TraversalRunner';
+import { TraversalRunnerStatus } from '@core/TraversalRunner';
+import type {
+  EmissionKind,
+  TraversalExecutionOptions,
+} from '@core/TraversalRunnerIterableConfig';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { deepFreeze } from '@utils/deepFreeze';
-import { DepthFirstTraversalRunnerState } from './DepthFirstTraversalRunnerState';
-import { DepthFirstTraversalResolvedTreesContainer } from './DepthFirstTraversalResolvedTreesContainer';
-import { DepthFirstTraversalOrder } from './DepthFirstTraversalOrder';
+import { initVisitors } from '../init-helpers/initVisitors';
 import {
   mergeInstanceConfigs,
-  type DepthFirstTraversalInstanceConfig,
+  type DepthFirstTreeResolvedOptions,
 } from './DepthFirstTraversalInstanceConfig';
+import { DepthFirstPhase } from './DepthFirstTraversalOrder';
+import { DepthFirstTraversalResolvedTreesContainer } from './DepthFirstTraversalResolvedTreesContainer';
 import {
   makeEffectiveDepthFirstTraversalRunnerIterableConfig,
   type DepthFirstTraversalRunnerIterableConfig,
-  type DepthFirstTraversalRunnerIterableConfigInput,
 } from './DepthFirstTraversalRunnerIterableConfig';
-import { initVisitors } from '../init-helpers/initVisitors';
+import { DepthFirstTraversalRunnerState } from './DepthFirstTraversalRunnerState';
 
 type Event<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> = TraversalRunnerIteratorResultContent<DepthFirstTraversalOrder, TTP, RW_TTP>;
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
+> = TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>;
 
-export class DepthFirstTraversalRunner<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> implements TraversalRunner<DepthFirstTraversalOrder, TTP, RW_TTP>
+export interface DepthFirstTreeRunner<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> extends SyncTraversalExecution<
+    DepthFirstPhase,
+    TreeTraversalEvent<DepthFirstPhase, TTP, RW_TTP>,
+    TreeDagExecutionInspection<DepthFirstPhase>
+  > {
+  getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
+  getResolvedGraphView(): ResolvedGraphView<TTP | RW_TTP>;
+  isTreeRootVertex(ref: VertexHandle<TTP | RW_TTP>): boolean;
+  isTraversalLeaf(ref: VertexHandle<TTP | RW_TTP>): boolean;
+}
+
+export class InternalDepthFirstTreeRunner<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
+> implements DepthFirstTreeRunner<TTP, RW_TTP>
 {
-  icfg: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>;
-  state: DepthFirstTraversalRunnerState<TTP, RW_TTP>;
-  resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
+  private icfg: DepthFirstTreeResolvedOptions<TTP, RW_TTP>;
+  private state: DepthFirstTraversalRunnerState<TTP, RW_TTP>;
+  private resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
     TTP,
     RW_TTP
   >;
-  curGenerator: Generator<Event<TTP, RW_TTP> | null> | null = null;
+  private curGenerator: Generator<Event<TTP, RW_TTP> | null> | null = null;
   private iterableConfig: DepthFirstTraversalRunnerIterableConfig =
     makeEffectiveDepthFirstTraversalRunnerIterableConfig();
   private activeIterator = false;
@@ -61,7 +81,7 @@ export class DepthFirstTraversalRunner<
   private readonly kernel: TraversalKernel<TTP, RW_TTP>;
   private readonly bindings: CallbackBindings<TTP, RW_TTP>;
 
-  constructor(icfgInput: DepthFirstTraversalInstanceConfig<TTP, RW_TTP>) {
+  constructor(icfgInput: DepthFirstTreeResolvedOptions<TTP, RW_TTP>) {
     this.icfg = {
       ...mergeInstanceConfigs(icfgInput, {}),
       visitors: initVisitors(icfgInput),
@@ -79,7 +99,7 @@ export class DepthFirstTraversalRunner<
       source: bindTreeSource(
         this.icfg.traversableTree,
         graphContainer,
-        'DepthFirstTraversalRunner',
+        'DepthFirstTreeRunner',
       ),
       ...(this.icfg.sortChildrenHints === null
         ? {}
@@ -91,7 +111,7 @@ export class DepthFirstTraversalRunner<
               )['VertexHint'][],
           }),
       visit: Object.fromEntries(
-        Object.values(DepthFirstTraversalOrder).map((order) => [
+        Object.values(DepthFirstPhase).map((order) => [
           order,
           (
             call: Extract<
@@ -99,18 +119,22 @@ export class DepthFirstTraversalRunner<
               { kind: 'VISIT' }
             >,
           ) => {
-            const visitorRecord = this.icfg.visitors[order][call.recordIndex]!;
-            return visitorRecord.visitor(call.ref.unref(), {
+            const registration = this.icfg.visitors[order][call.recordIndex]!;
+            return registration.visitor(vertexView(call.ref.getValue()), {
               ...call.metadata,
-              resolvedTree: this.getResolvedTree(),
-              notMutatedResolvedTree:
-                this.resolvedTreesContainer.notMutatedResolvedTree,
+              previousPhaseVertexRef: vertexHandle(
+                call.metadata.previousPhaseVertexRef,
+              ),
+              resolvedTreeView: this.getResolvedTreeView(),
+              originalTreeView:
+                this.resolvedTreesContainer.originalTreeView?.asReadOnly() ??
+                null,
               isTreeRoot: this.isTreeRootVertex(call.ref),
-              isTraversalRoot: this.isTraversalRootVertex(call.ref),
-              vertexRef: call.ref,
-              visitorRecord,
-              vertexVisitorsChainState: call.metadata.vertexVisitorsChainState,
-              order,
+
+              vertexRef: vertexHandle(call.ref),
+              registration,
+              visitorChainState: call.metadata.visitorChainState,
+              phase: order,
               // The record and options share the same phase selected above.
             } as never);
           },
@@ -130,13 +154,13 @@ export class DepthFirstTraversalRunner<
             ({
               addedIndex,
               priority,
-              resolutionStyle,
+
               commandCommitMode,
               visitorGroup,
             }) => ({
               addedIndex,
               priority,
-              resolutionStyle,
+
               commandCommitMode,
               visitorGroup,
             }),
@@ -144,7 +168,7 @@ export class DepthFirstTraversalRunner<
         ]),
       ),
       iterableConfig: this.iterableConfig,
-      inOrderConfig: this.icfg.inOrderTraversalConfig,
+      inOrderConfig: this.icfg.inOrder,
       hasSorter: this.icfg.sortChildrenHints !== null,
       hasHintIds: false,
       concurrency: 1,
@@ -173,38 +197,34 @@ export class DepthFirstTraversalRunner<
     return this.getStatus() === TraversalRunnerStatus.HALTED;
   }
 
-  getResolvedTree(): ResolvedTree<TTP | RW_TTP> {
+  #getResolvedTreeStore(): ResolvedTreeStore<TTP | RW_TTP> {
     return this.resolvedTreesContainer.resolvedTree;
   }
 
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP> {
-    return this.getResolvedTree().asReadOnly();
+    return this.#getResolvedTreeStore().asReadOnly();
   }
 
-  getResolvedGraph(): ResolvedGraph<TTP | RW_TTP> {
-    return this.getResolvedTree().getResolvedGraph();
+  getResolvedGraphView(): ResolvedGraphView<TTP | RW_TTP> {
+    return this.#getResolvedTreeStore().getResolvedGraphView();
   }
 
-  inspect(): CoreInspection {
+  inspect(): TreeDagExecutionInspection<DepthFirstPhase> {
     return deepFreeze({
       ...this.kernel.inspect(),
       inFlightCallbackCount: this.runtimeState.inFlightCallbackCount,
       bufferedEventCount: 0,
-    });
+    }) as TreeDagExecutionInspection<DepthFirstPhase>;
   }
 
-  isTraversalRootVertex(ref: CTTRef<Vertex<TTP | RW_TTP>>): boolean {
-    return ref === this.state.traversalRootVertexRef;
+  isTreeRootVertex(ref: VertexHandle<TTP | RW_TTP>): boolean {
+    return internalRef(ref) === this.#getResolvedTreeStore().getRoot();
   }
 
-  isTreeRootVertex(ref: CTTRef<Vertex<TTP | RW_TTP>>): boolean {
-    return ref === this.getResolvedTree().getRoot();
-  }
-
-  isLeafVertexRef(ref: CTTRef<Vertex<TTP | RW_TTP>>): boolean {
+  isTraversalLeaf(ref: VertexHandle<TTP | RW_TTP>): boolean {
     return (
-      this.state.subtreeTraversalDisabledRefs.has(ref) ||
-      ref.unref().isLeafVertex()
+      this.state.subtreeTraversalDisabledRefs.has(internalRef(ref)) ||
+      ref.getValue().hasNoChildHints()
     );
   }
 
@@ -213,22 +233,30 @@ export class DepthFirstTraversalRunner<
       this.kernel,
       this.bindings,
       this.runtimeState,
-      'DepthFirstTraversalRunner',
+      'DepthFirstTreeRunner',
     )) {
       if (event === null) yield null;
       else
         yield {
-          vertex: event.vertex,
-          vertexRef: event.vertexRef,
-          order: event.order as DepthFirstTraversalOrder,
+          vertex: vertexView(event.vertex),
+          vertexRef: vertexHandle(event.vertexRef),
+          phase: event.order as DepthFirstPhase,
           isTreeRoot: event.isRoot,
-          isTraversalRoot: event.isTraversalRoot,
         };
     }
   }
 
-  *getIterable(
-    config?: DepthFirstTraversalRunnerIterableConfigInput,
+  iterateEvents(): Generator<Event<TTP, RW_TTP>, void, unknown>;
+  iterateEvents<Kind extends EmissionKind<DepthFirstPhase>>(
+    config: TraversalExecutionOptions<DepthFirstPhase, Kind> & {
+      emitEvents: readonly Kind[];
+    },
+  ): Generator<SelectedTraversalEvent<Event<TTP, RW_TTP>, Kind>, void, unknown>;
+  iterateEvents(
+    config?: TraversalExecutionOptions<DepthFirstPhase>,
+  ): Generator<Event<TTP, RW_TTP>, void, unknown>;
+  *iterateEvents(
+    config?: TraversalExecutionOptions<DepthFirstPhase>,
   ): Generator<Event<TTP, RW_TTP>, void, unknown> {
     if (this.failure !== null) throw this.failure.error;
     if (this.activeIterator)
@@ -265,8 +293,8 @@ export class DepthFirstTraversalRunner<
     }
   }
 
-  run(config?: DepthFirstTraversalRunnerIterableConfigInput): this {
-    for (const _event of this.getIterable(config)) {
+  run(config?: TraversalExecutionOptions<DepthFirstPhase>): this {
+    for (const _event of this.iterateEvents(config)) {
       /* Drain traversal events. */
     }
     return this;

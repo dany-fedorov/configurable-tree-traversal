@@ -1,17 +1,14 @@
-import type {
-  CallbackBindings,
-  KernelPort,
-} from '../src/core/effects/types';
+import type { CallbackBindings, KernelPort } from '../src/core/effects/types';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { runSync, type SyncDriverState } from '../src/core/drivers/runSync';
 import { createCallbackBindings } from '../src/core/drivers/callbackBindings';
 import type { TestGraph } from './helpers/graph-fixtures';
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 
-function setup(iterateOver: Array<'ON_READY' | 'ON_COMPLETE'> = []) {
+function setup(iterateOver: Array<'ON_WORK_READY' | 'ON_SUBGRAPH_READY'> = []) {
   const kernel = new TraversalKernel<TestGraph>({
     kind: 'dag',
     execution: 'sync',
@@ -41,7 +38,7 @@ function setup(iterateOver: Array<'ON_READY' | 'ON_COMPLETE'> = []) {
 }
 
 test('invokes callbacks synchronously and restores the physical count', () => {
-  const kernel = setup(['ON_READY']);
+  const kernel = setup(['ON_WORK_READY']);
   const runtime: SyncDriverState = { inFlightCallbackCount: 0 };
   const seen: number[] = [];
   const bindings: CallbackBindings<TestGraph> = {
@@ -50,7 +47,7 @@ test('invokes callbacks synchronously and restores the physical count', () => {
       if (call.kind !== 'MAKE_ROOT') throw new Error('Unexpected callback');
       return {
         kind: 'MAKE_ROOT',
-        value: { vertexContent: { $d: 'root', $c: [] } },
+        value: { vertexContent: { $data: 'root', $childHints: [] } },
       };
     },
   };
@@ -107,7 +104,10 @@ test.each([
   ['promise', Promise.reject(new Error('rejected'))],
   [
     'custom thenable',
-    { then: (_resolve: unknown, reject: (error: unknown) => void) => reject('no') },
+    {
+      then: (_resolve: unknown, reject: (error: unknown) => void) =>
+        reject('no'),
+    },
   ],
   [
     'throwing then getter',
@@ -125,16 +125,19 @@ test.each([
       },
     },
   ],
-])('rejects a %s from a synchronous callback without leaking it', (_name, value) => {
-  const iterator = runSync<TestGraph>(
-    setup(),
-    {
-      invoke: () => ({ kind: 'MAKE_ROOT', value } as never),
-    },
-    { inFlightCallbackCount: 0 },
-  );
-  expect(() => iterator.next()).toThrow(/synchronous runner.*MAKE_ROOT/i);
-});
+])(
+  'rejects a %s from a synchronous callback without leaking it',
+  (_name, value) => {
+    const iterator = runSync<TestGraph>(
+      setup(),
+      {
+        invoke: () => ({ kind: 'MAKE_ROOT', value } as never),
+      },
+      { inFlightCallbackCount: 0 },
+    );
+    expect(() => iterator.next()).toThrow(/synchronous runner.*MAKE_ROOT/i);
+  },
+);
 
 test('rejects WAIT and mismatched callback transport results', () => {
   const waiting = {
@@ -165,11 +168,11 @@ test('callback bindings dispatch every request by its discriminant', () => {
   const calls: string[] = [];
   const bindings = createCallbackBindings<TestGraph>({
     source: {
-      makeRoot: () => {
+      resolveRoot: () => {
         calls.push('root');
         return { vertexContent: null };
       },
-      makeVertex: () => {
+      resolveChild: () => {
         calls.push('vertex');
         return { vertexContent: null };
       },
@@ -183,7 +186,7 @@ test('callback bindings dispatch every request by its discriminant', () => {
       return hints.reverse();
     },
     visit: {
-      ON_READY: () => {
+      ON_WORK_READY: () => {
         calls.push('visit');
         return undefined;
       },
@@ -195,7 +198,9 @@ test('callback bindings dispatch every request by its discriminant', () => {
     kind: 'MAKE_ROOT',
     value: { vertexContent: null },
   });
-  const ref = new CTTRef(new Vertex<TestGraph>({ $d: 'parent', $c: ['a'] }));
+  const ref = new MutableRef(
+    new Vertex<TestGraph>({ $data: 'parent', $childHints: ['a'] }),
+  );
   const owner = { kind: 'frame' as const, id: 2, epoch: 0 };
   expect(
     bindings.invoke({
@@ -221,7 +226,7 @@ test('callback bindings dispatch every request by its discriminant', () => {
       kind: 'MAKE_VERTEX',
       context: {
         depth: 1,
-        parentVertex: ref.unref(),
+        parentVertex: ref.getValue(),
         parentVertexRef: ref,
         hintIndex: 0,
         vertexHint: 'a',
@@ -234,13 +239,13 @@ test('callback bindings dispatch every request by its discriminant', () => {
       owner: { kind: 'chain', id: 3, epoch: 0 },
       kind: 'VISIT',
       ref,
-      order: 'ON_READY',
+      order: 'ON_WORK_READY',
       recordIndex: 0,
       metadata: {
-        vertexVisitIndex: 0,
-        curVertexVisitorVisitIndex: 0,
-        previousVisitedVertexRef: null,
-        vertexVisitorsChainState: null,
+        phaseVisitIndex: 0,
+        visitorIndex: 0,
+        previousPhaseVertexRef: null,
+        visitorChainState: null,
       },
     }),
   ).toEqual({ kind: 'VISIT', value: undefined });
@@ -250,8 +255,8 @@ test('callback bindings dispatch every request by its discriminant', () => {
 test('callback bindings use sort fallback and reject missing visitors', () => {
   const bindings = createCallbackBindings<TestGraph>({
     source: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     },
     visit: {},
   });
@@ -269,14 +274,16 @@ test('callback bindings use sort fallback and reject missing visitors', () => {
       requestId: 2,
       owner: { kind: 'chain', id: 2, epoch: 0 },
       kind: 'VISIT',
-      ref: new CTTRef(new Vertex<TestGraph>({ $d: 'root', $c: [] })),
-      order: 'ON_READY',
+      ref: new MutableRef(
+        new Vertex<TestGraph>({ $data: 'root', $childHints: [] }),
+      ),
+      order: 'ON_WORK_READY',
       recordIndex: 0,
       metadata: {
-        vertexVisitIndex: 0,
-        curVertexVisitorVisitIndex: 0,
-        previousVisitedVertexRef: null,
-        vertexVisitorsChainState: null,
+        phaseVisitIndex: 0,
+        visitorIndex: 0,
+        previousPhaseVertexRef: null,
+        visitorChainState: null,
       },
     }),
   ).toThrow(/no callback binding/i);

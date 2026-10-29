@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
 import {
   defineDag,
   defineDagFragment,
   instantiateDagFragment,
   composeDag,
 } from '../src';
+import assert from 'node:assert/strict';
 
 async function main() {
   type LocalID = 'build' | 'review';
@@ -15,20 +15,20 @@ async function main() {
           vertexId: 'build',
           data: { role: 'builder' },
           slots: [],
-          dependsOn: [],
-          dependsOnComplete: [],
+          dependsOnWork: [],
+          dependsOnSubgraphCompletion: [],
         },
         {
           vertexId: 'review',
           data: { role: 'reviewer' },
           slots: [],
-          dependsOn: ['build'],
-          dependsOnComplete: [],
+          dependsOnWork: ['build'],
+          dependsOnSubgraphCompletion: [],
         },
       ],
       omittedIds: [],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'build' },
           { kind: 'vertex', vertexId: 'review' },
@@ -48,15 +48,18 @@ async function main() {
     dependencies: [
       {
         dependent: second.ports.start,
-        prerequisite: { vertexId: first.ports.finish, milestone: 'completion' },
+        prerequisite: {
+          vertexId: first.ports.finish,
+          milestone: 'subgraphCompletion',
+        },
       },
     ],
   });
   assert.equal(result.kind, 'valid');
   if (result.kind !== 'valid') throw new Error('Invalid composition');
   for (const session of [
-    result.dag.createSession(),
-    await result.dag.createAsyncSession(),
+    result.dag.createWorkSession(),
+    await result.dag.createAsyncWorkSession(),
   ]) {
     const observed: string[] = [];
     for (;;) {
@@ -65,9 +68,9 @@ async function main() {
       assert.equal(advance.kind, 'awaitingSettlement');
       if (advance.kind !== 'awaitingSettlement')
         throw new Error('Unexpected pause');
-      for (const ticket of advance.frontier) {
+      for (const ticket of advance.workTickets) {
         observed.push(`${ticket.vertexId.project}/${ticket.vertexId.local}`);
-        assert.equal(session.complete(ticket).kind, 'accepted');
+        assert.equal(session.completeWork(ticket).kind, 'accepted');
       }
     }
     assert.deepEqual(observed, [

@@ -1,50 +1,53 @@
+/** Maps callback phases to event kinds accepted by TraversalExecutionOptions.
+ * Explicit walking branches also preserve enum-to-literal mapping on TS 4.7. */
+export type EmissionKind<Phase extends string> = Phase extends 'ON_WORK_READY'
+  ? 'workCompleted'
+  : Phase extends 'ON_SUBGRAPH_READY'
+  ? 'subgraphCompleted'
+  : Phase extends 'vertex'
+  ? 'vertex'
+  : Phase extends 'edge'
+  ? 'edge'
+  : Phase extends 'path'
+  ? 'path'
+  : Phase;
+
 export type VisitorPhaseSelection<ORDER extends string> =
   | 'all'
   | { include: readonly ORDER[]; exclude?: never }
   | { exclude: readonly ORDER[]; include?: never };
 
-export type TraversalExecutionOptions<ORDER extends string> = {
-  emitPhases?: readonly ORDER[];
-  visitorPhases?: VisitorPhaseSelection<ORDER>;
+export type TraversalExecutionOptions<
+  VisitorPhase extends string,
+  EmittedKind extends string = EmissionKind<VisitorPhase>,
+> = {
+  emitEvents?: readonly EmittedKind[] | undefined;
+  visitorPhases?:
+    | VisitorPhaseSelection<VisitorPhase>
+    | { include: undefined; exclude?: never }
+    | { exclude: undefined; include?: never }
+    | undefined;
 };
 
-/** Effective compatibility fields. Public execution input uses TraversalIterableConfigInput. */
+/** Internal normalized phase gates. Public input uses TraversalExecutionOptions. */
 export type TraversalRunnerIterableConfig<ORDER extends string> = {
-  /** @deprecated Use visitorPhases. A non-null enable list takes precedence. */
   enableVisitorFunctionsFor: ORDER[] | null;
-  /** @deprecated Use visitorPhases. Used only when the enable list is null. */
   disableVisitorFunctionsFor: ORDER[] | null;
-  /** @deprecated Use emitPhases. */
   iterateOver: ORDER[];
 };
 
-type EmissionInput<ORDER extends string> =
-  | { emitPhases?: readonly ORDER[]; iterateOver?: never }
-  | {
-      emitPhases?: never;
-      /** @deprecated Use emitPhases. */
-      iterateOver?: readonly ORDER[];
-    };
-type VisitorInput<ORDER extends string> =
-  | {
-      visitorPhases?: VisitorPhaseSelection<ORDER>;
-      enableVisitorFunctionsFor?: never;
-      disableVisitorFunctionsFor?: never;
-    }
-  | {
-      visitorPhases?: never;
-      /** @deprecated Use visitorPhases. */
-      enableVisitorFunctionsFor?: readonly ORDER[] | null;
-      /** @deprecated Use visitorPhases. */
-      disableVisitorFunctionsFor?: readonly ORDER[] | null;
-    };
+/** Private alias used by the shared engine; public input has no compatibility arms. */
+export type TraversalIterableConfigInput<
+  ORDER extends string,
+  EmittedKind extends string = EmissionKind<ORDER>,
+> = TraversalExecutionOptions<ORDER, EmittedKind>;
 
-/** Each supplied concern patches its previous effective value independently. */
-export type TraversalIterableConfigInput<ORDER extends string> =
-  EmissionInput<ORDER> & VisitorInput<ORDER>;
+export type EffectiveTraversalExecutionOptions<ORDER extends string> = {
+  emitEvents: EmissionKind<ORDER>[];
+  visitorPhases: VisitorPhaseSelection<ORDER>;
+};
 
-export type EffectiveTraversalExecutionOptions<ORDER extends string> =
-  TraversalRunnerIterableConfig<ORDER> & {
-    emitPhases: ORDER[];
-    visitorPhases: VisitorPhaseSelection<ORDER>;
-  };
+/** Private phase gates used by the scheduling engine. */
+export type ResolvedTraversalExecutionOptions<ORDER extends string> =
+  EffectiveTraversalExecutionOptions<ORDER> &
+    TraversalRunnerIterableConfig<ORDER>;

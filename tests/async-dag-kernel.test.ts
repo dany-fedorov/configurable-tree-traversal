@@ -9,10 +9,7 @@ import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContain
 import type { VisitResult } from '../src/core/graph/types';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
@@ -41,23 +38,23 @@ function makeKernel(
       visitorsState: {},
     },
     visitorMetadata: {
-      ON_READY: [
+      ON_WORK_READY: [
         ...Array.from(
           { length: options.readyVisitorCount ?? 1 },
           (_, addedIndex) => ({
             addedIndex,
             priority: 100,
-            resolutionStyle: Style.SEQUENTIAL,
+            commandCommitMode: 'afterEachVisitor' as const,
           }),
         ),
       ],
       ...(options.includeCompletion
         ? {
-            ON_COMPLETE: [
+            ON_SUBGRAPH_READY: [
               {
                 addedIndex: 0,
                 priority: 100,
-                resolutionStyle: Style.SEQUENTIAL,
+                commandCommitMode: 'afterEachVisitor' as const,
               },
             ],
           }
@@ -65,8 +62,8 @@ function makeKernel(
     },
     iterableConfig: {
       iterateOver: options.includeCompletion
-        ? ['ON_READY', 'ON_COMPLETE']
-        : ['ON_READY'],
+        ? ['ON_WORK_READY', 'ON_SUBGRAPH_READY']
+        : ['ON_WORK_READY'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
@@ -80,18 +77,18 @@ function makeKernel(
 test('delivers an unrelated DAG chain while another frame resolver is pending', async () => {
   const a = deferred<{
     vertexId: string;
-    dependsOn: string[];
-    vertexContent: { $d: string; $c: string[] };
+    dependsOnWork: string[];
+    vertexContent: { $data: string; $childHints: string[] };
   }>();
   const b = deferred<{
     vertexId: string;
-    dependsOn: string[];
-    vertexContent: { $d: string; $c: string[] };
+    dependsOnWork: string[];
+    vertexContent: { $data: string; $childHints: string[] };
   }>();
   const slow = deferred<{
     vertexId: string;
-    dependsOn: string[];
-    vertexContent: { $d: string; $c: string[] };
+    dependsOnWork: string[];
+    vertexContent: { $data: string; $childHints: string[] };
   }>();
   const bVisit = deferred<void>();
   const started: string[] = [];
@@ -103,7 +100,7 @@ test('delivers an unrelated DAG chain while another frame resolver is pending', 
           kind: call.kind,
           value: {
             vertexId: 'root',
-            vertexContent: { $d: 'root', $c: ['A', 'B'] },
+            vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
           },
         };
       }
@@ -115,7 +112,7 @@ test('delivers an unrelated DAG chain while another frame resolver is pending', 
         return { kind: call.kind, value };
       }
       if (call.kind === 'VISIT') {
-        const data = call.ref.unref().getData();
+        const data = call.ref.getValue().getData();
         return {
           kind: call.kind,
           value: data === 'B' ? bVisit.promise : undefined,
@@ -125,11 +122,11 @@ test('delivers an unrelated DAG chain while another frame resolver is pending', 
     },
   };
   const driver = createAsyncDriver(kernel, bindings, 2);
-  const iterator = new AsyncRunnerSession(driver).getIterable();
+  const iterator = new AsyncRunnerSession(driver).iterateEvents();
 
   await expect(iterator.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'root' } },
+    value: { vertex: { $data: 'root' } },
   });
   const aEvent = iterator.next();
   await eventLoopTurn();
@@ -137,17 +134,17 @@ test('delivers an unrelated DAG chain while another frame resolver is pending', 
 
   a.resolve({
     vertexId: 'A',
-    dependsOn: ['root'],
-    vertexContent: { $d: 'A', $c: ['slow'] },
+    dependsOnWork: ['root'],
+    vertexContent: { $data: 'A', $childHints: ['slow'] },
   });
   b.resolve({
     vertexId: 'B',
-    dependsOn: ['root'],
-    vertexContent: { $d: 'B', $c: [] },
+    dependsOnWork: ['root'],
+    vertexContent: { $data: 'B', $childHints: [] },
   });
   await expect(aEvent).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'A' } },
+    value: { vertex: { $data: 'A' } },
   });
 
   const nextEvent = iterator.next();
@@ -158,15 +155,15 @@ test('delivers an unrelated DAG chain while another frame resolver is pending', 
   bVisit.resolve();
   await expect(nextEvent).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'B' } },
+    value: { vertex: { $data: 'B' } },
   });
   expect(driver.inspect().inFlightCallbackCount).toBe(1);
 
   await iterator.return(undefined);
   slow.resolve({
     vertexId: 'slow',
-    dependsOn: ['A'],
-    vertexContent: { $d: 'slow', $c: [] },
+    dependsOnWork: ['A'],
+    vertexContent: { $data: 'slow', $childHints: [] },
   });
 });
 
@@ -182,7 +179,7 @@ test('limits admitted DAG chains separately from physical callbacks', async () =
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['A', 'B', 'C'] },
+              vertexContent: { $data: 'root', $childHints: ['A', 'B', 'C'] },
             },
           };
         }
@@ -192,15 +189,15 @@ test('limits admitted DAG chains separately from physical callbacks', async () =
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
-              vertexContent: { $d: id, $c: [] },
+              dependsOnWork: ['root'],
+              vertexContent: { $data: id, $childHints: [] },
             },
           };
         }
         if (call.kind === 'VISIT') {
           return {
             kind: call.kind,
-            value: visits.get(call.ref.unref().getData())?.promise,
+            value: visits.get(call.ref.getValue().getData())?.promise,
           };
         }
         throw new Error('Unexpected callback');
@@ -208,7 +205,7 @@ test('limits admitted DAG chains separately from physical callbacks', async () =
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable();
+  const iterator = new AsyncRunnerSession(driver).iterateEvents();
 
   await iterator.next();
   const pending = iterator.next();
@@ -229,13 +226,13 @@ test('limits admitted DAG chains separately from physical callbacks', async () =
 test('accepts duplicate identities in resolver settlement order', async () => {
   const first = deferred<{
     vertexId: string;
-    dependsOn: string[];
-    vertexContent: { $d: string; $c: string[] };
+    dependsOnWork: string[];
+    vertexContent: { $data: string; $childHints: string[] };
   }>();
   const second = deferred<{
     vertexId: string;
-    dependsOn: string[];
-    vertexContent: { $d: string; $c: string[] };
+    dependsOnWork: string[];
+    vertexContent: { $data: string; $childHints: string[] };
   }>();
   const container = new ResolvedGraphsContainer<TestGraph>({
     sourceMode: 'graph',
@@ -251,7 +248,10 @@ test('accepts duplicate identities in resolver settlement order', async () => {
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['first', 'second'] },
+              vertexContent: {
+                $data: 'root',
+                $childHints: ['first', 'second'],
+              },
             },
           };
         }
@@ -282,47 +282,49 @@ test('accepts duplicate identities in resolver settlement order', async () => {
 
   second.resolve({
     vertexId: 'duplicate',
-    dependsOn: ['root'],
-    vertexContent: { $d: 'second-won', $c: [] },
+    dependsOnWork: ['root'],
+    vertexContent: { $data: 'second-won', $childHints: [] },
   });
   await eventLoopTurn();
   driver.advance('drive');
 
   expect(kernel.inspect().frames[0]?.pendingIndices).toEqual([0]);
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraphView
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'second-won']);
 
   first.resolve({
     vertexId: 'duplicate',
-    dependsOn: ['root'],
-    vertexContent: { $d: 'first-lost', $c: [] },
+    dependsOnWork: ['root'],
+    vertexContent: { $data: 'first-lost', $childHints: [] },
   });
   await eventLoopTurn();
   driver.advance('drive');
   driver.advance('drive');
-  const rootRef = container.resolvedGraph.getRoot()!;
-  const children = container.resolvedGraph.getChildrenOf(rootRef)!;
+  const rootRef = container.resolvedGraphView.getRoot()!;
+  const children = container.resolvedGraphView.getChildrenOf(rootRef)!;
   expect(children).toHaveLength(2);
   expect(children[0]).toBe(children[1]);
-  expect(container.resolvedGraph.getVertexRefs()).toHaveLength(2);
+  expect(container.resolvedGraphView.getVertexRefs()).toHaveLength(2);
 });
 
 test('preserves resolver settlement order across a halt and resume', async () => {
   const blocker = deferred<{
     vertexId: string;
-    dependsOn: string[];
-    vertexContent: { $d: string; $c: string[] };
+    dependsOnWork: string[];
+    vertexContent: { $data: string; $childHints: string[] };
   }>();
   const first = deferred<{
     vertexId: string;
-    dependsOn: string[];
-    vertexContent: { $d: string; $c: string[] };
+    dependsOnWork: string[];
+    vertexContent: { $data: string; $childHints: string[] };
   }>();
   const second = deferred<{
     vertexId: string;
-    dependsOn: string[];
-    vertexContent: { $d: string; $c: string[] };
+    dependsOnWork: string[];
+    vertexContent: { $data: string; $childHints: string[] };
   }>();
   const blockerVisit = deferred<void>();
   const container = new ResolvedGraphsContainer<TestGraph>({
@@ -340,8 +342,8 @@ test('preserves resolver settlement order across a halt and resume', async () =>
             value: {
               vertexId: 'root',
               vertexContent: {
-                $d: 'root',
-                $c: ['blocker', 'first', 'second'],
+                $data: 'root',
+                $childHints: ['blocker', 'first', 'second'],
               },
             },
           };
@@ -359,7 +361,7 @@ test('preserves resolver settlement order across a halt and resume', async () =>
           return {
             kind: call.kind,
             value:
-              call.ref.unref().getData() === 'blocker'
+              call.ref.getValue().getData() === 'blocker'
                 ? blockerVisit.promise
                 : undefined,
           };
@@ -381,8 +383,8 @@ test('preserves resolver settlement order across a halt and resume', async () =>
 
   blocker.resolve({
     vertexId: 'blocker',
-    dependsOn: ['root'],
-    vertexContent: { $d: 'blocker', $c: [] },
+    dependsOnWork: ['root'],
+    vertexContent: { $data: 'blocker', $childHints: [] },
   });
   await eventLoopTurn();
   expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
@@ -390,37 +392,43 @@ test('preserves resolver settlement order across a halt and resume', async () =>
 
   second.resolve({
     vertexId: 'duplicate',
-    dependsOn: ['root'],
-    vertexContent: { $d: 'second-won', $c: [] },
+    dependsOnWork: ['root'],
+    vertexContent: { $data: 'second-won', $childHints: [] },
   });
   await eventLoopTurn();
   expect(driver.advance('drain')).toEqual({ kind: 'WAIT' });
   first.resolve({
     vertexId: 'duplicate',
-    dependsOn: ['root'],
-    vertexContent: { $d: 'first-lost', $c: [] },
+    dependsOnWork: ['root'],
+    vertexContent: { $data: 'first-lost', $childHints: [] },
   });
   await eventLoopTurn();
   expect(driver.advance('drain')).toEqual({ kind: 'WAIT' });
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraphView
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).toEqual(['root', 'blocker']);
 
   blockerVisit.resolve();
   await eventLoopTurn();
   expect(driver.advance('drain')).toMatchObject({
     kind: 'EVENT',
-    event: { vertex: { $d: 'blocker' } },
+    event: { vertex: { $data: 'blocker' } },
   });
   expect(driver.advance('drain')).toEqual({ kind: 'HALTED' });
 
   driver.resume();
   driver.advance('drive');
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraphView
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).toContain('second-won');
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraphView
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).not.toContain('first-lost');
 });
 
@@ -446,7 +454,10 @@ test('tracks concurrent hint-id outcomes by their own frame indices after sortin
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['first', 'second'] },
+              vertexContent: {
+                $data: 'root',
+                $childHints: ['first', 'second'],
+              },
             },
           };
         }
@@ -525,7 +536,7 @@ test('reserves initial metadata at admission while completion visits interleave'
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['A', 'B'] },
+              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
             },
           };
         }
@@ -535,23 +546,25 @@ test('reserves initial metadata at admission while completion visits interleave'
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
-              vertexContent: { $d: id, $c: [] },
+              dependsOnWork: ['root'],
+              vertexContent: { $data: id, $childHints: [] },
             },
           };
         }
         if (call.kind === 'VISIT') {
           seen.push({
-            vertex: call.ref.unref().getData(),
+            vertex: call.ref.getValue().getData(),
             order: call.order,
-            index: call.metadata.vertexVisitIndex,
+            index: call.metadata.phaseVisitIndex,
             previous:
-              call.metadata.previousVisitedVertexRef?.unref().getData() ?? null,
+              call.metadata.previousPhaseVertexRef?.getValue().getData() ??
+              null,
           });
           return {
             kind: call.kind,
             value:
-              call.order === 'ON_READY' && call.ref.unref().getData() === 'A'
+              call.order === 'ON_WORK_READY' &&
+              call.ref.getValue().getData() === 'A'
                 ? aVisit.promise
                 : undefined,
           };
@@ -561,27 +574,27 @@ test('reserves initial metadata at admission while completion visits interleave'
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable();
+  const iterator = new AsyncRunnerSession(driver).iterateEvents();
 
   await expect(iterator.next()).resolves.toMatchObject({
-    value: { vertex: { $d: 'root' }, order: 'ON_READY' },
+    value: { vertex: { $data: 'root' }, order: 'ON_WORK_READY' },
   });
   await expect(iterator.next()).resolves.toMatchObject({
-    value: { vertex: { $d: 'B' }, order: 'ON_READY' },
+    value: { vertex: { $data: 'B' }, order: 'ON_WORK_READY' },
   });
   await expect(iterator.next()).resolves.toMatchObject({
-    value: { vertex: { $d: 'B' }, order: 'ON_COMPLETE' },
+    value: { vertex: { $data: 'B' }, order: 'ON_SUBGRAPH_READY' },
   });
 
-  expect(seen.filter(({ order }) => order === 'ON_READY')).toEqual([
-    { vertex: 'root', order: 'ON_READY', index: 0, previous: null },
-    { vertex: 'A', order: 'ON_READY', index: 1, previous: 'root' },
-    { vertex: 'B', order: 'ON_READY', index: 2, previous: 'root' },
+  expect(seen.filter(({ order }) => order === 'ON_WORK_READY')).toEqual([
+    { vertex: 'root', order: 'ON_WORK_READY', index: 0, previous: null },
+    { vertex: 'A', order: 'ON_WORK_READY', index: 1, previous: 'root' },
+    { vertex: 'B', order: 'ON_WORK_READY', index: 2, previous: 'root' },
   ]);
 
   aVisit.resolve();
   await expect(iterator.next()).resolves.toMatchObject({
-    value: { vertex: { $d: 'A' }, order: 'ON_READY' },
+    value: { vertex: { $data: 'A' }, order: 'ON_WORK_READY' },
   });
   await iterator.return(undefined);
 });
@@ -600,7 +613,7 @@ test('admits an independent join once after all dependencies commit', async () =
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['A', 'B'] },
+              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
             },
           };
         }
@@ -611,8 +624,11 @@ test('admits an independent join once after all dependencies commit', async () =
               kind: call.kind,
               value: {
                 vertexId: hint,
-                dependsOn: ['root'],
-                vertexContent: { $d: hint, $c: [`join-from-${hint}`] },
+                dependsOnWork: ['root'],
+                vertexContent: {
+                  $data: hint,
+                  $childHints: [`join-from-${hint}`],
+                },
               },
             };
           }
@@ -620,13 +636,13 @@ test('admits an independent join once after all dependencies commit', async () =
             kind: call.kind,
             value: {
               vertexId: 'join',
-              dependsOn: ['A', 'B'],
-              vertexContent: { $d: 'join', $c: [] },
+              dependsOnWork: ['A', 'B'],
+              vertexContent: { $data: 'join', $childHints: [] },
             },
           };
         }
         if (call.kind === 'VISIT') {
-          const data = call.ref.unref().getData();
+          const data = call.ref.getValue().getData();
           visited.push(data);
           return {
             kind: call.kind,
@@ -643,14 +659,14 @@ test('admits an independent join once after all dependencies commit', async () =
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable();
+  const iterator = new AsyncRunnerSession(driver).iterateEvents();
 
   await iterator.next();
   const aEvent = iterator.next();
   await eventLoopTurn();
   aVisit.resolve();
   await expect(aEvent).resolves.toMatchObject({
-    value: { vertex: { $d: 'A' } },
+    value: { vertex: { $data: 'A' } },
   });
 
   const bEvent = iterator.next();
@@ -658,11 +674,11 @@ test('admits an independent join once after all dependencies commit', async () =
   expect(visited).not.toContain('join');
   bVisit.resolve();
   await expect(bEvent).resolves.toMatchObject({
-    value: { vertex: { $d: 'B' } },
+    value: { vertex: { $data: 'B' } },
   });
 
   await expect(iterator.next()).resolves.toMatchObject({
-    value: { vertex: { $d: 'join' } },
+    value: { vertex: { $data: 'join' } },
   });
   expect(visited.filter((data) => data === 'join')).toHaveLength(1);
   await iterator.return(undefined);
@@ -684,7 +700,7 @@ test('finishes after deletion without awaiting an invalidated running callback',
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['A', 'B'] },
+              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
             },
           };
         }
@@ -694,21 +710,25 @@ test('finishes after deletion without awaiting an invalidated running callback',
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: id === 'B' ? ['A'] : ['root'],
-              vertexContent: { $d: id, $c: [] },
+              dependsOnWork: id === 'B' ? ['A'] : ['root'],
+              vertexContent: { $data: id, $childHints: [] },
             },
           };
         }
         if (call.kind === 'VISIT') {
-          const data = call.ref.unref().getData();
-          if (data === 'B' && call.order === 'ON_READY') {
+          const data = call.ref.getValue().getData();
+          if (data === 'B' && call.order === 'ON_WORK_READY') {
             return { kind: call.kind, value: bVisit.promise };
           }
           return {
             kind: call.kind,
             value:
-              data === 'A' && call.order === 'ON_COMPLETE'
-                ? { commands: [{ commandName: Command.DELETE_VERTEX }] }
+              data === 'A' && call.order === 'ON_SUBGRAPH_READY'
+                ? {
+                    commands: [
+                      { commandName: Command.DELETE_DAG_VERTEX_CASCADE },
+                    ],
+                  }
                 : undefined,
           };
         }
@@ -717,8 +737,8 @@ test('finishes after deletion without awaiting an invalidated running callback',
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable({
-    iterateOver: [],
+  const iterator = new AsyncRunnerSession(driver).iterateEvents({
+    emitEvents: [],
   });
 
   await expect(iterator.next()).resolves.toEqual({
@@ -731,7 +751,9 @@ test('finishes after deletion without awaiting an invalidated running callback',
     pendingRequests: [{ valid: false }],
   });
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraphView
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).not.toContain('B');
 
   bVisit.reject(new Error('late invalid failure'));
@@ -758,7 +780,7 @@ test('retains the first live failure and discards a later chain mutation', async
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['A', 'B'] },
+              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
             },
           };
         }
@@ -768,13 +790,13 @@ test('retains the first live failure and discards a later chain mutation', async
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
-              vertexContent: { $d: id, $c: [] },
+              dependsOnWork: ['root'],
+              vertexContent: { $data: id, $childHints: [] },
             },
           };
         }
         if (call.kind === 'VISIT') {
-          const data = call.ref.unref().getData();
+          const data = call.ref.getValue().getData();
           return {
             kind: call.kind,
             value:
@@ -790,8 +812,8 @@ test('retains the first live failure and discards a later chain mutation', async
     },
     2,
   );
-  const iterator = new AsyncRunnerSession(driver).getIterable({
-    iterateOver: [],
+  const iterator = new AsyncRunnerSession(driver).iterateEvents({
+    emitEvents: [],
   });
   const result = iterator.next();
   await eventLoopTurn();
@@ -812,10 +834,14 @@ test('retains the first live failure and discards a later chain mutation', async
   expect(driver.advance('settle')).toEqual({ kind: 'FAILED', error: failure });
   expect(kernel.getFailure()).toEqual({ error: failure });
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraphView
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).toContain('B');
   expect(
-    container.resolvedGraph.getVertexRefs().map((ref) => ref.unref().getData()),
+    container.resolvedGraphView
+      .getVertexRefs()
+      .map((ref) => ref.getValue().getData()),
   ).not.toContain('mutated');
 });
 
@@ -899,7 +925,7 @@ test('retains a halted chain while another started DAG chain completes', async (
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['A', 'B'] },
+              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
             },
           };
         }
@@ -909,19 +935,19 @@ test('retains a halted chain while another started DAG chain completes', async (
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
-              vertexContent: { $d: id, $c: [] },
+              dependsOnWork: ['root'],
+              vertexContent: { $data: id, $childHints: [] },
             },
           };
         }
         if (call.kind === 'VISIT') {
-          const data = call.ref.unref().getData();
+          const data = call.ref.getValue().getData();
           calls.push(`${data}:${call.recordIndex}`);
           return {
             kind: call.kind,
             value:
               data === 'A' && call.recordIndex === 0
-                ? { commands: [{ commandName: Command.HALT_TRAVERSAL }] }
+                ? { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] }
                 : undefined,
           };
         }
@@ -931,21 +957,21 @@ test('retains a halted chain while another started DAG chain completes', async (
     2,
   );
   const session = new AsyncRunnerSession(driver);
-  const first = session.getIterable();
+  const first = session.iterateEvents();
 
   await first.next();
   await expect(first.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'B' } },
+    value: { vertex: { $data: 'B' } },
   });
   await expect(first.next()).resolves.toEqual({ done: true, value: undefined });
   expect(calls.filter((call) => call.startsWith('A:'))).toEqual(['A:0']);
   expect(calls.filter((call) => call.startsWith('B:'))).toEqual(['B:0', 'B:1']);
 
-  const resumed = session.getIterable();
+  const resumed = session.iterateEvents();
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $d: 'A' } },
+    value: { vertex: { $data: 'A' } },
   });
   expect(calls.filter((call) => call.startsWith('A:'))).toEqual(['A:0', 'A:1']);
   await resumed.return(undefined);
@@ -964,7 +990,7 @@ test('progresses resolver and visitor jobs without nesting a single permit', asy
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $d: 'root', $c: ['A', 'B'] },
+              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
             },
           };
         }
@@ -974,8 +1000,8 @@ test('progresses resolver and visitor jobs without nesting a single permit', asy
             kind: call.kind,
             value: {
               vertexId: id,
-              dependsOn: ['root'],
-              vertexContent: { $d: id, $c: [] },
+              dependsOnWork: ['root'],
+              vertexContent: { $data: id, $childHints: [] },
             },
           };
         }
@@ -986,8 +1012,8 @@ test('progresses resolver and visitor jobs without nesting a single permit', asy
     1,
   );
 
-  const iterator = new AsyncRunnerSession(driver).getIterable({
-    iterateOver: [],
+  const iterator = new AsyncRunnerSession(driver).iterateEvents({
+    emitEvents: [],
   });
   await expect(iterator.next()).resolves.toEqual({
     done: true,

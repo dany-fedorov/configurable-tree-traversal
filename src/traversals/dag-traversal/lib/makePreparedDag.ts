@@ -1,10 +1,13 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { DagDefinition } from './DagDefinition';
 import { captureDagDefinition, definitionSource } from './definitionSource';
 import { DagTraversal } from '../DagTraversal';
 import { AsyncDagTraversal } from '../AsyncDagTraversal';
-import { coordinateDag, coordinateDagAsync } from '../coordinateDag';
+import {
+  createDagWorkSession,
+  createAsyncDagWorkSession,
+} from '../coordinateDag';
 import type {
   PreparedDag,
   PreparedDagRunnerOptions,
@@ -25,14 +28,14 @@ export function assertPreparedOptions(
 }
 
 /** Snapshot accepted topology; replay uses fresh vertices and normalized ID hints. */
-export function makePreparedDag<T extends TreeTypeParameters, ID>(
+export function makePreparedDag<T extends VertexTypes, ID>(
   container: ResolvedGraphsContainer<T, T, ID>,
   candidates: ReadonlySet<ID>,
-  rootDependencies: 'honor' | 'ignore',
+  rootWorkDependencies: 'honor' | 'ignore',
   authoredDefinition?: DagDefinition<T['VertexData'], ID>,
 ): PreparedDag<T['VertexData'], ID> {
   type Data = T['VertexData'];
-  type Replay = TreeTypeParameters<Data, ID>;
+  type Replay = VertexTypes<Data, ID>;
   // Definition preparation can retain authored entry mode and declaration order,
   // rather than recapturing the hidden holder used for omitted empty entries.
   const definition =
@@ -47,8 +50,8 @@ export function makePreparedDag<T extends TreeTypeParameters, ID>(
             slot.kind === 'vertex' ? [slot.vertexId] : [],
           ),
         ),
-        dependsOn: vertex.dependsOn,
-        dependsOnComplete: vertex.dependsOnComplete,
+        dependsOnWork: vertex.dependsOnWork,
+        dependsOnSubgraphCompletion: vertex.dependsOnSubgraphCompletion,
       }),
     ),
   );
@@ -56,17 +59,17 @@ export function makePreparedDag<T extends TreeTypeParameters, ID>(
     'visitors',
     'completedWork',
     'workCompletion',
-    'saveNotMutatedResolvedGraph',
+    'retainOriginalGraphStructure',
   ];
   const createRunner = (options: PreparedDagRunnerOptions<Data, ID> = {}) => {
     assertPreparedOptions(options, runnerFields);
     return new DagTraversal<Replay, Replay, ID>({
       ...options,
       ...definitionSource(definition),
-      rootDependencies,
-      implicitParentDependency: false,
+      rootWorkDependencies,
+      omittedWorkDependencies: 'none',
     })
-      .makeRunner()
+      .createRunner()
       .prepare();
   };
   const createAsyncRunner = async (
@@ -76,10 +79,10 @@ export function makePreparedDag<T extends TreeTypeParameters, ID>(
     return new AsyncDagTraversal<Replay, Replay, ID>({
       ...options,
       ...definitionSource(definition),
-      rootDependencies,
-      implicitParentDependency: false,
+      rootWorkDependencies,
+      omittedWorkDependencies: 'none',
     })
-      .makeRunner()
+      .createRunner()
       .prepare();
   };
   return Object.freeze({
@@ -87,15 +90,15 @@ export function makePreparedDag<T extends TreeTypeParameters, ID>(
     definition,
     createRunner,
     createAsyncRunner,
-    createSession: (options = {}) => {
+    createWorkSession: (options = {}) => {
       assertPreparedOptions(options, ['completedWork']);
-      return coordinateDag(
+      return createDagWorkSession(
         createRunner({ ...options, workCompletion: 'externalSettlement' }),
       );
     },
-    createAsyncSession: async (options = {}) => {
+    createAsyncWorkSession: async (options = {}) => {
       assertPreparedOptions(options, ['completedWork', 'concurrency']);
-      return coordinateDagAsync(
+      return createAsyncDagWorkSession(
         await createAsyncRunner({
           ...options,
           workCompletion: 'externalSettlement',

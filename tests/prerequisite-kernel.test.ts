@@ -53,8 +53,8 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
       ok: true,
       value: {
         vertexId: 'root',
-        dependsOn: ['loader', 'shared'],
-        vertexContent: { $d: 'root', $c: [] },
+        dependsOnWork: ['loader', 'shared'],
+        vertexContent: { $data: 'root', $childHints: [] },
       },
     },
   });
@@ -68,7 +68,7 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
     kind: 'RESOLVE_PREREQUISITE',
     outcome: {
       ok: true,
-      value: { vertexContent: { $d: 'loader', $c: ['shared'] } },
+      value: { vertexContent: { $data: 'loader', $childHints: ['shared'] } },
     },
   });
   const natural = call(kernel);
@@ -80,18 +80,34 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
       ok: true,
       value: {
         vertexId: 'shared',
-        dependsOn: [],
-        vertexContent: { $d: 'natural', $c: [] },
+        dependsOnWork: [],
+        vertexContent: { $data: 'natural', $childHints: [] },
       },
     },
   });
-  const action = kernel.poll('drive');
+  let action = kernel.poll('drive');
   expect(kernel.isRequestValid(shared.requestId)).toBe(false);
   expect(kernel.isRequestEligible(shared.requestId, 'drive')).toBe(false);
   kernel.discardRequest(shared.requestId);
+  const observations: string[] = [];
+  while (action.kind === 'EVENT') {
+    expect(kernel.shouldEmit(action.event.order)).toBe(false);
+    observations.push(action.event.order);
+    kernel.acknowledgeEvent(action.boundaryId);
+    action = kernel.poll('drive');
+  }
+  expect(
+    observations.filter((order) => order === 'ON_WORK_READY'),
+  ).toHaveLength(3);
+  expect(
+    observations.filter((order) => order === 'ON_SUBGRAPH_READY'),
+  ).toHaveLength(3);
   expect(action.kind).toBe('FINISHED');
   expect(
-    container.resolvedGraph.getVertexById('shared')!.unref().getData(),
+    container.resolvedGraphView
+      .getVertexRefById('shared')!
+      .getValue()
+      .getData(),
   ).toBe('natural');
 });
 
@@ -105,8 +121,8 @@ test('lookup reply validation rejects malformed and duplicate transport replies'
       ok: true,
       value: {
         vertexId: 'root',
-        dependsOn: ['external'],
-        vertexContent: { $d: 'root', $c: [] },
+        dependsOnWork: ['external'],
+        vertexContent: { $data: 'root', $childHints: [] },
       },
     },
   });
@@ -132,8 +148,8 @@ test('lookup reply validation rejects malformed and duplicate transport replies'
 test('a missing optional lookup binding returns not-found through transport', () => {
   const bindings = createCallbackBindings<G>({
     source: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => ({ vertexContent: null }),
+      resolveChild: () => ({ vertexContent: null }),
     },
     visit: {},
   });

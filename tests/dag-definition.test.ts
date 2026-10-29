@@ -1,6 +1,6 @@
 import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
 import { definitionSource } from '../src/traversals/dag-traversal/lib/definitionSource';
-import { graphFrom } from '../src';
+import { materializeDagInputFromRecords } from '../src';
 import {
   defineDag,
   prepareDagDefinition,
@@ -8,14 +8,14 @@ import {
   type DagDefinitionSlot,
 } from '../src';
 import { prepareDag } from '../src/traversals/dag-traversal/prepareDag';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 
-type G = TreeTypeParameters<string, string>;
+type G = VertexTypes<string, string>;
 
-function omissionSource(anonymous = false): TraversableGraph<G, G, string> {
+function omissionSource(anonymous = false): DagDiscoverySource<G, G, string> {
   return {
-    makeRoot: () => ({
+    resolveRoot: () => ({
       kind: 'found',
       vertex: {
         vertexId: 'root',
@@ -27,7 +27,7 @@ function omissionSource(anonymous = false): TraversableGraph<G, G, string> {
         },
       },
     }),
-    makeVertex: (id) =>
+    resolveChild: (id) =>
       ['before', 'skip', 'after'].includes(id)
         ? {
             kind: 'omitted',
@@ -38,7 +38,7 @@ function omissionSource(anonymous = false): TraversableGraph<G, G, string> {
             kind: 'found',
             vertex: {
               vertexId: id,
-              dependsOn: id === 'b' ? ['skip'] : [],
+              dependsOnWork: id === 'b' ? ['skip'] : [],
               vertexContent: { $data: id, $childHints: [] },
             },
           },
@@ -54,7 +54,7 @@ test('definitions retain an omitted discovery slot before its dependent sibling'
     { kind: 'vertex', vertexId: 'c' },
   ]);
   expect(
-    [...result.dag.createRunner().getIterable()].map((event) => [
+    [...result.dag.createRunner().iterateEvents()].map((event) => [
       event.vertexId,
       event.kind,
     ]),
@@ -78,8 +78,8 @@ test('defineDag owns wrappers while retaining arbitrary data and ID references',
         vertexId: id,
         data,
         slots: [{ kind: 'omitted', identity: { vertexId: undefined } }],
-        dependsOn: [undefined, undefined, NaN, NaN],
-        dependsOnComplete: [null],
+        dependsOnWork: [undefined, undefined, NaN, NaN],
+        dependsOnSubgraphCompletion: [null],
       },
     ],
     omittedIds: [undefined],
@@ -89,17 +89,17 @@ test('defineDag owns wrappers while retaining arbitrary data and ID references',
   expect(definition).not.toBe(input);
   expect(definition.vertices[0]!.data).toBe(data);
   expect(definition.vertices[0]!.vertexId).toBe(id);
-  expect(definition.vertices[0]!.dependsOn).toEqual([undefined, NaN]);
+  expect(definition.vertices[0]!.dependsOnWork).toEqual([undefined, NaN]);
   expect(definition.vertices[0]!.slots[0]).not.toBe(
     input.vertices[0]!.slots[0],
   );
   expect(() => (definition.vertices as unknown[]).pop()).toThrow();
   expect(() => (definition.vertices[0]!.slots as unknown[]).pop()).toThrow();
   expect(() =>
-    (definition.vertices[0]!.dependsOn as unknown[]).pop(),
+    (definition.vertices[0]!.dependsOnWork as unknown[]).pop(),
   ).toThrow();
   expect(() =>
-    (definition.vertices[0]!.dependsOnComplete as unknown[]).pop(),
+    (definition.vertices[0]!.dependsOnSubgraphCompletion as unknown[]).pop(),
   ).toThrow();
   expect(() => (definition.omittedIds as unknown[]).pop()).toThrow();
   expect(Object.isFrozen(definition)).toBe(true);
@@ -126,37 +126,49 @@ test.each([
   { vertices: [], omittedIds: [], entry: { kind: 'root' } },
   { vertices: [null], omittedIds: [], entry: { kind: 'empty' } },
   {
-    vertices: [{ data: 0, slots: [], dependsOn: [], dependsOnComplete: [] }],
+    vertices: [
+      {
+        data: 0,
+        slots: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
+      },
+    ],
     omittedIds: [],
     entry: { kind: 'empty' },
   },
   {
     vertices: [
-      { vertexId: 0, slots: [], dependsOn: [], dependsOnComplete: [] },
+      {
+        vertexId: 0,
+        slots: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
+      },
     ],
     omittedIds: [],
     entry: { kind: 'empty' },
   },
-  { vertices: [], omittedIds: [], entry: { kind: 'forest', slots: [null] } },
+  { vertices: [], omittedIds: [], entry: { kind: 'roots', slots: [null] } },
   {
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [{ kind: 'other' }] },
+    entry: { kind: 'roots', slots: [{ kind: 'other' }] },
   },
   {
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [{ kind: 'vertex' }] },
+    entry: { kind: 'roots', slots: [{ kind: 'vertex' }] },
   },
   {
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [{ kind: 'omitted' }] },
+    entry: { kind: 'roots', slots: [{ kind: 'omitted' }] },
   },
   {
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [{ kind: 'omitted', identity: {} }] },
+    entry: { kind: 'roots', slots: [{ kind: 'omitted', identity: {} }] },
   },
 ])('defineDag rejects malformed declarations %#', (input) => {
   expect(() => defineDag(input as any)).toThrow(TypeError);
@@ -169,8 +181,8 @@ test.each(['vertices', 'omittedIds', 'mixed'] as const)(
       vertexId: NaN,
       data: 0,
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     };
     expect(() =>
       defineDag({
@@ -219,7 +231,7 @@ for (const anonymous of [false, true]) {
   test(`definition replay preserves work and completion order with anonymous omissions ${anonymous}`, async () => {
     const adapter = omissionSource(anonymous);
     const original = new DagTraversal({ traversableGraph: adapter })
-      .makeRunner()
+      .createRunner()
       .prepare();
     const result = prepareDag({ traversableGraph: adapter });
     if (result.kind !== 'valid') throw new Error('Expected valid');
@@ -253,19 +265,22 @@ for (const anonymous of [false, true]) {
       ['root', 'subgraphCompleted'],
     ];
     expect(
-      [...original.getIterable()].map((event) => [event.vertexId, event.kind]),
+      [...original.iterateEvents()].map((event) => [
+        event.vertexId,
+        event.kind,
+      ]),
     ).toEqual(expected);
     expect(
-      [...replay.getIterable()].map((event) => [event.vertexId, event.kind]),
+      [...replay.iterateEvents()].map((event) => [event.vertexId, event.kind]),
     ).toEqual(expected);
     const events: unknown[] = [];
-    for await (const event of replayAsync.getIterable())
+    for await (const event of replayAsync.iterateEvents())
       events.push([event.vertexId, event.kind]);
     expect(events).toEqual(expected);
     expect(replay.summary().counts.discovered).toBe(3);
     expect(replay.summary().unusedCompletedWorkIds).toEqual([]);
     expect(
-      replay.getResolvedGraph().getRoot()!.unref().getChildrenHints(),
+      replay.getResolvedGraphView().getRoot()!.getValue().getChildrenHints(),
     ).toEqual(['skip', 'b', 'c']);
   });
 }
@@ -274,12 +289,12 @@ test('definitions retain empty and omitted roots separately from forest catalogs
   for (const identified of [false, true]) {
     const result = prepareDag<G, unknown>({
       traversableGraph: {
-        makeRoot: () => ({
+        resolveRoot: () => ({
           kind: 'omitted',
           satisfiesDependencies: true,
           ...(identified ? { vertexId: undefined } : {}),
         }),
-        makeVertex: () => {
+        resolveChild: () => {
           throw new Error('No children');
         },
       },
@@ -291,35 +306,42 @@ test('definitions retain empty and omitted roots separately from forest catalogs
       entry: { kind: 'empty' },
     });
     const replay = new DagTraversal(definitionSource(result.dag.definition))
-      .makeRunner()
+      .createRunner()
       .prepare();
-    expect([...replay.getIterable()]).toEqual([]);
+    expect([...replay.iterateEvents()]).toEqual([]);
     expect(replay.getStopReason()).toBe('finished');
   }
-  const forest = prepareDag(graphFrom(['a', 'b'], { id: (id) => id }));
+  const forest = prepareDag(
+    materializeDagInputFromRecords(['a', 'b'], { id: (id) => id }),
+  );
   if (forest.kind !== 'valid') throw new Error('Expected valid');
   expect(forest.dag.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'vertex', vertexId: 'a' },
       { kind: 'vertex', vertexId: 'b' },
     ],
   });
-  const empty = prepareDag(graphFrom<string, string>([], { id: (id) => id }));
+  const empty = prepareDag(
+    materializeDagInputFromRecords<string, string>([], { id: (id) => id }),
+  );
   if (empty.kind !== 'valid') throw new Error('Expected valid');
-  expect(empty.dag.definition.entry).toEqual({ kind: 'forest', slots: [] });
+  expect(empty.dag.definition.entry).toEqual({ kind: 'roots', slots: [] });
   const omittedHolder = prepareDag<G, string>({
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () => ({ kind: 'omitted', satisfiesDependencies: true }),
-      makeVertex: () => {
+      resolveRoot: () => ({
+        satisfiesDependencies: true as const,
+        kind: 'omitted',
+      }),
+      resolveChild: () => {
         throw new Error('No children');
       },
     },
   });
   if (omittedHolder.kind !== 'valid') throw new Error('Expected valid');
   expect(omittedHolder.dag.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [],
   });
 });
@@ -329,10 +351,10 @@ test('definition replay retains structural sharing and detached prerequisites wi
   const sharedId = { label: 'shared' };
   const remoteId = { label: 'remote' };
   type ID = typeof rootId | undefined;
-  type ObjectGraph = TreeTypeParameters<{ label: string }, ID>;
+  type ObjectGraph = VertexTypes<{ label: string }, ID>;
   const calls: unknown[] = [];
-  const adapter: TraversableGraph<ObjectGraph, ObjectGraph, ID> = {
-    makeRoot: () => {
+  const adapter: DagDiscoverySource<ObjectGraph, ObjectGraph, ID> = {
+    resolveRoot: () => {
       calls.push('root');
       return {
         kind: 'found',
@@ -349,7 +371,7 @@ test('definition replay retains structural sharing and detached prerequisites wi
       Object.defineProperty({}, 'vertexId', { value: vertexId }) as {
         vertexId: ID;
       },
-    makeVertex: (id) => {
+    resolveChild: (id) => {
       calls.push(id);
       return id === undefined
         ? { kind: 'omitted', satisfiesDependencies: true }
@@ -357,7 +379,7 @@ test('definition replay retains structural sharing and detached prerequisites wi
             kind: 'found',
             vertex: {
               vertexId: sharedId,
-              dependsOn: [undefined, remoteId],
+              dependsOnWork: [undefined, remoteId],
               vertexContent: { $data: sharedId, $childHints: [] },
             },
           };
@@ -390,11 +412,11 @@ test('definition replay retains structural sharing and detached prerequisites wi
   if (roundtrip.kind !== 'valid') throw new Error('Expected valid');
   expect(roundtrip.dag.definition).toEqual(result.dag.definition);
   const replay = roundtrip.dag.createRunner();
-  const graph = replay.getResolvedGraph();
+  const graph = replay.getResolvedGraphView();
   expect(graph.getParentsOf(graph.getVertexRefById(remoteId)!)).toEqual([]);
-  expect(graph.getVertexRefById(sharedId)!.unref().getData()).toBe(sharedId);
+  expect(graph.getVertexRefById(sharedId)!.getValue().getData()).toBe(sharedId);
   expect(
-    [...replay.getIterable()]
+    [...replay.iterateEvents()]
       .filter((event) => event.kind === 'workCompleted')
       .map((event) => event.vertexId),
   ).toEqual([rootId, remoteId, sharedId]);
@@ -408,16 +430,16 @@ test('defineDag accepts graph-invalid source facts without executing or validati
         vertexId: 'a',
         data: 1,
         slots: [{ kind: 'vertex', vertexId: 'missing' }],
-        dependsOn: ['a'],
-        dependsOnComplete: ['unknown'],
+        dependsOnWork: ['a'],
+        dependsOnSubgraphCompletion: ['unknown'],
       },
     ],
     omittedIds: ['unreachable'],
-    entry: { kind: 'forest', slots: [{ kind: 'omitted', identity: null }] },
+    entry: { kind: 'roots', slots: [{ kind: 'omitted', identity: null }] },
   });
-  expect(definition.vertices[0]!.dependsOn).toEqual(['a']);
+  expect(definition.vertices[0]!.dependsOnWork).toEqual(['a']);
   expect(definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [{ kind: 'omitted', identity: null }],
   });
 });
@@ -426,12 +448,12 @@ test('an omitted synthetic catalog root does not expose its private holder ident
   const result = prepareDag<G, string>({
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () => ({
+      resolveRoot: () => ({
         kind: 'omitted',
         vertexId: 'catalog',
         satisfiesDependencies: true,
       }),
-      makeVertex: () => {
+      resolveChild: () => {
         throw new Error('No children');
       },
     },
@@ -440,12 +462,12 @@ test('an omitted synthetic catalog root does not expose its private holder ident
   expect(result.dag.definition).toEqual({
     vertices: [],
     omittedIds: [],
-    entry: { kind: 'forest', slots: [] },
+    entry: { kind: 'roots', slots: [] },
   });
   expect(() =>
     result.dag.createRunner({ completedWork: new Set(['catalog']) }),
   ).toThrow(TypeError);
-  expect([...result.dag.createRunner().getIterable()]).toEqual([]);
+  expect([...result.dag.createRunner().iterateEvents()]).toEqual([]);
 });
 
 test('a live synthetic holder preserves omitted catalog entries for seed reuse', () => {
@@ -455,7 +477,7 @@ test('a live synthetic holder preserves omitted catalog entries for seed reuse',
   });
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(result.dag.definition.entry).toEqual({
-    kind: 'forest',
+    kind: 'roots',
     slots: [
       { kind: 'omitted', identity: { vertexId: 'skip' } },
       { kind: 'vertex', vertexId: 'b' },
@@ -483,11 +505,11 @@ test('definition copies remain independent of later caller edits to arrays and w
     vertexId: 'a',
     data: 1,
     slots: [slot],
-    dependsOn: ['skip'],
-    dependsOnComplete: ['skip'],
+    dependsOnWork: ['skip'],
+    dependsOnSubgraphCompletion: ['skip'],
   };
-  const entry: { kind: 'forest'; slots: DagDefinitionSlot<string>[] } = {
-    kind: 'forest',
+  const entry: { kind: 'roots'; slots: DagDefinitionSlot<string>[] } = {
+    kind: 'roots',
     slots: [{ kind: 'vertex', vertexId: 'a' }],
   };
   const input = { vertices: [vertex], omittedIds: ['skip'], entry };
@@ -495,8 +517,8 @@ test('definition copies remain independent of later caller edits to arrays and w
   slot.identity.vertexId = 'changed';
   vertex.vertexId = 'changed';
   vertex.slots.length = 0;
-  vertex.dependsOn.length = 0;
-  vertex.dependsOnComplete.length = 0;
+  vertex.dependsOnWork.length = 0;
+  vertex.dependsOnSubgraphCompletion.length = 0;
   input.vertices.length = 0;
   input.omittedIds.length = 0;
   entry.slots.length = 0;
@@ -506,14 +528,14 @@ test('definition copies remain independent of later caller edits to arrays and w
         vertexId: 'a',
         data: 1,
         slots: [{ kind: 'omitted', identity: { vertexId: 'skip' } }],
-        dependsOn: ['skip'],
-        dependsOnComplete: ['skip'],
+        dependsOnWork: ['skip'],
+        dependsOnSubgraphCompletion: ['skip'],
       },
     ],
     omittedIds: ['skip'],
-    entry: { kind: 'forest', slots: [{ kind: 'vertex', vertexId: 'a' }] },
+    entry: { kind: 'roots', slots: [{ kind: 'vertex', vertexId: 'a' }] },
   });
-  if (definition.entry.kind !== 'forest') throw new Error('Expected forest');
+  if (definition.entry.kind !== 'roots') throw new Error('Expected forest');
   const entrySlots = definition.entry.slots;
   expect(() => (entrySlots as unknown[]).pop()).toThrow();
 });

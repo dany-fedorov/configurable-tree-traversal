@@ -1,22 +1,23 @@
-import { CTTRef } from '../src/core/CTTRef';
+import { MutableRef } from '../src/core/CTTRef';
 import {
   executeVisitors,
   sortVisitorRecords,
 } from '../src/core/executeVisitors';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
   TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
   type TraversalVisitorCommand,
-  type TraversalVisitorRecord,
+  type TreeVisitorRecord,
 } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
 
-type Tree = TreeTypeParameters<string, string>;
-type Record = TraversalVisitorRecord<'ORDER', Tree, Tree>;
+type Tree = VertexTypes<string, string>;
+type Record = TreeVisitorRecord<'ORDER', Tree, Tree>;
 
 test('yields for an external halt after the first callback batch', () => {
-  const vertexRef = new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+  const vertexRef = new MutableRef(
+    new Vertex<Tree>({ $data: 'root', $childHints: [] }),
+  );
   const calls: string[] = [];
   let halted = false;
   let firstBatch = true;
@@ -26,16 +27,16 @@ test('yields for an external halt after the first callback batch', () => {
       {
         addedIndex: 0,
         priority: 100,
-        resolutionStyle: Style.SEQUENTIAL,
+        commandCommitMode: 'afterEachVisitor' as const,
         visitor: () => {
           calls.push('sequential');
         },
       },
     ],
     state: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
     getOptions: () => null as never,
     executeCommands: (commands) => {
@@ -56,7 +57,9 @@ test('yields for an external halt after the first callback batch', () => {
 });
 
 test('synchronously drives grouped callbacks while retaining halt metadata', () => {
-  const vertexRef = new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+  const vertexRef = new MutableRef(
+    new Vertex<Tree>({ $data: 'root', $childHints: [] }),
+  );
   const calls: unknown[] = [];
   const commandBatches: TraversalVisitorCommand<Tree>[][] = [];
   let halted = false;
@@ -64,23 +67,23 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     {
       addedIndex: 0,
       priority: 100,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: (_vertex, options) => {
-        calls.push(['sequential', options.vertexVisitorsChainState]);
+        calls.push(['sequential', options.visitorChainState]);
       },
     },
     {
       addedIndex: 1,
       priority: 100,
-      resolutionStyle: Style.CONCURRENT,
+      commandCommitMode: 'afterGroup' as const,
       visitor: (_vertex, options) => {
-        calls.push(['concurrent', options.vertexVisitorsChainState]);
+        calls.push(['concurrent', options.visitorChainState]);
         return {
           commands: [
-            { commandName: Command.HALT_TRAVERSAL },
+            { commandName: Command.PAUSE_TRAVERSAL },
             {
-              commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-              commandArguments: { vertexVisitorsChainState: undefined },
+              commandName: Command.SET_VISITOR_CHAIN_STATE,
+              commandArguments: { state: undefined },
             },
           ],
         };
@@ -88,41 +91,39 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     },
   ];
   const state = {
-    vertexVisitIndex: 7,
-    curVertexVisitorVisitIndex: 42,
-    previousVisitedVertexRef: null,
+    phaseVisitIndex: 7,
+    visitorIndex: 42,
+    previousPhaseVertexRef: null,
   };
   const execution = executeVisitors({
     vertexRef,
     records: records.slice().reverse(),
     state,
-    getOptions: (visitorRecord, vertexVisitorsChainState) => ({
-      resolvedTree: null as never,
-      notMutatedResolvedTree: null,
-      vertexVisitIndex: state.vertexVisitIndex,
-      curVertexVisitorVisitIndex: state.curVertexVisitorVisitIndex,
-      previousVisitedVertexRef: state.previousVisitedVertexRef,
+    getOptions: (registration, visitorChainState) => ({
+      resolvedTreeView: null as never,
+      originalTreeView: null,
+      phaseVisitIndex: state.phaseVisitIndex,
+      visitorIndex: state.visitorIndex,
+      previousPhaseVertexRef: state.previousPhaseVertexRef,
       isTreeRoot: true,
-      isTraversalRoot: true,
       vertexRef,
-      vertexVisitorsChainState,
-      visitorRecord,
-      order: 'ORDER',
+      visitorChainState,
+      registration,
+      phase: 'ORDER',
     }),
     executeCommands: (commands) => {
       commandBatches.push(commands);
       if (
         commands.some(
-          (command) => command.commandName === Command.HALT_TRAVERSAL,
+          (command) => command.commandName === Command.PAUSE_TRAVERSAL,
         )
       ) {
         halted = true;
       }
       return commands.some(
-        (command) =>
-          command.commandName === Command.SET_VERTEX_VISITORS_CHAIN_STATE,
+        (command) => command.commandName === Command.SET_VISITOR_CHAIN_STATE,
       )
-        ? { vertexVisitorsChainState: undefined }
+        ? { visitorChainState: undefined }
         : {};
     },
     isHalted: () => halted,
@@ -133,10 +134,10 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
   expect(calls).toEqual([['concurrent', null]]);
   expect(commandBatches).toEqual([
     [
-      { commandName: Command.HALT_TRAVERSAL },
+      { commandName: Command.PAUSE_TRAVERSAL },
       {
-        commandName: Command.SET_VERTEX_VISITORS_CHAIN_STATE,
-        commandArguments: { vertexVisitorsChainState: undefined },
+        commandName: Command.SET_VISITOR_CHAIN_STATE,
+        commandArguments: { state: undefined },
       },
     ],
   ]);
@@ -147,20 +148,22 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     ['sequential', undefined],
   ]);
   expect(state).toEqual({
-    vertexVisitIndex: 8,
-    curVertexVisitorVisitIndex: 2,
-    previousVisitedVertexRef: vertexRef,
+    phaseVisitIndex: 8,
+    visitorIndex: 2,
+    previousPhaseVertexRef: vertexRef,
   });
 });
 
-test('validates all styles before invoking a compatibility callback', () => {
-  const vertexRef = new CTTRef(new Vertex<Tree>({ $d: 'root', $c: [] }));
+test('validates all command commit modes before invoking a compatibility callback', () => {
+  const vertexRef = new MutableRef(
+    new Vertex<Tree>({ $data: 'root', $childHints: [] }),
+  );
   const calls: string[] = [];
   const records: Record[] = [
     {
       addedIndex: 0,
       priority: 100,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: () => {
         calls.push('valid');
       },
@@ -168,7 +171,7 @@ test('validates all styles before invoking a compatibility callback', () => {
     {
       addedIndex: 1,
       priority: 100,
-      resolutionStyle: 'ASYNC' as Style,
+      commandCommitMode: 'ASYNC' as import('../src').CommandCommitMode,
       visitor: () => {
         calls.push('invalid');
       },
@@ -178,9 +181,9 @@ test('validates all styles before invoking a compatibility callback', () => {
     vertexRef,
     records,
     state: {
-      vertexVisitIndex: 0,
-      curVertexVisitorVisitIndex: 0,
-      previousVisitedVertexRef: null,
+      phaseVisitIndex: 0,
+      visitorIndex: 0,
+      previousPhaseVertexRef: null,
     },
     getOptions: () => null as never,
     executeCommands: () => ({}),
@@ -188,7 +191,9 @@ test('validates all styles before invoking a compatibility callback', () => {
     isDeleted: () => false,
   });
 
-  expect(() => execution.next()).toThrow(/unknown visitor resolution style/i);
+  expect(() => execution.next()).toThrow(
+    /unknown visitor command commit mode/i,
+  );
   expect(calls).toEqual([]);
 });
 
@@ -197,19 +202,19 @@ test('sortVisitorRecords returns priority and registration order copies', () => 
   const late = {
     addedIndex: 2,
     priority: 100,
-    resolutionStyle: Style.SEQUENTIAL,
+    commandCommitMode: 'afterEachVisitor' as const,
     visitor,
   };
   const high = {
     addedIndex: 1,
     priority: 200,
-    resolutionStyle: Style.SEQUENTIAL,
+    commandCommitMode: 'afterEachVisitor' as const,
     visitor,
   };
   const early = {
     addedIndex: 0,
     priority: 100,
-    resolutionStyle: Style.SEQUENTIAL,
+    commandCommitMode: 'afterEachVisitor' as const,
     visitor,
   };
 

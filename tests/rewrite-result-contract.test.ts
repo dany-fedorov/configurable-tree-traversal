@@ -1,18 +1,17 @@
 import {
-  DepthFirstTraversalOrder,
+  DepthFirstPhase,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
-  rewriteObject as rewriteApi,
+  objectRewrite as rewriteApi,
+  rewriteObject,
   rewriteObjectAs,
 } from '../src';
 import type { RewriteObjectOptions } from '../src/tools/rewrite-object';
 
-const { rewriteObject } = rewriteApi;
-
 function pauseBeforeRootRewrite() {
   let didHalt = false;
   return {
-    [DepthFirstTraversalOrder.POST_ORDER]: {
+    [DepthFirstPhase.POST_ORDER]: {
       priority: 200,
       visitor: (_vertex: unknown, { isTreeRoot }: { isTreeRoot: boolean }) => {
         if (!isTreeRoot || didHalt) return undefined;
@@ -20,7 +19,7 @@ function pauseBeforeRootRewrite() {
         return {
           commands: [
             {
-              commandName: TraversalVisitorCommandName.HALT_TRAVERSAL as const,
+              commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL as const,
             },
           ],
         };
@@ -33,11 +32,15 @@ describe('rewrite result contracts', () => {
   test('requires completion and converts the final root only once after resuming', () => {
     const input = { count: 1 };
     const convertedValues: unknown[] = [];
+    const completion: boolean[] = [];
     const result = rewriteObject(input, {
       visitors: pauseBeforeRootRewrite(),
       rewrite: ({ key }) =>
-        key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
-      getOutputObjectFromRootValue: (value) => {
+        key === 'count'
+          ? { kind: 'rewrite', patch: { key: 'renamed' } }
+          : undefined,
+      convertRootValue: (value, context) => {
+        completion.push(context.complete);
         convertedValues.push(value);
         return { converted: value };
       },
@@ -46,7 +49,7 @@ describe('rewrite result contracts', () => {
     expect(result.traversalRunner.getStatus()).toBe(
       TraversalRunnerStatus.HALTED,
     );
-    expect(result.outputObject).toEqual({ converted: { count: 1 } });
+    expect(result.outputAtReturn).toEqual({ converted: { count: 1 } });
     expect(() => result.getOutput()).toThrow(/output.*not complete/i);
     expect(convertedValues).toEqual([input]);
     result.traversalRunner.run();
@@ -54,7 +57,8 @@ describe('rewrite result contracts', () => {
     expect(final).toEqual({ converted: { renamed: 1 } });
     expect(result.getOutput()).toBe(final);
     expect(convertedValues).toEqual([input, { renamed: 1 }]);
-    expect(result.outputObject).toEqual({ converted: { count: 1 } });
+    expect(completion).toEqual([false, true]);
+    expect(result.outputAtReturn).toEqual({ converted: { count: 1 } });
   });
 
   test('reuses the initial successful conversion when the run already finished', () => {
@@ -62,13 +66,13 @@ describe('rewrite result contracts', () => {
     const result = rewriteObject(
       { count: 1 },
       {
-        getOutputObjectFromRootValue: (value) => ({
+        convertRootValue: (value) => ({
           value,
           conversion: ++conversions,
         }),
       },
     );
-    expect(result.getOutput()).toBe(result.outputObject);
+    expect(result.getOutput()).toBe(result.outputAtReturn);
     expect(result.getOutput()).toEqual({ value: { count: 1 }, conversion: 1 });
     expect(conversions).toBe(1);
   });
@@ -81,7 +85,7 @@ describe('rewrite result contracts', () => {
         { count: 1 },
         {
           visitors: pauseBeforeRootRewrite(),
-          getOutputObjectFromRootValue: (value) => {
+          convertRootValue: (value) => {
             conversions += 1;
             if (conversions === 2) throw error;
             return { value };
@@ -111,7 +115,7 @@ describe('rewrite result contracts', () => {
       rewriteObject(
         {},
         {
-          getOutputObjectFromRootValue: () => {
+          convertRootValue: () => {
             throw error;
           },
         },
@@ -128,9 +132,8 @@ describe('rewrite result contracts', () => {
       {},
       {
         visitors: pauseBeforeRootRewrite(),
-        rewrite: () => ({ delete: true }),
-        getOutputObjectFromRootValue: (value) =>
-          value === null ? 'deleted' : 'present',
+        rewrite: () => ({ kind: 'delete' }),
+        convertRootValue: (value) => (value === null ? 'deleted' : 'present'),
       },
     );
     deleted.traversalRunner.run();
@@ -139,14 +142,14 @@ describe('rewrite result contracts', () => {
       {},
       {
         visitors: pauseBeforeRootRewrite(),
-        rewrite: () => ({ rewrite: { value: null } }),
+        rewrite: () => ({ kind: 'rewrite', patch: { value: null } }),
       },
     );
     nullRoot.traversalRunner.run();
     expect(nullRoot.getOutput()).toBeNull();
     expect(rewriteObject(null).getOutput()).toBeNull();
     expect(
-      rewriteObject({}, { rewrite: () => ({ delete: true }) }).getOutput(),
+      rewriteObject({}, { rewrite: () => ({ kind: 'delete' }) }).getOutput(),
     ).toBeNull();
   });
 
@@ -155,7 +158,9 @@ describe('rewrite result contracts', () => {
       { count: 1 },
       {
         rewrite: ({ key }) =>
-          key === 'count' ? { rewrite: { key: 'renamed' } } : undefined,
+          key === 'count'
+            ? { kind: 'rewrite', patch: { key: 'renamed' } }
+            : undefined,
       },
     );
     expect(result.getOutput()).toEqual({ renamed: 1 });
@@ -180,7 +185,7 @@ describe('rewrite result contracts', () => {
           calls.push('rewrite');
           return undefined;
         },
-        getOutputObjectFromRootValue: () => {
+        convertRootValue: () => {
           calls.push('convert');
           return 1;
         },

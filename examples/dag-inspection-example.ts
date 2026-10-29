@@ -1,9 +1,13 @@
+import {
+  DagTraversal,
+  materializeDagInputFromRecords,
+  inspectDagMilestones,
+} from '../src';
 import assert from 'node:assert/strict';
-import { DagTraversal, graphFrom, inspectDag } from '../src';
 
 // Parent work is reusable, while its unfinished child still blocks a C join.
 const runner = new DagTraversal({
-  ...graphFrom(
+  ...materializeDagInputFromRecords(
     [
       { id: 'bundle', children: ['child'], complete: [] as string[] },
       { id: 'child', children: [], complete: [] },
@@ -12,18 +16,21 @@ const runner = new DagTraversal({
     {
       id: (item) => item.id,
       children: (item) => item.children,
-      dependsOnComplete: (item) => item.complete,
+      dependsOnSubgraphCompletion: (item) => item.complete,
     },
   ),
   completedWork: new Set(['bundle']),
   workCompletion: 'externalSettlement',
-}).makeRunner();
+}).createRunner();
 runner.prepare();
 runner.run();
-const captured = runner.inspectDag();
+const captured = runner.inspectMilestones();
 // The free function remains equivalent; async runners expose the same sync method.
 assert.deepEqual(
-  inspectDag(runner).explain({ vertexId: 'review', milestone: 'work' }),
+  inspectDagMilestones(runner).explain({
+    vertexId: 'review',
+    milestone: 'work',
+  }),
   captured.explain({ vertexId: 'review', milestone: 'work' }),
 );
 assert.equal(
@@ -40,12 +47,12 @@ assert.deepEqual(
 );
 console.log('Captured blockers:', before.blockers);
 
-const child = runner.summary().deferredFrontier[0]!;
+const child = runner.summary().awaitingSettlement[0]!;
 runner.settle(child.vertexId, { kind: 'workCompleted' }, child.generation);
 runner.run();
-const after = runner.inspectDag().explain({
+const after = runner.inspectMilestones().explain({
   vertexId: 'bundle',
-  milestone: 'completion',
+  milestone: 'subgraphCompletion',
 });
 assert.equal(after.kind === 'known' && after.satisfied, true);
 assert.deepEqual(
@@ -54,10 +61,12 @@ assert.deepEqual(
 );
 // Static navigation keeps the original constraints after those milestones commit.
 assert.equal(
-  inspectDag(runner).prerequisitesOf({ vertexId: 'review', milestone: 'work' })
-    .edges.length,
+  inspectDagMilestones(runner).prerequisitesOf({
+    vertexId: 'review',
+    milestone: 'work',
+  }).edges.length,
   1,
 );
-const review = runner.summary().deferredFrontier[0]!;
+const review = runner.summary().awaitingSettlement[0]!;
 runner.settle(review.vertexId, { kind: 'workCompleted' }, review.generation);
 runner.run();

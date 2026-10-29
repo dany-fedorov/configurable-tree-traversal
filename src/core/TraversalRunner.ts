@@ -1,20 +1,16 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
-import type { CTTRef } from '@core/CTTRef';
-import type { CoreInspection } from '@core/CoreInspection';
-import type { SyncTraversalExecution } from '@core/TraversalExecution';
-import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
+import type { VertexHandle } from '@core/CTTRef';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexView } from '@core/Vertex';
 
-export type TraversalRunnerIteratorResultContent<
-  ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+export type TreeTraversalEvent<
+  Phase extends string,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = {
-  vertex: Vertex<TTP | RW_TTP>;
-  vertexRef: CTTRef<Vertex<TTP | RW_TTP>>;
-  order: ORDER;
+  vertex: VertexView<TTP | RW_TTP>;
+  vertexRef: VertexHandle<TTP | RW_TTP>;
+  phase: Phase;
   isTreeRoot: boolean;
-  isTraversalRoot: boolean;
 };
 
 export type TraversalStopReason =
@@ -30,47 +26,4 @@ export enum TraversalRunnerStatus {
   HALTED = 'HALTED',
   FINISHED = 'FINISHED',
   FAILED = 'FAILED',
-}
-
-export abstract class TraversalRunnerIterable<
-  ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> implements Iterable<TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>>
-{
-  abstract [Symbol.iterator](): Iterator<
-    TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>
-  >;
-}
-
-/** Historical sync tree-only base; DAG and walking runners expose execution capabilities. */
-export abstract class TraversalRunner<
-  ORDER extends string,
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> implements
-    SyncTraversalExecution<
-      ORDER,
-      TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>
-    >
-{
-  abstract getStatus(): TraversalRunnerStatus;
-
-  abstract getStopReason(): TraversalStopReason | null;
-
-  abstract isHalted(): boolean;
-
-  abstract inspect(): CoreInspection;
-
-  abstract requestPause(): boolean;
-
-  abstract run: (config?: TraversalIterableConfigInput<ORDER>) => this;
-
-  abstract getIterable: (
-    config?: TraversalIterableConfigInput<ORDER>,
-  ) => Generator<
-    TraversalRunnerIteratorResultContent<ORDER, TTP, RW_TTP>,
-    void,
-    unknown
-  >;
 }

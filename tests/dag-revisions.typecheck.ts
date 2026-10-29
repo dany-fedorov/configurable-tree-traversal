@@ -18,7 +18,13 @@ type ID = { task: string } | undefined;
 const id: ID = { task: 'review' };
 const before = defineDag<number, ID>({
   vertices: [
-    { vertexId: id, data: 1, slots: [], dependsOn: [], dependsOnComplete: [] },
+    {
+      vertexId: id,
+      data: 1,
+      slots: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
+    },
   ],
   omittedIds: [],
   entry: { kind: 'root', vertexId: id },
@@ -29,8 +35,8 @@ const after = defineDag<string, ID>({
       vertexId: id,
       data: 'new data type',
       slots: [],
-      dependsOn: [],
-      dependsOnComplete: [],
+      dependsOnWork: [],
+      dependsOnSubgraphCompletion: [],
     },
   ],
   omittedIds: [],
@@ -65,32 +71,34 @@ const operations: readonly DagRevisionOperation<number, ID>[] = [
       vertexId: id,
       data: 2,
       slots: [],
-      dependsOn: [undefined],
-      dependsOnComplete: [],
+      dependsOnWork: [undefined],
+      dependsOnSubgraphCompletion: [],
     },
   },
-  { kind: 'removeVertex', vertexId: undefined },
+  { kind: 'removeVertexDeclaration', vertexId: undefined },
   { kind: 'replaceEntry', entry: { kind: 'root', vertexId: id } },
   { kind: 'replaceOmissions', omittedIds: [] },
 ];
 // @ts-expect-error Operation payloads are required.
 const missingPayload: DagRevisionOperation<number, ID> = {
-  kind: 'removeVertex',
+  kind: 'removeVertexDeclaration',
 };
 const invalidOperation: DagRevisionOperation<number, ID> = {
   // @ts-expect-error Operations are a closed union.
   kind: 'mutateSession',
 };
 // @ts-expect-error Operations are readonly.
-operations[0]!.kind = 'removeVertex';
+operations[0]!.kind = 'removeVertexDeclaration';
 if (prepared.kind === 'valid') {
   const revision: DagRevisionResult<number, ID> = reviseDag(
     prepared.dag,
     operations,
   );
   const emptyRevision = reviseDag(prepared.dag, []);
-  // @ts-expect-error A removal cannot widen the prepared ID domain to string.
-  reviseDag(prepared.dag, [{ kind: 'removeVertex', vertexId: 'wrong' }]);
+  reviseDag(prepared.dag, [
+    // @ts-expect-error A removal cannot widen the prepared ID domain to string.
+    { kind: 'removeVertexDeclaration', vertexId: 'wrong' },
+  ]);
   reviseDag(prepared.dag, [
     {
       kind: 'replaceVertex',
@@ -109,7 +117,7 @@ if (prepared.kind === 'valid') {
     {
       kind: 'replaceVertex',
       // @ts-expect-error Dependencies cannot widen the ID domain.
-      vertex: { ...before.vertices[0]!, dependsOn: ['wrong'] },
+      vertex: { ...before.vertices[0]!, dependsOnWork: ['wrong'] },
     },
   ]);
   reviseDag(prepared.dag, [

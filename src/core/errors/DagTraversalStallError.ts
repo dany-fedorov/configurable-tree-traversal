@@ -1,18 +1,18 @@
 import { createVertexIdLabeler } from '@core/graph/identity';
 
 /** A vertex milestone in the original declared dependency constraints. */
-export type DagDependencyMilestone<ID = unknown> = {
+export type DagMilestone<ID = unknown> = {
   vertexId: ID;
-  milestone: 'work' | 'completion';
+  milestone: 'work' | 'subgraphCompletion';
 };
 
-/** Direction means from waits for to, independently of accepted work seeds. */
-export type DagDependencyEdge<ID = unknown> = {
-  from: DagDependencyMilestone<ID>;
-  to: DagDependencyMilestone<ID>;
+/** Direction means waiter waits for prerequisite, independently of accepted work seeds. */
+export type DagWaitEdge<ID = unknown> = {
+  waiter: DagMilestone<ID>;
+  prerequisite: DagMilestone<ID>;
   reason:
     | 'workDependency'
-    | 'completionDependency'
+    | 'subgraphCompletionDependency'
     | 'ownWork'
     | 'structuralChild';
 };
@@ -21,8 +21,8 @@ export type DagTraversalStallDiagnostics<ID = unknown> = {
   dependencies: Array<{ id: ID; unmet: ID[] }>;
   unknownPrerequisiteIds: ID[];
   /** Strongly connected component membership, not ordered cycle witnesses. */
-  dependencyCycles: ID[][];
-  dependencyEdges: DagDependencyEdge<ID>[];
+  dependencyCycleComponents: ID[][];
+  dependencyEdges: DagWaitEdge<ID>[];
   dependencyBlockedIds: ID[];
   structurallyIncompleteIds: ID[];
 };
@@ -60,10 +60,10 @@ export class DagTraversalStallError<ID = unknown> extends Error {
         unmet: unmet.slice(),
       })),
       unknownPrerequisiteIds: diagnostics.unknownPrerequisiteIds.slice(),
-      dependencyCycles: diagnostics.dependencyCycles.map((ids) => ids.slice()),
+      dependencyCycleComponents: diagnostics.dependencyCycleComponents.map((ids) => ids.slice()),
       dependencyEdges: (diagnostics.dependencyEdges ?? []).map((edge) => ({
-        from: { ...edge.from },
-        to: { ...edge.to },
+        waiter: { ...edge.waiter },
+        prerequisite: { ...edge.prerequisite },
         reason: edge.reason,
       })),
       dependencyBlockedIds: diagnostics.dependencyBlockedIds.slice(),

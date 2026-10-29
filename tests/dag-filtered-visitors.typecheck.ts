@@ -1,43 +1,43 @@
+import { TraversalVisitorCommandName as VisitorCommand } from '../src';
 import {
-  filterDagVisitor,
-  filterAsyncDagVisitor,
+  filterDagDataVisitor,
+  filterAsyncDagDataVisitor,
 } from '../src/traversals/dag-traversal/filterDagVisitor';
 import {
   DagTraversal,
   AsyncDagTraversal,
-  DagTraversalOrder as Order,
-  DEFER_READY,
+  DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
 import type {
   DagVisitor,
   AsyncDagVisitor,
-  DagVisitorOptions,
+  DagVisitorContext,
 } from '../src/traversals/dag-traversal/lib/DagTraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { ResolvedGraph } from '../src/core/ResolvedGraph';
+import type { ResolvedGraphView } from '../src/core/ResolvedGraphView';
 
 type Task = { kind: 'task'; label: string };
 type Group = { kind: 'group'; title: string };
 type Output = { kind: 'result'; count: number };
 type Input = Task | Group;
 type Data = Input | Output;
-type T = TreeTypeParameters<Input, string>;
-type R = TreeTypeParameters<Output, number>;
+type T = VertexTypes<Input, string>;
+type R = VertexTypes<Output, number>;
 type ID = { key: string };
 const isTask = (data: Data): data is Task => data.kind === 'task';
 declare const traversal: DagTraversal<T, R, ID>;
 declare const asyncTraversal: AsyncDagTraversal<T, R, ID>;
 
 traversal.addVisitorFor(
-  Order.ON_READY,
-  filterDagVisitor(isTask, (data, options) => {
+  Order.ON_WORK_READY,
+  filterDagDataVisitor(isTask, (data, options) => {
     const task: Task = data;
-    const context: DagVisitorOptions<T, R, Order.ON_READY, ID> = options;
-    const graph: ResolvedGraph<T | R, ID> = options.resolvedGraph;
-    const current: Data = options.vertexRef.unref().getData();
+    const context: DagVisitorContext<T, R, Order.ON_WORK_READY, ID> = options;
+    const graph: ResolvedGraphView<T | R, ID> = options.resolvedGraphView;
+    const current: Data = options.vertexRef.getValue().getData();
     // @ts-expect-error The live graph remains heterogeneous.
-    const invalid: Task = options.vertexRef.unref().getData();
+    const invalid: Task = options.vertexRef.getValue().getData();
     void [task, context, graph, current, invalid];
     return {
       commands: [
@@ -49,32 +49,40 @@ traversal.addVisitorFor(
         },
         {
           commandName: Command.REWRITE_CHILD_HINTS,
-          commandArguments: { newHints: [1] },
+          commandArguments: { newHints: ['child'] },
         },
       ],
     };
   }),
 );
 
-const ready: DagVisitor<T, R, Order.ON_READY, ID> = filterDagVisitor(
+const ready: DagVisitor<T, R, Order.ON_WORK_READY, ID> = filterDagDataVisitor(
   isTask,
-  () => DEFER_READY,
+  () => ({
+    commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+  }),
 );
-const asyncReady: AsyncDagVisitor<T, R, Order.ON_READY, ID> =
-  filterAsyncDagVisitor(
+const asyncReady: AsyncDagVisitor<T, R, Order.ON_WORK_READY, ID> =
+  filterAsyncDagDataVisitor(
     isTask,
-    async (): Promise<typeof DEFER_READY> => DEFER_READY,
+    async (): Promise<{
+      commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION }];
+    }> => ({
+      commands: [
+        { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+      ],
+    }),
   );
 
 // Annotated predicates work without contextual registration or generic arguments.
-const standalone = filterDagVisitor(isTask, (data) => {
+const standalone = filterDagDataVisitor(isTask, (data) => {
   const label: string = data.label;
   void label;
 });
 
 traversal.addVisitorFor(
-  Order.ON_READY,
-  filterDagVisitor(
+  Order.ON_WORK_READY,
+  filterDagDataVisitor(
     (data: Data): boolean => data.kind === 'task',
     (data) => {
       const union: Data = data;
@@ -86,10 +94,10 @@ traversal.addVisitorFor(
 );
 
 traversal.addVisitorFor(
-  Order.ON_COMPLETE,
+  Order.ON_SUBGRAPH_READY,
   // @ts-expect-error Narrowed input does not change the output rewrite type.
-  filterDagVisitor(isTask, (data, options) => {
-    const phase: Order.ON_COMPLETE = options.order;
+  filterDagDataVisitor(isTask, (data, options) => {
+    const phase: Order.ON_SUBGRAPH_READY = options.phase;
     void [data.label, phase];
     return {
       commands: [
@@ -103,48 +111,55 @@ traversal.addVisitorFor(
 );
 
 traversal.addVisitorFor(
-  Order.ON_COMPLETE,
-  // @ts-expect-error Completion-phase visitors cannot defer ready work.
-  filterDagVisitor(isTask, () => DEFER_READY),
+  Order.ON_SUBGRAPH_READY,
+  filterDagDataVisitor(isTask, () => ({
+    // @ts-expect-error Completion-phase visitors cannot defer ready work.
+    commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+  })),
 );
 asyncTraversal.addVisitorFor(
-  Order.ON_COMPLETE,
-  filterAsyncDagVisitor(
+  Order.ON_SUBGRAPH_READY,
+  filterAsyncDagDataVisitor(
     isTask,
-    // @ts-expect-error Async completion-phase visitors cannot defer ready work.
-    async (): Promise<typeof DEFER_READY> => DEFER_READY,
+    async (): Promise<{
+      commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION }];
+      // @ts-expect-error Async completion-phase visitors cannot defer ready work.
+    }> => ({
+      commands: [
+        { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+      ],
+    }),
   ),
 );
-const mixed: DagVisitor<T, R, Order, ID> = filterDagVisitor(
-  isTask,
+const mixed: DagVisitor<T, R, Order, ID> = filterDagDataVisitor(isTask, () => ({
   // @ts-expect-error Mixed phase visitors cannot defer ready work.
-  () => DEFER_READY,
-);
+  commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+}));
 traversal.addVisitorFor(
-  Order.ON_READY,
+  Order.ON_WORK_READY,
   // @ts-expect-error A predicate must accept rewritten output data too.
-  filterDagVisitor(
+  filterDagDataVisitor(
     (data: Input) => data.kind === 'task',
     () => undefined,
   ),
 );
 traversal.addVisitorFor(
-  Order.ON_COMPLETE,
+  Order.ON_SUBGRAPH_READY,
   // @ts-expect-error Completion visitors cannot rewrite child hints.
-  filterDagVisitor(isTask, () => ({
+  filterDagDataVisitor(isTask, () => ({
     commands: [
       {
         commandName: Command.REWRITE_CHILD_HINTS,
-        commandArguments: { newHints: [1] },
+        commandArguments: { newHints: ['child'] },
       },
     ],
   })),
 );
 
 asyncTraversal.addVisitorFor(
-  Order.ON_READY,
-  filterAsyncDagVisitor(isTask, async (data, options) => {
-    const context: DagVisitorOptions<T, R, Order.ON_READY, ID> = options;
+  Order.ON_WORK_READY,
+  filterAsyncDagDataVisitor(isTask, async (data, options) => {
+    const context: DagVisitorContext<T, R, Order.ON_WORK_READY, ID> = options;
     void context;
     return {
       commands: [
@@ -159,8 +174,8 @@ asyncTraversal.addVisitorFor(
   }),
 );
 traversal.addVisitorFor(
-  Order.ON_READY,
+  Order.ON_WORK_READY,
   // @ts-expect-error Sync filtering cannot admit an async callback.
-  filterDagVisitor(isTask, async () => undefined),
+  filterDagDataVisitor(isTask, async () => undefined),
 );
 void [ready, asyncReady, standalone, mixed];

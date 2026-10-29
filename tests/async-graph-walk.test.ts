@@ -1,11 +1,11 @@
+import type { AsyncGraphWalkSource } from '../src';
 import {
   AsyncGraphWalk,
-  AsyncGraphWalkRunner,
-  TraversalRunnerStatus as Status,
   GraphWalk,
   GraphWalkPhase as Phase,
+  TraversalRunnerStatus as Status,
 } from '../src';
-import type { AsyncGraphWalkSource } from '../src';
+import { InternalAsyncGraphWalkRunner as AsyncGraphWalkRunner } from '../src/traversals/graph-walk/AsyncGraphWalkRunner';
 import { contextFixture } from './helpers/graph-walk-fixtures';
 
 async function collect<T>(values: AsyncIterable<T>): Promise<T[]> {
@@ -23,6 +23,7 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
     const runner = new AsyncGraphWalk({
       strategy,
       source: {
+        hydration: 'resolver' as const,
         async *roots() {
           yield* source.roots();
         },
@@ -33,24 +34,24 @@ it.each(['breadthFirst', 'depthFirst'] as const)(
           yield* source.outgoing(vertex);
         },
       },
-      emitPhases: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
-      expandVertex: async () => true,
-      followEdge: async () => true,
-    }).makeRunner();
+      emitEvents: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
+      shouldExpandVertex: async () => true,
+      shouldFollowEdge: async () => true,
+    }).createRunner();
     const expected = new GraphWalk({
       source: sync.source,
       strategy,
-      emitPhases: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
-    }).makeRunner();
-    expect(await collect(runner.getIterable())).toEqual([
-      ...expected.getIterable(),
+      emitEvents: [Phase.VERTEX, Phase.EDGE, Phase.PATH],
+    }).createRunner();
+    expect(await collect(runner.iterateEvents())).toEqual([
+      ...expected.iterateEvents(),
     ]);
     expect(runner.summary()).toEqual(expected.summary());
     expect(fixture.calls).toEqual(sync.calls);
     expect(runner.summary().counts).toMatchObject({
-      foundVertices: 5,
-      observedLinks: 6,
-      occurrences: 8,
+      uniqueFoundVertices: 5,
+      discoveredLinks: 6,
+      admittedTargets: 8,
     });
     expect(runner).toBeInstanceOf(AsyncGraphWalkRunner);
     expect(runner.getStatus()).toBe(Status.FINISHED);
@@ -67,42 +68,63 @@ it.each([false, true])(
   async (fallback) => {
     const opened: string[] = [];
     const resolved: string[] = [];
-    const source: AsyncGraphWalkSource<string, undefined, string> = {
-      roots: async () => [
-        { vertexId: 'A', resolution: { kind: 'found', data: 'A' } },
-      ],
-      async *outgoing({ vertexId }) {
-        opened.push(vertexId);
-        if (vertexId === 'A') {
-          yield {
-            target: {
-              vertexId: 'B',
-              ...(fallback
-                ? {}
-                : { resolution: { kind: 'found' as const, data: 'B' } }),
-            },
-            data: undefined,
-          };
-          yield {
-            target: {
-              vertexId: 'B',
-              resolution: { kind: 'found', data: 'ignored' },
-            },
-            data: undefined,
-          };
+    const source: AsyncGraphWalkSource<string, undefined, string> = fallback
+      ? {
+          hydration: 'resolver',
+          roots: async () => [
+            { vertexId: 'A', resolution: { kind: 'found', data: 'A' } },
+          ],
+          resolveVertex: async (id) => {
+            resolved.push(id);
+            return { kind: 'found', data: id };
+          },
+          async *outgoing({ vertexId }) {
+            opened.push(vertexId);
+            if (vertexId === 'A') {
+              yield { target: { vertexId: 'B' }, data: undefined };
+              yield {
+                target: {
+                  vertexId: 'B',
+                  resolution: { kind: 'found', data: 'ignored' },
+                },
+                data: undefined,
+              };
+            }
+          },
         }
-      },
-      ...(fallback
-        ? {
-            resolveVertex: async (id: string) => {
-              resolved.push(id);
-              return { kind: 'found' as const, data: id };
+      : {
+          hydration: 'inlineOrCached',
+          roots: async () => [
+            {
+              kind: 'inline',
+              vertexId: 'A',
+              resolution: { kind: 'found', data: 'A' },
             },
-          }
-        : {}),
-    };
-    const runner = new AsyncGraphWalk({ source }).makeRunner();
-    const events = await collect(runner.getIterable());
+          ],
+          async *outgoing({ vertexId }) {
+            opened.push(vertexId);
+            if (vertexId === 'A') {
+              yield {
+                target: {
+                  kind: 'inline',
+                  vertexId: 'B',
+                  resolution: { kind: 'found', data: 'B' },
+                },
+                data: undefined,
+              };
+              yield {
+                target: {
+                  kind: 'inline',
+                  vertexId: 'B',
+                  resolution: { kind: 'found', data: 'ignored' },
+                },
+                data: undefined,
+              };
+            }
+          },
+        };
+    const runner = new AsyncGraphWalk({ source }).createRunner();
+    const events = await collect(runner.iterateEvents());
     expect(events).toMatchObject([
       { vertex: { data: 'A' } },
       { vertex: { data: 'B' } },
@@ -118,11 +140,18 @@ it('captures source callbacks and receiver while retaining shared caller data an
   const data = { title: 'first' };
   let rootsReads = 0;
   const source: AsyncGraphWalkSource<typeof data, undefined, typeof id> = {
+    hydration: 'inlineOrCached' as const,
     get roots() {
       rootsReads++;
       return async function (this: typeof source) {
         expect(this).toBe(source);
-        return [{ vertexId: id, resolution: { kind: 'found' as const, data } }];
+        return [
+          {
+            kind: 'inline' as const,
+            vertexId: id,
+            resolution: { kind: 'found' as const, data },
+          },
+        ];
       };
     },
     async outgoing() {
@@ -131,13 +160,13 @@ it('captures source callbacks and receiver while retaining shared caller data an
     },
   };
   const walk = new AsyncGraphWalk({ source });
-  const runner = walk.makeRunner();
+  const runner = walk.createRunner();
   expect(rootsReads).toBe(1);
   source.outgoing = () => {
     throw new Error('mutated callback');
   };
   data.title = 'shared';
-  const events = await collect(runner.getIterable());
+  const events = await collect(runner.iterateEvents());
   expect(events).toMatchObject([{ vertex: { data: { title: 'shared' } } }]);
   const first = events[0]!;
   expect(first.kind === 'vertex' && first.vertex.vertexId).toBe(id);
@@ -148,13 +177,13 @@ it('registration and configure changes snapshot async callbacks and detach liste
   const calls: string[] = [];
   const walk = new AsyncGraphWalk({
     source: contextFixture().source,
-    limits: { maxOccurrences: 1 },
+    limits: { maxAdmittedTargets: 1 },
   });
   const visit = async () => {
     calls.push('old');
   };
   expect(walk.addVisitorFor(Phase.VERTEX, visit, { priority: 5 })).toBe(walk);
-  const old = walk.makeRunner();
+  const old = walk.createRunner();
   const records = walk.listVisitorsFor(Phase.VERTEX);
   expect(records[0]!.visitor).toBe(visit);
   records.length = 0;
@@ -162,7 +191,7 @@ it('registration and configure changes snapshot async callbacks and detach liste
   expect(walk.setVisitorsFor(Phase.VERTEX, [])).toBe(walk);
   expect(
     walk.addVisitorGroupFor(Phase.VERTEX, {
-      commandCommitMode: 'afterGroup',
+      commandCommitMode: 'afterGroup' as const,
       visitors: [
         async () => {
           calls.push('group:first');
@@ -173,16 +202,16 @@ it('registration and configure changes snapshot async callbacks and detach liste
       ],
     }),
   ).toBe(walk);
-  expect(walk.configure({ emitPhases: [] })).toBe(walk);
+  expect(walk.configure({ emitEvents: [] })).toBe(walk);
   await old.run();
-  await walk.makeRunner().run();
+  await walk.createRunner().run();
   expect(calls).toEqual(['old', 'group:first', 'group:second']);
   expect(() => walk.listVisitorsFor('invalid' as Phase)).toThrow(TypeError);
   expect(() => walk.configure({ revisit: 'walks' })).toThrow(TypeError);
   walk.configure({ limits: { maxDepth: 1 }, revisit: 'walks' });
-  const bounded = await walk.makeRunner().run();
-  // Replacing maxOccurrences admits A, E, AB, AB and AC at depth one.
-  expect(bounded.summary().counts.occurrences).toBe(5);
+  const bounded = await walk.createRunner().run();
+  // Replacing maxAdmittedTargets admits A, E, AB, AB and AC at depth one.
+  expect(bounded.summary().counts.admittedTargets).toBe(5);
   expect(calls.slice(3)).toEqual(
     Array.from({ length: 5 }, () => ['group:first', 'group:second']).flat(),
   );
@@ -196,18 +225,19 @@ it('accepts resolved thenables from async sources, predicates and visitors', asy
   const seen: string[] = [];
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'resolver' as const,
       roots: () => thenable([{ vertexId: 'A' }]),
       resolveVertex: () => thenable({ kind: 'found' as const, data: 'A' }),
       outgoing: () => thenable([]),
     },
-    expandVertex: () => thenable(true),
+    shouldExpandVertex: () => thenable(true),
     visitors: {
       vertex: (event) => {
         seen.push(event.vertex.data);
         return thenable(undefined);
       },
     },
-  }).makeRunner();
+  }).createRunner();
   await runner.run();
   expect(seen).toEqual(['A']);
   expect(runner.summary().outcome).toEqual({ kind: 'exhausted' });
@@ -230,6 +260,7 @@ it.each([
       throw error;
     };
     const source: AsyncGraphWalkSource<string, undefined, string> = {
+      hydration: 'resolver' as const,
       roots: () =>
         stage === 'roots'
           ? Promise.reject(error)
@@ -272,9 +303,9 @@ it.each([
     };
     const runner = new AsyncGraphWalk({
       source,
-      expandVertex: () =>
+      shouldExpandVertex: () =>
         stage === 'predicate' ? Promise.reject(error) : true,
-    }).makeRunner();
+    }).createRunner();
     await expect(runner.run()).rejects.toBe(error);
     await expect(runner.run()).rejects.toBe(error);
     expect(runner.summary().outcome).toEqual({ kind: 'failed', error });
@@ -285,10 +316,12 @@ it('prefers async iteration and falls back only for an absent async factory', as
   const calls: string[] = [];
   const runner = new AsyncGraphWalk({
     source: {
+      hydration: 'inlineOrCached' as const,
       roots: () => ({
         async *[Symbol.asyncIterator]() {
           calls.push('async');
           yield {
+            kind: 'inline' as const,
             vertexId: 'A',
             resolution: { kind: 'found' as const, data: 'A' },
           };
@@ -299,8 +332,8 @@ it('prefers async iteration and falls back only for an absent async factory', as
       }),
       outgoing: () => [],
     },
-  }).makeRunner();
-  expect(await collect(runner.getIterable())).toMatchObject([
+  }).createRunner();
+  expect(await collect(runner.iterateEvents())).toMatchObject([
     { vertex: { vertexId: 'A' } },
   ]);
   expect(calls).toEqual(['async']);
@@ -310,6 +343,7 @@ it.each([1, { then: () => undefined }])(
   'rejects malformed async factories without using sync fallback %p',
   async (factory) => {
     const source = {
+      hydration: 'inlineOrCached' as const,
       roots: () => ({
         [Symbol.asyncIterator]: factory,
         [Symbol.iterator]: function* () {
@@ -318,9 +352,9 @@ it.each([1, { then: () => undefined }])(
       }),
       outgoing: () => [],
     } as unknown as AsyncGraphWalkSource<string, undefined, string>;
-    const runner = new AsyncGraphWalk({ source }).makeRunner();
+    const runner = new AsyncGraphWalk({ source }).createRunner();
     await expect(runner.run()).rejects.toBeInstanceOf(TypeError);
-    expect(runner.summary().counts.occurrences).toBe(0);
+    expect(runner.summary().counts.admittedTargets).toBe(0);
   },
 );
 
@@ -328,6 +362,7 @@ it('observes an invalid async iterator factory rejected promise before retaining
   const error = Symbol('factory');
   const observed: unknown[] = [];
   const source = {
+    hydration: 'inlineOrCached' as const,
     roots: () => ({
       [Symbol.asyncIterator]() {
         const rejected = Promise.reject(error);
@@ -353,7 +388,7 @@ it('observes an invalid async iterator factory rejected promise before retaining
     }),
     outgoing: () => [],
   } as unknown as AsyncGraphWalkSource<string, undefined, string>;
-  const runner = new AsyncGraphWalk({ source }).makeRunner();
+  const runner = new AsyncGraphWalk({ source }).createRunner();
   await expect(runner.run()).rejects.toBeInstanceOf(TypeError);
   expect(observed).toEqual([error]);
 });

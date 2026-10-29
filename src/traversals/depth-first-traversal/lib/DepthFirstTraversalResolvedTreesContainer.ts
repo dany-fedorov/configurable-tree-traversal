@@ -1,37 +1,34 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { Vertex } from '@core/Vertex';
-import { CTTRef } from '@core/CTTRef';
+import { MutableRef } from '@core/CTTRef';
 import {
-  ResolvedTree,
-  VertexResolutionContext,
-  VertexResolved,
+  ResolvedTreeStore,
+  TreeVertexRecord,
+  InternalVertexResolutionContext,
 } from '@core/ResolvedTree';
-import type { DepthFirstTraversalInstanceConfig } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { Vertex } from '@core/Vertex';
+import type { DepthFirstTreeResolvedOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
-export type NotMutatedResolvedTreeRefsMap<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
-> = Map<CTTRef<Vertex<TTP | RW_TTP>>, CTTRef<Vertex<TTP>>>;
+export type OriginalTreeRefsMap<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
+> = Map<MutableRef<Vertex<TTP | RW_TTP>>, MutableRef<Vertex<TTP>>>;
 
 export class DepthFirstTraversalResolvedTreesContainer<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > {
-  resolvedTree: ResolvedTree<TTP | RW_TTP>;
-  notMutatedResolvedTree: ResolvedTree<TTP> | null;
-  notMutatedResolvedTreeRefsMap: NotMutatedResolvedTreeRefsMap<
-    TTP,
-    RW_TTP
-  > | null;
+  resolvedTree: ResolvedTreeStore<TTP | RW_TTP>;
+  originalTreeView: ResolvedTreeStore<TTP> | null;
+  originalTreeRefsMap: OriginalTreeRefsMap<TTP, RW_TTP> | null;
 
   constructor(
     cfg: Pick<
-      DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-      'saveNotMutatedResolvedTree'
+      DepthFirstTreeResolvedOptions<TTP, RW_TTP>,
+      'retainOriginalTreeStructure'
     > & {
       traversalRunnerInternalObjects: Pick<
-        DepthFirstTraversalInstanceConfig<
+        DepthFirstTreeResolvedOptions<
           TTP,
           RW_TTP
         >['traversalRunnerInternalObjects'],
@@ -44,40 +41,40 @@ export class DepthFirstTraversalResolvedTreesContainer<
         ?.resolvedTree != null
         ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
             .resolvedTree
-        : new ResolvedTree<TTP | RW_TTP>();
-    this.notMutatedResolvedTree =
+        : new ResolvedTreeStore<TTP | RW_TTP>();
+    this.originalTreeView =
       cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
-        ?.notMutatedResolvedTree != null
+        ?.originalTreeView != null
         ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
-            .notMutatedResolvedTree
-        : cfg.saveNotMutatedResolvedTree
-        ? new ResolvedTree<TTP>()
+            .originalTreeView
+        : cfg.retainOriginalTreeStructure
+        ? new ResolvedTreeStore<TTP>()
         : null;
-    this.notMutatedResolvedTreeRefsMap =
+    this.originalTreeRefsMap =
       cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
-        ?.notMutatedResolvedTreeRefsMap != null
+        ?.originalTreeRefsMap != null
         ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
-            .notMutatedResolvedTreeRefsMap
-        : cfg.saveNotMutatedResolvedTree
+            .originalTreeRefsMap
+        : cfg.retainOriginalTreeStructure
         ? new Map()
         : null;
   }
 
   set(
-    vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
-    vertexResolved: VertexResolved<TTP | RW_TTP>,
+    vertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
+    vertexResolved: TreeVertexRecord<TTP | RW_TTP>,
   ): void {
     const resolutionContext = vertexResolved.getResolutionContext();
     this.validateSavedResolutionContext(resolutionContext);
-    if (this.notMutatedResolvedTree && this.notMutatedResolvedTreeRefsMap) {
-      const vertex = (vertexRef as CTTRef<Vertex<TTP>>).unref();
+    if (this.originalTreeView && this.originalTreeRefsMap) {
+      const vertex = (vertexRef as MutableRef<Vertex<TTP>>).getValue();
       const notMutatedRef =
-        this.notMutatedResolvedTreeRefsMap.get(vertexRef) ??
-        new CTTRef<Vertex<TTP>>(
-          vertex.clone({ $c: vertex.getChildrenHints().slice() }),
+        this.originalTreeRefsMap.get(vertexRef) ??
+        new MutableRef<Vertex<TTP>>(
+          vertex.clone({ $childHints: vertex.getChildrenHints().slice() }),
         );
       const notMutatedChildren = vertexResolved.getChildren().map((child) => {
-        const notMutatedChild = this.notMutatedResolvedTreeRefsMap?.get(child);
+        const notMutatedChild = this.originalTreeRefsMap?.get(child);
         if (notMutatedChild === undefined) {
           throw new Error(
             `Could not find not mutated child ref - ${jsonStringifySafe(
@@ -88,26 +85,25 @@ export class DepthFirstTraversalResolvedTreesContainer<
         return notMutatedChild;
       });
       const notMutatedVertexResolved = vertexResolved.clone({
-        $c: notMutatedChildren,
+        children: notMutatedChildren,
       });
       if (resolutionContext === null) {
         notMutatedVertexResolved.setResolutionContext(null);
       } else {
-        const notMutatedVertexParentRef =
-          this.notMutatedResolvedTreeRefsMap.get(
-            resolutionContext.parentVertexRef,
-          )!;
+        const notMutatedVertexParentRef = this.originalTreeRefsMap.get(
+          resolutionContext.parentVertexRef,
+        )!;
         notMutatedVertexResolved.setResolutionContext({
           ...resolutionContext,
           parentVertexRef: notMutatedVertexParentRef,
-          parentVertex: notMutatedVertexParentRef.unref(),
+          parentVertex: notMutatedVertexParentRef.getValue(),
         });
       }
       this.resolvedTree.set(vertexRef, vertexResolved);
-      this.notMutatedResolvedTreeRefsMap.set(vertexRef, notMutatedRef);
-      this.notMutatedResolvedTree.set(
+      this.originalTreeRefsMap.set(vertexRef, notMutatedRef);
+      this.originalTreeView.set(
         notMutatedRef,
-        notMutatedVertexResolved as VertexResolved<TTP>,
+        notMutatedVertexResolved as TreeVertexRecord<TTP>,
       );
       return;
     }
@@ -115,13 +111,13 @@ export class DepthFirstTraversalResolvedTreesContainer<
   }
 
   validateSavedResolutionContext(
-    resolutionContext: VertexResolutionContext<TTP | RW_TTP> | null,
+    resolutionContext: InternalVertexResolutionContext<TTP | RW_TTP> | null,
   ): void {
     if (
-      this.notMutatedResolvedTree !== null &&
-      this.notMutatedResolvedTreeRefsMap !== null &&
+      this.originalTreeView !== null &&
+      this.originalTreeRefsMap !== null &&
       resolutionContext !== null &&
-      !this.notMutatedResolvedTreeRefsMap.has(resolutionContext.parentVertexRef)
+      !this.originalTreeRefsMap.has(resolutionContext.parentVertexRef)
     ) {
       throw new Error(
         `Could not find not mutated parent ref - ${jsonStringifySafe(
@@ -132,39 +128,39 @@ export class DepthFirstTraversalResolvedTreesContainer<
   }
 
   setWithResolutionContext(
-    vertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
-    vertexResolutionContext: VertexResolutionContext<TTP | RW_TTP> | null,
+    vertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
+    vertexResolutionContext: InternalVertexResolutionContext<
+      TTP | RW_TTP
+    > | null,
   ): void {
     this.set(
       vertexRef,
-      new VertexResolved<TTP | RW_TTP>({
-        $d: { resolutionContext: vertexResolutionContext },
-        $c: [],
+      new TreeVertexRecord<TTP | RW_TTP>({
+        metadata: { resolutionContext: vertexResolutionContext },
+        children: [],
       }),
     );
   }
 
-  setRoot(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): void {
+  setRoot(vertexRef: MutableRef<Vertex<TTP | RW_TTP>>): void {
     this.resolvedTree.setRoot(vertexRef);
     this.setWithResolutionContext(vertexRef, null);
-    const notMutatedRootRef =
-      this.notMutatedResolvedTreeRefsMap?.get(vertexRef);
-    if (this.notMutatedResolvedTree && notMutatedRootRef) {
-      this.notMutatedResolvedTree.setRoot(notMutatedRootRef);
+    const notMutatedRootRef = this.originalTreeRefsMap?.get(vertexRef);
+    if (this.originalTreeView && notMutatedRootRef) {
+      this.originalTreeView.setRoot(notMutatedRootRef);
     }
   }
 
-  delete(vertexRef: CTTRef<Vertex<TTP | RW_TTP>>): void {
-    this.resolvedTree.delete(vertexRef);
+  delete(vertexRef: MutableRef<Vertex<TTP | RW_TTP>>): void {
+    this.resolvedTree.deleteSubtree(vertexRef);
   }
 
   pushChildrenTo(
-    parentVertexRef: CTTRef<Vertex<TTP | RW_TTP>>,
-    childrenVertexRefs: CTTRef<Vertex<TTP | RW_TTP>>[],
+    parentVertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
+    childrenVertexRefs: MutableRef<Vertex<TTP | RW_TTP>>[],
   ): void {
-    if (this.notMutatedResolvedTree && this.notMutatedResolvedTreeRefsMap) {
-      const nmParentVertexRef =
-        this.notMutatedResolvedTreeRefsMap?.get(parentVertexRef);
+    if (this.originalTreeView && this.originalTreeRefsMap) {
+      const nmParentVertexRef = this.originalTreeRefsMap?.get(parentVertexRef);
       if (nmParentVertexRef == null) {
         throw new Error(
           `Could not find not mutated ref by resolved ref - ${jsonStringifySafe(
@@ -173,7 +169,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
         );
       }
       const nmParentVertexResolved =
-        this.notMutatedResolvedTree.get(nmParentVertexRef);
+        this.originalTreeView.get(nmParentVertexRef);
       if (nmParentVertexResolved == null) {
         throw new Error(
           `Could not find not mutated ref - ${jsonStringifySafe(
@@ -182,7 +178,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
         );
       }
       const nmChildrenVertexRefs = childrenVertexRefs.map((ch) => {
-        const nmCh = this.notMutatedResolvedTreeRefsMap?.get(ch);
+        const nmCh = this.originalTreeRefsMap?.get(ch);
         if (!nmCh) {
           throw new Error(
             `Could not find not mutated child ref - ${jsonStringifySafe(ch)}`,

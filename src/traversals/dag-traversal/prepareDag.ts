@@ -1,22 +1,21 @@
+import { preparationIssue } from './lib/preparationIssue';
+import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type {
-  TraversableGraph,
-  AsyncTraversableGraph,
+  AsyncDagDiscoverySource,
+  DagDiscoverySource,
 } from '@core/TraversableGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import {
-  DagTraversalStallError,
-  type DagTraversalStallDiagnostics,
-} from '@core/errors/DagTraversalStallError';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { AsyncDagTraversal } from './AsyncDagTraversal';
-import { prepareDagSource } from './lib/prepareDagSource';
-import type { PrepareDagResult } from './lib/PreparedDag';
 import { capturePreparedSource } from './lib/capturePreparedSource';
-import { makePreparedDag, assertPreparedOptions } from './lib/makePreparedDag';
+import type { PrepareDagResult } from './lib/DagDefinition';
+import { dagRunnerCapabilities } from './lib/dagRunnerCapabilities';
+import { assertPreparedOptions, makePreparedDag } from './lib/makePreparedDag';
+import { prepareDagSource } from './lib/prepareDagSource';
 
 export type PrepareDagOptions = {
   syntheticRoot?: boolean;
-  rootDependencies?: 'honor' | 'ignore';
-  implicitParentDependency?: boolean;
+  rootWorkDependencies?: 'honor' | 'ignore';
+  omittedWorkDependencies?: 'none' | 'discoveryParentWork';
   traversableTree?: never;
   visitors?: never;
   completedWork?: never;
@@ -24,47 +23,44 @@ export type PrepareDagOptions = {
   workCompletion?: never;
   discovery?: never;
   sortChildrenHints?: never;
-  saveNotMutatedResolvedGraph?: never;
+  retainOriginalGraphStructure?: never;
 };
 export type PrepareDagInput<
-  T extends TreeTypeParameters,
+  T extends VertexTypes,
   ID = unknown,
 > = PrepareDagOptions & {
-  traversableGraph: TraversableGraph<T, T, ID>;
+  traversableGraph: DagDiscoverySource<T, T, ID>;
 };
 export type PrepareAsyncDagInput<
-  T extends TreeTypeParameters,
+  T extends VertexTypes,
   ID = unknown,
 > = PrepareDagOptions & {
-  traversableGraph: AsyncTraversableGraph<T, T, ID>;
+  traversableGraph: AsyncDagDiscoverySource<T, T, ID>;
   concurrency?: number;
 };
 
 const preparationFields = [
   'traversableGraph',
   'syntheticRoot',
-  'rootDependencies',
-  'implicitParentDependency',
+  'rootWorkDependencies',
+  'omittedWorkDependencies',
 ];
 
 /** Discover and validate without visitors; caller source errors retain exact identity. */
-export function prepareDag<T extends TreeTypeParameters, ID = unknown>(
+export function prepareDag<T extends VertexTypes, ID = unknown>(
   input: PrepareDagInput<T, ID>,
 ): PrepareDagResult<T['VertexData'], ID> {
   return prepareDagSource(input);
 }
 
 /** Async discovery produces the same reusable in-memory definition. */
-export function prepareDagAsync<T extends TreeTypeParameters, ID = unknown>(
+export function prepareDagAsync<T extends VertexTypes, ID = unknown>(
   input: PrepareDagInput<T, ID> & { concurrency?: number },
 ): Promise<PrepareDagResult<T['VertexData'], ID>>;
-export function prepareDagAsync<T extends TreeTypeParameters, ID = unknown>(
+export function prepareDagAsync<T extends VertexTypes, ID = unknown>(
   input: PrepareAsyncDagInput<T, ID>,
 ): Promise<PrepareDagResult<T['VertexData'], ID>>;
-export async function prepareDagAsync<
-  T extends TreeTypeParameters,
-  ID = unknown,
->(
+export async function prepareDagAsync<T extends VertexTypes, ID = unknown>(
   input: PrepareAsyncDagInput<T, ID>,
 ): Promise<PrepareDagResult<T['VertexData'], ID>> {
   assertPreparedOptions(input, [...preparationFields, 'concurrency']);
@@ -72,31 +68,24 @@ export async function prepareDagAsync<
   const runner = new AsyncDagTraversal<T, T, ID>({
     ...input,
     traversableGraph: captured.adapter,
-  }).makeRunner();
+  }).createRunner();
   try {
     await runner.prepare();
   } catch (error) {
-    if (
-      !(error instanceof DagTraversalStallError) ||
-      captured.errors.has(error)
-    )
-      throw error;
-    return {
-      kind: 'invalid',
-      issues: [
-        {
-          kind: 'milestone',
-          diagnostics: error.diagnostics as DagTraversalStallDiagnostics<ID>,
-        },
-      ],
-    };
+    const issue = preparationIssue<ID>(
+      dagRunnerCapabilities.get(runner)!.container.store,
+      error,
+    );
+    if (issue === undefined) throw error;
+    return { kind: 'invalid', issues: [issue] };
   }
   return {
     kind: 'valid',
     dag: makePreparedDag(
-      runner.resolvedGraphsContainer,
+      dagRunnerCapabilities.get(runner)!
+        .container as unknown as ResolvedGraphsContainer<T, T, ID>,
       captured.candidates,
-      input.rootDependencies ?? 'honor',
+      input.rootWorkDependencies ?? 'honor',
     ),
   };
 }

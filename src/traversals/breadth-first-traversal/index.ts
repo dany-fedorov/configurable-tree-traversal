@@ -1,14 +1,15 @@
-export * from './BreadthFirstTraversal';
-export * from './AsyncBreadthFirstTraversal';
-export * from './traverseBreadthFirst';
-export * from './traverseBreadthFirstAsync';
-export * from './lib/AsyncBreadthFirstTraversalInstanceConfig';
-export * from './lib/AsyncBreadthFirstTraversalRunner';
-export * from './lib/BreadthFirstTraversalInstanceConfig';
-export * from './lib/BreadthFirstTraversalOrder';
-export * from './lib/BreadthFirstTraversalRunner';
-export * from './lib/BreadthFirstTraversalRunnerInternalObjects';
-export * from './lib/BreadthFirstTraversalRunnerIterableConfig';
-export * from './lib/BreadthFirstTraversalRunnerState';
-export * from './lib/BreadthFirstTraversalVisitors';
-export * from './lib/BreadthFirstTraversalVisitorsState';
+export { AsyncBreadthFirstTreeTraversal } from './AsyncBreadthFirstTraversal';
+export { BreadthFirstTreeTraversal } from './BreadthFirstTraversal';
+export type {
+  AsyncBreadthFirstTreeOptionsPatch,
+  AsyncBreadthFirstTreeOptions,
+} from './lib/AsyncBreadthFirstTraversalInstanceConfig';
+export type { AsyncBreadthFirstTreeRunner } from './lib/AsyncBreadthFirstTraversalRunner';
+export type {
+  BreadthFirstTreeOptionsPatch,
+  BreadthFirstTreeOptions,
+} from './lib/BreadthFirstTraversalInstanceConfig';
+export { BreadthFirstPhase } from './lib/BreadthFirstTraversalOrder';
+export type { BreadthFirstTreeRunner } from './lib/BreadthFirstTraversalRunner';
+export { traverseTreeBreadthFirst } from './traverseBreadthFirst';
+export { traverseTreeBreadthFirstAsync } from './traverseBreadthFirstAsync';

@@ -76,7 +76,7 @@ export function validateDefinition<Data, ID>(
     }
     return children;
   };
-  if (entry.kind === 'forest') {
+  if (entry.kind === 'roots') {
     checkSlots(entry.slots, null);
     for (const id of slotIds(entry.slots)) queue.push(id);
   }
@@ -96,8 +96,8 @@ export function validateDefinition<Data, ID>(
     const vertex = byId.get(id);
     if (vertex !== undefined) {
       for (const next of slotIds(vertex.slots)) queue.push(next);
-      for (const next of vertex.dependsOn) queue.push(next);
-      for (const next of vertex.dependsOnComplete) queue.push(next);
+      for (const next of vertex.dependsOnWork) queue.push(next);
+      for (const next of vertex.dependsOnSubgraphCompletion) queue.push(next);
     }
   }
   const unreachable = [...byId.keys(), ...omitted].filter(

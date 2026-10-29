@@ -8,8 +8,8 @@ function vertex(
     vertexId,
     data: vertexId,
     slots: [],
-    dependsOn: [],
-    dependsOnComplete: [],
+    dependsOnWork: [],
+    dependsOnSubgraphCompletion: [],
     ...overrides,
   };
 }
@@ -54,10 +54,10 @@ test('materialized definitions accept detached W and C prerequisite closures', (
     vertices: [
       vertex('remoteC', { slots: [{ kind: 'vertex', vertexId: 'child' }] }),
       vertex('root', {
-        dependsOn: ['remoteW'],
-        dependsOnComplete: ['remoteC'],
+        dependsOnWork: ['remoteW'],
+        dependsOnSubgraphCompletion: ['remoteC'],
       }),
-      vertex('remoteW', { dependsOn: ['skip'] }),
+      vertex('remoteW', { dependsOnWork: ['skip'] }),
       vertex('child'),
     ],
     omittedIds: ['skip'],
@@ -71,16 +71,16 @@ test('materialized definitions accept detached W and C prerequisite closures', (
     'child',
   ]);
   const runner = result.dag.createRunner();
-  const graph = runner.getResolvedGraph();
+  const graph = runner.getResolvedGraphView();
   expect(graph.getParentsOf(graph.getVertexRefById('remoteC')!)).toEqual([]);
   expect(
-    [...runner.getIterable()]
+    [...runner.iterateEvents()]
       .filter((event) => event.kind === 'workCompleted')
       .map((event) => event.vertexId),
   ).toEqual(['remoteW', 'remoteC', 'child', 'root']);
 });
 
-test.each(['dependsOn', 'dependsOnComplete'] as const)(
+test.each(['dependsOnWork', 'dependsOnSubgraphCompletion'] as const)(
   'unknown %s endpoints use milestone diagnostics',
   (field) => {
     const result = prepareDagDefinition({
@@ -105,9 +105,9 @@ test('combined W/C cycles use existing labelled milestone diagnostics', () => {
     vertices: [
       vertex('root', {
         slots: [{ kind: 'vertex', vertexId: 'child' }],
-        dependsOnComplete: ['child'],
+        dependsOnSubgraphCompletion: ['child'],
       }),
-      vertex('child', { dependsOn: ['root'] }),
+      vertex('child', { dependsOnWork: ['root'] }),
     ],
     omittedIds: [],
     entry: { kind: 'root', vertexId: 'root' },
@@ -117,7 +117,7 @@ test('combined W/C cycles use existing labelled milestone diagnostics', () => {
   expect(result.issues).toMatchObject([
     {
       kind: 'milestone',
-      diagnostics: { dependencyCycles: [['root', 'child']] },
+      diagnostics: { dependencyCycleComponents: [['root', 'child']] },
     },
   ]);
 });
@@ -160,7 +160,7 @@ test.each([
   { kind: 'root', vertexId: 'missing' },
   { kind: 'root', vertexId: 'skip' },
   { kind: 'empty' },
-  { kind: 'forest', slots: [{ kind: 'omitted', identity: null }] },
+  { kind: 'roots', slots: [{ kind: 'omitted', identity: null }] },
 ] as const)('invalid entry has no executable DAG %#', (entry) => {
   const result = prepareDagDefinition({
     vertices: [vertex('root')],
@@ -191,7 +191,7 @@ test('forest missing structural endpoints carry a null parent', () => {
     prepareDagDefinition({
       vertices: [],
       omittedIds: [],
-      entry: { kind: 'forest', slots: [{ kind: 'vertex', vertexId: null }] },
+      entry: { kind: 'roots', slots: [{ kind: 'vertex', vertexId: null }] },
     }),
   ).toEqual({
     kind: 'invalid',
@@ -208,8 +208,8 @@ test('structural self cycles use SameValueZero identity and deterministic declar
         vertexId: NaN,
         data: 1,
         slots: [{ kind: 'vertex', vertexId: NaN }],
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
       },
     ],
     omittedIds: [],
@@ -238,7 +238,7 @@ test.each([{ omittedIds: [] }, { omittedIds: [undefined, null, NaN] }])(
     expect([
       ...result.dag
         .createRunner({ completedWork: new Set(omittedIds) })
-        .getIterable(),
+        .iterateEvents(),
     ]).toEqual([]);
   },
 );
@@ -270,8 +270,8 @@ test('forest definitions preserve authored order, structural sharing and omitted
         vertexId: id,
         data,
         slots: [],
-        dependsOn: [undefined],
-        dependsOnComplete: [undefined],
+        dependsOnWork: [undefined],
+        dependsOnSubgraphCompletion: [undefined],
       },
       {
         vertexId: null,
@@ -280,13 +280,13 @@ test('forest definitions preserve authored order, structural sharing and omitted
           { kind: 'vertex', vertexId: id },
           { kind: 'vertex', vertexId: id },
         ],
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
       },
     ],
     omittedIds: [undefined],
     entry: {
-      kind: 'forest',
+      kind: 'roots',
       slots: [
         { kind: 'omitted', identity: { vertexId: undefined } },
         { kind: 'vertex', vertexId: null },
@@ -304,7 +304,7 @@ test('forest definitions preserve authored order, structural sharing and omitted
     completedWork: new Set([undefined]),
   });
   const events: unknown[] = [];
-  for await (const event of runner.getIterable())
+  for await (const event of runner.iterateEvents())
     events.push([event.vertexId, event.kind]);
   expect(events).toEqual([
     [null, 'workCompleted'],
@@ -321,7 +321,7 @@ test('forest omissions cannot masquerade as live or unknown identities', () => {
       vertices: [],
       omittedIds: ['unused'],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'omitted', identity: { vertexId: 'unknown' } },
           { kind: 'omitted', identity: { vertexId: 'unknown' } },
@@ -343,14 +343,14 @@ test('structural SCCs retain declaration order and stay separate before mileston
       vertices: [
         vertex('a', {
           slots: [{ kind: 'vertex', vertexId: 'b' }],
-          dependsOn: ['missing'],
+          dependsOnWork: ['missing'],
         }),
         vertex('b', { slots: [{ kind: 'vertex', vertexId: 'a' }] }),
         vertex('c', { slots: [{ kind: 'vertex', vertexId: 'c' }] }),
       ],
       omittedIds: [],
       entry: {
-        kind: 'forest',
+        kind: 'roots',
         slots: [
           { kind: 'vertex', vertexId: 'a' },
           { kind: 'vertex', vertexId: 'c' },
@@ -373,8 +373,8 @@ test('undefined is a live root identity rather than an absent record', () => {
         vertexId: undefined,
         data: 'live',
         slots: [],
-        dependsOn: [],
-        dependsOnComplete: [],
+        dependsOnWork: [],
+        dependsOnSubgraphCompletion: [],
       },
     ],
     omittedIds: [],
@@ -382,7 +382,7 @@ test('undefined is a live root identity rather than an absent record', () => {
   });
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(
-    [...result.dag.createRunner().getIterable()].map((event) => [
+    [...result.dag.createRunner().iterateEvents()].map((event) => [
       event.vertexId,
       event.kind,
     ]),
@@ -400,13 +400,13 @@ test('membership and SCC validation handle deep unreachable structures without r
       vertexId === 11999
         ? []
         : [{ kind: 'vertex' as const, vertexId: vertexId + 1 }],
-    dependsOn: [],
-    dependsOnComplete: [],
+    dependsOnWork: [],
+    dependsOnSubgraphCompletion: [],
   }));
   const result = prepareDagDefinition({
     vertices,
     omittedIds: [],
-    entry: { kind: 'forest', slots: [] },
+    entry: { kind: 'roots', slots: [] },
   });
   expect(result).toEqual({
     kind: 'invalid',

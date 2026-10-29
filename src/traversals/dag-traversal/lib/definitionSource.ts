@@ -1,20 +1,22 @@
-import type { TraversableGraph } from '@core/TraversableGraph';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { SourceVertexResult } from '@core/TraversableTree';
-import type { Ref } from '@core/graph/types';
+import type { DagDiscoverySource } from '@core/TraversableGraph';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { DagVertexResolution } from '@core/TraversableTree';
+import type { VertexHandle } from '@core/CTTRef';
+import { internalRef } from '@core/observationFacets';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { defineDag } from '../defineDag';
 import type { DagDefinition, DagDefinitionSlot } from './DagDefinition';
 
 /** Capture every discovery slot, including anonymous omissions omitted by replay. */
-export function captureDagDefinition<T extends TreeTypeParameters, ID>(
+export function captureDagDefinition<T extends VertexTypes, ID>(
   container: ResolvedGraphsContainer<T, T, ID>,
   candidates: ReadonlySet<ID>,
 ): DagDefinition<T['VertexData'], ID> {
   const graph = container.publicResolvedGraph;
-  const captureSlots = (ref: Ref<T>): DagDefinitionSlot<ID>[] => {
+  const captureSlots = (ref: VertexHandle<T>): DagDefinitionSlot<ID>[] => {
     const slots: DagDefinitionSlot<ID>[] = [];
-    for (const slot of container.resolvedGraph.get(ref)!.slots) {
+    for (const slot of container.resolvedGraphView.get(internalRef(ref))!
+      .slots) {
       if (slot.kind === 'linked')
         slots.push({
           kind: 'vertex',
@@ -42,13 +44,13 @@ export function captureDagDefinition<T extends TreeTypeParameters, ID>(
         vertexId: vertex.vertexId,
         data: vertex.vertex.getData(),
         slots: captureSlots(ref),
-        dependsOn: vertex.dependsOn,
-        dependsOnComplete: vertex.dependsOnComplete ?? [],
+        dependsOnWork: vertex.dependsOnWork,
+        dependsOnSubgraphCompletion: vertex.dependsOnSubgraphCompletion ?? [],
       };
     }),
     omittedIds,
     entry: container.syntheticRoot
-      ? { kind: 'forest', slots: holder === null ? [] : captureSlots(holder) }
+      ? { kind: 'roots', slots: holder === null ? [] : captureSlots(holder) }
       : root === null
       ? { kind: 'empty' }
       : { kind: 'root', vertexId: graph.getVertexId(root) },
@@ -59,14 +61,14 @@ export function captureDagDefinition<T extends TreeTypeParameters, ID>(
 export function definitionSource<Data, ID>(
   definition: DagDefinition<Data, ID>,
 ): {
-  traversableGraph: TraversableGraph<
-    TreeTypeParameters<Data, ID>,
-    TreeTypeParameters<Data, ID>,
+  traversableGraph: DagDiscoverySource<
+    VertexTypes<Data, ID>,
+    VertexTypes<Data, ID>,
     ID
   >;
   syntheticRoot: boolean;
 } {
-  type Replay = TreeTypeParameters<Data, ID>;
+  type Replay = VertexTypes<Data, ID>;
   const byId = new Map(
     definition.vertices.map((vertex) => [vertex.vertexId, vertex]),
   );
@@ -81,7 +83,7 @@ export function definitionSource<Data, ID>(
     }
     return result;
   };
-  const resolve = (id: ID): SourceVertexResult<Replay, ID> => {
+  const resolve = (id: ID): DagVertexResolution<Replay, ID> => {
     if (omitted.has(id))
       return { kind: 'omitted', vertexId: id, satisfiesDependencies: true };
     const vertex = byId.get(id)!;
@@ -89,20 +91,33 @@ export function definitionSource<Data, ID>(
       kind: 'found',
       vertex: {
         vertexId: vertex.vertexId,
-        dependsOn: vertex.dependsOn.slice(),
-        dependsOnComplete: vertex.dependsOnComplete.slice(),
+        dependsOnWork: vertex.dependsOnWork.slice(),
+        dependsOnSubgraphCompletion: vertex.dependsOnSubgraphCompletion.slice(),
         vertexContent: { $data: vertex.data, $childHints: hints(vertex.slots) },
       },
     };
   };
+  const rootHints = (slots: readonly DagDefinitionSlot<ID>[]): ID[] => {
+    const seen = new Set<ID>();
+    return hints(
+      slots.filter((slot) => {
+        if (slot.kind === 'omitted') return true;
+        if (seen.has(slot.vertexId)) return false;
+        seen.add(slot.vertexId);
+        return true;
+      }),
+    );
+  };
   const syntheticRoot =
-    definition.entry.kind === 'forest' ||
+    definition.entry.kind === 'roots' ||
     (definition.entry.kind === 'empty' && omitted.size > 0);
   return {
     syntheticRoot,
     traversableGraph: {
-      makeRoot: () => {
+      resolveRoot: () => {
         const entry = definition.entry;
+        // The private holder discovers repeated live identities once; the authored entry
+        // retains repeated ordered slots for round trips and walking adapters.
         if (syntheticRoot)
           return {
             kind: 'found',
@@ -111,8 +126,8 @@ export function definitionSource<Data, ID>(
               vertexContent: {
                 $data: undefined as Data,
                 $childHints:
-                  entry.kind === 'forest'
-                    ? hints(entry.slots)
+                  entry.kind === 'roots'
+                    ? rootHints(entry.slots)
                     : definition.omittedIds.slice(),
               },
             },
@@ -121,7 +136,7 @@ export function definitionSource<Data, ID>(
           ? resolve(entry.vertexId)
           : { kind: 'omitted', satisfiesDependencies: true };
       },
-      makeVertex: resolve,
+      resolveChild: resolve,
       resolvePrerequisite: (id) =>
         byId.has(id) || omitted.has(id) ? resolve(id) : { kind: 'missing' },
       getVertexIdFromHint: (vertexId) => ({ vertexId }),

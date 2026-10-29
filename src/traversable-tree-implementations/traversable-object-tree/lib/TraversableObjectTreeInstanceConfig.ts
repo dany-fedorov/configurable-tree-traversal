@@ -1,42 +1,26 @@
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
-import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
+import type { ObjectCurrentVertexTypes } from '@traversable-object-tree/lib/ObjectCurrentVertexTypes';
 import type {
-  TreeFoundVertexResult,
-  TreeOmittedVertexResult,
-  MakeVertexOptions,
+  TreeChildResolutionContext,
+  TreeVertexFound,
+  TreeVertexOmitted,
 } from '@core/TraversableTree';
-import type { VertexContentInput } from '@core/Vertex';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
+import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 
-export type ObjectVertexHookResult<T extends TreeTypeParameters> =
+export type ObjectChildHookResult<T extends VertexTypes> =
   | {
       kind: 'useDefault';
       vertexId?: never;
-      dependsOn?: never;
-      dependsOnComplete?: never;
+      dependsOnWork?: never;
+      dependsOnSubgraphCompletion?: never;
       satisfiesDependencies?: never;
     }
-  | TreeFoundVertexResult<T>
-  | TreeOmittedVertexResult;
+  | TreeVertexFound<T>
+  | TreeVertexOmitted;
 
-/** @deprecated Use resolveVertexHook and tagged results. */
-export type TraversableObjectTreeInstanceConfig_makeVertexHook<
-  InK extends TraversableObjectPropKey,
-  InV,
-  OutK extends TraversableObjectPropKey,
-  OutV,
-> = (
-  vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
-  _options: MakeVertexOptions<
-    TraversableObjectTTP<InK, InV>,
-    TraversableObjectTTP<OutK, OutV>
-  >,
-) => {
-  returnMe?: VertexContentInput<TraversableObjectTTP<InK, InV>> | null;
-};
-
-export type TraversableObjectTreeInstanceConfigInput<
+export type ObjectTreeBaseOptions<
   In,
   InK extends TraversableObjectPropKey,
   InV,
@@ -45,43 +29,59 @@ export type TraversableObjectTreeInstanceConfigInput<
 > = {
   getChildrenOfProperty?: (
     prop: TraversableObjectProp<InK, InV>,
-  ) => TraversableObjectTTP<InK, InV>['VertexHint'][];
+  ) => ObjectTreeVertexTypes<InK, InV>['VertexHint'][];
   getRootPropertyFromInputObject?: (
     inputObj: In,
   ) => TraversableObjectProp<InK, InV>;
-  resolveVertexHook?: (
-    vertexHint: TraversableObjectTTP<InK, InV>['VertexHint'],
-    options: MakeVertexOptions<
-      TraversableObjectTTP<InK, InV>,
-      TraversableObjectTTP<OutK, OutV>
+  resolveChildHook?: (
+    vertexHint: ObjectTreeVertexTypes<InK, InV>['VertexHint'],
+    context: TreeChildResolutionContext<
+      ObjectTreeVertexTypes<InK, InV>,
+      ObjectCurrentVertexTypes<
+        ObjectTreeVertexTypes<InK, InV>,
+        ObjectTreeVertexTypes<OutK, OutV>
+      >
     >,
-  ) => ObjectVertexHookResult<TraversableObjectTTP<InK, InV>>;
-  /** @deprecated Use resolveVertexHook. */
-  makeVertexHook?: TraversableObjectTreeInstanceConfig_makeVertexHook<
-    InK,
-    InV,
-    OutK,
-    OutV
-  > | null;
+  ) => ObjectChildHookResult<ObjectTreeVertexTypes<InK, InV>>;
 };
 
-export type TraversableObjectTreeInstanceConfig<
+/** Both adapters establish a narrow discovery domain, including its root. */
+export type ObjectTreePropertyAdapters<
+  In,
+  InK extends TraversableObjectPropKey,
+  InV,
+> = Required<
+  Pick<
+    ObjectTreeBaseOptions<In, InK, InV, InK, InV>,
+    'getRootPropertyFromInputObject' | 'getChildrenOfProperty'
+  >
+>;
+
+export type ObjectTreeOptions<
+  In,
+  InK extends TraversableObjectPropKey,
+  InV,
+  OutK extends TraversableObjectPropKey,
+  OutV,
+> = ObjectTreeBaseOptions<In, InK, InV, OutK, OutV> &
+  ([TraversableObjectPropKey, unknown] extends [InK, InV]
+    ? unknown
+    : ObjectTreePropertyAdapters<In, InK, InV>);
+
+export type ObjectTreeResolvedOptions<
   In,
   InK extends TraversableObjectPropKey,
   InV,
   OutK extends TraversableObjectPropKey,
   OutV,
 > = Required<
-  Omit<
-    TraversableObjectTreeInstanceConfigInput<In, InK, InV, OutK, OutV>,
-    'resolveVertexHook'
-  >
+  Omit<ObjectTreeBaseOptions<In, InK, InV, OutK, OutV>, 'resolveChildHook'>
 > & {
-  resolveVertexHook: TraversableObjectTreeInstanceConfigInput<
+  resolveChildHook: ObjectTreeBaseOptions<
     In,
     InK,
     InV,
     OutK,
     OutV
-  >['resolveVertexHook'];
+  >['resolveChildHook'];
 };

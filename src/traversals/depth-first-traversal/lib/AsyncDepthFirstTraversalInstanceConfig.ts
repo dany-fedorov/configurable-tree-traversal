@@ -1,67 +1,69 @@
+import {
+  mergeInOrderOptions,
+  type InOrderOptionsPatch,
+} from './DepthFirstTraversalInOrderTraversalConfig';
+import {
+  assertTraversalFields,
+  definedOptions,
+} from '@core/assertPublicOptions';
+import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
+import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
+import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
+import type { VisitorRecord } from '@core/graph/types';
 import type { VisitorInputs } from '@core/TraversalVisitor';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import type { AsyncTraversableTree } from '@core/AsyncTraversableTree';
-import type { AsyncTraversalVisitor } from '@core/AsyncTraversalVisitor';
-import type { MaybePromise, VisitorRecord } from '@core/graph/types';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  type DepthFirstTraversalInstanceConfig,
+  type DepthFirstTreeResolvedOptions,
 } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
-import type { DepthFirstTraversalOrder } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import { DepthFirstTraversalOrder as Order } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
-import type { DepthFirstTraversalInstanceConfigDeepPartial } from '@depth-first-traversal/type-helpers/DepthFirstTraversalInstanceConfigDeepPartial';
-import type { IndexRange } from '@depth-first-traversal/in-order-helpers/IndexRange';
+import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstPhase as Order } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type AsyncDepthFirstTraversalVisitors<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 > = {
-  [K in DepthFirstTraversalOrder]: VisitorRecord<
-    AsyncTraversalVisitor<K, TTP, RW_TTP>
-  >[];
+  [K in DepthFirstPhase]: VisitorRecord<AsyncTreeVisitor<K, TTP, RW_TTP>>[];
 };
 
-export type AsyncSortChildrenHintsFn<TTP extends TreeTypeParameters> = (
-  childrenHints: TTP['VertexHint'][],
-) => MaybePromise<TTP['VertexHint'][]>;
-
-export type AsyncDepthFirstTraversalInstanceConfig<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
+export type AsyncDepthFirstTreeResolvedOptions<
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
 > = Omit<
-  DepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
+  DepthFirstTreeResolvedOptions<TTP, RW_TTP>,
   'traversableTree' | 'sortChildrenHints' | 'visitors'
 > & {
-  traversableTree: AsyncTraversableTree<TTP, RW_TTP>;
-  sortChildrenHints: AsyncSortChildrenHintsFn<TTP> | null;
+  traversableTree: AsyncTreeSource<TTP, RW_TTP>;
+  sortChildrenHints: AsyncChildHintSorter<TTP> | null;
   visitors: AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>;
   concurrency: number;
 };
 
-export type AsyncDepthFirstTraversalInstanceConfigInput<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters = TTP,
-> = Omit<
-  DepthFirstTraversalInstanceConfigDeepPartial<
-    AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-    | keyof AsyncDepthFirstTraversalInstanceConfig<
-        TTP,
-        RW_TTP
-      >['inOrderTraversalConfig']
-    | keyof AsyncDepthFirstTraversalInstanceConfig<
-        TTP,
-        RW_TTP
-      >['traversalRunnerInternalObjects']
-    | keyof AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>['visitors']
-    | 'traversableTree'
-  >,
-  'visitors'
-> & { visitors?: VisitorInputs<AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>> };
+export type AsyncDepthFirstTreeOptionsPatch<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> = {
+  traversableTree?: AsyncTreeSource<TTP, RW_TTP> | undefined;
+  sortChildrenHints?: AsyncChildHintSorter<TTP> | null | undefined;
+  visitors?:
+    | VisitorInputs<AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>>
+    | undefined;
+  retainOriginalTreeStructure?: boolean | undefined;
+  inOrder?: InOrderOptionsPatch | undefined;
+  concurrency?: number | undefined;
+};
+
+export type AsyncDepthFirstTreeOptions<
+  TTP extends VertexTypes = VertexTypes,
+  RW_TTP extends VertexTypes = TTP,
+> = AsyncDepthFirstTreeOptionsPatch<TTP, RW_TTP> & {
+  traversableTree: AsyncTreeSource<TTP, RW_TTP>;
+};
 
 export const ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
-  AsyncDepthFirstTraversalInstanceConfig<TreeTypeParameters>,
+  AsyncDepthFirstTreeResolvedOptions<VertexTypes>,
   'traversableTree'
 > = deepFreeze({
   ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -75,20 +77,22 @@ export const ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
 });
 
 export function mergeAsyncDepthFirstTraversalInstanceConfigs<
-  TTP extends TreeTypeParameters,
-  RW_TTP extends TreeTypeParameters,
+  TTP extends VertexTypes,
+  RW_TTP extends VertexTypes,
 >(
-  base: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP>,
-  input: AsyncDepthFirstTraversalInstanceConfigInput<TTP, RW_TTP>,
-): AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP> {
-  const inOrder = {
-    ...base.inOrderTraversalConfig,
-    ...input.inOrderTraversalConfig,
+  base: AsyncDepthFirstTreeResolvedOptions<TTP, RW_TTP>,
+  input: AsyncDepthFirstTreeOptionsPatch<TTP, RW_TTP>,
+): AsyncDepthFirstTreeResolvedOptions<TTP, RW_TTP> {
+  const capturedInput = definedOptions(input);
+  assertTraversalFields(capturedInput, Object.values(Order));
+  const inOrder = mergeInOrderOptions(base.inOrder, capturedInput.inOrder);
+  const visitors = {
+    ...base.visitors,
+    ...definedOptions(capturedInput.visitors ?? {}),
   };
-  const visitors = { ...base.visitors, ...input.visitors };
-  const merged: AsyncDepthFirstTraversalInstanceConfig<TTP, RW_TTP> = {
+  const merged: AsyncDepthFirstTreeResolvedOptions<TTP, RW_TTP> = {
     ...base,
-    ...input,
+    ...capturedInput,
     visitors: {
       [Order.PRE_ORDER]: normalizeVisitorDefinitions(visitors[Order.PRE_ORDER]),
       [Order.IN_ORDER]: normalizeVisitorDefinitions(visitors[Order.IN_ORDER]),
@@ -96,18 +100,9 @@ export function mergeAsyncDepthFirstTraversalInstanceConfigs<
         visitors[Order.POST_ORDER],
       ),
     },
-    inOrderTraversalConfig: {
-      ...inOrder,
-      visitParentAfterChildren: clonePositions(
-        inOrder.visitParentAfterChildren,
-      ),
-      visitParentAfterChildrenAllRangesOutOfBoundsFallback: clonePositions(
-        inOrder.visitParentAfterChildrenAllRangesOutOfBoundsFallback,
-      ),
-    },
+    inOrder,
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
-      ...(input.traversalRunnerInternalObjects ?? {}),
     },
   };
   if (
@@ -117,16 +112,4 @@ export function mergeAsyncDepthFirstTraversalInstanceConfigs<
     throw new TypeError('Concurrency must be a positive integer or Infinity');
   }
   return merged;
-}
-
-function cloneRange(range: IndexRange): IndexRange {
-  return typeof range === 'number' ? range : [range[0], range[1]];
-}
-
-function clonePositions(
-  positions: AsyncDepthFirstTraversalInstanceConfig<TreeTypeParameters>['inOrderTraversalConfig']['visitParentAfterChildren'],
-): AsyncDepthFirstTraversalInstanceConfig<TreeTypeParameters>['inOrderTraversalConfig']['visitParentAfterChildren'] {
-  return typeof positions === 'number' || Array.isArray(positions)
-    ? cloneRange(positions)
-    : { ranges: positions.ranges.map(cloneRange) };
 }

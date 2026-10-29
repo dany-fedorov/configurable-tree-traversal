@@ -1,32 +1,38 @@
-import { CTTRef } from '../src/core/CTTRef';
-import type { AsyncTraversableTree } from '../src/core/AsyncTraversableTree';
-import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
+import { resolutionContextView } from '../src/core/observationFacets';
+import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
+import { getTreeGraphStore } from '../src/core/graph/treeStoreCapabilities';
+import type { AsyncTreeSource } from '../src/core/AsyncTraversableTree';
+import { MutableRef } from '../src/core/CTTRef';
 import {
   bindGraphSource,
   bindTreeSource,
 } from '../src/core/drivers/callbackBindings';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
-import type { TraversableGraph } from '../src/core/TraversableGraph';
-import type { MakeVertexOptions } from '../src/core/TraversableTree';
+import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
+import type { DagDiscoverySource } from '../src/core/TraversableGraph';
+import type { TreeChildResolutionContext } from '../src/core/TraversableTree';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
-import type { VertexResolutionContext } from '../src/core/ResolvedTree';
-import { DepthFirstTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { runnerInternals } from './internal-runner-fixtures';
 
-type InputTTP = TreeTypeParameters<string, string>;
-type RewriteTTP = TreeTypeParameters<number, number>;
+type InputTTP = VertexTypes<string, string>;
+type RewriteTTP = VertexTypes<number, number>;
 
 function rootRef() {
-  return new CTTRef(
-    new Vertex<InputTTP | RewriteTTP>({ $d: 'root', $c: ['child'] }),
+  return new MutableRef(
+    new Vertex<InputTTP | RewriteTTP>({
+      $data: 'root',
+      $childHints: ['child'],
+    }),
   );
 }
 
 function childContext(
-  parentVertexRef: CTTRef<Vertex<InputTTP | RewriteTTP>>,
+  parentVertexRef: MutableRef<Vertex<InputTTP | RewriteTTP>>,
 ): VertexResolutionContext<InputTTP | RewriteTTP> {
   return {
     depth: 1,
-    parentVertex: parentVertexRef.unref(),
+    parentVertex: parentVertexRef.getValue(),
     parentVertexRef,
     hintIndex: 0,
     vertexHint: 'child',
@@ -34,80 +40,94 @@ function childContext(
 }
 
 test('tree binding reuses the legacy facade and passes real tree options', () => {
-  const treeContainer = new DepthFirstTraversal<InputTTP, RewriteTTP>({
-    traversableTree: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
-    },
-    saveNotMutatedResolvedTree: true,
-  }).makeRunner().resolvedTreesContainer;
+  const treeContainer = runnerInternals(
+    new DepthFirstTreeTraversal<InputTTP, RewriteTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
+      },
+      retainOriginalTreeStructure: true,
+    }).createRunner(),
+  ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
     saveOriginal: true,
     treeContainer,
   });
   const adapter = {
-    makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['child'] } }),
-    makeVertex: (
+    resolveRoot: () => ({
+      kind: 'found' as const,
+      vertex: { vertexContent: { $data: 'root', $childHints: ['child'] } },
+    }),
+    resolveChild: (
       hint: string,
-      options: MakeVertexOptions<InputTTP, RewriteTTP>,
+      options: TreeChildResolutionContext<InputTTP, RewriteTTP>,
     ) => {
-      expect(options.resolvedTree).toBe(container.treeContainer!.resolvedTree);
+      expect(options.resolvedTreeView).toBe(
+        container.treeContainer!.resolvedTree.asReadOnly(),
+      );
       expect(
-        options.resolvedTree.getParentOf(
+        options.resolvedTreeView.getParentOf(
           options.resolutionContext.parentVertexRef,
         ),
       ).toBeNull();
-      return { vertexContent: { $d: hint, $c: [] } };
+      return {
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+      };
     },
   };
   const parent = rootRef();
-  container.acceptRoot(parent, parent.getId());
+  container.acceptRoot(parent, parent.getRefId());
 
-  const result = bindTreeSource(adapter, container).makeVertex(
+  const result = bindTreeSource(adapter, container).resolveChild(
     childContext(parent),
   );
 
-  expect(result).toEqual({ vertexContent: { $d: 'child', $c: [] } });
-  expect(container.store).toBe(treeContainer.resolvedTree.getGraphStore());
-  expect(container.resolvedGraph).toBe(
-    treeContainer.resolvedTree.getResolvedGraph(),
+  expect(result).toEqual({
+    vertexContent: { $data: 'child', $childHints: [] },
+  });
+  expect(container.store).toBe(getTreeGraphStore(treeContainer.resolvedTree));
+  expect(container.publicResolvedGraph).toBe(
+    treeContainer.resolvedTree.getResolvedGraphView(),
   );
 
-  const child = new CTTRef(
-    new Vertex<InputTTP | RewriteTTP>({ $d: 'child', $c: [] }),
+  const child = new MutableRef(
+    new Vertex<InputTTP | RewriteTTP>({ $data: 'child', $childHints: [] }),
   );
-  container.acceptVertex(child, child.getId(), [], childContext(parent));
+  container.acceptVertex(child, child.getRefId(), [], childContext(parent));
   container.store.prepareSlots(parent, ['child']);
   container.acceptEdge(parent, 0, child);
-  const savedParent = treeContainer.notMutatedResolvedTreeRefsMap!.get(parent)!;
-  const savedChild = treeContainer.notMutatedResolvedTreeRefsMap!.get(child)!;
+  const savedParent = treeContainer.originalTreeRefsMap!.get(parent)!;
+  const savedChild = treeContainer.originalTreeRefsMap!.get(child)!;
 
-  expect(container.resolvedGraph.get(parent)?.slots).toEqual([
+  expect(container.resolvedGraphView.get(parent)?.slots).toEqual([
     { kind: 'linked', hint: 'child', childRef: child },
   ]);
-  expect(
-    treeContainer.notMutatedResolvedTree!.getChildrenOf(savedParent),
-  ).toEqual([savedChild]);
+  expect(treeContainer.originalTreeView!.getChildrenOf(savedParent)).toEqual([
+    savedChild,
+  ]);
 });
 
-test.each(['vertexId', 'dependsOn'] as const)(
+test.each(['vertexId', 'dependsOnWork'] as const)(
   'tree binding rejects the %s graph metadata field',
   async (field) => {
     const metadata =
-      field === 'vertexId' ? { vertexId: 'id' } : { dependsOn: [] };
-    const adapter: AsyncTraversableTree<InputTTP> = {
+      field === 'vertexId' ? { vertexId: 'id' } : { dependsOnWork: [] };
+    const adapter: AsyncTreeSource<InputTTP> = {
       // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
-      makeRoot: async () => ({ vertexContent: null, ...metadata }),
+      resolveRoot: async () => ({ kind: 'omitted' as const, ...metadata }),
       // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
-      makeVertex: async () => ({ vertexContent: null, ...metadata }),
+      resolveChild: async () => ({ kind: 'omitted' as const, ...metadata }),
     };
-    const treeContainer = new DepthFirstTraversal<InputTTP>({
-      traversableTree: {
-        makeRoot: () => ({ vertexContent: null }),
-        makeVertex: () => ({ vertexContent: null }),
-      },
-    }).makeRunner().resolvedTreesContainer;
+    const treeContainer = runnerInternals(
+      new DepthFirstTreeTraversal<InputTTP>({
+        traversableTree: {
+          resolveRoot: () => ({ kind: 'omitted' as const }),
+          resolveChild: () => ({ kind: 'omitted' as const }),
+        },
+      }).createRunner(),
+    ).resolvedTreesContainer;
     const container = new ResolvedGraphsContainer({
       sourceMode: 'tree',
       saveOriginal: false,
@@ -115,26 +135,30 @@ test.each(['vertexId', 'dependsOn'] as const)(
     });
     const source = bindTreeSource(adapter, container);
 
-    await expect(source.makeRoot()).rejects.toThrow(/tree source.*metadata/i);
+    await expect(source.resolveRoot()).rejects.toThrow(
+      /tree source.*metadata/i,
+    );
   },
 );
 
 test.each([
-  ['makeRoot', 'vertexId'],
-  ['makeRoot', 'dependsOn'],
-  ['makeVertex', 'vertexId'],
-  ['makeVertex', 'dependsOn'],
+  ['resolveRoot', 'vertexId'],
+  ['resolveRoot', 'dependsOnWork'],
+  ['resolveChild', 'vertexId'],
+  ['resolveChild', 'dependsOnWork'],
 ] as const)(
   'tree binding rejects synchronous %s %s metadata',
   (method, field) => {
     const metadata =
-      field === 'vertexId' ? { vertexId: 'id' } : { dependsOn: [] };
-    const treeContainer = new DepthFirstTraversal<InputTTP, RewriteTTP>({
-      traversableTree: {
-        makeRoot: () => ({ vertexContent: null }),
-        makeVertex: () => ({ vertexContent: null }),
-      },
-    }).makeRunner().resolvedTreesContainer;
+      field === 'vertexId' ? { vertexId: 'id' } : { dependsOnWork: [] };
+    const treeContainer = runnerInternals(
+      new DepthFirstTreeTraversal<InputTTP, RewriteTTP>({
+        traversableTree: {
+          resolveRoot: () => ({ kind: 'omitted' as const }),
+          resolveChild: () => ({ kind: 'omitted' as const }),
+        },
+      }).createRunner(),
+    ).resolvedTreesContainer;
     const container = new ResolvedGraphsContainer<InputTTP, RewriteTTP>({
       sourceMode: 'tree',
       saveOriginal: false,
@@ -143,19 +167,19 @@ test.each([
     const source = bindTreeSource(
       {
         // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
-        makeRoot: () => ({ vertexContent: null, ...metadata }),
+        resolveRoot: () => ({ kind: 'omitted' as const, ...metadata }),
         // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
-        makeVertex: () => ({ vertexContent: null, ...metadata }),
+        resolveChild: () => ({ kind: 'omitted' as const, ...metadata }),
       },
       container,
     );
 
-    if (method === 'makeRoot') {
-      expect(() => source.makeRoot()).toThrow(/tree source.*metadata/i);
+    if (method === 'resolveRoot') {
+      expect(() => source.resolveRoot()).toThrow(/tree source.*metadata/i);
     } else {
       const parent = rootRef();
-      container.acceptRoot(parent, parent.getId());
-      expect(() => source.makeVertex(childContext(parent))).toThrow(
+      container.acceptRoot(parent, parent.getRefId());
+      expect(() => source.resolveChild(childContext(parent))).toThrow(
         /tree source.*metadata/i,
       );
     }
@@ -170,23 +194,29 @@ test('graph binding passes graph options and forwards hint identity', () => {
   const parent = rootRef();
   container.acceptRoot(parent, 'root');
   const context = childContext(parent);
-  const adapter: TraversableGraph<InputTTP, RewriteTTP> = {
-    makeRoot: () => ({ vertexContent: null }),
-    makeVertex: (hint, options) => {
+  const adapter: DagDiscoverySource<InputTTP, RewriteTTP> = {
+    resolveRoot: () => ({
+      kind: 'omitted' as const,
+      satisfiesDependencies: true as const,
+    }),
+    resolveChild: (hint, options) => {
       expect(hint).toBe('child');
       expect(options).toEqual({
-        resolutionContext: context,
-        resolvedGraph: container.resolvedGraph,
-        notMutatedResolvedGraph: container.notMutatedResolvedGraph,
+        resolutionContext: resolutionContextView(context),
+        resolvedGraphView: container.publicResolvedGraph,
+        originalGraphView: container.originalGraphView,
       });
-      return { vertexContent: { $d: hint, $c: [] } };
+      return {
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+      };
     },
     getVertexIdFromHint: (hint) => ({ vertexId: `id:${hint}` }),
   };
   const source = bindGraphSource(adapter, container);
 
-  expect(source.makeVertex(context)).toEqual({
-    vertexContent: { $d: 'child', $c: [] },
+  expect(source.resolveChild(context)).toEqual({
+    vertexContent: { $data: 'child', $childHints: [] },
   });
   expect(source.getVertexIdFromHint?.('child')).toEqual({
     vertexId: 'id:child',
@@ -195,12 +225,14 @@ test('graph binding passes graph options and forwards hint identity', () => {
 });
 
 test('graph binding rejects a tree-mode container', () => {
-  const treeContainer = new DepthFirstTraversal<InputTTP>({
-    traversableTree: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
-    },
-  }).makeRunner().resolvedTreesContainer;
+  const treeContainer = runnerInternals(
+    new DepthFirstTreeTraversal<InputTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
+      },
+    }).createRunner(),
+  ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
     saveOriginal: false,
@@ -210,8 +242,14 @@ test('graph binding rejects a tree-mode container', () => {
   expect(() =>
     bindGraphSource(
       {
-        makeRoot: () => ({ vertexContent: null }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
+        resolveChild: () => ({
+          satisfiesDependencies: true as const,
+          kind: 'omitted' as const,
+        }),
       },
       container,
     ),
@@ -226,8 +264,8 @@ test('tree binding rejects a graph-mode container', () => {
   expect(() =>
     bindTreeSource(
       {
-        makeRoot: () => ({ vertexContent: null }),
-        makeVertex: () => ({ vertexContent: null }),
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
       container,
     ),
@@ -235,33 +273,31 @@ test('tree binding rejects a graph-mode container', () => {
 });
 
 test('tree binding preserves a throwing then accessor for sync diagnostics', () => {
-  const treeContainer = new DepthFirstTraversal<InputTTP>({
-    traversableTree: {
-      makeRoot: () => ({ vertexContent: null }),
-      makeVertex: () => ({ vertexContent: null }),
-    },
-  }).makeRunner().resolvedTreesContainer;
+  const treeContainer = runnerInternals(
+    new DepthFirstTreeTraversal<InputTTP>({
+      traversableTree: {
+        resolveRoot: () => ({ kind: 'omitted' as const }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
+      },
+    }).createRunner(),
+  ).resolvedTreesContainer;
   const container = new ResolvedGraphsContainer({
     sourceMode: 'tree',
     saveOriginal: false,
     treeContainer,
   });
-  const result = Object.defineProperty(
-    { vertexContent: null },
-    'then',
-    {
-      get() {
-        throw new Error('then getter');
-      },
+  const result = Object.defineProperty({ kind: 'omitted' as const }, 'then', {
+    get() {
+      throw new Error('then getter');
     },
-  );
+  });
   const bound = bindTreeSource(
     {
-      makeRoot: () => result,
-      makeVertex: () => ({ vertexContent: null }),
+      resolveRoot: () => result,
+      resolveChild: () => ({ kind: 'omitted' as const }),
     },
     container,
   );
-  const value = bound.makeRoot();
+  const value = bound.resolveRoot();
   expect(() => Reflect.get(value, 'then')).toThrow('then getter');
 });

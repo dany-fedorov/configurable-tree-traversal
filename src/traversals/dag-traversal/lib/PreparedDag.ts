@@ -1,17 +1,17 @@
-import type { DagDefinition, DagDefinitionResult } from './DagDefinition';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
-import type { DagTraversalConfigureInput } from './DagTraversalInstanceConfig';
-import type { AsyncDagTraversalConfigureInput } from './AsyncDagTraversalInstanceConfig';
-import type { DagTraversalRunner } from './DagTraversalRunner';
+import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { AsyncDagWorkSession, DagWorkSession } from '../coordinateDag';
+import type { AsyncDagOptionsPatch } from './AsyncDagTraversalInstanceConfig';
 import type { AsyncDagTraversalRunner } from './AsyncDagTraversalRunner';
-import type { DagCoordinator, AsyncDagCoordinator } from '../coordinateDag';
+import type { DagDefinition } from './DagDefinition';
+import type { DagOptionsPatch } from './DagTraversalInstanceConfig';
+import type { DagTraversalRunner } from './DagTraversalRunner';
 
 export type PreparedDagVertex<Data, ID> = Readonly<{
   vertexId: ID;
   data: Data;
   children: readonly ID[];
-  dependsOn: readonly ID[];
-  dependsOnComplete: readonly ID[];
+  dependsOnWork: readonly ID[];
+  dependsOnSubgraphCompletion: readonly ID[];
 }>;
 
 type OwnedOptions = {
@@ -19,50 +19,41 @@ type OwnedOptions = {
   traversableTree?: never;
   syntheticRoot?: never;
   discovery?: never;
-  rootDependencies?: never;
-  implicitParentDependency?: never;
+  rootWorkDependencies?: never;
+  omittedWorkDependencies?: never;
   sortChildrenHints?: never;
   traversalRunnerInternalObjects?: never;
 };
 
 export type PreparedDagRunnerOptions<Data, ID> = Pick<
-  DagTraversalConfigureInput<
-    TreeTypeParameters<Data, ID>,
-    TreeTypeParameters<Data, ID>,
-    ID
-  >,
+  DagOptionsPatch<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>,
   | 'visitors'
   | 'completedWork'
   | 'workCompletion'
-  | 'saveNotMutatedResolvedGraph'
+  | 'retainOriginalGraphStructure'
 > &
   OwnedOptions;
 
 export type PreparedAsyncDagRunnerOptions<Data, ID> = Pick<
-  AsyncDagTraversalConfigureInput<
-    TreeTypeParameters<Data, ID>,
-    TreeTypeParameters<Data, ID>,
-    ID
-  >,
+  AsyncDagOptionsPatch<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>,
   | 'visitors'
   | 'completedWork'
   | 'workCompletion'
-  | 'saveNotMutatedResolvedGraph'
+  | 'retainOriginalGraphStructure'
   | 'concurrency'
 > &
   OwnedOptions;
 
-export type PreparedDagSessionOptions<ID> = OwnedOptions & {
+export type DagWorkSessionOptions<ID> = OwnedOptions & {
   completedWork?: ReadonlySet<ID>;
   visitors?: never;
   workCompletion?: never;
-  saveNotMutatedResolvedGraph?: never;
+  retainOriginalGraphStructure?: never;
 };
 
-export type PreparedAsyncDagSessionOptions<ID> =
-  PreparedDagSessionOptions<ID> & {
-    concurrency?: number;
-  };
+export type AsyncDagWorkSessionOptions<ID> = DagWorkSessionOptions<ID> & {
+  concurrency?: number;
+};
 
 /** An in-memory validated topology; data and identities remain shallow caller values. */
 export interface PreparedDag<Data, ID = unknown> {
@@ -72,27 +63,14 @@ export interface PreparedDag<Data, ID = unknown> {
   readonly definition: DagDefinition<Data, ID>;
   createRunner(
     options?: PreparedDagRunnerOptions<Data, ID>,
-  ): DagTraversalRunner<
-    TreeTypeParameters<Data, ID>,
-    TreeTypeParameters<Data, ID>,
-    ID
-  >;
+  ): DagTraversalRunner<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>;
   createAsyncRunner(
     options?: PreparedAsyncDagRunnerOptions<Data, ID>,
   ): Promise<
-    AsyncDagTraversalRunner<
-      TreeTypeParameters<Data, ID>,
-      TreeTypeParameters<Data, ID>,
-      ID
-    >
+    AsyncDagTraversalRunner<VertexTypes<Data, ID>, VertexTypes<Data, ID>, ID>
   >;
-  createSession(options?: PreparedDagSessionOptions<ID>): DagCoordinator<ID>;
-  createAsyncSession(
-    options?: PreparedAsyncDagSessionOptions<ID>,
-  ): Promise<AsyncDagCoordinator<ID>>;
+  createWorkSession(options?: DagWorkSessionOptions<ID>): DagWorkSession<ID>;
+  createAsyncWorkSession(
+    options?: AsyncDagWorkSessionOptions<ID>,
+  ): Promise<AsyncDagWorkSession<ID>>;
 }
-
-export type PrepareDagResult<Data, ID = unknown> = DagDefinitionResult<
-  Data,
-  ID
->;

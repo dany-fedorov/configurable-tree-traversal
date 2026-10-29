@@ -1,0 +1,3 @@
+typed patch requested note=new; actual note= old
+rewrite value declared number; actual type= string
+rewrite context vertex declared input; actual type= string

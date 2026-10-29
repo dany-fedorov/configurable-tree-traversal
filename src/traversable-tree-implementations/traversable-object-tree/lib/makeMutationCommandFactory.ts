@@ -1,125 +1,235 @@
-import type { TraversableObjectTTP } from '@traversable-object-tree/lib/TraversableObjectTTP';
+import {
+  assertOwnKeys,
+  assertOptionalCallbacks,
+  OBJECT_MUTATION_OPTION_KEYS,
+  definedOptions,
+} from '@core/assertPublicOptions';
+import type { ObjectCurrentVertexTypes } from './ObjectCurrentVertexTypes';
+import type { ObjectTreeVertexTypes } from '@traversable-object-tree/lib/ObjectTreeVertexTypes';
 import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
-import type { TraversalVisitor } from '@core/TraversalVisitor';
-import type { TO_IsCompositeAssertionsMixin } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
-import type { CTTRef } from '@core/CTTRef';
-import type { Vertex } from '@core/Vertex';
-import type {
-  MakeMutationCommandFunction,
-  MakeMutationCommandFunctionInput,
-  MakeMutationCommandFunctionResult,
-} from '@core/MakeMutationCommandFunctionFactory';
+import type { TreeVisitor } from '@core/TraversalVisitor';
+import type { ObjectCompositeClassification } from '@traversable-object-tree/lib/TO_IsCompositeAssertionsMixin';
+import type { VertexHandle } from '@core/CTTRef';
+import type { MutationCommand } from '@core/MakeMutationCommandFunctionFactory';
 import type { TraversableObjectProp } from '@traversable-object-tree/lib/TraversableObjectProp';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
-export type TO_MakeMutationCommandFunctionFactoryConfiguration<
-  IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-  OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
+/** Reference-keyed assembly storage must accept every reconstructed value. */
+export type ObjectAssemblyCache<Key> = {
+  has: (key: Key) => boolean;
+  get: (key: Key) => unknown;
+  set: (key: Key, value: unknown) => unknown;
+};
+
+export type ObjectMutationOptions<
+  InputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
+  OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
 > = {
-  isArray?: (vertexData: IN_TO_TTP['VertexData']) => boolean;
-  isObject?: (vertexData: IN_TO_TTP['VertexData']) => boolean;
+  arrayIndexPolicy?: 'compactInTraversalOrder' | 'preserveNumericKeys';
+  propertyCollision?: 'error' | 'firstWins' | 'lastWins';
+  isArray?: (
+    vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
+  ) => boolean;
+  isObject?: (
+    vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
+  ) => boolean;
   assembleArray?: (
-    processedChildren: OUT_TO_TTP['VertexData'][],
-    vertexData: IN_TO_TTP['VertexData'],
+    processedChildren: ObjectCurrentVertexTypes<
+      InputTypes,
+      OutputTypes
+    >['VertexData'][],
+    vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
     visitorArguments: Parameters<
-      TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
+      TreeVisitor<
+        string,
+        InputTypes,
+        ObjectCurrentVertexTypes<InputTypes, OutputTypes>
+      >
     >,
-    isCompositeAssertions: TO_IsCompositeAssertionsMixin,
-  ) => OUT_TO_TTP['VertexData']['value'];
+    isCompositeAssertions: ObjectCompositeClassification,
+  ) => unknown;
   assembleObject?: (
-    processedChildren: OUT_TO_TTP['VertexData'][],
-    vertexData: IN_TO_TTP['VertexData'],
+    processedChildren: ObjectCurrentVertexTypes<
+      InputTypes,
+      OutputTypes
+    >['VertexData'][],
+    vertexData: ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'],
     visitorArguments: Parameters<
-      TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
+      TreeVisitor<
+        string,
+        InputTypes,
+        ObjectCurrentVertexTypes<InputTypes, OutputTypes>
+      >
     >,
-    isCompositeAssertions: TO_IsCompositeAssertionsMixin,
-  ) => OUT_TO_TTP['VertexData']['value'];
-  assembledMap?: Map<
-    CTTRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
-    OUT_TO_TTP['VertexData']['value']
+    isCompositeAssertions: ObjectCompositeClassification,
+  ) => unknown;
+  assembledMap?: ObjectAssemblyCache<
+    VertexHandle<ObjectCurrentVertexTypes<InputTypes, OutputTypes>>
   >;
 };
+
+export type ObjectMutationRequest<
+  OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
+> =
+  | { kind: 'rewrite'; patch: ObjectPropertyPatch<OutputTypes>; value?: never }
+  | { kind: 'delete'; patch?: never; value?: never }
+  | { kind: 'keep'; patch?: never; value?: never };
 
 /** Object helpers merge only the supplied output property fields. */
-export type TO_MutationPropertyPatch<
-  OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-> = Partial<OUT_TO_TTP['VertexData']>;
+export type ObjectPropertyPatch<
+  OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
+> = Partial<Pick<OutputTypes['VertexData'], 'key' | 'value'>>;
 
-export type TO_MakeMutationCommandFactoryResult<
-  OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-> = TO_IsCompositeAssertionsMixin & {
-  makeMutationCommand: MakeMutationCommandFunction<
-    OUT_TO_TTP,
-    TO_MutationPropertyPatch<OUT_TO_TTP>
+export type ObjectMutationCommands<
+  OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
+  InputTypes extends ObjectTreeVertexTypes<
+    TraversableObjectPropKey,
+    unknown
+  > = OutputTypes,
+> = ObjectCompositeClassification & {
+  makeMutationCommand: (
+    request?: ObjectMutationRequest<OutputTypes>,
+  ) => MutationCommand<
+    ObjectCurrentVertexTypes<InputTypes, OutputTypes>,
+    TraversalVisitorCommandName.DELETE_TREE_SUBTREE
   >;
-  assembleComposite: (saveToMap?: boolean) => OUT_TO_TTP['VertexData']['value'];
+  assembleComposite: (saveToMap?: boolean) => unknown;
 };
 
-export type TO_MakeMutationCommandFunctionFactory_2<
-  IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-  OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
+export type ObjectMutationBinder<
+  InputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
+  OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
 > = (
   ...visitorArguments: Parameters<
-    TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
+    TreeVisitor<
+      string,
+      InputTypes,
+      ObjectCurrentVertexTypes<InputTypes, OutputTypes>
+    >
   >
-) => TO_MakeMutationCommandFactoryResult<OUT_TO_TTP>;
+) => ObjectMutationCommands<OutputTypes, InputTypes>;
 
-export type TO_MakeMutationCommandFunctionFactory = <
-  IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-  OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
+export type ObjectMutationBinderFactory = <
+  InputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
+  OutputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
 >(
-  input_0?: TO_MakeMutationCommandFunctionFactoryConfiguration<
-    IN_TO_TTP,
-    OUT_TO_TTP
-  >,
-) => TO_MakeMutationCommandFunctionFactory_2<IN_TO_TTP, OUT_TO_TTP>;
+  options?: ObjectMutationOptions<InputTypes, OutputTypes>,
+) => ObjectMutationBinder<InputTypes, OutputTypes>;
 
-export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
-  function TraversableObjectTree_makeMutationCommandFactory_0<
-    IN_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-    OUT_TO_TTP extends TraversableObjectTTP<TraversableObjectPropKey, unknown>,
-  >(
-    input_0?: TO_MakeMutationCommandFunctionFactoryConfiguration<
-      IN_TO_TTP,
-      OUT_TO_TTP
+export const createObjectMutationBinder: ObjectMutationBinderFactory =
+  function configureObjectMutation<
+    InputTypes extends ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>,
+    OutputTypes extends ObjectTreeVertexTypes<
+      TraversableObjectPropKey,
+      unknown
     >,
-  ): TO_MakeMutationCommandFunctionFactory_2<IN_TO_TTP, OUT_TO_TTP> {
+  >(
+    options?: ObjectMutationOptions<InputTypes, OutputTypes>,
+  ): ObjectMutationBinder<InputTypes, OutputTypes> {
+    if (options !== undefined) {
+      assertOwnKeys(options, OBJECT_MUTATION_OPTION_KEYS);
+      options = definedOptions(options);
+      assertOptionalCallbacks(options, [
+        'isArray',
+        'isObject',
+        'assembleArray',
+        'assembleObject',
+      ]);
+      const assemblyCache = options.assembledMap;
+      if (
+        assemblyCache !== undefined &&
+        (assemblyCache === null ||
+          ['has', 'get', 'set'].some(
+            (key) => typeof Reflect.get(assemblyCache, key) !== 'function',
+          ))
+      )
+        throw new TypeError('assembledMap requires has/get/set');
+    }
+    const {
+      arrayIndexPolicy = 'compactInTraversalOrder',
+      propertyCollision = 'error',
+    } = options ?? {};
+    if (
+      arrayIndexPolicy !== 'compactInTraversalOrder' &&
+      arrayIndexPolicy !== 'preserveNumericKeys'
+    ) {
+      throw new TypeError('Invalid arrayIndexPolicy');
+    }
+    if (
+      propertyCollision !== 'error' &&
+      propertyCollision !== 'firstWins' &&
+      propertyCollision !== 'lastWins'
+    ) {
+      throw new TypeError('Invalid propertyCollision');
+    }
     const {
       isObject,
       isArray,
-      assembleObject,
-      assembleArray,
+      assembleObject: customAssembleObject,
+      assembleArray: customAssembleArray,
       assembledMap: assembledMapInput,
     } = {
-      ...MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT,
-      ...input_0,
+      ...OBJECT_MUTATION_DEFAULTS,
+      ...definedOptions(options ?? {}),
     };
     const assembledMap = assembledMapInput ?? new Map();
+    const assembleArray =
+      customAssembleArray ??
+      ((
+        children: TraversableObjectProp<TraversableObjectPropKey, unknown>[],
+        vertexData: TraversableObjectProp<TraversableObjectPropKey, unknown>,
+      ) =>
+        assembleProperties(
+          children,
+          true,
+          arrayIndexPolicy,
+          propertyCollision,
+          vertexData.value,
+        ));
+    const assembleObject =
+      customAssembleObject ??
+      ((
+        children: TraversableObjectProp<TraversableObjectPropKey, unknown>[],
+        vertexData: TraversableObjectProp<TraversableObjectPropKey, unknown>,
+      ) =>
+        assembleProperties(
+          children,
+          false,
+          arrayIndexPolicy,
+          propertyCollision,
+          vertexData.value,
+        ));
 
-    return function TraversableObjectTree_makeMutationCommandFactory_1(
+    return function bindObjectMutation(
       ...visitorArguments: Parameters<
-        TraversalVisitor<string, IN_TO_TTP, OUT_TO_TTP>
+        TreeVisitor<
+          string,
+          InputTypes,
+          ObjectCurrentVertexTypes<InputTypes, OutputTypes>
+        >
       >
-    ): TO_MakeMutationCommandFactoryResult<OUT_TO_TTP> {
-      const [vertex, options] = visitorArguments;
+    ): ObjectMutationCommands<OutputTypes, InputTypes> {
+      const [vertex, context] = visitorArguments;
       const vertexData = vertex.getData();
-      const { resolvedTree, vertexRef } = options;
+      const { resolvedTreeView, vertexRef } = context;
 
       const isThisAnArray = isArray(vertexData);
       const isThisAnObject = isObject(vertexData);
       const isThisComposite = isThisAnArray || isThisAnObject;
 
       function TraversableObjectTree_getChildrenObjectPropertiesOf(
-        vertexRef: CTTRef<Vertex<IN_TO_TTP | OUT_TO_TTP>>,
-      ): OUT_TO_TTP['VertexData'][] {
-        return (resolvedTree.getChildrenOf(vertexRef) ?? []).map((ch) =>
-          ch.unref().getData(),
+        vertexRef: VertexHandle<
+          ObjectCurrentVertexTypes<InputTypes, OutputTypes>
+        >,
+      ): ObjectCurrentVertexTypes<InputTypes, OutputTypes>['VertexData'][] {
+        return (resolvedTreeView.getChildrenOf(vertexRef) ?? []).map((ch) =>
+          ch.getValue().getData(),
         );
       }
 
       function TraversableObjectTree_assembleComposite(
         saveToMap = true,
-      ): OUT_TO_TTP['VertexData']['value'] {
+      ): unknown {
         if (isThisAnArray) {
           const res = assembleArray(
             TraversableObjectTree_getChildrenObjectPropertiesOf(vertexRef),
@@ -157,23 +267,65 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
         }
       }
 
-      function TraversableObjectTree_makeMutationCommand_2(
-        input_2?: MakeMutationCommandFunctionInput<
-          TO_MutationPropertyPatch<OUT_TO_TTP>
-        >,
-      ): MakeMutationCommandFunctionResult<OUT_TO_TTP> {
-        const inputOk = input_2 && typeof input_2 === 'object';
-        const toDelete =
-          inputOk &&
-          Object.prototype.hasOwnProperty.call(input_2, 'delete') &&
-          input_2?.delete === true;
-        const hasRewrite =
-          inputOk && Object.prototype.hasOwnProperty.call(input_2, 'rewrite');
-        const rewrite = hasRewrite ? input_2.rewrite : undefined;
-        if (hasRewrite && (rewrite === null || typeof rewrite !== 'object')) {
+      function buildMutationCommand(
+        request?: ObjectMutationRequest<OutputTypes>,
+      ): MutationCommand<
+        ObjectCurrentVertexTypes<InputTypes, OutputTypes>,
+        TraversalVisitorCommandName.DELETE_TREE_SUBTREE
+      > {
+        let toDelete = false;
+        let hasRewrite = false;
+        let rewrite: ObjectPropertyPatch<OutputTypes> | undefined;
+        if (request !== undefined) {
+          if (
+            request === null ||
+            typeof request !== 'object' ||
+            Array.isArray(request)
+          ) {
+            throw new TypeError('Invalid mutation operation');
+          }
+          const keys = Reflect.ownKeys(request);
+          if (!Object.prototype.hasOwnProperty.call(request, 'kind')) {
+            throw new TypeError('Mutation operation requires kind');
+          }
+          const kind = request.kind;
+          if (kind !== 'rewrite' && kind !== 'delete' && kind !== 'keep') {
+            throw new TypeError('Invalid mutation operation kind');
+          }
+          if (
+            keys.some(
+              (key) =>
+                key !== 'kind' && !(kind === 'rewrite' && key === 'patch'),
+            ) ||
+            (kind === 'rewrite' &&
+              !Object.prototype.hasOwnProperty.call(request, 'patch'))
+          ) {
+            throw new TypeError('Invalid mutation operation fields');
+          }
+          toDelete = kind === 'delete';
+          if (kind === 'rewrite') {
+            hasRewrite = true;
+            rewrite = request.patch;
+          }
+        }
+        if (
+          hasRewrite &&
+          (rewrite === null ||
+            typeof rewrite !== 'object' ||
+            Array.isArray(rewrite))
+        ) {
           throw new TypeError(
-            'rewrite must be a non-null object property patch',
+            'rewrite patch must be a non-null object property patch',
           );
+        }
+        if (hasRewrite) {
+          for (const key of Reflect.ownKeys(rewrite!)) {
+            if (key !== 'key' && key !== 'value') {
+              throw new TypeError(
+                'Object property patches accept only key and value',
+              );
+            }
+          }
         }
         const hasRewriteValue =
           hasRewrite && Object.prototype.hasOwnProperty.call(rewrite, 'value');
@@ -191,7 +343,7 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
             };
         if (toDelete) {
           return {
-            commandName: TraversalVisitorCommandName.DELETE_VERTEX,
+            commandName: TraversalVisitorCommandName.DELETE_TREE_SUBTREE,
           };
         } else if (hasRewriteValue) {
           return {
@@ -236,12 +388,63 @@ export const makeMutationCommandFactory: TO_MakeMutationCommandFunctionFactory =
         isArray: isThisAnArray,
         isObject: isThisAnObject,
         assembleComposite: TraversableObjectTree_assembleComposite,
-        makeMutationCommand: TraversableObjectTree_makeMutationCommand_2,
+        makeMutationCommand: buildMutationCommand,
       };
     };
   };
 
-export const MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT = {
+/** Normalize property keys once, before collision checks and assignment. */
+function assembleProperties(
+  children: TraversableObjectProp<TraversableObjectPropKey, unknown>[],
+  array: boolean,
+  arrayIndexPolicy: 'compactInTraversalOrder' | 'preserveNumericKeys',
+  propertyCollision: 'error' | 'firstWins' | 'lastWins',
+  originalValue: unknown,
+): unknown {
+  const result = array
+    ? arrayIndexPolicy === 'preserveNumericKeys' && Array.isArray(originalValue)
+      ? new Array(originalValue.length)
+      : []
+    : {};
+  const occupied = new Set<string | symbol>();
+  let nextIndex = 0;
+  for (const child of children) {
+    let key: string | symbol;
+    if (array && typeof child.key === 'number') {
+      if (arrayIndexPolicy === 'preserveNumericKeys') {
+        if (
+          !Number.isInteger(child.key) ||
+          child.key < 0 ||
+          child.key > 4294967294
+        ) {
+          throw new TypeError(
+            'Preserved array keys must be valid numeric indices',
+          );
+        }
+        key = String(child.key);
+      } else {
+        key = String(nextIndex++);
+      }
+    } else {
+      key = typeof child.key === 'symbol' ? child.key : String(child.key);
+    }
+    if (occupied.has(key)) {
+      if (propertyCollision === 'error')
+        throw new TypeError('Property collision during object assembly');
+      if (propertyCollision === 'firstWins') continue;
+    }
+    occupied.add(key);
+    Object.defineProperty(result, key, {
+      value: child.value,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return result;
+}
+
+const OBJECT_MUTATION_DEFAULTS = {
   isArray: (
     d: TraversableObjectProp<TraversableObjectPropKey, unknown>,
   ): boolean => Array.isArray(d.value),
@@ -249,37 +452,4 @@ export const MAKE_MUTATION_COMMAND_FACTORY_CONFIGURATION_DEFAULT = {
     d: TraversableObjectProp<TraversableObjectPropKey, unknown>,
   ): boolean =>
     Boolean(d.value && typeof d.value === 'object' && !Array.isArray(d.value)),
-  assembleArray: (
-    processedChildren: TraversableObjectProp<
-      TraversableObjectPropKey,
-      unknown
-    >[],
-    _vertexData: TraversableObjectProp<TraversableObjectPropKey, unknown>,
-  ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
-    const numericChildren = processedChildren.filter(
-      (child) => typeof child.key === 'number',
-    );
-    const result = numericChildren.map((child) => child.value);
-    for (const child of processedChildren) {
-      if (typeof child.key !== 'number') {
-        Object.defineProperty(result, child.key, {
-          value: child.value,
-          enumerable: true,
-          configurable: true,
-          writable: true,
-        });
-      }
-    }
-    return result;
-  },
-  assembleObject: (
-    processedChildren: TraversableObjectProp<
-      TraversableObjectPropKey,
-      unknown
-    >[],
-  ): TraversableObjectProp<TraversableObjectPropKey, unknown>['value'] => {
-    return Object.fromEntries(
-      processedChildren.map((ch) => [ch.key, ch.value]),
-    );
-  },
 };

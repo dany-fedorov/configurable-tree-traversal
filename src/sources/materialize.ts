@@ -1,14 +1,19 @@
-import type { FoundVertexResult } from '@core/TraversableTree';
-import type { TreeTypeParameters } from '@core/TreeTypeParameters';
+import {
+  assertOwnKeys,
+  assertOptionalCallbacks,
+  captureOptionFields,
+} from '@core/assertPublicOptions';
+import type { DagVertexFound } from '@core/TraversableTree';
+import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
-import type { AsyncCollection, CollectionSource } from './types';
+import type { AsyncCollection, MaterializedDagInput } from './types';
 
 export type MaterializedRecord<Item, ID> = {
   item: Item;
   id: ID;
   children: ID[];
-  dependsOn: ID[];
-  dependsOnComplete: ID[];
+  dependsOnWork: ID[];
+  dependsOnSubgraphCompletion: ID[];
 };
 
 export async function collect<Item>(
@@ -23,17 +28,17 @@ export async function collect<Item>(
 export function materializedSource<Item, ID>(
   records: Map<ID, MaterializedRecord<Item, ID>>,
   roots: ID[],
-): CollectionSource<Item, ID> {
-  type T = TreeTypeParameters<Item, ID>;
+): MaterializedDagInput<Item, ID> {
+  type T = VertexTypes<Item, ID>;
   const found = (
     record: MaterializedRecord<Item, ID>,
-  ): FoundVertexResult<T, ID> => ({
+  ): DagVertexFound<T, ID> => ({
     kind: 'found',
     vertex: {
       vertexId: record.id,
       vertexContent: { $data: record.item, $childHints: [...record.children] },
-      dependsOn: [...record.dependsOn],
-      dependsOnComplete: [...record.dependsOnComplete],
+      dependsOnWork: [...record.dependsOnWork],
+      dependsOnSubgraphCompletion: [...record.dependsOnSubgraphCompletion],
     },
   });
   // The traversal replaces the holder identity and hides its data in public views.
@@ -41,15 +46,15 @@ export function materializedSource<Item, ID>(
   return {
     syntheticRoot: true,
     traversableGraph: {
-      makeRoot: () =>
+      resolveRoot: () =>
         found({
           item: undefined as Item,
           id: holder,
           children: roots,
-          dependsOn: [],
-          dependsOnComplete: [],
+          dependsOnWork: [],
+          dependsOnSubgraphCompletion: [],
         }),
-      makeVertex: (id) => {
+      resolveChild: (id: ID) => {
         const record = records.get(id);
         if (record === undefined)
           throw new TypeError('Structural child is absent from the collection');
@@ -75,10 +80,31 @@ export function validateChildren<Item, ID>(
   }
 }
 
-/** Reject retired selector names before reading the catalog or invoking callbacks. */
-export function validateCollectionSelectors(selectors: object): void {
+/** Validate before catalog reads; keep structural lookups and caller receivers. */
+export function captureCollectionSelectors<
+  Selectors extends {
+    id: unknown;
+    children?: unknown;
+    dependsOnWork?: unknown;
+    dependsOnSubgraphCompletion?: unknown;
+  },
+>(selectors: Selectors) {
+  const keys = [
+    'id',
+    'children',
+    'dependsOnWork',
+    'dependsOnSubgraphCompletion',
+  ] as const;
+  assertOwnKeys(selectors, keys);
   for (const key of ['dependencies', 'completionDependencies']) {
     if (key in selectors)
-      throw new TypeError('Use dependsOn and dependsOnComplete selectors');
+      throw new TypeError(
+        'Use dependsOnWork and dependsOnSubgraphCompletion selectors',
+      );
   }
+  const captured = captureOptionFields(selectors, keys);
+  assertOptionalCallbacks(captured, keys);
+  if (typeof captured.id !== 'function')
+    throw new TypeError('Selectors require id');
+  return captured;
 }

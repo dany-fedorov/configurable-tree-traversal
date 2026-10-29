@@ -1,61 +1,81 @@
-import {
-  AsyncBreadthFirstTraversal,
-  BreadthFirstTraversal,
-  BreadthFirstTraversalOrder as Order,
-} from '../src/traversals/breadth-first-traversal';
+import { treeResolution } from './source-result-fixtures';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
+import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
+import type { VertexTypes } from '../src/core/TreeTypeParameters';
 import {
-  TraversalVisitorCommandName as Command,
-  TraversalVisitorFunctionResolutionStyle as Style,
-} from '../src/core/TraversalVisitor';
-import type { TreeTypeParameters } from '../src/core/TreeTypeParameters';
+  AsyncBreadthFirstTreeTraversal,
+  BreadthFirstPhase as Order,
+  BreadthFirstTreeTraversal,
+} from '../src/traversals/breadth-first-traversal';
 import { ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/breadth-first-traversal/lib/AsyncBreadthFirstTraversalInstanceConfig';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
+import {
+  createInternalAsyncBreadthFirstTreeTraversal,
+  runnerInternals,
+} from './internal-runner-fixtures';
 
-type Node = { $d: string; $c: (Node | null)[] };
-type Tree = TreeTypeParameters<string, Node | null>;
-const node = ($d: string, ...$c: (Node | null)[]): Node => ({ $d, $c });
+type Node = { $data: string; $childHints: (Node | null)[] };
+type Tree = VertexTypes<string, Node | null>;
+const node = ($data: string, ...$childHints: (Node | null)[]): Node => ({
+  $data,
+  $childHints,
+});
 
 function traversal(
   root: Node | null = node('root', node('A'), node('B')),
   concurrency = Infinity,
 ) {
-  return new AsyncBreadthFirstTraversal<Tree>({
+  return new AsyncBreadthFirstTreeTraversal<Tree>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: root }),
-      makeVertex: async (hint) => ({ vertexContent: hint }),
+      resolveRoot: () => treeResolution(root),
+      resolveChild: async (hint) => treeResolution(hint),
     },
     concurrency,
   });
 }
 
 async function values(runner: {
-  getIterable(): AsyncIterable<{ vertex: { getData(): string } }>;
+  iterateEvents(): AsyncIterable<{ vertex: { getData(): string } }>;
 }): Promise<string[]> {
   const seen: string[] = [];
-  for await (const event of runner.getIterable())
+  for await (const event of runner.iterateEvents())
     seen.push(event.vertex.getData());
   return seen;
 }
 
 test('accepts prefetched children in dequeue order rather than settlement order', async () => {
-  const first = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
-  const second = deferred<{ vertexContent: { $d: string; $c: string[] } }>();
-  const runner = new AsyncBreadthFirstTraversal<TestGraph>({
+  const first = deferred<{
+    kind: 'found';
+    vertex: { vertexContent: { $data: string; $childHints: string[] } };
+  }>();
+  const second = deferred<{
+    kind: 'found';
+    vertex: { vertexContent: { $data: string; $childHints: string[] } };
+  }>();
+  const runner = new AsyncBreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['A', 'B'] } }),
-      makeVertex: (hint) => (hint === 'A' ? first.promise : second.promise),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: ['A', 'B'] } },
+      }),
+      resolveChild: (hint) => (hint === 'A' ? first.promise : second.promise),
     },
     concurrency: 2,
-  }).makeRunner();
-  const iterator = runner.getIterable();
+  }).createRunner();
+  const iterator = runner.iterateEvents();
 
   expect((await iterator.next()).value?.vertex.getData()).toBe('root');
   const result = iterator.next();
   await eventLoopTurn();
-  second.resolve({ vertexContent: { $d: 'B', $c: [] } });
-  first.resolve({ vertexContent: { $d: 'A', $c: [] } });
+  second.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'B', $childHints: [] } },
+  });
+  first.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'A', $childHints: [] } },
+  });
 
   expect((await result).value?.vertex.getData()).toBe('A');
   expect((await iterator.next()).value?.vertex.getData()).toBe('B');
@@ -68,30 +88,24 @@ test('projects level-order events and asynchronous visitor metadata', async () =
   t.addVisitorFor(Order.LEVEL_ORDER, async (vertex, options) => {
     metadata.push([
       vertex.getData(),
-      options.vertexVisitIndex,
-      options.previousVisitedVertexRef?.unref().getData(),
+      options.phaseVisitIndex,
+      options.previousPhaseVertexRef?.getValue().getData(),
     ]);
   });
   const events = [];
-  for await (const event of t.makeRunner().getIterable()) events.push(event);
+  for await (const event of t.createRunner().iterateEvents())
+    events.push(event);
 
   expect(events.map(({ vertex }) => vertex.getData())).toEqual([
     'root',
     'child',
   ]);
-  expect(events.map(({ order }) => order)).toEqual([
+  expect(events.map(({ phase }) => phase)).toEqual([
     Order.LEVEL_ORDER,
     Order.LEVEL_ORDER,
   ]);
-  expect(
-    events.map(({ isTreeRoot, isTraversalRoot }) => [
-      isTreeRoot,
-      isTraversalRoot,
-    ]),
-  ).toEqual([
-    [true, true],
-    [false, false],
-  ]);
+  expect(events.map(({ isTreeRoot }) => isTreeRoot)).toEqual([true, false]);
+  expect(events.every((event) => !('isTraversalRoot' in event))).toBe(true);
   expect(metadata).toEqual([
     ['root', 0, undefined],
     ['child', 1, 'root'],
@@ -99,44 +113,53 @@ test('projects level-order events and asynchronous visitor metadata', async () =
 });
 
 test('rejects graph metadata returned by an asynchronous tree source', async () => {
-  const runner = new AsyncBreadthFirstTraversal<TestGraph>({
+  const runner = new AsyncBreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
       // @ts-expect-error Deliberately unsafe source validates the runtime boundary.
-      makeRoot: async () => ({
-        vertexContent: { $d: 'root', $c: [] },
-        vertexId: 'root',
+      resolveRoot: async () => ({
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: 'root', $childHints: [] },
+          vertexId: 'root',
+        },
       }),
-      makeVertex: () => ({ vertexContent: null }),
+      resolveChild: () => ({ kind: 'omitted' as const }),
     },
-  }).makeRunner();
+  }).createRunner();
 
   await expect(runner.run()).rejects.toThrow(/tree source.*metadata/i);
 });
 
 test('deleting the root skips prefetched children and clears the tree root', async () => {
   const calls: string[] = [];
-  const t = new AsyncBreadthFirstTraversal<TestGraph>({
+  const t = new AsyncBreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({ vertexContent: { $d: 'root', $c: ['hidden'] } }),
-      makeVertex: async (hint) => {
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: { $data: 'root', $childHints: ['hidden'] } },
+      }),
+      resolveChild: async (hint) => {
         calls.push(hint);
-        return { vertexContent: { $d: hint, $c: [] } };
+        return {
+          kind: 'found' as const,
+          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        };
       },
     },
     concurrency: 2,
   });
   t.addVisitorFor(Order.LEVEL_ORDER, async () => ({
-    commands: [{ commandName: Command.DELETE_VERTEX }],
+    commands: [{ commandName: Command.DELETE_TREE_SUBTREE }],
   }));
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
 
   const yielded: string[] = [];
-  for await (const event of runner.getIterable()) {
+  for await (const event of runner.iterateEvents()) {
     yielded.push(event.vertex.getData());
   }
   expect(yielded).toEqual([]);
   expect(calls).toEqual([]);
-  expect(runner.getResolvedTree().getRoot()).toBeNull();
+  expect(runner.getResolvedTreeView().getRoot()).toBeNull();
 });
 
 test('preserves paused visitor outcomes through repeated resumptions', async () => {
@@ -144,23 +167,23 @@ test('preserves paused visitor outcomes through repeated resumptions', async () 
   const t = traversal(node('root', node('child')));
   t.addVisitorFor(Order.LEVEL_ORDER, async (vertex) => {
     seen.push(`halt:${vertex.getData()}`);
-    return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+    return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
   });
   t.addVisitorFor(Order.LEVEL_ORDER, async (vertex) => {
     seen.push(`after:${vertex.getData()}`);
   });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
 
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(runner.inspect().chains[0]).toMatchObject({
-    order: Order.LEVEL_ORDER,
-    phase: 'paused',
-    position: 1,
+    phase: Order.LEVEL_ORDER,
+    state: 'paused',
+    visitorIndex: 1,
   });
   expect(seen).toEqual(['halt:root']);
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(seen).toEqual(['halt:root', 'after:root', 'halt:child']);
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(seen).toEqual([
     'halt:root',
     'after:root',
@@ -171,19 +194,25 @@ test('preserves paused visitor outcomes through repeated resumptions', async () 
 });
 
 test('retains prefetched outcomes settled during halt and resumes in dequeue order', async () => {
-  type Result = { vertexContent: { $d: string; $c: string[] } };
+  type Result = {
+    kind: 'found';
+    vertex: { vertexContent: { $data: string; $childHints: string[] } };
+  };
   const pending = {
     A: deferred<Result>(),
     B: deferred<Result>(),
     C: deferred<Result>(),
   };
   const calls: string[] = [];
-  const traversal = new AsyncBreadthFirstTraversal<TestGraph>({
+  const traversal = new AsyncBreadthFirstTreeTraversal<TestGraph>({
     traversableTree: {
-      makeRoot: () => ({
-        vertexContent: { $d: 'root', $c: ['A', 'B', 'C'] },
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: {
+          vertexContent: { $data: 'root', $childHints: ['A', 'B', 'C'] },
+        },
       }),
-      makeVertex: (hint) => {
+      resolveChild: (hint) => {
         calls.push(hint);
         return pending[hint as keyof typeof pending].promise;
       },
@@ -192,22 +221,31 @@ test('retains prefetched outcomes settled during halt and resumes in dequeue ord
   });
   traversal.addVisitorFor(Order.LEVEL_ORDER, async (vertex) =>
     vertex.getData() === 'A'
-      ? { commands: [{ commandName: Command.HALT_TRAVERSAL }] }
+      ? { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] }
       : undefined,
   );
-  const runner = traversal.makeRunner();
-  const iterator = runner.getIterable();
+  const runner = traversal.createRunner();
+  const iterator = runner.iterateEvents();
 
   expect((await iterator.next()).value?.vertex.getData()).toBe('root');
   const halted = iterator.next();
   await eventLoopTurn();
   expect(calls).toEqual(['A', 'B', 'C']);
-  pending.A.resolve({ vertexContent: { $d: 'A', $c: [] } });
+  pending.A.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'A', $childHints: [] } },
+  });
   expect(await halted).toEqual({ done: true, value: undefined });
   expect(runner.getStatus()).toBe(Status.HALTED);
 
-  pending.C.resolve({ vertexContent: { $d: 'C', $c: [] } });
-  pending.B.resolve({ vertexContent: { $d: 'B', $c: [] } });
+  pending.C.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'C', $childHints: [] } },
+  });
+  pending.B.resolve({
+    kind: 'found' as const,
+    vertex: { vertexContent: { $data: 'B', $childHints: [] } },
+  });
   await eventLoopTurn();
 
   await expect(values(runner)).resolves.toEqual(['A', 'B', 'C']);
@@ -220,9 +258,9 @@ test('uses new iterator filters when resuming after consumer closure', async () 
   t.addVisitorFor(Order.LEVEL_ORDER, async (vertex) => {
     visited.push(vertex.getData());
   });
-  const runner = t.makeRunner();
-  for await (const event of runner.getIterable({
-    disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+  const runner = t.createRunner();
+  for await (const event of runner.iterateEvents({
+    visitorPhases: { exclude: [Order.LEVEL_ORDER] },
   })) {
     expect(event.vertex.getData()).toBe('root');
     break;
@@ -232,18 +270,18 @@ test('uses new iterator filters when resuming after consumer closure', async () 
   expect(visited).toEqual([]);
 
   await runner.run({
-    iterateOver: [],
-    enableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+    emitEvents: [],
+    visitorPhases: { include: [Order.LEVEL_ORDER] },
   });
   expect(visited).toEqual(['child']);
   expect(runner.getStatus()).toBe(Status.FINISHED);
 });
 
 test('directly exposes session iterator ownership and synchronous close control', async () => {
-  const runner = traversal().makeRunner();
-  const first = runner.getIterable();
+  const runner = traversal().createRunner();
+  const first = runner.iterateEvents();
   expect((await first.next()).done).toBe(false);
-  const second = runner.getIterable();
+  const second = runner.iterateEvents();
   await expect(second.next()).rejects.toThrow('Another active iterator');
   await expect(first.return(undefined)).resolves.toEqual({
     done: true,
@@ -258,10 +296,10 @@ test('an unopened iterator does not change later execution filters', async () =>
   t.addVisitorFor(Order.LEVEL_ORDER, async (vertex) => {
     visited.push(vertex.getData());
   });
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
 
-  runner.getIterable({
-    disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+  runner.iterateEvents({
+    visitorPhases: { exclude: [Order.LEVEL_ORDER] },
   });
   await runner.run();
 
@@ -274,12 +312,12 @@ test('a lease-rejected iterator does not change resumed execution filters', asyn
   t.addVisitorFor(Order.LEVEL_ORDER, async (vertex) => {
     visited.push(vertex.getData());
   });
-  const runner = t.makeRunner();
-  const active = runner.getIterable();
+  const runner = t.createRunner();
+  const active = runner.iterateEvents();
   expect((await active.next()).value?.vertex.getData()).toBe('root');
 
-  const rejected = runner.getIterable({
-    disableVisitorFunctionsFor: [Order.LEVEL_ORDER],
+  const rejected = runner.iterateEvents({
+    visitorPhases: { exclude: [Order.LEVEL_ORDER] },
   });
   await expect(rejected.next()).rejects.toThrow('Another active iterator');
   await active.return(undefined);
@@ -290,72 +328,71 @@ test('a lease-rejected iterator does not change resumed execution filters', asyn
 
 test('snapshots builder configuration and reuses injected tree storage and state', async () => {
   const first = await traversal(node('root', node('child')))
-    .makeRunner()
+    .createRunner()
     .run();
-  const state = traversal().makeRunner().state;
+  const state = runnerInternals(traversal().createRunner()).state;
   const visitors: string[] = [];
-  const t = new AsyncBreadthFirstTraversal<Tree>({
+  const t = createInternalAsyncBreadthFirstTreeTraversal<Tree>({
     traversableTree: {
-      makeRoot: () => {
+      resolveRoot: () => {
         throw new Error('Existing root must be reused');
       },
-      makeVertex: (hint) => ({ vertexContent: hint }),
+      resolveChild: (hint) => treeResolution(hint),
     },
     traversalRunnerInternalObjects: {
-      resolvedTreesContainer: first.resolvedTreesContainer,
+      resolvedTreesContainer: runnerInternals(first).resolvedTreesContainer,
       state,
     },
   }).configure({ sortChildrenHints: async (hints) => hints.reverse() });
   t.setVisitorsFor(Order.LEVEL_ORDER, [
     {
-      addedIndex: 10,
       priority: 1,
-      resolutionStyle: Style.SEQUENTIAL,
+      commandCommitMode: 'afterEachVisitor' as const,
       visitor: async (vertex) => {
         visitors.push(vertex.getData());
       },
     },
   ]);
   expect(t.listVisitorsFor(Order.LEVEL_ORDER)).toHaveLength(1);
-  const runner = t.makeRunner();
+  const runner = t.createRunner();
   t.addVisitorFor(Order.LEVEL_ORDER, async () => {
     visitors.push('late');
   });
 
-  expect(runner.state.visitorsState).toBe(state.visitorsState);
-  expect(runner.state.subtreeTraversalDisabledRefs).toBe(
+  expect(runnerInternals(runner).state.visitorsState).toBe(state.visitorsState);
+  expect(runnerInternals(runner).state.subtreeTraversalDisabledRefs).toBe(
     state.subtreeTraversalDisabledRefs,
   );
-  await runner.run({ iterateOver: [] });
+  await runner.run({ emitEvents: [] });
   expect(visitors).toEqual(['root', 'child']);
-  expect(runner.getResolvedTree().getRoot()).toBe(
-    first.getResolvedTree().getRoot(),
+  expect(runner.getResolvedTreeView().getRoot()).toBe(
+    first.getResolvedTreeView().getRoot(),
   );
-  expect(runner.getResolvedGraph().getRoot()).toBe(
-    first.getResolvedGraph().getRoot(),
+  expect(runner.getResolvedGraphView().getRoot()).toBe(
+    first.getResolvedGraphView().getRoot(),
   );
 });
 
 test.each([null, undefined])(
   'rethrows an original %p failure on every attempted rerun',
   async (failure) => {
-    const runner = new AsyncBreadthFirstTraversal<TestGraph>({
+    const runner = new AsyncBreadthFirstTreeTraversal<TestGraph>({
       traversableTree: {
-        makeRoot: async () => {
+        resolveRoot: async () => {
           throw failure;
         },
-        makeVertex: () => ({ vertexContent: null }),
+        resolveChild: () => ({ kind: 'omitted' as const }),
       },
-    }).makeRunner();
+    }).createRunner();
     await expect(runner.run()).rejects.toBe(failure);
     expect(runner.getStatus()).toBe(Status.FAILED);
     await expect(runner.run()).rejects.toBe(failure);
-    await expect(runner.getIterable().next()).rejects.toBe(failure);
+    await expect(runner.iterateEvents().next()).rejects.toBe(failure);
   },
 );
 
 test('validates, defaults, and inspects concurrency without advancing traversal', () => {
-  const runner = traversal(undefined, 2).makeRunner();
+  const runner = traversal(undefined, 2).createRunner();
   expect(runner.inspect()).toMatchObject({
     execution: 'async',
     kind: 'breadth-first',
@@ -366,7 +403,7 @@ test('validates, defaults, and inspects concurrency without advancing traversal'
   expect(runner.getStatus()).toBe(Status.INITIAL);
   expect(() => traversal(undefined, 0)).toThrow(TypeError);
   expect(() => traversal(undefined, 1.5)).toThrow(TypeError);
-  expect(traversal().makeRunner().inspect().concurrency).toBe(Infinity);
+  expect(traversal().createRunner().inspect().concurrency).toBe(Infinity);
   expect(
     Object.isFrozen(ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG),
   ).toBe(true);
@@ -405,21 +442,24 @@ test('matches synchronous BFS for timing-independent generated trees', async () 
       );
     const root = make(4, 'root');
     const tree = {
-      makeRoot: () => ({ vertexContent: root }),
-      makeVertex: (hint: Node | null) => ({ vertexContent: hint }),
+      resolveRoot: () => ({
+        kind: 'found' as const,
+        vertex: { vertexContent: root },
+      }),
+      resolveChild: (hint: Node | null) => treeResolution(hint),
     };
     const expected = Array.from(
-      new BreadthFirstTraversal<Tree>({ traversableTree: tree })
-        .makeRunner()
-        .getIterable(),
+      new BreadthFirstTreeTraversal<Tree>({ traversableTree: tree })
+        .createRunner()
+        .iterateEvents(),
       (event) => event.vertex.getData(),
     );
     await expect(
       values(
-        new AsyncBreadthFirstTraversal<Tree>({
+        new AsyncBreadthFirstTreeTraversal<Tree>({
           traversableTree: tree,
           concurrency: 3,
-        }).makeRunner(),
+        }).createRunner(),
       ),
     ).resolves.toEqual(expected);
   }

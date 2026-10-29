@@ -1,24 +1,26 @@
-import assert from 'node:assert/strict';
 import {
   AsyncGraphWalk,
-  DepthFirstTraversal,
-  DepthFirstTraversalOrder,
+  DepthFirstTreeTraversal,
+  DepthFirstPhase,
   GraphWalkPhase,
   type AsyncGraphWalkSource,
-  type ExecutionInspection,
+  type EmissionKind,
   type SyncTraversalExecution,
   type AsyncTraversalExecution,
   type TraversalExecutionState,
-  type TraversableTree,
-  type TreeTypeParameters,
+  type TreeSource,
+  type VertexTypes,
 } from '../src';
+import assert from 'node:assert/strict';
 
 type Code = { kind: 'file'; path: string } | { kind: 'symbol'; name: string };
 type Reference = { kind: 'defines' | 'references' };
 const source: AsyncGraphWalkSource<Code, Reference, string> = {
+  hydration: 'inlineOrCached' as const,
   async roots() {
     return [
       {
+        kind: 'inline' as const,
         vertexId: 'file',
         resolution: {
           kind: 'found',
@@ -29,10 +31,11 @@ const source: AsyncGraphWalkSource<Code, Reference, string> = {
   },
   async outgoing(vertex) {
     if (vertex.data.kind === 'symbol') return [];
-    // Lazy links wrap targets; walkSourceFrom catalog links instead use { to, data }.
+    // Lazy links wrap targets; materializeWalkSourceFromRecords catalog links instead use { to, data }.
     return [
       {
         target: {
+          kind: 'inline' as const,
           vertexId: 'symbol',
           resolution: {
             kind: 'found' as const,
@@ -45,36 +48,36 @@ const source: AsyncGraphWalkSource<Code, Reference, string> = {
   },
 };
 // Both tree/DAG and walking runners fit the common inspection contract.
-function snapshot(state: TraversalExecutionState<ExecutionInspection>) {
+function snapshot(state: TraversalExecutionState) {
   return state.inspect();
 }
 // Keep Phase generic; widening to string would grant unsupported phases.
 function runSync<Phase extends string, Event>(
-  execution: SyncTraversalExecution<Phase, Event, ExecutionInspection>,
-  phase: Phase,
+  execution: SyncTraversalExecution<Phase, Event>,
+  eventKind: EmissionKind<Phase>,
 ) {
-  return execution.run({ emitPhases: [phase] });
+  return execution.run({ emitEvents: [eventKind] });
 }
 function runAsync<Phase extends string, Event>(
-  execution: AsyncTraversalExecution<Phase, Event, ExecutionInspection>,
-  phase: Phase,
+  execution: AsyncTraversalExecution<Phase, Event>,
+  eventKind: EmissionKind<Phase>,
 ) {
-  return execution.run({ emitPhases: [phase] });
+  return execution.run({ emitEvents: [eventKind] });
 }
-const tree: TraversableTree<TreeTypeParameters<string, string>> = {
-  makeRoot: () => ({
+const tree: TreeSource<VertexTypes<string, string>> = {
+  resolveRoot: () => ({
     kind: 'found',
     vertex: {
       vertexContent: { $data: 'main.ts', $childHints: [] },
     },
   }),
-  makeVertex: () => ({ kind: 'omitted' }),
+  resolveChild: () => ({ kind: 'omitted' }),
 };
-const treeRunner = new DepthFirstTraversal({
+const treeRunner = new DepthFirstTreeTraversal({
   traversableTree: tree,
-}).makeRunner();
+}).createRunner();
 assert.equal(snapshot(treeRunner).execution, 'sync');
-runSync(treeRunner, DepthFirstTraversalOrder.PRE_ORDER);
+runSync(treeRunner, DepthFirstPhase.PRE_ORDER);
 
 async function main() {
   const references: string[] = [];
@@ -91,16 +94,16 @@ async function main() {
         );
       }
     })
-    .makeRunner();
+    .createRunner();
   assert.equal(snapshot(runner).kind, 'graph-walk');
   await runAsync(runner, GraphWalkPhase.EDGE);
   assert.deepEqual(references, ['src/main.ts defines main']);
   assert.deepEqual(runner.summary().outcome, { kind: 'exhausted' });
   console.log('Typed references:', references);
   // A fresh runner can use explicitly narrowed iteration instead of callbacks.
-  const iteratorRunner = new AsyncGraphWalk({ source }).makeRunner();
-  for await (const event of iteratorRunner.getIterable({
-    emitPhases: [GraphWalkPhase.EDGE],
+  const iteratorRunner = new AsyncGraphWalk({ source }).createRunner();
+  for await (const event of iteratorRunner.iterateEvents({
+    emitEvents: [GraphWalkPhase.EDGE],
   })) {
     assert.equal(event.edge.data.kind, 'defines');
     assert.equal(event.source.data.kind, 'file');

@@ -13,9 +13,9 @@ export class SyncWalkSession<Data, Edge, ID> {
     if (this.owner !== null)
       throw new Error('Graph walk already has an execution owner');
     this.kernel.beginClose();
-    this.getIterable().next();
+    this.iterateEvents().next();
   }
-  getIterable(
+  iterateEvents(
     config?: TraversalIterableConfigInput<GraphWalkPhase>,
   ): Generator<GraphWalkEvent<Data, Edge, ID>, void, unknown> {
     const patch =

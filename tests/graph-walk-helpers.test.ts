@@ -1,10 +1,8 @@
 import {
-  AsyncGraphWalkRunner,
-  GraphWalkRunner,
+  graphWalk,
   GraphWalkPhase as Phase,
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
-  graphWalk,
   walkGraph,
   walkGraphAsync,
 } from '../src';
@@ -12,6 +10,8 @@ import {
   walkGraph as familyWalk,
   walkGraphAsync as familyWalkAsync,
 } from '../src/traversals/graph-walk';
+import { InternalAsyncGraphWalkRunner as AsyncGraphWalkRunner } from '../src/traversals/graph-walk/AsyncGraphWalkRunner';
+import { InternalGraphWalkRunner as GraphWalkRunner } from '../src/traversals/graph-walk/GraphWalkRunner';
 import { idGraph } from './helpers/graph-walk-fixtures';
 
 it('runs canonical phase-keyed visitors and returns independent sync runners', () => {
@@ -25,7 +25,7 @@ it('runs canonical phase-keyed visitors and returns independent sync runners', (
   const seen: string[] = [];
   const runner = walkGraph({
     source,
-    emitPhases: [],
+    emitEvents: [],
     visitors: {
       [Phase.VERTEX]: (event) => {
         seen.push(`v:${event.vertex.data}`);
@@ -38,7 +38,7 @@ it('runs canonical phase-keyed visitors and returns independent sync runners', (
   expect(runner).toBeInstanceOf(GraphWalkRunner);
   expect(runner.getStatus()).toBe(Status.FINISHED);
   expect(seen).toEqual(['v:A', 'e:B', 'v:B']);
-  expect(runner.summary().counts.foundVertices).toBe(2);
+  expect(runner.summary().counts.uniqueFoundVertices).toBe(2);
   expect(walkGraph({ source })).not.toBe(runner);
   expect(familyWalk).toBe(walkGraph);
   expect(graphWalk.walkGraph).toBe(walkGraph);
@@ -56,7 +56,7 @@ it('awaits async visitors and returns the completed async runner', async () => {
     ),
     revisit: 'walks',
     limits: { maxDepth: 1 },
-    emitPhases: [],
+    emitEvents: [],
     visitors: {
       [Phase.VERTEX]: async (event) => {
         seen.push(`v:${event.vertex.data}`);
@@ -84,7 +84,7 @@ it('returns a halted sync runner that resumes after the admitted callback', () =
       [Phase.VERTEX]: [
         () => {
           seen.push('halt');
-          return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+          return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
         },
         () => {
           seen.push('tail');
@@ -107,7 +107,7 @@ it('returns a halted async runner that resumes after the admitted callback', asy
       [Phase.VERTEX]: [
         async () => {
           seen.push('halt');
-          return { commands: [{ commandName: Command.HALT_TRAVERSAL }] };
+          return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
         },
         async () => {
           seen.push('tail');
@@ -130,6 +130,8 @@ it.each([null, undefined, { error: 'opaque' }])(
       throw error;
     };
     const unreadable = {
+      hydration: 'resolver' as const,
+      resolveVertex: source.resolveVertex,
       get roots(): typeof source.roots {
         throw error;
       },
