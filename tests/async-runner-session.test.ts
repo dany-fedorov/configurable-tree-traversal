@@ -75,6 +75,10 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
     return action;
   }
 
+  public shouldEmitEvent(): boolean {
+    return true;
+  }
+
   public acknowledgeEvent(boundaryId: number): void {
     this.acknowledged.push(boundaryId);
     this.outstandingBoundaries.delete(boundaryId);

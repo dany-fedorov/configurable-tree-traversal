@@ -2,7 +2,10 @@ import {
   getTraversalExecutionPhases,
   detachTraversalExecutionOptions,
 } from '@core/normalizeTraversalExecutionOptions';
-import type { AsyncTraversalExecution } from '@core/TraversalExecution';
+import type {
+  SelectedTraversalEvent,
+  AsyncTraversalExecution,
+} from '@core/TraversalExecution';
 import type { TreeDagExecutionInspection } from '@core/CoreInspection';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
@@ -91,6 +94,17 @@ export class AsyncRunnerSession<E>
     });
   }
 
+  public iterateEvents(): AsyncGenerator<E, void, unknown>;
+  public iterateEvents<
+    Kind extends import('../TraversalRunnerIterableConfig').EmissionKind<VisitPhase>,
+  >(
+    config: TraversalIterableConfigInput<VisitPhase, Kind> & {
+      emitEvents: readonly Kind[];
+    },
+  ): AsyncGenerator<SelectedTraversalEvent<E, Kind>, void, unknown>;
+  public iterateEvents(
+    config?: TraversalIterableConfigInput<VisitPhase>,
+  ): AsyncGenerator<E, void, unknown>;
   public iterateEvents(
     config?: TraversalIterableConfigInput<VisitPhase>,
   ): AsyncGenerator<E, void, unknown> {
@@ -245,8 +259,12 @@ export class AsyncRunnerSession<E>
       this.bufferedEvents.length > 0
     ) {
       this.acknowledgeDeliveredBoundary();
-      const waiter = state.nextWaiters.shift()!;
       const buffered = this.bufferedEvents.shift()!;
+      if (!this.control.shouldEmitEvent(buffered.event)) {
+        this.control.acknowledgeEvent(buffered.boundaryId);
+        continue;
+      }
+      const waiter = state.nextWaiters.shift()!;
       this.deliveredBoundaryId = buffered.boundaryId;
       waiter.resolve({ done: false, value: buffered.event });
       if (state.nextWaiters.length > 0) this.acknowledgeDeliveredBoundary();

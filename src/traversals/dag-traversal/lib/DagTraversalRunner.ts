@@ -16,11 +16,17 @@ import type {
   ResolvedGraphView,
 } from '@core/ResolvedGraphView';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { SyncTraversalExecution } from '@core/TraversalExecution';
+import type {
+  SelectedTraversalEvent,
+  SyncTraversalExecution,
+} from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
+import type {
+  EmissionKind,
+  TraversalExecutionOptions,
+} from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -350,6 +356,15 @@ export class InternalDagTraversalRunner<
     }) as TreeDagExecutionInspection<DagVisitorPhase>;
   }
 
+  iterateEvents(): Generator<Event<T, R, ID>, void, unknown>;
+  iterateEvents<Kind extends EmissionKind<DagVisitorPhase>>(
+    config: TraversalExecutionOptions<DagVisitorPhase, Kind> & {
+      emitEvents: readonly Kind[];
+    },
+  ): Generator<SelectedTraversalEvent<Event<T, R, ID>, Kind>, void, unknown>;
+  iterateEvents(
+    config?: TraversalExecutionOptions<DagVisitorPhase>,
+  ): Generator<Event<T, R, ID>, void, unknown>;
   *iterateEvents(
     config?: TraversalExecutionOptions<DagVisitorPhase>,
   ): Generator<Event<T, R, ID>, void, unknown> {

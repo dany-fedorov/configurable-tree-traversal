@@ -17,11 +17,17 @@ import type {
   ResolvedGraphView,
 } from '@core/ResolvedGraphView';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { AsyncTraversalExecution } from '@core/TraversalExecution';
+import type {
+  SelectedTraversalEvent,
+  AsyncTraversalExecution,
+} from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
+import type {
+  EmissionKind,
+  TraversalExecutionOptions,
+} from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
@@ -328,6 +334,19 @@ export class InternalAsyncDagTraversalRunner<
     );
   }
 
+  iterateEvents(): AsyncGenerator<Event<T, R, ID>, void, unknown>;
+  iterateEvents<Kind extends EmissionKind<DagVisitorPhase>>(
+    config: TraversalExecutionOptions<DagVisitorPhase, Kind> & {
+      emitEvents: readonly Kind[];
+    },
+  ): AsyncGenerator<
+    SelectedTraversalEvent<Event<T, R, ID>, Kind>,
+    void,
+    unknown
+  >;
+  iterateEvents(
+    config?: TraversalExecutionOptions<DagVisitorPhase>,
+  ): AsyncGenerator<Event<T, R, ID>, void, unknown>;
   iterateEvents(
     config?: TraversalExecutionOptions<DagVisitorPhase>,
   ): AsyncGenerator<Event<T, R, ID>, void, unknown> {
@@ -415,6 +434,12 @@ export class InternalAsyncDagTraversalRunner<
         }
         return progress;
       },
+      shouldEmitEvent: (event) =>
+        this.kernel.shouldEmit(
+          event.kind === 'workCompleted'
+            ? DagVisitorPhase.ON_WORK_READY
+            : DagVisitorPhase.ON_SUBGRAPH_READY,
+        ),
       acknowledgeEvent: (boundaryId) => control.acknowledgeEvent(boundaryId),
       requestHalt: () => control.requestHalt(),
       isHaltRequested: () => control.isHaltRequested(),

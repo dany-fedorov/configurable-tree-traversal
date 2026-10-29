@@ -242,7 +242,22 @@ test('kernel observations retain partial expansion and remain stable after settl
   const ticket = kernel.summary().awaitingSettlement[0]!;
   kernel.settle(ticket.vertexId, { kind: 'workCompleted' }, ticket.generation);
   kernel.resume();
-  expect(kernel.poll('drive').kind).toBe('FINISHED');
+  // Recorded observations still require acknowledgement when delivery is hidden.
+  // The seeded root never synthesizes a work observation.
+  const observations: string[] = [];
+  let action = kernel.poll('drive');
+  while (action.kind === 'EVENT') {
+    expect(kernel.shouldEmit(action.event.order)).toBe(false);
+    observations.push(`${action.event.vertex.getData()}:${action.event.order}`);
+    kernel.acknowledgeEvent(action.boundaryId);
+    action = kernel.poll('drive');
+  }
+  expect(observations).toEqual([
+    'child:ON_WORK_READY',
+    'child:ON_SUBGRAPH_READY',
+    'root:ON_SUBGRAPH_READY',
+  ]);
+  expect(action.kind).toBe('FINISHED');
   expect(partial).toEqual({
     identityStates: [{ vertexId: 'root', kind: 'live' }],
     schedulingStates: [

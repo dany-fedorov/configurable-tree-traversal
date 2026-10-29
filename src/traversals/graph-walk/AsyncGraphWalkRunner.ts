@@ -16,6 +16,7 @@ export interface AsyncGraphWalkRunner<Data, Edge, ID>
     `${GraphWalkPhase}`
   > {
   iterateEvents: {
+    (): AsyncGenerator<GraphWalkEvent<Data, Edge, ID>, void, unknown>;
     <Phase extends `${GraphWalkPhase}`>(
       config: TraversalExecutionOptions<GraphWalkPhase, Phase> & {
         emitEvents: readonly Phase[];
@@ -47,6 +48,7 @@ export class InternalAsyncGraphWalkRunner<Data, Edge, ID>
     this.session = new AsyncWalkSession(this.kernel);
   }
   iterateEvents: {
+    (): AsyncGenerator<GraphWalkEvent<Data, Edge, ID>, void, unknown>;
     <Phase extends `${GraphWalkPhase}`>(
       config: TraversalExecutionOptions<GraphWalkPhase, Phase> & {
         emitEvents: readonly Phase[];

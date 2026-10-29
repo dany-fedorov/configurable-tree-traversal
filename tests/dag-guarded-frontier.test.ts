@@ -63,8 +63,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       emitEvents: ['workCompleted', 'subgraphCompleted'],
     }))
       events.push(event.kind);
-    // The first chain captured its suppressed event selection before settlement.
-    expect(events).toEqual([]);
+    // Settlement records W independently of the old selector; delivery selects it now.
+    expect(events).toEqual(['workCompleted']);
     expect(
       runner.summary().awaitingSettlement.map((work) => work.vertexId),
     ).toEqual(['b']);
@@ -76,6 +76,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     );
     for await (const event of runner.iterateEvents()) events.push(event.kind);
     expect(events).toEqual([
+      'workCompleted',
       'workCompleted',
       'subgraphCompleted',
       'subgraphCompleted',

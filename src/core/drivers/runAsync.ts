@@ -109,6 +109,7 @@ export function createAsyncDriver<
         throw error;
       }
     },
+    shouldEmitEvent: (event) => kernel.shouldEmit(event.order),
     acknowledgeEvent: (boundaryId) => {
       if (closeAcknowledgedBoundaries.delete(boundaryId)) return;
       kernel.acknowledgeEvent(boundaryId);

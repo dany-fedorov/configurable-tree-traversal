@@ -16,6 +16,7 @@ export interface GraphWalkRunner<Data, Edge, ID>
     `${GraphWalkPhase}`
   > {
   iterateEvents: {
+    (): Generator<GraphWalkEvent<Data, Edge, ID>, void, unknown>;
     <Phase extends `${GraphWalkPhase}`>(
       config: TraversalExecutionOptions<GraphWalkPhase, Phase> & {
         emitEvents: readonly Phase[];
@@ -47,6 +48,7 @@ export class InternalGraphWalkRunner<Data, Edge, ID>
     this.session = new SyncWalkSession(this.kernel);
   }
   iterateEvents: {
+    (): Generator<GraphWalkEvent<Data, Edge, ID>, void, unknown>;
     <Phase extends `${GraphWalkPhase}`>(
       config: TraversalExecutionOptions<GraphWalkPhase, Phase> & {
         emitEvents: readonly Phase[];

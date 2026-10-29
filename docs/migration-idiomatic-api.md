@@ -486,3 +486,13 @@ and all tree parents remain non-null.
 Remove `isTraversalRoot` and `isTraversalRootVertex` uses. Keep `isTreeRoot` /
 `isTreeRootVertex` and `isGraphRoot` / `isGraphRootVertex` for family roots.
 Walking entries still use `via: null`. There is no subtree-start option.
+
+## Delivery-time observation selection
+
+**Breaking change:** tree and DAG `emitEvents` now filters at delivery, matching walking. Resuming with only `subgraphCompleted` suppresses a buffered `workCompleted` observation, even if it was selected when the work chain began. Conversely, committed observations buffered while emission was disabled can be selected on the next lease. Deferred settlement follows the same rule. Already delivered or suppressed observations never replay; callbacks and committed W/C transitions never repeat to satisfy a new selector.
+
+`visitorPhases` still snapshots callback admission independently. Changing it on resume affects newly admitted chains, while previously admitted callbacks drain under their retained policy. Inspection `chains[].executionOptions.emitEvents` records the historical admission configuration; it does not control delivery. The top-level `executionOptions.emitEvents` is the current delivery policy.
+
+Explicit required `emitEvents` arrays narrow concrete runner and capability iterator results. An empty array produces an iterator of `never`; omitted, undefined or statically optional selectors keep broad event types. Mixed runner unions may keep broad inference; retain a family-specific capability in reusable wrappers. Field-wise undefined patch behavior, pause/drain ownership and terminal lifecycle behavior remain unchanged. No `eventSelection` timing switch is provided.
+
+See the [runnable settlement and selection example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts) and [iteration contract](reference.md#pause-and-resume).

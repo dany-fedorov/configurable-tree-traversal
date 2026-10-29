@@ -85,10 +85,23 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
       },
     },
   });
-  const action = kernel.poll('drive');
+  let action = kernel.poll('drive');
   expect(kernel.isRequestValid(shared.requestId)).toBe(false);
   expect(kernel.isRequestEligible(shared.requestId, 'drive')).toBe(false);
   kernel.discardRequest(shared.requestId);
+  const observations: string[] = [];
+  while (action.kind === 'EVENT') {
+    expect(kernel.shouldEmit(action.event.order)).toBe(false);
+    observations.push(action.event.order);
+    kernel.acknowledgeEvent(action.boundaryId);
+    action = kernel.poll('drive');
+  }
+  expect(
+    observations.filter((order) => order === 'ON_WORK_READY'),
+  ).toHaveLength(3);
+  expect(
+    observations.filter((order) => order === 'ON_SUBGRAPH_READY'),
+  ).toHaveLength(3);
   expect(action.kind).toBe('FINISHED');
   expect(
     container.resolvedGraphView

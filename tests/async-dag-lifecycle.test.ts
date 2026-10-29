@@ -162,7 +162,7 @@ test('loop close waits for a pending visitor and preserves its buffered event', 
   });
 });
 
-test('a committed buffered event retains its original filter eligibility', async () => {
+test('a committed buffered event obeys the resumed delivery selector', async () => {
   const childVisit = deferred<void>();
   const started = deferred<void>();
   const traversal = new AsyncDagTraversal<TestGraph>({
@@ -188,10 +188,6 @@ test('a committed buffered event retains its original filter eligibility', async
   await expect(closing).resolves.toEqual({ done: true, value: undefined });
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
   const changedFilters = runner.iterateEvents({ emitEvents: [] });
-  await expect(changedFilters.next()).resolves.toMatchObject({
-    done: false,
-    value: { vertex: { $data: 'child' }, kind: 'workCompleted' },
-  });
   await expect(changedFilters.next()).resolves.toEqual({
     done: true,
     value: undefined,

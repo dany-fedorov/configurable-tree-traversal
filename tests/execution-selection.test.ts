@@ -238,7 +238,7 @@ describe.each(families)('$name execution selection', (family) => {
     );
   });
 
-  test('active chains retain admitted selection across a resume patch', async () => {
+  test('active chains retain visitor admission but delivery uses the resume selector', async () => {
     const { runner, calls } = create(family, true);
     await runner.run({ emitEvents: [emissionKind(family.phase)] });
     expect(calls).toEqual(['root']);
@@ -254,7 +254,22 @@ describe.each(families)('$name execution selection', (family) => {
     );
     expect(
       await events(runner, { emitEvents: [], visitorPhases: { include: [] } }),
+    ).toEqual([]);
+    expect(calls).toEqual(['root', 'continued']);
+  });
+
+  test('a previously unselected paused chain can emit without replaying callbacks', async () => {
+    const { runner, calls } = create(family, true);
+    await runner.run({ emitEvents: [] });
+    expect(calls).toEqual(['root']);
+    expect(
+      await events(runner, {
+        emitEvents: [emissionKind(family.phase)],
+        visitorPhases: { include: [] },
+      }),
     ).toEqual([emissionKind(family.phase)]);
+    expect(calls).toEqual(['root', 'continued']);
+    expect(await events(runner)).toEqual([]);
     expect(calls).toEqual(['root', 'continued']);
   });
 

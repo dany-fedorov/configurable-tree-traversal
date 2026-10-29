@@ -11,14 +11,20 @@ import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { ResolvedGraphView } from '@core/ResolvedGraphView';
 import type { ResolvedTreeStore } from '@core/ResolvedTree';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { SyncTraversalExecution } from '@core/TraversalExecution';
+import type {
+  SelectedTraversalEvent,
+  SyncTraversalExecution,
+} from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
 import type {
   TraversalStopReason,
   TreeTraversalEvent,
 } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
+import type {
+  EmissionKind,
+  TraversalExecutionOptions,
+} from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { deepFreeze } from '@utils/deepFreeze';
 import { initVisitors } from '../init-helpers/initVisitors';
@@ -240,6 +246,15 @@ export class InternalDepthFirstTreeRunner<
     }
   }
 
+  iterateEvents(): Generator<Event<TTP, RW_TTP>, void, unknown>;
+  iterateEvents<Kind extends EmissionKind<DepthFirstPhase>>(
+    config: TraversalExecutionOptions<DepthFirstPhase, Kind> & {
+      emitEvents: readonly Kind[];
+    },
+  ): Generator<SelectedTraversalEvent<Event<TTP, RW_TTP>, Kind>, void, unknown>;
+  iterateEvents(
+    config?: TraversalExecutionOptions<DepthFirstPhase>,
+  ): Generator<Event<TTP, RW_TTP>, void, unknown>;
   *iterateEvents(
     config?: TraversalExecutionOptions<DepthFirstPhase>,
   ): Generator<Event<TTP, RW_TTP>, void, unknown> {

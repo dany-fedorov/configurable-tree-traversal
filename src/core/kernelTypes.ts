@@ -115,6 +115,7 @@ export type SessionProgress<E> =
 export interface AsyncSessionControl<E> {
   advance(mode: import('@core/effects/types').PumpMode): SessionProgress<E>;
   acknowledgeEvent(boundaryId: number): void;
+  shouldEmitEvent(event: E): boolean;
   requestHalt(): void;
   isHaltRequested(): boolean;
   resume(

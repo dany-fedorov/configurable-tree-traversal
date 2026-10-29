@@ -35,6 +35,7 @@ export type KernelInspection<Phase extends string = VisitPhase> = Readonly<{
   concurrency: number;
   hasSorter: boolean;
   hasHintIds: boolean;
+  /** Current delivery selector and default admission policy for new chains. */
   executionOptions: InspectionFilters<Phase>;
   readyVisits: readonly Readonly<{
     vertexRefId: string;
@@ -59,6 +60,7 @@ export type KernelInspection<Phase extends string = VisitPhase> = Readonly<{
     commandCommitMode: import('@core/TraversalVisitor').CommandCommitMode;
     visitorIndex: number;
     waitingFor: 'none' | 'callback' | 'batch';
+    /** Admission snapshot: visitorPhases governs this chain; emitEvents is historical. */
     executionOptions: InspectionFilters<Phase>;
   }>[];
   pendingRequests: readonly Readonly<{

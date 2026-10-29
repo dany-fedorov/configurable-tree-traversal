@@ -62,6 +62,7 @@ export type {
   TreeSource,
 } from './TraversableTree';
 export type {
+  SelectedTraversalEvent,
   TraversalExecutionState,
   SyncTraversalExecution,
   AsyncTraversalExecution,

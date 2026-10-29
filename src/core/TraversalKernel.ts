@@ -558,6 +558,10 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     );
   }
 
+  shouldEmit(phase: VisitPhase): boolean {
+    return this.executionConfig.iterateOver.includes(phase);
+  }
+
   isRequestEligible(requestId: number, mode: PumpMode): boolean {
     const pending = this.pendingRequests.get(requestId);
     if (pending === undefined || pending.submitted) return false;
@@ -1345,25 +1349,19 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       visitorState.visitorIndex = state.metadata.visitorIndex;
       visitorState.previousPhaseVertexRef = state.ref;
     }
-    if (state.config.iterateOver.includes(state.order)) {
-      this.boundaries.push({
-        id: this.nextBoundaryId++,
-        event: {
-          vertex: state.ref.getValue(),
-          vertexRef: state.ref,
-          order: state.order,
-          isRoot:
-            state.ref === this.options.container.resolvedGraphView.getRoot(),
-        },
-        expandAfter: initial && this.depthFirstPolicy === null,
-      });
-    } else if (initial && this.depthFirstPolicy === null) {
-      if (this.breadthFirstPolicy !== null) {
-        this.enqueueBreadthFirstExpansion(state.ref);
-      } else {
-        this.expansionQueue.push(state.ref);
-      }
-    }
+    // Record each committed observation independently of the admitted callback
+    // policy. A later iterator lease selects it only when delivering it.
+    this.boundaries.push({
+      id: this.nextBoundaryId++,
+      event: {
+        vertex: state.ref.getValue(),
+        vertexRef: state.ref,
+        order: state.order,
+        isRoot:
+          state.ref === this.options.container.resolvedGraphView.getRoot(),
+      },
+      expandAfter: initial && this.depthFirstPolicy === null,
+    });
   }
 
   private advanceDepthFirst(

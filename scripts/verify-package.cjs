@@ -495,6 +495,7 @@ try {
     'source-hint-contracts',
     'materialized-rewrite-capability',
     'execution-capabilities',
+    'delivery-selection',
     'idiomatic-execution',
     'idiomatic-diagnostics',
     'idiomatic-api',
@@ -527,6 +528,7 @@ try {
     'dag-fragments.mjs',
     'dag-revisions.mjs',
     'graph-walk.mjs',
+    'delivery-selection.mjs',
   ]) {
     fs.copyFileSync(
       path.join(root, 'scripts/package-consumers', file),

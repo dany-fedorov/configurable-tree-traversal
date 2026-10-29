@@ -32,7 +32,7 @@ export function* runSync<
         );
         break;
       case 'EVENT':
-        yield action.event;
+        if (kernel.shouldEmit(action.event.order)) yield action.event;
         kernel.acknowledgeEvent(action.boundaryId);
         break;
       case 'HALTED':

@@ -117,6 +117,8 @@ Avoid making a child wait on its own ancestor's C when that ancestor must wait f
 
 ## Accept results and resume
 
+Event streams filter at delivery across tree, DAG and walking runners. A new iterator lease applies its `emitEvents` selection to buffered observations and deferred settlement events. Selection never replays work or callbacks; `visitorPhases` retains independent admission snapshots. For example, resume with `emitEvents: ['subgraphCompleted']` to consume completion observations while suppressing pending work observations. See the [delivery example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts).
+
 Start from the [quickstart](../README.md#quickstart-find-the-next-agent-tasks). To advance its session after the host accepts `testPlan`, dispatch from the `advance()` frontier. This continuation assumes the quickstart's `session` and `accepted` values:
 
 ```ts

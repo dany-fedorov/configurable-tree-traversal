@@ -65,6 +65,16 @@ function makeKernel(
   return { kernel, container, stateBridge };
 }
 
+function acknowledgeObservation(
+  kernel: TraversalKernel<TestGraph>,
+  order: VisitPhase,
+) {
+  const observation = kernel.poll('drive');
+  expect(observation).toMatchObject({ kind: 'EVENT', event: { order } });
+  if (observation.kind !== 'EVENT') throw new Error('Expected observation');
+  kernel.acknowledgeEvent(observation.boundaryId);
+}
+
 function makeBreadthKernel() {
   const container = new ResolvedGraphsContainer<TestGraph>({
     sourceMode: 'graph',
@@ -189,6 +199,7 @@ test('steps from an owned root request through visit and event backpressure', ()
   expect(kernel.poll('drive')).toEqual(event);
 
   kernel.acknowledgeEvent(event.boundaryId);
+  acknowledgeObservation(kernel, 'ON_SUBGRAPH_READY');
   expect(kernel.poll('drive')).toEqual({ kind: 'FINISHED' });
   expect(container.resolvedGraphView.getRoot()).not.toBeNull();
 });
@@ -578,6 +589,7 @@ test('disables an unexpanded subtree without failing its current chain', () => {
   expect(event.kind).toBe('EVENT');
   if (event.kind !== 'EVENT') throw new Error('Expected event');
   kernel.acknowledgeEvent(event.boundaryId);
+  acknowledgeObservation(kernel, 'ON_SUBGRAPH_READY');
   expect(kernel.poll('drive')).toEqual({ kind: 'FINISHED' });
 });
 
@@ -755,6 +767,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
     kind: 'VISIT',
     outcome: { ok: true, value: undefined },
   });
+  acknowledgeObservation(kernel, 'ON_WORK_READY');
   const makeA = kernel.poll('drive');
   if (makeA.kind !== 'CALL' || makeA.call.kind !== 'MAKE_VERTEX') {
     throw new Error('Expected first child request');
@@ -796,6 +809,7 @@ test('discards a reply whose chain owner was invalidated by deletion', () => {
     kind: 'VISIT',
     outcome: { ok: true, value: undefined },
   });
+  acknowledgeObservation(kernel, 'ON_WORK_READY');
   const visitB = kernel.poll('drive');
   if (visitB.kind !== 'CALL' || visitB.call.kind !== 'VISIT') {
     throw new Error('Expected B visitor call');

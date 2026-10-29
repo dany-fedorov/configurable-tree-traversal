@@ -25,7 +25,7 @@ const rootOnly = {
   }),
 };
 for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
-  test(`${Constructor.name} settlement preserves configured event once and discards buffered commands and remaining visitors`, async () => {
+  test(`${Constructor.name} settlement filters its committed event at delivery and discards buffered commands and remaining visitors`, async () => {
     const traversal = new Constructor<G>({ traversableGraph: rootOnly });
     let visits = 0;
     traversal.addVisitorFor(
@@ -74,7 +74,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       emitEvents: ['subgraphCompleted'],
     }))
       events.push(`${event.kind}:${event.vertex.getData()}`);
-    expect(events).toEqual(['workCompleted:a', 'subgraphCompleted:a']);
+    expect(events).toEqual(['subgraphCompleted:a']);
     expect(visits).toBe(2);
   });
 

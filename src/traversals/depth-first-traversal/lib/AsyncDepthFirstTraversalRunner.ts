@@ -13,13 +13,19 @@ import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import type { ResolvedGraphView } from '@core/ResolvedGraphView';
 import type { ResolvedTreeStore } from '@core/ResolvedTree';
 import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { AsyncTraversalExecution } from '@core/TraversalExecution';
+import type {
+  SelectedTraversalEvent,
+  AsyncTraversalExecution,
+} from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
 import type {
   TraversalStopReason,
   TreeTraversalEvent,
 } from '@core/TraversalRunner';
-import type { TraversalExecutionOptions } from '@core/TraversalRunnerIterableConfig';
+import type {
+  EmissionKind,
+  TraversalExecutionOptions,
+} from '@core/TraversalRunnerIterableConfig';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import {
   mergeAsyncDepthFirstTraversalInstanceConfigs,
@@ -162,7 +168,7 @@ export class InternalAsyncDepthFirstTreeRunner<
       concurrency: this.icfg.concurrency,
     });
     const driver = createAsyncDriver(kernel, bindings, this.icfg.concurrency);
-    this.execution = new AsyncRunnerSession(this.projectEvents(driver));
+    this.execution = new AsyncRunnerSession(this.projectEvents(driver, kernel));
   }
 
   getStatus() {
@@ -208,6 +214,19 @@ export class InternalAsyncDepthFirstTreeRunner<
     );
   }
 
+  iterateEvents(): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown>;
+  iterateEvents<Kind extends EmissionKind<DepthFirstPhase>>(
+    config: TraversalExecutionOptions<DepthFirstPhase, Kind> & {
+      emitEvents: readonly Kind[];
+    },
+  ): AsyncGenerator<
+    SelectedTraversalEvent<Event<TTP, RW_TTP>, Kind>,
+    void,
+    unknown
+  >;
+  iterateEvents(
+    config?: TraversalExecutionOptions<DepthFirstPhase>,
+  ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown>;
   iterateEvents(
     config?: TraversalExecutionOptions<DepthFirstPhase>,
   ): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown> {
@@ -223,6 +242,7 @@ export class InternalAsyncDepthFirstTreeRunner<
 
   private projectEvents(
     control: AsyncSessionControl<KernelEvent<TTP | RW_TTP>>,
+    kernel: TraversalKernel<TTP, RW_TTP>,
   ): AsyncSessionControl<Event<TTP, RW_TTP>> {
     return {
       advance: (mode): SessionProgress<Event<TTP, RW_TTP>> => {
@@ -239,6 +259,7 @@ export class InternalAsyncDepthFirstTreeRunner<
           },
         };
       },
+      shouldEmitEvent: (event) => kernel.shouldEmit(event.phase),
       acknowledgeEvent: (boundaryId) => control.acknowledgeEvent(boundaryId),
       requestHalt: () => control.requestHalt(),
       isHaltRequested: () => control.isHaltRequested(),

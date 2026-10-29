@@ -113,6 +113,7 @@ export interface KernelPort<T extends VertexTypes, R extends VertexTypes = T> {
   submit(reply: CallbackReply<T, R>): void;
   discardRequest(requestId: number): void;
   acknowledgeEvent(boundaryId: number): void;
+  shouldEmit(phase: VisitPhase): boolean;
   requestHalt(): void;
   resume(
     config?: TraversalIterableConfigInput<VisitPhase>,
