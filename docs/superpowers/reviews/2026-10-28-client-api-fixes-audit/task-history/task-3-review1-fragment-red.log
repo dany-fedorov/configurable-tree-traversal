@@ -1,0 +1,67 @@
+
+> configurable-tree-traversal@0.11.0 test
+> jest --runInBand tests/helper-option-capture.test.ts -t fragment mapId
+
+FAIL tests/helper-option-capture.test.ts
+  ✕ fragment mapId capture preserves its original receiver (inherited=false) (6 ms)
+  ✕ fragment mapId capture preserves its original receiver (inherited=true) (1 ms)
+  ○ skipped DAG materializers capture selector fields once and preserve receiver (inherited=false)
+  ○ skipped DAG materializers capture selector fields once and preserve receiver (inherited=true)
+  ○ skipped DAG materializers capture selector fields once and preserve receiver (inherited=false)
+  ○ skipped DAG materializers capture selector fields once and preserve receiver (inherited=true)
+  ○ skipped DAG materializers capture selector fields once and preserve receiver (inherited=false)
+  ○ skipped DAG materializers capture selector fields once and preserve receiver (inherited=true)
+  ○ skipped DAG materializers capture selector fields once and preserve receiver (inherited=false)
+  ○ skipped DAG materializers capture selector fields once and preserve receiver (inherited=true)
+  ○ skipped walking materializers capture callbacks and roots once (inherited=false)
+  ○ skipped walking materializers capture callbacks and roots once (inherited=true)
+  ○ skipped walking materializers capture callbacks and roots once (inherited=false)
+  ○ skipped walking materializers capture callbacks and roots once (inherited=true)
+  ○ skipped group wrappers and member fields capture once, preserving list/set metadata (inherited=false)
+  ○ skipped group wrappers and member fields capture once, preserving list/set metadata (inherited=true)
+  ○ skipped group wrappers and member fields capture once, preserving list/set metadata (inherited=false)
+  ○ skipped group wrappers and member fields capture once, preserving list/set metadata (inherited=true)
+  ○ skipped group wrappers and member fields capture once, preserving list/set metadata (inherited=false)
+  ○ skipped group wrappers and member fields capture once, preserving list/set metadata (inherited=true)
+  ○ skipped group wrappers and member fields capture once, preserving list/set metadata (inherited=false)
+  ○ skipped group wrappers and member fields capture once, preserving list/set metadata (inherited=true)
+  ○ skipped walking accepts callable source receivers with inherited methods and caller state (async=false)
+  ○ skipped walking accepts callable source receivers with inherited methods and caller state (async=true)
+
+  ● fragment mapId capture preserves its original receiver (inherited=false)
+
+    mapId reread
+
+      143 |       {
+      144 |         get mapId() {
+    > 145 |           if (++reads > 1) throw new Error('mapId reread');
+          |                                  ^
+      146 |           return function (this: unknown, id: number) {
+      147 |             expect(this).toBe(options);
+      148 |             return `mapped:${id}`;
+
+      at Object.get mapId [as mapId] (tests/helper-option-capture.test.ts:145:34)
+      at instantiateDagFragment (src/traversals/dag-traversal/dagFragments.ts:70:26)
+      at tests/helper-option-capture.test.ts:154:44
+
+  ● fragment mapId capture preserves its original receiver (inherited=true)
+
+    mapId reread
+
+      143 |       {
+      144 |         get mapId() {
+    > 145 |           if (++reads > 1) throw new Error('mapId reread');
+          |                                  ^
+      146 |           return function (this: unknown, id: number) {
+      147 |             expect(this).toBe(options);
+      148 |             return `mapped:${id}`;
+
+      at Object.get mapId [as mapId] (tests/helper-option-capture.test.ts:145:34)
+      at instantiateDagFragment (src/traversals/dag-traversal/dagFragments.ts:70:26)
+      at tests/helper-option-capture.test.ts:154:44
+
+Test Suites: 1 failed, 1 total
+Tests:       2 failed, 22 skipped, 24 total
+Snapshots:   0 total
+Time:        1.18 s
+Ran all test suites matching /tests\/helper-option-capture.test.ts/i with tests matching "fragment mapId".

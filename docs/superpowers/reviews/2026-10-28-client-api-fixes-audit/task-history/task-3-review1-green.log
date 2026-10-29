@@ -1,0 +1,294 @@
+
+> configurable-tree-traversal@0.11.0 test
+> jest --runInBand tests/helper-option-capture.test.ts tests/dag-source-patches.test.ts tests/collection-sources.test.ts tests/graph-walk-sources.test.ts tests/visitor-groups.test.ts tests/dag-fragments.test.ts
+
+PASS tests/collection-sources.test.ts
+  ✓ a flat diamond discovers all records and releases dependencies after settlement (8 ms)
+  ✓ arbitrary IDs retain identity and caller data stays shared and unfrozen (6 ms)
+  ✓ materialization copies membership, children, and both milestone edges (4 ms)
+  ✓ catalog duplicates reject under SameValueZero identity (undefined) (4 ms)
+  ✓ catalog duplicates reject under SameValueZero identity (NaN)
+  ✓ catalog duplicates reject under SameValueZero identity (0) (1 ms)
+  ✓ catalog duplicates reject under SameValueZero identity ({})
+  ✓ forest permits repeated record identity but rejects different records sharing IDs (2 ms)
+  ✓ missing structural children reject during catalog materialization (1 ms)
+  ✓ unknown prerequisites remain engine validation errors while known lookup is tagged found (3 ms)
+  ✓ a source rejects unknown structural lookup without omitting it (1 ms)
+  ✓ async catalogs and promised iterable selectors preserve completion and structural edges (2 ms)
+  ✓ forest async selectors and input materialize once, preserving milestone dependencies
+  ✓ forest copies child records and completion constraints before caller mutation (1 ms)
+  ✓ empty forests produce finished empty graphs with no holder events (1 ms)
+  ✓ forest materialization is iterative for deep input and leaves cycle validation to the engine (11 ms)
+  ✓ selector and catalog failures retain exact identity
+  ✓ empty and disconnected catalogs expose only actual records (1 ms)
+  ✓ forest expansion shares records across parents (1 ms)
+  ✓ materializeDagInputFromRecords canonical selectors distinguish work from subgraph completion (1 ms)
+  ✓ materializeDagInputFromRecordsAsync canonical selectors distinguish work from subgraph completion (1 ms)
+  ✓ materializeDagInputFromRoots canonical selectors distinguish work from subgraph completion
+  ✓ materializeDagInputFromRootsAsync canonical selectors distinguish work from subgraph completion (1 ms)
+  ✓ materializeDagInputFromRecords rejects own dependencies=callback before callbacks (empty=false) (1 ms)
+  ✓ materializeDagInputFromRecords rejects own dependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRecords rejects own dependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRecords rejects own dependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRecords rejects inherited dependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRecords rejects inherited dependencies=callback before callbacks (empty=true) (1 ms)
+  ✓ materializeDagInputFromRecords rejects inherited dependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRecords rejects inherited dependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRecords rejects own completionDependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRecords rejects own completionDependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRecords rejects own completionDependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRecords rejects own completionDependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRecords rejects inherited completionDependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRecords rejects inherited completionDependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRecords rejects inherited completionDependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRecords rejects inherited completionDependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRoots rejects own dependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRoots rejects own dependencies=callback before callbacks (empty=true) (1 ms)
+  ✓ materializeDagInputFromRoots rejects own dependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRoots rejects own dependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRoots rejects inherited dependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRoots rejects inherited dependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRoots rejects inherited dependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRoots rejects inherited dependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRoots rejects own completionDependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRoots rejects own completionDependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRoots rejects own completionDependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRoots rejects own completionDependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRoots rejects inherited completionDependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRoots rejects inherited completionDependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRoots rejects inherited completionDependencies=undefined before callbacks (empty=false) (1 ms)
+  ✓ materializeDagInputFromRoots rejects inherited completionDependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRecordsAsync rejects own dependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRecordsAsync rejects own dependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRecordsAsync rejects own dependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRecordsAsync rejects own dependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRecordsAsync rejects inherited dependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRecordsAsync rejects inherited dependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRecordsAsync rejects inherited dependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRecordsAsync rejects inherited dependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRecordsAsync rejects own completionDependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRecordsAsync rejects own completionDependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRecordsAsync rejects own completionDependencies=undefined before callbacks (empty=false) (1 ms)
+  ✓ materializeDagInputFromRecordsAsync rejects own completionDependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRecordsAsync rejects inherited completionDependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRecordsAsync rejects inherited completionDependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRecordsAsync rejects inherited completionDependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRecordsAsync rejects inherited completionDependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRootsAsync rejects own dependencies=callback before callbacks (empty=false) (1 ms)
+  ✓ materializeDagInputFromRootsAsync rejects own dependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRootsAsync rejects own dependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRootsAsync rejects own dependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRootsAsync rejects inherited dependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRootsAsync rejects inherited dependencies=callback before callbacks (empty=true) (1 ms)
+  ✓ materializeDagInputFromRootsAsync rejects inherited dependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRootsAsync rejects inherited dependencies=undefined before callbacks (empty=true)
+  ✓ materializeDagInputFromRootsAsync rejects own completionDependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRootsAsync rejects own completionDependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRootsAsync rejects own completionDependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRootsAsync rejects own completionDependencies=undefined before callbacks (empty=true) (1 ms)
+  ✓ materializeDagInputFromRootsAsync rejects inherited completionDependencies=callback before callbacks (empty=false)
+  ✓ materializeDagInputFromRootsAsync rejects inherited completionDependencies=callback before callbacks (empty=true)
+  ✓ materializeDagInputFromRootsAsync rejects inherited completionDependencies=undefined before callbacks (empty=false)
+  ✓ materializeDagInputFromRootsAsync rejects inherited completionDependencies=undefined before callbacks (empty=true)
+
+PASS tests/dag-source-patches.test.ts
+  ✓ DagTraversal traversableGraph ignores own undefined source keys and keeps the active source (2 ms)
+  ✓ DagTraversal traversableGraph ignores inherited source keys and keeps the active source (1 ms)
+  ✓ DagTraversal traversableGraph replaces only same-family sources and rejects opposite patches atomically (2 ms)
+  ✓ DagTraversal traversableGraph rejects malformed opposite source null without mutation or callbacks
+  ✓ DagTraversal traversableGraph rejects malformed opposite source 0 without mutation or callbacks (1 ms)
+  ✓ DagTraversal traversableGraph rejects malformed opposite source {} without mutation or callbacks
+  ✓ DagTraversal traversableGraph captures source getters once (enumerable=true) (1 ms)
+  ✓ DagTraversal traversableGraph captures source getters once (enumerable=false)
+  ✓ DagTraversal traversableGraph keeps a source when own getters return undefined (1 ms)
+  ✓ DagTraversal traversableGraph validates nonenumerable defined options atomically (1 ms)
+  ✓ DagTraversal traversableGraph rejects symbol and own __proto__ options atomically
+  ✓ DagTraversal traversableGraph never reads inherited source getters (1 ms)
+  ✓ DagTraversal traversableGraph preserves exact getter errors and configuration (undefined)
+  ✓ DagTraversal traversableGraph preserves exact getter errors and configuration (null) (1 ms)
+  ✓ DagTraversal traversableGraph preserves exact getter errors and configuration (Symbol(source getter error))
+  ✓ DagTraversal traversableTree ignores own undefined source keys and keeps the active source (1 ms)
+  ✓ DagTraversal traversableTree ignores inherited source keys and keeps the active source (1 ms)
+  ✓ DagTraversal traversableTree replaces only same-family sources and rejects opposite patches atomically
+  ✓ DagTraversal traversableTree rejects malformed opposite source null without mutation or callbacks (1 ms)
+  ✓ DagTraversal traversableTree rejects malformed opposite source 0 without mutation or callbacks
+  ✓ DagTraversal traversableTree rejects malformed opposite source {} without mutation or callbacks (1 ms)
+  ✓ DagTraversal traversableTree captures source getters once (enumerable=true)
+  ✓ DagTraversal traversableTree captures source getters once (enumerable=false) (1 ms)
+  ✓ DagTraversal traversableTree keeps a source when own getters return undefined
+  ✓ DagTraversal traversableTree validates nonenumerable defined options atomically (1 ms)
+  ✓ DagTraversal traversableTree rejects symbol and own __proto__ options atomically
+  ✓ DagTraversal traversableTree never reads inherited source getters (1 ms)
+  ✓ DagTraversal traversableTree preserves exact getter errors and configuration (undefined)
+  ✓ DagTraversal traversableTree preserves exact getter errors and configuration (null)
+  ✓ DagTraversal traversableTree preserves exact getter errors and configuration (Symbol(source getter error))
+  ✓ AsyncDagTraversal traversableGraph ignores own undefined source keys and keeps the active source (1 ms)
+  ✓ AsyncDagTraversal traversableGraph ignores inherited source keys and keeps the active source (1 ms)
+  ✓ AsyncDagTraversal traversableGraph replaces only same-family sources and rejects opposite patches atomically (1 ms)
+  ✓ AsyncDagTraversal traversableGraph rejects malformed opposite source null without mutation or callbacks (1 ms)
+  ✓ AsyncDagTraversal traversableGraph rejects malformed opposite source 0 without mutation or callbacks
+  ✓ AsyncDagTraversal traversableGraph rejects malformed opposite source {} without mutation or callbacks (1 ms)
+  ✓ AsyncDagTraversal traversableGraph captures source getters once (enumerable=true)
+  ✓ AsyncDagTraversal traversableGraph captures source getters once (enumerable=false) (6 ms)
+  ✓ AsyncDagTraversal traversableGraph keeps a source when own getters return undefined (1 ms)
+  ✓ AsyncDagTraversal traversableGraph validates nonenumerable defined options atomically (1 ms)
+  ✓ AsyncDagTraversal traversableGraph rejects symbol and own __proto__ options atomically (1 ms)
+  ✓ AsyncDagTraversal traversableGraph never reads inherited source getters (1 ms)
+  ✓ AsyncDagTraversal traversableGraph preserves exact getter errors and configuration (undefined)
+  ✓ AsyncDagTraversal traversableGraph preserves exact getter errors and configuration (null)
+  ✓ AsyncDagTraversal traversableGraph preserves exact getter errors and configuration (Symbol(source getter error))
+  ✓ AsyncDagTraversal traversableTree ignores own undefined source keys and keeps the active source (1 ms)
+  ✓ AsyncDagTraversal traversableTree ignores inherited source keys and keeps the active source
+  ✓ AsyncDagTraversal traversableTree replaces only same-family sources and rejects opposite patches atomically (1 ms)
+  ✓ AsyncDagTraversal traversableTree rejects malformed opposite source null without mutation or callbacks (1 ms)
+  ✓ AsyncDagTraversal traversableTree rejects malformed opposite source 0 without mutation or callbacks
+  ✓ AsyncDagTraversal traversableTree rejects malformed opposite source {} without mutation or callbacks (1 ms)
+  ✓ AsyncDagTraversal traversableTree captures source getters once (enumerable=true)
+  ✓ AsyncDagTraversal traversableTree captures source getters once (enumerable=false)
+  ✓ AsyncDagTraversal traversableTree keeps a source when own getters return undefined (1 ms)
+  ✓ AsyncDagTraversal traversableTree validates nonenumerable defined options atomically
+  ✓ AsyncDagTraversal traversableTree rejects symbol and own __proto__ options atomically (1 ms)
+  ✓ AsyncDagTraversal traversableTree never reads inherited source getters (1 ms)
+  ✓ AsyncDagTraversal traversableTree preserves exact getter errors and configuration (undefined)
+  ✓ AsyncDagTraversal traversableTree preserves exact getter errors and configuration (null) (1 ms)
+  ✓ AsyncDagTraversal traversableTree preserves exact getter errors and configuration (Symbol(source getter error))
+  ✓ mergeDagTraversalInstanceConfigs retains a source for an ignored direct patch
+  ✓ mergeAsyncDagTraversalInstanceConfigs retains a source for an ignored direct patch
+
+PASS tests/dag-fragments.test.ts
+  ✓ two object-ID instances compose a completion wire without sharing local identities (4 ms)
+  ✓ maps each live and omitted identity once across entry, slots, dependencies and ports (1 ms)
+  ✓ preserves forest order, detached prerequisites and empty-entry known omissions (2 ms)
+  ✓ structural links append independently of explicit work and completion wires (1 ms)
+  ✓ composition validates structural and combined W/C cycles through the shared validator (2 ms)
+  ✓ rejects non-closed fragment definitions before mapping (3 ms)
+  ✓ rejects non-closed fragment definitions before mapping
+  ✓ rejects unknown/omitted ports, malformed port maps and symbol port names (2 ms)
+  ✓ maps SameValueZero identities and rejects mapped live/omitted collisions (1 ms)
+  ✓ rejects cross-instance live/omitted collisions and invalid wire endpoints or milestone kinds (2 ms)
+  ✓ retains caller error identity for mapping and port getters (1 ms)
+  ✓ copies and freezes owned fragment topology and port wrappers without freezing opaque IDs/data
+  ✓ remaps forest entry references and empty omission catalogs before composition (2 ms)
+  ✓ omitted identities cannot be structural endpoints or wire dependents: { children: [ { parent: 'skip', child: 'a' }, [length]: 1 ] } (1 ms)
+  ✓ omitted identities cannot be structural endpoints or wire dependents: { children: [ { parent: 'a', child: 'skip' }, [length]: 1 ] }
+  ✓ omitted identities cannot be structural endpoints or wire dependents: {
+  dependencies: [
+    {
+      dependent: 'skip',
+      prerequisite: { vertexId: 'a', milestone: 'work' }
+    },
+    [length]: 1
+  ]
+} (1 ms)
+  ✓ composition retains omitted discovery positions before dependent siblings (1 ms)
+  ✓ missing wire fields are malformed even when undefined is a live identity (3 ms)
+  ✓ wire endpoint getters run once and retain exact thrown values (1 ms)
+  ✓ fragment validation exposes structural issues with shallow object and undefined identities
+  ✓ forged fragments expose milestone validation before any mapping
+  ✓ fragment validation errors detach their issue array while retaining issue and ID identity
+  ✓ fragment port and mapping failures retain their plain TypeError taxonomy (9 ms)
+  ✓ closed invalid fragments preserve structuralCycle details through construction and instantiation (1 ms)
+  ✓ closed invalid fragments preserve milestone details through construction and instantiation (1 ms)
+
+PASS tests/visitor-groups.test.ts
+  ✓ DagTraversal: flat priority order precedes batching mode (2 ms)
+  ✓ DagTraversal: groups preserve boundaries, committed state and list/set append order (1 ms)
+  ✓ AsyncDagTraversal: flat priority order precedes batching mode (1 ms)
+  ✓ AsyncDagTraversal: groups preserve boundaries, committed state and list/set append order (1 ms)
+  ✓ DagTraversal: flat afterGroup entries commit in contiguous sorted batches
+  ✓ DagTraversal: stable equal priorities ignore deprecated caller indexes (1 ms)
+  ✓ DagTraversal: explicit deferral rolls back only its current batch (1 ms)
+  ✓ DagTraversal: normally completed groups commit before external settlement (1 ms)
+  ✓ DagTraversal: halt resumes the remaining groups after committing its batch
+  ✓ DagTraversal: deletion ends the chain before later groups (1 ms)
+  ✓ DagTraversal: invalid group replacements are atomic and normalized policy remains owned by the group (12 ms)
+  ✓ AsyncDagTraversal: flat afterGroup entries commit in contiguous sorted batches (1 ms)
+  ✓ AsyncDagTraversal: stable equal priorities ignore deprecated caller indexes
+  ✓ AsyncDagTraversal: explicit deferral rolls back only its current batch (1 ms)
+  ✓ AsyncDagTraversal: normally completed groups commit before external settlement (1 ms)
+  ✓ AsyncDagTraversal: halt resumes the remaining groups after committing its batch
+  ✓ AsyncDagTraversal: deletion ends the chain before later groups (1 ms)
+  ✓ AsyncDagTraversal: invalid group replacements are atomic and normalized policy remains owned by the group (3 ms)
+  ✓ DagTraversal: captures a definition callback getter once before registration
+  ✓ DagTraversal: captures a group callback getter once before registration (1 ms)
+  ✓ AsyncDagTraversal: captures a definition callback getter once before registration
+  ✓ AsyncDagTraversal: captures a group callback getter once before registration (1 ms)
+
+PASS tests/graph-walk-sources.test.ts
+  ✓ captures catalog topology eagerly while retaining shallow caller data (3 ms)
+  ✓ returns detached root, resolution and outgoing wrappers for independent consumers (1 ms)
+  ✓ preserves arbitrary identity, parallel links and explicit root order without coercion (4 ms)
+  ✓ rejects duplicate catalog IDs including repeated records 0
+  ✓ rejects duplicate catalog IDs including repeated records 1
+  ✓ rejects duplicate catalog IDs including repeated records 2
+  ✓ rejects duplicate catalog IDs including repeated records 3
+  ✓ rejects unknown roots and targets even in unreachable records (1 ms)
+  ✓ allows empty catalog and root sets without inventing vertices
+  ✓ eagerly awaits async catalogs, selectors and roots into a synchronous reusable source (2 ms)
+  ✓ accepts synchronous async-adapter inputs and validates their captured membership
+  ✓ retains exact synchronous and asynchronous selector failures 0 (1 ms)
+  ✓ retains exact synchronous and asynchronous selector failures 1
+  ✓ retains exact synchronous and asynchronous selector failures 2
+  ✓ walks cyclic definitions without DAG preparation or callback execution (1 ms)
+  ✓ projects selected DAG relations in canonical order with parallel slots and dependent-to-prerequisite direction (1 ms)
+  ✓ allows cyclic workDependencies and ignores unselected missing relationships
+  ✓ allows cyclic subgraphCompletionDependencies and ignores unselected missing relationships
+  ✓ copies mutable definitions and separates generated relationship wrappers across consumers (1 ms)
+  ✓ preserves forest root slots, arbitrary identities and known omitted roots
+  ✓ permits omitted root entries and empty entries without fabricating roots (1 ms)
+  ✓ requires explicit nonempty unique supported DAG relations 0
+  ✓ requires explicit nonempty unique supported DAG relations 1
+  ✓ requires explicit nonempty unique supported DAG relations 2 (1 ms)
+  ✓ requires explicit nonempty unique supported DAG relations 3
+  ✓ requires explicit nonempty unique supported DAG relations 4
+  ✓ requires explicit nonempty unique supported DAG relations 5
+  ✓ requires explicit nonempty unique supported DAG relations 6
+  ✓ requires explicit nonempty unique supported DAG relations 7 (1 ms)
+  ✓ rejects inconsistent declared identities even with no selected edges 0
+  ✓ rejects inconsistent declared identities even with no selected edges 1
+  ✓ rejects inconsistent declared identities even with no selected edges 2
+  ✓ validates selected child membership and live/omitted consistency 0 (1 ms)
+  ✓ validates selected child membership and live/omitted consistency 1
+  ✓ validates selected child membership and live/omitted consistency 2
+  ✓ validates selected child membership and live/omitted consistency 3
+  ✓ validates missing selected workDependencies endpoints in unreachable records
+  ✓ validates missing selected subgraphCompletionDependencies endpoints in unreachable records
+  ✓ always validates root membership and forest slot consistency 0 (1 ms)
+  ✓ always validates root membership and forest slot consistency 1
+  ✓ always validates root membership and forest slot consistency 2
+  ✓ always validates root membership and forest slot consistency 3
+  ✓ always validates root membership and forest slot consistency 4 (1 ms)
+  ✓ keeps DAG task callbacks opaque through sync and async walking
+  ✓ copies async links as they are yielded, before the iterator reuses its wrapper
+
+PASS tests/helper-option-capture.test.ts
+  ✓ DAG materializers capture selector fields once and preserve receiver (inherited=false) (2 ms)
+  ✓ DAG materializers capture selector fields once and preserve receiver (inherited=true) (1 ms)
+  ✓ DAG materializers capture selector fields once and preserve receiver (inherited=false)
+  ✓ DAG materializers capture selector fields once and preserve receiver (inherited=true) (1 ms)
+  ✓ DAG materializers capture selector fields once and preserve receiver (inherited=false) (1 ms)
+  ✓ DAG materializers capture selector fields once and preserve receiver (inherited=true)
+  ✓ DAG materializers capture selector fields once and preserve receiver (inherited=false) (1 ms)
+  ✓ DAG materializers capture selector fields once and preserve receiver (inherited=true) (1 ms)
+  ✓ walking materializers capture callbacks and roots once (inherited=false) (1 ms)
+  ✓ walking materializers capture callbacks and roots once (inherited=true)
+  ✓ walking materializers capture callbacks and roots once (inherited=false)
+  ✓ walking materializers capture callbacks and roots once (inherited=true) (1 ms)
+  ✓ fragment mapId capture preserves its original receiver (inherited=false) (1 ms)
+  ✓ fragment mapId capture preserves its original receiver (inherited=true) (1 ms)
+  ✓ group wrappers and member fields capture once, preserving list/set metadata (inherited=false) (1 ms)
+  ✓ group wrappers and member fields capture once, preserving list/set metadata (inherited=true) (1 ms)
+  ✓ group wrappers and member fields capture once, preserving list/set metadata (inherited=false) (1 ms)
+  ✓ group wrappers and member fields capture once, preserving list/set metadata (inherited=true)
+  ✓ group wrappers and member fields capture once, preserving list/set metadata (inherited=false) (1 ms)
+  ✓ group wrappers and member fields capture once, preserving list/set metadata (inherited=true) (1 ms)
+  ✓ group wrappers and member fields capture once, preserving list/set metadata (inherited=false)
+  ✓ group wrappers and member fields capture once, preserving list/set metadata (inherited=true) (1 ms)
+  ✓ walking accepts callable source receivers with inherited methods and caller state (async=false)
+  ✓ walking accepts callable source receivers with inherited methods and caller state (async=true) (1 ms)
+
+Test Suites: 6 passed, 6 total
+Tests:       265 passed, 265 total
+Snapshots:   0 total
+Time:        1.702 s
+Ran all test suites matching /tests\/helper-option-capture.test.ts|tests\/dag-source-patches.test.ts|tests\/collection-sources.test.ts|tests\/graph-walk-sources.test.ts|tests\/visitor-groups.test.ts|tests\/dag-fragments.test.ts/i.

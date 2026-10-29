@@ -1,0 +1,12 @@
+{
+  "command": [
+    "node",
+    "scripts/verify-package.cjs"
+  ],
+  "startedAt": "2026-10-29T08:50:31.284138+00:00",
+  "finishedAt": "2026-10-29T08:51:01.491353+00:00",
+  "exitCode": 0,
+  "head": "3c103a40f33a6232f5683df305226f23912e9b55",
+  "node": "v24.20.0",
+  "compiler": "Version 4.7.4"
+}

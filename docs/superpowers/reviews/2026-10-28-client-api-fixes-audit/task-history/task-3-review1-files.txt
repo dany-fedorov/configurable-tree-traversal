@@ -1,0 +1,10 @@
+src/core/assertPublicOptions.ts
+src/core/visitors/normalizeVisitorDefinitions.ts
+src/sources/forestFrom.ts
+src/sources/graphFrom.ts
+src/sources/materialize.ts
+src/traversals/dag-traversal/dagFragments.ts
+src/traversals/graph-walk/lib/normalizeWalkOptions.ts
+src/traversals/graph-walk/walkSourceFrom.ts
+tests/dag-source-patches.test.ts
+tests/helper-option-capture.test.ts

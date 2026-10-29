@@ -1,0 +1,13 @@
+{
+  "command": [
+    "node",
+    "scripts/api-clarity-census.cjs",
+    "/home/df/.codex/worktrees/04b4/configurable-tree-traversal/docs/superpowers/reviews/2026-10-28-client-api-fixes-audit/census"
+  ],
+  "startedAt": "2026-10-29T08:51:41.327100+00:00",
+  "finishedAt": "2026-10-29T08:51:42.385729+00:00",
+  "exitCode": 0,
+  "head": "3c103a40f33a6232f5683df305226f23912e9b55",
+  "node": "v24.20.0",
+  "compiler": "Version 4.9.5"
+}

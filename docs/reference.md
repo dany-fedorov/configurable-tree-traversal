@@ -248,12 +248,12 @@ All four DAG input helpers return a `MaterializedDagInput<Item, ID>` envelope wi
 
 Materialized lookup does not depend on live vertex data: the source accepts any rewrite-data context R, with an input specialization retained for ordinary Item/ID inference on TypeScript 4.7/4.9. The same envelope therefore composes with an explicitly disjoint R in sync/async DAG builders and helpers without assertions or new factory arguments. Discovery results and original views remain Item, and hint replacement remains constrained to input ID hints. This built-in capability does not relax live-context checks for user sources with narrow hooks. See the [executable disjoint-rewrite example](migration-idiomatic-api.md#dag-inputs-and-actual-sources).
 
-| Helper                                                   | Input and selectors                                                                                                                            | Membership and identity                                                                                                                                                                              |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Helper                                                  | Input and selectors                                                                                                                            | Membership and identity                                                                                                                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `materializeDagInputFromRecords(items, selectors)`      | Iterable items; required `id(item)`; optional `children(item)`, `dependsOnWork(item)`, `dependsOnSubgraphCompletion(item)` return iterable IDs | Every item is catalogued, including disconnected entries. Any duplicate ID rejects, even the same record twice. Structural child IDs must exist in the catalog; `children` returns IDs, not records. |
 | `materializeDagInputFromRoots(roots, selectors)`        | Iterable root items; same selectors, but `children(item)` returns iterable items                                                               | Expands iteratively. `children` returns records, not IDs. The same record can appear under multiple parents; different records with the same ID reject.                                              |
-| `materializeDagInputFromRecordsAsync(items, selectors)` | Iterable/async-iterable items; value-or-promise selectors, with iterable/async-iterable edge results                                           | Awaits materialization, then returns an input envelope containing a synchronous discovery source.                                                                                                                 |
-| `materializeDagInputFromRootsAsync(roots, selectors)`   | Iterable/async-iterable roots; value-or-promise selectors; children yield records                                                              | Awaits materialization, then returns the same input envelope with shared-root rules.                                                                                                                                           |
+| `materializeDagInputFromRecordsAsync(items, selectors)` | Iterable/async-iterable items; value-or-promise selectors, with iterable/async-iterable edge results                                           | Awaits materialization, then returns an input envelope containing a synchronous discovery source.                                                                                                    |
+| `materializeDagInputFromRootsAsync(roots, selectors)`   | Iterable/async-iterable roots; value-or-promise selectors; children yield records                                                              | Awaits materialization, then returns the same input envelope with shared-root rules.                                                                                                                 |
 
 Absent edge selectors mean empty lists. All four adapters reject the retired selector keys `dependencies` and `completionDependencies` with `TypeError`, even when inherited or present with `undefined`, before reading the input or invoking selectors. Use `dependsOnWork` and `dependsOnSubgraphCompletion` so a stale selector cannot silently drop dependency edges. Caller task-data properties may still use any names, including `dependencies`. Structural child edges and work/completion dependency edges remain distinct. Missing prerequisite IDs are left to the existing validator. Structural discovery cycles become `discoveryCycle` issues in `prepareDag`/`prepareDagAsync`; direct runners throw `DagDiscoveryCycleError`. The synthetic holder is hidden from public vertices, events, callbacks, and parent queries.
 
@@ -649,7 +649,7 @@ Live W is satisfied only after work commits (including accepted seeds); live C r
 
 Endpoint status is `{ kind: 'live', work: DagWorkState, satisfied: boolean }` or `{ kind: 'omitted' | 'deleted' | 'unresolved' }`. Thus an unsatisfied C endpoint can explicitly have `work: 'completed', satisfied: false`. Omitted endpoints satisfy their milestones and do not appear as blockers. Unresolved endpoints are unknown identities, even when global discovery is complete; during partial discovery they are not proof of a missing source vertex. `discoveryOpen` uses local expansion state, independently of global `discoveryComplete`. A closed leaf does not acquire that blocker because another lookup is pending.
 
-Engine-produced `DagVertexProgress` includes exact `unmetWorkPrerequisiteIds`, independent of `unmetSubgraphPrerequisiteIds`; the existing `unmetPrerequisiteIds` remains their union. The W field is optional in the public type for compatibility with manually constructed records. Do not recover W by subtracting C from the union when the same ID participates in both.
+Engine-produced `DagVertexProgress` includes exact `unmetWorkPrerequisiteIds`, independent of `unmetSubgraphPrerequisiteIds`; the existing `unmetPrerequisiteIds` remains their union. Both W and C fields are required readonly arrays, including when empty; manually constructed records must supply both. Do not recover W by subtracting C from the union when the same ID participates in both.
 
 See the runnable [DAG inspection example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts).
 
@@ -1149,7 +1149,8 @@ const input = { keep: 1, remove: 2, nested: [3] };
 const result = rewriteObject(input, {
   rewrite: ({ key, value }) => {
     if (key === 'remove') return { kind: 'delete' };
-    if (typeof value === 'number') return { kind: 'rewrite', patch: { value: value * 10 } };
+    if (typeof value === 'number')
+      return { kind: 'rewrite', patch: { value: value * 10 } };
     return undefined;
   },
 });
@@ -1217,7 +1218,8 @@ const runner = traverseTreeDepthFirst<Input, Current>({
     [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
       commands: [
         bind(vertex, context).makeMutationCommand({
-          kind: 'rewrite', patch: { key: 'output' },
+          kind: 'rewrite',
+          patch: { key: 'output' },
         }),
       ],
     }),

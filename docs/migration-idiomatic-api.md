@@ -1,6 +1,6 @@
 # Idiomatic API migration
 
-[Documentation map](index.md) · [API reference](reference.md) · [Earlier naming migration](migration-api-clarity.md) · [Uniform API migration](migration-uniform-api.md)
+[Documentation map](index.md) · [Client API migration](migration-client-api.md) · [API reference](reference.md) · [Earlier naming migration](migration-api-clarity.md) · [Uniform API migration](migration-uniform-api.md)
 
 The canonical API has one spelling for each supported operation. Removed exports, fields, literals, static members and overloads have no compatibility aliases. This guide covers all fifteen idiomatic API findings; the earlier guides retain their section anchors and the broader historical rename tables.
 
@@ -8,7 +8,7 @@ The canonical API has one spelling for each supported operation. Removed exports
 
 | Finding | Previous surface                                                                                                               | Canonical contract                                                                                                                                                       |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| F01     | Rewrite current values/context typed only as original input                                                                    | Current keys and values independently include input and output domains; retained original views stay input-typed.                                                        |
+| F01     | Rewrite current values/context typed only as original input                                                                    | Current keys include input/output domains; current values and assembled containers are unknown; retained original views stay input-typed.                                |
 | F02     | `ObjectMutationPatch` permitting arbitrary metadata                                                                            | `ObjectPropertyPatch<T>` permits only `key` and `value`; unknown own fields throw.                                                                                       |
 | F03     | `DELETE_VERTEX`, store `delete`, revision `removeVertex`                                                                       | `DELETE_TREE_SUBTREE`, `DELETE_DAG_VERTEX_CASCADE`, `deleteSubtree`, `removeVertexDeclaration`, respectively.                                                            |
 | F04     | `rootDependencies`, `implicitParentDependency`                                                                                 | `rootWorkDependencies`; `omittedWorkDependencies: 'none' \| 'discoveryParentWork'`, on graph discovery only.                                                             |
@@ -46,21 +46,32 @@ type Item = { id: string };
 type Input = VertexTypes<Item, string>;
 type Output = VertexTypes<string, string>;
 const item: Item = { id: 'task' };
-const input = materializeDagInputFromRecords([item], { id: item => item.id });
+const input = materializeDagInputFromRecords([item], { id: (item) => item.id });
 const runner = new DagTraversal<Input, Output, string>({
   ...input,
   retainOriginalGraphStructure: true,
   visitors: {
-    ON_WORK_READY: () => ({ commands: [{
-      commandName: Command.REWRITE_VERTEX_DATA,
-      commandArguments: { newData: 'artifact' },
-    }] }),
+    ON_WORK_READY: () => ({
+      commands: [
+        {
+          commandName: Command.REWRITE_VERTEX_DATA,
+          commandArguments: { newData: 'artifact' },
+        },
+      ],
+    }),
   },
-}).createRunner().run();
-const current: Item | string = runner.getResolvedGraphView()
-  .getVertexRefById('task')!.getValue().getData();
-const original: Item = runner.originalGraphView!
-  .getVertexRefById('task')!.getValue().getData();
+})
+  .createRunner()
+  .run();
+const current: Item | string = runner
+  .getResolvedGraphView()
+  .getVertexRefById('task')!
+  .getValue()
+  .getData();
+const original: Item = runner
+  .originalGraphView!.getVertexRefById('task')!
+  .getValue()
+  .getData();
 if (current !== 'artifact' || original !== item) {
   throw new Error('Expected rewritten data with the original input identity');
 }
@@ -242,7 +253,7 @@ const source: TreeSource<Input, Output> = {
     },
   }),
 };
-const preserveHints = <Hint,>(hints: Hint[]) => hints.reverse();
+const preserveHints = <Hint>(hints: Hint[]) => hints.reverse();
 const declaredHints = (hints: Input['VertexHint'][]) => hints.reverse();
 const discoveryHints: Input['VertexHint'][] = [1, 'extra'];
 const runner = traverseTreeDepthFirst({
@@ -347,7 +358,7 @@ Graph discovery defaults are `rootWorkDependencies: 'honor'` and `omittedWorkDep
 | `resolutionStyle`, `TraversalVisitorFunctionResolutionStyle`, `CONCURRENT` / `SEQUENTIAL`, diagnostic `group` | `commandCommitMode` and its two explicit visibility modes.                                                                                               |
 | Caller `addedIndex` policy                                                                                    | Assigned registration metadata; detached query records can round-trip with fresh assigned indexes.                                                       |
 | `iterateOver`, `enableVisitorFunctionsFor`, `disableVisitorFunctionsFor`                                      | `emitEvents` / `visitorPhases`; retired JS keys reject. Earlier `emitPhases` is also replaced by `emitEvents`.                                           |
-| `makeVertexHook`, `{ returnMe }`                                                                              | `resolveChildHook` with `useDefault`, tagged tree `found`, or `omitted`.                                                                                |
+| `makeVertexHook`, `{ returnMe }`                                                                              | `resolveChildHook` with `useDefault`, tagged tree `found`, or `omitted`.                                                                                 |
 | `AsyncCoreExecution`                                                                                          | `AsyncTraversalExecution`, preserving phase and async differences.                                                                                       |
 | Runtime bases `TreeTraversal`, `TreeTraversalRunner`, `TreeTraversalIterable`, `AbstractTreeSource`           | Structural `TreeSource`, execution capabilities, concrete builders and `Iterable<TreeTraversalEvent<...>>`.                                              |
 | Collection selector `dependencies` / `completionDependencies`                                                 | `dependsOnWork` / `dependsOnSubgraphCompletion`; rejected old keys remain rejected.                                                                      |

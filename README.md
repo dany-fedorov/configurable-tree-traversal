@@ -4,7 +4,7 @@
 
 Give CTT a graph of work and accepted completion facts. It determines what can run next, enforces work and structural-completion dependencies, and exposes progress without executing business work. Your host chooses agents, dispatches tasks, accepts results, and persists state.
 
-[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Idiomatic API migration](docs/migration-idiomatic-api.md) · [API naming migration](docs/migration-api-clarity.md) · [Uniform API migration](docs/migration-uniform-api.md) · [npm](https://www.npmjs.com/package/configurable-tree-traversal)
+[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Client API migration](docs/migration-client-api.md) · [Idiomatic API migration](docs/migration-idiomatic-api.md) · [API naming migration](docs/migration-api-clarity.md) · [Uniform API migration](docs/migration-uniform-api.md) · [npm](https://www.npmjs.com/package/configurable-tree-traversal)
 
 ## Start with autonomous agents
 

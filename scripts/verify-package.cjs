@@ -613,6 +613,7 @@ try {
     'docs/migration-uniform-api.md',
     'docs/migration-api-clarity.md',
     'docs/migration-idiomatic-api.md',
+    'docs/migration-client-api.md',
     'docs/testing.md',
   ];
   const anchors = (markdown) => {
@@ -719,6 +720,7 @@ try {
     'docs/migration-uniform-api.md',
     'docs/migration-api-clarity.md',
     'docs/migration-idiomatic-api.md',
+    'docs/migration-client-api.md',
     'dist/index.js',
     'dist/index.d.ts',
     'dist/core/index.js',
