@@ -26,7 +26,7 @@ This guide covers the twenty client API corrections. Removed forms have no compa
 | F16     | `resolveVertexHook` / `ObjectVertexHookResult`                          | `resolveChildHook` / `ObjectChildHookResult`; map the root separately.                                                                         |
 | F17     | `ResolvedGraph` / `getResolvedGraph()` / `resolvedGraph`                | `ResolvedGraphView` / `getResolvedGraphView()` / `resolvedGraphView`.                                                                          |
 | F18     | Anonymous/private walking catalog selector types                        | `GraphWalkRecordSelectors`, `AsyncGraphWalkRecordSelectors`, and readonly `GraphWalkCatalogLink<Edge, ID>`.                                    |
-| F19     | Tree/DAG `sort` or walking phase-specific visit operation labels        | Diagnostics use `sortChildrenHints` and uniform callback `visit`; iterator operations remain distinct.                                         |
+| F19     | Tree/DAG `sortChildHints` or walking `visitor` operation labels        | Diagnostics use `sortChildrenHints` and uniform callback `visit`; iterator operations remain distinct.                                         |
 | F20     | `isTraversalRoot` / `isTraversalRootVertex`                             | Use family `isTreeRoot` / `isGraphRoot`; walking entry occurrences have `via: null`. There is no subtree-start option.                         |
 
 ## Truthful object discovery and output
