@@ -1,0 +1,48 @@
+{
+  "status": "complete: both requested reviews delivered, consolidated twenty findings and final coverage/evidence audit passed",
+  "baseline": "8f20c2f43cbf7722025b2fb5682072f8e4952c1b",
+  "requestedReviewers": [
+    {
+      "model": "claude-fable-5-1",
+      "effort": "xhigh",
+      "handle": 90331,
+      "state": "complete",
+      "evidence": "fable-network-session.jsonl"
+    },
+    {
+      "model": "gpt-6-astra",
+      "effort": "xhigh",
+      "agent": "/root/astra_api_xhigh",
+      "state": "complete",
+      "evidence": "astra-controller-validation.json"
+    }
+  ],
+  "factsIndependentlyReproduced": [
+    "standalone clone hint sharing",
+    "sorter replaces hint membership",
+    "null versus deleted rewrite result collapse",
+    "rejection of legacy lookup forms and isComposite option",
+    "readonly input type rejection",
+    "session inspection type erasure",
+    "hydration alias type friction",
+    "leaf predicate versus resolved children",
+    "shared wrapper sessions versus independent prepared sessions"
+  ],
+  "historicalFindingsRejected": [
+    {
+      "finding": "default object root-key constant is a supported public export",
+      "reason": "only reachable through generated declarations; not an importable supported binding"
+    },
+    {
+      "finding": "root mapper and default enumerator have duplicate static/free export routes",
+      "reason": "supported routes expose these as statics only; duplicate route exists only for mutation binder"
+    }
+  ],
+  "intentionalSemanticsRetained": [
+    "eager preparation freezes topology",
+    "object keep reconstructs processed children",
+    "W/C milestone timing differs from callbacks and structural discovery",
+    "walker/tree/DAG source protocols are distinct"
+  ],
+  "completionEvidence": "completion-validation.json"
+}

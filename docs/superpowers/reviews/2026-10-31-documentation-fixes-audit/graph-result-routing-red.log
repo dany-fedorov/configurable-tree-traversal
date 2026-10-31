@@ -1,0 +1,121 @@
+✔ one public symbol has every supported import route without duplicate sections (4.051745ms)
+✔ unexported reachable support declarations never become importable index entries (0.652119ms)
+✔ overloads survive and case-distinct exported names keep distinct stable anchors (0.382221ms)
+✔ namespace entries link only members exported by their supported package route (0.51059ms)
+✔ a missing public declaration fails generation instead of silently producing an incomplete reference (1.397411ms)
+✔ check mode detects stale output without overwriting it (1.851052ms)
+✔ filterDagDataVisitor routes to its specific contract and executable family example (0.413403ms)
+✔ filterAsyncDagDataVisitor routes to its specific contract and executable family example (0.196242ms)
+✔ ChildHintTransformer routes to its specific contract and executable family example (0.232569ms)
+✔ AsyncChildHintTransformer routes to its specific contract and executable family example (0.297468ms)
+✔ DagEvent routes to its specific contract and executable family example (0.259541ms)
+✔ DagDiscoverySource routes to its specific contract and executable family example (0.132076ms)
+✔ TreeSource routes to its specific contract and executable family example (0.116923ms)
+✔ TreeTraversalEvent routes to its specific contract and executable family example (0.134541ms)
+✔ InspectionFilters routes to its specific contract and executable family example (0.170575ms)
+✔ core routes to its specific contract and executable family example (0.245564ms)
+✖ DagVertexFound links to graph result contracts and a graph resolution recipe (0.631928ms)
+✖ DagVertexOmitted links to graph result contracts and a graph resolution recipe (0.229001ms)
+✖ DagVertexResolution links to graph result contracts and a graph resolution recipe (0.159488ms)
+✖ DagPrerequisiteResolution links to graph result contracts and a graph resolution recipe (0.141273ms)
+✖ PrerequisiteMissing links to graph result contracts and a graph resolution recipe (0.125826ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 16
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 23.653514
+
+✖ failing tests:
+
+test at scripts/build-api-index.test.cjs:253:3
+✖ DagVertexFound links to graph result contracts and a graph resolution recipe (0.631928ms)
+  AssertionError [ERR_ASSERTION]: DagVertexFound linked to a tree contract
+      at TestContext.<anonymous> (/home/df/.codex/worktrees/d56c/configurable-tree-traversal/scripts/build-api-index.test.cjs:259:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1397:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:969:18)
+      at Test.postRun (node:internal/test_runner/test:1537:19)
+      at Test.run (node:internal/test_runner/test:1462:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at scripts/build-api-index.test.cjs:253:3
+✖ DagVertexOmitted links to graph result contracts and a graph resolution recipe (0.229001ms)
+  AssertionError [ERR_ASSERTION]: DagVertexOmitted linked to a tree contract
+      at TestContext.<anonymous> (/home/df/.codex/worktrees/d56c/configurable-tree-traversal/scripts/build-api-index.test.cjs:259:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1397:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:969:18)
+      at Test.postRun (node:internal/test_runner/test:1537:19)
+      at Test.run (node:internal/test_runner/test:1462:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at scripts/build-api-index.test.cjs:253:3
+✖ DagVertexResolution links to graph result contracts and a graph resolution recipe (0.159488ms)
+  AssertionError [ERR_ASSERTION]: DagVertexResolution linked to a tree contract
+      at TestContext.<anonymous> (/home/df/.codex/worktrees/d56c/configurable-tree-traversal/scripts/build-api-index.test.cjs:259:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1397:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:969:18)
+      at Test.postRun (node:internal/test_runner/test:1537:19)
+      at Test.run (node:internal/test_runner/test:1462:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at scripts/build-api-index.test.cjs:253:3
+✖ DagPrerequisiteResolution links to graph result contracts and a graph resolution recipe (0.141273ms)
+  AssertionError [ERR_ASSERTION]: DagPrerequisiteResolution linked to a tree contract
+      at TestContext.<anonymous> (/home/df/.codex/worktrees/d56c/configurable-tree-traversal/scripts/build-api-index.test.cjs:259:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1397:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:969:18)
+      at Test.postRun (node:internal/test_runner/test:1537:19)
+      at Test.run (node:internal/test_runner/test:1462:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at scripts/build-api-index.test.cjs:253:3
+✖ PrerequisiteMissing links to graph result contracts and a graph resolution recipe (0.125826ms)
+  AssertionError [ERR_ASSERTION]: PrerequisiteMissing linked to a tree contract
+      at TestContext.<anonymous> (/home/df/.codex/worktrees/d56c/configurable-tree-traversal/scripts/build-api-index.test.cjs:259:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1397:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:969:18)
+      at Test.postRun (node:internal/test_runner/test:1537:19)
+      at Test.run (node:internal/test_runner/test:1462:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

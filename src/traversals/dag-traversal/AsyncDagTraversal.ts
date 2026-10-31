@@ -61,7 +61,7 @@ export class AsyncDagTraversal<
           }
         | {
             rootWorkDependencies?: never;
-            omittedWorkDependencies?: never;
+            dependsOnWorkDefault?: never;
             traversableTree: unknown extends ID ? AsyncTreeSource<T, R> : never;
             traversableGraph?: undefined;
           }

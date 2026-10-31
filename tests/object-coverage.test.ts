@@ -1,3 +1,4 @@
+import { capturedOutputValue } from './helpers/rewriteOutput';
 import {
   DepthFirstPhase,
   DepthFirstTreeTraversal,
@@ -21,19 +22,21 @@ describe('rewrite object option integration', () => {
     const assembled = new Map();
     const leafPaths: PropertyKey[][] = [];
 
-    const { outputAtReturn } = rewriteObject(
-      { nested: [1] },
-      {
-        assembledMap: assembled,
-        assembleCompositesBeforeRewrite: true,
-        rewrite: ({ value }, { getKeyPath }) => {
-          if (value === 1) {
-            leafPaths.push(getKeyPath({ noRoot: true }));
-            return { kind: 'rewrite', patch: { value: 2 } };
-          }
-          return undefined;
+    const outputAtReturn = capturedOutputValue(
+      rewriteObject(
+        { nested: [1] },
+        {
+          assembledMap: assembled,
+          assembleCompositesBeforeRewrite: true,
+          rewrite: ({ value }, { getKeyPath }) => {
+            if (value === 1) {
+              leafPaths.push(getKeyPath({ noRoot: true }));
+              return { kind: 'rewrite', patch: { value: 2 } };
+            }
+            return undefined;
+          },
         },
-      },
+      ),
     );
 
     expect(outputAtReturn).toEqual({ nested: [2] });
@@ -44,9 +47,11 @@ describe('rewrite object option integration', () => {
   test('custom isArray classification reconstructs a numeric-key object as an array', () => {
     const input = { 0: 1, 1: 2 };
 
-    const { outputAtReturn } = rewriteObject(input, {
-      isArray: ({ value }) => value === input,
-    });
+    const outputAtReturn = capturedOutputValue(
+      rewriteObject(input, {
+        isArray: ({ value }) => value === input,
+      }),
+    );
 
     expect(Array.isArray(outputAtReturn)).toBe(true);
     expect(outputAtReturn).toEqual([1, 2]);

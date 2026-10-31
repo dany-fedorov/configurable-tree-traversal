@@ -1,0 +1,7 @@
+{
+  "owners": 324,
+  "items": 4242,
+  "uniqueOwnerNotes": 324,
+  "appendixContainsEveryOwner": true,
+  "limitations": "Per-item assignments are expanded by controller from authored per-owner notes; model did not author a separate rationale for each item. Some support notes are intentionally brief."
+}

@@ -21,8 +21,8 @@ for (const name of [
 for (const name of [
   'prepareDag',
   'prepareDagAsync',
-  'createDagWorkSession',
-  'createAsyncDagWorkSession',
+  'bindDagWorkSession',
+  'bindAsyncDagWorkSession',
   'filterDagDataVisitor',
   'filterAsyncDagDataVisitor',
 ]) {
@@ -81,9 +81,9 @@ for (const api of [cjs, esm]) {
   assert.equal(selections, 3);
   assert(lookups > 0);
   const preparedLookups = lookups;
-  assert.equal(prepared.dag.vertices[0].data, items[0]);
+  assert.equal(prepared.dag.liveVertexSummaries[0].data, items[0]);
   assert.deepEqual(
-    prepared.dag.vertices.map((vertex) => vertex.vertexId),
+    prepared.dag.liveVertexSummaries.map((vertex) => vertex.vertexId),
     ids,
   );
   const first = prepared.dag.createWorkSession();
@@ -113,11 +113,11 @@ for (const api of [cjs, esm]) {
   );
   assert.equal(selections, 3);
 
-  const coordinator = api.createDagWorkSession(
+  const coordinator = api.bindDagWorkSession(
     prepared.dag.createRunner({ workCompletion: 'externalSettlement' }),
   );
   assert.deepEqual(await drain(coordinator), ids);
-  const asyncCoordinator = api.createAsyncDagWorkSession(
+  const asyncCoordinator = api.bindAsyncDagWorkSession(
     await prepared.dag.createAsyncRunner({
       workCompletion: 'externalSettlement',
     }),
@@ -173,7 +173,7 @@ for (const api of [cjs, esm]) {
     assert.deepEqual(
       graph
         .getParentsOf(graph.getVertexRefById(leaf.id))
-        .map((ref) => graph.getVertexId(ref)),
+        .map((ref) => graph.requireVertexId(ref)),
       roots.map((root) => root.id),
     );
     assert.deepEqual(
@@ -197,7 +197,7 @@ for (const api of [cjs, esm]) {
     const callback = (data, options) => {
       calls.push(data);
       assert.equal(
-        options.resolvedGraphView.getVertexId(options.vertexRef),
+        options.resolvedGraphView.requireVertexId(options.vertexRef),
         taskId,
       );
       return {
@@ -267,7 +267,7 @@ for (const api of [esm, cjs]) {
         .run(),
     (error) =>
       error instanceof esm.DagDiscoveryCycleError &&
-      error.vertexIds.join(',') === 'a,a',
+      error.cycleWitnessVertexIds.join(',') === 'a,a',
   );
   for (const prepare of [api.prepareDag, api.prepareDagAsync]) {
     const invalid = await prepare(
@@ -330,7 +330,7 @@ for (const api of [esm, cjs, dag, cjsDag, esm.dagTraversal, cjs.dagTraversal]) {
   for (const prepare of [api.prepareDag, api.prepareDagAsync])
     assert.deepEqual(await prepare(cyclic), {
       kind: 'invalid',
-      issues: [{ kind: 'discoveryCycle', vertexIds: ['a', 'a'] }],
+      issues: [{ kind: 'discoveryCycle', cycleWitnessVertexIds: ['a', 'a'] }],
     });
 }
 for (const api of [esm, cjs]) {
@@ -351,7 +351,7 @@ for (const api of [esm, cjs]) {
     const progress = runner.summary().vertices.get('a');
     assert.deepEqual(progress.unmetWorkPrerequisiteIds, []);
     assert.deepEqual(progress.unmetSubgraphPrerequisiteIds, []);
-    const session = api.createDagWorkSession(
+    const session = api.bindDagWorkSession(
       new api.DagTraversal({
         ...input,
         workCompletion: 'externalSettlement',

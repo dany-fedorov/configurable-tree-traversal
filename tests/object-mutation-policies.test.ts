@@ -1,3 +1,4 @@
+import { outputValue } from './helpers/rewriteOutput';
 import {
   rewriteObject,
   ObjectTreeSource,
@@ -8,7 +9,7 @@ import {
 
 type Options = NonNullable<Parameters<typeof rewriteObject>[1]>;
 const run = (input: unknown, options: object = {}) =>
-  rewriteObject(input, options as Options).getOutput();
+  outputValue(rewriteObject(input, options as Options));
 
 describe('explicit object mutation and reconstruction policies', () => {
   test('rejects duplicate rewritten object keys by default', () => {

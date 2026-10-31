@@ -196,6 +196,7 @@ test('graph binding passes graph options and forwards hint identity', () => {
   const context = childContext(parent);
   const adapter: DagDiscoverySource<InputTTP, RewriteTTP> = {
     resolveRoot: () => ({
+      identity: null,
       kind: 'omitted' as const,
       satisfiesDependencies: true as const,
     }),
@@ -243,10 +244,12 @@ test('graph binding rejects a tree-mode container', () => {
     bindGraphSource(
       {
         resolveRoot: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),

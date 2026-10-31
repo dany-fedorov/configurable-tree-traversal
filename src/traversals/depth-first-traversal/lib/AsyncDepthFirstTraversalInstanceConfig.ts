@@ -8,7 +8,7 @@ import {
 } from '@core/assertPublicOptions';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
-import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
+import type { AsyncChildHintTransformer } from '@core/ChildHintTransformer';
 import type { VisitorRecord } from '@core/graph/types';
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -33,10 +33,10 @@ export type AsyncDepthFirstTreeResolvedOptions<
   RW_TTP extends VertexTypes = TTP,
 > = Omit<
   DepthFirstTreeResolvedOptions<TTP, RW_TTP>,
-  'traversableTree' | 'sortChildrenHints' | 'visitors'
+  'traversableTree' | 'transformChildHints' | 'visitors'
 > & {
   traversableTree: AsyncTreeSource<TTP, RW_TTP>;
-  sortChildrenHints: AsyncChildHintSorter<TTP> | null;
+  transformChildHints: AsyncChildHintTransformer<TTP> | null;
   visitors: AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>;
   concurrency: number;
 };
@@ -46,7 +46,7 @@ export type AsyncDepthFirstTreeOptionsPatch<
   RW_TTP extends VertexTypes = TTP,
 > = {
   traversableTree?: AsyncTreeSource<TTP, RW_TTP> | undefined;
-  sortChildrenHints?: AsyncChildHintSorter<TTP> | null | undefined;
+  transformChildHints?: AsyncChildHintTransformer<TTP> | null | undefined;
   visitors?:
     | VisitorInputs<AsyncDepthFirstTraversalVisitors<TTP, RW_TTP>>
     | undefined;
@@ -67,7 +67,7 @@ export const ASYNC_DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   'traversableTree'
 > = deepFreeze({
   ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  sortChildrenHints: null,
+  transformChildHints: null,
   visitors: {
     [Order.PRE_ORDER]: [],
     [Order.IN_ORDER]: [],

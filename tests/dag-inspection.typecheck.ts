@@ -124,7 +124,7 @@ const explanation = inspections[0]!.explain({
 const declaredExplanation: import('../src').DagExplanation<ID> = explanation;
 // @ts-expect-error Explanations preserve the source identity domain.
 inspections[0]!.explain({ vertexId: 'other', milestone: 'work' });
-if (explanation.kind === 'known') {
+if (explanation.kind === 'live') {
   const progress: DagVertexProgress<ID> | null = explanation.progress;
   const blocker: import('../src').DagBlocker<ID> | undefined =
     explanation.blockers[0];
@@ -154,24 +154,25 @@ void declaredExplanation;
 
 const typedStall: dag.DagTraversalStallError<ID> =
   new core.DagTraversalStallError<ID>({
-    dependencies: [{ id: 'review', unmet: ['work'] }],
+    dependencies: [{ vertexId: 'review', unmetPrerequisiteIds: ['work'] }],
     unknownPrerequisiteIds: [],
     dependencyCycleComponents: [],
     dependencyBlockedIds: ['review'],
     structurallyIncompleteIds: [],
   });
-const stallId: ID = typedStall.diagnostics.dependencies[0]!.id;
-const stallWait: ID = typedStall.diagnostics.dependencies[0]!.unmet[0]!;
+const stallId: ID = typedStall.diagnostics.dependencies[0]!.vertexId;
+const stallWait: ID =
+  typedStall.diagnostics.dependencies[0]!.unmetPrerequisiteIds[0]!;
 const stallEdgeId: ID | undefined =
   typedStall.diagnostics.dependencyEdges[0]?.prerequisite.vertexId;
 const defaultStall: DagTraversalStallError = typedStall;
 // @ts-expect-error Defaults preserve unknown instead of allowing an unchecked ID.
-const unknownId: ID = defaultStall.diagnostics.dependencies[0]!.id;
+const unknownId: ID = defaultStall.diagnostics.dependencies[0]!.vertexId;
 // @ts-expect-error A typed diagnostic cannot silently change ID domains.
 const wrongStall: DagTraversalStallError<'other'> = typedStall;
 const invalidStall = new DagTraversalStallError<ID>({
   // @ts-expect-error Constructor diagnostics retain the chosen ID domain.
-  dependencies: [{ id: 'other', unmet: [] }],
+  dependencies: [{ vertexId: 'other', unmetPrerequisiteIds: [] }],
   unknownPrerequisiteIds: [],
   dependencyCycleComponents: [],
   dependencyBlockedIds: [],
@@ -193,17 +194,22 @@ void [
 ];
 
 const heterogeneousStall = new DagTraversalStallError({
-  dependencies: [{ id: { task: 'root' }, unmet: [undefined, null, NaN] }],
+  dependencies: [
+    {
+      vertexId: { task: 'root' },
+      unmetPrerequisiteIds: [undefined, null, NaN],
+    },
+  ],
   unknownPrerequisiteIds: [undefined, null, NaN],
   dependencyCycleComponents: [],
   dependencyBlockedIds: [],
   structurallyIncompleteIds: [],
 });
 const legacyUnknown: unknown =
-  heterogeneousStall.diagnostics.dependencies[0]!.id;
+  heterogeneousStall.diagnostics.dependencies[0]!.vertexId;
 // @ts-expect-error Omitting the error type argument preserves the unknown default.
 const legacyDomain: { task: string } | null | undefined | number =
-  heterogeneousStall.diagnostics.dependencies[0]!.id;
+  heterogeneousStall.diagnostics.dependencies[0]!.vertexId;
 void [legacyUnknown, legacyDomain];
 
 // @ts-expect-error Progress outputs always include both W and C wait arrays.

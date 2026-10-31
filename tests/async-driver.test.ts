@@ -10,7 +10,7 @@ import { createAsyncDriver } from '../src/core/drivers/runAsync';
 import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
-import type { VertexRef } from '../src/core/graph/types';
+import type { InternalVertexRef } from '../src/core/graph/types';
 
 function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
   return new TraversalKernel<TestGraph>({
@@ -39,7 +39,7 @@ function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
       visitSingleChildParent: true,
       visitAfterOmittedChildren: true,
     },
-    hasSorter: false,
+    hasHintTransformer: false,
     hasHintIds: false,
     concurrency: 2,
   });
@@ -197,10 +197,12 @@ test('deletion cancels queued callbacks while an invalid running permit drains',
 
   const internals = kernel as unknown as {
     scheduling: {
-      deleteVertex(ref: VertexRef<TestGraph>): Set<VertexRef<TestGraph>>;
+      deleteVertex(
+        ref: InternalVertexRef<TestGraph>,
+      ): Set<InternalVertexRef<TestGraph>>;
     };
     invalidateRefs(
-      refs: ReadonlySet<VertexRef<TestGraph>>,
+      refs: ReadonlySet<InternalVertexRef<TestGraph>>,
       except: {
         kind: 'chain';
         id: number;

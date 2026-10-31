@@ -52,7 +52,7 @@ test('structural graph snapshots validate staging and expose detached topology',
     stagedB.snapshotRef,
   ]);
   expect(snapshot.graph.getVertexRefById('A')).toBe(stagedA.snapshotRef);
-  expect(snapshot.graph.getVertexId(stagedA.snapshotRef)).toBe('A');
+  expect(snapshot.graph.requireVertexId(stagedA.snapshotRef)).toBe('A');
 
   const edgeB = snapshot.stageEdge(root, 1, b);
   const edgeA = snapshot.stageEdge(root, 0, a);
@@ -66,11 +66,11 @@ test('structural graph snapshots validate staging and expose detached topology',
   expect(snapshot.graph.getParentsOf(stagedA.snapshotRef)).toEqual([
     stagedRoot.snapshotRef,
   ]);
-  expect(snapshot.graph.getPathsTo(stagedA.snapshotRef)).toEqual([
+  expect(snapshot.graph.requirePathsTo(stagedA.snapshotRef)).toEqual([
     [stagedRoot.snapshotRef, stagedA.snapshotRef],
   ]);
   expect(
-    snapshot.graph.getPathsTo(stagedA.snapshotRef, {
+    snapshot.graph.requirePathsTo(stagedA.snapshotRef, {
       noRoot: true,
       noSelf: true,
     }),
@@ -81,8 +81,8 @@ test('structural graph snapshots validate staging and expose detached topology',
   expect(snapshot.graph.getVertexRefById('unknown')).toBeNull();
   expect(snapshot.graph.getParentsOf(unknown)).toBeNull();
   expect(snapshot.graph.getChildrenOf(unknown)).toBeNull();
-  expect(() => snapshot.graph.getVertexId(unknown)).toThrow(/unknown/i);
-  expect(() => snapshot.graph.getPathsTo(unknown)).toThrow(/unknown/i);
+  expect(() => snapshot.graph.requireVertexId(unknown)).toThrow(/unknown/i);
+  expect(() => snapshot.graph.requirePathsTo(unknown)).toThrow(/unknown/i);
   expect(() => snapshot.stageVertex(root, 'other')).toThrow(/reference/i);
   expect(() => snapshot.stageVertex(unknown, 'A')).toThrow(/id/i);
   expect(() => snapshot.setRoot(unknown)).toThrow(/root reference/i);
@@ -103,7 +103,7 @@ test('structural graph snapshots order independent roots and shared paths', () =
   staged.forEach((vertex) => snapshot.commitVertex(vertex));
   snapshot.commitEdge(snapshot.stageEdge(right, 0, join));
   snapshot.commitEdge(snapshot.stageEdge(left, 0, join));
-  expect(snapshot.graph.getPathsTo(staged[2]!.snapshotRef)).toEqual([
+  expect(snapshot.graph.requirePathsTo(staged[2]!.snapshotRef)).toEqual([
     [staged[0]!.snapshotRef, staged[2]!.snapshotRef],
     [staged[1]!.snapshotRef, staged[2]!.snapshotRef],
   ]);
@@ -145,10 +145,10 @@ test('depth runner leaf checks include explicit subtree disabling', () => {
   }).createRunner();
   const leaf = ref('leaf');
   const branch = ref('branch', ['child']);
-  expect(runner.isTraversalLeaf(leaf)).toBe(true);
-  expect(runner.isTraversalLeaf(branch)).toBe(false);
+  expect(leaf.getValue().hasNoChildHints()).toBe(true);
+  expect(runner.isChildExpansionSkipped(branch)).toBe(false);
   runnerInternals(runner).state.subtreeTraversalDisabledRefs.add(branch);
-  expect(runner.isTraversalLeaf(branch)).toBe(true);
+  expect(runner.isChildExpansionSkipped(branch)).toBe(true);
 });
 
 test('breadth-first policy validates every owned transition', () => {

@@ -1,0 +1,24 @@
+✔ one public symbol has every supported import route without duplicate sections (2.91053ms)
+✔ unexported reachable support declarations never become importable index entries (0.721162ms)
+✔ overloads survive and case-distinct exported names keep distinct stable anchors (0.39942ms)
+✔ namespace entries link only members exported by their supported package route (0.511426ms)
+✔ a missing public declaration fails generation instead of silently producing an incomplete reference (1.467519ms)
+✔ check mode detects stale output without overwriting it (8.717228ms)
+✔ filterDagDataVisitor routes to its specific contract and executable family example (0.482588ms)
+✔ filterAsyncDagDataVisitor routes to its specific contract and executable family example (0.19889ms)
+✔ ChildHintTransformer routes to its specific contract and executable family example (0.204927ms)
+✔ AsyncChildHintTransformer routes to its specific contract and executable family example (0.278722ms)
+✔ DagEvent routes to its specific contract and executable family example (0.178996ms)
+✔ DagDiscoverySource routes to its specific contract and executable family example (0.137227ms)
+✔ TreeSource routes to its specific contract and executable family example (0.123945ms)
+✔ TreeTraversalEvent routes to its specific contract and executable family example (0.116788ms)
+✔ InspectionFilters routes to its specific contract and executable family example (0.098086ms)
+✔ core routes to its specific contract and executable family example (1.809358ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 104.668631

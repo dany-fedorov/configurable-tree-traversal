@@ -45,7 +45,7 @@ test('materialized definitions report structural SCC membership', () => {
     ),
   ).toEqual({
     kind: 'invalid',
-    issues: [{ kind: 'structuralCycle', vertexIds: ['a', 'b'] }],
+    issues: [{ kind: 'structuralCycle', componentVertexIds: ['a', 'b'] }],
   });
 });
 
@@ -217,7 +217,7 @@ test('structural self cycles use SameValueZero identity and deterministic declar
   });
   expect(result).toEqual({
     kind: 'invalid',
-    issues: [{ kind: 'structuralCycle', vertexIds: [NaN] }],
+    issues: [{ kind: 'structuralCycle', componentVertexIds: [NaN] }],
   });
 });
 
@@ -298,8 +298,8 @@ test('forest definitions preserve authored order, structural sharing and omitted
   expect(result.dag.definition).toEqual(input);
   expect(result.dag.definition).not.toBe(input);
   expect(result.dag.definition.vertices[0]!.vertexId).toBe(id);
-  expect(result.dag.vertices[0]!.data).toBe(data);
-  expect(result.dag.vertices[1]!.children).toEqual([id, id]);
+  expect(result.dag.liveVertexSummaries[0]!.data).toBe(data);
+  expect(result.dag.liveVertexSummaries[1]!.children).toEqual([id, id]);
   const runner = await result.dag.createAsyncRunner({
     completedWork: new Set([undefined]),
   });
@@ -360,8 +360,8 @@ test('structural SCCs retain declaration order and stay separate before mileston
   ).toEqual({
     kind: 'invalid',
     issues: [
-      { kind: 'structuralCycle', vertexIds: ['a', 'b'] },
-      { kind: 'structuralCycle', vertexIds: ['c'] },
+      { kind: 'structuralCycle', componentVertexIds: ['a', 'b'] },
+      { kind: 'structuralCycle', componentVertexIds: ['c'] },
     ],
   });
 });

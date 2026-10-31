@@ -1,0 +1,9 @@
+
+> configurable-tree-traversal@0.11.0 build
+> npm run clean && tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json -s ./src && node scripts/build-esm.cjs
+
+
+> configurable-tree-traversal@0.11.0 clean
+> node -e "require('node:fs').rmSync('dist', {recursive: true, force: true})"
+
+Replaced 680 paths in 204 files

@@ -2,7 +2,7 @@ import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import { createAsyncDriver } from '../src/core/drivers/runAsync';
 import type { CallbackBindings, VisitPhase } from '../src/core/effects/types';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { VertexRef } from '../src/core/graph/types';
+import type { InternalVertexRef } from '../src/core/graph/types';
 import { TraversalKernel } from '../src/core/TraversalKernel';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
@@ -11,7 +11,7 @@ import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
 function setup(options: {
   concurrency?: number;
-  hasSorter?: boolean;
+  hasHintTransformer?: boolean;
   hasHintIds?: boolean;
   iterateOver?: VisitPhase[];
   visitorCount?: number;
@@ -55,7 +55,7 @@ function setup(options: {
       visitSingleChildParent: true,
       visitAfterOmittedChildren: true,
     },
-    hasSorter: options.hasSorter ?? false,
+    hasHintTransformer: options.hasHintTransformer ?? false,
     hasHintIds: options.hasHintIds ?? false,
     concurrency: options.concurrency ?? Infinity,
   });
@@ -176,7 +176,7 @@ test('the limiter includes promised sorting and prefetched child resolution', as
   const started: string[] = [];
   const { driver, session } = setup({
     concurrency: 1,
-    hasSorter: true,
+    hasHintTransformer: true,
     bindings: {
       invoke(call) {
         started.push(call.kind);
@@ -214,7 +214,7 @@ test.each(['SORT_HINTS', 'HINT_ID'] as const)(
   async (failedKind) => {
     const error = new Error(`${failedKind} failed`);
     const { session } = setup({
-      hasSorter: failedKind === 'SORT_HINTS',
+      hasHintTransformer: failedKind === 'SORT_HINTS',
       hasHintIds: failedKind === 'HINT_ID',
       bindings: {
         invoke(call) {
@@ -516,7 +516,7 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -537,7 +537,7 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: true,
+    hasHintTransformer: true,
     hasHintIds: false,
     concurrency: 2,
   });
@@ -606,7 +606,7 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -635,7 +635,7 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: false,
+    hasHintTransformer: false,
     hasHintIds: false,
     concurrency: 1,
   });
@@ -684,7 +684,7 @@ test('breadth-first closes an unsorted empty async frame', async () => {
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -705,7 +705,7 @@ test('breadth-first closes an unsorted empty async frame', async () => {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: false,
+    hasHintTransformer: false,
     hasHintIds: false,
     concurrency: 1,
   });
@@ -734,7 +734,7 @@ test('breadth-first surfaces a prefetched resolver rejection', async () => {
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -755,7 +755,7 @@ test('breadth-first surfaces a prefetched resolver rejection', async () => {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: false,
+    hasHintTransformer: false,
     hasHintIds: false,
     concurrency: 1,
   });

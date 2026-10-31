@@ -2,15 +2,17 @@
 
 [Documentation index](index.md) · [Agent workflow guide](agent-workflows.md) · [Quickstart](../README.md#quickstart-find-the-next-agent-tasks)
 
-Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts.
+Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts. Look up an exported name in the [public symbol index](api-index.md). These contracts describe the [unreleased checkout](../README.md#install).
 
 ## On this page
 
 - [General graph walking](#general-graph-walking)
 - [Configuration patches](#configuration-patches)
+- [Options and defaults](#options-and-defaults)
 - [DAG traversal](#dag-traversal)
 - [Collection and forest sources](#collection-and-forest-sources)
 - [Reusable prepared DAGs](#reusable-prepared-dags)
+- [Validation results and failures](#validation-results-and-failures)
 - [DAG fragments and composition](#dag-fragments-and-composition)
 - [Validated DAG revisions](#validated-dag-revisions)
 - [Ticket coordination](#ticket-coordination)
@@ -19,15 +21,18 @@ Start with the workflow guide for integration; use this page for exact lifecycle
 - [Discovery and completed work](#discovery-and-completed-work)
 - [DAG dependency queries and explanations](#dag-dependency-queries-and-explanations)
 - [Deferred DAG progress and reconciliation](#deferred-dag-progress-and-reconciliation)
+- [DAG summary schema](#dag-summary-schema)
 - [Host policy and traversal feedback](#host-policy-and-traversal-feedback)
 - [Traverse an object](#traverse-an-object)
 - [Abstract trees](#abstract-trees)
+- [Source callback contexts](#source-callback-contexts)
 - [Traversal orders](#traversal-orders)
 - [Breadth-first traversal](#breadth-first-traversal)
 - [Async traversal](#async-traversal)
 - [Visitors and commands](#visitors-and-commands)
 - [Pause and resume](#pause-and-resume)
 - [Inspection and execution](#inspection-and-execution)
+- [Views, handles, identity and paths](#views-handles-identity-and-paths)
 - [Rewrite objects](#rewrite-objects)
 - [API compatibility](#api-compatibility)
 - [Development](#development)
@@ -64,7 +69,7 @@ for (const event of runner.iterateEvents({
   emitEvents: [GraphWalkPhase.EDGE],
 })) {
   console.log(
-    event.source.data.id,
+    event.fromVertex.data.id,
     event.edge.outgoingIndex,
     event.edge.to,
     event.target.kind,
@@ -92,17 +97,19 @@ IDs use SameValueZero, including object/symbol identity and valid `undefined`, `
 
 `materializeWalkSourceFromRecords(items, selectors)` consumes reusable `GraphWalkRecordSelectors<Data, Edge, ID>`; its async counterpart consumes `AsyncGraphWalkRecordSelectors`. Both selectors return `GraphWalkCatalogLink<Edge, ID>` records with readonly `to` and `data` fields. Catalog endpoint relations differ from lazy links with target wrappers. All walking materializers, including the DAG definition adapter, return synchronous sources declared as `hydration: 'resolver'`. Async eager materialization awaits the catalog once and returns that same reusable synchronous protocol.
 
+Reusable walking helpers can annotate `GraphWalkTarget<Data, ID, 'resolver' | 'inlineOrCached'>` and `GraphWalkLink<Data, Edge, ID, Hydration>`; omitted hydration type arguments retain the broad union. The optional trailing policy parameter preserves existing ID argument positions.
+
 ### Walking records and ordering
 
 Use `emitEvents: ['vertex', 'edge', 'path']` to select walking event kinds. Equivalent `GraphWalkPhase` enum values are also accepted for emission; `visitorPhases` uses `GraphWalkPhase.VERTEX`, `.EDGE`, and `.PATH`. Each phase invokes callbacks for its corresponding event kind:
 
-| Kind     | Fields                                                                                                                             |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `vertex` | `vertex`, route `depth`, incoming `via` edge or `null` for a root                                                                  |
-| `edge`   | `edge`, found `source`, `depth` of the target route (source depth + 1), `target: { kind: 'found', vertex } \| { kind: 'omitted' }` |
-| `path`   | Ordered `vertices`, ordered `edges`, route `depth`                                                                                 |
+| Kind     | Fields                                                                                                                                 |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `vertex` | `vertex`, route `depth`, incoming `via` edge or `null` for a root                                                                      |
+| `edge`   | `edge`, found `fromVertex`, `depth` of the target route (source depth + 1), `target: { kind: 'found', vertex } \| { kind: 'omitted' }` |
+| `path`   | Ordered `vertices`, ordered `edges`, route `depth`                                                                                     |
 
-In an edge record, `source` is the found source **vertex**, not the source adapter passed to the constructor. Its `depth` describes the candidate target route even when that target is omitted. `GraphWalkEvent<Data, Edge, ID>` is that union. `GraphWalkEventFor<Data, Edge, Phase, ID>` and `GraphWalkPathEvent<Data, Edge, ID>` select precise records. Endpoint data stays typed; narrow `event.source.data.kind` and, after `event.target.kind === 'found'`, `event.target.vertex.data.kind` directly. No ID registry or fabricated tree `Vertex` is required. See the [typed reference example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts).
+In an edge record, `fromVertex` is the found source vertex; the constructor’s `source` is the adapter. Its `depth` describes the candidate target route even when that target is omitted. `GraphWalkEvent<Data, Edge, ID>` is that union. `GraphWalkEventFor<Data, Edge, Phase, ID>` and `GraphWalkPathEvent<Data, Edge, ID>` select precise records. Endpoint data stays typed; narrow `event.fromVertex.data.kind` and, after `event.target.kind === 'found'`, `event.target.vertex.data.kind` directly. No ID registry or fabricated tree `Vertex` is required. See the [typed reference example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts).
 
 A found root observes vertex then path. A followed link resolves/reuses its target, observes edge first, then vertex and path if a found occurrence is newly admitted under the policy. An omitted target of a followed link produces edge only. An omitted root has no incoming edge and produces no observation; it increments the `uniqueOmittedVertices` count and consumes a candidate read attempt and an admitted target. Record resolver outcomes in the host if omitted root IDs are needed. Under `once`, returning/self/parallel links still observe edges without repeated vertex/path observations. Visitor chains commit before their selected record emits. Expansion follows the occurrence's observations: a pause after yielding a vertex does not eagerly fetch adjacency. BFS preserves root/level source order; DFS exhausts each root's descendants before requesting the next root and follows outgoing order. Both are iterative. Pausing between edge and vertex retains pending observations and expansion without replaying resolution, completed callbacks or delivered records.
 
@@ -122,9 +129,9 @@ Paths include zero-edge roots and every admitted prefix, not only leaves. Parall
 
 `strategy: 'breadthFirst' | 'depthFirst'` chooses scheduling independently of revisit/emission. Depth counts route edges from zero. Under DFS/`once`, the first route fixes depth: finding a later shorter route does not re-expand a vertex. Use BFS for shortest discovery depth; DFS depth limits are not radius queries.
 
-`shouldFollowEdge(edge, context)` runs before target lookup; false prevents lookup through that occurrence. Context has found `source`, candidate target `depth`, and `revisit`; route policies add the current source-prefix `path`. The edge already identifies the relationship; context has no required `via`. `shouldExpandVertex(vertex, context)` runs after observations and before adjacency enumeration; context has occurrence `depth`, incoming `via`, `revisit`, and route `path` where applicable. False preserves observations while pruning expansion. Under `once`, the first expansion decision stands; route modes evaluate policy per prefix. The callback types are `GraphWalkEdgePredicate` and `GraphWalkExpansionPredicate`, with `Async` counterparts. Predicates must return booleans (promises allowed only for async). Commands do not control pruning.
+`shouldFollowEdge(edge, context)` runs before target lookup; false prevents lookup through that occurrence. Context has found `fromVertex`, candidate target `depth`, and `revisit`; route policies add the current source-prefix `path`. The edge already identifies the relationship; context has no required `via`. `shouldExpandVertex(vertex, context)` runs after observations and before adjacency enumeration; context has occurrence `depth`, incoming `via`, `revisit`, and route `path` where applicable. False preserves observations while pruning expansion. Under `once`, the first expansion decision stands; route modes evaluate policy per prefix. The callback types are `GraphWalkEdgePredicate` and `GraphWalkExpansionPredicate`, with `Async` counterparts. Predicates must return booleans (promises allowed only for async). Commands do not control pruning.
 
-Limits are nonnegative safe integers, including zero. `simplePaths`/`walks` require `maxDepth` or `maxCandidateReadAttempts` at construction; `maxAdmittedTargets` alone is insufficient. Configuration patches validate merged options atomically and reject invalid transitions without mutation. A supplied `configure({ limits: ... })` record **replaces** the previous limits record; include each bound you want to retain. Runners snapshot options, selector arrays, visitor records and source callbacks/receiver; limits/topology policies are fixed for that runner. Larger bounds require a fresh runner. Unknown own option keys and unknown own limit keys reject with `TypeError` at construction or `configure()`, before discovery; invalid patches leave the previous configuration intact. Tree/DAG builders and public helper/option bags use the same strict own-key rule.
+Limits are nonnegative safe integers, including zero. `simplePaths`/`walks` require `maxDepth` or `maxCandidateReadAttempts` at construction; `maxAdmittedTargets` alone is insufficient. Configuration patches validate merged options atomically and reject invalid transitions without mutation. A supplied `configure({ replaceLimits: ... })` record replaces the previous limits record; include each bound you want to retain. Runners snapshot options, selector arrays, visitor records and source callbacks/receiver; limits/topology policies are fixed for that runner. Larger bounds require a fresh runner. Unknown own option keys and unknown own limit keys reject with `TypeError` at construction or `configure()`, before discovery; invalid patches leave the previous configuration intact. Tree/DAG builders and public helper/option bags use the same strict own-key rule.
 
 | Limit                      | Accounting and boundary                                                                                                                                                                                                                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -163,17 +170,155 @@ Builders configure future runners; an existing runner retains its configuration 
 | Field                                            | Omitted or `undefined` patch                                     | Defined patch                                                                                  |
 | ------------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Walking `shouldFollowEdge`, `shouldExpandVertex` | Retain the previous predicate                                    | Callback replaces it; `null` clears it. Initial `null` also means absent.                      |
-| Walking `limits`                                 | Retain previous limits                                           | Replace the entire limits record; include every bound to retain.                               |
+| Walking `replaceLimits`                          | Retain previous limits                                           | Replace the entire limits record; include every bound to retain.                               |
 | `visitors` and `emitEvents` / `visitorPhases`    | Retain unspecified fields                                        | Patch visitor phases and selector fields independently, under their existing validation rules. |
 | DAG `traversableTree` / `traversableGraph`       | Inherited keys and own `undefined` keys retain the active source | An own defined same-family source replaces it; an opposite-family source rejects.              |
 
-Every supported configure field accepts an explicit `undefined` under `exactOptionalPropertyTypes`: missing and undefined fields retain prior values. This includes tree sources, concurrency, scheduling fields, each visitor phase, and each in-order field. `null` clears only explicitly nullable fields (walking predicates and `sortChildrenHints`). Walking `limits` records continue to replace the entire record. Malformed defined fields reject atomically before registrations or configuration change; an existing runner keeps its snapshot. DAG construction requires exactly one own defined source and configure cannot change its source family. Source getters are captured once per request, without calling source callbacks.
+Every supported configure field accepts an explicit `undefined` under `exactOptionalPropertyTypes`: missing and undefined fields retain prior values. This includes tree sources, concurrency, scheduling fields, each visitor phase, and each in-order field. `null` clears only explicitly nullable fields (walking predicates and `transformChildHints`). Walking constructors accept `limits`; configuration patches use `replaceLimits` to replace that record. A patch containing the former `limits` key rejects, including own `undefined`. Malformed defined fields reject atomically before registrations or configuration change; an existing runner keeps its snapshot. DAG construction requires exactly one own defined source and configure cannot change its source family. Source getters are captured once per request, without calling source callbacks.
 
-Public builders, helpers, mutation binders, execution options and nested option bags reject unsupported own string or symbol keys with `TypeError`, including non-enumerable keys and keys whose value is undefined. Source protocol objects can carry caller state and inherited methods; opaque data and IDs are not option bags. Path query options also reject unsupported own keys: `getPathTo` / `getPathsTo` accept only optional boolean `noRoot` and `noSelf` controls. Omitted or undefined controls use the default behavior, and accessors are captured once per query.
+Public builders, helpers, mutation binders, execution options and nested option bags reject unsupported own string or symbol keys with `TypeError`, including non-enumerable keys and keys whose value is undefined. Source protocol objects can carry caller state and inherited methods; opaque data and IDs are not option bags. Path query options also reject unsupported own keys: `requirePathTo` / `requirePathsTo` accept only optional boolean `noRoot` and `noSelf` controls. Omitted or undefined controls use the default behavior, and accessors are captured once per query.
+
+### Options and defaults
+
+Choose the **surface** before building an option bag. Constructors require a source; `configure(patch)` changes future runners within that source family; existing runners keep their snapshots. Prepared definitions own topology. `run(options)` and `iterateEvents(options)` select execution/delivery rather than constructing a source. Public option bags reject unknown own keys, including symbols and present undefined fields.
+
+#### Tree and DAG builders
+
+These fields apply at construction and in source-preserving patches. Async counterparts accept value-or-promise callbacks; their `concurrency` bounds physical callback invocations, not host agents.
+
+| Field                          | Default / values                                  | Surface and constraints                                                                                                                                                                                  |
+| ------------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `traversableTree`              | Required tree source                              | DFS/BFS; alternatively DAG tree-source mode. DAG fixes the source family at construction.                                                                                                                |
+| `traversableGraph`             | Required graph source                             | DAG graph mode; exactly one defined source.                                                                                                                                                              |
+| `transformChildHints`          | `null`; `(hints) => hints` replacement array      | DFS/BFS/DAG. Receives a copied hint array; may filter, duplicate, invent or reorder hints. Async transformers may return a promise. Null clears; undefined patches retain. Eager DAG topology is frozen. |
+| `visitors`                     | Empty registrations for each family phase         | DFS PRE/IN/POST_ORDER, BFS LEVEL_ORDER, DAG ON_WORK_READY/ON_SUBGRAPH_READY. Each supplied phase patches independently.                                                                                  |
+| `retainOriginalTreeStructure`  | `false`; boolean                                  | DFS/BFS only. Retains progressively discovered original topology and shallow payload identity.                                                                                                           |
+| `retainOriginalGraphStructure` | `false`; boolean                                  | DAG only, including tree-source mode.                                                                                                                                                                    |
+| `concurrency`                  | `Infinity`; positive integer or `Infinity`        | Async tree/DAG only; synchronous builders and walkers reject it.                                                                                                                                         |
+| `inOrder`                      | Field-wise defaults below                         | DFS only.                                                                                                                                                                                                |
+| `workCompletion`               | `'afterWorkReadyChain'` or `'externalSettlement'` | DAG. Empty/filtered normal chains also complete W under the default.                                                                                                                                     |
+| `discovery`                    | `'lazy'` or `'eager'`                             | Graph-source DAG for eager; tree-source DAG accepts lazy/default. A fresh tree-source runner can still use prepare() for a preview.                                                                      |
+| `syntheticRoot`                | `false`; boolean                                  | True requires a graph-source DAG; tree-source mode accepts false/default only. Hides an entry holder; MaterializedDagInput already supplies true.                                                        |
+| `rootWorkDependencies`         | `'honor'` or `'ignore'`                           | DAG graph source only. Ignore suppresses root W gates, never C. Explicit use rejects for tree sources.                                                                                                   |
+| `dependsOnWorkDefault`         | `'none'` or `'discoveryParentWork'`               | DAG graph source only. Applies only when the source omits its work declaration; explicit `[]` wins.                                                                                                      |
+| `completedWork`                | No accepted seeds; `ReadonlySet<ID>`              | Fresh graph-source DAG runs. Copies membership, satisfies W only, rejects unknown IDs when discovery closes. See [completed-work rules](#discovery-and-completed-work).                                  |
+
+DFS `inOrder` fields patch independently; arrays/ranges are copied:
+
+| Field                       | Default                                  | Accepted input                                                                                            |
+| --------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `afterChildIndices`         | `{ ranges: [{ from: 0, through: -2 }] }` | `{ indices: readonly number[] }` or `{ ranges: readonly { from, through }[] }`; safe integer coordinates. |
+| `fallbackChildIndices`      | `{ indices: [-2] }`                      | Same selection union; negative positions address children from the end.                                   |
+| `visitSingleChildParent`    | `true`                                   | Boolean.                                                                                                  |
+| `visitAfterOmittedChildren` | `true`                                   | Boolean.                                                                                                  |
+
+#### Hint transformation example
+
+The transformer receives an owned copy of the input hint membership. It may filter, duplicate, replace or reorder hints within the source's hint type; it is not limited to sorting. These sync/async examples prune `drop` before discovery while keeping the input object unchanged.
+
+<!-- standalone -->
+
+```ts
+import {
+  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversal,
+  DepthFirstPhase,
+  ObjectTreeSource,
+} from 'configurable-tree-traversal';
+
+const input = { keep: 1, drop: 2 };
+const source = new ObjectTreeSource(input);
+const sync = new DepthFirstTreeTraversal({
+  traversableTree: source,
+  transformChildHints: (hints) => hints.filter((hint) => hint.key !== 'drop'),
+}).createRunner();
+const keys = [
+  ...sync.iterateEvents({ emitEvents: [DepthFirstPhase.PRE_ORDER] }),
+].map((event) => event.vertex.getData().key);
+const asyncRunner = new AsyncDepthFirstTreeTraversal({
+  traversableTree: source,
+  transformChildHints: async (hints) =>
+    hints.filter((hint) => hint.key !== 'drop'),
+}).createRunner();
+const asyncKeys: PropertyKey[] = [];
+for await (const event of asyncRunner.iterateEvents({
+  emitEvents: [DepthFirstPhase.PRE_ORDER],
+})) {
+  asyncKeys.push(event.vertex.getData().key);
+}
+if (
+  keys.length !== 2 ||
+  keys[1] !== 'keep' ||
+  asyncKeys.length !== 2 ||
+  asyncKeys[1] !== 'keep' ||
+  input.drop !== 2
+) {
+  throw new Error('Expected the root and retained keep child');
+}
+```
+
+#### Walking construction and patches
+
+| Field                                    | Construction default / values                                         | Configure patch                                                                                               |
+| ---------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `source`                                 | Required `GraphWalkSource` / `AsyncGraphWalkSource`                   | Replace the future runner's source; undefined retains.                                                        |
+| `strategy`                               | `'breadthFirst'` or `'depthFirst'`                                    | Replace; undefined retains.                                                                                   |
+| `revisit`                                | `'once'`, `'simplePaths'`, `'walks'`                                  | Replace, atomically validating the merged bounds.                                                             |
+| `limits`                                 | No bounds for once; route modes require depth or candidate-read bound | **Not accepted** in a patch.                                                                                  |
+| `replaceLimits`                          | **Not accepted** at construction                                      | Replace the entire limits record; include every bound to retain. Undefined retains the previous record.       |
+| `shouldFollowEdge`, `shouldExpandVertex` | No predicate; callback or null                                        | Null clears; undefined retains. See [predicate contexts and bounds](#revisit-policies-predicates-and-bounds). |
+| `visitors`                               | Empty phase-keyed vertex/edge/path registrations                      | Patch supplied phases.                                                                                        |
+| `emitEvents`                             | `['vertex']`                                                          | Delivery selection; also available per execution call.                                                        |
+| `visitorPhases`                          | `'all'`                                                               | Callback selection; also available per execution call.                                                        |
+
+Every limit is a nonnegative safe integer: `maxDepth`, `maxAdmittedTargets`, `maxCandidateReadAttempts`. Zero is valid. Only maxDepth or maxCandidateReadAttempts satisfies the route-mode construction requirement. Bounds and topology are fixed for each created runner; use a new runner for larger bounds.
+
+#### Preparation, prepared factories and sessions
+
+| Surface                                                         | Accepted fields                                                                     | Defaults / ownership                                                                                           |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `prepareDag(input)`                                             | `traversableGraph`, `syntheticRoot`, `rootWorkDependencies`, `dependsOnWorkDefault` | Graph source required; false/honor/none policies. No visitors, seeds or completion policy.                     |
+| `prepareDagAsync(input)`                                        | Same, plus `concurrency`                                                            | Async discovery; concurrency defaults to Infinity.                                                             |
+| `dag.createRunner(options?)`                                    | `visitors`, `completedWork`, `workCompletion`, `retainOriginalGraphStructure`       | Empty visitors/seeds, afterWorkReadyChain, false. Topology/source/transform policies belong to the definition. |
+| `dag.createAsyncRunner(options?)`                               | Same, plus `concurrency`                                                            | Returns a promise of a prepared runner; Infinity concurrency.                                                  |
+| `dag.createWorkSession(options?)`                               | `completedWork`                                                                     | Independent progress; external settlement is owned by the session. No visitor option.                          |
+| `dag.createAsyncWorkSession(options?)`                          | `completedWork`, `concurrency`                                                      | Returns a promise of a session; Infinity concurrency.                                                          |
+| `bindDagWorkSession(runner)`, `bindAsyncDagWorkSession(runner)` | A runner configured for external settlement                                         | Binding is synchronous, shares runner progress, and creates local ticket authority.                            |
+
+#### Per-execution selection
+
+`run(options?)` and `iterateEvents(options?)` accept exactly these fields on concrete tree/DAG/walking runners. Sessions expose `advance()` rather than forwarding a per-call option bag.
+
+| Field           | Initial default / values                                                  | Update rule                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `emitEvents`    | All tree phases; both committed DAG kinds; vertex-only walking            | A supplied readonly array replaces delivery selection; `[]` suppresses delivery. Undefined retains the effective selection. |
+| `visitorPhases` | `'all'`, `{ include: readonly Phase[] }`, `{ exclude: readonly Phase[] }` | A supplied selector replaces callback selection; empty include disables, empty exclude enables all. Undefined retains.      |
+
+Walking can establish these selectors at builder construction/configuration too. Tree/DAG builders use visitor registrations; their delivery/callback selectors belong to execution calls. Admitted chains retain callback snapshots; pending observations use current delivery selection. Explicit emission arrays narrow yielded records; absent/optional selectors retain the broad union.
+
+#### Object source and rewrite options
+
+`ObjectTreeSource(input, options?)` accepts the first three fields below. `rewriteObject(input, options?)` adds reconstruction/conversion and DFS configuration, **excluding** `traversableTree`; it owns the source. Bound `isComposite` and `getKeyPath` are observations, not option keys.
+
+| Field                             | Default                                           | Meaning                                                                                                                 |
+| --------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `getRootPropertyFromInputObject`  | Root mapper with the helper's default root key    | Adapt input to the root property. Required together with child mapper for narrow discovery types.                       |
+| `getChildrenOfProperty`           | Own enumerable object/array properties            | Return input-domain hints; both mappers are mandatory with `fromProperties`.                                            |
+| `resolveChildHook`                | Default resolution                                | Return useDefault/found/omitted for a child; graph metadata is forbidden.                                               |
+| `rewrite`                         | Keep / default assembly                           | Post-order callback returning typed keep/delete/rewrite-patch operations.                                               |
+| `convertRootValue`                | No conversion; output unknown                     | Required for a specific inferred/explicit output type unless using the assertion helper. Called only for present roots. |
+| `assembleCompositesBeforeRewrite` | `false`                                           | Provide `assembledComposite` before invoking rewrite.                                                                   |
+| `arrayIndexPolicy`                | `'compactInTraversalOrder'`                       | Alternative `'preserveNumericKeys'`.                                                                                    |
+| `propertyCollision`               | `'error'`                                         | Alternatives `'firstWins'`, `'lastWins'`; custom assemblers own their placement/collisions.                             |
+| `isArray`, `isObject`             | Array.isArray(value); non-null, non-array objects | Caller classification callbacks see current unknown-valued properties.                                                  |
+| `assembleArray`, `assembleObject` | Built-in reconstruction                           | Caller assembly callbacks return unknown.                                                                               |
+| `assembledMap`                    | New reference-keyed assembly map                  | Structural has/get/set cache accepting unknown writes.                                                                  |
+
+Full callback declarations are linked from the [public symbol index](api-index.md). See [rewrite semantics](#rewrite-objects) for current/input/output domains, arrays, collisions and snapshot lifetime.
 
 ## DAG traversal
 
-`DagTraversal` and `AsyncDagTraversal` traverse a discovered acyclic graph in two lifecycle orders: `ON_WORK_READY` visits eligible initial work, and `ON_SUBGRAPH_READY` visits structural completion after the vertex’s work, discovery, and retained children complete. Under default `afterWorkReadyChain`, normal initial visitor-chain completion (including empty or filtered chains) satisfies work dependents; `externalSettlement` requires guarded host settlement; committed completion satisfies completion dependents. `dependsOnWork: [p]` waits for p's completed initial work (W); `dependsOnSubgraphCompletion: [p]` waits for p's committed `ON_SUBGRAPH_READY` transition (C), including closed discovery and completion of every retained child. Both lists gate `ON_WORK_READY` conjunctively. Completion admission or an unfinished async completion callback does not satisfy C. Dependencies do not create structural parent/child edges; graph sources have no implicit parent W by default. Set `omittedWorkDependencies: 'discoveryParentWork'` to inherit parent W when `dependsOnWork` is omitted; explicit lists, including `[]`, always win. Tree sources retain structural order and parent dependencies and reject explicit `rootWorkDependencies` or `omittedWorkDependencies` options, including configuration patches. Graph source defaults are `rootWorkDependencies: 'honor'` and `omittedWorkDependencies: 'none'`.
+`DagTraversal` and `AsyncDagTraversal` traverse a discovered acyclic graph in two lifecycle orders: `ON_WORK_READY` visits eligible initial work, and `ON_SUBGRAPH_READY` visits structural completion after the vertex’s work, discovery, and retained children complete. Under default `afterWorkReadyChain`, normal initial visitor-chain completion (including empty or filtered chains) satisfies work dependents; `externalSettlement` requires guarded host settlement; committed completion satisfies completion dependents. `dependsOnWork: [p]` waits for p's completed initial work (W); `dependsOnSubgraphCompletion: [p]` waits for p's committed `ON_SUBGRAPH_READY` transition (C), including closed discovery and completion of every retained child. Both lists gate `ON_WORK_READY` conjunctively. Completion admission or an unfinished async completion callback does not satisfy C. Dependencies do not create structural parent/child edges; graph sources have no implicit parent W by default. Set `dependsOnWorkDefault: 'discoveryParentWork'` to inherit parent W when `dependsOnWork` is omitted; explicit lists, including `[]`, always win. Tree sources retain structural order and parent dependencies and reject explicit `rootWorkDependencies` or `dependsOnWorkDefault` options, including configuration patches. Graph source defaults are `rootWorkDependencies: 'honor'` and `dependsOnWorkDefault: 'none'`.
 
 <!-- standalone -->
 
@@ -224,13 +369,13 @@ A DAG constructor accepts exactly one source mode. Use `traversableGraph` for gr
 
 Graph sources and DAG APIs accept a trailing identity type, for example `DagDiscoverySource<Workflow, Workflow, TaskId>` and `DagTraversal<Workflow, Workflow, TaskId>`. It flows through dependencies, prerequisite lookup, completed-work seeds, settlement, visitors, graph views/snapshots, summaries and diagnostics. Data, rewrite data, and child hints keep their existing generic positions. Constructors and helpers infer identity from typed graph sources; use an explicit union for heterogeneous identities when inference cannot combine them. `ResolvedGraphView<T, ID>`, `DagSummary<ID>`, `DagVertexProgress<ID>` and `DagTraversalStallDiagnostics<ID>` default to `unknown` for compatibility. Visitor types append ID after their phase parameter, for example `DagVisitor<T, R, DagVisitorPhase.ON_WORK_READY, ID>`.
 
-Selecting an ID domain other than `unknown` requires an explicit `vertexId` on every live graph-source result, including prerequisite results. Omitted results can still omit it. Default `unknown` sources retain generated-ID fallback and prerequisite-ID inheritance. Tree-source DAG mode generates reference identities and therefore accepts only the default `unknown` ID domain. TypeScript cannot express property ownership, so graph result normalization rejects an inherited `vertexId` with `TypeError` before generated-ID or prerequisite-ID fallback. Class adapters must materialize an own field, for example `{ kind: 'found', vertex: { vertexId: instance.vertexId, vertexContent: instance.vertexContent } }`; an own getter is also supported. Legitimately absent IDs retain default-`unknown` fallback, and explicit own `vertexId: undefined` retains the real undefined identity. ID values are never coerced or schema-validated. Public graph views and milestone snapshots exclude synthetic-root bookkeeping and retain `ID`. Raw runner containers and their synthetic holder identities are private.
+Selecting an ID domain other than `unknown` requires an explicit `vertexId` on every live graph-source result, including prerequisite results. Omitted results instead supply an explicit `identity` wrapper or `null`. Default `unknown` sources retain generated-ID fallback and prerequisite-ID inheritance. Tree-source DAG mode generates reference identities and therefore accepts only the default `unknown` ID domain. TypeScript cannot express property ownership, so graph result normalization rejects an inherited `vertexId` with `TypeError` before generated-ID or prerequisite-ID fallback. Class adapters must materialize an own field, for example `{ kind: 'found', vertex: { vertexId: instance.vertexId, vertexContent: instance.vertexContent } }`; an own getter is also supported. Legitimately absent IDs retain default-`unknown` fallback, and explicit own `vertexId: undefined` retains the real undefined identity. ID values are never coerced or schema-validated. Public graph views and milestone snapshots exclude synthetic-root bookkeeping and retain `ID`. Raw runner containers and their synthetic holder identities are private.
 
 Graph ids use `Map`/`Set` SameValueZero equality, so `NaN`, `null`, explicit `undefined`, symbols, and object references are valid. `getVertexIdFromHint()` returns a wrapper, not a bare id: return `{ vertexId: undefined }` for the real id `undefined`, or return `undefined` when the hint has no identity. A known hint id can reuse a vertex without resolving it; if both the hint hook and resolver supply ids, they must match.
 
 Stalled DAG runners throw `DagTraversalStallError<ID = unknown>` (available from the root, `core`, and DAG traversal exports). Explicit type arguments type constructed errors and diagnostic annotations; an arbitrary catch value narrowed with `instanceof DagTraversalStallError` still has unknown IDs. The runner's ID type is not inferred through exceptions. Its `diagnostics` contains detached arrays while retaining original ID identity:
 
-- `dependencies`: `{ id, unmet }` entries for vertices waiting on prerequisites.
+- `dependencies`: `{ vertexId, unmetPrerequisiteIds }` entries for vertices waiting on prerequisites.
 - `unknownPrerequisiteIds`: unmet IDs absent from the discovered graph; lazy discovery may still hide those vertices in the source.
 - `dependencyCycleComponents`: stable raw-ID projections of W/C milestone cycles, including structural completion waits. A child waiting for ancestor C is invalid; ordinary child waits for parent W remain valid.
 - `dependencyBlockedIds`: vertices with unmet prerequisites outside those cycles, including direct missing-prerequisite dependents and downstream blocked work.
@@ -240,7 +385,7 @@ The familiar `DAG traversal stalled:` message safely labels arbitrary IDs withou
 
 `runner.getResolvedGraphView()` provides read-only vertex, visit-stage, parent, child, path, and ID queries. Query arrays are shallow snapshots: changing an array cannot edit topology, while contained references and user vertex data remain live. With `retainOriginalGraphStructure: true`, DAG runners expose runner and callback `originalGraphView`, a progressively discovered `OriginalGraphView` containing first-accepted content and discovery edges. Rewrites and deletions do not alter it, but user data is still shallowly shared.
 
-Known omitted discovery slots retain an own `vertexId` in `ChildSlot<T, ID>`; presence distinguishes a known `undefined` identity from an unidentified omission. These slots remain omitted rather than structural children. Prepared definitions preserve their discovery positions when replaying the source.
+Known omitted discovery slots retain `identity: { vertexId }` in `ChildSlot<T, ID>`; `identity: null` distinguishes anonymous omission from a known `undefined` identity. These slots remain omitted rather than structural children. Prepared definitions preserve their discovery positions when replaying the source.
 
 ### Collection and forest sources
 
@@ -275,13 +420,13 @@ Structural `children` remain a separate relation. Walking those declarations obs
 `prepareDag(input)` returns `PrepareDagResult<Data, ID>`; `prepareDagAsync(input)` returns a promise of the same union:
 
 - `{ kind: 'valid', dag: PreparedDag<Data, ID> }` contains a reusable validated definition.
-- `{ kind: 'invalid', issues: readonly DagDefinitionIssue<ID>[] }` represents validation failure and provides no executable definition. Source dependency failures contain one `{ kind: 'milestone', diagnostics: DagTraversalStallDiagnostics<ID> }` issue. `PrepareDagResult<Data, ID>` aliases `PrepareDagResult<Data, ID>`; there is no top-level `diagnostics` alias.
+- `{ kind: 'invalid', issues: readonly DagDefinitionIssue<ID>[] }` represents validation failure and provides no executable definition. Source dependency failures contain one `{ kind: 'milestone', diagnostics: DagTraversalStallDiagnostics<ID> }` issue. There is no top-level `diagnostics` alias.
 
-Inputs accept `traversableGraph`, `syntheticRoot`, `rootWorkDependencies`, and `omittedWorkDependencies`; async preparation also accepts `concurrency`. Preparation eagerly discovers and validates without visitors or execution events. Visitors, completed-work seeds, injected continuation state, and source replacements belong outside this input. Source errors retain exact identity, even when the caller throws a `DagTraversalStallError`; malformed source contracts also throw rather than becoming invalid results.
+Inputs accept `traversableGraph`, `syntheticRoot`, `rootWorkDependencies`, and `dependsOnWorkDefault`; async preparation also accepts `concurrency`. Preparation eagerly discovers and validates without visitors or execution events. Visitors, completed-work seeds, injected continuation state, and source replacements belong outside this input. Source errors retain exact identity, even when the caller throws a `DagTraversalStallError`; malformed source contracts also throw rather than becoming invalid results.
 
-Engine-originated structural discovery cycles return an invalid preparation issue `{ kind: 'discoveryCycle', vertexIds: readonly ID[] }`. The IDs retain the engine's ordered closed witness (first ID repeated at the end) and arbitrary caller identity; for `a -> b -> a` the discovered closing edge yields `['b', 'a', 'b']`. This witness differs from the unordered SCC membership in authored-definition `structuralCycle` issues. Direct runner execution and runner `prepare()` still throw `DagDiscoveryCycleError<ID = unknown>`, exported from the root, core and DAG subpaths, with the same readonly frozen witness. Source-thrown values, including instances of that class or `DagTraversalStallError`, propagate unchanged across callback, getter and iterable reads. Collection adapters reject missing child IDs eagerly with `TypeError`, before preparation starts. Dependency invalidity appears in the `milestone` issue within `invalid.issues`.
+Engine-originated structural discovery cycles return an invalid preparation issue `{ kind: 'discoveryCycle', cycleWitnessVertexIds: readonly ID[] }`. The IDs retain the engine's ordered closed witness (first ID repeated at the end) and arbitrary caller identity; for `a -> b -> a` the discovered closing edge yields `['b', 'a', 'b']`. This witness differs from the unordered SCC membership in authored-definition `structuralCycle` issues. Direct runner execution and runner `prepare()` still throw `DagDiscoveryCycleError<ID = unknown>`, exported from the root, core and DAG subpaths, with the same readonly frozen `cycleWitnessVertexIds` witness. Structural SCC issues use `componentVertexIds`. Source-thrown values, including instances of that class or `DagTraversalStallError`, propagate unchanged across callback, getter and iterable reads. Collection adapters reject missing child IDs eagerly with `TypeError`, before preparation starts. Dependency invalidity appears in the `milestone` issue within `invalid.issues`.
 
-`dag.vertices` is a convenience projection of live vertices, not a round-trip source; its `children` omits omission slots. Use `dag.definition` for faithful reconstruction, composition and revision. The projection is a detached readonly array of descriptions: `{ vertexId, data, children, dependsOnWork, dependsOnSubgraphCompletion }`. Owned records and edge arrays are immutable, while data and IDs retain shallow caller identity. The definition preserves structural order, single-root versus multiple-entry semantics, omissions satisfying prerequisites, effective implicit dependencies, and the original root W policy. Replay normalizes discovery hints to ID links; original opaque hints and callback contexts are not captured.
+`dag.liveVertexSummaries` is a convenience projection of live vertices, not a round-trip source; its `children` omits omission slots. Use `dag.definition` for faithful reconstruction, composition and revision. The projection is a detached readonly array of descriptions: `{ vertexId, data, children, dependsOnWork, dependsOnSubgraphCompletion }`. Owned records and edge arrays are immutable, while data and IDs retain shallow caller identity. The definition preserves structural order, single-root versus multiple-entry semantics, omissions satisfying prerequisites, effective implicit dependencies, and the original root W policy. Replay normalizes discovery hints to ID links; original opaque hints and callback contexts are not captured.
 
 | Factory                                | Result                                                         | Options                                                                       |
 | -------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -296,7 +441,7 @@ A prepared definition is an in-memory value, not a durable checkpoint or editabl
 
 #### Materialized DAG definitions
 
-`dag.definition` is a `DagDefinition<Data, ID>` containing ordered `vertices` (`vertexId`, `data`, `slots`, `dependsOnWork`, `dependsOnSubgraphCompletion`), `omittedIds`, and an `entry` tagged as `root`, `roots`, or `empty`. Dependencies are the captured effective W/C constraints. A definition slot is `{ kind: 'vertex', vertexId }` or `{ kind: 'omitted', identity: { vertexId } | null }`; the wrapper preserves a known `undefined` identity separately from an anonymous omission. Lower-level resolved-graph `ChildSlot` uses _own-property presence_ of `vertexId` for the same distinction; the two public encodings are not interchangeable. Anonymous omission slots in vertex records remain stored, while replay filters them without inventing ID hints. Root catalog slots require identities; repeated slots and shared children are allowed.
+`dag.definition` is a `DagDefinition<Data, ID>` containing ordered `vertices` (`vertexId`, `data`, `slots`, `dependsOnWork`, `dependsOnSubgraphCompletion`), `omittedIds`, and an `entry` tagged as `root`, `roots`, or `empty`. Dependencies are the captured effective W/C constraints. A definition slot is `{ kind: 'vertex', vertexId }` or `{ kind: 'omitted', identity: { vertexId } | null }`; the wrapper preserves a known `undefined` identity separately from an anonymous omission. Resolved-graph `ChildSlot` uses the same explicit identity wrapper for this distinction. Anonymous omission slots in vertex records remain stored, while replay filters them without inventing ID hints. Root catalog slots require identities; repeated slots and shared children are allowed.
 
 `defineDag(input)` copies and freezes owned arrays and records, retaining shallow caller data and ID references. Malformed required fields and duplicate live/omitted identity declarations throw `TypeError`. SameValueZero identity applies throughout, including dependency deduplication. Shape normalization does not validate graph semantics.
 
@@ -308,10 +453,127 @@ A prepared definition is an in-memory value, not a durable checkpoint or editabl
 | `invalidEntry`              | `reason` is `unknownRoot`, `anonymousCatalogEntry`, or `emptyWithVertices`; `vertexIds` names the offending root/live records, or is empty for an anonymous entry. Root entries require a live ID. |
 | `invalidOmission`           | `vertexIds` lists identified omission slots absent from the declared omitted domain, including references to live IDs.                                                                             |
 | `unreachable`               | `vertexIds` lists declared live or omitted identities outside the entry closure through structural slots and both W/C dependency lists. Detached prerequisites are valid.                          |
-| `structuralCycle`           | `vertexIds` is structural SCC membership in declaration order, rather than an ordered cycle witness.                                                                                               |
+| `structuralCycle`           | `componentVertexIds` is structural SCC membership in declaration order, rather than an ordered cycle witness.                                                                                      |
 | `milestone`                 | `diagnostics` contains the existing `DagTraversalStallDiagnostics<ID>` for unknown W/C endpoints or combined milestone cycles.                                                                     |
 
 Structural issues are deterministic and prevent replay; structurally valid definitions use the existing DAG milestone validator. Empty entries may retain known omitted IDs, including an omitted root, and those IDs remain recognized for completed-work seeds. An empty entry with live records is invalid. This API represents in-memory source topology; it carries no runner progress or automatic completion-fact migration.
+
+#### Validation results and failures
+
+Expected graph invalidity is a **result**, programmer/contract errors are **exceptions**, and execution failures can be **retained runner failures**. Source callbacks may throw or reject any value, including null/undefined; preserve it rather than assuming every failure is an Error. Message strings are explanatory text, not stable error codes.
+
+| Operation                                               | Expected result / boundary                                                                                        | Failure behavior and consumer action                                                                                                                                                  |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepareDag` / `prepareDagAsync`                        | valid DAG or invalid issues; engine discovery cycles use `discoveryCycle`, dependency invalidity uses `milestone` | Malformed contracts and exact caller failures throw/reject. Render expected issues by discriminant.                                                                                   |
+| `prepareDagDefinition` / `composeDag` / `reviseDag`     | valid DAG or invalid definition/milestone issues                                                                  | Invalid programmer inputs, collisions or nonexistent wire endpoints throw TypeError; revision leaves original sessions unchanged.                                                     |
+| `defineDagFragment`                                     | Fragment directly                                                                                                 | Closed-definition invalidity throws `DagFragmentValidationError.issues`; malformed shapes/ports throw ordinary TypeError.                                                             |
+| Direct runner `prepare()` / `run()` / iteration         | Prepared, paused, awaiting settlement or finished lifecycle boundary as applicable                                | Engine cycles/stalls and caller failures throw; execution retains exact failure for subsequent attempts. Preparation/execution ownership misuse rejects without taking another owner. |
+| `session.advance()`                                     | awaitingSettlement, paused, finished                                                                              | A failed runner throws its retained exact error; switch on boundary.kind before reading workTickets.                                                                                  |
+| `completeWork(ticket)` / `failTraversal(ticket, error)` | accepted or alreadyAccepted receipt                                                                               | Foreign/copied/conflicting/stale tickets reject before settlement mutation. Fatal failure affects the whole traversal; retryable attempts remain host-deferred.                       |
+| `runner.settle(id, outcome, generation)`                | true on acceptance, false on identical replay                                                                     | Invalid identity/generation/conflict throws; local generations are not durable attempt IDs.                                                                                           |
+| Builder `configure(patch)` / execution options          | Validated update                                                                                                  | Unsupported or malformed keys throw TypeError atomically; prior configuration/owner remains.                                                                                          |
+| `rewriteObject` / `getOutputResult()`                   | Tagged present/absent output                                                                                      | Final getter requires FINISHED. Caller conversion failures propagate exactly and do not cache a successful conversion.                                                                |
+| `requireVertexId` / `requirePathsTo` / `requirePathTo`  | Required ID/path                                                                                                  | Absent handles throw; use has/nullable siblings for optional lookup. Valid null/undefined IDs are not failure sentinels.                                                              |
+| Walking iterator return / runner close                  | Return pauses; successful close is terminal                                                                       | Pending host promises must settle. Failed close rethrows the retained failure and does not repeat cleanup.                                                                            |
+
+##### Narrow invalid issues
+
+This executable example distinguishes source discovery-cycle evidence from milestone diagnostics. Authored-definition structural SCCs have a separate `structuralCycle` discriminator and `componentVertexIds` field.
+
+<!-- standalone -->
+
+```ts
+import {
+  materializeDagInputFromRecords,
+  prepareDag,
+  type DagDefinitionIssue,
+} from 'configurable-tree-traversal';
+
+function describe<ID>(issue: DagDefinitionIssue<ID>): string {
+  switch (issue.kind) {
+    case 'discoveryCycle':
+      return `closed witness: ${issue.cycleWitnessVertexIds.length} IDs`;
+    case 'structuralCycle':
+      return `structural component: ${issue.componentVertexIds.length} IDs`;
+    case 'milestone':
+      return `unknown prerequisites: ${issue.diagnostics.unknownPrerequisiteIds.length}`;
+    default:
+      return issue.kind; // Other authored-definition issue kinds are listed above.
+  }
+}
+const cycle = prepareDag(
+  materializeDagInputFromRecords(
+    [
+      { id: 'a', children: ['b'] },
+      { id: 'b', children: ['a'] },
+    ],
+    { id: (item) => item.id, children: (item) => item.children },
+  ),
+);
+if (
+  cycle.kind !== 'invalid' ||
+  describe(cycle.issues[0]!) !== 'closed witness: 3 IDs'
+) {
+  throw new Error('Expected a structured discovery-cycle result');
+}
+const missing = prepareDag(
+  materializeDagInputFromRecords(
+    [{ id: 'task', requires: ['not-in-catalog'] }],
+    { id: (item) => item.id, dependsOnWork: (item) => item.requires },
+  ),
+);
+if (
+  missing.kind !== 'invalid' ||
+  describe(missing.issues[0]!) !== 'unknown prerequisites: 1'
+) {
+  throw new Error('Expected milestone diagnostics');
+}
+```
+
+Do not catch and convert all source errors into invalid. The preparing engine recognizes its own failures; a source-thrown instance of the same class is still the caller's exact failure. Source preparation performs no work callbacks, so report invalid inputs before dispatch.
+
+##### Duplicate completion and fatal failure
+
+A duplicate accepted report is harmless; fatal failure is a deliberate whole-run decision. This is separate from a retryable host attempt, which should leave its ticket unsettled.
+
+<!-- standalone -->
+
+```ts
+import {
+  materializeDagInputFromRecords,
+  prepareDag,
+} from 'configurable-tree-traversal';
+
+const result = prepareDag(
+  materializeDagInputFromRecords([{ id: 'work' }], { id: (item) => item.id }),
+);
+if (result.kind !== 'valid') throw new Error('Expected a valid graph');
+const session = result.dag.createWorkSession();
+const boundary = session.advance();
+if (boundary.kind !== 'awaitingSettlement') throw new Error('Expected work');
+const ticket = boundary.workTickets[0]!;
+// A real host durably accepts the result before reporting completion.
+if (
+  session.completeWork(ticket).kind !== 'accepted' ||
+  session.completeWork(ticket).kind !== 'alreadyAccepted' ||
+  session.advance().kind !== 'finished'
+) {
+  throw new Error('Expected idempotent completion');
+}
+const failed = result.dag.createWorkSession();
+const waiting = failed.advance();
+if (waiting.kind !== 'awaitingSettlement') throw new Error('Expected work');
+const exactFailure = Symbol('host-declared fatal failure');
+failed.failTraversal(waiting.workTickets[0]!, exactFailure);
+let caught = false;
+try {
+  failed.advance();
+} catch (error) {
+  if (error !== exactFailure) throw error;
+  caught = true;
+}
+if (!caught) throw new Error('Expected the retained exact failure');
+```
 
 #### Definition diffs
 
@@ -340,7 +602,7 @@ IDs use SameValueZero throughout, including slots and dependencies. Slot kind an
 
 Operations apply in order to a private candidate. Removal does not prune references, delete descendants or satisfy work. A batch may leave intermediate dangling references and repair them before final validation through `prepareDagDefinition`. Expected graph invalidity returns the same [definition issues](#materialized-dag-definitions); malformed shapes, duplicate final identity declarations and programmer errors throw `TypeError`. Exact caller-thrown values propagate. Rejected and successful batches leave the original definition and sessions unchanged. Empty batches also return a fresh prepared value. Owned topology is copied/frozen; data and IDs remain shallow caller values.
 
-`changes` is the [definition diff](#definition-diffs) between the original and final definitions, including vertex order. The diff reports declarations, not artifact validity. Old tickets remain governed by their original session and throw in new sessions. Revision neither cancels nor transfers admitted async callbacks, generations, progress, accepted facts or host revision IDs. New sessions start without completed work unless the host explicitly supplies an independently accepted `completedWork` set. Session factories still own their visitors; for callback execution use `createAsyncRunner({ visitors, workCompletion: 'externalSettlement' })` with `createAsyncDagWorkSession`.
+`changes` is the [definition diff](#definition-diffs) between the original and final definitions, including vertex order. The diff reports declarations, not artifact validity. Old tickets remain governed by their original session and throw in new sessions. Revision neither cancels nor transfers admitted async callbacks, generations, progress, accepted facts or host revision IDs. New sessions start without completed work unless the host explicitly supplies an independently accepted `completedWork` set. Session factories still own their visitors; for callback execution use `createAsyncRunner({ visitors, workCompletion: 'externalSettlement' })` with `bindAsyncDagWorkSession`.
 
 See the [revision example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts) for an isolated old ticket and host-selected completion facts.
 
@@ -348,7 +610,7 @@ See the [revision example](https://github.com/dany-fedorov/configurable-tree-tra
 
 `defineDagFragment(definition, ports)` creates a `DagFragment<Data, ID, Port>` from a closed valid definition and a record of string-named live vertex IDs. It copies/freezes owned topology and port wrappers; caller data and IDs stay shallow and unfrozen. Port names retain literal keys. A closed-definition validation failure throws `DagFragmentValidationError<ID = unknown> extends TypeError`, exported from the root and DAG subpath, with `issues: readonly DagDefinitionIssue<ID>[]`. The issue array is copied shallowly; issue records and caller IDs retain identity. Successful construction still returns the fragment directly. Malformed definitions, unknown or omitted ports, and symbol port names remain ordinary `TypeError`s. Local W/C endpoints must resolve within the live/omitted domain; add external edges during composition.
 
-`instantiateDagFragment(fragment, { mapId })` returns a `DagFragmentInstance<Data, MappedID, Port>` with `{ definition, ports }`. It calls `mapId` once per declared live identity in vertex order, then once per omitted identity in declaration order, caching results across entry, slots, W/C lists, omissions and ports. Arbitrary identities, including objects, symbols, `undefined` and `NaN`, retain SameValueZero semantics. Mapped live/live, live/omitted and omitted/omitted collisions throw ordinary `TypeError`. Instantiation revalidates the definition before mapping and uses `DagFragmentValidationError` for that validation branch. Caller-thrown mapping/accessor values propagate unchanged. As with stall errors, `instanceof` alone does not recover the caller's ID type from an arbitrary catch. No ID scheme or name binding is implicit.
+`mapDagFragmentIds(fragment, { mapId })` returns a `DagFragment<Data, MappedID, Port>` with `{ definition, ports }`. It calls `mapId` once per declared live identity in vertex order, then once per omitted identity in declaration order, caching results across entry, slots, W/C lists, omissions and ports. Arbitrary identities, including objects, symbols, `undefined` and `NaN`, retain SameValueZero semantics. Mapped live/live, live/omitted and omitted/omitted collisions throw ordinary `TypeError`. Instantiation revalidates the definition before mapping and uses `DagFragmentValidationError` for that validation branch. Caller-thrown mapping/accessor values propagate unchanged. As with stall errors, `instanceof` alone does not recover the caller's ID type from an arbitrary catch. No ID scheme or name binding is implicit.
 
 `composeDag(instances, options?)` returns `PrepareDagResult<Data, ID>`. Entries concatenate in instance order beneath a hidden roots holder. Root entries contribute a vertex slot, roots entries retain ordered slots, and empty entries contribute ordered known omitted slots. An entirely empty instance contributes no slot. Vertex/omission declaration order, internal slots, and structurally detached prerequisite components are preserved.
 
@@ -365,7 +627,7 @@ Cross-instance identity collisions and nonexistent wire endpoints throw `TypeErr
 import {
   defineDag,
   defineDagFragment,
-  instantiateDagFragment,
+  mapDagFragmentIds,
   composeDag,
 } from 'configurable-tree-traversal';
 
@@ -383,10 +645,10 @@ const local = defineDag<string, 'task'>({
   entry: { kind: 'root', vertexId: 'task' },
 });
 const fragment = defineDagFragment(local, { start: 'task' });
-const first = instantiateDagFragment(fragment, {
+const first = mapDagFragmentIds(fragment, {
   mapId: (local) => ({ project: 'first', local }),
 });
-const second = instantiateDagFragment(fragment, {
+const second = mapDagFragmentIds(fragment, {
   mapId: (local) => ({ project: 'second', local }),
 });
 const result = composeDag([first, second], {
@@ -407,7 +669,7 @@ For heterogeneous fragments, declare the data and ID unions explicitly with `com
 
 ### Ticket coordination
 
-`createDagWorkSession(runner)` and `createAsyncDagWorkSession(runner)` require runners configured with `workCompletion: 'externalSettlement'`. Wrapping executes nothing and creates no additional execution owner. Callers retain direct runner access; existing single-owner rules apply.
+`bindDagWorkSession(runner)` and `bindAsyncDagWorkSession(runner)` require runners configured with `workCompletion: 'externalSettlement'`. Wrapping executes nothing and creates no additional execution owner. Callers retain direct runner access; existing single-owner rules apply.
 
 | Operation                                                   | Result and contract                                                                                                                                                                                       |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -429,20 +691,72 @@ Observation does not advance execution, but it is not constant-cost: `inspectMil
 
 Tickets are local capabilities with no durable serialized representation. Persist host-accepted completion facts, then call `completeWork(ticket)` and advance to observe newly eligible work. Tickets provide neither external claims nor retry/attempt policy. Fatal failure applies to the whole traversal; keep retryable work deferred under host policy.
 
+`DagWorkSessionControl` exposes concrete `TreeDagExecutionInspection<DagVisitorPhase>` through `inspect()` on both session families. `bindDagWorkSession`/`bindAsyncDagWorkSession` wrap shared runner progress; prepared DAG session factories create independent progress. Stall dependency records use `{ vertexId, unmetPrerequisiteIds }`.
+
 ### Filtered DAG visitors
 
 `filterDagDataVisitor(predicate, callback)` and `filterAsyncDagDataVisitor(predicate, callback)` wrap ordinary DAG visitors. The synchronous predicate sees vertex **data**. A type guard narrows the callback's first argument; a boolean predicate filters without narrowing. The callback receives `(data, context)`, retaining the ordinary graph, reference, phase, group metadata, and command-result types. A false predicate invokes no callback and returns no commands. The async helper supports value-or-promise callbacks; predicate and callback errors preserve exact identity.
 
+#### Filtered visitor example
+
+Both helpers narrow only the callback data, preserving the ordinary family context and commands. This standalone recipe runs independent sync/async visitors over the same prepared catalog; the async callback awaits its own work before returning.
+
+<!-- standalone -->
+
 ```ts
-traversal.addVisitorFor(
-  DagVisitorPhase.ON_WORK_READY,
-  filterDagDataVisitor(
-    (data: Task | Group): data is Task => data.kind === 'task',
-    (task, context) => {
-      console.log(task.prompt, context.phase);
-    },
-  ),
+import {
+  materializeDagInputFromRecords,
+  prepareDag,
+  DagVisitorPhase,
+  filterDagDataVisitor,
+  filterAsyncDagDataVisitor,
+} from 'configurable-tree-traversal';
+
+type Task = { kind: 'task'; id: string; prompt: string };
+type Group = { kind: 'group'; id: string };
+type Work = Task | Group;
+const records: Work[] = [
+  { kind: 'group', id: 'bundle' },
+  { kind: 'task', id: 'implement', prompt: 'Implement the feature' },
+];
+const prepared = prepareDag(
+  materializeDagInputFromRecords(records, {
+    id: (item) => item.id,
+  }),
 );
+if (prepared.kind !== 'valid') throw new Error('Expected a valid catalog');
+const prompts: string[] = [];
+prepared.dag
+  .createRunner({
+    visitors: {
+      [DagVisitorPhase.ON_WORK_READY]: filterDagDataVisitor(
+        (data: Work): data is Task => data.kind === 'task',
+        (task) => {
+          prompts.push(task.prompt);
+        },
+      ),
+    },
+  })
+  .run();
+const asyncPrompts: string[] = [];
+const asyncRunner = await prepared.dag.createAsyncRunner({
+  concurrency: 2,
+  visitors: {
+    [DagVisitorPhase.ON_WORK_READY]: filterAsyncDagDataVisitor(
+      (data: Work): data is Task => data.kind === 'task',
+      async (task) => {
+        asyncPrompts.push(await Promise.resolve(task.prompt));
+      },
+    ),
+  },
+});
+await asyncRunner.run();
+if (
+  prompts.join(',') !== 'Implement the feature' ||
+  asyncPrompts.join(',') !== prompts.join(',')
+) {
+  throw new Error('Expected narrowed task callbacks only');
+}
 ```
 
 The host defines `Task`, `Group`, and their discriminants. The helper preserves callback ordering, command handling, and phase restrictions, including exclusive `DEFER_WORK_COMPLETION` only in `ON_WORK_READY`. Filtering alone does not defer work under `afterWorkReadyChain`; use external settlement when the host owns completion.
@@ -477,8 +791,8 @@ from `a` to `b` or from `b` to `d` is needed to express these prerequisites.
 Discovery order does not satisfy a dependency or override its readiness rule.
 It can still influence FIFO order among equally ready vertices.
 
-Graph sources default to `omittedWorkDependencies: 'none'`: omitting `dependsOnWork`
-means no work prerequisites. Set `omittedWorkDependencies: 'discoveryParentWork'` to inherit discovery-parent W
+Graph sources default to `dependsOnWorkDefault: 'none'`: omitting `dependsOnWork`
+means no work prerequisites. Set `dependsOnWorkDefault: 'discoveryParentWork'` to inherit discovery-parent W
 only for omitted lists. Explicit `dependsOnWork: []` or an ID list always wins. Children of
 a synthetic catalog root have no implicit dependency on the catalog holder.
 Real child hints still define structure, paths, and subtree-completion
@@ -518,7 +832,7 @@ A listed vertex skips its initial `ON_WORK_READY` visitors and event, but its ch
 are still discovered and its `ON_SUBGRAPH_READY` visit waits for their completion.
 Omitted vertices count as recognized IDs; an ID never discovered causes a
 `TypeError`. This option requires a fresh graph runner and cannot be combined
-with a tree source or injected continuation state/container.
+with a tree source. Public runners have no continuation-state/container injection route.
 
 Set `discovery: 'eager'` to resolve every reachable hint before the first visitor,
 including descendants of vertices whose work dependencies are still blocked.
@@ -543,8 +857,8 @@ retains its existing admission order and reports known invalid stalls; eager
 discovery validates the full reachable topology before visitors.
 
 Progress `unmetPrerequisiteIds` is the stable union of unsatisfied W and C gates.
-Vertices with a nonempty completion declaration also expose
-`unmetSubgraphPrerequisiteIds`, which becomes `[]` when satisfied. Graph vertices
+Every progress record also exposes
+`unmetSubgraphPrerequisiteIds`, which is `[]` when no C prerequisite remains. Graph vertices
 expose a copied `dependsOnSubgraphCompletion` only when its normalized list is nonempty.
 See the runnable [build-join example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts).
 
@@ -553,11 +867,10 @@ in either prerequisite list. It returns a tagged `found`, `omitted`, or `missing
 for `AsyncDagTraversal`), with exactly the ID as its argument and no fabricated
 parent context. A default-unknown result with no `vertexId` field inherits the requested ID; typed live results must supply an own ID, and inherited fields reject.
 An explicit ID must match using SameValueZero identity. `{ kind: 'missing' }` means not found and eventually produces the typed
-missing-prerequisite stall. `{ kind: 'omitted', satisfiesDependencies: true }`
+missing-prerequisite stall. `{ kind: 'omitted', identity: null, satisfiesDependencies: true }`
 deliberately omits the requested ID and satisfies both W and C. A `found`
 result wraps the non-null content and optional declarations under `vertex`.
-Deprecated lookup `undefined` and `{ vertexContent: null }` inputs still normalize
-to missing and omission respectively.
+Lookup `undefined` and `{ vertexContent: null }` are rejected. Use `{ kind: 'missing' }` for an absent prerequisite, or a canonical acknowledged omission with explicit `identity: null` (inherit the requested identity) or `identity: { vertexId }`.
 Thrown/rejected values pass through unchanged. First-accepted identity wins when
 lookup and ordinary discovery race: a live vertex retains its original content
 and declarations, including when a later result deliberately omits it. If omission was
@@ -614,6 +927,79 @@ Enabled eager/synthetic options require a fresh graph-source runner. Explicit
 Eager mode rejects child-hint rewrites and subtree-disabling commands after
 validation; data rewrites and vertex deletion retain their existing behavior.
 
+DAG source omissions carry `identity: { vertexId } | null` plus `satisfiesDependencies: true`; resolved omitted child slots use the same identity wrapper. Null is anonymous; `{ vertexId: undefined }` is a known undefined ID. During identified hint or prerequisite lookup, an anonymous result can inherit the requested ID. Top-level omitted-result `vertexId` is rejected. Tree source results forbid `identity` and other graph metadata.
+
+#### Graph source result example
+
+Graph result types are distinct from tree results. A found graph vertex carries its ID and content; deliberate graph omission carries explicit identity plus dependency acknowledgement; only prerequisite lookup accepts missing. This executable recipe names all five graph-result aliases and verifies a found prerequisite, a known omission and a missing lookup.
+
+<!-- standalone -->
+
+```ts
+import {
+  prepareDag,
+  type VertexTypes,
+  type DagDiscoverySource,
+  type DagVertexFound,
+  type DagVertexOmitted,
+  type DagVertexResolution,
+  type DagPrerequisiteResolution,
+  type PrerequisiteMissing,
+} from 'configurable-tree-traversal';
+
+type Graph = VertexTypes<string, never>;
+const found: DagVertexFound<Graph, string> = {
+  kind: 'found',
+  vertex: {
+    vertexId: 'dependency',
+    vertexContent: { $data: 'accepted dependency', $childHints: [] },
+  },
+};
+const omitted: DagVertexOmitted<string> = {
+  kind: 'omitted',
+  identity: { vertexId: 'omitted' },
+  satisfiesDependencies: true,
+};
+const missing: PrerequisiteMissing = { kind: 'missing' };
+function lookup(id: string): DagPrerequisiteResolution<Graph, string> {
+  return id === 'dependency' ? found : id === 'omitted' ? omitted : missing;
+}
+const root: DagVertexResolution<Graph, string> = {
+  kind: 'found',
+  vertex: {
+    vertexId: 'task',
+    dependsOnWork: ['dependency', 'omitted'],
+    vertexContent: { $data: 'task', $childHints: [] },
+  },
+};
+const source: DagDiscoverySource<Graph, Graph, string> = {
+  resolveRoot: () => root,
+  resolveChild: () => omitted, // This leaf-only source has no child hints.
+  resolvePrerequisite: lookup,
+};
+const prepared = prepareDag({ traversableGraph: source });
+if (
+  prepared.kind !== 'valid' ||
+  !prepared.dag.definition.omittedIds.includes('omitted') ||
+  lookup('absent').kind !== 'missing'
+) {
+  throw new Error('Expected typed graph resolutions');
+}
+const session = prepared.dag.createWorkSession({
+  completedWork: new Set(['dependency']),
+});
+const boundary = session.advance();
+if (
+  boundary.kind !== 'awaitingSettlement' ||
+  boundary.workTickets.length !== 1 ||
+  boundary.workTickets[0]!.vertexId !== 'task'
+) {
+  throw new Error(
+    'Expected accepted and omitted prerequisites to release task',
+  );
+}
+```
+
 ### Structural sinks
 
 `hasSingleStructuralSink(graph)` counts vertices with no **structural children** in a resolved graph view. It returns true only when exactly one such vertex exists: an empty graph returns false, and a single isolated leaf returns true. Work and completion dependency arrows do not affect this count; use `inspectMilestones()` for milestone dependency questions.
@@ -628,13 +1014,14 @@ Milestone targets are structural inputs: class getters and non-enumerable `verte
 
 Call `prerequisitesOf({ vertexId, milestone: 'work' | 'subgraphCompletion' }, { transitive?: boolean })` or `dependentsOf(...)`. Both return `{ milestones, edges, discoveryComplete }`, defaulting to direct constraints. Transitive queries use deterministic breadth-first order, preserve discovery/declaration order, deduplicate by SameValueZero ID and milestone, and exclude the starting milestone from the milestone list. Original edges retain **waiter waits for prerequisite** direction even for dependent queries, with reasons `workDependency`, `subgraphCompletionDependency`, `ownWork`, and `structuralChild`. They remain visible after satisfaction. Cycles terminate and retain returning edges. Unknown targets return empty navigation, including unresolved IDs appearing only as edge destinations. Hidden roots holders never appear.
 
-`explain(target)` distinguishes three results:
+`explain(target)` distinguishes four results:
 
-| `kind`    | Fields and meaning                                                                                                                                                                                |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `unknown` | `target`, `discoveryComplete`; identity is not known in this capture                                                                                                                              |
-| `deleted` | `target`, `discoveryComplete`; a known tombstone, never successful work                                                                                                                           |
-| `known`   | `target`, `satisfied`, `progress`, `blockers`, `discoveryComplete`; live progress is a detached `DagVertexProgress<ID>`, while known omissions have null progress, satisfied true and no blockers |
+| `kind`       | Fields and meaning                                                                   |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `unresolved` | `target`, `discoveryComplete`; identity is absent from this capture                  |
+| `deleted`    | `target`, `discoveryComplete`; known tombstone, never successful work                |
+| `live`       | `target`, `satisfied`, non-null `progress`, `blockers`, `discoveryComplete`          |
+| `omitted`    | `target`, `satisfied: true`, `progress: null`, empty `blockers`, `discoveryComplete` |
 
 Live W is satisfied only after work commits (including accepted seeds); live C requires its own committed completion transition. A seed for a parent therefore does not satisfy C while retained children remain incomplete. Ready/deferred W remains unsatisfied. Readiness describes dependency eligibility and never proves a host claim, dispatch, or business outcome.
 
@@ -756,6 +1143,88 @@ wakes an active async consumer; after an idle settlement, call `run()` again.
 
 `DagTraversalStallDiagnostics<ID>.dependencyEdges` explains original declared constraints: direction is **waiter waits for prerequisite**. `DagMilestone<ID>` is `{ vertexId, milestone: 'work' | 'subgraphCompletion' }`; `DagWaitEdge<ID>` adds `waiter`, `prerequisite` and `reason`. Edges are W(v)→W(p) (`workDependency`), W(v)→C(p) (`subgraphCompletionDependency`), C(v)→W(v) (`ownWork`), and C(parent)→C(child) (`structuralChild`). Seeds do not remove original constraints, and missing prerequisite endpoints are included. Ordering follows stable discovery, then each vertex's work dependencies, completion dependencies, own work and structural children. Cycle analysis uses the same constraints; `dependencyCycleComponents` gives strongly connected component membership, not an ordered cycle witness. Summary/error wrappers and endpoint records are detached, preserving opaque ID identity without freezing IDs. Historical manually constructed `DagTraversalStallError` input may omit edges and receives `[]`; engine diagnostics populate them.
 
+#### DAG summary schema
+
+`DagSummary<ID>` is a detached observation with readonly public types. It does not advance execution, claim host work, fetch sources or refresh itself. Opaque ID/data values remain shallow caller values. Synthetic holders, deleted vertices and known omissions are absent from the live progress map.
+
+| Field                    | Type                                       | Meaning                                                                                                                                   |
+| ------------------------ | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `discovery.mode`         | `'lazy'` or `'eager'`                      | Effective discovery policy, including preparation.                                                                                        |
+| `discovery.complete`     | `boolean`                                  | Closure of the exposed discovery domain; lazy false means a partial view.                                                                 |
+| `counts`                 | Counts record below                        | Counts over current visible live work records.                                                                                            |
+| `vertices`               | `ReadonlyMap<ID, DagVertexProgress<ID>>`   | Per-live-vertex W/C progress in discovery order.                                                                                          |
+| `readyOrDeferredIds`     | `readonly ID[]`                            | Dependency-eligible ready/deferred work; excludes active work callbacks and committed W.                                                  |
+| `deferredWorkIds`        | `readonly ID[]`                            | Deferred W, including accepted fatal outcomes while W remains uncommitted.                                                                |
+| `awaitingSettlement`     | `readonly DagDeferredWork<ID>[]`           | Only live deferred W with no accepted outcome. Each record atomically has vertexId and generation. **Use this for lower-level dispatch.** |
+| `activeVisitorVertexIds` | `readonly ID[]`                            | Active CTT visitor chains, including completion chains for already-completed W.                                                           |
+| `completedWorkIds`       | `readonly ID[]`                            | Committed W, including recognized seeds.                                                                                                  |
+| `completedSubgraphIds`   | `readonly ID[]`                            | Committed C.                                                                                                                              |
+| `unusedCompletedWorkIds` | `readonly ID[]`                            | Seed IDs not yet recognized; closed discovery rejects unknown seeds.                                                                      |
+| `diagnostics`            | `DagTraversalStallDiagnostics<ID>` or null | Known invalid topology; ordinary external deferral alone is not a stall.                                                                  |
+
+Every count is a number. These collections overlap; do not sum the counts into a total.
+
+| Count field                    | Meaning                                                                                                          |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `counts.discovered`            | Number of current visible live records (`vertices.size`), not all source IDs, omissions or historical deletions. |
+| `counts.pending`               | Records with `work: 'pending'`, blocked by unmet W/C prerequisites.                                              |
+| `counts.readyOrDeferred`       | `readyOrDeferredIds.length`.                                                                                     |
+| `counts.deferredWork`          | `deferredWorkIds.length`.                                                                                        |
+| `counts.activeVisitorVertices` | `activeVisitorVertexIds.length`; can overlap completedWork during C callbacks.                                   |
+| `counts.workCompleted`         | `completedWorkIds.length`; seeded W does not imply C.                                                            |
+| `counts.subgraphCompleted`     | `completedSubgraphIds.length`.                                                                                   |
+
+`DagVertexProgress<ID>` fields are required except generation:
+
+| Field                          | Type                                                              | Meaning                                                                                                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vertexId`                     | `ID`                                                              | Caller identity, including valid null/undefined/object IDs.                                                                                                                |
+| `work`                         | `'pending'`, `'ready'`, `'visiting'`, `'deferred'`, `'completed'` | W scheduling/commit state; visiting means an active initial work chain.                                                                                                    |
+| `subgraphComplete`             | `boolean`                                                         | Whether C committed.                                                                                                                                                       |
+| `unmetWorkPrerequisiteIds`     | `readonly ID[]`                                                   | Exact unsatisfied W prerequisites, including an empty array.                                                                                                               |
+| `unmetSubgraphPrerequisiteIds` | `readonly ID[]`                                                   | Exact unsatisfied C prerequisites, including an empty array.                                                                                                               |
+| `unmetPrerequisiteIds`         | `readonly ID[]`                                                   | Deduplicated union of the W/C arrays. Subtracting C cannot reconstruct W when the same ID occurs in both.                                                                  |
+| `generation?`                  | `DagSettlementGeneration` (local symbol)                          | Present when work is deferred; absent otherwise. Not a durable attempt ID. Prefer the atomic awaitingSettlement record to assembling a dispatch guard from separate reads. |
+
+<!-- standalone -->
+
+```ts
+import {
+  materializeDagInputFromRecords,
+  prepareDag,
+  type DagSummary,
+  type DagVertexProgress,
+} from 'configurable-tree-traversal';
+
+const prepared = prepareDag(
+  materializeDagInputFromRecords(
+    [
+      { id: 'a', requires: [] },
+      { id: 'b', requires: ['a'] },
+    ],
+    { id: (item) => item.id, dependsOnWork: (item) => item.requires },
+  ),
+);
+if (prepared.kind !== 'valid') throw new Error('Expected valid topology');
+const session = prepared.dag.createWorkSession();
+session.advance();
+const snapshot: DagSummary<string> = session.summary();
+const blocked: DagVertexProgress<string> = snapshot.vertices.get('b')!;
+if (
+  snapshot.counts.discovered !== 2 ||
+  snapshot.counts.pending !== 1 ||
+  blocked.work !== 'pending' ||
+  blocked.generation !== undefined ||
+  blocked.unmetWorkPrerequisiteIds[0] !== 'a'
+) {
+  throw new Error('Expected blocked b and deferred a');
+}
+const work = snapshot.awaitingSettlement[0]!;
+if (work.vertexId !== 'a' || typeof work.generation !== 'symbol') {
+  throw new Error('Expected an atomic local dispatch guard');
+}
+```
+
 ### Host policy and traversal feedback
 
 `{ kind: 'workCompleted' }` means the host accepts this vertex's work as complete for traversal
@@ -804,7 +1273,7 @@ for (const { vertex, vertexRef } of runner.iterateEvents({
 })) {
   const path = runner
     .getResolvedTreeView()
-    .getPathTo(vertexRef, { noRoot: true })
+    .requirePathTo(vertexRef, { noRoot: true })
     .map((ref) => ref.getValue().getData().key);
   console.log(path, vertex.getData().value);
 }
@@ -819,7 +1288,7 @@ Ancestor cycles throw a descriptive error before descent; shared objects in sepa
 
 ## Abstract trees
 
-A tree adapter supplies `resolveRoot()` and `resolveChild(hint, options)`. Return `{ kind: 'found', vertex: { vertexContent: { $data: data, $childHints: childHints } } }` for a vertex, or `{ kind: 'omitted' }` for an empty tree or skipped child. Annotate tree adapters with `TreeVertexResolution<T>` (`TreeVertexFound<T>` / `TreeVertexOmitted`), using tagged results only. Tree results forbid `vertexId`, `dependsOnWork`, `dependsOnSubgraphCompletion`, and `satisfiesDependencies`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. This distinction follows the source: DAG runners consuming a tree adapter also use plain tree omission. Graph omission requires `{ kind: 'omitted', satisfiesDependencies: true }`, acknowledging that omission satisfies both W and C; false or undefined acknowledgements reject. Graph adapters retain `DagVertexResolution<T>`, `DagVertexFound<T>`, `DagVertexOmitted`, with tagged results only; only graph prerequisite lookup accepts `DagPrerequisiteResolution<T>` / `PrerequisiteMissing`. Bare `null` and `undefined` are invalid everywhere. Graph own `vertexId` presence preserves an explicitly supplied undefined ID.
+A tree adapter supplies `resolveRoot()` and `resolveChild(hint, options)`. Return `{ kind: 'found', vertex: { vertexContent: { $data: data, $childHints: childHints } } }` for a vertex, or `{ kind: 'omitted' }` for an empty tree or skipped child. Annotate tree adapters with `TreeVertexResolution<T>` (`TreeVertexFound<T>` / `TreeVertexOmitted`), using tagged results only. Tree results forbid `identity`, `vertexId`, `dependsOnWork`, `dependsOnSubgraphCompletion`, and `satisfiesDependencies`, including own fields set to undefined, in DFS/BFS and DAG tree-source mode. This distinction follows the source: DAG runners consuming a tree adapter also use plain tree omission. Graph omission requires `{ kind: 'omitted', identity: null, satisfiesDependencies: true }`, acknowledging that omission satisfies both W and C; false or undefined acknowledgements reject. Graph adapters retain `DagVertexResolution<T>`, `DagVertexFound<T>`, `DagVertexOmitted`, with tagged results only; only graph prerequisite lookup accepts `DagPrerequisiteResolution<T>` / `PrerequisiteMissing`. Bare `null` and `undefined` are invalid everywhere. Graph own `vertexId` presence preserves an explicitly supplied undefined ID.
 
 <!-- standalone -->
 
@@ -859,6 +1328,103 @@ traversal.createRunner().run(); // D, B, C, A
 
 Child vertices are resolved lazily. Resolution options include the parent reference, depth, hint index, and the tree resolved so far. Custom adapters are responsible for detecting cycles in their own graph representation. Both strategies use iterative scheduling and can traverse deeply nested trees without recursive call-stack growth.
 
+### Source callback contexts
+
+`resolveRoot()` takes no fabricated parent context. `resolvePrerequisite(id)` takes only the requested ID. The child callback consumes an input-domain hint plus a **nested** context:
+
+| Source                         | Child signature                                                                     | Top-level context fields                                      |
+| ------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `TreeSource<T, R>`             | `resolveChild(hint: T['VertexHint'], options: TreeChildResolutionContext<T, R>)`    | `resolutionContext`, `resolvedTreeView`, `originalTreeView`   |
+| `DagDiscoverySource<T, R, ID>` | `resolveChild(hint: T['VertexHint'], options: DagChildResolutionContext<T, R, ID>)` | `resolutionContext`, `resolvedGraphView`, `originalGraphView` |
+| Async counterparts             | Same parameters; value-or-promise result                                            | Same family-specific fields.                                  |
+
+Metadata is under `options.resolutionContext`, not directly on options:
+
+| Nested field      | Type / meaning                                                                                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `depth`           | Number; child discovery depth, starting one below an ordinary root.                                                     |
+| `hintIndex`       | Zero-based index in the transformed hint sequence.                                                                      |
+| `vertexHint`      | `T['VertexHint']`; the source input hint.                                                                               |
+| `parentVertex`    | Restricted `VertexView<T or R>` for an ordinary parent; null for a synthetic DAG entry parent.                          |
+| `parentVertexRef` | Restricted `VertexHandle<T or R>` for an ordinary parent; null alongside parentVertex for a synthetic DAG entry parent. |
+
+Tree parents are non-null. The two DAG parent fields are either both visible or both null; do not assert a synthetic holder into a public handle. Resolved views are live capabilities; original views are null unless retention is enabled and otherwise grow with discovery. Resolution metadata is a stable detached readonly projection; caller data and individual hints retain shallow identity. Live fields can include rewritten R values, while input hints/results and retained original views remain in T.
+
+<!-- standalone -->
+
+```ts
+import {
+  DepthFirstTreeTraversal,
+  type VertexTypes,
+} from 'configurable-tree-traversal';
+
+type Tree = VertexTypes<string, string>;
+let observed = '';
+new DepthFirstTreeTraversal<Tree>({
+  traversableTree: {
+    resolveRoot: () => ({
+      kind: 'found',
+      vertex: {
+        vertexContent: { $data: 'root', $childHints: ['leaf'] },
+      },
+    }),
+    resolveChild: (hint, options) => {
+      const { depth, hintIndex, parentVertexRef } = options.resolutionContext;
+      observed = `${depth}:${hintIndex}:${parentVertexRef
+        .getValue()
+        .getData()}`;
+      if (options.originalTreeView !== null)
+        throw new Error('Retention is off');
+      return {
+        kind: 'found',
+        vertex: { vertexContent: { $data: hint, $childHints: [] } },
+      };
+    },
+  },
+})
+  .createRunner()
+  .run();
+if (observed !== '1:0:root')
+  throw new Error('Expected nested discovery metadata');
+```
+
+The materialized catalog's synthetic entry demonstrates the graph-parent null case:
+
+<!-- standalone -->
+
+```ts
+import {
+  DagTraversal,
+  materializeDagInputFromRecords,
+} from 'configurable-tree-traversal';
+
+const input = materializeDagInputFromRecords([{ id: 'task' }], {
+  id: (item) => item.id,
+});
+let entryObserved = false;
+new DagTraversal({
+  ...input,
+  traversableGraph: {
+    ...input.traversableGraph,
+    resolveChild: (hint, options) => {
+      const metadata = options.resolutionContext;
+      if (
+        metadata.parentVertex !== null ||
+        metadata.parentVertexRef !== null ||
+        options.originalGraphView !== null
+      ) {
+        throw new Error('Expected a hidden synthetic entry parent');
+      }
+      entryObserved = true;
+      return input.traversableGraph.resolveChild(hint, options);
+    },
+  },
+})
+  .createRunner()
+  .prepare();
+if (!entryObserved) throw new Error('Expected entry discovery');
+```
+
 ## Traversal orders
 
 <img src="../Sorted_binary_tree_ALL_RGB.svg.png" alt="Binary tree with depth-first visit points: red for pre-order, green for in-order, and blue for post-order" width="460" height="393" />
@@ -873,7 +1439,7 @@ Source: [Wikipedia — Tree traversal](https://en.wikipedia.org/wiki/Tree_traver
 | Depth-first   | `POST_ORDER`  | After its children                              |
 | Breadth-first | `LEVEL_ORDER` | Level by level, with siblings in hint order     |
 
-Iteration emits events even when no visitor functions are registered. By default, depth-first iteration includes all three orders. `sortChildrenHints` receives a shallow copy of each vertex's hints; return the desired child order. Resolution `hintIndex` refers to that resulting order.
+Iteration emits events even when no visitor functions are registered. By default, depth-first iteration includes all three orders. `transformChildHints` receives a shallow copy of each vertex's hints; return the desired child order. Resolution `hintIndex` refers to that resulting order.
 
 In-order traversal defaults to visiting between children, and after the child of a one-child parent. Configure it with:
 
@@ -935,7 +1501,7 @@ const runner = traverseTreeBreadthFirst({
 
 ## Async traversal
 
-`AsyncDepthFirstTreeTraversal` and `AsyncBreadthFirstTreeTraversal` preserve their synchronous counterparts' configuration, events, commands, graph queries, and visitor metadata. Their adapter, sorter, hint-identity, and visitor callbacks may independently return either a value or a promise. `run()` returns a promise of the runner, and `iterateEvents()` returns an async-generator-compatible iterator.
+`AsyncDepthFirstTreeTraversal` and `AsyncBreadthFirstTreeTraversal` preserve their synchronous counterparts' configuration, events, commands, graph queries, and visitor metadata. Their adapter, hint-transformer, hint-identity, and visitor callbacks may independently return either a value or a promise. `run()` returns a promise of the runner, and `iterateEvents()` returns an async-generator-compatible iterator.
 
 <!-- standalone -->
 
@@ -990,6 +1556,53 @@ Visitors receive `(vertex, options)` and may return `{ commands: [...] }`. Comma
 | `SKIP_REMAINING_CHILDREN`   | Skip pending local child expansion; retain already resolved descendants                 |
 | `REWRITE_CHILD_HINTS`       | Replace pending child hints using `{ newHints }` before descent                         |
 | `SET_VISITOR_CHAIN_STATE`   | Set phase-chain-local callback state with `{ state }`                                   |
+
+A command payload is nested under `commandArguments`, beside `commandName`. Parameterless commands omit arguments (explicit undefined is also accepted); payload commands require their declared argument record.
+
+<!-- standalone -->
+
+```ts
+import {
+  DepthFirstTreeTraversal,
+  DepthFirstPhase,
+  TraversalVisitorCommandName as Command,
+  type VertexTypes,
+} from 'configurable-tree-traversal';
+
+type Tree = VertexTypes<string, string>;
+const traversal = new DepthFirstTreeTraversal<Tree>({
+  traversableTree: {
+    resolveRoot: () => ({
+      kind: 'found',
+      vertex: {
+        vertexContent: { $data: 'root', $childHints: [] },
+      },
+    }),
+    resolveChild: () => ({ kind: 'omitted' }),
+  },
+});
+let observed = '';
+traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => ({
+  commands: [
+    {
+      commandName: Command.REWRITE_VERTEX_DATA,
+      commandArguments: { newData: 'ROOT' },
+    },
+    {
+      commandName: Command.SET_VISITOR_CHAIN_STATE,
+      commandArguments: { state: 'checked' },
+    },
+  ],
+}));
+traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex, context) => {
+  observed = `${vertex.getData()}:${String(context.visitorChainState)}`;
+});
+traversal.createRunner().run();
+if (observed !== 'ROOT:checked')
+  throw new Error('Expected committed data and chain state');
+```
+
+The default afterEachVisitor commit lets the second callback see both changes. `afterGroup` delays them until the group's boundary. Hint rewrites are limited to DFS PRE_ORDER, BFS LEVEL_ORDER and DAG ON_WORK_READY; family deletion commands are not interchangeable. `DEFER_WORK_COMPLETION` is a sole-command result in ON_WORK_READY. Walking accepts only parameterless PAUSE_TRAVERSAL/NOOP and has no mutation/settlement commands.
 
 `ResolvedTreeStore.deleteSubtree(ref)` removes the stored subtree directly. Revision operation `removeVertexDeclaration` removes only a declaration and requires the caller to repair references in the same revision batch. Deletion commands are checked against the runner family, including a DAG runner consuming a TreeSource. DAG deletion preserves shared children and detached anchors unless dependencies remove them; deleting the graph root clears the graph, including detached anchors.
 
@@ -1054,7 +1667,7 @@ Async iteration uses the same one-owner rule. Calling `return()` on an active as
 
 `getStopReason()` reports the stop cause; every runner also has synchronous `inspect()`. For tree/DAG runners, inspection returns a detached, frozen snapshot with status, traversal kind, source mode, execution mode, effective concurrency, ready visits, frames, visitor chains, pending callback identities, event boundaries, physical in-flight callback count, and buffered event count. Inspection never calls user code, consumes an event, or advances traversal, and snapshots contain reference ids rather than callback functions, promises, or vertex data. Pending boundary and buffered event counts include recorded observations regardless of the current delivery selection; they describe separate kernel/session queues and should not be summed as unique observations.
 
-`TreeDagExecutionInspection<Phase>` retains the concrete runner's callback phase type. `readyVisits[].phase` and `chains[].phase` name callback phases; chain `state` is `running | paused | done | invalid`, and `visitorIndex` identifies its current position. Each chain retains its admitted `executionOptions` and exposes `commandCommitMode`. The chain snapshot’s `visitorPhases` governs that chain; its `emitEvents` is historical configuration only. Top-level `executionOptions.emitEvents` governs current delivery, including events committed by older chains. Pending requests use `operation: resolveRoot | resolveChild | resolvePrerequisite | sortChildrenHints | getVertexIdFromHint | visit`. Frame `stage`, detached owner tokens, `waitingFor`, and request validity describe execution mechanics; owner tokens are runner-local identities, not vertex IDs. Walking likewise uses callback `phase`, `visitorIndex`, and pending request `operation` with its own operation vocabulary.
+`TreeDagExecutionInspection<Phase>` retains the concrete runner's callback phase type. `readyVisits[].phase` and `chains[].phase` name callback phases; chain `state` is `running | paused | done | invalid`, and `visitorIndex` identifies its current position. Each chain retains its admitted `executionOptions` and exposes `commandCommitMode`. The chain snapshot’s `visitorPhases` governs that chain; its `emitEvents` is historical configuration only. Top-level `executionOptions.emitEvents` governs current delivery, including events committed by older chains. Pending requests use `operation: resolveRoot | resolveChild | resolvePrerequisite | transformChildHints | getVertexIdFromHint | visit`. Frame `stage`, detached owner tokens, `waitingFor`, and request validity describe execution mechanics; owner tokens are runner-local identities, not vertex IDs. Walking likewise uses callback `phase`, `visitorIndex`, and pending request `operation` with its own operation vocabulary.
 
 Resolved graph vertices expose `visitStage: ResolvedVisitStage`; query it with `getVisitStageOf(ref)`. Stages are `DISCOVERED`, `INITIAL_VISIT_ELIGIBLE`, `INITIAL_VISIT_STARTED`, `INITIAL_VISIT_COMMITTED`, `COMPLETION_VISIT_ELIGIBLE`, and `COMPLETE`. These preserve each family's scheduling boundaries: tree initial callbacks can still be `INITIAL_VISIT_ELIGIBLE` while DAG initial callbacks are `INITIAL_VISIT_STARTED`. A stage does not establish callback activity. Deferred DAG work can remain `INITIAL_VISIT_STARTED` after all callbacks drain; completion eligibility precedes completion callbacks and committed C. Use inspection's in-flight count/chains for callback activity and DAG `summary()` / milestone queries for W/C facts, independently of visit stages. Original graph views retain structural queries without visit stages; runner `getStatus()` remains the separate execution lifecycle.
 
@@ -1089,6 +1702,7 @@ import {
   DepthFirstTreeTraversal,
   DepthFirstPhase,
   type EmissionKind,
+  type InspectionFilters,
   type TraversalExecutionState,
   type SyncTraversalExecution,
   type TreeSource,
@@ -1132,9 +1746,75 @@ const walk = new GraphWalk({
 console.log(observe(dfs), observe(walk));
 drive(dfs, DepthFirstPhase.PRE_ORDER);
 drive(walk, GraphWalkPhase.VERTEX);
+const filters: InspectionFilters<DepthFirstPhase> =
+  dfs.inspect().executionOptions;
+if (
+  filters.emitEvents.length !== 1 ||
+  filters.emitEvents[0] !== DepthFirstPhase.PRE_ORDER
+) {
+  throw new Error('Expected the current tree delivery selection');
+}
 ```
 
 The [typed reference example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts) also demonstrates an async phase-preserving wrapper. Walking deliberately has event records, target wrappers, delivery-time selector narrowing and terminal source-resource disposal. Tree/DAG sources remain distinct; all families share delivery-time event selection.
+
+## Views, handles, identity and paths
+
+<a id="safe-tree-queries"></a>
+
+Use `runner.getResolvedTreeView()` or a standalone store’s `asReadOnly()` for tree queries. `ResolvedTreeView<T>` has `getRoot`, `has`, `getChildrenOf`, `getParentOf`, `requirePathTo`, and `getResolutionContextOf`. `ResolvedGraphView<T, ID>` is available through `getResolvedGraphView()`. Both are stable live query capabilities with frozen detached collections and restricted vertex handles. DAG runners return the tree facade in tree-source mode and null in graph-source mode. Ordinary runners have no `getResolvedTreeStore()` method; edit through visitor commands or construct a standalone `ResolvedTreeStore` for advanced editing.
+
+`VertexHandle<T>` exposes `getRefId()` and `getValue()` without editing authority. `getValue()` returns a frozen `VertexView<T>` with readonly `$data` and `$childHints` fields, query methods, and detached frozen hint arrays. The handle is canonical across callbacks, source contexts, events, and query views; its value remains live. An event’s `vertex` wraps the value captured for that event, so later commands can change its live `vertexRef` without changing the recorded vertex. `clone()` creates a separate editable `Vertex` and hint collection. Opaque caller data, IDs, and individual hint payloads retain identity and are not frozen. `MutableRef<T>` and mutable `Vertex<T>` remain standalone advanced editing capabilities. A `TreeVertexRecord` stores `metadata` and structural `children`, separate from the Vertex payload/hint fields `$data` and `$childHints`. Graph wrappers use `ResolvedGraphVertex`, `ResolvedVisitStage`, and `StructuralChildEdge`.
+
+Tree callback and source contexts expose `resolvedTreeView`; graph contexts expose `resolvedGraphView`. Neither exposes a live mutable store. Source resolution metadata is a stable frozen projection. For a synthetic DAG entry slot, `parentVertex` and `parentVertexRef` are both null; ordinary graph parents and tree parents are non-null restricted facets. Entry-slot `depth`, `hintIndex`, and `vertexHint` retain their discovery meanings. Original tree and graph views remain in the input type domain.
+
+`MutableRef.getRefId()` is the generated reference UUID. `ResolvedGraphView.requireVertexId(ref)` returns the host's arbitrary vertex ID and `getVertexRefById(id)` returns its reference. Live and original graph views use the same names. Retired `getId`, `getIdOf`, and `getVertexById` aliases are removed. Do not substitute the reference UUID for a host ID or stringify object/symbol/undefined IDs.
+
+`ResolvedTreeStore.requirePathTo(ref, { noRoot?, noSelf? })` returns the resolved ancestry in root-to-vertex order and throws if the reference is absent from that tree. Original-tree paths use the retained view’s own references. Deleting a resolved vertex removes its resolved descendants and detaches it from its parent; deleting the root clears the root pointer.
+
+<a id="explicit-input-ownership-and-query-names"></a>
+
+`VertexContentInput.$childHints` and `REWRITE_CHILD_HINTS.newHints` accept readonly collections. A standalone `Vertex` copies hint membership at construction and for every `clone()` path; individual hint elements and `$data` retain caller identity. `getChildHints()` returns the owned editable standalone collection, while observed `VertexView` collections remain frozen and detached.
+
+`isChildExpansionSkipped(ref)` answers whether DFS explicitly skipped expansion; it is independent of hint emptiness and structural leaf status. `requireVertexId`, `requirePathsTo` and tree `requirePathTo` throw for absent handles; nullable sibling queries retain their documented absence results. Null and undefined remain valid vertex IDs, never missing-identity sentinels.
+
+<!-- standalone -->
+
+```ts
+import { DagTraversal, type VertexTypes } from 'configurable-tree-traversal';
+
+type Graph = VertexTypes<string, string>;
+const runner = new DagTraversal<Graph, Graph, string>({
+  traversableGraph: {
+    resolveRoot: () => ({
+      kind: 'found',
+      vertex: {
+        vertexId: 'root',
+        vertexContent: { $data: 'root', $childHints: ['leaf'] },
+      },
+    }),
+    resolveChild: (id) => ({
+      kind: 'found',
+      vertex: {
+        vertexId: id,
+        vertexContent: { $data: id, $childHints: [] },
+      },
+    }),
+  },
+})
+  .createRunner()
+  .prepare();
+const view = runner.getResolvedGraphView();
+const leaf = view.getVertexRefById('leaf');
+if (leaf === null || !view.has(leaf)) throw new Error('Expected a live leaf');
+const paths = view.requirePathsTo(leaf);
+const ids = paths[0]!.map((ref) => view.requireVertexId(ref));
+if (paths.length !== 1 || ids.join(',') !== 'root,leaf') {
+  throw new Error('Expected the required root-to-leaf path');
+}
+```
+
+For optional lookup, `getVertexRefById` returns null when no live ID is present. Graph `get`, `getParentsOf`, `getChildrenOf` and `getVisitStageOf` return null for absent handles; `has` returns a boolean. `requireVertexId` and required path queries throw instead. Known omitted IDs have milestone facts without a live handle. Graph paths can contain multiple structural routes; tree ancestry has one path. View collections are detached and readonly; use visitor commands to change an active runner.
 
 ## Rewrite objects
 
@@ -1154,16 +1834,42 @@ const result = rewriteObject(input, {
     return undefined;
   },
 });
-console.log(result.getOutput()); // { keep: 10, nested: [30] }; input is unchanged
+console.log(result.getOutputResult()); // { kind: 'present', value: { keep: 10, nested: [30] } }; input is unchanged
 ```
 
-Rewrites run in post-order. Return `{ kind: 'rewrite', patch: { key, value } }` to rename or replace a property, `{ kind: 'delete' }` to remove it, or `undefined` / `{ kind: 'keep' }` for default assembly. Composite parents are reconstructed from their processed children. Arrays default to `arrayIndexPolicy: 'compactInTraversalOrder'`. Choose `'preserveNumericKeys'` to retain numeric positions and holes; output length is the larger of the original array length and highest assigned index plus one, preserving trailing holes and holes left by deletion. Non-arrays classified as arrays derive length from assigned indices. Numeric keys must be integers from 0 through 2^32-2. Named array properties remain supported. Built-in reconstruction defaults to `propertyCollision: 'error'`; `'firstWins'` and `'lastWins'` resolve duplicate normalized JavaScript property keys explicitly. Number/string equivalents collide, while distinct symbols retain identity. Custom `assembleArray`/`assembleObject` callbacks own placement and collision behavior for their respective composites. Null and undefined values are retained; deleting the root returns `null`.
+| Root operation   | getOutputResult()                       |
+| ---------------- | --------------------------------------- |
+| Retain null      | `{ kind: 'present', value: null }`      |
+| Retain undefined | `{ kind: 'present', value: undefined }` |
+| Delete the root  | `{ kind: 'absent' }`                    |
 
-Set `assembleCompositesBeforeRewrite: true` to receive `assembledComposite` alongside the original property. Options include `isArray`, `isObject`, `isComposite`, and `getKeyPath({ noRoot: true })`. Custom `isArray`/`isObject` and `assembleArray`/`assembleObject` functions support specialized reconstruction. Default reconstruction is for plain objects and arrays; it does not preserve prototypes, descriptors, collection types, or identity shared between branches.
+<!-- standalone -->
+
+```ts
+import { rewriteObject } from 'configurable-tree-traversal';
+
+for (const input of [null, undefined]) {
+  const output = rewriteObject(input).getOutputResult();
+  if (output.kind !== 'present' || output.value !== input) {
+    throw new Error('Expected a retained present root');
+  }
+}
+const removed = rewriteObject(
+  { keep: 1 },
+  {
+    rewrite: () => ({ kind: 'delete' }),
+  },
+).getOutputResult();
+if (removed.kind !== 'absent') throw new Error('Expected root absence');
+```
+
+Rewrites run in post-order. Return `{ kind: 'rewrite', patch: { key, value } }` to rename or replace a property, `{ kind: 'delete' }` to remove it, or `undefined` / `{ kind: 'keep' }` for default assembly. Composite parents are reconstructed from their processed children. Arrays default to `arrayIndexPolicy: 'compactInTraversalOrder'`. Choose `'preserveNumericKeys'` to retain numeric positions and holes; output length is the larger of the original array length and highest assigned index plus one, preserving trailing holes and holes left by deletion. Non-arrays classified as arrays derive length from assigned indices. Numeric keys must be integers from 0 through 2^32-2. Named array properties remain supported. Built-in reconstruction defaults to `propertyCollision: 'error'`; `'firstWins'` and `'lastWins'` resolve duplicate normalized JavaScript property keys explicitly. Number/string equivalents collide, while distinct symbols retain identity. Custom `assembleArray`/`assembleObject` callbacks own placement and collision behavior for their respective composites. Null and undefined values remain present; deleting the root produces `{ kind: 'absent' }` from `getOutputResult()`.
+
+Set `assembleCompositesBeforeRewrite: true` to receive `assembledComposite` alongside the original property. Configurable classification options are `isArray` and `isObject`. Bound callback/binder observations include `isComposite`, `isArray`, `isObject`, and callback `getKeyPath({ noRoot: true })`; `isComposite` and `getKeyPath` are not configuration options. Custom `isArray`/`isObject` and `assembleArray`/`assembleObject` functions support specialized reconstruction. Default reconstruction is for plain objects and arrays; it does not preserve prototypes, descriptors, collection types, or identity shared between branches.
 
 `rewriteObject` retains its six generic positions, but default `Out` is now `unknown`: reconstruction and arbitrary rewrites cannot promise input shape/prototype preservation. A `convertRootValue(value: unknown, context: { readonly complete: boolean })` converter can infer its return type. A specific `Out` requires this converter, including when supplied through explicit generics or pretyped options. `complete` distinguishes the potentially partial initial snapshot from final output. The removed `getOutputObjectFromRootValue` option rejects. Use named root `rewriteObjectAs<Out>(input, options?)`, namespace `objectRewrite.rewriteObjectAs`, or the rewrite subpath helper for an explicit caller assertion; it performs no schema validation, and property values in its options remain unknown.
 
-`outputAtReturn` is the converted output captured when the helper returns, possibly partial while halted. It never updates on resume. Call `result.traversalRunner.run()` to resume, then `result.getOutput()` to read the final converted root. The getter throws before FINISHED, applies the original conversion after completion and caches its first successful result, reusing the initial snapshot if the first run already finished. Exact conversion failures propagate and are not cached as successes, so a later call can retry. Deleted/null roots remain supported; the getter neither resumes nor promises deep immutability.
+`outputResultAtReturn` captures `ObjectRewriteOutputResult<Out>` when the helper returns, possibly partial while halted; it does not refresh on resume. Its variants are `{ kind: 'present', value: Out }` and `{ kind: 'absent' }`. A retained `null` or `undefined` root is present. Absent roots do not invoke `convertRootValue`. Resume through `result.traversalRunner.run()`, then call `result.getOutputResult()` for the final tagged result. The getter requires FINISHED and caches its first successful final conversion/result, reusing the initial result if the first run already finished. Exact conversion errors propagate without caching a success. Result wrappers are frozen; caller values remain shallow. The former scalar `outputAtReturn`/`getOutput()` APIs are removed.
 
 The helper owns its source. `traversableTree` is forbidden in inline and pretyped options; JavaScript presence, including present `undefined`, rejects before source, rewrite or conversion callbacks. Remove that field, or use a traversal directly for a custom source.
 
@@ -1179,7 +1885,7 @@ Default `ObjectTreeSource` discovery exposes `PropertyKey`/`unknown`. Narrow key
 
 Discovery hints belong to the source input domain: `REWRITE_CHILD_HINTS` accepts `T['VertexHint'][]` in tree and DAG visitors, including async visitors, registration groups and `rewriteObject` options. Rewriting vertex data to `R` does not admit `R['VertexHint']`. `resolveChild`, object `resolveChildHook` and `getChildrenOfProperty` still resolve input records; retained original views therefore remain truthful. If discovery needs another hint kind, declare it in the source input union first. For object sources that means extending `InK`/`InV`, and original views then reflect that declared union.
 
-A composed source must accept the traversal's full current context. Source callback properties are checked contravariantly with strict function checking: an input-only `ObjectTreeSource<In, InK, InV>` can be too narrow for a traversal that widens live keys or hints. Configure its `OutK`/`OutV` to match, and use `ObjectCurrentVertexTypes<Input, Output>` for the traversal and binder's live data. For custom sources, explicitly declare `TreeSource<T, R>` / `DagDiscoverySource<T, R, ID>` (or their async counterparts) when standalone callbacks do not provide enough inference. Matching sources and binders compose without assertions. On TypeScript 4.7/4.9, put an unannotated sorter directly on the options object; for a sorter nested in a spread, use a generic hint-preserving function (`<Hint,>(hints: Hint[]) => hints.reverse()`) or annotate `T['VertexHint'][]`. See the [executable alternatives](migration-idiomatic-api.md#corrected-object-contracts).
+A composed source must accept the traversal's full current context. Source callback properties are checked contravariantly with strict function checking: an input-only `ObjectTreeSource<In, InK, InV>` can be too narrow for a traversal that widens live keys or hints. Configure its `OutK`/`OutV` to match, and use `ObjectCurrentVertexTypes<Input, Output>` for the traversal and binder's live data. For custom sources, explicitly declare `TreeSource<T, R>` / `DagDiscoverySource<T, R, ID>` (or their async counterparts) when standalone callbacks do not provide enough inference. Matching sources and binders compose without assertions. On TypeScript 4.7/4.9, put an unannotated hint transformer directly on the options object; for a transformer nested in a spread, use a generic hint-preserving function (`<Hint,>(hints: Hint[]) => hints.reverse()`) or annotate `T['VertexHint'][]`. See the [executable alternatives](migration-idiomatic-api.md#corrected-object-contracts).
 
 The shared algebra keeps its standalone default while accepting a trailing `SourceHint`: `TraversalVisitorCommandArguments<R, SourceHint = R['VertexHint']>`, `TraversalVisitorCommand<R, Name, SourceHint = R['VertexHint']>`, `TraversalVisitorResult<R, Phase, Family, SourceHint = R['VertexHint']>`. Concrete tree/DAG visitors select `T['VertexHint']` automatically. Existing generic positions, including trailing graph IDs, remain unchanged.
 
@@ -1234,18 +1940,6 @@ if (current.key !== 'output' || current.value !== 1)
 
 With `retainOriginalTreeStructure: true`, visitors and child-resolution callbacks receive `originalTreeView: ResolvedTreeView<T> | null`, a stable read-only query facade over the retained original structure. Its vertex references, child lists, and resolution contexts are independent of command-driven changes. Vertex data is shallowly shared, so direct mutation of user data is not an immutable snapshot. The retained tree grows as vertices are resolved. DAG retention uses `retainOriginalGraphStructure`, `originalGraphView`, and `OriginalGraphView` with the same progressive topology and shared-data semantics. Runner configuration and visitor records are also copied when a runner is made; later builder configuration does not alter that runner.
 
-<a id="safe-tree-queries"></a>
-
-Use `runner.getResolvedTreeView()` or a standalone store’s `asReadOnly()` for tree queries. `ResolvedTreeView<T>` has `getRoot`, `has`, `getChildrenOf`, `getParentOf`, `getPathTo`, and `getResolutionContextOf`. `ResolvedGraphView<T, ID>` is available through `getResolvedGraphView()`. Both are stable live query capabilities with frozen detached collections and restricted vertex handles. DAG runners return the tree facade in tree-source mode and null in graph-source mode. Ordinary runners have no `getResolvedTreeStore()` method; edit through visitor commands or construct a standalone `ResolvedTreeStore` for advanced editing.
-
-`VertexHandle<T>` (also named `VertexRef<T>`) exposes `getRefId()` and `getValue()` without editing authority. `getValue()` returns a frozen `VertexView<T>` with readonly `$data` and `$childHints` fields, query methods, and detached frozen hint arrays. The handle is canonical across callbacks, source contexts, events, and query views; its value remains live. An event’s `vertex` wraps the value captured for that event, so later commands can change its live `vertexRef` without changing the recorded vertex. `clone()` creates a separate editable `Vertex` and hint collection. Opaque caller data, IDs, and individual hint payloads retain identity and are not frozen. `MutableRef<T>` and mutable `Vertex<T>` remain standalone advanced editing capabilities. A `TreeVertexRecord` stores `metadata` and structural `children`, separate from the Vertex payload/hint fields `$data` and `$childHints`. Graph wrappers use `ResolvedGraphVertex`, `ResolvedVisitStage`, and `StructuralChildEdge`.
-
-Tree callback and source contexts expose `resolvedTreeView`; graph contexts expose `resolvedGraphView`. Neither exposes a live mutable store. Source resolution metadata is a stable frozen projection. For a synthetic DAG entry slot, `parentVertex` and `parentVertexRef` are both null; ordinary graph parents and tree parents are non-null restricted facets. Entry-slot `depth`, `hintIndex`, and `vertexHint` retain their discovery meanings. Original tree and graph views remain in the input type domain.
-
-`MutableRef.getRefId()` is the generated reference UUID. `ResolvedGraphView.getVertexId(ref)` returns the host's arbitrary vertex ID and `getVertexRefById(id)` returns its reference. Live and original graph views use the same names. Retired `getId`, `getIdOf`, and `getVertexById` aliases are removed. Do not substitute the reference UUID for a host ID or stringify object/symbol/undefined IDs.
-
-`ResolvedTreeStore.getPathTo(ref, { noRoot?, noSelf? })` returns the resolved ancestry in root-to-vertex order and throws if the reference is absent from that tree. Original-tree paths use the retained view’s own references. Deleting a resolved vertex removes its resolved descendants and detaches it from its parent; deleting the root clears the root pointer.
-
 ## API compatibility
 
 The [idiomatic API migration](migration-idiomatic-api.md) covers the full removal checklist and corrected object contracts. The [API naming migration](migration-api-clarity.md) lists renamed symbols, removed public extension points and supported paths. The [uniform API migration guide](migration-uniform-api.md) covers removed inputs and behavior changes. `Vertex` owns enumerable `$data`/`$childHints`; legacy `$d`/`$c` inputs/accessors are removed. Object spread, `Object.keys`, and JSON output use canonical names. `clone({ $data: undefined })` explicitly replaces data. Mixed canonical/legacy content fields reject. Built-in object and resolved-tree source adapters emit canonical content; resolved-tree structural child references remain structural refs.
@@ -1254,7 +1948,26 @@ CTT 0.11.0 uses UUID 14 and requires Node 22.12.0+ for synchronous ESM dependenc
 
 Namespace exports `core`, `depthFirstTraversal`, `breadthFirstTraversal`, `dagTraversal`, `traversableObjectTree`, `objectRewrite`, and `graphWalk` remain available, alongside named exports for all eight traversal builders, helpers, and types. Public subpaths include `core` and each traversal family. Historical deep imports such as `configurable-tree-traversal/core/Vertex` and `configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner` are blocked, with or without `.js`. Import `Vertex` from root/core and obtain runners through `createRunner()`. See the [complete supported path map](migration-api-clarity.md#supported-imports-and-removed-extension-points).
 
-Corrected behavior includes independent iteration, reliable halt/resume, terminal error handling, sorting, subtree deletion, and zero-based visitor indices. Root deletion and rewriting null now return null instead of throwing; the rewrite result type accounts for that. See [CHANGELOG.md](../CHANGELOG.md) for the full list.
+Corrected behavior includes independent iteration, reliable halt/resume, terminal error handling, sorting, subtree deletion, and zero-based visitor indices. Root deletion returns a tagged absent result; retaining or rewriting the root to null returns a present result whose value is null. See [CHANGELOG.md](../CHANGELOG.md) for the full list.
+
+The root core namespace shares the same public values as its named exports:
+
+<!-- standalone -->
+
+```ts
+import {
+  core,
+  Vertex,
+  TraversalVisitorCommandName,
+} from 'configurable-tree-traversal';
+
+if (
+  core.Vertex !== Vertex ||
+  core.TraversalVisitorCommandName !== TraversalVisitorCommandName
+) {
+  throw new Error('Expected canonical namespace identity');
+}
+```
 
 ## Development
 

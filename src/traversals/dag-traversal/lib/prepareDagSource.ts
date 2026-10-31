@@ -18,7 +18,7 @@ export function prepareDagSource<T extends VertexTypes, ID>(
     'traversableGraph',
     'syntheticRoot',
     'rootWorkDependencies',
-    'omittedWorkDependencies',
+    'dependsOnWorkDefault',
   ]);
   const captured = capturePreparedSource<T, ID>(input.traversableGraph, false);
   const runner = new DagTraversal<T, T, ID>({

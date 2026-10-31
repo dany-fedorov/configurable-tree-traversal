@@ -30,7 +30,7 @@ function context(
     parentVertex: parentVertexRef.getValue(),
     parentVertexRef,
     hintIndex,
-    vertexHint: parentVertexRef.getValue().getChildrenHints()[hintIndex]!,
+    vertexHint: parentVertexRef.getValue().getChildHints()[hintIndex]!,
   };
 }
 
@@ -49,9 +49,9 @@ test('the original graph retains first-accepted content and shared topology', ()
   container.acceptVertex(left, 'left', [], context(root, 0));
   container.acceptVertex(right, 'right', [], context(root, 1));
   container.acceptVertex(shared, 'shared', [], context(left, 0));
-  container.store.prepareSlots(root, root.getValue().getChildrenHints());
-  container.store.prepareSlots(left, left.getValue().getChildrenHints());
-  container.store.prepareSlots(right, right.getValue().getChildrenHints());
+  container.store.prepareSlots(root, root.getValue().getChildHints());
+  container.store.prepareSlots(left, left.getValue().getChildHints());
+  container.store.prepareSlots(right, right.getValue().getChildHints());
   container.acceptEdge(root, 0, left);
   container.acceptEdge(root, 1, right);
   container.acceptEdge(left, 0, shared);
@@ -80,8 +80,8 @@ test('the original graph retains first-accepted content and shared topology', ()
   expect(savedShared).not.toBe(shared);
   expect(savedShared.getValue()).not.toBe(shared.getValue());
   expect(savedShared.getValue().getData()).toBe(originalSharedData);
-  expect(savedShared.getValue().getChildrenHints()).toEqual([]);
-  expect(snapshot.getPathsTo(savedShared)).toEqual([
+  expect(savedShared.getValue().getChildHints()).toEqual([]);
+  expect(snapshot.requirePathsTo(savedShared)).toEqual([
     [savedRoot, savedLeft, savedShared],
     [savedRoot, savedRight, savedShared],
   ]);
@@ -114,7 +114,7 @@ test('a rejected active edge does not mutate the original snapshot', () => {
     ]),
   );
   expect(snapshot.getChildrenOf(refs.get(child)!)).toEqual([]);
-  expect(snapshot.getPathsTo(refs.get(child)!)).toEqual([
+  expect(snapshot.requirePathsTo(refs.get(child)!)).toEqual([
     [refs.get(root)!, refs.get(child)!],
   ]);
 });
@@ -147,20 +147,24 @@ test('tree acceptance uses supplied graph ids and dependencies', () => {
   const snapshot = container.originalGraphView!;
   const savedRoot = vertexHandle(container.originalGraphRefsMap!.get(root)!);
   const savedChild = vertexHandle(container.originalGraphRefsMap!.get(child)!);
-  expect(container.resolvedGraphView.getVertexId(root)).toBe('accepted-root');
+  expect(container.resolvedGraphView.requireVertexId(root)).toBe(
+    'accepted-root',
+  );
   expect(container.resolvedGraphView.getVertexRefById('accepted-root')).toBe(
     root,
   );
-  expect(container.resolvedGraphView.getVertexId(child)).toBe('accepted-child');
+  expect(container.resolvedGraphView.requireVertexId(child)).toBe(
+    'accepted-child',
+  );
   expect(container.resolvedGraphView.getVertexRefById('accepted-child')).toBe(
     child,
   );
   expect(container.resolvedGraphView.get(child)?.dependsOnWork).toEqual([
     'accepted-root',
   ]);
-  expect(snapshot.getVertexId(savedRoot)).toBe('accepted-root');
+  expect(snapshot.requireVertexId(savedRoot)).toBe('accepted-root');
   expect(snapshot.getVertexRefById('accepted-root')).toBe(savedRoot);
-  expect(snapshot.getVertexId(savedChild)).toBe('accepted-child');
+  expect(snapshot.requireVertexId(savedChild)).toBe('accepted-child');
   expect(snapshot.getVertexRefById('accepted-child')).toBe(savedChild);
 });
 

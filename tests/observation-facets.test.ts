@@ -39,9 +39,9 @@ for (const Builder of [
     expect('setValue' in root).toBe(false);
     expect(Object.isFrozen(root)).toBe(true);
     expect(Object.isFrozen(root.getValue())).toBe(true);
-    expect(Object.isFrozen(root.getValue().getChildrenHints())).toBe(true);
+    expect(Object.isFrozen(root.getValue().getChildHints())).toBe(true);
     expect(root.getValue().getData()).toBe(data);
-    expect(root.getValue().getChildrenHints()[0]).toBe(hint);
+    expect(root.getValue().getChildHints()[0]).toBe(hint);
     expect(Object.isFrozen(data)).toBe(false);
     expect(Object.isFrozen(hint)).toBe(false);
     const child = view.getChildrenOf(root)![0]!;
@@ -70,14 +70,14 @@ import {
 function assertVertex(vertex: VertexView<T>) {
   expect(Object.isFrozen(vertex)).toBe(true);
   expect('setData' in vertex).toBe(false);
-  expect(Object.isFrozen(vertex.getChildrenHints())).toBe(true);
+  expect(Object.isFrozen(vertex.getChildHints())).toBe(true);
   expect(() => Object.assign(vertex, { $data: { label: 'forged' } })).toThrow(
     TypeError,
   );
   const clone = vertex.clone();
   expect(clone.getData()).toBe(vertex.getData());
-  expect(clone.getChildrenHints()).not.toBe(vertex.getChildrenHints());
-  clone.getChildrenHints().length = 0;
+  expect(clone.getChildHints()).not.toBe(vertex.getChildHints());
+  clone.getChildHints().length = 0;
 }
 function assertHandle(handle: VertexHandle<T>) {
   expect('setValue' in handle).toBe(false);
@@ -188,10 +188,10 @@ for (const [Builder, phase] of [
     expect(events.find((event) => event.vertexRef === root)).toBeDefined();
     const graph = runner.getResolvedGraphView();
     expect(graph.getRoot()).toBe(root);
-    expect(graph.getVertexRefById(graph.getVertexId(child))).toBe(child);
+    expect(graph.getVertexRefById(graph.requireVertexId(child))).toBe(child);
     expect(graph.get(child)!.incoming[0]!.parentRef).toBe(root);
     expect(graph.get(root)!.slots[0]).toMatchObject({ childRef: child });
-    for (const handle of graph.getPathsTo(child)[0]!) assertHandle(handle);
+    for (const handle of graph.requirePathsTo(child)[0]!) assertHandle(handle);
     expect(Object.isFrozen(graph.getVertexRefs())).toBe(true);
     const forged = {
       getRefId: () => root.getRefId(),
@@ -203,8 +203,8 @@ for (const [Builder, phase] of [
     expect(graph.getParentsOf(forged)).toBeNull();
     expect(graph.getChildrenOf(forged)).toBeNull();
     expect(graph.getVisitStageOf(forged)).toBeNull();
-    expect(() => graph.getVertexId(forged)).toThrow();
-    expect(() => graph.getPathsTo(child, { extra: true } as never)).toThrow(
+    expect(() => graph.requireVertexId(forged)).toThrow();
+    expect(() => graph.requirePathsTo(child, { extra: true } as never)).toThrow(
       TypeError,
     );
   });
@@ -235,9 +235,9 @@ for (const Builder of [
             expect('resolvedGraph' in context).toBe(false);
             observedParent = context.resolutionContext.parentVertexRef!;
             assertHandle(observedParent);
-            expect(context.resolvedGraphView.getVertexId(observedParent)).toBe(
-              id,
-            );
+            expect(
+              context.resolvedGraphView.requireVertexId(observedParent),
+            ).toBe(id);
             return {
               kind: 'found',
               vertex: {
@@ -257,10 +257,10 @@ for (const Builder of [
       const saved = runner.originalGraphView!;
       const savedRoot = saved.getRoot()!;
       assertHandle(savedRoot);
-      expect(saved.getVertexId(savedRoot)).toBe(id);
-      expect(saved.getPathsTo(saved.getVertexRefById(childId)!)[0]![0]).toBe(
-        savedRoot,
-      );
+      expect(saved.requireVertexId(savedRoot)).toBe(id);
+      expect(
+        saved.requirePathsTo(saved.getVertexRefById(childId)!)[0]![0],
+      ).toBe(savedRoot);
     },
   );
 }

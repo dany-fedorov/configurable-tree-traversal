@@ -43,7 +43,7 @@ export type DagVertexFound<T extends VertexTypes, ID = unknown> = {
 /** Deliberate omission satisfies both work and completion prerequisites. */
 export type DagVertexOmitted<ID = unknown> = {
   kind: 'omitted';
-  vertexId?: ID;
+  identity: Readonly<{ vertexId: ID }> | null;
   satisfiesDependencies: true;
 };
 
@@ -60,6 +60,7 @@ export type DagPrerequisiteResolution<T extends VertexTypes, ID = unknown> =
 
 /** Graph identity and prerequisites are unsupported by tree sources. */
 type TreeMetadataRestrictions = {
+  identity?: never;
   vertexId?: never;
   dependsOnWork?: never;
   dependsOnSubgraphCompletion?: never;

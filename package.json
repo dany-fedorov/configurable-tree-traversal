@@ -13,7 +13,7 @@
     "prepack": "npm run build",
     "verify-package": "npm run build && node scripts/verify-package.cjs",
     "verify-examples": "node scripts/verify-examples.cjs",
-    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run verify-examples && npm run verify-package && npm run test:benchmark && npm run test:packaging",
+    "check": "npm run typecheck && npm run lint && npm run test:coverage && npm run verify-examples && npm run verify-package && npm run test:benchmark && npm run test:packaging && npm run test:docs",
     "prepare-me": "npm run build",
     "prepublish-me": "npm run check",
     "publish-me": "npm run check && npm publish --access public",
@@ -23,7 +23,9 @@
     "benchmark:dag": "npm run build && node scripts/benchmark-dag.cjs",
     "test:benchmark": "node --test scripts/benchmark-dag.test.cjs scripts/benchmark-dag-lifecycle.test.cjs",
     "benchmark:dag:lifecycle": "npm run build && node scripts/benchmark-dag-lifecycle.cjs",
-    "test:packaging": "node --test scripts/build-esm.test.cjs"
+    "test:packaging": "node --test scripts/build-esm.test.cjs",
+    "docs:api": "npm run build && node scripts/build-api-index.cjs",
+    "test:docs": "node --test scripts/build-api-index.test.cjs"
   },
   "repository": {
     "type": "git",
@@ -82,7 +84,9 @@
     "docs/testing.md",
     "docs/migration-api-clarity.md",
     "docs/migration-idiomatic-api.md",
-    "docs/migration-client-api.md"
+    "docs/migration-client-api.md",
+    "docs/migration-api-distinctions.md",
+    "docs/api-index.md"
   ],
   "sideEffects": false,
   "exports": {

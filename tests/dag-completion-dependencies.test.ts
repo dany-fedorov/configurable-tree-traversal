@@ -173,6 +173,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             },
           }),
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
           }),
@@ -305,7 +306,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     }).rejects.toMatchObject({
       diagnostics: {
         dependencyCycleComponents: [['root', 'child']],
-        dependencies: [{ id: 'child', unmet: ['root'] }],
+        dependencies: [{ vertexId: 'child', unmetPrerequisiteIds: ['root'] }],
         structurallyIncompleteIds: ['root'],
       },
     });

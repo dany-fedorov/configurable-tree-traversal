@@ -19,7 +19,7 @@ import { DagTraversalStallError } from '@core/errors/DagTraversalStallError';
 import type {
   DagInspectionState,
   VertexId,
-  VertexRef,
+  InternalVertexRef,
 } from '@core/graph/types';
 import type { ChainState, FrameState, KernelOptions } from '@core/kernelTypes';
 import { GraphScheduling } from '@core/scheduling/GraphScheduling';
@@ -135,9 +135,9 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   private readonly readyCalls: CallAction<T, R>[] = [];
   private readonly frames = new Map<number, FrameState<T, R>>();
   private readonly chains = new Map<number, ChainRuntime<T, R>>();
-  private readonly startedExpansions = new Set<VertexRef<T | R>>();
+  private readonly startedExpansions = new Set<InternalVertexRef<T | R>>();
   private readonly deferred = new Map<
-    VertexRef<T | R>,
+    InternalVertexRef<T | R>,
     {
       state: ChainState<T, R>;
       generation: DagSettlementGeneration;
@@ -147,7 +147,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   private discoveryValidated = false;
   private preparing = false;
   private executionStarted = false;
-  private readonly expansionQueue: VertexRef<T | R>[] = [];
+  private readonly expansionQueue: InternalVertexRef<T | R>[] = [];
   private readonly orders: PolicyOrders;
   private readonly depthFirstPolicy: DepthFirstPolicy<T | R> | null;
   private readonly breadthFirstPolicy: BreadthFirstPolicy<T | R> | null;
@@ -184,7 +184,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       options.completedWork,
       options.discovery === 'eager',
       options.rootWorkDependencies,
-      options.omittedWorkDependencies,
+      options.dependsOnWorkDefault,
     );
     this.prerequisites =
       options.hasPrerequisiteResolver === true
@@ -193,14 +193,17 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     this.orders = this.selectPolicy(options.kind);
     this.depthFirstPolicy =
       options.kind === 'depth-first'
-        ? new DepthFirstPolicy(options.inOrderConfig!, options.hasSorter)
+        ? new DepthFirstPolicy(
+            options.inOrderConfig!,
+            options.hasHintTransformer,
+          )
         : null;
     this.breadthFirstPolicy =
       options.kind === 'breadth-first'
         ? new BreadthFirstPolicy(
             options.stateBridge as typeof options.stateBridge &
               BreadthFirstPolicyState<T | R>,
-            options.hasSorter,
+            options.hasHintTransformer,
           )
         : null;
     const existingRoot = options.container.resolvedGraphView.getRoot();
@@ -226,7 +229,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
         );
       }
       this.scheduling.restoreDagSeed(options.dagSeed.readyVisits);
-      const expansionRefs = new Set<VertexRef<T | R>>();
+      const expansionRefs = new Set<InternalVertexRef<T | R>>();
       for (const ref of options.dagSeed.expansionQueue) {
         if (
           expansionRefs.has(ref) ||
@@ -610,7 +613,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       execution: this.options.execution,
       sourceMode: this.options.sourceMode,
       concurrency: this.options.concurrency,
-      hasSorter: this.options.hasSorter,
+      hasHintTransformer: this.options.hasHintTransformer,
       hasHintIds: this.options.hasHintIds,
       executionOptions: this.inspectConfig(this.executionConfig),
       readyVisits: this.scheduling.inspectEligible().map((visit) => ({
@@ -660,7 +663,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
             MAKE_ROOT: 'resolveRoot' as const,
             MAKE_VERTEX: 'resolveChild' as const,
             RESOLVE_PREREQUISITE: 'resolvePrerequisite' as const,
-            SORT_HINTS: 'sortChildrenHints' as const,
+            SORT_HINTS: 'transformChildHints' as const,
             HINT_ID: 'getVertexIdFromHint' as const,
             VISIT: 'visit' as const,
           }[call.kind],
@@ -705,7 +708,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     const completedSubgraphIds: VertexId[] = [];
     let pending = 0;
     for (const item of work) {
-      const id = graph.getVertexId(item.ref);
+      const id = graph.requireVertexId(item.ref);
       const deferred = this.deferred.get(item.ref);
       const running = inFlight.has(item.ref);
       const state = item.initialCommitted
@@ -757,8 +760,10 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
             !initialCommitted && (unmet.size > 0 || unmetComplete.size > 0),
         )
         .map(({ ref, unmet, unmetComplete }) => ({
-          id: graph.getVertexId(ref),
-          unmet: Array.from(new Set([...unmet, ...unmetComplete])),
+          vertexId: graph.requireVertexId(ref),
+          unmetPrerequisiteIds: Array.from(
+            new Set([...unmet, ...unmetComplete]),
+          ),
         }));
       diagnostics.dependencyBlockedIds =
         diagnostics.dependencyBlockedIds.filter(
@@ -1224,7 +1229,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           ) {
             this.scheduling.prepareSlots(
               runtime.state.ref,
-              runtime.state.ref.getValue().getChildrenHints().slice(),
+              runtime.state.ref.getValue().getChildHints().slice(),
             );
           }
           if (
@@ -1380,7 +1385,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
           if (frame.stage === 'child-wait') {
             const index = frame.nextChild - 1;
             const context = transportFrame.contexts.get(index)!;
-            let child: VertexRef<T | R> | null;
+            let child: InternalVertexRef<T | R> | null;
             let resolved: boolean;
             if (transportFrame.knownIndices.has(index)) {
               this.scheduling.acceptKnownHint(
@@ -1449,7 +1454,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
             work.frame.vertexRef,
             work.frame.depth,
             work.hints,
-            'sort',
+            'transformHints',
           );
         }
         return this.issue({
@@ -1570,7 +1575,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
             work.expansion.vertexRef,
             work.expansion.depth,
             work.hints,
-            'sort',
+            'transformHints',
           );
         }
         return this.issue({
@@ -1601,7 +1606,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     }
   }
 
-  private enqueueBreadthFirstExpansion(ref: VertexRef<T | R>): void {
+  private enqueueBreadthFirstExpansion(ref: InternalVertexRef<T | R>): void {
     const vertex = this.options.container.resolvedGraphView.get(ref);
     if (vertex !== null) {
       const policy = this.breadthFirstPolicy!;
@@ -1649,7 +1654,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       | FrameState<T, R>
       | undefined;
     if (frame === undefined) return null;
-    if (frame.stage === 'sort') {
+    if (frame.stage === 'transformHints') {
       if (this.hasPendingFor(frame.owner)) return null;
       return this.issue({
         kind: 'SORT_HINTS',
@@ -1707,7 +1712,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   }
 
   private advanceDagFrame(frame: FrameState<T, R>): CallAction<T, R> | null {
-    if (frame.stage === 'sort') {
+    if (frame.stage === 'transformHints') {
       if (this.hasPendingFor(frame.owner)) return null;
       return this.issue({
         kind: 'SORT_HINTS',
@@ -1772,7 +1777,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
 
   private makeAsyncFrame(
     owner: OwnerToken,
-    ref: VertexRef<T | R>,
+    ref: InternalVertexRef<T | R>,
     depth: number,
     hints: (T | R)['VertexHint'][],
     stage: FrameState<T, R>['stage'],
@@ -1821,7 +1826,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   }
 
   private advanceAsyncFrame(frame: FrameState<T, R>): CallAction<T, R> | null {
-    if (frame.stage === 'sort') {
+    if (frame.stage === 'transformHints') {
       const outcome = frame.sortOutcome;
       if (outcome === null) return null;
       frame.sortOutcome = null;
@@ -1931,7 +1936,10 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
     return true;
   }
 
-  private admitChain(ref: VertexRef<T | R>, order: VisitPhase): OwnerToken {
+  private admitChain(
+    ref: InternalVertexRef<T | R>,
+    order: VisitPhase,
+  ): OwnerToken {
     const owner = this.newOwner('chain');
     const config = this.copyConfig(this.executionConfig);
     const records = this.visitorsEnabled(order)
@@ -2009,13 +2017,13 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       return true;
     }
     const owner = this.newOwner('frame');
-    const hints = ref.getValue().getChildrenHints().slice();
+    const hints = ref.getValue().getChildHints().slice();
     const frame: FrameState<T, R> = {
       owner,
       ref,
       depth: this.options.container.store.getDiscoveryDepth(ref),
-      stage: this.options.hasSorter
-        ? 'sort'
+      stage: this.options.hasHintTransformer
+        ? 'transformHints'
         : this.options.hasHintIds
         ? 'identify'
         : 'resolve',
@@ -2032,7 +2040,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
       sortOutcome: null,
     };
     this.frames.set(owner.id, frame);
-    if (!this.options.hasSorter) {
+    if (!this.options.hasHintTransformer) {
       this.scheduling.prepareSlots(ref, hints);
     }
     return true;
@@ -2119,7 +2127,7 @@ export class TraversalKernel<T extends VertexTypes, R extends VertexTypes = T>
   }
 
   private invalidateRefs(
-    refs: ReadonlySet<VertexRef<T | R>>,
+    refs: ReadonlySet<InternalVertexRef<T | R>>,
     except: OwnerToken,
   ): void {
     for (const owner of this.prerequisites?.invalidateUnused((id) =>

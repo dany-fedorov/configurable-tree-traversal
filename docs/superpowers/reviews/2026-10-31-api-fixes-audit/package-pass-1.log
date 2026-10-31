@@ -1,0 +1,66 @@
+
+> configurable-tree-traversal@0.11.0 verify-package
+> npm run build && node scripts/verify-package.cjs
+
+
+> configurable-tree-traversal@0.11.0 build
+> npm run clean && tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json -s ./src && node scripts/build-esm.cjs
+
+
+> configurable-tree-traversal@0.11.0 clean
+> node -e "require('node:fs').rmSync('dist', {recursive: true, force: true})"
+
+Replaced 681 paths in 204 files
+node:assert:152
+  throw new AssertionError(obj);
+  ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
++ undefined
+- {
+-   a: 1
+- }
+
+    at Object.<anonymous> (/tmp/ctt-package-u4kbSB/consumer/consumer.cjs:96:12)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: { a: 1 },
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.20.0
+node:child_process:981
+    throw err;
+    ^
+
+Error: Command failed: /home/df/.volta/tools/image/node/24.20.0/bin/node consumer.cjs
+    at genericNodeError (node:internal/errors:986:15)
+    at wrappedFn (node:internal/errors:540:14)
+    at checkExecSyncError (node:child_process:942:11)
+    at execFileSync (node:child_process:978:15)
+    at Object.<anonymous> (/home/df/.codex/worktrees/d56c/configurable-tree-traversal/scripts/verify-package.cjs:148:3)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19) {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 1012584,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v24.20.0

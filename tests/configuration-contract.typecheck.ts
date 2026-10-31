@@ -17,7 +17,7 @@ const tree: TreeSource<VertexTypes> = {
 };
 const patch: DepthFirstTreeOptionsPatch = {
   traversableTree: undefined,
-  sortChildrenHints: undefined,
+  transformChildHints: undefined,
   inOrder: { afterChildIndices: undefined, visitSingleChildParent: undefined },
   visitors: { PRE_ORDER: undefined },
 };
@@ -51,7 +51,7 @@ new GraphWalk({
 }).configure({
   source: undefined,
   strategy: undefined,
-  limits: undefined,
+  replaceLimits: undefined,
   revisit: undefined,
   visitors: { vertex: undefined },
 });

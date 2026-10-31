@@ -384,7 +384,7 @@ test.each(['sorter', 'resolver', 'visitor'] as const)(
           };
         },
       },
-      sortChildrenHints:
+      transformChildHints:
         failureAt === 'sorter'
           ? () => {
               throw failure;

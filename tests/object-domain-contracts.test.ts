@@ -1,3 +1,4 @@
+import { outputValue } from './helpers/rewriteOutput';
 import { ObjectTreeSource, rewriteObject } from '../src';
 
 describe('object discovery and rewrite domains', () => {
@@ -8,8 +9,8 @@ describe('object discovery and rewrite domains', () => {
           ? { kind: 'rewrite', patch: { value: 'two' } }
           : undefined,
     });
-    expect(result.getOutput()).toEqual([1, 'two']);
-    expect(rewriteObject(1).getOutput()).toBe(1);
+    expect(outputValue(result)).toEqual([1, 'two']);
+    expect(outputValue(rewriteObject(1))).toBe(1);
   });
 
   test('uses both precise property adapters for root and descendant discovery', () => {
@@ -43,8 +44,8 @@ describe('object discovery and rewrite domains', () => {
         return value.join(',');
       },
     });
-    expect(result.getOutput()).toBe('1,two');
-    expect(result.getOutput()).toBe('1,two');
+    expect(outputValue(result)).toBe('1,two');
+    expect(outputValue(result)).toBe('1,two');
     expect(contexts).toEqual([true]);
   });
   test.each([

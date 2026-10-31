@@ -20,7 +20,7 @@ function makeKernel(
     saveOriginal: false,
   }),
   options: {
-    hasSorter?: boolean;
+    hasHintTransformer?: boolean;
     hasHintIds?: boolean;
     includeCompletion?: boolean;
     readyVisitorCount?: number;
@@ -68,7 +68,7 @@ function makeKernel(
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: options.hasSorter ?? false,
+    hasHintTransformer: options.hasHintTransformer ?? false,
     hasHintIds: options.hasHintIds ?? false,
     concurrency,
   });
@@ -442,7 +442,7 @@ test('tracks concurrent hint-id outcomes by their own frame indices after sortin
   });
   container.store.markOmitted('known-omission');
   const kernel = makeKernel(2, container, {
-    hasSorter: true,
+    hasHintTransformer: true,
     hasHintIds: true,
   });
   const driver = createAsyncDriver(
@@ -489,7 +489,7 @@ test('tracks concurrent hint-id outcomes by their own frame indices after sortin
   driver.acknowledgeEvent(rootEvent.boundaryId);
   expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
   expect(kernel.inspect().frames[0]).toMatchObject({
-    stage: 'sort',
+    stage: 'transformHints',
     pendingIndices: [],
   });
 

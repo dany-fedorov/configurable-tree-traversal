@@ -208,7 +208,7 @@ it('registration and configure changes snapshot async callbacks and detach liste
   expect(calls).toEqual(['old', 'group:first', 'group:second']);
   expect(() => walk.listVisitorsFor('invalid' as Phase)).toThrow(TypeError);
   expect(() => walk.configure({ revisit: 'walks' })).toThrow(TypeError);
-  walk.configure({ limits: { maxDepth: 1 }, revisit: 'walks' });
+  walk.configure({ replaceLimits: { maxDepth: 1 }, revisit: 'walks' });
   const bounded = await walk.createRunner().run();
   // Replacing maxAdmittedTargets admits A, E, AB, AB and AC at depth one.
   expect(bounded.summary().counts.admittedTargets).toBe(5);

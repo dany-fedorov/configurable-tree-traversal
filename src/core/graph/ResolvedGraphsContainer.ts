@@ -16,7 +16,7 @@ import {
   StructuralGraphSnapshot,
   type StagedSnapshotVertex,
 } from '@core/graph/snapshot';
-import type { GraphStoreContract, VertexRef } from '@core/graph/types';
+import type { GraphStoreContract, InternalVertexRef } from '@core/graph/types';
 import type { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 
 type GraphContainerOptions = {
@@ -48,19 +48,22 @@ export class ResolvedGraphsContainer<
   readonly syntheticRoot: boolean;
   /** Stable private identity even when the holder is omitted or deleted. */
   readonly syntheticRootId: symbol | null;
-  syntheticRootRef: VertexRef<T | R> | null = null;
+  syntheticRootRef: InternalVertexRef<T | R> | null = null;
   readonly publicResolvedGraph: ResolvedGraphView<T | R, ID>;
   /** Raw bookkeeping includes a private symbol when syntheticRoot is enabled. */
   readonly store: GraphStoreContract<T | R, ID | symbol>;
   /** Unlike publicResolvedGraph, this view includes the synthetic root. */
   readonly resolvedGraphView: InternalResolvedGraphView<T | R, ID | symbol>;
   readonly originalGraphView: OriginalGraphView<T, ID> | null;
-  readonly originalGraphRefsMap: Map<VertexRef<T | R>, VertexRef<T>> | null;
+  readonly originalGraphRefsMap: Map<
+    InternalVertexRef<T | R>,
+    InternalVertexRef<T>
+  > | null;
   readonly treeContainer: DepthFirstTraversalResolvedTreesContainer<
     T,
     R
   > | null;
-  private readonly detachedAnchors = new Set<VertexRef<T | R>>();
+  private readonly detachedAnchors = new Set<InternalVertexRef<T | R>>();
   private readonly snapshot: StructuralGraphSnapshot<T, R> | null;
 
   constructor(options: ResolvedGraphsContainerOptions<T, R, ID>) {
@@ -95,7 +98,7 @@ export class ResolvedGraphsContainer<
   }
 
   acceptRoot(
-    ref: VertexRef<T | R>,
+    ref: InternalVertexRef<T | R>,
     id: ID,
     dependsOnWork: readonly ID[] = [],
     dependsOnSubgraphCompletion: readonly ID[] = [],
@@ -125,7 +128,7 @@ export class ResolvedGraphsContainer<
   }
 
   acceptVertex(
-    ref: VertexRef<T | R>,
+    ref: InternalVertexRef<T | R>,
     id: ID,
     dependsOnWork: readonly ID[],
     context: InternalVertexResolutionContext<T | R>,
@@ -149,7 +152,7 @@ export class ResolvedGraphsContainer<
   }
 
   acceptDetachedVertex(
-    ref: VertexRef<T | R>,
+    ref: InternalVertexRef<T | R>,
     id: ID,
     dependsOnWork: readonly ID[],
     dependsOnSubgraphCompletion: readonly ID[],
@@ -166,14 +169,14 @@ export class ResolvedGraphsContainer<
     this.detachedAnchors.add(ref);
   }
 
-  isDetachedAnchor(ref: VertexRef<T | R>): boolean {
+  isDetachedAnchor(ref: InternalVertexRef<T | R>): boolean {
     return this.detachedAnchors.has(ref);
   }
 
   acceptEdge(
-    parent: VertexRef<T | R>,
+    parent: InternalVertexRef<T | R>,
     index: number,
-    child: VertexRef<T | R>,
+    child: InternalVertexRef<T | R>,
     legacyTopologyAlreadyLinked = false,
   ): void {
     const staged =
@@ -183,8 +186,10 @@ export class ResolvedGraphsContainer<
     const oldSlot = this.store.getTraversalSlot(parent, index);
     const isAcknowledgment =
       oldSlot?.kind === 'linked' && oldSlot.childRef === child;
-    let savedEdge: { parent: TreeVertexRecord<T>; child: VertexRef<T> } | null =
-      null;
+    let savedEdge: {
+      parent: TreeVertexRecord<T>;
+      child: InternalVertexRef<T>;
+    } | null = null;
     const treeContainer = this.treeContainer;
     if (
       treeContainer !== null &&
@@ -213,7 +218,7 @@ export class ResolvedGraphsContainer<
     if (staged !== null) this.snapshot!.commitEdge(staged);
   }
 
-  deleteVertices(refs: ReadonlySet<VertexRef<T | R>>): void {
+  deleteVertices(refs: ReadonlySet<InternalVertexRef<T | R>>): void {
     if (this.treeContainer === null) {
       for (const ref of refs) this.detachedAnchors.delete(ref);
       this.store.removeVertices(refs);

@@ -18,16 +18,16 @@ const source = materializeDagInputFromRecords<Task, ID>(
 const prepared = prepareDag(source);
 if (prepared.kind === 'valid') {
   const dag: PreparedDag<Task, ID> = prepared.dag;
-  const id: ID = dag.vertices[0]!.vertexId;
-  const data: Task = dag.vertices[0]!.data;
+  const id: ID = dag.liveVertexSummaries[0]!.vertexId;
+  const data: Task = dag.liveVertexSummaries[0]!.data;
   const runner = dag.createRunner({ completedWork: new Set<ID>(['research']) });
   for (const event of runner.iterateEvents()) {
     const eventId: ID = event.vertexId;
-    const hints: readonly ID[] = event.vertex.getChildrenHints();
+    const hints: readonly ID[] = event.vertex.getChildHints();
     void [eventId, hints];
   }
   // @ts-expect-error Prepared topology arrays are readonly.
-  dag.vertices[0]!.children.push('review');
+  dag.liveVertexSummaries[0]!.children.push('review');
   // @ts-expect-error Sessions preserve the identity domain.
   dag.createWorkSession({ completedWork: new Set(['wrong']) });
   // @ts-expect-error Prepared runners own their source.

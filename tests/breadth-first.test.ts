@@ -91,7 +91,7 @@ describe('breadth-first traversal', () => {
     const root = node('root', node('b'), null, node('a'));
     const { traversal } = setup(root);
     traversal.configure({
-      sortChildrenHints: (hints) => hints.reverse(),
+      transformChildHints: (hints) => hints.reverse(),
     });
     expect(yieldedValues(traversal.createRunner())).toEqual(['root', 'a', 'b']);
     expect(root.$childHints.map((child) => child?.$data ?? null)).toEqual([
@@ -125,7 +125,7 @@ describe('breadth-first traversal', () => {
       },
       { priority: 2 },
     );
-    traversal.configure({ sortChildrenHints: null });
+    traversal.configure({ transformChildHints: null });
     const runner = traversal.createRunner();
     traversal.addVisitorFor(Order.LEVEL_ORDER, () => {
       visits.push('late');

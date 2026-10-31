@@ -23,7 +23,9 @@ export class CallbackScheduler<T> {
     private readonly onSettled: () => void = () => undefined,
   ) {
     if (limit !== Infinity && (!Number.isInteger(limit) || limit <= 0)) {
-      throw new TypeError('Callback limit must be a positive integer or Infinity');
+      throw new TypeError(
+        'Callback limit must be a positive integer or Infinity',
+      );
     }
     this.limit = limit;
   }
@@ -40,6 +42,7 @@ export class CallbackScheduler<T> {
     for (
       let index = 0;
       index < this.queued.length && this.activeCount < this.limit;
+
     ) {
       const callback = this.queued[index]!;
       if (!predicate(callback.requestId)) {

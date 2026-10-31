@@ -111,11 +111,11 @@ export class InternalBreadthFirstTreeRunner<
         graphContainer,
         'BreadthFirstTreeRunner',
       ),
-      ...(this.icfg.sortChildrenHints === null
+      ...(this.icfg.transformChildHints === null
         ? {}
         : {
             sortHints: (hints: (TTP | RW_TTP)['VertexHint'][]) =>
-              this.icfg.sortChildrenHints!(hints as TTP['VertexHint'][]) as (
+              this.icfg.transformChildHints!(hints as TTP['VertexHint'][]) as (
                 | TTP
                 | RW_TTP
               )['VertexHint'][],
@@ -172,7 +172,7 @@ export class InternalBreadthFirstTreeRunner<
       },
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,
-      hasSorter: this.icfg.sortChildrenHints !== null,
+      hasHintTransformer: this.icfg.transformChildHints !== null,
       hasHintIds: false,
       concurrency: 1,
     });

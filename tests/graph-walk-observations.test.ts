@@ -61,8 +61,13 @@ it('observes vertices and every parallel/returning relationship in one pass', ()
 
 it('discovers depth first in source order without pulling the next root early', () => {
   const { source, calls } = contextFixture();
-  const runner = new GraphWalk({ source, strategy: 'depthFirst' }).createRunner();
-  const iterator = runner.iterateEvents({ emitEvents: [GraphWalkPhase.VERTEX] });
+  const runner = new GraphWalk({
+    source,
+    strategy: 'depthFirst',
+  }).createRunner();
+  const iterator = runner.iterateEvents({
+    emitEvents: [GraphWalkPhase.VERTEX],
+  });
   expect(iterator.next().value).toMatchObject({
     kind: 'vertex',
     vertex: { vertexId: 'A' },
@@ -93,7 +98,11 @@ it('projects first-discovery prefix paths including isolated roots', () => {
   expect(
     events.map((event) => ({
       ids: event.vertices.map((vertex) => vertex.vertexId),
-      edges: event.edges.map((edge) => [edge.from, edge.outgoingIndex, edge.to]),
+      edges: event.edges.map((edge) => [
+        edge.from,
+        edge.outgoingIndex,
+        edge.to,
+      ]),
       depth: event.depth,
     })),
   ).toEqual([
@@ -185,7 +194,7 @@ it('retains detached emitted wrappers across caller mutation', () => {
   const edge = iterator.next().value!;
   if (edge.kind !== 'edge') throw new Error('Expected edge');
   (edge.edge as { to: string }).to = 'bad';
-  (edge.source as { vertexId: string }).vertexId = 'bad';
+  (edge.fromVertex as { vertexId: string }).vertexId = 'bad';
   expect(iterator.next().value).toMatchObject({
     kind: 'path',
     vertices: [{ vertexId: 'A' }, { vertexId: 'B' }],

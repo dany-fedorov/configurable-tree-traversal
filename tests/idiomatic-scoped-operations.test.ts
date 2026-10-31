@@ -11,7 +11,7 @@ import {
   type VertexTypes,
   materializeWalkSourceFromDagDefinition,
   defineDagFragment,
-  instantiateDagFragment,
+  mapDagFragmentIds,
   composeDag,
   reviseDag,
 } from '../src';
@@ -186,7 +186,7 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
   );
   test.each([
     { rootWorkDependencies: 'ignore' },
-    { omittedWorkDependencies: 'none' },
+    { dependsOnWorkDefault: 'none' },
     { rootDependencies: 'honor' },
     { implicitParentDependency: false },
   ])(
@@ -211,7 +211,7 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
   test.each([
     { rootDependencies: 'honor' },
     { implicitParentDependency: true },
-    { omittedWorkDependencies: true },
+    { dependsOnWorkDefault: true },
     { rootWorkDependencies: 'bad' },
   ])(
     `${Constructor.name} rejects invalid graph policy %p atomically`,
@@ -283,7 +283,7 @@ for (const Constructor of [
   DepthFirstTreeTraversal<T>,
   AsyncDepthFirstTreeTraversal<T>,
 ]) {
-  test.each(['rootWorkDependencies', 'omittedWorkDependencies'])(
+  test.each(['rootWorkDependencies', 'dependsOnWorkDefault'])(
     `${Constructor.name} rejects explicit nonenumerable tree policy %s`,
     (key) => {
       const options = Object.defineProperty({ traversableTree: tree }, key, {
@@ -364,7 +364,7 @@ for (const asynchronous of [false, true]) {
       const ids = runner
         .getResolvedGraphView()
         .getVertexRefs()
-        .map((ref) => runner.getResolvedGraphView().getVertexId(ref));
+        .map((ref) => runner.getResolvedGraphView().requireVertexId(ref));
       expect(new Set(ids)).toEqual(
         new Set(
           target === 'root'
@@ -418,7 +418,7 @@ test.each([undefined, NaN, Symbol('live'), {}])(
       },
     });
     const fragment = defineDagFragment(definition, { first: id });
-    const instance = instantiateDagFragment(fragment, {
+    const instance = mapDagFragmentIds(fragment, {
       mapId: (value) => value,
     });
     const result = composeDag([instance]);

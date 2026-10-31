@@ -1,3 +1,4 @@
+import { outputValue } from './helpers/rewriteOutput';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -37,7 +38,7 @@ test.each(constructors)(
     const traversal = Builder();
     traversal.configure({
       traversableTree: undefined,
-      sortChildrenHints: undefined,
+      transformChildHints: undefined,
       visitors: undefined,
     } as never);
     expect(() =>
@@ -206,7 +207,7 @@ test('defined malformed tree and DAG fields reject without committing a replacem
   const tree = new ObjectTreeSource(1);
   const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
   for (const patch of [
-    { sortChildrenHints: false },
+    { transformChildHints: false },
     { retainOriginalTreeStructure: null },
     { traversableTree: null },
     { traversableTree: 1 },
@@ -312,7 +313,7 @@ test('materializer and fragment option bags reject before selector callbacks', a
     materializeDagInputFromRecords,
     materializeWalkSourceFromRecords,
     materializeWalkSourceFromRecordsAsync,
-    instantiateDagFragment,
+    mapDagFragmentIds,
     composeDag,
   } = await import('../src');
   let calls = 0;
@@ -341,7 +342,7 @@ test('materializer and fragment option bags reject before selector callbacks', a
     materializeWalkSourceFromRecordsAsync([], { roots: [] } as never),
   ).rejects.toThrow(TypeError);
   expect(() =>
-    instantiateDagFragment({} as never, { mapId: null } as never),
+    mapDagFragmentIds({} as never, { mapId: null } as never),
   ).toThrow(TypeError);
   expect(() => composeDag([], { typo: true } as never)).toThrow(TypeError);
   expect(calls).toBe(0);
@@ -350,10 +351,12 @@ test('materializer and fragment option bags reject before selector callbacks', a
 test('combined helper preserves an explicitly supplied assembly cache', () => {
   const assembledMap = new Map<object, unknown>();
   expect(
-    rewriteObject(
-      { a: 1 },
-      { assembledMap, assembleCompositesBeforeRewrite: true },
-    ).getOutput(),
+    outputValue(
+      rewriteObject(
+        { a: 1 },
+        { assembledMap, assembleCompositesBeforeRewrite: true },
+      ),
+    ),
   ).toEqual({
     a: 1,
   });

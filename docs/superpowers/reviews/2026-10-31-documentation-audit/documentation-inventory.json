@@ -1,0 +1,82 @@
+[
+  {
+    "file": "README.md",
+    "lines": 142,
+    "words": 1004,
+    "codeFences": 5,
+    "standaloneTypeScript": 2,
+    "tsOrJs": 3
+  },
+  {
+    "file": "docs/agent-workflows.md",
+    "lines": 224,
+    "words": 4293,
+    "codeFences": 2,
+    "standaloneTypeScript": 0,
+    "tsOrJs": 1
+  },
+  {
+    "file": "docs/index.md",
+    "lines": 57,
+    "words": 825,
+    "codeFences": 0,
+    "standaloneTypeScript": 0,
+    "tsOrJs": 0
+  },
+  {
+    "file": "docs/migration-api-clarity.md",
+    "lines": 282,
+    "words": 3518,
+    "codeFences": 1,
+    "standaloneTypeScript": 1,
+    "tsOrJs": 1
+  },
+  {
+    "file": "docs/migration-api-distinctions.md",
+    "lines": 74,
+    "words": 847,
+    "codeFences": 1,
+    "standaloneTypeScript": 1,
+    "tsOrJs": 1
+  },
+  {
+    "file": "docs/migration-client-api.md",
+    "lines": 110,
+    "words": 1591,
+    "codeFences": 2,
+    "standaloneTypeScript": 2,
+    "tsOrJs": 2
+  },
+  {
+    "file": "docs/migration-idiomatic-api.md",
+    "lines": 512,
+    "words": 4167,
+    "codeFences": 6,
+    "standaloneTypeScript": 6,
+    "tsOrJs": 6
+  },
+  {
+    "file": "docs/migration-uniform-api.md",
+    "lines": 388,
+    "words": 5243,
+    "codeFences": 5,
+    "standaloneTypeScript": 2,
+    "tsOrJs": 5
+  },
+  {
+    "file": "docs/reference.md",
+    "lines": 1296,
+    "words": 17330,
+    "codeFences": 17,
+    "standaloneTypeScript": 13,
+    "tsOrJs": 16
+  },
+  {
+    "file": "docs/testing.md",
+    "lines": 158,
+    "words": 2395,
+    "codeFences": 5,
+    "standaloneTypeScript": 0,
+    "tsOrJs": 0
+  }
+]

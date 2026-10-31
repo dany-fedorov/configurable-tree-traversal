@@ -3,7 +3,7 @@ import {
   definedOptions,
 } from '@core/assertPublicOptions';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
-import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
+import type { AsyncChildHintTransformer } from '@core/ChildHintTransformer';
 import type { VisitorRecord } from '@core/graph/types';
 import type { AsyncDagDiscoverySource } from '@core/TraversableGraph';
 import type { VisitorInputs } from '@core/TraversalVisitor';
@@ -48,7 +48,7 @@ type AsyncDagTraversalOptions<
   ID = unknown,
 > = DagSchedulingOptions & {
   completedWork?: ReadonlySet<ID> | undefined;
-  sortChildrenHints: AsyncChildHintSorter<T> | null;
+  transformChildHints: AsyncChildHintTransformer<T> | null;
   visitors: AsyncDagTraversalVisitors<T, R, ID>;
   retainOriginalGraphStructure: boolean;
   concurrency: number;
@@ -72,7 +72,7 @@ type AsyncDagTraversalOptionsInput<
   ID = unknown,
 > = DagSchedulingOptions & {
   completedWork?: ReadonlySet<ID> | undefined;
-  sortChildrenHints?: AsyncChildHintSorter<T> | null | undefined;
+  transformChildHints?: AsyncChildHintTransformer<T> | null | undefined;
   visitors?: VisitorInputs<AsyncDagTraversalVisitors<T, R, ID>> | undefined;
   retainOriginalGraphStructure?: boolean | undefined;
   concurrency?: number | undefined;
@@ -86,7 +86,7 @@ export type AsyncDagOptions<
   AsyncDagTraversalOptionsInput<T, R, ID> &
   (
     | { traversableGraph: AsyncDagDiscoverySource<T, R, ID> }
-    | { rootWorkDependencies?: never; omittedWorkDependencies?: never }
+    | { rootWorkDependencies?: never; dependsOnWorkDefault?: never }
   );
 
 export type AsyncDagOptionsPatch<
@@ -101,7 +101,7 @@ export type AsyncDagOptionsPatch<
       }
     | {
         rootWorkDependencies?: never;
-        omittedWorkDependencies?: never;
+        dependsOnWorkDefault?: never;
         traversableTree?:
           | (unknown extends ID ? AsyncTreeSource<T, R> : never)
           | undefined;
@@ -110,7 +110,7 @@ export type AsyncDagOptionsPatch<
   );
 
 export const ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG = deepFreeze({
-  sortChildrenHints: null,
+  transformChildHints: null,
   visitors: {
     [DagVisitorPhase.ON_WORK_READY]: [],
     [DagVisitorPhase.ON_SUBGRAPH_READY]: [],

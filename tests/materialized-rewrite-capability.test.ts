@@ -87,8 +87,8 @@ for (const factory of ['records', 'roots', 'asyncRecords', 'asyncRoots']) {
       const childRef = graph.getVertexRefById(undefined)!;
       expect(rootRef.getValue().getData()).toBe('artifact:root');
       expect(childRef.getValue().getData()).toBe('artifact:child');
-      expect(graph.getVertexId(rootRef)).toBe(rootId);
-      expect(graph.getVertexId(childRef)).toBeUndefined();
+      expect(graph.requireVertexId(rootRef)).toBe(rootId);
+      expect(graph.requireVertexId(childRef)).toBeUndefined();
       expect(visited).toEqual([root, child]);
       expect(visited[0]).toBe(root);
       expect(visited[1]).toBe(child);

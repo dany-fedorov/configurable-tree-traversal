@@ -6,7 +6,7 @@ import {
   assertTraversalFields,
   definedOptions,
 } from '@core/assertPublicOptions';
-import type { ChildHintSorter } from '@core/ChildHintSorter';
+import type { ChildHintTransformer } from '@core/ChildHintTransformer';
 import type { TreeSource } from '@core/TraversableTree';
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -23,7 +23,7 @@ export type DepthFirstTreeResolvedOptions<
   RW_TTP extends VertexTypes,
 > = {
   traversableTree: TreeSource<TTP, RW_TTP>;
-  sortChildrenHints: ChildHintSorter<TTP> | null;
+  transformChildHints: ChildHintTransformer<TTP> | null;
   visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
   inOrder: InOrderOptions;
   retainOriginalTreeStructure: boolean;
@@ -36,7 +36,7 @@ export const DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   DepthFirstTreeResolvedOptions<VertexTypes, VertexTypes>,
   'traversableTree'
 > = deepFreeze({
-  sortChildrenHints: null,
+  transformChildHints: null,
   inOrder: {
     afterChildIndices: { ranges: [{ from: 0, through: -2 }] },
     fallbackChildIndices: { indices: [-2] },
@@ -60,7 +60,7 @@ export type DepthFirstTreeOptionsPatch<
   RW_TTP extends VertexTypes = TTP,
 > = {
   traversableTree?: TreeSource<TTP, RW_TTP> | undefined;
-  sortChildrenHints?: ChildHintSorter<TTP> | null | undefined;
+  transformChildHints?: ChildHintTransformer<TTP> | null | undefined;
   visitors?:
     | VisitorInputs<DepthFirstTraversalVisitors<TTP, RW_TTP>>
     | undefined;

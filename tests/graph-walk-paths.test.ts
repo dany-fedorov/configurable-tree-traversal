@@ -186,7 +186,7 @@ it.each(policies)(
         if (context.revisit === 'once')
           throw new Error('Missing route context');
         const path = context.path.vertices.map((v) => v.vertexId).join('');
-        expect(context.source.vertexId).toBe(edge.from);
+        expect(context.fromVertex.vertexId).toBe(edge.from);
         expect(context.depth).toBe(context.path.depth + 1);
         followed.push(path + edge.to);
         return path !== 'AB' || edge.to !== 'D';
@@ -489,9 +489,11 @@ it.each(policies)(
     expect(factory.createRunner().run().summary().outcome).toEqual({
       kind: 'exhausted',
     });
-    factory.configure({ limits: { maxDepth: 1 } }).configure({ revisit });
+    factory
+      .configure({ replaceLimits: { maxDepth: 1 } })
+      .configure({ revisit });
     expect(() =>
-      factory.configure({ limits: { maxAdmittedTargets: 5 } }),
+      factory.configure({ replaceLimits: { maxAdmittedTargets: 5 } }),
     ).toThrow(TypeError);
     const runner = factory.createRunner();
     expect([

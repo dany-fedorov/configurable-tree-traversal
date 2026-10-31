@@ -100,7 +100,11 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
         async (originalError) => {
           let getterCalls = 0;
           const badResult = Object.defineProperty(
-            { kind: 'omitted' as const, satisfiesDependencies: true as const },
+            {
+              identity: null,
+              kind: 'omitted' as const,
+              satisfiesDependencies: true as const,
+            },
             'then',
             {
               get() {

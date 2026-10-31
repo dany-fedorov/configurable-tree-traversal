@@ -15,14 +15,14 @@ import { prepareDagSource } from './lib/prepareDagSource';
 export type PrepareDagOptions = {
   syntheticRoot?: boolean;
   rootWorkDependencies?: 'honor' | 'ignore';
-  omittedWorkDependencies?: 'none' | 'discoveryParentWork';
+  dependsOnWorkDefault?: 'none' | 'discoveryParentWork';
   traversableTree?: never;
   visitors?: never;
   completedWork?: never;
   traversalRunnerInternalObjects?: never;
   workCompletion?: never;
   discovery?: never;
-  sortChildrenHints?: never;
+  transformChildHints?: never;
   retainOriginalGraphStructure?: never;
 };
 export type PrepareDagInput<
@@ -43,7 +43,7 @@ const preparationFields = [
   'traversableGraph',
   'syntheticRoot',
   'rootWorkDependencies',
-  'omittedWorkDependencies',
+  'dependsOnWorkDefault',
 ];
 
 /** Discover and validate without visitors; caller source errors retain exact identity. */

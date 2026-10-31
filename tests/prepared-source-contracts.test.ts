@@ -18,15 +18,16 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       traversableGraph: {
         resolveRoot: () => ({ kind: 'found', vertex }),
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted',
         }),
       },
     });
     if (result.kind !== 'valid') throw new Error('Expected valid DAG');
-    expect(result.dag.vertices.map((entry) => entry.vertexId)).toEqual([
-      undefined,
-    ]);
+    expect(
+      result.dag.liveVertexSummaries.map((entry) => entry.vertexId),
+    ).toEqual([undefined]);
     expect(
       result.dag
         .createRunner({ completedWork: new Set([undefined]) })
@@ -50,6 +51,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         traversableGraph: {
           resolveRoot: () => ({ kind: 'found', vertex }),
           resolveChild: () => ({
+            identity: null,
             satisfiesDependencies: true as const,
             kind: 'omitted',
           }),
@@ -77,6 +79,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
           traversableGraph: {
             resolveRoot: () => ({ kind: 'found', vertex }),
             resolveChild: () => ({
+              identity: null,
               satisfiesDependencies: true as const,
               kind: 'omitted',
             }),
@@ -109,7 +112,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     const result = await prepare<G, string>({ traversableGraph: source });
     if (result.kind !== 'valid') throw new Error('Expected valid DAG');
     expect(
-      result.dag.vertices.map(
+      result.dag.liveVertexSummaries.map(
         ({ vertexId, dependsOnWork, dependsOnSubgraphCompletion }) => [
           vertexId,
           dependsOnWork,
@@ -163,10 +166,9 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         },
       });
       if (result.kind !== 'valid') throw new Error('Expected valid DAG');
-      expect(result.dag.vertices.map(({ vertexId }) => vertexId)).toEqual([
-        'root',
-        'b',
-      ]);
+      expect(
+        result.dag.liveVertexSummaries.map(({ vertexId }) => vertexId),
+      ).toEqual(['root', 'b']);
       expect(
         result.dag.createRunner().run().summary().completedWorkIds,
       ).toEqual(['root', 'b']);
@@ -192,7 +194,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
             hint === 'skip' ? wrapper : { vertexId: hint },
           resolveChild: (hint) =>
             hint === 'skip'
-              ? { kind: 'omitted', satisfiesDependencies: true }
+              ? { identity: null, kind: 'omitted', satisfiesDependencies: true }
               : {
                   kind: 'found',
                   vertex: {
@@ -205,7 +207,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       });
       if (result.kind !== 'valid') throw new Error('Expected valid DAG');
       expect(
-        result.dag.vertices.map(({ vertexId, dependsOnWork }) => [
+        result.dag.liveVertexSummaries.map(({ vertexId, dependsOnWork }) => [
           vertexId,
           dependsOnWork,
         ]),

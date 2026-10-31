@@ -52,7 +52,7 @@ export interface AsyncDepthFirstTreeRunner<
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
   getResolvedGraphView(): ResolvedGraphView<TTP | RW_TTP>;
   isTreeRootVertex(ref: VertexHandle<TTP | RW_TTP>): boolean;
-  isTraversalLeaf(ref: VertexHandle<TTP | RW_TTP>): boolean;
+  isChildExpansionSkipped(ref: VertexHandle<TTP | RW_TTP>): boolean;
 }
 
 export class InternalAsyncDepthFirstTreeRunner<
@@ -94,13 +94,15 @@ export class InternalAsyncDepthFirstTreeRunner<
         graphContainer,
         'AsyncDepthFirstTreeRunner',
       ),
-      ...(this.icfg.sortChildrenHints === null
+      ...(this.icfg.transformChildHints === null
         ? {}
         : {
             sortHints: (hints: (TTP | RW_TTP)['VertexHint'][]) =>
-              this.icfg.sortChildrenHints!(
+              this.icfg.transformChildHints!(
                 hints as TTP['VertexHint'][],
-              ) as ReturnType<NonNullable<typeof this.icfg.sortChildrenHints>>,
+              ) as ReturnType<
+                NonNullable<typeof this.icfg.transformChildHints>
+              >,
           }),
       visit: Object.fromEntries(
         Object.values(DepthFirstPhase).map((order) => [
@@ -163,7 +165,7 @@ export class InternalAsyncDepthFirstTreeRunner<
       ),
       iterableConfig,
       inOrderConfig: this.icfg.inOrder,
-      hasSorter: this.icfg.sortChildrenHints !== null,
+      hasHintTransformer: this.icfg.transformChildHints !== null,
       hasHintIds: false,
       concurrency: this.icfg.concurrency,
     });
@@ -207,11 +209,8 @@ export class InternalAsyncDepthFirstTreeRunner<
     return internalRef(ref) === this.#getResolvedTreeStore().getRoot();
   }
 
-  isTraversalLeaf(ref: VertexHandle<TTP | RW_TTP>): boolean {
-    return (
-      this.state.subtreeTraversalDisabledRefs.has(internalRef(ref)) ||
-      ref.getValue().hasNoChildHints()
-    );
+  isChildExpansionSkipped(ref: VertexHandle<TTP | RW_TTP>): boolean {
+    return this.state.subtreeTraversalDisabledRefs.has(internalRef(ref));
   }
 
   iterateEvents(): AsyncGenerator<Event<TTP, RW_TTP>, void, unknown>;

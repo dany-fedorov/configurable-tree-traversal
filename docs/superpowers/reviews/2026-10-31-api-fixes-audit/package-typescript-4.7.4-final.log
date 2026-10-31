@@ -1,0 +1,13 @@
+Verified packed CJS/ESM denial for 26 internal paths and curated public runtime namespaces.
+Packed observation facets passed (CJS + ESM).
+Verified idiomatic API envelopes, identity, copied topology and retired runtime surface through all nine packed routes.
+Verified composable runtime capabilities with shared CJS/ESM identity.
+Packed DAG inspection consumers passed
+Packed DAG fragment consumers passed
+Packed DAG revision consumers passed
+Packed graph walking consumers passed
+Packed type consumers: Version 4.7.4
+Verified supported and denied type imports: node (.ts), node16 (.ts/.cts/.mts).
+Verified composable CJS/ESM runtime contracts and strict node/node16 .ts/.cts/.mts fixtures.
+Verified guide navigation in checkout and tarball, and 27 standalone snippets.
+Verified packed package on Node v24.20.0: shared CommonJS/native ESM, mixed TypeScript node/node16 (.ts/.cts/.mts), supported public imports and denied internal paths (794 files).

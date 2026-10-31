@@ -32,6 +32,7 @@ test('held lookup respects halt and iterator return, stores its reply and resume
         },
       }),
       resolveChild: () => ({
+        identity: null,
         kind: 'omitted' as const,
         satisfiesDependencies: true as const,
       }),
@@ -63,10 +64,12 @@ test('held lookup respects halt and iterator return, stores its reply and resume
     createInternalAsyncDagTraversalRunner<G>({
       traversableGraph: {
         resolveRoot: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),
@@ -164,6 +167,7 @@ test('deleting the root invalidates held lookup errors without resurrecting deta
         },
       }),
       resolveChild: () => ({
+        identity: null,
         kind: 'omitted' as const,
         satisfiesDependencies: true as const,
       }),
@@ -267,6 +271,7 @@ test('resolver calls share the finite callback concurrency ceiling', async () =>
         },
       }),
       resolveChild: () => ({
+        identity: null,
         kind: 'omitted' as const,
         satisfiesDependencies: true as const,
       }),
@@ -305,6 +310,7 @@ for (const error of [undefined, null, { rejected: true }]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
@@ -342,6 +348,7 @@ test('fatal lookup failure invalidates queued and started sibling lookups', asyn
         },
       }),
       resolveChild: () => ({
+        identity: null,
         kind: 'omitted' as const,
         satisfiesDependencies: true as const,
       }),
@@ -453,7 +460,11 @@ for (const omittedFirst of [false, true]) {
         }),
         resolveChild: (id) =>
           omittedFirst
-            ? { kind: 'omitted', vertexId: id, satisfiesDependencies: true }
+            ? {
+                kind: 'omitted',
+                identity: { vertexId: id },
+                satisfiesDependencies: true,
+              }
             : {
                 kind: 'found',
                 vertex: {
@@ -478,7 +489,11 @@ for (const omittedFirst of [false, true]) {
     second.resolve(
       omittedFirst
         ? found
-        : { kind: 'omitted' as const, satisfiesDependencies: true as const },
+        : {
+            identity: null,
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+          },
     );
     if (omittedFirst) {
       await expect(running).rejects.toThrow(

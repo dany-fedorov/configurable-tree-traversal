@@ -10,7 +10,7 @@ import type { Vertex } from '@core/Vertex';
 import type {
   HintVertexId,
   MaybePromise,
-  VertexRef,
+  InternalVertexRef,
   VertexId,
   VisitResult,
 } from '@core/graph/types';
@@ -37,7 +37,7 @@ export type OwnerToken = {
 export type VisitMetadata<T extends VertexTypes> = {
   phaseVisitIndex: number;
   visitorIndex: number;
-  previousPhaseVertexRef: VertexRef<T> | null;
+  previousPhaseVertexRef: InternalVertexRef<T> | null;
   visitorChainState: unknown;
 };
 
@@ -52,7 +52,7 @@ export type CallSpec<T extends VertexTypes, R extends VertexTypes = T> = {
   | { kind: 'MAKE_VERTEX'; context: InternalVertexResolutionContext<T | R> }
   | {
       kind: 'VISIT';
-      ref: VertexRef<T | R>;
+      ref: InternalVertexRef<T | R>;
       order: VisitPhase;
       recordIndex: number;
       metadata: VisitMetadata<T | R>;
@@ -95,7 +95,7 @@ export interface CallbackBindings<
 
 export type KernelEvent<T extends VertexTypes> = {
   vertex: Vertex<T>;
-  vertexRef: VertexRef<T>;
+  vertexRef: InternalVertexRef<T>;
   order: VisitPhase;
   isRoot: boolean;
 };

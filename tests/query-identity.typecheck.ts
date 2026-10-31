@@ -30,7 +30,7 @@ const tree = new ResolvedTreeStore<T>();
 const view: ResolvedTreeView<T> = tree.asReadOnly();
 const coreView: CoreView<T> = view;
 const children: readonly VertexHandle<T>[] | null = view.getChildrenOf(ref);
-const path: readonly VertexHandle<T>[] = view.getPathTo(ref);
+const path: readonly VertexHandle<T>[] = view.requirePathTo(ref);
 // @ts-expect-error Query facade exposes no deletion operation.
 view.delete(ref);
 // @ts-expect-error Query facade exposes no mutable records.
@@ -40,7 +40,7 @@ view.setRoot(ref);
 // @ts-expect-error Query arrays are readonly.
 view.getChildrenOf(ref)!.push(ref);
 // @ts-expect-error Query paths are readonly.
-view.getPathTo(ref).length = 0;
+view.requirePathTo(ref).length = 0;
 // @ts-expect-error Query contexts are readonly at their top level.
 view.getResolutionContextOf(ref)!.depth = 2;
 // Opaque data, hints, refs, and vertices remain shallow identities.
@@ -55,8 +55,8 @@ tree.getResolutionContextOf(mutableRef)!.depth = 2;
 declare const graph: ResolvedGraphView<T>;
 declare const snapshot: OriginalGraphView<T>;
 for (const facade of [graph, snapshot]) {
-  const vertexId: unknown = facade.getVertexId(ref);
-  const oldVertexId: unknown = facade.getVertexId(ref);
+  const vertexId: unknown = facade.requireVertexId(ref);
+  const oldVertexId: unknown = facade.requireVertexId(ref);
   const byId: VertexHandle<T> | null = facade.getVertexRefById(undefined);
   const oldById: VertexHandle<T> | null = facade.getVertexRefById(Symbol());
   void [vertexId, oldVertexId, byId, oldById];

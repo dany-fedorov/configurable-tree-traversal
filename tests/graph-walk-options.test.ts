@@ -347,7 +347,7 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
     ).toThrow(TypeError);
     expect(() =>
       traversal.configure({
-        limits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never,
+        replaceLimits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never,
       }),
     ).toThrow(TypeError);
     expect(roots).not.toHaveBeenCalled();

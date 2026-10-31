@@ -73,7 +73,10 @@ test('a prepared topology starts independent seeded runners without source I/O',
   ).toEqual(['b']);
   expect(calls).toEqual(['root', 'b']);
   expect(
-    result.dag.vertices.map((vertex) => [vertex.vertexId, vertex.children]),
+    result.dag.liveVertexSummaries.map((vertex) => [
+      vertex.vertexId,
+      vertex.children,
+    ]),
   ).toEqual([
     ['a', ['b']],
     ['b', []],
@@ -195,7 +198,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       getVertexIdFromHint: (id) => ({ vertexId: id }),
       resolveChild: (id) =>
         id === 'skip'
-          ? { kind: 'omitted', satisfiesDependencies: true }
+          ? { identity: null, kind: 'omitted', satisfiesDependencies: true }
           : {
               kind: 'found',
               vertex: {
@@ -206,6 +209,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
               },
             },
       resolvePrerequisite: () => ({
+        identity: null,
         kind: 'omitted',
         satisfiesDependencies: true,
       }),
@@ -218,10 +222,9 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     expect(runner.summary().unusedCompletedWorkIds).toEqual([]);
     runner.run();
     expect(runner.getStopReason()).toBe('finished');
-    expect(result.dag.vertices.map((vertex) => vertex.vertexId)).toEqual([
-      'a',
-      'b',
-    ]);
+    expect(
+      result.dag.liveVertexSummaries.map((vertex) => vertex.vertexId),
+    ).toEqual(['a', 'b']);
   });
 
   test(`${prepare.name} distinguishes empty catalogs and explicitly omitted roots`, async () => {
@@ -229,9 +232,9 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       const result = await prepare<T, string>({
         traversableGraph: {
           resolveRoot: () => ({
+            identity: explicit ? { vertexId: 'empty' } : null,
             kind: 'omitted',
             satisfiesDependencies: true,
-            ...(explicit ? { vertexId: 'empty' } : {}),
           }),
           resolveChild: () => {
             throw new Error('No children');
@@ -239,7 +242,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         },
       });
       if (result.kind !== 'valid') throw new Error('Expected valid');
-      expect(result.dag.vertices).toEqual([]);
+      expect(result.dag.liveVertexSummaries).toEqual([]);
       const session = result.dag.createWorkSession(
         explicit ? { completedWork: new Set(['empty']) } : {},
       );
@@ -309,7 +312,7 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
     getVertexIdFromHint: (vertexId) => ({ vertexId }),
     resolveChild: (id) =>
       id === undefined
-        ? { kind: 'omitted', satisfiesDependencies: true }
+        ? { identity: null, kind: 'omitted', satisfiesDependencies: true }
         : {
             kind: 'found',
             vertex: {
@@ -359,12 +362,18 @@ test('prepared discovery retains undefined omission IDs and transitive detached 
 test('unidentified omitted children do not become fake prepared identities', () => {
   const adapter: DagDiscoverySource<T, T, string> = {
     ...source(),
-    resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+    resolveChild: () => ({
+      identity: null,
+      kind: 'omitted',
+      satisfiesDependencies: true,
+    }),
   };
   const result = prepareDag({ traversableGraph: adapter });
   if (result.kind !== 'valid') throw new Error('Expected valid');
   const runner = result.dag.createRunner().run();
-  expect(result.dag.vertices.map((vertex) => vertex.vertexId)).toEqual(['a']);
+  expect(
+    result.dag.liveVertexSummaries.map((vertex) => vertex.vertexId),
+  ).toEqual(['a']);
   expect(runner.summary().counts.discovered).toBe(1);
   expect(runner.getStopReason()).toBe('finished');
 });
@@ -380,10 +389,10 @@ test('prepared definitions preserve effective implicit work dependencies and roo
   });
   const implicit = prepareDag({
     traversableGraph: { ...adapter, resolveChild },
-    omittedWorkDependencies: 'discoveryParentWork',
+    dependsOnWorkDefault: 'discoveryParentWork',
   });
   if (implicit.kind !== 'valid') throw new Error('Expected valid');
-  expect(implicit.dag.vertices[1]!.dependsOnWork).toEqual(['a']);
+  expect(implicit.dag.liveVertexSummaries[1]!.dependsOnWork).toEqual(['a']);
   const session = implicit.dag.createWorkSession();
   const boundary = session.advance();
   if (boundary.kind !== 'awaitingSettlement') throw new Error('Expected work');
@@ -437,7 +446,7 @@ test('prepared forest completion joins retain structural sharing and order', () 
   expect(
     graph
       .getParentsOf(graph.getVertexRefById('shared')!)!
-      .map((ref) => graph.getVertexId(ref)),
+      .map((ref) => graph.requireVertexId(ref)),
   ).toEqual(['left', 'right']);
   const events = [...runner.iterateEvents()].map((event) => [
     event.vertexId,
@@ -467,9 +476,9 @@ test('definition arrays are immutable while arbitrary IDs and data stay shallow'
     materializeDagInputFromRecords(items, { id: (item) => item.id }),
   );
   if (result.kind !== 'valid') throw new Error('Expected valid');
-  expect(() => (result.dag.vertices as unknown[]).pop()).toThrow();
+  expect(() => (result.dag.liveVertexSummaries as unknown[]).pop()).toThrow();
   expect(() =>
-    (result.dag.vertices[0]!.children as unknown[]).push(symbol),
+    (result.dag.liveVertexSummaries[0]!.children as unknown[]).push(symbol),
   ).toThrow();
   expect(Object.isFrozen(objectId)).toBe(false);
   expect(Object.isFrozen(items[0])).toBe(false);
@@ -480,7 +489,7 @@ test('definition arrays are immutable while arbitrary IDs and data stay shallow'
     first
       .getResolvedGraphView()
       .getVertexRefs()
-      .map((ref) => first.getResolvedGraphView().getVertexId(ref)),
+      .map((ref) => first.getResolvedGraphView().requireVertexId(ref)),
   ).toEqual(ids);
   expect(
     second
@@ -534,8 +543,8 @@ test('prepared option boundaries reject overrides including present undefined be
     'syntheticRoot',
     'discovery',
     'rootWorkDependencies',
-    'omittedWorkDependencies',
-    'sortChildrenHints',
+    'dependsOnWorkDefault',
+    'transformChildHints',
     'traversalRunnerInternalObjects',
   ]) {
     expect(() =>
@@ -646,7 +655,7 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     });
     if (result.kind !== 'valid') throw new Error('Expected valid');
     expect(
-      result.dag.vertices.map((vertex) => [
+      result.dag.liveVertexSummaries.map((vertex) => [
         vertex.vertexId,
         vertex.dependsOnWork,
       ]),
@@ -681,9 +690,9 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         resolveChild: (id) =>
           id === 'skip'
             ? {
+                identity: hintSupplied ? null : { vertexId: id },
                 kind: 'omitted',
                 satisfiesDependencies: true,
-                ...(hintSupplied ? {} : { vertexId: id }),
               }
             : {
                 kind: 'found',
@@ -736,14 +745,17 @@ for (const async of [false, true]) {
       expect(result).toEqual({
         kind: 'invalid',
         issues: [
-          { kind: 'discoveryCycle', vertexIds: self ? [a, a] : [b, a, b] },
+          {
+            kind: 'discoveryCycle',
+            cycleWitnessVertexIds: self ? [a, a] : [b, a, b],
+          },
         ],
       });
       if (result.kind !== 'invalid') throw Error('Expected invalid result');
       const issue = result.issues[0]!;
       if (issue.kind !== 'discoveryCycle')
         throw Error('Expected discovery cycle issue');
-      expect(issue.vertexIds[0]).toBe(b);
+      expect(issue.cycleWitnessVertexIds[0]).toBe(b);
       let failure: unknown;
       try {
         if (async) await new AsyncDagTraversal(graph).createRunner().run();
@@ -757,9 +769,9 @@ for (const async of [false, true]) {
         throw Error('Expected typed discovery cycle');
       expect(failure.name).toBe('DagDiscoveryCycleError');
       expect(failure.message).toMatch(/^Discovery cycle detected:/);
-      expect(failure.vertexIds).toEqual(self ? [a, a] : [b, a, b]);
-      expect(failure.vertexIds[0]).toBe(b);
-      expect(Object.isFrozen(failure.vertexIds)).toBe(true);
+      expect(failure.cycleWitnessVertexIds).toEqual(self ? [a, a] : [b, a, b]);
+      expect(failure.cycleWitnessVertexIds[0]).toBe(b);
+      expect(Object.isFrozen(failure.cycleWitnessVertexIds)).toBe(true);
     },
   );
 }

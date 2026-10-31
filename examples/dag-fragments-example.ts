@@ -1,7 +1,7 @@
 import {
   defineDag,
   defineDagFragment,
-  instantiateDagFragment,
+  mapDagFragmentIds,
   composeDag,
 } from '../src';
 import assert from 'node:assert/strict';
@@ -38,10 +38,10 @@ async function main() {
     { start: 'build', finish: 'review' },
   );
   // The host owns stable identity and task-specific policy. CTT invents no ID scheme.
-  const first = instantiateDagFragment(fragment, {
+  const first = mapDagFragmentIds(fragment, {
     mapId: (local) => ({ project: 'first', local }),
   });
-  const second = instantiateDagFragment(fragment, {
+  const second = mapDagFragmentIds(fragment, {
     mapId: (local) => ({ project: 'second', local }),
   });
   const result = composeDag([first, second], {

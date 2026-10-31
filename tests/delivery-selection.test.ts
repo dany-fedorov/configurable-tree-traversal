@@ -34,6 +34,7 @@ const graph = {
     },
   }),
   resolveChild: () => ({
+    identity: null,
     kind: 'omitted' as const,
     satisfiesDependencies: true as const,
   }),

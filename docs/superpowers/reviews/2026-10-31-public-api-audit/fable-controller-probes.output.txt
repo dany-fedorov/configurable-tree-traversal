@@ -1,0 +1,6 @@
+limits replacement: tuning maxDepth dropped prior admission/read limits, observed vertices 1 -> 3
+walking edge source is a vertex, not the source adapter
+prepared projection drops omitted slot; faithful definition retains slot and omittedIds
+unknown graph handle: getChildrenOf -> null, getPathsTo/getVertexId -> Error
+milestone explanation: missing identity -> unknown; omitted identity -> known with null progress
+stall dependency diagnostics use id/unmet rather than vertexId/unmetPrerequisiteIds

@@ -29,7 +29,7 @@ function makeKernel() {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: false,
+    hasHintTransformer: false,
     hasHintIds: false,
     hasPrerequisiteResolver: true,
     concurrency: 2,

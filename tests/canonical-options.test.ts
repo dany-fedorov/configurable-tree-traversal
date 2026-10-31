@@ -1,4 +1,4 @@
-import { createDagWorkSession } from '../src';
+import { bindDagWorkSession } from '../src';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -59,6 +59,7 @@ for (const Builder of [DagTraversal, AsyncDagTraversal]) {
       resolveRoot: () => {
         calls++;
         return {
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         };
@@ -66,6 +67,7 @@ for (const Builder of [DagTraversal, AsyncDagTraversal]) {
       resolveChild: () => {
         calls++;
         return {
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         };
@@ -130,17 +132,19 @@ test('DAG coordination requires the registered runner identity', () => {
     workCompletion: 'externalSettlement',
     traversableGraph: {
       resolveRoot: () => ({
+        identity: null,
         satisfiesDependencies: true as const,
         kind: 'omitted' as const,
       }),
       resolveChild: () => ({
+        identity: null,
         satisfiesDependencies: true as const,
         kind: 'omitted' as const,
       }),
     },
   }).createRunner();
-  expect(() => createDagWorkSession(Object.create(runner))).toThrow(
+  expect(() => bindDagWorkSession(Object.create(runner))).toThrow(
     /externalSettlement/,
   );
-  expect(() => createDagWorkSession(runner)).not.toThrow();
+  expect(() => bindDagWorkSession(runner)).not.toThrow();
 });

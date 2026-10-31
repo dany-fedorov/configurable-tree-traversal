@@ -20,10 +20,10 @@ function check(error: unknown) {
   expect(stall.message).toMatch(/^DAG traversal stalled:/);
   expect(stall.diagnostics).toEqual({
     dependencies: [
-      { id: 'A', unmet: ['B', 'unknown'] },
-      { id: 'B', unmet: ['A'] },
-      { id: 'C', unmet: ['A'] },
-      { id: 'D', unmet: ['D'] },
+      { vertexId: 'A', unmetPrerequisiteIds: ['B', 'unknown'] },
+      { vertexId: 'B', unmetPrerequisiteIds: ['A'] },
+      { vertexId: 'C', unmetPrerequisiteIds: ['A'] },
+      { vertexId: 'D', unmetPrerequisiteIds: ['D'] },
     ],
     unknownPrerequisiteIds: ['unknown'],
     dependencyCycleComponents: [['A', 'B'], ['D']],
@@ -66,7 +66,7 @@ test('reports a missing prerequisite separately from its blocked vertex', () => 
     throw new Error('Expected stall');
   } catch (error) {
     expect((error as DagTraversalStallError).diagnostics).toEqual({
-      dependencies: [{ id: 'task', unmet: ['absent'] }],
+      dependencies: [{ vertexId: 'task', unmetPrerequisiteIds: ['absent'] }],
       unknownPrerequisiteIds: ['absent'],
       dependencyCycleComponents: [],
       dependencyBlockedIds: ['task'],
@@ -83,20 +83,22 @@ test('detaches reports and retains hostile and SameValueZero IDs without coercio
     },
   };
   const diagnostics = {
-    dependencies: [{ id: hostile, unmet: [undefined, null, NaN, -0] }],
+    dependencies: [
+      { vertexId: hostile, unmetPrerequisiteIds: [undefined, null, NaN, -0] },
+    ],
     unknownPrerequisiteIds: [undefined, null, NaN, -0],
     dependencyCycleComponents: [[hostile]],
     dependencyBlockedIds: [hostile],
     structurallyIncompleteIds: [hostile],
   };
   const error = new DagTraversalStallError(diagnostics);
-  diagnostics.dependencies[0]!.unmet.length = 0;
+  diagnostics.dependencies[0]!.unmetPrerequisiteIds.length = 0;
   diagnostics.unknownPrerequisiteIds.length = 0;
   diagnostics.dependencyCycleComponents[0]!.length = 0;
   diagnostics.dependencyBlockedIds.length = 0;
   diagnostics.structurallyIncompleteIds.length = 0;
   expect(error.diagnostics.dependencies).toEqual([
-    { id: hostile, unmet: [undefined, null, NaN, -0] },
+    { vertexId: hostile, unmetPrerequisiteIds: [undefined, null, NaN, -0] },
   ]);
   expect(error.diagnostics.unknownPrerequisiteIds).toEqual([
     undefined,
@@ -192,7 +194,7 @@ test('scheduler diagnostics preserve arbitrary missing and cyclic IDs', () => {
       [0],
     ]);
     expect(diagnostics.unknownPrerequisiteIds).toEqual(['missing']);
-    expect(diagnostics.dependencies[0]!.id).toBe(hostile);
+    expect(diagnostics.dependencies[0]!.vertexId).toBe(hostile);
   }
 });
 

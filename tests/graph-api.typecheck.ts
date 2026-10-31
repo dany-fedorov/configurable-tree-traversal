@@ -42,7 +42,7 @@ const graph: DagDiscoverySource<Input, Output> = {
     return {
       kind: 'omitted' as const,
       satisfiesDependencies: true as const,
-      vertexId: hint,
+      identity: { vertexId: hint },
     };
   },
   getVertexIdFromHint: (hint): HintVertexId => ({ vertexId: hint }),
@@ -129,7 +129,7 @@ const asyncVisitorMetadata: import('../src').VisitorRegistrationMetadata =
 const asyncGraphTraversal = new AsyncDagTraversal<Input, Output>({
   traversableGraph: asyncGraph,
   concurrency: 2,
-  sortChildrenHints: async (hints) => hints.reverse(),
+  transformChildHints: async (hints) => hints.reverse(),
 });
 asyncGraphTraversal.addVisitorFor(
   'ON_WORK_READY' as DagVisitorPhase,

@@ -105,12 +105,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           );
           if (scenario === 'root source failure')
             expect(result).toMatchObject({
-              kind: 'unknown',
+              kind: 'unresolved',
               discoveryComplete: false,
             });
           else
             expect(result).toMatchObject({
-              kind: 'known',
+              kind: 'live',
               satisfied:
                 scenario === 'finished' ||
                 (milestone === 'work' && scenario !== 'ready failure'),
@@ -184,9 +184,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     for (const ref of graph.getVertexRefs()) {
       for (const milestone of ['work', 'subgraphCompletion'] as const) {
         expect(
-          captured.explain({ vertexId: graph.getVertexId(ref), milestone }),
+          captured.explain({ vertexId: graph.requireVertexId(ref), milestone }),
         ).toMatchObject({
-          kind: 'known',
+          kind: 'live',
           satisfied: true,
           discoveryComplete: true,
         });
@@ -229,7 +229,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       milestone: 'subgraphCompletion',
     });
     expect(original).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       discoveryComplete: true,
     });
@@ -257,8 +257,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     ])
       (values as unknown[]).push('changed');
     const diagnostics = before.diagnostics!;
-    diagnostics.dependencies[0]!.unmet.pop();
-    diagnostics.dependencies[0]!.id = 'changed' as unknown as typeof first;
+    diagnostics.dependencies[0]!.unmetPrerequisiteIds.pop();
+    diagnostics.dependencies[0]!.vertexId =
+      'changed' as unknown as typeof first;
     diagnostics.unknownPrerequisiteIds.push({ name: 'changed' });
     diagnostics.dependencyCycleComponents[0]!.pop();
     diagnostics.dependencyEdges[0]!.waiter.vertexId = { name: 'changed' };
@@ -320,14 +321,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         vertexId: 'done',
         milestone: 'work',
       }),
-    ).toMatchObject({ kind: 'known', satisfied: true });
+    ).toMatchObject({ kind: 'live', satisfied: true });
     expect(
       inspectDagMilestones(restored).explain({
         vertexId: 'deferred',
         milestone: 'work',
       }),
     ).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       progress: { work: 'deferred' },
     });
@@ -336,7 +337,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         vertexId: 'failed',
         milestone: 'work',
       }),
-    ).toMatchObject({ kind: 'known', satisfied: false });
+    ).toMatchObject({ kind: 'live', satisfied: false });
     const summary = restored.summary();
     (summary.awaitingSettlement[0] as { vertexId: string }).vertexId =
       'changed';
@@ -389,11 +390,11 @@ test('terminal async observations stay stable after an invalidated callback sett
   });
   const captured = inspectDagMilestones(restored);
   expect(captured.explain({ vertexId: 'a', milestone: 'work' })).toMatchObject({
-    kind: 'known',
+    kind: 'live',
     satisfied: false,
   });
   expect(captured.explain({ vertexId: 'b', milestone: 'work' })).toMatchObject({
-    kind: 'known',
+    kind: 'live',
     satisfied: false,
   });
   release();
@@ -424,6 +425,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         };
       },
       resolveChild: () => ({
+        identity: null,
         kind: 'omitted' as const,
         satisfiesDependencies: true as const,
       }),
@@ -471,7 +473,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           vertexId: 'a',
           milestone: 'work',
         }),
-      ).toMatchObject({ kind: 'unknown', discoveryComplete: false });
+      ).toMatchObject({ kind: 'unresolved', discoveryComplete: false });
       expect(calls).toBe(1);
     }
   });
@@ -528,6 +530,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             };
           },
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
           }),
@@ -581,7 +584,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
                 milestone,
               }),
             ).toMatchObject({
-              kind: 'known',
+              kind: 'live',
               satisfied: outcome === 'success',
             });
           }
@@ -608,6 +611,7 @@ test('retaining a terminal observation again preserves an immutable metadata des
         },
       }),
       resolveChild: () => ({
+        identity: null,
         kind: 'omitted' as const,
         satisfiesDependencies: true as const,
       }),
@@ -645,5 +649,5 @@ test('retaining a terminal observation again preserves an immutable metadata des
       vertexId: 'a',
       milestone: 'subgraphCompletion',
     }),
-  ).toMatchObject({ kind: 'known', satisfied: true });
+  ).toMatchObject({ kind: 'live', satisfied: true });
 });

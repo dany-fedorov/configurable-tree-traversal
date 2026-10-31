@@ -7,9 +7,7 @@ type MilestoneKind = DagMilestone['milestone'];
 type Adjacency<ID> = Map<ID, Map<MilestoneKind, DagWaitEdge<ID>[]>>;
 
 /** Index original constraints once; each walk returns fresh owned wrappers. */
-export function makeMilestoneQuery<ID>(
-  edges: readonly DagWaitEdge<ID>[],
-) {
+export function makeMilestoneQuery<ID>(edges: readonly DagWaitEdge<ID>[]) {
   const forward: Adjacency<ID> = new Map();
   const reverse: Adjacency<ID> = new Map();
   const append = (

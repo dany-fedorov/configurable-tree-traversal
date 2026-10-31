@@ -24,7 +24,8 @@ for (const representation of ['prototype getters', 'non-enumerable fields']) {
       const captured = inspection();
       let idReads = 0;
       let milestoneReads = 0;
-      const milestone = method === 'dependentsOf' ? 'work' : 'subgraphCompletion';
+      const milestone =
+        method === 'dependentsOf' ? 'work' : 'subgraphCompletion';
       class Target {
         get vertexId() {
           idReads++;
@@ -58,14 +59,14 @@ for (const representation of ['prototype getters', 'non-enumerable fields']) {
       if (method === 'explain') {
         const result = captured.explain(target);
         expect(result).toMatchObject({
-          kind: 'known',
+          kind: 'live',
           satisfied: false,
           target: { vertexId: id, milestone: 'subgraphCompletion' },
         });
         expect(result.target.vertexId).toBe(id);
         result.target.vertexId = { name: 'changed' };
         expect(captured.explain({ vertexId: id, milestone })).toMatchObject({
-          kind: 'known',
+          kind: 'live',
           target: { vertexId: id },
         });
       } else {
@@ -73,7 +74,8 @@ for (const representation of ['prototype getters', 'non-enumerable fields']) {
         expect(result.milestones).toEqual([
           {
             vertexId: id,
-            milestone: method === 'dependentsOf' ? 'subgraphCompletion' : 'work',
+            milestone:
+              method === 'dependentsOf' ? 'subgraphCompletion' : 'work',
           },
         ]);
         expect(result.edges).toEqual([

@@ -6,7 +6,11 @@ import type {
 } from '@core/effects/types';
 import type { VisitorExecutionState } from '@core/executeVisitors';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
-import type { HintVertexId, VertexId, VertexRef } from '@core/graph/types';
+import type {
+  HintVertexId,
+  VertexId,
+  InternalVertexRef,
+} from '@core/graph/types';
 import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
 import type { EligibleVisit } from '@core/scheduling/types';
 import type { MakeVertexResult } from '@core/TraversableTree';
@@ -29,8 +33,8 @@ import type { InOrderOptions } from '@depth-first-traversal/lib/DepthFirstTraver
 
 export type KernelStateBridge<T extends VertexTypes> = {
   status: TraversalRunnerStatus;
-  traversalRootVertexRef: VertexRef<T> | null;
-  subtreeTraversalDisabledRefs: Set<VertexRef<T>>;
+  traversalRootVertexRef: InternalVertexRef<T> | null;
+  subtreeTraversalDisabledRefs: Set<InternalVertexRef<T>>;
   visitorsState: Partial<Record<VisitPhase, VisitorExecutionState<T>>>;
 };
 
@@ -43,7 +47,7 @@ export type KernelOptions<T extends VertexTypes, R extends VertexTypes = T> = {
   visitorMetadata: Partial<Record<VisitPhase, readonly RegistrationMetadata[]>>;
   iterableConfig: TraversalRunnerIterableConfig<VisitPhase>;
   inOrderConfig: InOrderOptions | null;
-  hasSorter: boolean;
+  hasHintTransformer: boolean;
   hasHintIds: boolean;
   hasPrerequisiteResolver?: boolean;
   concurrency: number;
@@ -51,19 +55,19 @@ export type KernelOptions<T extends VertexTypes, R extends VertexTypes = T> = {
   canPrepare?: boolean;
   workCompletion?: 'afterWorkReadyChain' | 'externalSettlement';
   rootWorkDependencies?: 'honor' | 'ignore';
-  omittedWorkDependencies?: 'none' | 'discoveryParentWork';
+  dependsOnWorkDefault?: 'none' | 'discoveryParentWork';
   completedWork?: ReadonlySet<VertexId>;
   dagSeed?: {
     readyVisits: readonly EligibleVisit<T | R>[];
-    expansionQueue: readonly VertexRef<T | R>[];
+    expansionQueue: readonly InternalVertexRef<T | R>[];
   };
 };
 
 export type FrameState<T extends VertexTypes, R extends VertexTypes = T> = {
   owner: OwnerToken;
-  ref: VertexRef<T | R>;
+  ref: InternalVertexRef<T | R>;
   depth: number;
-  stage: 'sort' | 'identify' | 'resolve';
+  stage: 'transformHints' | 'identify' | 'resolve';
   hints: (T | R)['VertexHint'][];
   nextIdentityIndex: number;
   nextAdmissionIndex: number;
@@ -79,7 +83,7 @@ export type FrameState<T extends VertexTypes, R extends VertexTypes = T> = {
 
 export type ChainState<T extends VertexTypes, R extends VertexTypes = T> = {
   owner: OwnerToken;
-  ref: VertexRef<T | R>;
+  ref: InternalVertexRef<T | R>;
   order: VisitPhase;
   phase: 'running' | 'paused' | 'done' | 'invalid';
   group: 'concurrent' | 'sequential';
@@ -95,7 +99,7 @@ export type ChainState<T extends VertexTypes, R extends VertexTypes = T> = {
 };
 
 export type VertexWork<T extends VertexTypes> = {
-  ref: VertexRef<T>;
+  ref: InternalVertexRef<T>;
   unmet: Set<VertexId>;
   unmetComplete: Set<VertexId>;
   expansion: 'unprepared' | 'open' | 'closed';

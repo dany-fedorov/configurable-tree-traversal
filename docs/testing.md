@@ -54,6 +54,12 @@ General graph walking is covered by `graph-walk-*.test.ts`, `async-graph-walk*.t
 
 Packed `graph-walk.mjs` / `.ts` consumers check actual root/namespace/subpath CJS/ESM constructor and declaration identity, typed hydrated endpoints, mixed/omitted records, arbitrary IDs, async continuation, helpers and adapters. The three `graph-walk-*-example.ts` programs assert the five-vertex/six-edge context, typed code references/common inspection wrappers, and bounded provenance outcomes. Complete walking and cross-family guide snippets run against the extracted package; partial snippets are not substitutes for those consumers.
 
+## Public API index maintenance
+
+`docs/api-index.md` is generated from the supported package declaration census, not from private source filenames. Run `npm run docs:api` after a public declaration change. This builds the package and updates every exported symbol's anchor, import routes, signature, inherited/mapped fields, owning contract and example. Package verification runs the generator in check mode and rejects drift without overwriting the file. The index is included in the tarball and its links/anchors are checked with the other guides.
+
+`npm run test:docs` exercises export deduplication, support-type exclusion, overload retention, case-distinct anchors, namespace membership, missing declarations and stale-output rejection using controlled census fixtures. It is part of `npm run check`. Generated declaration excerpts are lookup material; only `<!-- standalone -->` examples are compiled/executed as programs by guide verification.
+
 ## Focused checks
 
 ```sh

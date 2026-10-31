@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "frozenFinalInputs": 477,
+  "preexistingSourceTestExampleFilesPreserved": 411,
+  "releasedChangelogPreserved": true,
+  "relativeLinksChecked": 1380,
+  "baselinePublicAnchors": [
+    {
+      "file": "README.md",
+      "preservedAnchors": 23
+    },
+    {
+      "file": "AGENTS.md",
+      "preservedAnchors": 6
+    },
+    {
+      "file": "CHANGELOG.md",
+      "preservedAnchors": 8
+    },
+    {
+      "file": "docs/agent-workflows.md",
+      "preservedAnchors": 13
+    },
+    {
+      "file": "docs/index.md",
+      "preservedAnchors": 4
+    },
+    {
+      "file": "docs/migration-api-clarity.md",
+      "preservedAnchors": 12
+    },
+    {
+      "file": "docs/migration-client-api.md",
+      "preservedAnchors": 6
+    },
+    {
+      "file": "docs/migration-idiomatic-api.md",
+      "preservedAnchors": 15
+    },
+    {
+      "file": "docs/migration-uniform-api.md",
+      "preservedAnchors": 31
+    },
+    {
+      "file": "docs/reference.md",
+      "preservedAnchors": 36
+    },
+    {
+      "file": "docs/testing.md",
+      "preservedAnchors": 7
+    }
+  ]
+}

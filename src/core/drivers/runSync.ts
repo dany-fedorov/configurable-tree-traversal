@@ -10,10 +10,7 @@ import type {
 
 export type SyncDriverState = { inFlightCallbackCount: number };
 
-export function* runSync<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
->(
+export function* runSync<T extends VertexTypes, R extends VertexTypes = T>(
   kernel: KernelPort<T, R>,
   bindings: CallbackBindings<T, R>,
   runtimeState: SyncDriverState,
@@ -50,10 +47,7 @@ export function* runSync<
   }
 }
 
-function invokeAndSubmit<
-  T extends VertexTypes,
-  R extends VertexTypes,
->(
+function invokeAndSubmit<T extends VertexTypes, R extends VertexTypes>(
   kernel: KernelPort<T, R>,
   bindings: CallbackBindings<T, R>,
   runtimeState: SyncDriverState,
@@ -127,7 +121,9 @@ function thenableError(
   cause?: unknown,
 ): TypeError {
   const error = new TypeError(
-    `Synchronous ${runnerName ?? 'runner'} callback ${callbackName} returned a thenable`,
+    `Synchronous ${
+      runnerName ?? 'runner'
+    } callback ${callbackName} returned a thenable`,
   );
   if (arguments.length > 2) {
     (error as TypeError & { cause?: unknown }).cause = cause;

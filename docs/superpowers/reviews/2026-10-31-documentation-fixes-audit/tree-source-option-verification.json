@@ -1,0 +1,40 @@
+[
+  {
+    "family": "sync",
+    "option": {
+      "discovery": "eager"
+    },
+    "result": "TypeError as documented"
+  },
+  {
+    "family": "sync",
+    "option": {
+      "syntheticRoot": true
+    },
+    "result": "TypeError as documented"
+  },
+  {
+    "family": "sync",
+    "operation": "fresh tree-source runner.prepare()",
+    "result": "prepared"
+  },
+  {
+    "family": "async",
+    "option": {
+      "discovery": "eager"
+    },
+    "result": "TypeError as documented"
+  },
+  {
+    "family": "async",
+    "option": {
+      "syntheticRoot": true
+    },
+    "result": "TypeError as documented"
+  },
+  {
+    "family": "async",
+    "operation": "fresh tree-source runner.prepare()",
+    "result": "prepared"
+  }
+]

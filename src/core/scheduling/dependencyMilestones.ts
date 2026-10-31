@@ -56,7 +56,11 @@ export function dependencyMilestones(declarations: readonly Declaration[]): {
         reason: 'subgraphCompletionDependency',
       });
     }
-    edges.push({ waiter: own.completion, prerequisite: own.work, reason: 'ownWork' });
+    edges.push({
+      waiter: own.completion,
+      prerequisite: own.work,
+      reason: 'ownWork',
+    });
     for (const id of declaration.children) {
       edges.push({
         waiter: own.completion,

@@ -53,7 +53,7 @@ export type GraphWalkFollowContext<Data, Edge, ID> = GraphWalkRouteContext<
   ID
 > &
   Readonly<{
-    source: GraphWalkVertex<Data, ID>;
+    fromVertex: GraphWalkVertex<Data, ID>;
     depth: number;
   }>;
 export type GraphWalkExpansionPredicate<Data, Edge, ID> = (
@@ -117,18 +117,18 @@ export type AsyncGraphWalkOptions<Data, Edge, ID> = AsyncGraphWalkFields<
   ID
 > &
   GraphWalkRevisitOptions;
-/** Atomic top-level patch. Supplied limits replace the previous limits record;
+/** Atomic top-level patch. Supplied replaceLimits replace the previous limits record;
  * the merged revisit policy must still have a depth or candidate-read bound. */
 export type GraphWalkOptionsPatch<Data, Edge, ID> = UndefinedPatch<
   GraphWalkFields<Data, Edge, ID>
 > & {
   revisit?: GraphWalkRevisitPolicy | undefined;
-  limits?: GraphWalkLimits | undefined;
+  replaceLimits?: GraphWalkLimits | undefined;
 };
 /** Async counterpart with the same atomic patch and limits replacement rules. */
 export type AsyncGraphWalkOptionsPatch<Data, Edge, ID> = UndefinedPatch<
   AsyncGraphWalkFields<Data, Edge, ID>
 > & {
   revisit?: GraphWalkRevisitPolicy | undefined;
-  limits?: GraphWalkLimits | undefined;
+  replaceLimits?: GraphWalkLimits | undefined;
 };

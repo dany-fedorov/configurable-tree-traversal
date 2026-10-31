@@ -34,7 +34,7 @@ function setup() {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: true,
+    hasHintTransformer: true,
     hasHintIds: true,
     concurrency: 3,
   });
@@ -55,7 +55,7 @@ test('inspection is detached, deeply frozen, callback-free, and side-effect free
     execution: 'sync',
     sourceMode: 'graph',
     concurrency: 3,
-    hasSorter: true,
+    hasHintTransformer: true,
     hasHintIds: true,
     pendingEventBoundaryCount: 0,
   });
@@ -169,7 +169,7 @@ test('inspection detaches and freezes populated chain and frame records', () => 
   const secondFrame = kernel.inspect();
   expect(firstFrame.frames).toHaveLength(1);
   expect(firstFrame.frames[0]).toMatchObject({
-    stage: 'sort',
+    stage: 'transformHints',
     pendingIndices: [],
   });
   expect(firstFrame.frames).not.toBe(secondFrame.frames);

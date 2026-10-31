@@ -1,10 +1,9 @@
-import type { VertexHandle } from 'configurable-tree-traversal';
 // Packed public contracts; exercise actual calls under both declaration loaders.
 import {
   ObjectTreeSource,
   objectRewrite as rewriteApi,
   rewriteObject,
-  type VertexRef,
+  type VertexHandle,
   type VertexTypes,
   createObjectMutationBinder,
   type ObjectRewriteCallback,
@@ -27,7 +26,7 @@ import {
 } from 'configurable-tree-traversal/tools/rewrite-object';
 
 // @ts-expect-error Reconstruction alone does not preserve arbitrary input shape.
-rewriteObject({ count: 1 }).outputAtReturn!.count;
+capturedOutputValue(rewriteObject({ count: 1 }))!.count;
 const changed = rewriteObject(
   { count: 1 },
   {
@@ -38,9 +37,9 @@ const changed = rewriteObject(
   },
 );
 // @ts-expect-error Arbitrary rewrites do not preserve the input shape.
-changed.outputAtReturn!.count;
+capturedOutputValue(changed)!.count;
 // @ts-expect-error The final output default is conservative too.
-changed.getOutput()!.count;
+outputValue(changed)!.count;
 const typed = rewriteObjectAs<{ renamed: number }>(
   { count: 1 },
   {
@@ -50,16 +49,16 @@ const typed = rewriteObjectAs<{ renamed: number }>(
         : undefined,
   },
 );
-const value: number = typed.getOutput()!.renamed;
-const namespaceValue: number = rewriteApi
-  .rewriteObjectAs<number>(1)
-  .getOutput()!;
-const subpathValue: number = subpathRewriteObjectAs<number>(1).getOutput()!;
+const value: number = outputValue(typed)!.renamed;
+const namespaceValue: number = outputValue(
+  rewriteApi.rewriteObjectAs<number>(1),
+)!;
+const subpathValue: number = outputValue(subpathRewriteObjectAs<number>(1))!;
 const inferred = rewriteObject(1, {
   convertRootValue: () => ({ converted: true }),
 });
-const converted: boolean = inferred.getOutput()!.converted;
-const snapshotConverted: boolean = inferred.outputAtReturn!.converted;
+const converted: boolean = outputValue(inferred)!.converted;
+const snapshotConverted: boolean = capturedOutputValue(inferred)!.converted;
 // @ts-expect-error A generic output selection requires a converter.
 const explicit = rewriteObject<
   Record<string, never>,
@@ -69,7 +68,7 @@ const explicit = rewriteObject<
   PropertyKey,
   unknown
 >({});
-const explicitValue: number = explicit.getOutput()!.renamed;
+const explicitValue: number = outputValue(explicit)!.renamed;
 const source = new ObjectTreeSource({ count: 1 });
 // @ts-expect-error The rewrite helper owns its source.
 rewriteObject({}, { traversableTree: source });
@@ -109,7 +108,7 @@ void [
 ];
 
 const rootAndSubpath: typeof subpathRewriteObject = rewriteObject;
-declare const vertexRef: VertexRef<VertexTypes>;
+declare const vertexRef: VertexHandle<VertexTypes>;
 const genericRef: VertexHandle<VertexTypes> = vertexRef;
 void [rootAndSubpath, genericRef];
 
@@ -751,7 +750,7 @@ declare const objectDomainProbeArgs: Parameters<typeof objectDomainProbeBinder>;
       return { value, complete };
     },
   });
-  const complete: boolean = converted.getOutput()!.complete;
+  const complete: boolean = outputValue(converted)!.complete;
   const bind = createObjectMutationBinder<
     ObjectTreeVertexTypes<'root', number>,
     ObjectTreeVertexTypes<'replacement', string>
@@ -826,3 +825,21 @@ ObjectTreeSource.getChildrenOfPropertyDefault<'root', number>({
   key: 'root',
   value: 1,
 });
+
+function capturedOutputValue<Out>(result: {
+  outputResultAtReturn:
+    | { readonly kind: 'present'; readonly value: Out }
+    | { readonly kind: 'absent' };
+}): Out | null {
+  const output = result.outputResultAtReturn;
+  return output.kind === 'present' ? output.value : null;
+}
+
+function outputValue<Out>(result: {
+  getOutputResult():
+    | { readonly kind: 'present'; readonly value: Out }
+    | { readonly kind: 'absent' };
+}): Out | null {
+  const output = result.getOutputResult();
+  return output.kind === 'present' ? output.value : null;
+}

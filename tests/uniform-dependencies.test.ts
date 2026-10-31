@@ -26,6 +26,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             },
           }),
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
           }),
@@ -44,13 +45,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
   test.each([undefined, 'none', 'discoveryParentWork'] as const)(
     `${Constructor.name} graph parent dependency is explicit (%s)`,
-    async (omittedWorkDependencies) => {
+    async (dependsOnWorkDefault) => {
       const visited: string[] = [];
       const runner = new Constructor<G>({
         discovery: 'eager',
-        ...(omittedWorkDependencies === undefined
-          ? {}
-          : { omittedWorkDependencies }),
+        ...(dependsOnWorkDefault === undefined ? {} : { dependsOnWorkDefault }),
         traversableGraph: {
           resolveRoot: () => ({
             kind: 'found' as const,
@@ -79,7 +78,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         .createRunner();
       await runner.run();
       expect(visited).toEqual(
-        omittedWorkDependencies === 'discoveryParentWork'
+        dependsOnWorkDefault === 'discoveryParentWork'
           ? ['root']
           : ['root', 'child'],
       );
@@ -102,6 +101,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             },
           }),
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
           }),
@@ -132,6 +132,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       }),
       resolvePrerequisite: () => ({
+        identity: null,
         kind: 'omitted',
         satisfiesDependencies: true,
       }),
@@ -160,6 +161,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         },
       }),
       resolveChild: () => ({
+        identity: null,
         kind: 'omitted' as const,
         satisfiesDependencies: true as const,
       }),
@@ -193,6 +195,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
@@ -213,13 +216,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
   test.each([
     { kind: 'missing' },
-    { kind: 'unknown' },
+    { kind: 'unresolved' },
     { kind: 'found', vertex: null },
     { kind: 'found', vertex: {} },
     { kind: 'found', vertex: { vertexContent: null } },
     { kind: 'omitted' },
-    { kind: 'omitted', satisfiesDependencies: false },
-    { kind: 'omitted', satisfiesDependencies: undefined },
+    { identity: null, kind: 'omitted', satisfiesDependencies: false },
+    { identity: null, kind: 'omitted', satisfiesDependencies: undefined },
     null,
     undefined,
   ])(
@@ -252,8 +255,8 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     { rootWorkDependencies: false },
     { rootWorkDependencies: null },
     { rootWorkDependencies: 'unknown' },
-    { omittedWorkDependencies: 'true' },
-    { omittedWorkDependencies: null },
+    { dependsOnWorkDefault: 'true' },
+    { dependsOnWorkDefault: null },
   ])(
     `${Constructor.name} rejects malformed dependency policies (%j)`,
     (options) => {
@@ -262,10 +265,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           ...options,
           traversableGraph: {
             resolveRoot: () => ({
+              identity: null,
               satisfiesDependencies: true as const,
               kind: 'omitted' as const,
             }),
             resolveChild: () => ({
+              identity: null,
               satisfiesDependencies: true as const,
               kind: 'omitted' as const,
             }),
@@ -278,7 +283,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   test(`${Constructor.name} explicit empty dependencies override parent inheritance`, async () => {
     const visited: string[] = [];
     const runner = new Constructor<G>({
-      omittedWorkDependencies: 'discoveryParentWork',
+      dependsOnWorkDefault: 'discoveryParentWork',
       discovery: 'eager',
       traversableGraph: {
         resolveRoot: () => ({
@@ -320,10 +325,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         traversableGraph: {
           resolveRoot: () => ({
             kind: 'omitted',
-            vertexId: id,
+            identity: { vertexId: id },
             satisfiesDependencies: true,
           }),
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted',
             satisfiesDependencies: true,
           }),
@@ -352,7 +358,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         getVertexIdFromHint: (id) => ({ vertexId: id }),
         resolveChild: (id) =>
           id === 'omitted'
-            ? { kind: 'omitted', satisfiesDependencies: true }
+            ? { identity: null, kind: 'omitted', satisfiesDependencies: true }
             : {
                 kind: 'found',
                 vertex: {
@@ -373,7 +379,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const runner = new Constructor<G>({
       syntheticRoot: true,
       discovery: 'eager',
-      omittedWorkDependencies: 'discoveryParentWork',
+      dependsOnWorkDefault: 'discoveryParentWork',
       traversableGraph: {
         resolveRoot: () => ({
           kind: 'found' as const,
@@ -419,6 +425,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
@@ -455,6 +462,7 @@ for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
             },
           }),
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
           }),

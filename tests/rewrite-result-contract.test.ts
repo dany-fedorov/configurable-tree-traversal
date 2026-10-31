@@ -1,3 +1,4 @@
+import { capturedOutputValue, outputValue } from './helpers/rewriteOutput';
 import {
   DepthFirstPhase,
   TraversalRunnerStatus,
@@ -49,16 +50,16 @@ describe('rewrite result contracts', () => {
     expect(result.traversalRunner.getStatus()).toBe(
       TraversalRunnerStatus.HALTED,
     );
-    expect(result.outputAtReturn).toEqual({ converted: { count: 1 } });
-    expect(() => result.getOutput()).toThrow(/output.*not complete/i);
+    expect(capturedOutputValue(result)).toEqual({ converted: { count: 1 } });
+    expect(() => outputValue(result)).toThrow(/output.*not complete/i);
     expect(convertedValues).toEqual([input]);
     result.traversalRunner.run();
-    const final = result.getOutput();
+    const final = outputValue(result);
     expect(final).toEqual({ converted: { renamed: 1 } });
-    expect(result.getOutput()).toBe(final);
+    expect(outputValue(result)).toBe(final);
     expect(convertedValues).toEqual([input, { renamed: 1 }]);
     expect(completion).toEqual([false, true]);
-    expect(result.outputAtReturn).toEqual({ converted: { count: 1 } });
+    expect(capturedOutputValue(result)).toEqual({ converted: { count: 1 } });
   });
 
   test('reuses the initial successful conversion when the run already finished', () => {
@@ -72,8 +73,8 @@ describe('rewrite result contracts', () => {
         }),
       },
     );
-    expect(result.getOutput()).toBe(result.outputAtReturn);
-    expect(result.getOutput()).toEqual({ value: { count: 1 }, conversion: 1 });
+    expect(outputValue(result)).toBe(capturedOutputValue(result));
+    expect(outputValue(result)).toEqual({ value: { count: 1 }, conversion: 1 });
     expect(conversions).toBe(1);
   });
 
@@ -95,15 +96,15 @@ describe('rewrite result contracts', () => {
       result.traversalRunner.run();
       let threw = false;
       try {
-        result.getOutput();
+        outputValue(result);
       } catch (thrown) {
         threw = true;
         expect(thrown).toBe(error);
       }
       expect(threw).toBe(true);
-      const final = result.getOutput();
+      const final = outputValue(result);
       expect(final).toEqual({ value: { count: 1 } });
-      expect(result.getOutput()).toBe(final);
+      expect(outputValue(result)).toBe(final);
       expect(conversions).toBe(3);
     },
   );
@@ -127,7 +128,7 @@ describe('rewrite result contracts', () => {
     expect(threw).toBe(true);
   });
 
-  test('converts deleted and null final roots after resuming', () => {
+  test('preserves deleted and null final root presence after resuming', () => {
     const deleted = rewriteObject(
       {},
       {
@@ -137,7 +138,7 @@ describe('rewrite result contracts', () => {
       },
     );
     deleted.traversalRunner.run();
-    expect(deleted.getOutput()).toBe('deleted');
+    expect(deleted.getOutputResult()).toEqual({ kind: 'absent' });
     const nullRoot = rewriteObject(
       {},
       {
@@ -146,10 +147,13 @@ describe('rewrite result contracts', () => {
       },
     );
     nullRoot.traversalRunner.run();
-    expect(nullRoot.getOutput()).toBeNull();
-    expect(rewriteObject(null).getOutput()).toBeNull();
+    expect(nullRoot.getOutputResult()).toEqual({
+      kind: 'present',
+      value: null,
+    });
+    expect(outputValue(rewriteObject(null))).toBeNull();
     expect(
-      rewriteObject({}, { rewrite: () => ({ kind: 'delete' }) }).getOutput(),
+      outputValue(rewriteObject({}, { rewrite: () => ({ kind: 'delete' }) })),
     ).toBeNull();
   });
 
@@ -163,12 +167,12 @@ describe('rewrite result contracts', () => {
             : undefined,
       },
     );
-    expect(result.getOutput()).toEqual({ renamed: 1 });
+    expect(outputValue(result)).toEqual({ renamed: 1 });
     expect(
-      rewriteApi.rewriteObjectAs<{ count: number }>({ count: 1 }).getOutput(),
+      outputValue(rewriteApi.rewriteObjectAs<{ count: number }>({ count: 1 })),
     ).toEqual({ count: 1 });
     // An explicit output is a caller assertion; no schema validation occurs.
-    expect(rewriteObjectAs<string>(3).getOutput()).toBe(3);
+    expect(outputValue(rewriteObjectAs<string>(3))).toBe(3);
   });
 
   test.each([undefined, {}])(

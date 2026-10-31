@@ -1,0 +1,7 @@
+standalone clone shares hints: true [ 'a', 'b' ]
+sorter replacement traversal: [ 'root', 'replacement' ]
+rewrite null output null
+rewrite deleted root output null
+legacy lookup rejected: TypeError Invalid source resolution result
+legacy lookup rejected: TypeError Source results require a canonical kind tag
+isComposite option rejected: TypeError Unknown option: isComposite

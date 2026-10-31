@@ -75,25 +75,25 @@ for (const api of [cjs, esm]) {
       assert.equal(calls, 0);
     }
   }
-  assert.equal(api.rewriteObjectAs(3).getOutput(), 3); // No schema validation.
+  assert.equal(outputValue(api.rewriteObjectAs(3)), 3); // No schema validation.
   assert.deepEqual(
-    api
-      .rewriteObject([10, 20], {
+    outputValue(
+      api.rewriteObject([10, 20], {
         arrayIndexPolicy: 'preserveNumericKeys',
         rewrite: (p) =>
           typeof p.key === 'number'
             ? { kind: 'rewrite', patch: { key: p.key + 2 } }
             : { kind: 'keep' },
-      })
-      .getOutput(),
+      }),
+    ),
     [, , 10, 20],
   );
-  const trailing = api
-    .rewriteObject([10, 20], {
+  const trailing = outputValue(
+    api.rewriteObject([10, 20], {
       arrayIndexPolicy: 'preserveNumericKeys',
       rewrite: (p) => (p.key === 1 ? { kind: 'delete' } : { kind: 'keep' }),
-    })
-    .getOutput();
+    }),
+  );
   assert.equal(trailing.length, 2);
   assert.deepEqual(Object.keys(trailing), ['0']);
   for (const propertyCollision of ['error', 'firstWins', 'lastWins']) {
@@ -108,9 +108,12 @@ for (const api of [cjs, esm]) {
         TypeError,
       );
     } else {
-      assert.deepEqual(api.rewriteObject({ a: 1, b: 2 }, options).getOutput(), {
-        a: propertyCollision === 'firstWins' ? 1 : 2,
-      });
+      assert.deepEqual(
+        outputValue(api.rewriteObject({ a: 1, b: 2 }, options)),
+        {
+          a: propertyCollision === 'firstWins' ? 1 : 2,
+        },
+      );
     }
   }
   for (const operation of [
@@ -155,17 +158,17 @@ for (const api of [cjs, esm]) {
       },
     },
   );
-  assert.deepEqual(result.outputAtReturn, { value: { count: 1 } });
-  assert.throws(() => result.getOutput(), /not complete/i);
+  assert.deepEqual(capturedOutputValue(result), { value: { count: 1 } });
+  assert.throws(() => outputValue(result), /not complete/i);
   result.traversalRunner.run();
-  await exactThrow(() => result.getOutput(), undefined);
-  const final = result.getOutput();
+  await exactThrow(() => outputValue(result), undefined);
+  const final = outputValue(result);
   assert.deepEqual(final, { value: { renamed: 1 } });
-  assert.equal(result.getOutput(), final);
+  assert.equal(outputValue(result), final);
   assert.equal(conversions, 3);
-  assert.deepEqual(result.outputAtReturn, { value: { count: 1 } });
+  assert.deepEqual(capturedOutputValue(result), { value: { count: 1 } });
   const finished = api.rewriteObjectAs(null);
-  assert.equal(finished.getOutput(), finished.outputAtReturn);
+  assert.equal(outputValue(finished), capturedOutputValue(finished));
 
   // All six builders detach arrays and wrappers, sharing closure/group identity.
   for (const [TreeTraversal, phase, graphMode] of [
@@ -355,7 +358,11 @@ for (const api of [cjs, esm]) {
     }
     const empty = new TreeTraversal({
       traversableGraph: {
-        resolveRoot: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveRoot: () => ({
+          identity: null,
+          kind: 'omitted',
+          satisfiesDependencies: true,
+        }),
         resolveChild: () => found('unused'),
       },
     }).createRunner();
@@ -573,3 +580,13 @@ for (const api of [cjs, esm]) {
 console.log(
   'Verified composable runtime capabilities with shared CJS/ESM identity.',
 );
+
+function outputValue(result) {
+  const output = result.getOutputResult();
+  return output.kind === 'present' ? output.value : null;
+}
+
+function capturedOutputValue(result) {
+  const output = result.outputResultAtReturn;
+  return output.kind === 'present' ? output.value : null;
+}

@@ -28,7 +28,7 @@ const namespaceTyped: typeof materializeWalkSourceFromRecords =
   graphWalk.materializeWalkSourceFromRecords;
 new GraphWalk({ source }).addVisitorFor(GraphWalkPhase.EDGE, (event) => {
   const vertexId: symbol = event.edge.to;
-  const item: Item = event.source.data;
+  const item: Item = event.fromVertex.data;
   const relation: Link = event.edge.data;
   void [vertexId, item, relation];
 });
@@ -79,7 +79,7 @@ const completion: GraphWalkDagRelation = {
 };
 new GraphWalk({ source: dag }).addVisitorFor(GraphWalkPhase.EDGE, (event) => {
   const vertexId: undefined = event.edge.to;
-  const item: Item = event.source.data;
+  const item: Item = event.fromVertex.data;
   if (event.edge.data.kind === 'child') {
     const slotIndex: number = event.edge.data.slotIndex;
     void slotIndex;

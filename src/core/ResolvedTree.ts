@@ -117,9 +117,9 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
       },
       getParentOf: (ref: VertexHandle<TTP>) =>
         vertexHandle(this.getParentOf(internalRef(ref))),
-      getPathTo: (ref: VertexHandle<TTP>, options?: GetPathToOptions) =>
+      requirePathTo: (ref: VertexHandle<TTP>, options?: GetPathToOptions) =>
         Object.freeze(
-          this.getPathTo(internalRef(ref), options).map((item) =>
+          this.requirePathTo(internalRef(ref), options).map((item) =>
             vertexHandle(item),
           ),
         ),
@@ -229,7 +229,7 @@ export class ResolvedTreeStore<TTP extends VertexTypes>
     parentVertexResolved.pushChildren(children);
   }
 
-  getPathTo(
+  requirePathTo(
     vertexRef: MutableRef<Vertex<TTP>>,
     options?: GetPathToOptions,
   ): MutableRef<Vertex<TTP>>[] {

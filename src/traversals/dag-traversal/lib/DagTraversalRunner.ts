@@ -187,11 +187,11 @@ export class InternalDagTraversalRunner<
           );
     this.bindings = createCallbackBindings<T, R>({
       source,
-      ...(input.sortChildrenHints === null
+      ...(input.transformChildHints === null
         ? {}
         : {
             sortHints: (hints: (T | R)['VertexHint'][]) =>
-              input.sortChildrenHints!(hints as T['VertexHint'][]) as (
+              input.transformChildHints!(hints as T['VertexHint'][]) as (
                 | T
                 | R
               )['VertexHint'][],
@@ -214,9 +214,9 @@ export class InternalDagTraversalRunner<
       ...(input.rootWorkDependencies === undefined
         ? {}
         : { rootWorkDependencies: input.rootWorkDependencies }),
-      ...(input.omittedWorkDependencies === undefined
+      ...(input.dependsOnWorkDefault === undefined
         ? {}
-        : { omittedWorkDependencies: input.omittedWorkDependencies }),
+        : { dependsOnWorkDefault: input.dependsOnWorkDefault }),
       ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'sync',
       sourceMode,
@@ -230,7 +230,7 @@ export class InternalDagTraversalRunner<
       },
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,
-      hasSorter: input.sortChildrenHints !== null,
+      hasHintTransformer: input.transformChildHints !== null,
       hasPrerequisiteResolver: source.resolvePrerequisite !== undefined,
       hasHintIds:
         sourceMode === 'graph' &&
@@ -433,7 +433,9 @@ export class InternalDagTraversalRunner<
         yield {
           vertex: vertexView(event.vertex),
           vertexRef: vertexHandle(event.vertexRef),
-          vertexId: this.getResolvedGraphView().getVertexId(event.vertexRef),
+          vertexId: this.getResolvedGraphView().requireVertexId(
+            event.vertexRef,
+          ),
           ...(event.order === DagVisitorPhase.ON_WORK_READY
             ? ({
                 kind: 'workCompleted',

@@ -265,17 +265,17 @@ it('replaces supplied limits and atomically rejects invalid patches', () => {
     source: idGraph(['A'], [['A', []]]),
     limits: { maxDepth: 0, maxCandidateReadAttempts: 0 },
   });
-  factory.configure({ limits: { maxCandidateReadAttempts: 3 } });
+  factory.configure({ replaceLimits: { maxCandidateReadAttempts: 3 } });
   const snapshot = factory.createRunner();
   expect(() =>
-    factory.configure({ limits: { maxCandidateReadAttempts: -1 } }),
+    factory.configure({ replaceLimits: { maxCandidateReadAttempts: -1 } }),
   ).toThrow(TypeError);
   expect(snapshot.run().summary().outcome).toEqual({ kind: 'exhausted' });
   expect(factory.createRunner().run().summary().outcome).toEqual({
     kind: 'exhausted',
   });
   const limits: GraphWalkLimits = { maxDepth: 0 };
-  factory.configure({ limits });
+  factory.configure({ replaceLimits: limits });
   const bounded = factory.createRunner();
   limits.maxDepth = 8;
   expect(bounded.run().summary().outcome).toEqual({

@@ -21,7 +21,7 @@ export type TreeDagInspectionOperation =
   | 'resolveRoot'
   | 'resolveChild'
   | 'resolvePrerequisite'
-  | 'sortChildrenHints'
+  | 'transformChildHints'
   | 'getVertexIdFromHint'
   | 'visit';
 
@@ -33,7 +33,7 @@ export type KernelInspection<Phase extends string = VisitPhase> = Readonly<{
   execution: 'sync' | 'async';
   sourceMode: 'tree' | 'graph';
   concurrency: number;
-  hasSorter: boolean;
+  hasHintTransformer: boolean;
   hasHintIds: boolean;
   /** Current delivery selector and default admission policy for new chains. */
   executionOptions: InspectionFilters<Phase>;
@@ -45,7 +45,7 @@ export type KernelInspection<Phase extends string = VisitPhase> = Readonly<{
     owner: Readonly<OwnerToken>;
     vertexRefId: string;
     stage:
-      | 'sort'
+      | 'transformHints'
       | 'identify'
       | 'resolve'
       | 'closed'

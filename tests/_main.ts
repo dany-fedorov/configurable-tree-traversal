@@ -93,7 +93,7 @@
       const depth =
         options.resolvedTreeView.get(options.vertexRef)?.getResolutionContext()
           ?.depth ?? 0;
-      const p = options.resolvedTreeView.getPathTo(options.vertexRef, {
+      const p = options.resolvedTreeView.requirePathTo(options.vertexRef, {
         noRoot: true,
         // noSelf: true,
       });
@@ -192,7 +192,7 @@
 //     {
 //       inOrderVisitor: (vertex, options) => {
 //         //   postOrderVisitor: (vertex, options) => {
-//         const p = options.resolvedTreeView.getPathTo(options.vertexRef, {
+//         const p = options.resolvedTreeView.requirePathTo(options.vertexRef, {
 //           noRoot: true,
 //         });
 //         console.log(
@@ -210,7 +210,7 @@
 //           // options.previousPhaseVertexRef === null
 //           //   ? 'NONE'
 //           //   : options.resolvedTreeView
-//           //       .getPathTo(options.previousPhaseVertexRef, {
+//           //       .requirePathTo(options.previousPhaseVertexRef, {
 //           //         noRoot: true,
 //           //       })
 //           //       .map((ps) => ps.getValue().getData().key),

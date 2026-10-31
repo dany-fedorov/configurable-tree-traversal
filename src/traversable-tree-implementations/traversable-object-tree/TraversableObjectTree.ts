@@ -318,7 +318,7 @@ export class ObjectTreeSource<
     finalKey?: TraversableObjectPropKey,
   ): string {
     const keys: TraversableObjectPropKey[] = options.resolvedTreeView
-      .getPathTo(vertexRef, { noRoot: true })
+      .requirePathTo(vertexRef, { noRoot: true })
       .map((ref) => {
         const context = options.resolvedTreeView.getResolutionContextOf(ref);
         return context?.vertexHint.key ?? ref.getValue().getData().key;

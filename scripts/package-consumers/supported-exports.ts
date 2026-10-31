@@ -140,10 +140,13 @@ import * as treeCapability from 'configurable-tree-traversal/core/graph/treeStor
 // @ts-expect-error the internal tree bridge is not an exported package path
 import * as explicitTreeCapability from 'configurable-tree-traversal/core/graph/treeStoreCapabilities.js';
 
-
 import { DagTraversal, AsyncDagTraversal } from 'configurable-tree-traversal';
-const inspectionDag = new DagTraversal({ traversableTree: options.traversableTree }).createRunner();
-const inspectionAsyncDag = new AsyncDagTraversal({ traversableTree: options.traversableTree }).createRunner();
+const inspectionDag = new DagTraversal({
+  traversableTree: options.traversableTree,
+}).createRunner();
+const inspectionAsyncDag = new AsyncDagTraversal({
+  traversableTree: options.traversableTree,
+}).createRunner();
 // @ts-expect-error assembly-only state is not a public runner capability
 inspectionDag.inspectDagState();
 // @ts-expect-error assembly-only state is not a public async runner capability

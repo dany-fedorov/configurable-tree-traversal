@@ -13,7 +13,8 @@ export function preparationIssue<ID>(
   return validation instanceof DagDiscoveryCycleError
     ? {
         kind: 'discoveryCycle',
-        vertexIds: validation.vertexIds as readonly ID[],
+        cycleWitnessVertexIds:
+          validation.cycleWitnessVertexIds as readonly ID[],
       }
     : {
         kind: 'milestone',

@@ -44,7 +44,7 @@ const graph: DagDiscoverySource<T> = {
   resolveChild: () => ({
     kind: 'omitted',
     satisfiesDependencies: true,
-    vertexId: undefined,
+    identity: { vertexId: undefined },
   }),
 };
 const graphResult: DagVertexResolution<T> = graph.resolveRoot();
@@ -82,7 +82,7 @@ const asyncBadvertexIdfound: AsyncTreeSource<T> = {
 void [badvertexIdfound, asyncBadvertexIdfound];
 const vertexIdomitted = () => ({
   kind: 'omitted' as const,
-  vertexId: undefined,
+  identity: { vertexId: undefined },
 });
 const badvertexIdomitted: TreeSource<T> = {
   // @ts-expect-error vertexId is not a tree omitted capability, even on pretyped functions.
@@ -230,6 +230,7 @@ void adapter;
 // Tree omission carries no milestone acknowledgement, even on pretyped callbacks.
 for (const satisfiesDependencies of [true, undefined] as const) {
   const invalidOmission = () => ({
+    identity: null,
     kind: 'omitted' as const,
     satisfiesDependencies,
   });
@@ -257,10 +258,12 @@ const invalidGraphOmission: DagVertexResolution<T> = omitted;
 void [plainHook, plainAsyncTree, invalidGraphOmission];
 
 const acknowledgedTreeOmission = () => ({
+  identity: null,
   kind: 'omitted' as const,
   satisfiesDependencies: true as const,
 });
 const undefinedTreeOmission = () => ({
+  identity: null,
   kind: 'omitted' as const,
   satisfiesDependencies: undefined,
 });

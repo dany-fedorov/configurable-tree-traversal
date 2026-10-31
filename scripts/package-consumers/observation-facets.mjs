@@ -46,9 +46,9 @@ for (const api of [esm, cjs]) {
     assert.equal(runner.getResolvedGraphView().getRoot(), root);
     assert(Object.isFrozen(root));
     assert(Object.isFrozen(root.getValue()));
-    assert(Object.isFrozen(root.getValue().getChildrenHints()));
+    assert(Object.isFrozen(root.getValue().getChildHints()));
     assert.equal(root.getValue().getData(), data);
-    assert.equal(root.getValue().getChildrenHints()[0], hint);
+    assert.equal(root.getValue().getChildHints()[0], hint);
     assert.equal(Object.isFrozen(data), false);
     assert.equal(Object.isFrozen(hint), false);
   }

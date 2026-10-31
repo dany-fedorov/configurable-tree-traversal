@@ -85,12 +85,12 @@ async function main() {
     .addVisitorFor(GraphWalkPhase.EDGE, (event) => {
       // Endpoint discriminants narrow directly; no ID registry or cast is needed.
       if (
-        event.source.data.kind === 'file' &&
+        event.fromVertex.data.kind === 'file' &&
         event.target.kind === 'found' &&
         event.target.vertex.data.kind === 'symbol'
       ) {
         references.push(
-          `${event.source.data.path} ${event.edge.data.kind} ${event.target.vertex.data.name}`,
+          `${event.fromVertex.data.path} ${event.edge.data.kind} ${event.target.vertex.data.name}`,
         );
       }
     })
@@ -106,7 +106,7 @@ async function main() {
     emitEvents: [GraphWalkPhase.EDGE],
   })) {
     assert.equal(event.edge.data.kind, 'defines');
-    assert.equal(event.source.data.kind, 'file');
+    assert.equal(event.fromVertex.data.kind, 'file');
   }
 }
 main().catch((error: unknown) => {

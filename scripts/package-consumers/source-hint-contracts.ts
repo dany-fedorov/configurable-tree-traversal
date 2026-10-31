@@ -454,11 +454,14 @@ rewriteObject<
   visitors: { PRE_ORDER: outputHints },
 });
 
-// Keep source-driven inference with context-sensitive spread sorters and visitors.
+// Keep source-driven inference with context-sensitive spread transformers and visitors.
 declare const inferredTree: TreeSource<VertexTypes<number, string>>;
 const inferredBreadth = traverseTreeBreadthFirst({
   traversableTree: inferredTree,
-  ...{ sortChildrenHints: <Hint,>(hints: Hint[]) => hints.reverse() },
+  ...{
+    transformChildHints: <Hint extends unknown>(hints: Hint[]) =>
+      hints.reverse(),
+  },
   visitors: {
     LEVEL_ORDER: (vertex) => {
       const value: number = vertex.getData();
@@ -483,11 +486,11 @@ walkGraphAsync({ source: walkingSource });
 
 const inferredDirect = traverseTreeBreadthFirst({
   traversableTree: inferredTree,
-  sortChildrenHints: (hints) => hints.reverse(),
+  transformChildHints: (hints) => hints.reverse(),
 });
 const inferredAnnotated = traverseTreeBreadthFirst({
   traversableTree: inferredTree,
-  ...{ sortChildrenHints: (hints: string[]) => hints.reverse() },
+  ...{ transformChildHints: (hints: string[]) => hints.reverse() },
 });
 const directData: number = inferredDirect
   .getResolvedTreeView()
@@ -503,7 +506,7 @@ void [directData, annotatedData];
 
 new DepthFirstTreeTraversal({
   traversableTree: tree,
-  sortChildrenHints: (hints) => hints.reverse(),
+  transformChildHints: (hints) => hints.reverse(),
   visitors: {
     PRE_ORDER: (vertex) => {
       const live: number | string = vertex.getData();
@@ -516,7 +519,7 @@ new DepthFirstTreeTraversal({
 
 new AsyncDepthFirstTreeTraversal({
   traversableTree: asyncTree,
-  sortChildrenHints: (hints) => hints.reverse(),
+  transformChildHints: (hints) => hints.reverse(),
   visitors: {
     PRE_ORDER: (vertex) => {
       const live: number | string = vertex.getData();
@@ -529,7 +532,7 @@ new AsyncDepthFirstTreeTraversal({
 
 new BreadthFirstTreeTraversal({
   traversableTree: tree,
-  sortChildrenHints: (hints) => hints.reverse(),
+  transformChildHints: (hints) => hints.reverse(),
   visitors: {
     LEVEL_ORDER: (vertex) => {
       const live: number | string = vertex.getData();
@@ -542,7 +545,7 @@ new BreadthFirstTreeTraversal({
 
 new AsyncBreadthFirstTreeTraversal({
   traversableTree: asyncTree,
-  sortChildrenHints: (hints) => hints.reverse(),
+  transformChildHints: (hints) => hints.reverse(),
   visitors: {
     LEVEL_ORDER: (vertex) => {
       const live: number | string = vertex.getData();
@@ -555,7 +558,7 @@ new AsyncBreadthFirstTreeTraversal({
 
 new DagTraversal({
   traversableGraph: graph,
-  sortChildrenHints: (hints) => hints.reverse(),
+  transformChildHints: (hints) => hints.reverse(),
   visitors: {
     ON_WORK_READY: (vertex) => {
       const live: number | string = vertex.getData();
@@ -568,7 +571,7 @@ new DagTraversal({
 
 new AsyncDagTraversal({
   traversableGraph: asyncGraph,
-  sortChildrenHints: (hints) => hints.reverse(),
+  transformChildHints: (hints) => hints.reverse(),
   visitors: {
     ON_WORK_READY: (vertex) => {
       const live: number | string = vertex.getData();

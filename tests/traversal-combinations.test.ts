@@ -191,7 +191,7 @@ test.each(Object.values(DepthOrder))(
     ).toEqual([5]);
     expect(
       tree
-        .getPathTo(tree.getChildrenOf(surviving)![0]!)
+        .requirePathTo(tree.getChildrenOf(surviving)![0]!)
         .map((ref) => ref.getValue().getData()),
     ).toEqual([0, 4, 5]);
   },
@@ -309,7 +309,7 @@ describe.each(['depth', 'breadth'] as const)(
     test('sort exceptions leave a terminal failed runner', () => {
       const failure = new Error('sort failed');
       const t = traversal().configure({
-        sortChildrenHints: () => {
+        transformChildHints: () => {
           throw failure;
         },
       });

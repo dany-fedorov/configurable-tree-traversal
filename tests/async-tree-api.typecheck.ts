@@ -31,7 +31,7 @@ const tree: AsyncTreeSource<Input, Output> = {
 
 const config: AsyncDepthFirstTreeOptions<Input, Output> = {
   traversableTree: tree,
-  sortChildrenHints: async (hints) => hints,
+  transformChildHints: async (hints) => hints,
   visitors: {
     [DepthFirstPhase.PRE_ORDER]: [],
     [DepthFirstPhase.IN_ORDER]: [],
@@ -88,7 +88,7 @@ const result: Promise<typeof runner> = runner.run();
 
 const breadthConfig: AsyncBreadthFirstTreeOptions<Input, Output> = {
   traversableTree: tree,
-  sortChildrenHints: async (hints) => hints,
+  transformChildHints: async (hints) => hints,
   visitors: { [BreadthFirstPhase.LEVEL_ORDER]: [] },
   retainOriginalTreeStructure: false,
   concurrency: 2,

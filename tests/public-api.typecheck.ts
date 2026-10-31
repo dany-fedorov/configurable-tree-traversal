@@ -64,7 +64,7 @@ const graph: DagDiscoverySource<Tree> = {
   }),
   resolveChild: (hint) =>
     hint === null
-      ? { kind: 'omitted', satisfiesDependencies: true }
+      ? { identity: null, kind: 'omitted', satisfiesDependencies: true }
       : {
           kind: 'found',
           vertex: { vertexId: hint.$data, vertexContent: hint },
@@ -268,6 +268,7 @@ const canonicalFound: import('../src').DagVertexFound<Tree> = {
   },
 };
 const canonicalOmitted: import('../src').DagVertexOmitted = {
+  identity: null,
   kind: 'omitted',
   satisfiesDependencies: true,
 };

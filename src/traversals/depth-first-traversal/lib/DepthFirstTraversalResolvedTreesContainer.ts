@@ -71,7 +71,7 @@ export class DepthFirstTraversalResolvedTreesContainer<
       const notMutatedRef =
         this.originalTreeRefsMap.get(vertexRef) ??
         new MutableRef<Vertex<TTP>>(
-          vertex.clone({ $childHints: vertex.getChildrenHints().slice() }),
+          vertex.clone({ $childHints: vertex.getChildHints().slice() }),
         );
       const notMutatedChildren = vertexResolved.getChildren().map((child) => {
         const notMutatedChild = this.originalTreeRefsMap?.get(child);

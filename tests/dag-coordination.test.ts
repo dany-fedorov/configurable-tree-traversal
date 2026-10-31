@@ -4,8 +4,8 @@ import {
   DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
 import {
-  createDagWorkSession,
-  createAsyncDagWorkSession,
+  bindDagWorkSession,
+  bindAsyncDagWorkSession,
   type DagWorkBoundary,
   type DagWorkTicket,
 } from '../src/traversals/dag-traversal/coordinateDag';
@@ -47,10 +47,10 @@ for (const async of [false, true]) {
   const label = async ? 'async' : 'sync';
   const create = (input = options) =>
     async
-      ? createAsyncDagWorkSession(
+      ? bindAsyncDagWorkSession(
           new AsyncDagTraversal<G, G, string>(input).createRunner(),
         )
-      : createDagWorkSession(
+      : bindDagWorkSession(
           new DagTraversal<G, G, string>(input).createRunner(),
         );
 
@@ -150,15 +150,15 @@ test('wrapping requires external settlement and does not claim or run the runner
       ...(workCompletion === undefined ? {} : { workCompletion }),
     };
     expect(() =>
-      createDagWorkSession(new DagTraversal<G>(input).createRunner()),
+      bindDagWorkSession(new DagTraversal<G>(input).createRunner()),
     ).toThrow(TypeError);
     expect(() =>
-      createAsyncDagWorkSession(new AsyncDagTraversal<G>(input).createRunner()),
+      bindAsyncDagWorkSession(new AsyncDagTraversal<G>(input).createRunner()),
     ).toThrow(TypeError);
   }
   const runner = new DagTraversal<G, G, string>(options).createRunner();
-  const first = createDagWorkSession(runner);
-  const second = createDagWorkSession(runner);
+  const first = bindDagWorkSession(runner);
+  const second = bindDagWorkSession(runner);
   expect(runner.getStatus()).toBe(TraversalRunnerStatus.INITIAL);
   runner.prepare();
   const ticket = frontier(first.advance())[0]!;
@@ -176,7 +176,7 @@ test('sync cooperative pause preserves callback continuation', () => {
     expect(coordinator.requestPause()).toBe(true);
     expect(coordinator.requestPause()).toBe(false);
   });
-  const coordinator = createDagWorkSession(traversal.createRunner());
+  const coordinator = bindDagWorkSession(traversal.createRunner());
   expect(coordinator.advance()).toEqual({ kind: 'paused' });
   expect(visited).toEqual(['a']);
   expect(frontier(coordinator.advance())[0]!.vertexId).toBe('a');
@@ -190,7 +190,7 @@ test('async pause drains admitted callbacks and concurrent advance keeps runner 
     entered.resolve();
     await release.promise;
   });
-  const coordinator = createAsyncDagWorkSession(traversal.createRunner());
+  const coordinator = bindAsyncDagWorkSession(traversal.createRunner());
   const advancing = coordinator.advance();
   await entered.promise;
   await expect(coordinator.advance()).rejects.toThrow(/active/);
@@ -236,7 +236,7 @@ test('deleted work rejects previously issued tickets as stale', () => {
       ? { commands: [{ commandName: Command.DELETE_DAG_VERTEX_CASCADE }] }
       : undefined,
   );
-  const coordinator = createDagWorkSession(traversal.createRunner());
+  const coordinator = bindDagWorkSession(traversal.createRunner());
   const tickets = frontier(coordinator.advance());
   const child = tickets.find((ticket) => ticket.vertexId === 'child')!;
   coordinator.completeWork(
@@ -261,16 +261,17 @@ for (const async of [false, true]) {
             },
           }),
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
           }),
         },
       };
       const coordinator = async
-        ? createAsyncDagWorkSession(
+        ? bindAsyncDagWorkSession(
             new AsyncDagTraversal<G>(input).createRunner(),
           )
-        : createDagWorkSession(new DagTraversal<G>(input).createRunner());
+        : bindDagWorkSession(new DagTraversal<G>(input).createRunner());
       const ticket = frontier(await coordinator.advance())[0]!;
       expect(ticket.vertexId).toBe(id);
       expect(Object.isFrozen(ticket)).toBe(true);
@@ -308,8 +309,8 @@ for (const async of [false, true]) {
       });
       const coordinator =
         traversal instanceof AsyncDagTraversal
-          ? createAsyncDagWorkSession(traversal.createRunner())
-          : createDagWorkSession(traversal.createRunner());
+          ? bindAsyncDagWorkSession(traversal.createRunner())
+          : bindDagWorkSession(traversal.createRunner());
       await expect(async () => coordinator.advance()).rejects.toBe(error);
     }
   });
@@ -347,14 +348,14 @@ for (const async of [false, true]) {
     expect(session.isHalted()).toBe(true);
     expect(
       session.inspectMilestones().explain({ vertexId: 'b', milestone: 'work' }),
-    ).toMatchObject({ kind: 'known', satisfied: false });
+    ).toMatchObject({ kind: 'live', satisfied: false });
     session.completeWork(ticket);
     expect(
       session.inspectMilestones().explain({ vertexId: 'a', milestone: 'work' }),
-    ).toMatchObject({ kind: 'known', satisfied: true });
+    ).toMatchObject({ kind: 'live', satisfied: true });
     expect(
       captured.explain({ vertexId: 'a', milestone: 'work' }),
-    ).toMatchObject({ kind: 'known', satisfied: false });
+    ).toMatchObject({ kind: 'live', satisfied: false });
   });
 
   test.each([null, undefined, { fatal: true }])(
@@ -363,10 +364,10 @@ for (const async of [false, true]) {
     } failTraversal is the sole fatal settlement method: %p`,
     async (error) => {
       const session = async
-        ? createAsyncDagWorkSession(
+        ? bindAsyncDagWorkSession(
             new AsyncDagTraversal<G, G, string>(options).createRunner(),
           )
-        : createDagWorkSession(
+        : bindDagWorkSession(
             new DagTraversal<G, G, string>(options).createRunner(),
           );
       const ticket = frontier(await session.advance())[0]!;

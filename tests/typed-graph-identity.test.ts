@@ -35,7 +35,11 @@ for (const TreeTraversal of [
       getVertexIdFromHint: (id) => ({ vertexId: id }),
       resolvePrerequisite: (id) => {
         lookups.push(id);
-        return { kind: 'omitted', vertexId: id, satisfiesDependencies: true };
+        return {
+          kind: 'omitted',
+          identity: { vertexId: id },
+          satisfiesDependencies: true,
+        };
       },
     };
     const runner = new TreeTraversal({
@@ -50,9 +54,9 @@ for (const TreeTraversal of [
     const snapshot = runner.originalGraphView!;
     for (const id of [root, undefined, NaN]) {
       const ref = graph.getVertexRefById(id)!;
-      expect(graph.getVertexId(ref)).toBe(id);
-      expect(graph.getVertexId(ref)).toBe(id);
-      expect(snapshot.getVertexId(snapshot.getVertexRefById(id)!)).toBe(id);
+      expect(graph.requireVertexId(ref)).toBe(id);
+      expect(graph.requireVertexId(ref)).toBe(id);
+      expect(snapshot.requireVertexId(snapshot.getVertexRefById(id)!)).toBe(id);
       const generation = runner.summary().vertices.get(id)!.generation!;
       expect(() =>
         runner.settle(id, { kind: 'workCompleted' }, Symbol()),
@@ -142,6 +146,7 @@ for (const TreeTraversal of [
           traversableGraph: {
             resolveRoot: () => ({ kind: 'found', vertex }),
             resolveChild: () => ({
+              identity: null,
               satisfiesDependencies: true as const,
               kind: 'omitted',
             }),
@@ -150,7 +155,7 @@ for (const TreeTraversal of [
         await runner.run();
         const graph = runner.getResolvedGraphView();
         const ref = graph.getVertexRefById(id)!;
-        expect(graph.getVertexId(ref)).toBe(id);
+        expect(graph.requireVertexId(ref)).toBe(id);
         expect(runner.summary().completedWorkIds).toEqual([id]);
       },
     );
@@ -168,6 +173,7 @@ for (const TreeTraversal of [
           traversableGraph: {
             resolveRoot: () => ({ kind: 'found', vertex }),
             resolveChild: () => ({
+              identity: null,
               satisfiesDependencies: true as const,
               kind: 'omitted',
             }),
@@ -203,6 +209,7 @@ for (const TreeTraversal of [
           },
         }),
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted',
         }),

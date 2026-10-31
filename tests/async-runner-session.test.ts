@@ -17,7 +17,7 @@ const inspection: DriverInspection = Object.freeze({
   execution: 'async',
   sourceMode: 'tree',
   concurrency: 2,
-  hasSorter: false,
+  hasHintTransformer: false,
   hasHintIds: false,
   executionOptions: Object.freeze({
     emitEvents: Object.freeze([]),

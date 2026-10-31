@@ -140,6 +140,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           resolveRoot: () =>
             empty
               ? {
+                  identity: null,
                   kind: 'omitted' as const,
                   satisfiesDependencies: true as const,
                 }
@@ -265,6 +266,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             },
           }),
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
           }),
@@ -343,6 +345,7 @@ const single = {
     },
   }),
   resolveChild: () => ({
+    identity: null,
     kind: 'omitted' as const,
     satisfiesDependencies: true as const,
   }),
@@ -578,7 +581,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     await expect(async () => runner.prepare()).rejects.toBeUndefined();
   });
 
-  for (const stage of ['root', 'child', 'sort', 'identity'] as const) {
+  for (const stage of [
+    'root',
+    'child',
+    'transformHints',
+    'identity',
+  ] as const) {
     test(`${Constructor.name} preparation retains ${stage} source pipeline failure`, async () => {
       const error = Symbol(stage);
       const source = {
@@ -606,9 +614,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
               },
             }
           : { traversableTree: source }),
-        ...(stage === 'sort'
+        ...(stage === 'transformHints'
           ? {
-              sortChildrenHints: () => {
+              transformChildHints: () => {
                 throw error;
               },
             }

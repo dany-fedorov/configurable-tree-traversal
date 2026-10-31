@@ -61,7 +61,7 @@ test('DAG inspection names pending public operations without source IO or engine
         };
       },
     },
-    sortChildrenHints: (hints) => {
+    transformChildHints: (hints) => {
       observe();
       return hints;
     },
@@ -89,7 +89,10 @@ test('DAG inspection names pending public operations without source IO or engine
         owner: expect.objectContaining({ kind: 'prerequisite' }),
         valid: true,
       }),
-      expect.objectContaining({ operation: 'sortChildrenHints', valid: true }),
+      expect.objectContaining({
+        operation: 'transformChildHints',
+        valid: true,
+      }),
       expect.objectContaining({
         operation: 'getVertexIdFromHint',
         valid: true,
@@ -151,6 +154,7 @@ for (const family of ['depth-first', 'breadth-first', 'dag'] as const) {
                 return root;
               },
               resolveChild: () => ({
+                identity: null,
                 kind: 'omitted',
                 satisfiesDependencies: true,
               }),
@@ -224,7 +228,11 @@ test('deferred work keeps the initial visit started after callbacks drain', () =
     workCompletion: 'externalSettlement',
     traversableGraph: {
       resolveRoot: () => root,
-      resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      resolveChild: () => ({
+        identity: null,
+        kind: 'omitted',
+        satisfiesDependencies: true,
+      }),
     },
   }).createRunner();
   runner.run();
@@ -255,7 +263,11 @@ test('completion diagnostics describe eligibility at callback admission, indepen
   const runner = new DagTraversal<G>({
     traversableGraph: {
       resolveRoot: () => root,
-      resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      resolveChild: () => ({
+        identity: null,
+        kind: 'omitted',
+        satisfiesDependencies: true,
+      }),
     },
     visitors: {
       [DagVisitorPhase.ON_WORK_READY]: (_vertex, context) => {
@@ -279,7 +291,7 @@ test('completion diagnostics describe eligibility at callback admission, indepen
 
 type SorterInput = {
   traversableTree: import('../src').TreeSource<G>;
-  sortChildrenHints: (hints: string[]) => string[];
+  transformChildHints: (hints: string[]) => string[];
 };
 for (const [name, create] of [
   [
@@ -301,7 +313,7 @@ for (const [name, create] of [
   ],
   ['async dag', (input: SorterInput) => new AsyncDagTraversal<G>(input)],
 ] as const) {
-  test(`${name} reports sortChildrenHints while the sorter runs`, async () => {
+  test(`${name} reports transformChildHints while the sorter runs`, async () => {
     const observed: string[] = [];
     const runner = create({
       traversableTree: {
@@ -311,7 +323,7 @@ for (const [name, create] of [
         }),
         resolveChild: () => ({ kind: 'omitted' }),
       },
-      sortChildrenHints: (hints) => {
+      transformChildHints: (hints) => {
         observed.push(
           ...runner
             .inspect()
@@ -321,6 +333,6 @@ for (const [name, create] of [
       },
     }).createRunner();
     await runner.run();
-    expect(observed).toEqual(['sortChildrenHints']);
+    expect(observed).toEqual(['transformChildHints']);
   });
 }

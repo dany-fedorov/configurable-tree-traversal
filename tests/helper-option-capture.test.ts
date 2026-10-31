@@ -7,7 +7,7 @@ import {
   GraphWalk,
   ObjectTreeSource,
   defineDagFragment,
-  instantiateDagFragment,
+  mapDagFragmentIds,
   materializeDagInputFromRecords,
   materializeDagInputFromRecordsAsync,
   materializeDagInputFromRoots,
@@ -157,7 +157,7 @@ test.each([false, true])(
       },
       inherited,
     );
-    const instance = instantiateDagFragment(fragment, options);
+    const instance = mapDagFragmentIds(fragment, options);
     expect(instance.ports).toEqual({ first: 'mapped:1', second: 'mapped:2' });
     expect(reads).toBe(1);
   },

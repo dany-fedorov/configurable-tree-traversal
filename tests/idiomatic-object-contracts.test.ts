@@ -1,3 +1,4 @@
+import { outputValue } from './helpers/rewriteOutput';
 import {
   createObjectMutationBinder,
   DepthFirstPhase,
@@ -51,7 +52,7 @@ describe('object callback and patch contracts', () => {
       },
     });
     expect(seen).toEqual(Array(4).fill({ key: outputKey, value: 'changed' }));
-    expect(result.getOutput()).toBe('changed');
+    expect(outputValue(result)).toBe('changed');
   });
 
   test.each(['array', 'object'] as const)(
@@ -98,7 +99,7 @@ describe('object callback and patch contracts', () => {
         },
       });
       expect(seen).toEqual(['changed', 'changed', 'changed']);
-      expect(result.getOutput()).toBe(`assembled ${kind}`);
+      expect(outputValue(result)).toBe(`assembled ${kind}`);
     },
   );
 
@@ -130,7 +131,7 @@ describe('object callback and patch contracts', () => {
         rewrite: () => undefined,
       });
       expect(childrenSeen).toEqual([[{ key: 'child', value: 1 }]]);
-      expect(result.getOutput()).toBe('assembled');
+      expect(outputValue(result)).toBe('assembled');
     },
   );
 
@@ -306,7 +307,7 @@ describe('independent key/value patch domains', () => {
           .getValue()
           .getData(),
       ).toEqual(expected);
-      expect(result.getOutput()).toBe(expected.value);
+      expect(outputValue(result)).toBe(expected.value);
     },
   );
 });
@@ -380,7 +381,7 @@ test.each(['value', 'key'] as const)(
         ],
       ]);
     }
-    expect(result.getOutput()).toBe('assembled');
+    expect(outputValue(result)).toBe('assembled');
   },
 );
 

@@ -1,0 +1,13 @@
+
+> configurable-tree-traversal@0.11.0 typecheck
+> tsc --noEmit
+
+tests/api-distinction-behavior.test.ts(53,23): error TS2339: Property 'liveVertexSummaries' does not exist on type 'PreparedDag<unknown, string>'.
+tests/api-distinction-behavior.test.ts(57,46): error TS2322: Type 'undefined' is not assignable to type 'string'.
+tests/api-distinction-behavior.test.ts(64,30): error TS2339: Property 'getOutputResult' does not exist on type 'RewriteObjectResult<TraversableObjectPropKey, unknown, unknown, TraversableObjectPropKey, unknown>'.
+tests/api-distinction-behavior.test.ts(65,35): error TS2339: Property 'getOutputResult' does not exist on type 'RewriteObjectResult<TraversableObjectPropKey, unknown, unknown, TraversableObjectPropKey, unknown>'.
+tests/api-distinction-behavior.test.ts(68,17): error TS2551: Property 'outputResultAtReturn' does not exist on type 'RewriteObjectResult<TraversableObjectPropKey, unknown, unknown, TraversableObjectPropKey, unknown>'. Did you mean 'outputAtReturn'?
+tests/api-distinction-behavior.test.ts(69,17): error TS2339: Property 'getOutputResult' does not exist on type 'RewriteObjectResult<TraversableObjectPropKey, unknown, unknown, TraversableObjectPropKey, unknown>'.
+tests/api-distinction-contracts.typecheck.ts(3,8): error TS2305: Module '"../src"' has no exported member 'ObjectRewriteOutputResult'.
+tests/api-distinction-contracts.typecheck.ts(42,72): error TS2339: Property 'getOutputResult' does not exist on type 'RewriteObjectResult<TraversableObjectPropKey, unknown, unknown, TraversableObjectPropKey, unknown>'.
+tests/graph-walk-limits.test.ts(278,23): error TS18004: No value exists in scope for the shorthand property 'replaceLimits'. Either declare one or provide an initializer.

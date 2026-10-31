@@ -29,6 +29,7 @@ const traversableGraph = {
     vertex: { vertexId: 'root', ...traversableTree.resolveRoot().vertex },
   }),
   resolveChild: () => ({
+    identity: null,
     satisfiesDependencies: true as const,
     kind: 'omitted' as const,
   }),

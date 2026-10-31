@@ -24,6 +24,7 @@ const rootOnly = {
     },
   }),
   resolveChild: () => ({
+    identity: null,
     kind: 'omitted' as const,
     satisfiesDependencies: true as const,
   }),
@@ -163,7 +164,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     false,
     'completed',
     {},
-    { kind: 'unknown' },
+    { kind: 'unresolved' },
     { kind: 'traversalFailed' },
     { kind: 'workCompleted', error: undefined },
     { kind: 'workCompleted', ok: true },

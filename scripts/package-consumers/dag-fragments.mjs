@@ -10,7 +10,7 @@ for (const name of [
   'defineDag',
   'prepareDagDefinition',
   'defineDagFragment',
-  'instantiateDagFragment',
+  'mapDagFragmentIds',
   'composeDag',
 ]) {
   for (const entry of [cjs, dag, cjsDag, esm.dagTraversal])
@@ -46,10 +46,10 @@ const fragment = dag.defineDagFragment(definition, {
   start: 'start',
   finish: 'finish',
 });
-const first = cjs.instantiateDagFragment(fragment, {
+const first = cjs.mapDagFragmentIds(fragment, {
   mapId: (local) => ({ run: 'first', local }),
 });
-const second = esm.instantiateDagFragment(fragment, {
+const second = esm.mapDagFragmentIds(fragment, {
   mapId: (local) => ({ run: 'second', local }),
 });
 const result = cjsDag.composeDag([first, second], {

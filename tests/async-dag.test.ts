@@ -151,7 +151,7 @@ test('supports promised graph callbacks, sorting, hint identity, and snapshots',
       },
       getVertexIdFromHint: async (hint) => ({ vertexId: hint }),
     },
-    sortChildrenHints: async (hints) => hints.reverse(),
+    transformChildHints: async (hints) => hints.reverse(),
     retainOriginalGraphStructure: true,
     concurrency: 2,
   });
@@ -403,11 +403,13 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
       resolveRoot: () => {
         sourceCalls++;
         return {
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         };
       },
       resolveChild: () => ({
+        identity: null,
         satisfiesDependencies: true as const,
         kind: 'omitted' as const,
       }),
@@ -438,11 +440,13 @@ test.each([new Error('injected failure'), undefined])(
         resolveRoot: () => {
           sourceCalls++;
           return {
+            identity: null,
             satisfiesDependencies: true as const,
             kind: 'omitted' as const,
           };
         },
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),
@@ -472,7 +476,11 @@ test.each([new Error('injected failure'), undefined])(
 test.each([new Error('live failure'), undefined])(
   'stores a live failure for exact terminal reconstruction %#',
   async (failure) => {
-    const root = deferred<{ kind: 'omitted'; satisfiesDependencies: true }>();
+    const root = deferred<{
+      kind: 'omitted';
+      identity: null;
+      satisfiesDependencies: true;
+    }>();
     const state = new DagTraversalRunnerState<TestGraph>();
     const container = new ResolvedGraphsContainer<TestGraph>({
       sourceMode: 'graph',
@@ -481,6 +489,7 @@ test.each([new Error('live failure'), undefined])(
     const source = {
       resolveRoot: () => root.promise,
       resolveChild: () => ({
+        identity: null,
         kind: 'omitted' as const,
         satisfiesDependencies: true as const,
       }),
@@ -511,6 +520,7 @@ test.each([new Error('live failure'), undefined])(
           throw new Error('terminal reconstruction must not resolve source');
         },
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),

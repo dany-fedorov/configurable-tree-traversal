@@ -34,7 +34,7 @@ export function inspectDagMilestones<
       complete: vertex.dependsOnSubgraphCompletion?.slice() ?? [],
       children: graph
         .getChildrenOf(ref)!
-        .map((child) => graph.getVertexId(child)),
+        .map((child) => graph.requireVertexId(child)),
     };
   });
   const { edges } = dependencyMilestones(declarations);

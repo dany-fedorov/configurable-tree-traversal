@@ -1,0 +1,30 @@
+{
+  "status": "complete: all twenty findings fixed; Fable high follow-up resolved; final full check passed",
+  "branch": "fix/public-api-findings-20261031",
+  "baseline": "8f20c2f43cbf7722025b2fb5682072f8e4952c1b",
+  "fullCheckExit": 0,
+  "sourceSuites": 137,
+  "sourceTests": 3133,
+  "coverage": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "examples": 22,
+  "sourceInputsFrozen": 477,
+  "implementationDiffBytes": 659974,
+  "claudeVersion": "2.1.316",
+  "reviewRequested": {
+    "model": "fable",
+    "effort": "high"
+  },
+  "typescriptFloorVerification": "passed: runtime/type consumers, node/node16 .ts/.cts/.mts, all27 guide snippets on TypeScript4.7.4",
+  "reviewInputsUnchanged": 477,
+  "reviewModel": "claude-fable-5-1",
+  "reviewEffort": "high",
+  "reviewedInputsUnchanged": 478,
+  "outstandingActionableReviewFindings": 0,
+  "postReviewFullCheck": "passed; check-after-review.log",
+  "completionAudit": "completion-audit.json"
+}

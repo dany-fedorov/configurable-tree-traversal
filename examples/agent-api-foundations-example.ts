@@ -46,7 +46,7 @@ async function main(): Promise<void> {
   if (prepared.kind === 'invalid') throw new Error('Invalid workflow');
   const { dag } = prepared;
   // vertices is a live-child projection; definition carries ordered slots.
-  assert.equal(dag.vertices.length, 4);
+  assert.equal(dag.liveVertexSummaries.length, 4);
   assert.equal(dag.definition.vertices.length, 4);
   assert.equal(dag.definition.entry.kind, 'roots');
   const discoveryCalls = sourceCalls;
@@ -60,7 +60,7 @@ async function main(): Promise<void> {
     session
       .inspectMilestones()
       .explain({ vertexId: 'review', milestone: 'work' }).kind,
-    'known',
+    'live',
   );
   const candidates = work(session.advance());
   assert.deepEqual(

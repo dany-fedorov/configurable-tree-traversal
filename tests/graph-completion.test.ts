@@ -1,7 +1,7 @@
 import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { VertexRef } from '../src/core/graph/types';
+import type { InternalVertexRef } from '../src/core/graph/types';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -18,7 +18,7 @@ function result(
 }
 
 function context(
-  parentRef: VertexRef<TestGraph>,
+  parentRef: InternalVertexRef<TestGraph>,
   hintIndex: number,
 ): VertexResolutionContext<TestGraph> {
   return {
@@ -26,7 +26,7 @@ function context(
     parentVertex: parentRef.getValue(),
     parentVertexRef: parentRef,
     hintIndex,
-    vertexHint: parentRef.getValue().getChildrenHints()[hintIndex]!,
+    vertexHint: parentRef.getValue().getChildHints()[hintIndex]!,
   };
 }
 

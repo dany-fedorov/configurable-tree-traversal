@@ -29,7 +29,9 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     );
     expect(await prepare(input)).toEqual({
       kind: 'invalid',
-      issues: [{ kind: 'discoveryCycle', vertexIds: ['b', 'a', 'b'] }],
+      issues: [
+        { kind: 'discoveryCycle', cycleWitnessVertexIds: ['b', 'a', 'b'] },
+      ],
     });
   });
 
@@ -175,7 +177,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       milestone: 'work',
     });
     expect(explanation).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       progress: {
         unmetWorkPrerequisiteIds: [],
         unmetSubgraphPrerequisiteIds: [],

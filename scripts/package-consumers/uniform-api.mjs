@@ -24,7 +24,8 @@ for (const [api, other] of [
     $childHints: childHints,
   });
   assert.equal(vertex.$data, data);
-  assert.equal(vertex.$childHints, childHints);
+  assert.notEqual(vertex.$childHints, childHints);
+  assert.deepEqual(vertex.$childHints, childHints);
   assert.equal('$d' in vertex, false);
   assert.equal('$c' in vertex, false);
   assert.equal(vertex.clone({ $data: undefined }).getData(), undefined);
@@ -76,16 +77,20 @@ for (const [api, other] of [
       assert.equal(typeof view.add, 'undefined');
       const root = view.getRoot();
       const detached = view.getChildrenOf(root);
-      assert.throws(() => { detached.length = 0; }, TypeError);
+      assert.throws(() => {
+        detached.length = 0;
+      }, TypeError);
       assert.equal(view.getChildrenOf(root).length, 1);
       const child = view.getChildrenOf(root)[0];
       const context = view.getResolutionContextOf(child);
-      assert.throws(() => { context.depth = 100; }, TypeError);
+      assert.throws(() => {
+        context.depth = 100;
+      }, TypeError);
       assert.notEqual(view.getResolutionContextOf(child).depth, 100);
       const rootRefId = root.getRefId();
       const originalValue = root.getValue();
       const replacement = originalValue.clone({ $data: 'replacement' });
-      assert.equal("setValue" in root, false);
+      assert.equal('setValue' in root, false);
       const editable = new api.MutableRef(originalValue.clone());
       editable.setValue(replacement);
       assert.equal(editable.getValue(), replacement);
@@ -171,7 +176,7 @@ for (const [api, other] of [
 
     for (const inherit of [false, true]) {
       const traversal = new TreeTraversal({
-        omittedWorkDependencies: inherit ? 'discoveryParentWork' : 'none',
+        dependsOnWorkDefault: inherit ? 'discoveryParentWork' : 'none',
         traversableGraph: graphTree,
       });
       traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
@@ -253,12 +258,12 @@ for (const [api, other] of [
     const ref = graph.getVertexRefById(undefined);
     assert.equal(ref, graph.getVertexRefById(undefined));
     assert(ref);
-    assert.equal(graph.getVertexId(ref), undefined);
+    assert.equal(graph.requireVertexId(ref), undefined);
     assert.equal('getIdOf' in graph, false);
     assert.equal('getVertexById' in graph, false);
     const saved = external.originalGraphView;
     const savedRef = saved.getVertexRefById(undefined);
-    assert.equal(saved.getVertexId(savedRef), undefined);
+    assert.equal(saved.requireVertexId(savedRef), undefined);
     assert.equal(savedRef, saved.getVertexRefById(undefined));
     const token = external.summary().vertices.get(undefined).generation;
     external.settle(undefined, { kind: 'workCompleted' }, token);
@@ -403,6 +408,7 @@ for (const [api, other] of [
           }),
         resolveChild: (id) => found(id),
         resolvePrerequisite: () => ({
+          identity: null,
           kind: 'omitted',
           satisfiesDependencies: true,
         }),
@@ -436,7 +442,7 @@ for (const [api, other] of [
             : undefined,
       },
     );
-    assert.deepEqual(result.outputAtReturn, { keep: undefined });
+    assert.deepEqual(capturedOutputValue(result), { keep: undefined });
   }
   assert.throws(
     () =>
@@ -499,7 +505,11 @@ for (const api of [cjs, esm]) {
       kind: 'found',
       vertex: { vertexContent: { $data: 'root', $childHints: [] } },
     }),
-    resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+    resolveChild: () => ({
+      identity: null,
+      kind: 'omitted',
+      satisfiesDependencies: true,
+    }),
   };
   const dag = new api.DagTraversal({ traversableTree: tree });
   dag.addVisitorFor(api.DagVisitorPhase.ON_WORK_READY, () => ({
@@ -517,7 +527,7 @@ for (const api of [cjs, esm]) {
     () =>
       new api.DagTraversal({
         traversableTree: tree,
-        omittedWorkDependencies: 'none',
+        dependsOnWorkDefault: 'none',
       }),
     /graph discovery source/,
   );
@@ -530,4 +540,9 @@ for (const api of [cjs, esm]) {
     ],
   }));
   assert.throws(() => wrong.createRunner().run(), /traversal family/);
+}
+
+function capturedOutputValue(result) {
+  const output = result.outputResultAtReturn;
+  return output.kind === 'present' ? output.value : null;
 }

@@ -1,5 +1,5 @@
 import type { MutableRef, VertexHandle } from './CTTRef';
-import { Vertex, type VertexView, type VertexCloneContent } from './Vertex';
+import type { Vertex, VertexView, VertexCloneContent } from './Vertex';
 import type { VertexTypes } from './TreeTypeParameters';
 import type {
   InternalVertexResolutionContext,
@@ -24,23 +24,16 @@ export function vertexView<T extends VertexTypes>(
   let view = vertices.get(vertex) as VertexView<T> | undefined;
   if (view === undefined) {
     // Cache the facet identity, not mutable standalone Vertex hint contents.
-    const getChildrenHints = () =>
-      Object.freeze(vertex.getChildrenHints().slice());
+    const getChildHints = () => Object.freeze(vertex.getChildHints().slice());
     view = Object.freeze({
       $data: vertex.getData(),
       get $childHints() {
-        return getChildrenHints();
+        return getChildHints();
       },
       getData: () => vertex.getData(),
-      getChildrenHints,
+      getChildHints,
       hasNoChildHints: () => vertex.hasNoChildHints(),
-      clone: (content?: VertexCloneContent<T>) => {
-        const clone = vertex.clone(content);
-        return new Vertex<T>({
-          $data: clone.getData(),
-          $childHints: clone.getChildrenHints().slice(),
-        });
-      },
+      clone: (content?: VertexCloneContent<T>) => vertex.clone(content),
     });
     vertices.set(vertex, view);
   }
@@ -106,7 +99,8 @@ export function originalGraphView<T extends VertexTypes, ID>(
     getRoot: () => vertexHandle(graph.getRoot()),
     getVertexRefs: () => list(graph.getVertexRefs()),
     getVertexRefById: (id: ID) => vertexHandle(graph.getVertexRefById(id)),
-    getVertexId: (ref: VertexHandle<T>) => graph.getVertexId(internalRef(ref)),
+    requireVertexId: (ref: VertexHandle<T>) =>
+      graph.requireVertexId(internalRef(ref)),
     getParentsOf: (ref: VertexHandle<T>) => {
       const values = graph.getParentsOf(internalRef(ref));
       return values === null ? null : list(values);
@@ -115,13 +109,13 @@ export function originalGraphView<T extends VertexTypes, ID>(
       const values = graph.getChildrenOf(internalRef(ref));
       return values === null ? null : list(values);
     },
-    getPathsTo: (
+    requirePathsTo: (
       ref: VertexHandle<T>,
       options?: import('./ResolvedTree').GetPathToOptions,
     ) =>
       Object.freeze(
         graph
-          .getPathsTo(internalRef(ref), normalizePathOptions(options))
+          .requirePathsTo(internalRef(ref), normalizePathOptions(options))
           .map(list),
       ),
   });
@@ -166,6 +160,16 @@ export function resolvedGraphView<T extends VertexTypes, ID>(
                   Object.freeze(
                     slot.kind === 'linked'
                       ? { ...slot, childRef: vertexHandle(slot.childRef) }
+                      : slot.kind === 'omitted'
+                      ? {
+                          ...slot,
+                          identity:
+                            slot.identity === null
+                              ? null
+                              : Object.freeze({
+                                  vertexId: slot.identity.vertexId,
+                                }),
+                        }
                       : { ...slot },
                   ),
                 ),

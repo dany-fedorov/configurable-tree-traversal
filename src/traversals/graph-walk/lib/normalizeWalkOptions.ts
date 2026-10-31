@@ -157,7 +157,7 @@ export function normalizeWalkOptions<Data, Edge, ID>(
     'source',
     'strategy',
     'revisit',
-    'limits',
+    previous === undefined ? 'limits' : 'replaceLimits',
     'shouldFollowEdge',
     'shouldExpandVertex',
     'visitors',
@@ -187,10 +187,10 @@ export function normalizeWalkOptions<Data, Edge, ID>(
   if (revisit !== 'once' && revisit !== 'simplePaths' && revisit !== 'walks') {
     throw new TypeError('Unknown walking revisit policy');
   }
+  const limitsInput =
+    snapshot[previous === undefined ? 'limits' : 'replaceLimits'];
   const limits = copyLimits(
-    snapshot['limits'] === undefined
-      ? previous?.limits ?? {}
-      : snapshot['limits'],
+    limitsInput === undefined ? previous?.limits ?? {} : limitsInput,
   );
   if (
     revisit !== 'once' &&

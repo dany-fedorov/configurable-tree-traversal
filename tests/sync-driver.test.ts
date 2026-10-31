@@ -30,7 +30,7 @@ function setup(iterateOver: Array<'ON_WORK_READY' | 'ON_SUBGRAPH_READY'> = []) {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: false,
+    hasHintTransformer: false,
     hasHintIds: false,
     concurrency: 1,
   });
@@ -182,7 +182,7 @@ test('callback bindings dispatch every request by its discriminant', () => {
       },
     },
     sortHints: (hints) => {
-      calls.push('sort');
+      calls.push('transformHints');
       return hints.reverse();
     },
     visit: {
@@ -249,7 +249,7 @@ test('callback bindings dispatch every request by its discriminant', () => {
       },
     }),
   ).toEqual({ kind: 'VISIT', value: undefined });
-  expect(calls).toEqual(['root', 'sort', 'id', 'vertex', 'visit']);
+  expect(calls).toEqual(['root', 'transformHints', 'id', 'vertex', 'visit']);
 });
 
 test('callback bindings use sort fallback and reject missing visitors', () => {

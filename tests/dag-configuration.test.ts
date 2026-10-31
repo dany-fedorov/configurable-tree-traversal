@@ -29,6 +29,7 @@ function source(): DagDiscoverySource<TestGraph> {
       },
     }),
     resolveChild: () => ({
+      identity: null,
       kind: 'omitted' as const,
       satisfiesDependencies: true as const,
     }),

@@ -37,7 +37,7 @@ const runner = walkGraph({
     [Phase.EDGE]: (event) => {
       const relation: Edge = event.edge.data;
       const target: typeof id = event.edge.to;
-      const data: Data = event.source.data;
+      const data: Data = event.fromVertex.data;
       void [relation, target, data];
     },
   },

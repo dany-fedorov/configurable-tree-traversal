@@ -1,0 +1,22 @@
+{
+  "changedBaselineFiles": [
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "README.md",
+    "docs/agent-workflows.md",
+    "docs/index.md",
+    "docs/migration-api-clarity.md",
+    "docs/migration-api-distinctions.md",
+    "docs/migration-client-api.md",
+    "docs/migration-idiomatic-api.md",
+    "docs/migration-uniform-api.md",
+    "docs/reference.md",
+    "docs/testing.md",
+    "package.json",
+    "scripts/verify-package.cjs"
+  ],
+  "productionSourceChanged": false,
+  "preexistingTestsAndExamplesChanged": false,
+  "releasedChangelogPreserved": true,
+  "publicSymbols": 271
+}

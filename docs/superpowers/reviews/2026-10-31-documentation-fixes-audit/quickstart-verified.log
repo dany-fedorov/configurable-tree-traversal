@@ -1,0 +1,7 @@
+
+> configurable-tree-traversal@0.11.0 tsfile
+> ts-node -r tsconfig-paths/register examples/quickstart-example.ts
+
+ready: implement, testPlan
+ready: review
+finished

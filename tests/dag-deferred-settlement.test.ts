@@ -20,6 +20,7 @@ const rootOnly = {
     vertex: { vertexId: 'a', vertexContent: { $data: 'a', $childHints: [] } },
   }),
   resolveChild: () => ({
+    identity: null,
     kind: 'omitted' as const,
     satisfiesDependencies: true as const,
   }),
