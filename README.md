@@ -7,18 +7,16 @@ research ──┬── implement ──┬── review
            └── testPlan ───┘
 ```
 
-After `research` is accepted:
+| You report                       | CTT returns                    |
+| -------------------------------- | ------------------------------ |
+| `research` accepted              | ready: `implement`, `testPlan` |
+| `implement`, `testPlan` accepted | ready: `review`                |
+| `review` accepted                | finished                       |
+
+Ask why `review` is still waiting, at any point, without advancing anything:
 
 ```text
-ready: implement, testPlan
-ready: review
-finished
-```
-
-Why is `review` still waiting, before anyone starts it? Two unmet dependencies on unfinished work:
-
-```text
-[ 'constraint', 'constraint', 'unfinishedWork', 'unfinishedWork' ]
+review is waiting for work on: implement, testPlan
 ```
 
 No server, no database, no DSL. CTT is an in-memory TypeScript/JavaScript engine; your coordinator keeps dispatch, retries and storage, and can rebuild the same frontier from the facts it stored after any restart.
@@ -112,7 +110,7 @@ ready: review
 finished
 ```
 
-Ask why a task is still waiting without advancing. On the same graph, before any ticket is completed, review is blocked by two work constraints and two unfinished prerequisites:
+Ask why a task is still waiting without advancing. On the same graph, after `research` is accepted and before any ticket is completed, review is blocked by its two work dependencies:
 
 <!-- standalone -->
 
@@ -141,16 +139,19 @@ session.advance();
 const explanation = session
   .inspectMilestones()
   .explain({ vertexId: 'review', milestone: 'work' });
-if (explanation.kind === 'live') {
-  console.log('satisfied:', explanation.satisfied);
-  console.log(explanation.blockers.map((blocker) => blocker.kind));
+if (explanation.kind === 'live' && !explanation.satisfied) {
+  const waitsFor = explanation.blockers.flatMap((blocker) =>
+    blocker.kind === 'constraint' ? [blocker.prerequisite.vertexId] : [],
+  );
+  console.log('review is waiting for work on:', waitsFor.join(', '));
 }
 ```
 
 ```text
-satisfied: false
-[ 'constraint', 'constraint', 'unfinishedWork', 'unfinishedWork' ]
+review is waiting for work on: implement, testPlan
 ```
+
+Each `constraint` blocker is an original dependency edge with the status of both ends; `unfinishedWork` blockers name the prerequisites whose work is still open. The [inspection example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts) covers transitive dependents and seeded parents.
 
 **Materialize** turns the collection and its explicit prerequisites into a discovery input. **Prepare** discovers and validates the graph, then retains reusable topology; independent sessions reuse those facts without calling the original source again.
 
