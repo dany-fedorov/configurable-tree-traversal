@@ -2,11 +2,11 @@
 
 [Documentation map](index.md) · [Behavior reference](reference.md) · [Upgrade checklist](migration-api-distinctions.md)
 
-These declarations describe the [unreleased source checkout](../README.md#install). Look up a current exported name below, then follow its owning contract and runnable example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.
+These declarations describe the current source checkout; see [install](../README.md#install) for how to run it. Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.
 
 Generated from the supported declaration census: **271 public symbols**, **540 export bindings**, **9 runtime entry points**. Run `npm run docs:api` to regenerate; package verification rejects stale output.
 
-Declaration excerpts preserve overloads and public members; referenced support types can be declaration-local and are not additional importable exports. Inline declaration-relative type imports are displayed by type name. These are declaration excerpts, not standalone programs; the linked guide examples are compiled and executed against the packed package. Runtime failures/defaults belong to the linked behavior contract.
+Declaration excerpts preserve overloads and public members; referenced support types can be declaration-local and are not additional importable exports. Inline declaration-relative type imports are displayed by type name. These are declaration excerpts, not standalone programs; the linked guide examples are compiled and executed against the packed package. A runnable example or executable snippet names the symbol; a related example exercises the feature that produces or consumes it without naming it. Runtime failures/defaults belong to the linked behavior contract.
 
 ## Lookup
 
@@ -205,7 +205,7 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [TraversalExecutionOptions](#symbol-TraversalExecutionOptions) | Type-only | [Behavior](reference.md#options-and-defaults) |
 | [TraversalExecutionState](#symbol-TraversalExecutionState) | Type-only | [Behavior](reference.md#inspection-and-execution) |
 | [TraversalRunnerStatus](#symbol-TraversalRunnerStatus) | Runtime value and type surface | [Behavior](reference.md#inspection-and-execution) |
-| [TraversalStopReason](#symbol-TraversalStopReason) | Type-only | [Behavior](reference.md#inspection-and-execution) |
+| [TraversalStopReason](#symbol-TraversalStopReason) | Type-only | [Behavior](reference.md#pause-and-resume) |
 | [TraversalVisitorCommand](#symbol-TraversalVisitorCommand) | Type-only | [Behavior](reference.md#visitors-and-commands) |
 | [TraversalVisitorCommandArguments](#symbol-TraversalVisitorCommandArguments) | Type-only | [Behavior](reference.md#visitors-and-commands) |
 | [TraversalVisitorCommandName](#symbol-TraversalVisitorCommandName) | Runtime value and type surface | [Behavior](reference.md#visitors-and-commands) |
@@ -245,18 +245,18 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [VisitorRegistrationMetadata](#symbol-VisitorRegistrationMetadata) | Type-only | [Behavior](reference.md#visitors-and-commands) |
 | [bindAsyncDagWorkSession](#symbol-bindAsyncDagWorkSession) | Runtime value and type surface | [Behavior](reference.md#ticket-coordination) |
 | [bindDagWorkSession](#symbol-bindDagWorkSession) | Runtime value and type surface | [Behavior](reference.md#ticket-coordination) |
-| [breadthFirstTraversal](#symbol-breadthFirstTraversal) | Runtime value and type surface | [Behavior](reference.md#breadth-first-traversal) |
+| [breadthFirstTraversal](#symbol-breadthFirstTraversal) | Runtime value and type surface | [Behavior](reference.md#api-compatibility) |
 | [composeDag](#symbol-composeDag) | Runtime value and type surface | [Behavior](reference.md#dag-fragments-and-composition) |
 | [core](#symbol-core) | Runtime value and type surface | [Behavior](reference.md#api-compatibility) |
 | [createObjectMutationBinder](#symbol-createObjectMutationBinder) | Runtime value and type surface | [Behavior](reference.md#rewrite-objects) |
-| [dagTraversal](#symbol-dagTraversal) | Runtime value and type surface | [Behavior](reference.md#dag-traversal) |
+| [dagTraversal](#symbol-dagTraversal) | Runtime value and type surface | [Behavior](reference.md#api-compatibility) |
 | [defineDag](#symbol-defineDag) | Runtime value and type surface | [Behavior](reference.md#materialized-dag-definitions) |
 | [defineDagFragment](#symbol-defineDagFragment) | Runtime value and type surface | [Behavior](reference.md#dag-fragments-and-composition) |
-| [depthFirstTraversal](#symbol-depthFirstTraversal) | Runtime value and type surface | [Behavior](reference.md#traversal-orders) |
+| [depthFirstTraversal](#symbol-depthFirstTraversal) | Runtime value and type surface | [Behavior](reference.md#api-compatibility) |
 | [diffDagDefinitions](#symbol-diffDagDefinitions) | Runtime value and type surface | [Behavior](reference.md#validated-dag-revisions) |
 | [filterAsyncDagDataVisitor](#symbol-filterAsyncDagDataVisitor) | Runtime value and type surface | [Behavior](reference.md#filtered-dag-visitors) |
 | [filterDagDataVisitor](#symbol-filterDagDataVisitor) | Runtime value and type surface | [Behavior](reference.md#filtered-dag-visitors) |
-| [graphWalk](#symbol-graphWalk) | Runtime value and type surface | [Behavior](reference.md#general-graph-walking) |
+| [graphWalk](#symbol-graphWalk) | Runtime value and type surface | [Behavior](reference.md#api-compatibility) |
 | [hasSingleStructuralSink](#symbol-hasSingleStructuralSink) | Runtime value and type surface | [Behavior](reference.md#dag-traversal) |
 | [inspectDagMilestones](#symbol-inspectDagMilestones) | Runtime value and type surface | [Behavior](reference.md#dag-dependency-queries-and-explanations) |
 | [mapDagFragmentIds](#symbol-mapDagFragmentIds) | Runtime value and type surface | [Behavior](reference.md#dag-fragments-and-composition) |
@@ -264,17 +264,17 @@ Declaration excerpts preserve overloads and public members; referenced support t
 | [materializeDagInputFromRecordsAsync](#symbol-materializeDagInputFromRecordsAsync) | Runtime value and type surface | [Behavior](reference.md#collection-and-forest-sources) |
 | [materializeDagInputFromRoots](#symbol-materializeDagInputFromRoots) | Runtime value and type surface | [Behavior](reference.md#collection-and-forest-sources) |
 | [materializeDagInputFromRootsAsync](#symbol-materializeDagInputFromRootsAsync) | Runtime value and type surface | [Behavior](reference.md#collection-and-forest-sources) |
-| [materializeWalkSourceFromDagDefinition](#symbol-materializeWalkSourceFromDagDefinition) | Runtime value and type surface | [Behavior](reference.md#general-graph-walking) |
-| [materializeWalkSourceFromRecords](#symbol-materializeWalkSourceFromRecords) | Runtime value and type surface | [Behavior](reference.md#general-graph-walking) |
-| [materializeWalkSourceFromRecordsAsync](#symbol-materializeWalkSourceFromRecordsAsync) | Runtime value and type surface | [Behavior](reference.md#general-graph-walking) |
-| [objectRewrite](#symbol-objectRewrite) | Runtime value and type surface | [Behavior](reference.md#rewrite-objects) |
+| [materializeWalkSourceFromDagDefinition](#symbol-materializeWalkSourceFromDagDefinition) | Runtime value and type surface | [Behavior](reference.md#walking-adapters-and-inspection) |
+| [materializeWalkSourceFromRecords](#symbol-materializeWalkSourceFromRecords) | Runtime value and type surface | [Behavior](reference.md#walking-adapters-and-inspection) |
+| [materializeWalkSourceFromRecordsAsync](#symbol-materializeWalkSourceFromRecordsAsync) | Runtime value and type surface | [Behavior](reference.md#walking-adapters-and-inspection) |
+| [objectRewrite](#symbol-objectRewrite) | Runtime value and type surface | [Behavior](reference.md#api-compatibility) |
 | [prepareDag](#symbol-prepareDag) | Runtime value and type surface | [Behavior](reference.md#reusable-prepared-dags) |
 | [prepareDagAsync](#symbol-prepareDagAsync) | Runtime value and type surface | [Behavior](reference.md#reusable-prepared-dags) |
 | [prepareDagDefinition](#symbol-prepareDagDefinition) | Runtime value and type surface | [Behavior](reference.md#materialized-dag-definitions) |
 | [reviseDag](#symbol-reviseDag) | Runtime value and type surface | [Behavior](reference.md#validated-dag-revisions) |
 | [rewriteObject](#symbol-rewriteObject) | Runtime value and type surface | [Behavior](reference.md#rewrite-objects) |
 | [rewriteObjectAs](#symbol-rewriteObjectAs) | Runtime value and type surface | [Behavior](reference.md#rewrite-objects) |
-| [traversableObjectTree](#symbol-traversableObjectTree) | Runtime value and type surface | [Behavior](reference.md#traverse-an-object) |
+| [traversableObjectTree](#symbol-traversableObjectTree) | Runtime value and type surface | [Behavior](reference.md#api-compatibility) |
 | [traverseDag](#symbol-traverseDag) | Runtime value and type surface | [Behavior](reference.md#dag-traversal) |
 | [traverseDagAsync](#symbol-traverseDagAsync) | Runtime value and type surface | [Behavior](reference.md#dag-traversal) |
 | [traverseTreeBreadthFirst](#symbol-traverseTreeBreadthFirst) | Runtime value and type surface | [Behavior](reference.md#breadth-first-traversal) |
@@ -290,7 +290,7 @@ Declaration excerpts preserve overloads and public members; referenced support t
 
 ### AsyncBreadthFirstTreeOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/breadth-first-traversal`.
 
@@ -317,7 +317,7 @@ export type AsyncBreadthFirstTreeOptions<TTP extends VertexTypes = VertexTypes, 
 
 ### AsyncBreadthFirstTreeOptionsPatch
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/breadth-first-traversal`.
 
@@ -348,7 +348,7 @@ export type AsyncBreadthFirstTreeOptionsPatch<TTP extends VertexTypes = VertexTy
 
 ### AsyncBreadthFirstTreeRunner
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#breadth-first-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#breadth-first-traversal) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/breadth-first-traversal`.
 
@@ -382,7 +382,7 @@ isTreeRootVertex(ref: VertexHandle<TTP | RW_TTP>): boolean;
 
 ### AsyncBreadthFirstTreeTraversal
 
-Runtime value and public type surface. [Owning contract](reference.md#breadth-first-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#breadth-first-traversal) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/breadth-first-traversal`.
 
@@ -416,7 +416,7 @@ createRunner(): AsyncBreadthFirstTreeRunner<TTP, RW_TTP>;
 
 ### AsyncChildHintTransformer
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Executable snippet](reference.md#hint-transformation-example)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](reference.md#hint-transformation-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -428,7 +428,7 @@ export type AsyncChildHintTransformer<T extends VertexTypes> = (hints: T['Vertex
 
 ### AsyncCollection
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/sources`.
 
@@ -440,7 +440,7 @@ export type AsyncCollection<Item> = Iterable<Item> | AsyncIterable<Item>;
 
 ### AsyncDagDiscoverySource
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-prerequisite-resolution-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-prerequisite-resolution-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -469,7 +469,7 @@ getVertexIdFromHint?: (hint: T['VertexHint']) => MaybePromise<HintVertexId<ID> |
 
 ### AsyncDagOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -506,7 +506,7 @@ export type AsyncDagOptions<T extends VertexTypes = VertexTypes, R extends Verte
 
 ### AsyncDagOptionsPatch
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -546,7 +546,7 @@ export type AsyncDagOptionsPatch<T extends VertexTypes = VertexTypes, R extends 
 
 ### AsyncDagRecordSelectors
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/sources`.
 
@@ -575,7 +575,7 @@ export type AsyncDagRecordSelectors<Item, ID> = {
 
 ### AsyncDagRootSelectors
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Related example](reference.md#roots-materialization-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/sources`.
 
@@ -601,7 +601,7 @@ export type AsyncDagRootSelectors<Item, ID> = Omit<AsyncDagRecordSelectors<Item,
 
 ### AsyncDagTraversal
 
-Runtime value and public type surface. [Owning contract](reference.md#dag-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#dag-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-prerequisite-resolution-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -644,7 +644,7 @@ createRunner(): AsyncDagTraversalRunner<T, R, ID>;
 
 ### AsyncDagTraversalRunner
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-traversal) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-prerequisite-resolution-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -688,7 +688,7 @@ isGraphRootVertex(ref: VertexHandle<T | R>): boolean;
 
 ### AsyncDagVisitor
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-prerequisite-resolution-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -700,7 +700,7 @@ export type AsyncDagVisitor<T extends VertexTypes, R extends VertexTypes = T, OR
 
 ### AsyncDagWorkSession
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#ticket-coordination) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#ticket-coordination) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -732,7 +732,7 @@ advance(): Promise<DagWorkBoundary<ID>>;
 
 ### AsyncDagWorkSessionOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -767,7 +767,7 @@ export type AsyncDagWorkSessionOptions<ID> = DagWorkSessionOptions<ID> & {
 
 ### AsyncDepthFirstTreeOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -795,7 +795,7 @@ export type AsyncDepthFirstTreeOptions<TTP extends VertexTypes = VertexTypes, RW
 
 ### AsyncDepthFirstTreeOptionsPatch
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -828,7 +828,7 @@ export type AsyncDepthFirstTreeOptionsPatch<TTP extends VertexTypes = VertexType
 
 ### AsyncDepthFirstTreeRunner
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traversal-orders) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traversal-orders) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -864,7 +864,7 @@ isChildExpansionSkipped(ref: VertexHandle<TTP | RW_TTP>): boolean;
 
 ### AsyncDepthFirstTreeTraversal
 
-Runtime value and public type surface. [Owning contract](reference.md#traversal-orders) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#traversal-orders) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -898,7 +898,7 @@ createRunner(): AsyncDepthFirstTreeRunner<TTP, RW_TTP>;
 
 ### AsyncGraphWalk
 
-Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -932,7 +932,7 @@ createRunner(): AsyncGraphWalkRunner<Data, Edge, ID>;
 
 ### AsyncGraphWalkEdgePredicate
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -944,7 +944,7 @@ export type AsyncGraphWalkEdgePredicate<Data, Edge, ID> = (edge: GraphWalkEdge<E
 
 ### AsyncGraphWalkExpansionPredicate
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -956,7 +956,7 @@ export type AsyncGraphWalkExpansionPredicate<Data, Edge, ID> = (vertex: GraphWal
 
 ### AsyncGraphWalkOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -985,7 +985,7 @@ export type AsyncGraphWalkOptions<Data, Edge, ID> = AsyncGraphWalkFields<Data, E
 
 ### AsyncGraphWalkOptionsPatch
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -1017,7 +1017,7 @@ export type AsyncGraphWalkOptionsPatch<Data, Edge, ID> = UndefinedPatch<AsyncGra
 
 ### AsyncGraphWalkRecordSelectors
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -1044,7 +1044,7 @@ roots: Iterable<ID> | AsyncIterable<ID>;
 
 ### AsyncGraphWalkRunner
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -1083,7 +1083,7 @@ summary(): GraphWalkSummary;
 
 ### AsyncGraphWalkSource
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -1113,7 +1113,7 @@ export type AsyncGraphWalkSource<Data, Edge, ID> = ({
 
 ### AsyncGraphWalkVisitor
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -1161,7 +1161,7 @@ run: (config?: TraversalExecutionOptions<Phase, EmittedKind>) => Promise<this>;
 
 ### AsyncTreeSource
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -1186,7 +1186,7 @@ resolveChild: (hint: T['VertexHint'], options: TreeChildResolutionContext<T, R>)
 
 ### AsyncTreeVisitor
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -1221,7 +1221,7 @@ LEVEL_ORDER = "LEVEL_ORDER"
 
 ### BreadthFirstTreeOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/breadth-first-traversal`.
 
@@ -1247,7 +1247,7 @@ export type BreadthFirstTreeOptions<TTP extends VertexTypes = VertexTypes, RW_TT
 
 ### BreadthFirstTreeOptionsPatch
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/breadth-first-traversal`.
 
@@ -1276,7 +1276,7 @@ export type BreadthFirstTreeOptionsPatch<TTP extends VertexTypes = VertexTypes, 
 
 ### BreadthFirstTreeRunner
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#breadth-first-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#breadth-first-traversal) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/breadth-first-traversal`.
 
@@ -1344,7 +1344,7 @@ createRunner(): BreadthFirstTreeRunner<TTP, RW_TTP>;
 
 ### ChildHintTransformer
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Executable snippet](reference.md#hint-transformation-example)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](reference.md#hint-transformation-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -1356,7 +1356,7 @@ export type ChildHintTransformer<T extends VertexTypes> = (hints: T['VertexHint'
 
 ### ChildIndexSelection
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -1387,7 +1387,7 @@ export type ChildIndexSelection = {
 
 ### ChildSlot
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -1425,7 +1425,7 @@ export type ChildSlot<T extends VertexTypes, ID = unknown> = Readonly<{
 
 ### CommandCommitMode
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -1437,7 +1437,7 @@ export type CommandCommitMode = 'afterEachVisitor' | 'afterGroup';
 
 ### DagBlocker
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1469,7 +1469,7 @@ export type DagBlocker<ID = unknown> = (DagWaitEdge<ID> & {
 
 ### DagChildResolutionContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Executable snippet](reference.md#source-callback-contexts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Related example](reference.md#source-callback-contexts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -1500,7 +1500,7 @@ export type DagChildResolutionContext<T extends VertexTypes, R extends VertexTyp
 
 ### DagCompositionOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-fragments-and-composition) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-fragments-and-composition) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1531,7 +1531,7 @@ export type DagCompositionOptions<ID = unknown> = {
 
 ### DagDeferredWork
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1556,7 +1556,7 @@ export type DagDeferredWork<ID = unknown> = Readonly<{
 
 ### DagDefinition
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1591,7 +1591,7 @@ export type DagDefinition<Data, ID = unknown> = {
 
 ### DagDefinitionChangeAspect
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1603,7 +1603,7 @@ export type DagDefinitionChangeAspect = 'data' | 'slots' | 'workDependencies' | 
 
 ### DagDefinitionDiff
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1637,7 +1637,7 @@ export type DagDefinitionDiff<ID = unknown> = {
 
 ### DagDefinitionIssue
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Executable snippet](reference.md#narrow-invalid-issues)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1683,7 +1683,7 @@ export type DagDefinitionIssue<ID = unknown> = {
 
 ### DagDefinitionSlot
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1712,7 +1712,7 @@ export type DagDefinitionSlot<ID> = {
 
 ### DagDefinitionVertex
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1743,7 +1743,7 @@ export type DagDefinitionVertex<Data, ID> = {
 
 ### DagDefinitionVertexChange
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1768,7 +1768,7 @@ export type DagDefinitionVertexChange<ID = unknown> = {
 
 ### DagDiscoveryCycleError
 
-Runtime value and public type surface. [Owning contract](reference.md#validation-results-and-failures) · [Executable snippet](reference.md#narrow-invalid-issues)
+Runtime value and public type surface. [Owning contract](reference.md#validation-results-and-failures) · [Related example](reference.md#narrow-invalid-issues)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1821,7 +1821,7 @@ getVertexIdFromHint?: (hint: T['VertexHint']) => HintVertexId<ID> | undefined;
 
 ### DagEvent
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#deferred-dag-progress-and-reconciliation) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#deferred-dag-progress-and-reconciliation) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1855,7 +1855,7 @@ export type DagEvent<T extends VertexTypes, ID = unknown> = {
 
 ### DagExplanation
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1896,7 +1896,7 @@ export type DagExplanation<ID = unknown> = Readonly<{
 
 ### DagFragment
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-fragments-and-composition) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-fragments-and-composition) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1921,7 +1921,7 @@ export type DagFragment<Data, ID = unknown, Port extends string = string> = Read
 
 ### DagFragmentValidationError
 
-Runtime value and public type surface. [Owning contract](reference.md#dag-fragments-and-composition) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#dag-fragments-and-composition) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1945,7 +1945,7 @@ constructor(issues: readonly DagDefinitionIssue<ID>[]);
 
 ### DagMilestone
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1970,7 +1970,7 @@ export type DagMilestone<ID = unknown> = {
 
 ### DagMilestoneQueryOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -1993,7 +1993,7 @@ export type DagMilestoneQueryOptions = {
 
 ### DagMilestoneQueryResult
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2020,7 +2020,7 @@ export type DagMilestoneQueryResult<ID = unknown> = Readonly<{
 
 ### DagMilestoneSnapshot
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2047,7 +2047,7 @@ dependentsOf(target: DagMilestone<ID>, options?: DagMilestoneQueryOptions): DagM
 
 ### DagMilestoneStatus
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2074,7 +2074,7 @@ export type DagMilestoneStatus = {
 
 ### DagOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2110,7 +2110,7 @@ export type DagOptions<T extends VertexTypes = VertexTypes, R extends VertexType
 
 ### DagOptionsPatch
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2170,7 +2170,7 @@ export type DagPrerequisiteResolution<T extends VertexTypes, ID = unknown> = Dag
 
 ### DagRecordSelectors
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/sources`.
 
@@ -2199,7 +2199,7 @@ export type DagRecordSelectors<Item, ID> = {
 
 ### DagRevisionOperation
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2235,7 +2235,7 @@ export type DagRevisionOperation<Data, ID = unknown> = {
 
 ### DagRevisionResult
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#validated-dag-revisions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2263,7 +2263,7 @@ export type DagRevisionResult<Data, ID = unknown> = {
 
 ### DagRootSelectors
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Related example](reference.md#roots-materialization-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/sources`.
 
@@ -2289,7 +2289,7 @@ export type DagRootSelectors<Item, ID> = Omit<DagRecordSelectors<Item, ID>, 'chi
 
 ### DagSchedulingOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2320,7 +2320,7 @@ export type DagSchedulingOptions = {
 
 ### DagSettlementGeneration
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2332,7 +2332,7 @@ export type DagSettlementGeneration = symbol;
 
 ### DagSettlementOutcome
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2363,7 +2363,7 @@ export type DagSettlementOutcome = {
 
 ### DagSettlementReceipt
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#ticket-coordination) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#ticket-coordination) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2388,7 +2388,7 @@ export type DagSettlementReceipt = Readonly<{
 
 ### DagSummary
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Executable snippet](reference.md#dag-summary-schema)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2476,7 +2476,7 @@ createRunner(): DagTraversalRunner<T, R, ID>;
 
 ### DagTraversalRunner
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-traversal) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2520,7 +2520,7 @@ isGraphRootVertex(ref: VertexHandle<T | R>): boolean;
 
 ### DagTraversalStallDiagnostics
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#validation-results-and-failures) · [Executable snippet](reference.md#narrow-invalid-issues)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#validation-results-and-failures) · [Related example](reference.md#narrow-invalid-issues)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2557,7 +2557,7 @@ export type DagTraversalStallDiagnostics<ID = unknown> = {
 
 ### DagTraversalStallError
 
-Runtime value and public type surface. [Owning contract](reference.md#validation-results-and-failures) · [Executable snippet](reference.md#narrow-invalid-issues)
+Runtime value and public type surface. [Owning contract](reference.md#validation-results-and-failures) · [Related example](reference.md#narrow-invalid-issues)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2638,7 +2638,7 @@ export type DagVertexOmitted<ID = unknown> = {
 
 ### DagVertexProgress
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Executable snippet](reference.md#dag-summary-schema)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2695,7 +2695,7 @@ export type DagVertexResolution<T extends VertexTypes, ID = unknown> = DagVertex
 
 ### DagVisitor
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2707,7 +2707,7 @@ export type DagVisitor<T extends VertexTypes, R extends VertexTypes = T, ORDER e
 
 ### DagVisitorContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2773,7 +2773,7 @@ ON_SUBGRAPH_READY = "ON_SUBGRAPH_READY"
 
 ### DagWaitEdge
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-dependency-queries-and-explanations) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2828,7 +2828,7 @@ export type DagWorkBoundary<ID = unknown> = Readonly<{
 
 ### DagWorkSession
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#ticket-coordination) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#ticket-coordination) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2860,7 +2860,7 @@ advance(): DagWorkBoundary<ID>;
 
 ### DagWorkSessionControl
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#ticket-coordination) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#ticket-coordination) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2895,7 +2895,7 @@ requestPause(): boolean;
 
 ### DagWorkSessionOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2932,7 +2932,7 @@ export type DagWorkSessionOptions<ID> = OwnedOptions & {
 
 ### DagWorkState
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-summary-schema) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -2992,7 +2992,7 @@ POST_ORDER = "POST_ORDER"
 
 ### DepthFirstTreeOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -3019,7 +3019,7 @@ export type DepthFirstTreeOptions<TTP extends VertexTypes = VertexTypes, RW_TTP 
 
 ### DepthFirstTreeOptionsPatch
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -3050,7 +3050,7 @@ export type DepthFirstTreeOptionsPatch<TTP extends VertexTypes = VertexTypes, RW
 
 ### DepthFirstTreeRunner
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traversal-orders) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traversal-orders) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -3120,7 +3120,7 @@ createRunner(): DepthFirstTreeRunner<TTP, RW_TTP>;
 
 ### EmissionKind
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -3132,7 +3132,7 @@ export type EmissionKind<Phase extends string> = Phase extends 'ON_WORK_READY' ?
 
 ### ExecutionInspection
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Related example](reference.md#inspection-and-execution)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -3167,7 +3167,7 @@ readonly bufferedEventCount: number;
 
 ### GetPathToOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -3226,7 +3226,7 @@ createRunner(): GraphWalkRunner<Data, Edge, ID>;
 
 ### GraphWalkCatalogLink
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3251,7 +3251,7 @@ export type GraphWalkCatalogLink<Edge, ID> = Readonly<{
 
 ### GraphWalkCounts
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3288,7 +3288,7 @@ export type GraphWalkCounts = Readonly<{
 
 ### GraphWalkDagRelation
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3316,7 +3316,7 @@ export type GraphWalkDagRelation = {
 
 ### GraphWalkEdge
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3346,7 +3346,7 @@ export type GraphWalkEdge<Edge, ID> = Readonly<{
 
 ### GraphWalkEdgePredicate
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3358,7 +3358,7 @@ export type GraphWalkEdgePredicate<Data, Edge, ID> = (edge: GraphWalkEdge<Edge, 
 
 ### GraphWalkEvent
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3401,7 +3401,7 @@ export type GraphWalkEvent<Data, Edge, ID> = Readonly<{
 
 ### GraphWalkEventFor
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3425,7 +3425,7 @@ export type GraphWalkEventFor<Data, Edge, Phase extends `${GraphWalkPhase}`, ID>
 
 ### GraphWalkExpandContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3451,7 +3451,7 @@ export type GraphWalkExpandContext<Data, Edge, ID> = GraphWalkRouteContext<Data,
 
 ### GraphWalkExpansionPredicate
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3463,7 +3463,7 @@ export type GraphWalkExpansionPredicate<Data, Edge, ID> = (vertex: GraphWalkVert
 
 ### GraphWalkFollowContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3489,7 +3489,7 @@ export type GraphWalkFollowContext<Data, Edge, ID> = GraphWalkRouteContext<Data,
 
 ### GraphWalkHydration
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3501,7 +3501,7 @@ export type GraphWalkHydration = 'resolver' | 'inlineOrCached';
 
 ### GraphWalkInspection
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3560,7 +3560,7 @@ readonly pendingRequests: readonly Readonly<{
 
 ### GraphWalkLimits
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3590,7 +3590,7 @@ export type GraphWalkLimits = {
 
 ### GraphWalkLink
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3612,7 +3612,7 @@ export type GraphWalkLink<Data, Edge, ID, Hydration extends GraphWalkHydration =
 
 ### GraphWalkOperation
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3624,7 +3624,7 @@ export type GraphWalkOperation = 'roots' | 'rootNext' | 'resolveVertex' | 'outgo
 
 ### GraphWalkOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3653,7 +3653,7 @@ export type GraphWalkOptions<Data, Edge, ID> = GraphWalkFields<Data, Edge, ID> &
 
 ### GraphWalkOptionsPatch
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3685,7 +3685,7 @@ export type GraphWalkOptionsPatch<Data, Edge, ID> = UndefinedPatch<GraphWalkFiel
 
 ### GraphWalkOutcome
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3714,7 +3714,7 @@ export type GraphWalkOutcome = {
 
 ### GraphWalkPathEvent
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3765,7 +3765,7 @@ PATH = "path"
 
 ### GraphWalkRecordSelectors
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3792,7 +3792,7 @@ roots: Iterable<ID>;
 
 ### GraphWalkRevisitOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3824,7 +3824,7 @@ export type GraphWalkRevisitOptions = {
 
 ### GraphWalkRevisitPolicy
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3836,7 +3836,7 @@ export type GraphWalkRevisitPolicy = 'once' | 'simplePaths' | 'walks';
 
 ### GraphWalkRouteContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3862,7 +3862,7 @@ export type GraphWalkRouteContext<Data, Edge, ID> = Readonly<{
 
 ### GraphWalkRunner
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3931,7 +3931,7 @@ export type GraphWalkSource<Data, Edge, ID> = ({
 
 ### GraphWalkStrategy
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3943,7 +3943,7 @@ export type GraphWalkStrategy = 'breadthFirst' | 'depthFirst';
 
 ### GraphWalkSummary
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -3992,7 +3992,7 @@ export type GraphWalkTarget<Data, ID, Hydration extends GraphWalkHydration = Gra
 
 ### GraphWalkVertex
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -4017,7 +4017,7 @@ export type GraphWalkVertex<Data, ID> = Readonly<{
 
 ### GraphWalkVertexResult
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -4043,7 +4043,7 @@ export type GraphWalkVertexResult<Data> = {
 
 ### GraphWalkVisitor
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -4055,7 +4055,7 @@ export type GraphWalkVisitor<Data, Edge, Phase extends GraphWalkPhase, ID> = (ev
 
 ### GraphWalkVisitorContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -4086,7 +4086,7 @@ export type GraphWalkVisitorContext<Phase extends GraphWalkPhase> = Readonly<{
 
 ### GraphWalkVisitorResult
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -4100,7 +4100,7 @@ export type GraphWalkVisitorResult = void | {
 
 ### HintVertexId
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-traversal) · [Executable snippet](reference.md#dag-traversal)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#dag-traversal) · [Related example](reference.md#dag-traversal)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -4123,7 +4123,7 @@ export type HintVertexId<ID = unknown> = {
 
 ### InOrderOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -4177,7 +4177,7 @@ export type InspectionFilters<Phase extends string = VisitPhase, EmittedKind ext
 
 ### MaterializedDagInput
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#collection-and-forest-sources) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/sources`.
 
@@ -4205,7 +4205,7 @@ export type MaterializedDagInput<Item, ID> = {
 
 ### MaybePromise
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#async-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#async-traversal) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -4245,7 +4245,7 @@ getRefId(): string;
 
 ### MutationCommand
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -4267,7 +4267,7 @@ export type MutationCommand<TTP extends VertexTypes, Delete extends DeletionComm
 
 ### MutationCommandBuilder
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -4279,7 +4279,7 @@ export type MutationCommandBuilder<OUT_TTP extends VertexTypes, RewriteInput = O
 
 ### MutationCommands
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -4302,7 +4302,7 @@ export type MutationCommands<OUT_TTP extends VertexTypes, RewriteInput = OUT_TTP
 
 ### MutationRequest
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -4337,7 +4337,7 @@ export type MutationRequest<RW_V> = {
 
 ### ObjectAssemblyCache
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4364,7 +4364,7 @@ export type ObjectAssemblyCache<Key> = {
 
 ### ObjectChildHookResult
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4395,7 +4395,7 @@ export type ObjectChildHookResult<T extends VertexTypes> = {
 
 ### ObjectCompositeClassification
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Executable snippet](reference.md#rewrite-objects)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](reference.md#rewrite-objects)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4444,7 +4444,7 @@ export type ObjectCurrentVertexTypes<InputTypes extends ObjectTreeVertexTypes<Tr
 
 ### ObjectMutationBinder
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4456,7 +4456,7 @@ export type ObjectMutationBinder<InputTypes extends ObjectTreeVertexTypes<Traver
 
 ### ObjectMutationBinderFactory
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4468,7 +4468,7 @@ export type ObjectMutationBinderFactory = <InputTypes extends ObjectTreeVertexTy
 
 ### ObjectMutationCommands
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4496,7 +4496,7 @@ export type ObjectMutationCommands<OutputTypes extends ObjectTreeVertexTypes<Tra
 
 ### ObjectMutationOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4531,7 +4531,7 @@ export type ObjectMutationOptions<InputTypes extends ObjectTreeVertexTypes<Trave
 
 ### ObjectMutationRequest
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4588,7 +4588,7 @@ export type ObjectPropertyPatch<OutputTypes extends ObjectTreeVertexTypes<Traver
 
 ### ObjectRewriteCallback
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/tools/rewrite-object`.
 
@@ -4600,7 +4600,7 @@ export type ObjectRewriteCallback<InK extends TraversableObjectPropKey, InV, Out
 
 ### ObjectRewriteContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/tools/rewrite-object`.
 
@@ -4638,7 +4638,7 @@ export type ObjectRewriteContext<InK extends TraversableObjectPropKey, InV, OutK
 
 ### ObjectRewriteInput
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/tools/rewrite-object`.
 
@@ -4663,7 +4663,7 @@ export type ObjectRewriteInput<InK extends TraversableObjectPropKey, InV, OutK e
 
 ### ObjectRewriteOutputResult
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/tools/rewrite-object`.
 
@@ -4689,7 +4689,7 @@ export type ObjectRewriteOutputResult<Out> = Readonly<{
 
 ### ObjectTreeOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4712,7 +4712,7 @@ export type ObjectTreeOptions<In, InK extends TraversableObjectPropKey, InV, Out
 
 ### ObjectTreePropertyAdapters
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4767,7 +4767,7 @@ resolveChild(vertexHint: ObjectTreeVertexTypes<InK, InV>['VertexHint'], options:
 
 ### ObjectTreeVertexTypes
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -4789,7 +4789,7 @@ export type ObjectTreeVertexTypes<K extends TraversableObjectPropKey, V> = Verte
 
 ### OriginalGraphView
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -4817,7 +4817,7 @@ export type OriginalGraphView<T extends VertexTypes, ID = unknown> = Pick<Resolv
 
 ### PrepareAsyncDagInput
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -4853,7 +4853,7 @@ export type PrepareAsyncDagInput<T extends VertexTypes, ID = unknown> = PrepareD
 
 ### PrepareDagInput
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -4887,7 +4887,7 @@ export type PrepareDagInput<T extends VertexTypes, ID = unknown> = PrepareDagOpt
 
 ### PrepareDagOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -4930,7 +4930,7 @@ export type PrepareDagOptions = {
 
 ### PrepareDagResult
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#materialized-dag-definitions) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -4957,7 +4957,7 @@ export type PrepareDagResult<Data, ID = unknown> = {
 
 ### PreparedAsyncDagRunnerOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -4990,7 +4990,7 @@ export type PreparedAsyncDagRunnerOptions<Data, ID> = Pick<AsyncDagOptionsPatch<
 
 ### PreparedDag
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -5023,7 +5023,7 @@ createAsyncWorkSession(options?: AsyncDagWorkSessionOptions<ID>): Promise<AsyncD
 
 ### PreparedDagRunnerOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -5055,7 +5055,7 @@ export type PreparedDagRunnerOptions<Data, ID> = Pick<DagOptionsPatch<VertexType
 
 ### PreparedDagVertexSummary
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -5109,7 +5109,7 @@ export type PrerequisiteMissing = {
 
 ### ResolvedGraphVertex
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5148,7 +5148,7 @@ export type ResolvedGraphVertex<T extends VertexTypes, ID = unknown> = Readonly<
 
 ### ResolvedGraphView
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5189,7 +5189,7 @@ requirePathsTo(ref: VertexHandle<T>, options?: GetPathToOptions): readonly (read
 
 ### ResolvedTreeMap
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5201,7 +5201,7 @@ export type ResolvedTreeMap<TTP extends VertexTypes> = Map<MutableRef<Vertex<TTP
 
 ### ResolvedTreeStore
 
-Runtime value and public type surface. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Runtime value and public type surface. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#edit-a-resolved-tree-store)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5253,7 +5253,7 @@ resolveChild(vertexHint: ResolvedTreeVertexTypes<TTP>['VertexHint']): TreeVertex
 
 ### ResolvedTreeVertexTypes
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5278,7 +5278,7 @@ VertexHint: MutableRef<Vertex<InputTypes>>;
 
 ### ResolvedTreeView
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5311,7 +5311,7 @@ getResolutionContextOf(ref: VertexHandle<T>): Readonly<VertexResolutionContext<T
 
 ### ResolvedVisitStage
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5323,7 +5323,7 @@ export type ResolvedVisitStage = 'DISCOVERED' | 'INITIAL_VISIT_ELIGIBLE' | 'INIT
 
 ### RewriteObjectOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/tools/rewrite-object`.
 
@@ -5369,7 +5369,7 @@ export type RewriteObjectOptions<In, InK extends TraversableObjectPropKey, InV, 
 
 ### RewriteObjectResult
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/tools/rewrite-object`.
 
@@ -5398,7 +5398,7 @@ export type RewriteObjectResult<InK extends TraversableObjectPropKey, InV, Out, 
 
 ### RootValueConverter
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/tools/rewrite-object`.
 
@@ -5412,7 +5412,7 @@ export type RootValueConverter<Out> = (value: unknown, context: {
 
 ### SelectedTraversalEvent
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Related example](reference.md#inspection-and-execution)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5434,7 +5434,7 @@ export type SelectedTraversalEvent<Event, Kind extends string> = [
 
 ### StructuralChildEdge
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5463,7 +5463,7 @@ export type StructuralChildEdge<T extends VertexTypes> = Readonly<{
 
 ### SyncTraversalExecution
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Executable snippet](reference.md#inspection-and-execution)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5499,7 +5499,7 @@ run: (config?: TraversalExecutionOptions<Phase, EmittedKind>) => this;
 
 ### TraversableObject
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -5513,7 +5513,7 @@ export type TraversableObject<K extends TraversableObjectPropKey, PV> = Array<Tr
 
 ### TraversableObjectProp
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -5538,7 +5538,7 @@ export type TraversableObjectProp<K extends TraversableObjectPropKey, V> = {
 
 ### TraversableObjectPropKey
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -5550,7 +5550,7 @@ export type TraversableObjectPropKey = number | string | symbol;
 
 ### TraversalExecutionOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5581,7 +5581,7 @@ export type TraversalExecutionOptions<VisitorPhase extends string, EmittedKind e
 
 ### TraversalExecutionState
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Executable snippet](reference.md#inspection-and-execution)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5612,7 +5612,7 @@ requestPause(): boolean;
 
 ### TraversalRunnerStatus
 
-Runtime value and public type surface. [Owning contract](reference.md#inspection-and-execution) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#inspection-and-execution) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-reconciliation-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5643,7 +5643,7 @@ FAILED = "FAILED"
 
 ### TraversalStopReason
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#pause-and-resume) · [Related example](reference.md#pause-and-resume)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5655,7 +5655,7 @@ export type TraversalStopReason = 'prepared' | 'paused' | 'awaitingSettlement' |
 
 ### TraversalVisitorCommand
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5687,7 +5687,7 @@ export type TraversalVisitorCommand<RW_TTP extends VertexTypes, T extends Traver
 
 ### TraversalVisitorCommandArguments
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5771,7 +5771,7 @@ SKIP_REMAINING_CHILDREN = "SKIP_REMAINING_CHILDREN"
 
 ### TraversalVisitorFunctionOptions
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5796,7 +5796,7 @@ export type TraversalVisitorFunctionOptions = {
 
 ### TraversalVisitorResult
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5823,7 +5823,7 @@ export type TraversalVisitorResult<RW_TTP extends VertexTypes, Phase extends str
 
 ### TreeChildResolutionContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Executable snippet](reference.md#source-callback-contexts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Related example](reference.md#source-callback-contexts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5850,7 +5850,7 @@ export type TreeChildResolutionContext<TTP extends VertexTypes, RW_TTP extends V
 
 ### TreeDagExecutionInspection
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Related example](reference.md#inspection-and-execution)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5889,7 +5889,7 @@ export type TreeDagExecutionInspection<Phase extends string = VisitPhase> = Driv
 
 ### TreeDagInspectionOperation
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#inspection-and-execution) · [Related example](reference.md#inspection-and-execution)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5901,7 +5901,7 @@ export type TreeDagInspectionOperation = 'resolveRoot' | 'resolveChild' | 'resol
 
 ### TreeMutationCommandBinder
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5913,7 +5913,7 @@ export type TreeMutationCommandBinder<Phase extends string, IN_TTP extends Verte
 
 ### TreeMutationCommandBinderFactory
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5925,7 +5925,7 @@ export type TreeMutationCommandBinderFactory<Configuration = unknown> = <Phase e
 
 ### TreeSource
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Executable snippet](reference.md#abstract-trees)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5950,7 +5950,7 @@ export type TreeSource<TTP extends VertexTypes, RW_TTP extends VertexTypes = TTP
 
 ### TreeTraversalEvent
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#traversal-orders) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-iterable-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#traversal-orders) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-iterable-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -5979,7 +5979,7 @@ export type TreeTraversalEvent<Phase extends string, TTP extends VertexTypes, RW
 
 ### TreeVertexFound
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Executable snippet](reference.md#abstract-trees)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Related example](reference.md#abstract-trees)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6011,7 +6011,7 @@ export type TreeVertexFound<T extends VertexTypes> = TreeMetadataRestrictions & 
 
 ### TreeVertexMetadata
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6100,7 +6100,7 @@ clone(content?: Partial<TreeVertexRecordContent<TTP>>): TreeVertexRecord<TTP>;
 
 ### TreeVertexRecordContent
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6125,7 +6125,7 @@ export type TreeVertexRecordContent<TTP extends VertexTypes> = {
 
 ### TreeVertexResolution
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Executable snippet](reference.md#abstract-trees)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#abstract-trees) · [Related example](reference.md#abstract-trees)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6163,7 +6163,7 @@ export type TreeVisitor<Phase extends string = string, TTP extends VertexTypes =
 
 ### TreeVisitorContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6204,7 +6204,7 @@ export type TreeVisitorContext<Phase extends string, TTP extends VertexTypes, RW
 
 ### TreeVisitorRecord
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6263,7 +6263,7 @@ clone(content?: VertexCloneContent<TTP>): Vertex<TTP>;
 
 ### VertexCloneContent
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6287,7 +6287,7 @@ export type VertexCloneContent<TTP extends VertexTypes> = Partial<VertexContentI
 
 ### VertexContent
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6312,7 +6312,7 @@ export type VertexContent<TTP extends VertexTypes> = {
 
 ### VertexContentInput
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6341,7 +6341,7 @@ export type VertexContentInput<TTP extends VertexTypes> = {
 
 ### VertexHandle
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6366,7 +6366,7 @@ getRefId(): string;
 
 ### VertexId
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6378,7 +6378,7 @@ export type VertexId = unknown;
 
 ### VertexResolutionContext
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Executable snippet](reference.md#source-callback-contexts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#source-callback-contexts) · [Related example](reference.md#source-callback-contexts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6434,7 +6434,7 @@ export type VertexTypes<VD = unknown, VH = unknown> = {
 
 ### VertexView
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Executable snippet](reference.md#views-handles-identity-and-paths)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#views-handles-identity-and-paths) · [Related example](reference.md#views-handles-identity-and-paths)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6467,7 +6467,7 @@ clone(content?: VertexCloneContent<T>): Vertex<T>;
 
 ### VisitorDefinition
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6481,7 +6481,7 @@ export type VisitorDefinition<F> = F | ({
 
 ### VisitorGroupDefinition
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6506,7 +6506,7 @@ export type VisitorGroupDefinition<F> = {
 
 ### VisitorGroupMember
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6523,7 +6523,7 @@ export type VisitorGroupMember<F> = F | {
 
 ### VisitorGroupMetadata
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6564,7 +6564,7 @@ export type VisitorPhaseInput<F> = VisitorDefinition<F> | readonly VisitorDefini
 
 ### VisitorPhaseSelection
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#options-and-defaults) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6582,7 +6582,7 @@ export type VisitorPhaseSelection<ORDER extends string> = 'all' | {
 
 ### VisitorRegistrationMetadata
 
-Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Executable snippet](reference.md#visitors-and-commands)
+Type-only; no runtime constructor/value. [Owning contract](reference.md#visitors-and-commands) · [Related example](reference.md#visitors-and-commands)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/core`.
 
@@ -6609,7 +6609,7 @@ export type VisitorRegistrationMetadata = Readonly<TraversalVisitorFunctionOptio
 
 ### bindAsyncDagWorkSession
 
-Runtime value and public type surface. [Owning contract](reference.md#ticket-coordination) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#ticket-coordination) · [Related example](reference.md#bind-an-existing-runner-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -6621,7 +6621,7 @@ export declare function bindAsyncDagWorkSession<T extends VertexTypes, R extends
 
 ### bindDagWorkSession
 
-Runtime value and public type surface. [Owning contract](reference.md#ticket-coordination) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#ticket-coordination) · [Executable snippet](reference.md#bind-an-existing-runner-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -6633,7 +6633,7 @@ export declare function bindDagWorkSession<T extends VertexTypes, R extends Vert
 
 ### breadthFirstTraversal
 
-Runtime value and public type surface. [Owning contract](reference.md#breadth-first-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#api-compatibility) · [Related example](reference.md#api-compatibility)
 
 Supported imports: `configurable-tree-traversal`.
 
@@ -6665,7 +6665,7 @@ Namespace for `configurable-tree-traversal/core`: [AsyncChildHintTransformer](#s
 
 ### createObjectMutationBinder
 
-Runtime value and public type surface. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#rewrite-objects) · [Executable snippet](reference.md#rewrite-objects)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree`.
 
@@ -6677,7 +6677,7 @@ createObjectMutationBinder: ObjectMutationBinderFactory
 
 ### dagTraversal
 
-Runtime value and public type surface. [Owning contract](reference.md#dag-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#api-compatibility) · [Related example](reference.md#api-compatibility)
 
 Supported imports: `configurable-tree-traversal`.
 
@@ -6711,7 +6711,7 @@ export declare function defineDagFragment<Data, ID, Port extends string>(definit
 
 ### depthFirstTraversal
 
-Runtime value and public type surface. [Owning contract](reference.md#traversal-orders) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#api-compatibility) · [Related example](reference.md#api-compatibility)
 
 Supported imports: `configurable-tree-traversal`.
 
@@ -6759,7 +6759,7 @@ export declare function filterDagDataVisitor<DATA, T extends VertexTypes<DATA> =
 
 ### graphWalk
 
-Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#api-compatibility) · [Related example](reference.md#api-compatibility)
 
 Supported imports: `configurable-tree-traversal`.
 
@@ -6819,7 +6819,7 @@ export declare function materializeDagInputFromRecords<Item, ID>(items: Iterable
 
 ### materializeDagInputFromRecordsAsync
 
-Runtime value and public type surface. [Owning contract](reference.md#collection-and-forest-sources) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#collection-and-forest-sources) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/sources`.
 
@@ -6831,7 +6831,7 @@ export declare function materializeDagInputFromRecordsAsync<Item, ID>(items: Asy
 
 ### materializeDagInputFromRoots
 
-Runtime value and public type surface. [Owning contract](reference.md#collection-and-forest-sources) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#collection-and-forest-sources) · [Executable snippet](reference.md#roots-materialization-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/sources`.
 
@@ -6843,7 +6843,7 @@ export declare function materializeDagInputFromRoots<Item, ID>(roots: Iterable<I
 
 ### materializeDagInputFromRootsAsync
 
-Runtime value and public type surface. [Owning contract](reference.md#collection-and-forest-sources) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/quickstart-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#collection-and-forest-sources) · [Executable snippet](reference.md#roots-materialization-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/sources`.
 
@@ -6855,7 +6855,7 @@ export declare function materializeDagInputFromRootsAsync<Item, ID>(roots: Async
 
 ### materializeWalkSourceFromDagDefinition
 
-Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#walking-adapters-and-inspection) · [Executable snippet](reference.md#definition-walk-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -6871,7 +6871,7 @@ export declare function materializeWalkSourceFromDagDefinition<Data, ID>(definit
 
 ### materializeWalkSourceFromRecords
 
-Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#walking-adapters-and-inspection) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -6885,7 +6885,7 @@ export declare function materializeWalkSourceFromRecords<Data, Edge, ID>(items: 
 
 ### materializeWalkSourceFromRecordsAsync
 
-Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#walking-adapters-and-inspection) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -6899,7 +6899,7 @@ export declare function materializeWalkSourceFromRecordsAsync<Data, Edge, ID>(it
 
 ### objectRewrite
 
-Runtime value and public type surface. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#api-compatibility) · [Related example](reference.md#api-compatibility)
 
 Supported imports: `configurable-tree-traversal`.
 
@@ -6921,7 +6921,7 @@ export declare function prepareDag<T extends VertexTypes, ID = unknown>(input: P
 
 ### prepareDagAsync
 
-Runtime value and public type surface. [Owning contract](reference.md#reusable-prepared-dags) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#reusable-prepared-dags) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -6936,7 +6936,7 @@ export declare function prepareDagAsync<T extends VertexTypes, ID = unknown>(inp
 
 ### prepareDagDefinition
 
-Runtime value and public type surface. [Owning contract](reference.md#materialized-dag-definitions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#materialized-dag-definitions) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -6972,7 +6972,7 @@ export declare function rewriteObject<In = TraversableObject<TraversableObjectPr
 
 ### rewriteObjectAs
 
-Runtime value and public type surface. [Owning contract](reference.md#rewrite-objects) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#rewrite-objects) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/tools/rewrite-object`.
 
@@ -6984,7 +6984,7 @@ export declare function rewriteObjectAs<Out>(object: unknown, options?: RewriteO
 
 ### traversableObjectTree
 
-Runtime value and public type surface. [Owning contract](reference.md#traverse-an-object) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#api-compatibility) · [Related example](reference.md#api-compatibility)
 
 Supported imports: `configurable-tree-traversal`.
 
@@ -6994,7 +6994,7 @@ Namespace for `configurable-tree-traversal/traversable-tree-implementations/trav
 
 ### traverseDag
 
-Runtime value and public type surface. [Owning contract](reference.md#dag-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#dag-traversal) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -7006,7 +7006,7 @@ export declare function traverseDag<T extends VertexTypes = VertexTypes, R exten
 
 ### traverseDagAsync
 
-Runtime value and public type surface. [Owning contract](reference.md#dag-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-workflow-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#dag-traversal) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-prerequisite-resolution-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/dag-traversal`.
 
@@ -7018,7 +7018,7 @@ export declare function traverseDagAsync<T extends VertexTypes = VertexTypes, R 
 
 ### traverseTreeBreadthFirst
 
-Runtime value and public type surface. [Owning contract](reference.md#breadth-first-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#breadth-first-traversal) · [Executable snippet](reference.md#breadth-first-traversal)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/breadth-first-traversal`.
 
@@ -7030,7 +7030,7 @@ export declare function traverseTreeBreadthFirst<TTP extends VertexTypes = Verte
 
 ### traverseTreeBreadthFirstAsync
 
-Runtime value and public type surface. [Owning contract](reference.md#breadth-first-traversal) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#breadth-first-traversal) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/breadth-first-traversal`.
 
@@ -7042,7 +7042,7 @@ export declare function traverseTreeBreadthFirstAsync<TTP extends VertexTypes = 
 
 ### traverseTreeDepthFirst
 
-Runtime value and public type surface. [Owning contract](reference.md#traversal-orders) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#traversal-orders) · [Executable snippet](reference.md#ordered-visitor-groups)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -7054,7 +7054,7 @@ export declare function traverseTreeDepthFirst<TTP extends VertexTypes = VertexT
 
 ### traverseTreeDepthFirstAsync
 
-Runtime value and public type surface. [Owning contract](reference.md#traversal-orders) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#traversal-orders) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/depth-first-traversal`.
 
@@ -7066,7 +7066,7 @@ export declare function traverseTreeDepthFirstAsync<TTP extends VertexTypes = Ve
 
 ### walkGraph
 
-Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Executable snippet](reference.md#definition-walk-example)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 
@@ -7078,7 +7078,7 @@ export declare function walkGraph<Data, Edge, ID>(options: GraphWalkOptions<Data
 
 ### walkGraphAsync
 
-Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Runnable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts)
+Runtime value and public type surface. [Owning contract](reference.md#general-graph-walking) · [Related example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts)
 
 Supported imports: `configurable-tree-traversal`, `configurable-tree-traversal/traversals/graph-walk`.
 

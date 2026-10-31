@@ -1,12 +1,10 @@
 # Documentation map
 
-The [client API distinctions migration](migration-api-distinctions.md) lists the current canonical names and presence/ownership contracts.
+[Home and quickstart](../README.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md) · [Public symbol lookup](api-index.md)
 
-[Home and quickstart](../README.md) · [Agent workflow guide](agent-workflows.md) · [API reference](reference.md)
+CTT has three source families: tree sources (objects and abstract trees), DAG sources (work with dependencies), and walking sources (cyclic information graphs). Start with the [README quickstart](../README.md#quickstart-find-the-next-agent-tasks) to find ready tasks, continue with the [agent workflow guide](agent-workflows.md) to connect readiness to your executor and storage, and use the [reference](reference.md) for exact contracts. Pick a task below; each row ends when you have what the right column names.
 
-The [client API migration](migration-client-api.md) covers corrected observation, configuration, hydration and rewrite contracts. The [idiomatic API migration](migration-idiomatic-api.md) covers the complete canonical contracts and removal checklist. The [API naming migration](migration-api-clarity.md) covers renamed contracts and removed import routes; the [uniform API migration](migration-uniform-api.md) covers changed defaults and removed forms. Read only the path relevant to your task; internal plans and research are historical evidence, not the public API contract.
-
-[Public symbol lookup](api-index.md) maps exported names to signatures, supported imports, owning contracts and executable examples. These guides target an unreleased source checkout; follow the [README install instructions](../README.md#install) before running its APIs.
+[Public symbol lookup](api-index.md) maps exported names to signatures, supported imports, owning contracts and examples. These guides target the current source checkout; follow the [README install instructions](../README.md#install) before running its APIs.
 
 ## Read by task
 
@@ -52,9 +50,25 @@ Examples are executable programs; several DAG and agent coordination examples in
 | [Async tree adapter](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/async-adapter-example.ts)                  | Promise-returning discovery and visitors                                                                                                 |
 | [Object rewrite](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/rewrite-object-example.ts)                     | Transforming nested values                                                                                                               |
 
+### Tree and object examples
+
+| Example                                                                                                                                                  | Demonstrates                                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [Object traversal](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example.ts)                         | Depth-first pre/post-order callbacks over a nested object, with `PAUSE_TRAVERSAL` and resume                 |
+| [Skip a subtree](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example-disable-subtree-traversal.ts) | `SKIP_REMAINING_CHILDREN` to prune pending expansion of the current vertex                                   |
+| [Rewrite child hints](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-example-rewrite-vertex-hints.ts) | `REWRITE_CHILD_HINTS` to replace which children are discovered                                               |
+| [Iterate events](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/traversable-object-iterable-example.ts)                  | Pull-based `iterateEvents`, pausing by breaking the loop, and changing emission/callback selection per lease |
+| [Breadth-first](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/breadth-first-example.ts)                                 | `BreadthFirstTreeTraversal` over an object                                                                   |
+| [Configuration patches](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/configuration-patches-example.ts)                 | `configure()` patches for in-order selection before creating a runner                                        |
+| [Tree from image](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/tree-from-image-example.ts)                             | Pre/in/post-order visit points over the binary tree pictured in the reference                                |
+
 The npm package includes these guides and the reference. Examples, contributor instructions, and measurement artifacts are linked to the repository rather than bundled.
 
 ## Evidence and history
+
+### Upgrading from 0.11.0
+
+Start with the [final upgrade checklist](migration-api-distinctions.md). It lists the current canonical names and presence/ownership contracts and links the earlier, more detailed migration guides; you do not apply those guides in sequence.
 
 - [Changelog](../CHANGELOG.md): changes and release history.
 - [Testing](testing.md): commands, coverage requirements, package/runtime checks.

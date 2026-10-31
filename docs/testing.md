@@ -117,33 +117,20 @@ bun test scripts/build-esm.test.cjs scripts/benchmark-dag.test.cjs scripts/bench
 
 The verifier launches runtime and compiler subprocesses with `process.execPath`, so invoking it with Bun executes the packed consumers under Bun. `bun test` runs these focused `node:test` scripts; Jest and the 100% source coverage gate remain on Node 22/24. `bun run check` alone is not evidence of Bun execution because nested npm scripts explicitly call Node. No Bun lockfile is used.
 
-Local implementation validation used Node **v24.20.0**, Bun **1.4.4**, locked TypeScript **4.9.5**, and isolated minimum TypeScript **4.7.4**. Run the verifier with the locked compiler by default, or supply an isolated compiler path to test the same packed `.ts`/`.cts`/`.mts` consumers without changing dependencies:
+By default the verifier compiles the packed `.ts`/`.cts`/`.mts` consumers and the standalone guide snippets with the locked compiler, `node_modules/typescript/bin/tsc` (TypeScript **4.9.5**). `CTT_TYPESCRIPT_COMPILER` overrides that path. The value is a `tsc` script path that the verifier runs with `process.execPath`, so `node <value> --version` must work; a package directory is not accepted. To check the declared minimum TypeScript **4.7.4** without changing locked dependencies, install it into a throwaway prefix and point the override at its `bin/tsc`:
 
 ```sh
-node node_modules/typescript/bin/tsc --version
-node /tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typescript/bin/tsc --version
-CTT_TYPESCRIPT_COMPILER=/tmp/ctt-next-evidence/typescript-4.7.4/node_modules/typescript/bin/tsc node scripts/verify-package.cjs
+npm run build
+npm i --no-save --prefix /tmp/ctt-ts474 typescript@4.7.4
+node /tmp/ctt-ts474/node_modules/typescript/bin/tsc --version
+CTT_TYPESCRIPT_COMPILER=/tmp/ctt-ts474/node_modules/typescript/bin/tsc node scripts/verify-package.cjs
 ```
 
-For final composable and graph-walking API compatibility, run the built-package verifier across exact Node 22.12.0, current Node 24 and Bun 1.4.4, each with locked TS4.9.5 and minimum TS4.7.4. Build once on the final tree, then invoke `scripts/verify-package.cjs` directly for the remaining matrix cases; a successful `npm run check` covers its current-runtime/locked-compiler case. Record actual runtime/compiler versions, complete logs and exit codes. The uniform consumer fixtures exercise real calls and meaningful negative assertions through packed `.ts`/`.cts`/`.mts` declarations, with both CJS/ESM runtime identities; source imports alone do not prove compatibility.
+The second command needs registry access; any writable directory works in place of `/tmp/ctt-ts474`. The verifier log prints `Packed type consumers: Version 4.7.4` while the override is active and exits non-zero on any consumer or snippet error. Build once, then invoke `scripts/verify-package.cjs` directly for each additional compiler or runtime; `npm run verify-package` rebuilds every time. Keep dist-mutating builds and packed checks serial.
 
-Re-check every available runtime and both compiler versions before the final matrix; local `/tmp` paths are examples of evidence tooling, not guaranteed installations. After the full check builds the final tree, use verified local paths (represented here by shell variables) for the five remaining pairs, sequentially:
+What CI runs (`.github/workflows/ci.yml`): `npm run check` on Node 22 and 24 with the locked compiler; `npm run verify-package` on Node 22.12.0, the minimum Node; and the Bun 1.4.4 lane above. TypeScript 4.7.4 is not run in CI; it is covered only locally through `CTT_TYPESCRIPT_COMPILER`.
 
-```sh
-node "$ctt_minimum_compiler" --version
-"$ctt_node22" --version
-"$ctt_bun" --version
-CTT_TYPESCRIPT_COMPILER="$ctt_minimum_compiler" node scripts/verify-package.cjs
-"$ctt_node22" scripts/verify-package.cjs
-CTT_TYPESCRIPT_COMPILER="$ctt_minimum_compiler" "$ctt_node22" scripts/verify-package.cjs
-"$ctt_bun" scripts/verify-package.cjs
-CTT_TYPESCRIPT_COMPILER="$ctt_minimum_compiler" "$ctt_bun" scripts/verify-package.cjs
-"$ctt_bun" test scripts/build-esm.test.cjs scripts/benchmark-dag.test.cjs scripts/benchmark-dag-lifecycle.test.cjs
-```
-
-The current Node/locked compiler pair is already covered by `npm run check`; avoid rebuilding for each remaining verifier call. Each verifier uses its own temporary consumer directory and `process.execPath` for runtime/compiler subprocesses. Record the complete command, actual versions, exit code and log per pair. Exact minimum Node packed compatibility does not replace the full current Node 22/24 CI source/coverage lanes; any unavailable lane must remain explicitly pending remote CI.
-
-The `/tmp` compiler and checksum-verified Bun binary are local evidence tooling, not repository dependencies. The full Node 22/24 CI checks and the pinned Bun lane are separate required gates.
+To run the packed verifier under another Node or Bun version locally, build on your current Node and then launch the verifier with that runtime's binary: `nvm exec 22.12.0 node scripts/verify-package.cjs`, an explicit binary such as `/path/to/node-v22.12.0/bin/node scripts/verify-package.cjs`, or `bun scripts/verify-package.cjs`. The launching runtime is the one that executes the packed consumers and the compiler, because the verifier spawns them with `process.execPath`; add `CTT_TYPESCRIPT_COMPILER` to the same command to cover a runtime/compiler pair. When reporting such a matrix, record the actual versions and exit codes. These local runs supplement the CI gates; they do not replace them.
 
 ## UUID dependency compatibility
 

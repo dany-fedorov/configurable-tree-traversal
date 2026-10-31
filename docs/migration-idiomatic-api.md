@@ -1,6 +1,6 @@
 # Idiomatic API migration
 
-Apply the [latest API distinctions migration](migration-api-distinctions.md) for current presence, ownership and canonical naming contracts.
+Upgrade-only reading. Start from the [final upgrade checklist](migration-api-distinctions.md); this guide keeps the detailed tables and examples for one earlier stage and is not a step you apply in sequence. First-time readers should use the [README](../README.md) and [reference](reference.md) instead.
 
 [Documentation map](index.md) · [Client API migration](migration-client-api.md) · [API reference](reference.md) · [Earlier naming migration](migration-api-clarity.md) · [Uniform API migration](migration-uniform-api.md)
 
@@ -32,7 +32,7 @@ The canonical API has one spelling for each supported operation. Removed exports
 
 The four names are `materializeDagInputFromRecords`, `materializeDagInputFromRoots`, `materializeDagInputFromRecordsAsync`, and `materializeDagInputFromRootsAsync`. Async materialization awaits input/selector I/O once and returns the same envelope containing a synchronous reusable discovery source. Standalone protocols remain `DagDiscoverySource` / `AsyncDagDiscoverySource`.
 
-Materialized catalog lookup ignores the current live context. Its source can therefore be composed with a disjoint rewrite-data domain without reconfiguring the materializer: `DagTraversal<VertexTypes<Item, ID>, Output, ID>` and its async/helper counterparts accept the returned envelope directly or by spread. Ordinary construction without explicit rewrite types still infers Item and ID precisely. The source continues to resolve input items and ID hints; original views retain Item. This capability is specific to context-independent lookup. A custom source whose hooks require input-only live data must still be configured for the traversal's full live context.
+The current recipe lives in the reference under [typed source composition](reference.md#typed-source-composition). Materialized catalog lookup ignores the current live context. Its source can therefore be composed with a disjoint rewrite-data domain without reconfiguring the materializer: `DagTraversal<VertexTypes<Item, ID>, Output, ID>` and its async/helper counterparts accept the returned envelope directly or by spread. Ordinary construction without explicit rewrite types still infers Item and ID precisely. The source continues to resolve input items and ID hints; original views retain Item. This capability is specific to context-independent lookup. A custom source whose hooks require input-only live data must still be configured for the traversal's full live context.
 
 <!-- standalone -->
 

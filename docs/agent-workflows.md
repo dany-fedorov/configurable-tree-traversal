@@ -8,6 +8,7 @@ For prerequisite-driven work, follow this page in order. For cyclic information 
 
 ## On this page
 
+- [Vocabulary](#vocabulary)
 - [Choose an execution model](#choose-an-execution-model)
 - [Discover the graph](#discover-the-graph)
 - [Work dependencies and completion joins](#work-dependencies-and-completion-joins)
@@ -18,7 +19,29 @@ For prerequisite-driven work, follow this page in order. For cyclic information 
 - [Reuse workflow fragments](#reuse-workflow-fragments)
 - [Explore context and references](#explore-context-and-references)
 
+## Vocabulary
+
+The [quickstart](../README.md#quickstart-find-the-next-agent-tasks) uses these terms; the rest of this page assumes them. Exact contracts live in the [reference](reference.md).
+
+- **Task, vertex, `vertexId`.** CTT represents each unit of host work as a vertex. `vertexId` is its stable caller-chosen identity, compared with SameValueZero equality, so strings, numbers, symbols and object references are all valid. Task meaning, prompts and outcomes stay in opaque `$data`.
+- **W and C.** **W** is a vertex's completed initial work. **C** is its committed completion transition after W, closed discovery and completion of every retained child. `dependsOnWork: [p]` waits for W(p); `dependsOnSubgraphCompletion: [p]` waits for C(p).
+- **Materialize → prepare → session.** Materializing turns a task collection into a discovery input. Preparing discovers and validates that graph and retains reusable topology; sessions reuse it without calling the original source again. A session starts independent progress over that topology for host dispatch.
+- **Ticket.** A session-local completion capability returned by `advance()`. It exposes only `vertexId` and enables `completeWork(ticket)` or `failTraversal(ticket, error)`. It is not a claim, lease, or attempt ID, and it has no durable serialized form.
+- **Frontier.** The work whose dependencies are satisfied and that now waits for the host: `advance().workTickets` on a session, or `summary().awaitingSettlement` on a runner.
+- **Deferral, external settlement, generation.** Under `workCompletion: 'externalSettlement'`, ready work is deferred: CTT lists it instead of completing it, and the host settles it later. Sessions use this policy internally. A generation is a local symbol attached to one deferred vertex in one runner; it guards settlement and is not a durable attempt ID.
+- **Synthetic root.** A hidden entry holder that lets a flat collection have many entry tasks. Materialized inputs already set `syntheticRoot: true`; the holder never appears in public vertices, events, callbacks, or parent queries.
+- **Runner versus session.** A runner is one in-memory execution: it discovers, schedules and runs visitors, and admits a single execution owner at a time. A session wraps a runner for ticket coordination and runs nothing of its own; prepared session factories accept no visitors, while a bound custom runner keeps the visitors it was built with.
+
 ## Choose an execution model
+
+A **source** supplies graph facts. A **builder** (`DagTraversal` / `AsyncDagTraversal`) configures runners; `configure(patch)` changes future runners, and existing runners keep their snapshots. A **prepared DAG** retains validated, reusable topology and never calls the original source again. A **runner** owns one execution with its own progress, visitors, seed copy and settlement generations. A **work session** exposes ticket coordination over a runner.
+
+| Route                                                                                                                 | What runs where                                                                                                                                                                          | Use it when                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepareDag` + `dag.createWorkSession()`                                                                              | Host dispatches frontier tickets; validated topology is reused by independent sessions without replaying the source                                                                      | The coordinator runs agents itself. Start here: [quickstart](../README.md#quickstart-find-the-next-agent-tasks), [ticket coordination](reference.md#ticket-coordination)                                                                                                      |
+| `prepareDag` + `dag.createRunner({ visitors })`                                                                       | Callbacks run in-process on validated topology; normal callback return completes W                                                                                                       | One process owns execution and can await work inside visitors: [prepared factories](reference.md#reusable-prepared-dags), [filtered visitor example](reference.md#filtered-visitor-example)                                                                                   |
+| `new DagTraversal(...)` / `new AsyncDagTraversal(...)` + `createRunner()` with `workCompletion: 'externalSettlement'` | Lazy discovery from a custom source; after `run()`, the host reads `summary().awaitingSettlement` and settles, or wraps the runner with `bindDagWorkSession` / `bindAsyncDagWorkSession` | Graph facts are fetched lazily or need `resolvePrerequisite`: [orchestration example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-orchestration-example.ts), [bind an existing runner](reference.md#bind-an-existing-runner-example) |
+| `traverseDag(options)` / `await traverseDagAsync(options)`                                                            | One-shot run with the supplied visitors, returning the runner                                                                                                                            | A single in-process pass. Without visitors the run still resolves the source and completes every vertex's work under the default policy: [DAG traversal](reference.md#dag-traversal)                                                                                          |
 
 | Model                    | How it works                                                                                                                                                            | Appropriate when                                                                      |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -43,11 +66,23 @@ validate result + attempt/revision → durably accept completion
 complete retained ticket + advance again, or reconstruct next tick
 ```
 
-The same vertex can remain in `readyOrDeferredIds` while an external agent is running. CTT's `activeVisitorVertexIds` tracks its own visitor chains, not the host's external attempts. Always overlay host claims, capacity, and waits before dispatch.
+The same vertex can remain in `summary().readyOrDeferredIds` while an external agent is running. CTT's `activeVisitorVertexIds` tracks its own visitor chains, not the host's external attempts. Always overlay host claims, capacity, and waits before dispatch.
 
 ## Discover the graph
 
 Your host supplies the task graph; CTT discovers the domain exposed by its source. It does not generate a plan from a goal or decide what a business task means.
+
+### Start with the simplest source
+
+For a finite catalog, use `materializeDagInputFromRecords(items, { id, ...selectors })`: every item is discovered, including disconnected tasks, and `children(item)` returns child IDs. For nested records, use `materializeDagInputFromRoots(roots, selectors)`, whose children are records; see the [roots materialization example](reference.md#roots-materialization-example). The [collection contract](reference.md#collection-and-forest-sources) covers sharing, duplicate IDs, missing endpoints and async variants.
+
+The selectors `dependsOnWork(item)` and `dependsOnSubgraphCompletion(item)` declare the two dependency kinds: a W dependency releases the dependent once the prerequisite's initial work is accepted, and a C dependency waits for the prerequisite's committed completion, including its retained children. Structural `children` are a separate relation and add no work prerequisite by default. [Work dependencies and completion joins](#work-dependencies-and-completion-joins) shows when each is right.
+
+Pass the whole returned `MaterializedDagInput`: it contains `traversableGraph` and `syntheticRoot: true`. The private entry holder stays out of public callbacks and queries. Materialization copies collection/edge membership while retaining shallow data and ID identity.
+
+### Describe a custom source
+
+Already have a finite task collection? Stay with the records materializer. Implement resolver callbacks only when graph facts must be discovered or fetched lazily.
 
 | Concept                          | CTT representation                                                 | Host responsibility                                                |
 | -------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
@@ -58,11 +93,7 @@ Your host supplies the task graph; CTT discovers the domain exposed by its sourc
 | Structural-completion dependency | `dependsOnSubgraphCompletion`                                      | Declare which composite must finish before work begins             |
 | Missing prerequisite lookup      | Optional `resolvePrerequisite(id)`                                 | Fetch graph facts from a catalog/service                           |
 
-### Start with the simplest source
-
-For a finite catalog, use `materializeDagInputFromRecords(items, { id, ...selectors })`: every item is discovered, including disconnected tasks, and `children(item)` returns child IDs. For nested records, use `materializeDagInputFromRoots(roots, selectors)`, whose children are records. The [collection contract](reference.md#collection-and-forest-sources) covers sharing, duplicate IDs, missing endpoints and async variants.
-
-Pass the whole returned `MaterializedDagInput`: it contains `traversableGraph` and `syntheticRoot: true`. The private entry holder stays out of public callbacks and queries. Materialization copies collection/edge membership while retaining shallow data and ID identity.
+A custom lazy source may implement `resolvePrerequisite(id)` for identities absent from ordinary discovery. Lookup can find transitive prerequisites; an ID alone does not make content discoverable. Deliberate omission satisfies traversal dependencies and does not mean an agent failed or a service is temporarily unavailable. Use the exact [source/context contracts](reference.md#source-callback-contexts) and [lookup/identity rules](reference.md#discovery-and-completed-work), including required own IDs for typed live results. Lazy summaries remain observational and can be partial.
 
 ### Prepare once, then create independent sessions
 
@@ -80,8 +111,6 @@ The prepared value owns copied topology. Each `dag.createWorkSession()` starts i
 | Dispatch host work                               | Session `advance()` frontier tickets, or runner `summary().awaitingSettlement` after `run()` | Use external settlement; apply host claims and capacity. `readyOrDeferredIds` is observational dependency eligibility, not a dispatch ticket. |
 
 For a preview of one fresh runner, call `runner.prepare()` (await it on an async runner), inspect at `HALTED` / `prepared`, then call `run()` to adopt discovery without replay. This also supports a fresh tree-source DAG runner; the constructor options `discovery: 'eager'` and `syntheticRoot: true` require graph-source mode. Preparation can perform I/O and cooperative pause waits for admitted discovery callbacks. See [preview lifecycle](reference.md#discovery-and-execution-as-separate-phases).
-
-A custom lazy source may implement `resolvePrerequisite(id)` for identities absent from ordinary discovery. Lookup can find transitive prerequisites; an ID alone does not make content discoverable. Deliberate omission satisfies traversal dependencies and does not mean an agent failed or a service is temporarily unavailable. Use the exact [source/context contracts](reference.md#source-callback-contexts) and [lookup/identity rules](reference.md#discovery-and-completed-work), including required own IDs for typed live results. Lazy summaries remain observational and can be partial.
 
 ## Work dependencies and completion joins
 
@@ -120,23 +149,25 @@ The [build-join example](https://github.com/dany-fedorov/configurable-tree-trave
 
 ## Accept results and resume
 
-Event streams filter at delivery across tree, DAG and walking runners. A new iterator lease applies its `emitEvents` selection to buffered observations and deferred settlement events. Selection never replays work or callbacks; `visitorPhases` retains independent admission snapshots. For example, resume with `emitEvents: ['subgraphCompleted']` to consume completion observations while suppressing pending work observations. See the [delivery example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts).
+The [quickstart](../README.md#quickstart-find-the-next-agent-tasks) completes the whole fork/join using simulated acceptance. In a coordinator, retain each actual ticket with its host attempt, and dispatch only after a host claim succeeds. Validate the attempt's result and durably accept it, then call `completeWork(ticket)`. Call `advance()` again to observe newly released work; `advance()` drains execution and returns `awaitingSettlement` with readonly tickets, `paused`, or `finished` (async sessions return a promise), while `completeWork` and `failTraversal` are synchronous.
 
-The [quickstart](../README.md#quickstart-find-the-next-agent-tasks) completes the whole fork/join using simulated acceptance. In a coordinator, retain each actual ticket with its host attempt; dispatch only after a host claim succeeds, and complete the ticket only after validating and durably accepting that attempt's result. The [validation and failure recipes](reference.md#validation-results-and-failures) show duplicate acceptance and fatal failure separately.
+Tickets expose only `vertexId`; their provenance and generation are private. Serializing or copying a ticket does not preserve settlement authority, and a ticket is not a distributed lease or persistent attempt ID. Filter each frontier through host claims, waits, and capacity. Between advances, `summary()` reports work progress, `inspectMilestones().explain({ vertexId, milestone: 'work' })` explains blockers, and `inspect()` reports lifecycle state; all three observe without advancing. `requestPause()` delegates cooperative pause to the runner. See [ticket coordination](reference.md#ticket-coordination).
 
-`advance()` drains execution and returns `awaitingSettlement` with readonly tickets, `paused`, or `finished`; async sessions return a promise. `completeWork(ticket)` and `failTraversal(ticket, error)` are synchronous. The first accepted report returns `{ kind: 'accepted' }`; the identical report returns `{ kind: 'alreadyAccepted' }`. A failure fails the whole runner and the next advance throws the exact error. Conflicting reports, copied/forged tickets, and tickets from another facade or session reject. Repeated observations of the same deferred work stay usable. Follow completion with advance to observe new work. Use `session.inspectMilestones().explain({ vertexId, milestone: 'work' })` to explain blockers without advancing, and `session.inspect()` for lifecycle state. `failTraversal` is the sole fatal settlement method.
+### Duplicate and fatal reports
 
-Tickets expose only `vertexId`; their provenance and generation are private. They are local capabilities: serializing or copying a ticket does not preserve settlement authority. Filter each frontier through host claims, waits, and capacity. A ticket is not a distributed lease or persistent attempt ID. Use `summary()` for work progress/frontier, `inspectMilestones()` for dependency blockers, and `inspect()` for execution/iterator state. All three observe without advancing. `requestPause()` delegates cooperative pause to the runner.
+The first accepted report returns `{ kind: 'accepted' }`; the identical report returns `{ kind: 'alreadyAccepted' }`, so redelivered results are harmless. `failTraversal(ticket, error)` is the sole fatal settlement method: it fails the whole runner, and the next advance throws the exact error. Keep retryable work incomplete under host policy instead. Conflicting reports, copied/forged tickets, and tickets issued by another session (including a second session bound to the same runner) reject. The [validation and failure recipes](reference.md#validation-results-and-failures) show both cases in code.
 
-For existing custom-source runners, set `workCompletion: 'externalSettlement'` and wrap with `bindDagWorkSession(runner)` or `bindAsyncDagWorkSession(runner)`. Wrapping runs no callbacks and acquires no separate execution owner; direct runner access remains available. The lower-level guarded frontier and settlement contract also remains available.
+`{ kind: 'workCompleted' }` means the work is complete for dependency traversal; an accepted review rejection can still complete a review vertex when host policy says the review work is done. `{ kind: 'traversalFailed', error }` is not a retry request or a business outcome field, and the progress state `completed` records traversal work completion only. See [host policy and traversal feedback](reference.md#host-policy-and-traversal-feedback).
 
-For an async runner, await `runner.run()`. `settle()` itself is synchronous. A settlement wakes an active async consumer; after idle settlement, resume explicitly. Only one iterator may own a runner at a time. All runners expose `requestPause(): boolean`: true records a new request only while RUNNING, rather than acknowledging a halt. The active owner drains admitted chains to `HALTED` / `paused` without cancellation; a suspended iterator may need `next()` or `return()` to drive that boundary. Resume the same runner without replaying committed work.
+### Observe events
 
-Dispatch from `summary().awaitingSettlement`: each readonly record atomically contains `{ vertexId, generation }`. It includes exactly live deferred work without an accepted outcome, in discovery order; queued-only, completed and deleted vertices are absent. Arrays and records are detached, retaining opaque ID identity. Filter this snapshot through host claims and capacity. DAG event `kind: 'workCompleted'` emits after committed W, including settlement; `kind: 'subgraphCompleted'` emits after committed C. Select these kinds with `emitEvents`; select readiness callbacks separately with `visitorPhases`. Committed events have no callback `phase` field. Seeded work emits no synthetic work event. `ON_WORK_READY` visitors remain pre-work. Completion events are not dispatch signals. Alternatively, an actual enabled `ON_WORK_READY` callback can dispatch before the external policy defers its chain. All callback commands commit before normal external deferral. `ON_SUBGRAPH_READY` remains automatic once W, discovery, children, and C prerequisites permit it.
+DAG events report committed facts: `kind: 'workCompleted'` emits after committed W, including settlement, and `kind: 'subgraphCompleted'` emits after committed C; seeded work emits no synthetic event, and completion events are not dispatch signals. `emitEvents` selects delivered event kinds and `visitorPhases` selects callbacks independently; a new iterator lease applies its `emitEvents` selection to buffered observations and deferred settlement events without replaying work or callbacks. For example, resume with `emitEvents: ['subgraphCompleted']` to consume completion observations while suppressing pending work observations. See [deferred DAG progress](reference.md#deferred-dag-progress-and-reconciliation) and the [delivery example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/event-delivery-selection-example.ts).
 
-Capture the generation belonging to the deferred work you dispatched. It is a local guard, not a durable attempt ID, distributed lease, or authentication token. The host must separately reject stale revisions, stale attempts, duplicate result delivery, and lost claims before accepting a result. An identical accepted settlement returns `false`; invalid, conflicting, or cross-runner settlement throws.
+### Advanced: settle an existing runner
 
-`{ kind: 'workCompleted' }` means the work is complete for dependency traversal. An accepted review rejection can still complete a review vertex if host policy says the review work is done. `{ kind: 'traversalFailed', error }` fails the whole runner and preserves the exact thrown value; it is not a retry request or a business outcome field. The progress state `completed` means traversal work completion.
+For a custom-source runner built with `workCompletion: 'externalSettlement'`, either wrap it with `bindDagWorkSession(runner)` / `bindAsyncDagWorkSession(runner)` (wrapping runs no callbacks and acquires no separate execution owner) or dispatch directly from `summary().awaitingSettlement`, whose readonly records atomically contain `{ vertexId, generation }` for live deferred work without an accepted outcome. Capture the generation of the work you dispatched and pass it to `settle(vertexId, outcome, generation)`: it is a local guard, so the host must still reject stale revisions, stale attempts, duplicate deliveries, and lost claims before accepting a result; an identical accepted settlement returns `false`, and invalid, conflicting, or cross-runner settlement throws.
+
+An enabled `ON_WORK_READY` callback can dispatch before the external policy defers its chain; all callback commands commit before deferral, and `ON_SUBGRAPH_READY` remains automatic. On an async runner, `await runner.run()`; `settle()` is synchronous, a settlement wakes an active async consumer, and after an idle settlement you resume explicitly. Only one iterator may own a runner at a time, and `requestPause()` returns true only while RUNNING; the owner drains admitted chains without cancellation. See the [summary schema](reference.md#dag-summary-schema) and the [bind example](reference.md#bind-an-existing-runner-example).
 
 ## Persist facts and reconstruct
 
@@ -222,12 +253,58 @@ Invalid ports, identity collisions and nonexistent wire endpoints throw `TypeErr
 
 ## Explore context and references
 
-Choose `GraphWalk` / `AsyncGraphWalk` to gather context, follow code references or collect provenance from cyclic/shared information graphs. Choose DAG traversal when relationships mean work/completion prerequisites. A walking edge has caller-defined meaning and supplies no dispatch readiness. A found isolated root still produces a vertex; parallel and back edges remain observable in the same walk. See the [five-vertex/six-relationship context example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts) and [exact walking contracts](reference.md#general-graph-walking).
+Use walking to collect connected information; cycles and multiple relationships between the same vertices are allowed. Choose `GraphWalk` / `AsyncGraphWalk` to gather context, follow code references or collect provenance. Choose DAG traversal instead when relationships mean work/completion prerequisites: a walking edge has caller-defined meaning and supplies no dispatch readiness.
 
-For a finite in-memory catalog, use `materializeWalkSourceFromRecords(items, { id, outgoing, roots })`; its async counterpart materializes async inputs once and returns a synchronous source. For lazy retrieval, supply `source.roots()` and `source.outgoing(vertex)` with an explicit hydration mode. Use `hydration: 'resolver'` with required `resolveVertex(id)` and mixed `{ vertexId }` / `{ vertexId, resolution }` targets. Use `hydration: 'inlineOrCached'` without a resolver and tagged `{ kind: 'inline', vertexId, resolution }` / `{ kind: 'cached', vertexId }` targets; cached targets require a prior admitted resolution, including for self/backedges. Walking materializers declare resolver mode. Reuse `GraphWalkRecordSelectors` / `AsyncGraphWalkRecordSelectors` for catalogs; `GraphWalkCatalogLink` has readonly `to`/`data` fields, separate from lazy target wrappers. `materializeWalkSourceFromDagDefinition(definition, { relations })` explicitly projects selected declaration links without DAG execution validation. Do not pass a `DagDiscoverySource` / `TreeSource` directly; their source context and omission contracts differ.
+The simplest route is a finite in-memory catalog: `materializeWalkSourceFromRecords(items, { id, outgoing, roots })`, then `walkGraph` with vertex and edge visitors, then `summary().outcome`.
 
-Use phase-keyed vertex and edge visitors to collect typed endpoint data in one session. Use `iterateEvents({ emitEvents: [...] })` for pull integration; explicit selections narrow the delivered event union, while callbacks are independently controlled by `visitorPhases`. `walkGraph(options)` / `await walkGraphAsync(options)` are one-shot helpers returning the runner. Source callbacks and visitors execute serially, including async walking; no concurrency setting is accepted. The [reference example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts) shows callbacks, async iteration, endpoint discriminants, common inspection and wrappers that preserve each family's phase type.
+<!-- standalone -->
 
-Default `revisit: 'once'` collects each vertex and every followed relationship. Select `simplePaths` for prefixes without repeated vertices, or `walks` for repeated routes; both require a depth or candidate-read-attempt bound. Always carry `runner.summary().outcome` into a host result so `limited` cannot be mistaken for completeness. Paths include every prefix; parallel relationships can produce identical vertex sequences with distinct edge indices. DFS depth bounds apply to its first route; BFS finds shortest discovery depths. See the [bounded provenance example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-paths-example.ts).
+```ts
+import {
+  GraphWalkPhase,
+  materializeWalkSourceFromRecords,
+  walkGraph,
+} from 'configurable-tree-traversal';
 
-The host owns authorization, retrieval policy, stable IDs, relationship meaning, retries, freshness, timeouts, persistence and any agent/model invocation. The first admitted resolution for an ID wins, including omission; a fresh runner is required to observe replacement data. Walking does not retry omissions or certify a remote transactional snapshot. A budget bounds candidate read attempts, admitted targets and depth, not host callback duration or tokens. Consumer iterator `return()`/loop break pauses and retains resources for continuation; terminal runner `close()` disposes them after execution ownership has been released. Active terminal close rejects: first return the iterator or request and await pause. Iterator return/pause and async cleanup require pending host work to settle and do not cancel promises. A failed runner retains its exact error; closing it rethrows that same error without repeating cleanup. Retain/dispose paused runners deliberately; there is no durable walking checkpoint or built-in network/LLM integration.
+const notes = [
+  { id: 'spec', links: ['design', 'design'] },
+  { id: 'design', links: ['spec', 'ticket'] },
+  { id: 'ticket', links: [] },
+];
+const source = materializeWalkSourceFromRecords(notes, {
+  id: (note) => note.id,
+  outgoing: (note) => note.links.map((to) => ({ to, data: { kind: 'cites' } })),
+  roots: ['spec'],
+});
+const context: string[] = [];
+const runner = walkGraph({
+  source,
+  visitors: {
+    [GraphWalkPhase.VERTEX]: (event) => {
+      context.push(event.vertex.vertexId);
+    },
+    [GraphWalkPhase.EDGE]: (event) => {
+      console.log(
+        event.edge.from,
+        event.edge.data.kind,
+        event.edge.to,
+        event.target.kind,
+      );
+    },
+  },
+});
+console.log(context); // ['spec', 'design', 'ticket']
+console.log(runner.summary().outcome); // { kind: 'exhausted' }
+```
+
+Each vertex is observed once, while every followed relationship is observed, including the parallel `spec → design` links and the `design → spec` back edge. A found isolated root still produces a vertex observation. Use `iterateEvents({ emitEvents: [...] })` on `new GraphWalk({ source }).createRunner()` for pull integration instead of callbacks. Source callbacks and visitors execute serially, including async walking; no concurrency setting is accepted. See the [context example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-context-example.ts) and [exact walking contracts](reference.md#general-graph-walking).
+
+### Bounds and completeness
+
+Default `revisit: 'once'` collects each vertex and every followed relationship. Select `simplePaths` for prefixes without repeated vertices, or `walks` for repeated routes; both require a depth or candidate-read-attempt bound. Always carry `runner.summary().outcome` into a host result: `{ kind: 'exhausted' }` means the configured source and policy drained, while `{ kind: 'limited', reasons }` means a bound stopped the walk and must not be mistaken for completeness. A budget bounds candidate read attempts, admitted targets and depth, not host callback duration or tokens. DFS depth bounds apply to its first route; BFS finds shortest discovery depths. See [revisit policies and bounds](reference.md#revisit-policies-predicates-and-bounds) and the [bounded provenance example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-paths-example.ts).
+
+Consumer iterator `return()` or a loop break pauses and retains resources for continuation; terminal runner `close()` disposes them after execution ownership has been released, and a failed runner's `close()` rethrows its exact retained error. Neither cancels promises or host work. The host owns authorization, retrieval policy, stable IDs, relationship meaning, retries, freshness, timeouts, persistence and any agent/model invocation; there is no durable walking checkpoint or built-in network/LLM integration.
+
+### Advanced sources
+
+For lazy retrieval, supply `roots()` and `outgoing(vertex)` with an explicit hydration mode: `'resolver'` with `resolveVertex(id)` and `{ vertexId }` / `{ vertexId, resolution }` targets, or `'inlineOrCached'` without a resolver and tagged inline/cached targets. The first admitted resolution for an ID wins, including omission; walking does not retry omissions, and a fresh runner is required to observe replacement data. `materializeWalkSourceFromDagDefinition(definition, { relations })` projects selected declaration links without DAG execution validation; do not pass a `DagDiscoverySource` / `TreeSource` directly, because their source context and omission contracts differ. See [walking sources and identity](reference.md#walking-sources-and-identity), [walking adapters and inspection](reference.md#walking-adapters-and-inspection), the [definition walk example](reference.md#definition-walk-example) and the [typed references example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-references-example.ts).
