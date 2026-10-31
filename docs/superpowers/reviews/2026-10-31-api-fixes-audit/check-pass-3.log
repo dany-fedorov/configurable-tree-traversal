@@ -1,9 +1,0 @@
-
-> configurable-tree-traversal@0.11.0 check
-> npm run typecheck && npm run lint && npm run test:coverage && npm run verify-examples && npm run verify-package && npm run test:benchmark && npm run test:packaging
-
-
-> configurable-tree-traversal@0.11.0 typecheck
-> tsc --noEmit
-
-src/core/observationFacets.ts(2,1): error TS1371: This import is never used as a value and must use 'import type' because 'importsNotUsedAsValues' is set to 'error'.

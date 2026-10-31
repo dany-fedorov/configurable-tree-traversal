@@ -1,8 +1,0 @@
-{
-  "command": "node scripts/verify-package.cjs",
-  "compiler": "4.7.4",
-  "exitCode": 0,
-  "finishedAtUtc": "2026-10-31T16:44:04.863464+00:00",
-  "elapsedSeconds": 83.41,
-  "log": "package-typescript-4.7.4-final.log"
-}

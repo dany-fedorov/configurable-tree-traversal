@@ -1,5 +1,0 @@
-all-omitted root: resolvedChildren=0, isTraversalLeaf=false
-root skipped after first child: resolvedChildren=1, isTraversalLeaf=true
-two wrapped sessions: tickets local, work progress shared
-two prepared-DAG sessions: work progress independent
-keep preserves property semantics, but assembly may create a new composite value
