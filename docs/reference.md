@@ -2,7 +2,7 @@
 
 [Documentation index](index.md) · [Agent workflow guide](agent-workflows.md) · [Quickstart](../README.md#quickstart-find-the-next-agent-tasks)
 
-Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts. Look up an exported name in the [public symbol index](api-index.md). These contracts describe the current source checkout; see [install](../README.md#install) for how to run it.
+Start with the workflow guide for integration; use this page for exact lifecycle, identity, error, and compatibility contracts. Look up an exported name in the [public symbol index](api-index.md). These contracts describe `configurable-tree-traversal` 0.12.0; see [install](../README.md#install).
 
 ## On this page
 
@@ -2315,7 +2315,7 @@ Full callback declarations are linked from the [public symbol index](api-index.m
 
 The [idiomatic API migration](migration-idiomatic-api.md) covers the full removal checklist and corrected object contracts. The [API naming migration](migration-api-clarity.md) lists renamed symbols, removed public extension points and supported paths. The [uniform API migration guide](migration-uniform-api.md) covers removed inputs and behavior changes. `Vertex` owns enumerable `$data`/`$childHints`; legacy `$d`/`$c` inputs/accessors are removed. Object spread, `Object.keys`, and JSON output use canonical names. `clone({ $data: undefined })` explicitly replaces data. Mixed canonical/legacy content fields reject. Built-in object and resolved-tree source adapters emit canonical content; resolved-tree structural child references remain structural refs.
 
-CTT 0.11.0 uses UUID 14 and requires Node 22.12.0+ for synchronous ESM dependency loading, or Bun 1.4.4. Public CJS/ESM entry points and TypeScript consumer compatibility are covered by packed checks (`npm run verify-package`) against the locked TypeScript 4.9.5 compiler; CI exercises only that version. The declared 4.7.4 minimum is checked only when `CTT_TYPESCRIPT_COMPILER` points the package verifier at that compiler.
+Since 0.11.0, CTT uses UUID 14 and requires Node 22.12.0+ for synchronous ESM dependency loading, or Bun 1.4.4. Public CJS/ESM entry points and TypeScript consumer compatibility are covered by packed checks (`npm run verify-package`) against the locked TypeScript 4.9.5 compiler; CI exercises only that version. The declared 4.7.4 minimum is checked only when `CTT_TYPESCRIPT_COMPILER` points the package verifier at that compiler.
 
 Namespace exports `core`, `depthFirstTraversal`, `breadthFirstTraversal`, `dagTraversal`, `traversableObjectTree`, `objectRewrite`, and `graphWalk` remain available, alongside named exports for all eight traversal builders, helpers, and types. Public subpaths include `core` and each traversal family. Historical deep imports such as `configurable-tree-traversal/core/Vertex` and `configurable-tree-traversal/traversals/dag-traversal/lib/DagTraversalRunner` are blocked, with or without `.js`. Import `Vertex` from root/core and obtain runners through `createRunner()`. See [supported imports](#supported-imports) for the explicit entry point list and the [removed extension points](migration-api-clarity.md#supported-imports-and-removed-extension-points).
 

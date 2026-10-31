@@ -2,7 +2,7 @@
 
 [Documentation index](index.md) · [API reference](reference.md) · [Agent workflows](agent-workflows.md)
 
-This is the current upgrade entry point from released 0.11.0 to the unreleased API in this checkout. Apply the final contracts below directly; earlier guides retain detailed tables and examples, not intermediate steps you must apply in order. This guide includes the twenty API distinctions from the 2026-10-31 review. Old spellings and ambiguous scalar rewrite outputs are removed. Keep host task meaning, retries, claims and durable acceptance outside CTT.
+This is the upgrade entry point from 0.11.0 to 0.12.0. Apply the final contracts below directly; earlier guides retain detailed tables and examples, not intermediate steps you must apply in order. This guide includes the twenty API distinctions from the 2026-10-31 review. Old spellings and ambiguous scalar rewrite outputs are removed. Keep host task meaning, retries, claims and durable acceptance outside CTT.
 
 ## Final upgrade checklist
 
