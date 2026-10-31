@@ -2,7 +2,7 @@ import type { InternalVertexResolutionContext as VertexResolutionContext } from 
 import { MutableRef } from '../src/core/CTTRef';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { HintVertexId, VertexRef } from '../src/core/graph/types';
+import type { HintVertexId, InternalVertexRef } from '../src/core/graph/types';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { Vertex } from '../src/core/Vertex';
@@ -34,7 +34,7 @@ function omitted(id?: unknown): MakeVertexResult<TestGraph> {
 }
 
 function context(
-  parentRef: VertexRef<TestGraph>,
+  parentRef: InternalVertexRef<TestGraph>,
   hintIndex: number,
 ): VertexResolutionContext<TestGraph> {
   return {
@@ -42,7 +42,7 @@ function context(
     parentVertex: parentRef.getValue(),
     parentVertexRef: parentRef,
     hintIndex,
-    vertexHint: parentRef.getValue().getChildrenHints()[hintIndex]!,
+    vertexHint: parentRef.getValue().getChildHints()[hintIndex]!,
   };
 }
 
@@ -116,7 +116,10 @@ test('scheduling rejects unknown enrollment and duplicate expansion transitions'
   expect(() =>
     (
       scheduling as unknown as {
-        noteLinkedSlot(parent: VertexRef<TestGraph>, index: number): void;
+        noteLinkedSlot(
+          parent: InternalVertexRef<TestGraph>,
+          index: number,
+        ): void;
       }
     ).noteLinkedSlot(rootRef, 0),
   ).toThrow(/after expansion is closed/i);
@@ -129,13 +132,13 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
   const { container, scheduling, rootRef } = setup(['child']);
   (
     scheduling as unknown as {
-      captureReusableTreeChildren(parent: VertexRef<TestGraph>): void;
+      captureReusableTreeChildren(parent: InternalVertexRef<TestGraph>): void;
     }
   ).captureReusableTreeChildren(rootRef);
   expect(
     (
       scheduling as unknown as {
-        reusableTreeChildren: Map<VertexRef<TestGraph>, unknown>;
+        reusableTreeChildren: Map<InternalVertexRef<TestGraph>, unknown>;
       }
     ).reusableTreeChildren.size,
   ).toBe(0);
@@ -162,8 +165,8 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
   );
   const reusable = second.scheduling as unknown as {
     reusableTreeChildren: Map<
-      VertexRef<TestGraph>,
-      Map<number, { ref: VertexRef<TestGraph>; hint: string }>
+      InternalVertexRef<TestGraph>,
+      Map<number, { ref: InternalVertexRef<TestGraph>; hint: string }>
     >;
   };
   reusable.reusableTreeChildren.set(
@@ -186,19 +189,19 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
       second.scheduling as unknown as {
         findExistingTreeChild(
           value: VertexResolutionContext<TestGraph>,
-        ): VertexRef<TestGraph> | null;
+        ): InternalVertexRef<TestGraph> | null;
       }
     ).findExistingTreeChild(context(second.rootRef, 0)),
   ).toBeNull();
 
-  const removals = new Set<VertexRef<TestGraph>>([second.rootRef]);
-  const pending: VertexRef<TestGraph>[] = [];
+  const removals = new Set<InternalVertexRef<TestGraph>>([second.rootRef]);
+  const pending: InternalVertexRef<TestGraph>[] = [];
   (
     second.scheduling as unknown as {
       addRemoval(
-        ref: VertexRef<TestGraph>,
-        refs: Set<VertexRef<TestGraph>>,
-        work: VertexRef<TestGraph>[],
+        ref: InternalVertexRef<TestGraph>,
+        refs: Set<InternalVertexRef<TestGraph>>,
+        work: InternalVertexRef<TestGraph>[],
       ): void;
     }
   ).addRemoval(second.rootRef, removals, pending);
@@ -502,7 +505,7 @@ test('detects result ids as own properties rather than inherited values', () => 
   const rootRef = scheduling.acceptRoot(inherited)!;
 
   expect(container.resolvedGraphView.getVertexRefById('inherited')).toBeNull();
-  expect(container.resolvedGraphView.getVertexId(rootRef)).toBe(
+  expect(container.resolvedGraphView.requireVertexId(rootRef)).toBe(
     rootRef.getRefId(),
   );
 });
@@ -519,7 +522,7 @@ test('retries generated UUID identities that are already indexed', () => {
       result('generated', { dependsOnWork: [] }),
     )!;
 
-    expect(container.resolvedGraphView.getVertexId(generated)).toBe(
+    expect(container.resolvedGraphView.requireVertexId(generated)).toBe(
       'fresh-generated-id',
     );
   } finally {
@@ -608,7 +611,7 @@ test('accepts a hint wrapper only when it carries an own vertexId', () => {
   )!;
 
   expect(container.resolvedGraphView.getVertexRefById('inherited')).toBeNull();
-  expect(container.resolvedGraphView.getVertexId(hinted)).toBe(
+  expect(container.resolvedGraphView.requireVertexId(hinted)).toBe(
     hinted.getRefId(),
   );
 });

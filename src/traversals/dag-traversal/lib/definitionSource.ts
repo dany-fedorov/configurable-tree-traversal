@@ -20,14 +20,15 @@ export function captureDagDefinition<T extends VertexTypes, ID>(
       if (slot.kind === 'linked')
         slots.push({
           kind: 'vertex',
-          vertexId: graph.getVertexId(slot.childRef),
+          vertexId: graph.requireVertexId(slot.childRef),
         });
       else if (slot.kind === 'omitted')
         slots.push({
           kind: 'omitted',
-          identity: Object.prototype.hasOwnProperty.call(slot, 'vertexId')
-            ? { vertexId: slot.vertexId as ID }
-            : null,
+          identity:
+            slot.identity === null
+              ? null
+              : { vertexId: slot.identity.vertexId as ID },
         });
     }
     return slots;
@@ -53,7 +54,7 @@ export function captureDagDefinition<T extends VertexTypes, ID>(
       ? { kind: 'roots', slots: holder === null ? [] : captureSlots(holder) }
       : root === null
       ? { kind: 'empty' }
-      : { kind: 'root', vertexId: graph.getVertexId(root) },
+      : { kind: 'root', vertexId: graph.requireVertexId(root) },
   });
 }
 
@@ -85,7 +86,11 @@ export function definitionSource<Data, ID>(
   };
   const resolve = (id: ID): DagVertexResolution<Replay, ID> => {
     if (omitted.has(id))
-      return { kind: 'omitted', vertexId: id, satisfiesDependencies: true };
+      return {
+        kind: 'omitted',
+        identity: { vertexId: id },
+        satisfiesDependencies: true,
+      };
     const vertex = byId.get(id)!;
     return {
       kind: 'found',
@@ -134,7 +139,7 @@ export function definitionSource<Data, ID>(
           };
         return entry.kind === 'root'
           ? resolve(entry.vertexId)
-          : { kind: 'omitted', satisfiesDependencies: true };
+          : { kind: 'omitted', identity: null, satisfiesDependencies: true };
       },
       resolveChild: resolve,
       resolvePrerequisite: (id) =>

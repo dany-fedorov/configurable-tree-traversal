@@ -1,0 +1,35 @@
+{
+  "review": "fable-review.md",
+  "sourceCodeChanged": false,
+  "changedReviewedFiles": [
+    "docs/agent-workflows.md",
+    "docs/migration-api-clarity.md",
+    "docs/migration-uniform-api.md",
+    "docs/reference.md",
+    "docs/superpowers/reviews/2026-10-31-api-fixes-audit/requirements.json"
+  ],
+  "addedReviewInput": "CHANGELOG.md",
+  "findings": [
+    {
+      "id": 1,
+      "action": "correct rejected limits spelling in reference prose"
+    },
+    {
+      "id": 2,
+      "action": "replace retired current names and explain distinct hint/skip/structural semantics"
+    },
+    {
+      "id": 3,
+      "action": "align workflow terminology with unresolved/deleted literals"
+    },
+    {
+      "id": 4,
+      "action": "correct R16 audit wording to detached, preserving intended mutable walking wrappers"
+    },
+    {
+      "id": 5,
+      "action": "add breaking migration changelog entry"
+    }
+  ],
+  "privateTransportNamingPreference": "retained private sortHints/SORT_HINTS effect vocabulary; public mapping and inspection use transform names"
+}

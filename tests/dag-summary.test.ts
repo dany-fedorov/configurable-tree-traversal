@@ -59,17 +59,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(summary.vertices.get('ready')!.unmetPrerequisiteIds).toEqual([]);
     expect(summary.vertices.get('bad')!.work).toBe('pending');
     expect(summary.diagnostics).toEqual({
-      dependencies: [{ id: 'bad', unmet: ['missing'] }],
+      dependencies: [{ vertexId: 'bad', unmetPrerequisiteIds: ['missing'] }],
       unknownPrerequisiteIds: ['missing'],
       dependencyCycleComponents: [],
       dependencyBlockedIds: ['bad'],
       structurallyIncompleteIds: [],
       dependencyEdges: expect.any(Array),
     });
-    summary.diagnostics!.dependencies[0]!.unmet.length = 0;
+    summary.diagnostics!.dependencies[0]!.unmetPrerequisiteIds.length = 0;
     summary.diagnostics!.dependencyBlockedIds.length = 0;
     expect(runner.summary().diagnostics!.dependencies).toEqual([
-      { id: 'bad', unmet: ['missing'] },
+      { vertexId: 'bad', unmetPrerequisiteIds: ['missing'] },
     ]);
     expect(runner.summary().diagnostics!.dependencyBlockedIds).toEqual(['bad']);
     expect(calls).toBe(4);
@@ -100,7 +100,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             return {
               kind: 'omitted' as const,
               satisfiesDependencies: true as const,
-              vertexId: id,
+              identity: { vertexId: id },
             };
           }
           return {
@@ -137,15 +137,17 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(partial.discovery.complete).toBe(false);
     expect(partial.vertices.get(cycle)!.work).toBe('completed');
     expect(partial.diagnostics).toEqual({
-      dependencies: [{ id: bad, unmet: [missing] }],
+      dependencies: [{ vertexId: bad, unmetPrerequisiteIds: [missing] }],
       unknownPrerequisiteIds: [missing],
       dependencyCycleComponents: [[cycle]],
       dependencyBlockedIds: [bad],
       structurallyIncompleteIds: [],
       dependencyEdges: expect.any(Array),
     });
-    expect(partial.diagnostics!.dependencies[0]!.id).toBe(bad);
-    expect(partial.diagnostics!.dependencies[0]!.unmet[0]).toBe(missing);
+    expect(partial.diagnostics!.dependencies[0]!.vertexId).toBe(bad);
+    expect(partial.diagnostics!.dependencies[0]!.unmetPrerequisiteIds[0]).toBe(
+      missing,
+    );
     const complete = runner.summary();
     expect(complete.discovery.complete).toBe(true);
     expect(complete.diagnostics).toEqual(partial.diagnostics);
@@ -485,6 +487,7 @@ test('async summary excludes unresolved callbacks and includes active completion
     traversableGraph: {
       resolveRoot: () => root.promise,
       resolveChild: () => ({
+        identity: null,
         satisfiesDependencies: true as const,
         kind: 'omitted' as const,
       }),
@@ -556,10 +559,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       completedWork: new Set(['missing']),
       traversableGraph: {
         resolveRoot: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),

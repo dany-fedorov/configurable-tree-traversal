@@ -27,7 +27,7 @@ test('rejects a back-edge without damaging accepted topology', () => {
 
   expect(() => store.linkSlot(b, 0, a)).toThrow(/cycle/i);
   expect(store.graph.getChildrenOf(b)).toEqual([]);
-  expect(store.graph.getPathsTo(b)).toEqual([[a, b]]);
+  expect(store.graph.requirePathsTo(b)).toEqual([[a, b]]);
 });
 
 test('reports a safe reconstructed cycle path for self and back edges', () => {
@@ -72,7 +72,7 @@ test('preserves parallel slots while deduplicating parents and paths', () => {
   expect(store.graph.getChildrenOf(parent)).toEqual([child, child]);
   expect(store.graph.getParentsOf(child)).toEqual([parent]);
   expect(store.graph.get(child)?.incoming).toHaveLength(2);
-  expect(store.graph.getPathsTo(child)).toEqual([[parent, child]]);
+  expect(store.graph.requirePathsTo(child)).toEqual([[parent, child]]);
 });
 
 test('same-slot acknowledgment is idempotent and conflicting links fail', () => {
@@ -132,8 +132,8 @@ test('validates unknown references and slot operations before mutation', () => {
   expect(store.graph.getVisitStageOf(unknown)).toBeNull();
   expect(store.graph.getParentsOf(unknown)).toBeNull();
   expect(store.graph.getChildrenOf(unknown)).toBeNull();
-  expect(() => store.graph.getVertexId(unknown)).toThrow(/reference/i);
-  expect(() => store.graph.getPathsTo(unknown)).toThrow(/reference/i);
+  expect(() => store.graph.requireVertexId(unknown)).toThrow(/reference/i);
+  expect(() => store.graph.requirePathsTo(unknown)).toThrow(/reference/i);
 });
 
 test('tracks omitted and deleted identity states and terminal slots', () => {
@@ -219,7 +219,7 @@ test('returns shallow query snapshots and exposes no store mutations', () => {
   const refs = store.graph.getVertexRefs();
   const children = store.graph.getChildrenOf(root)!;
   const parents = store.graph.getParentsOf(child)!;
-  const paths = store.graph.getPathsTo(child);
+  const paths = store.graph.requirePathsTo(child);
   const vertex = store.graph.get(child)!;
   refs.length = 0;
   children.length = 0;
@@ -232,7 +232,7 @@ test('returns shallow query snapshots and exposes no store mutations', () => {
   expect(store.graph.getVertexRefs()).toEqual([root, child]);
   expect(store.graph.getChildrenOf(root)).toEqual([child]);
   expect(store.graph.getParentsOf(child)).toEqual([root]);
-  expect(store.graph.getPathsTo(child)).toEqual([[root, child]]);
+  expect(store.graph.requirePathsTo(child)).toEqual([[root, child]]);
   expect(store.graph.get(child)).toMatchObject({
     vertexRef: child,
     vertex: child.getValue(),
@@ -286,10 +286,12 @@ test('supports empty roots and path filtering', () => {
   store.prepareSlots(root, ['child']);
   store.linkSlot(root, 0, child);
 
-  expect(store.graph.getPathsTo(root, { noRoot: true })).toEqual([[]]);
-  expect(store.graph.getPathsTo(root, { noSelf: true })).toEqual([[]]);
-  expect(store.graph.getPathsTo(child, { noRoot: true })).toEqual([[child]]);
-  expect(store.graph.getPathsTo(child, { noSelf: true })).toEqual([[root]]);
+  expect(store.graph.requirePathsTo(root, { noRoot: true })).toEqual([[]]);
+  expect(store.graph.requirePathsTo(root, { noSelf: true })).toEqual([[]]);
+  expect(store.graph.requirePathsTo(child, { noRoot: true })).toEqual([
+    [child],
+  ]);
+  expect(store.graph.requirePathsTo(child, { noSelf: true })).toEqual([[root]]);
   store.setRoot(null);
   expect(store.graph.getRoot()).toBeNull();
 });
@@ -323,7 +325,7 @@ test('uses authoritative tree records for compatibility graph queries', () => {
   expect(store.getTreeRecord(root)).toBe(rootRecord);
   expect(store.graph.getChildrenOf(root)).toEqual([child, child]);
   expect(store.graph.getParentsOf(child)).toEqual([root]);
-  expect(store.graph.getPathsTo(child)).toEqual([[root, child]]);
+  expect(store.graph.requirePathsTo(child)).toEqual([[root, child]]);
 
   const replacement = rootRecord.clone({ children: [] });
   store.setTreeRecord(root, replacement);
@@ -359,12 +361,12 @@ test('handles deep chains iteratively for cycle checks and paths', () => {
       dependsOnWork: [],
       depth: index,
     });
-    store.prepareSlots(vertexRef, vertexRef.getValue().getChildrenHints());
+    store.prepareSlots(vertexRef, vertexRef.getValue().getChildHints());
     if (index > 0) store.linkSlot(refs[index - 1]!, 0, vertexRef);
   });
   store.setRoot(refs[0]!);
 
-  expect(store.graph.getPathsTo(refs[count - 1]!)[0]).toHaveLength(count);
+  expect(store.graph.requirePathsTo(refs[count - 1]!)[0]).toHaveLength(count);
   expect(() => store.linkSlot(refs[count - 1]!, 0, refs[0]!)).toThrow(/cycle/i);
   expect(store.graph.getChildrenOf(refs[count - 1]!)).toEqual([]);
 });
@@ -462,7 +464,7 @@ test('removal detaches a deleted parent from surviving children and clears root'
 
   expect(store.graph.getRoot()).toBeNull();
   expect(store.graph.getParentsOf(child)).toEqual([]);
-  expect(store.graph.getPathsTo(child)).toEqual([[child]]);
+  expect(store.graph.requirePathsTo(child)).toEqual([[child]]);
 });
 
 test('tree records can reinstall tombstoned refs but reject auto-id conflicts', () => {
@@ -505,7 +507,7 @@ test('tree paths preserve a dangling legacy parent as their origin', () => {
     }),
   );
 
-  expect(store.graph.getPathsTo(child)).toEqual([[danglingParent, child]]);
+  expect(store.graph.requirePathsTo(child)).toEqual([[danglingParent, child]]);
 });
 
 test('orders paths by child slots rather than edge acceptance order', () => {
@@ -539,7 +541,7 @@ test('orders paths by child slots rather than edge acceptance order', () => {
   store.linkSlot(y, 0, target);
   store.linkSlot(x, 0, target);
 
-  expect(store.graph.getPathsTo(target)).toEqual([
+  expect(store.graph.requirePathsTo(target)).toEqual([
     [root, a, target],
     [root, b, target],
     [x, target],

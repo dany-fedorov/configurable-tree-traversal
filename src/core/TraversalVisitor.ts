@@ -25,7 +25,7 @@ export type TraversalVisitorCommandArguments<
   [TraversalVisitorCommandName.NOOP]: never;
   [TraversalVisitorCommandName.DEFER_WORK_COMPLETION]: never;
   [TraversalVisitorCommandName.REWRITE_CHILD_HINTS]: {
-    newHints: SourceHint[];
+    newHints: readonly SourceHint[];
   };
   [TraversalVisitorCommandName.PAUSE_TRAVERSAL]: never;
   [TraversalVisitorCommandName.DELETE_TREE_SUBTREE]: never;

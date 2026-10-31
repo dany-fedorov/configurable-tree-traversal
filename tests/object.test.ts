@@ -1,3 +1,4 @@
+import { capturedOutputValue } from './helpers/rewriteOutput';
 import { ObjectTreeSource } from '../src/traversable-tree-implementations/traversable-object-tree';
 import {
   rewriteObject,
@@ -16,12 +17,14 @@ describe('object rewriting', () => {
       sibling: ['x', 'y'],
     };
 
-    const { outputAtReturn } = rewriteObject(input, {
-      rewrite: ({ value }) =>
-        typeof value === 'number'
-          ? { kind: 'rewrite', patch: { value: value + 10 } }
-          : undefined,
-    });
+    const outputAtReturn = capturedOutputValue(
+      rewriteObject(input, {
+        rewrite: ({ value }) =>
+          typeof value === 'number'
+            ? { kind: 'rewrite', patch: { value: value + 10 } }
+            : undefined,
+      }),
+    );
 
     expect(outputAtReturn).toEqual({
       branch: { keep: 11, change: 12 },
@@ -37,12 +40,14 @@ describe('object rewriting', () => {
     const secret = Symbol('secret');
     const input = { visible: 1, [secret]: 2 };
 
-    const { outputAtReturn } = rewriteObject(input, {
-      rewrite: ({ value }) =>
-        typeof value === 'number'
-          ? { kind: 'rewrite', patch: { value: value * 10 } }
-          : undefined,
-    });
+    const outputAtReturn = capturedOutputValue(
+      rewriteObject(input, {
+        rewrite: ({ value }) =>
+          typeof value === 'number'
+            ? { kind: 'rewrite', patch: { value: value * 10 } }
+            : undefined,
+      }),
+    );
 
     expect(outputAtReturn).toEqual({ visible: 10, [secret]: 20 });
     expect(Reflect.ownKeys(outputAtReturn as object)).toEqual([
@@ -63,12 +68,14 @@ describe('object rewriting', () => {
     input.label = 'array';
     input[metadata] = 'symbol';
 
-    const { outputAtReturn } = rewriteObjectAs<typeof input>(input, {
-      rewrite: ({ value }) =>
-        typeof value === 'string'
-          ? { kind: 'rewrite', patch: { value: value.toUpperCase() } }
-          : undefined,
-    });
+    const outputAtReturn = capturedOutputValue(
+      rewriteObjectAs<typeof input>(input, {
+        rewrite: ({ value }) =>
+          typeof value === 'string'
+            ? { kind: 'rewrite', patch: { value: value.toUpperCase() } }
+            : undefined,
+      }),
+    );
 
     expect(outputAtReturn).toHaveLength(2);
     expect(Array.from(outputAtReturn!)).toEqual(['ONE', 'THREE']);
@@ -78,9 +85,12 @@ describe('object rewriting', () => {
 
   test('compacts numeric array children after deletion', () => {
     expect(
-      rewriteObject([1, 2, 3], {
-        rewrite: ({ value }) => (value === 2 ? { kind: 'delete' } : undefined),
-      }).outputAtReturn,
+      capturedOutputValue(
+        rewriteObject([1, 2, 3], {
+          rewrite: ({ value }) =>
+            value === 2 ? { kind: 'delete' } : undefined,
+        }),
+      ),
     ).toEqual([1, 3]);
   });
 
@@ -90,35 +100,42 @@ describe('object rewriting', () => {
     ['number', 42],
     ['string', 'root'],
   ])('returns an unchanged %s root', (_name, input) => {
-    expect(rewriteObject(input).outputAtReturn).toBe(input);
+    expect(capturedOutputValue(rewriteObject(input))).toBe(input);
   });
 
   test('rewrites a primitive root', () => {
     expect(
-      rewriteObject(3, {
-        rewrite: ({ value }) =>
-          value === 3 ? { kind: 'rewrite', patch: { value: 4 } } : undefined,
-      }).outputAtReturn,
+      capturedOutputValue(
+        rewriteObject(3, {
+          rewrite: ({ value }) =>
+            value === 3 ? { kind: 'rewrite', patch: { value: 4 } } : undefined,
+        }),
+      ),
     ).toBe(4);
   });
 
-  test('returns null when the root is deleted', () => {
+  test('returns an absent result when the root is deleted', () => {
     expect(
       rewriteObject({ value: 1 }, { rewrite: () => ({ kind: 'delete' }) })
-        .outputAtReturn,
-    ).toBeNull();
+        .outputResultAtReturn,
+    ).toEqual({ kind: 'absent' });
   });
 
-  test('passes deleted-root null through the output conversion hook', () => {
-    expect(
-      rewriteObject(
-        { value: 1 },
-        {
-          rewrite: () => ({ kind: 'delete' }),
-          convertRootValue: (value) => (value === null ? 'deleted' : 'present'),
+  test('does not invoke a value converter for an absent root', () => {
+    let conversions = 0;
+    const result = rewriteObject(
+      { value: 1 },
+      {
+        rewrite: () => ({ kind: 'delete' }),
+        convertRootValue: (value) => {
+          conversions++;
+          return value;
         },
-      ).outputAtReturn,
-    ).toBe('deleted');
+      },
+    );
+    expect(result.outputResultAtReturn).toEqual({ kind: 'absent' });
+    expect(result.getOutputResult()).toEqual({ kind: 'absent' });
+    expect(conversions).toBe(0);
   });
 
   test('forwards child sorting to the depth-first traversal', () => {
@@ -127,7 +144,7 @@ describe('object rewriting', () => {
     rewriteObject(
       { a: 1, b: 2 },
       {
-        sortChildrenHints: (hints) => hints.slice().reverse(),
+        transformChildHints: (hints) => hints.slice().reverse(),
         rewrite: ({ key }) => {
           visited.push(key);
           return undefined;
@@ -232,7 +249,7 @@ describe('object rewriting', () => {
     const shared = { leaf: 1 };
 
     expect(
-      rewriteObject({ left: shared, right: shared }).outputAtReturn,
+      capturedOutputValue(rewriteObject({ left: shared, right: shared })),
     ).toEqual({
       left: { leaf: 1 },
       right: { leaf: 1 },

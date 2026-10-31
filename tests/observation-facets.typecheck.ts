@@ -26,11 +26,11 @@ vertex.$data = { input: 'changed' };
 // @ts-expect-error hints are readonly
 vertex.$childHints.push({ hint: 'changed' });
 // @ts-expect-error query hints are readonly
-vertex.getChildrenHints().length = 0;
+vertex.getChildHints().length = 0;
 // Opaque caller payloads remain shallow and writable.
 vertex.getData().input = 'caller update';
-vertex.getChildrenHints()[0]!.hint = 'caller hint update';
-vertex.clone().getChildrenHints().push({ hint: 'independent clone' });
+vertex.getChildHints()[0]!.hint = 'caller hint update';
+vertex.clone().getChildHints().push({ hint: 'independent clone' });
 
 declare const tree: TreeVisitorContext<string, Input, Output>;
 declare const dag: DagVisitorContext<Input, Output>;

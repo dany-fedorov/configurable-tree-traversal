@@ -5,7 +5,7 @@ import type {
   VisitPhase,
 } from '../src/core/effects/types';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { VertexRef } from '../src/core/graph/types';
+import type { InternalVertexRef } from '../src/core/graph/types';
 import type { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { TraversalKernel } from '../src/core/TraversalKernel';
@@ -25,7 +25,7 @@ function makeKernel(
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
   };
   const kernel = new TraversalKernel<TestGraph>({
@@ -58,7 +58,7 @@ function makeKernel(
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: false,
+    hasHintTransformer: false,
     hasHintIds: false,
     concurrency: 1,
   });
@@ -83,7 +83,7 @@ function makeBreadthKernel() {
   const stateBridge = {
     status: TraversalRunnerStatus.INITIAL,
     traversalRootVertexRef: null,
-    subtreeTraversalDisabledRefs: new Set<VertexRef<TestGraph>>(),
+    subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
     queue: [],
     queueIndex: 0,
@@ -101,7 +101,7 @@ function makeBreadthKernel() {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasSorter: false,
+    hasHintTransformer: false,
     hasHintIds: false,
     concurrency: 1,
   });
@@ -136,7 +136,7 @@ function makeDepthKernel() {
       visitSingleChildParent: true,
       visitAfterOmittedChildren: true,
     },
-    hasSorter: false,
+    hasHintTransformer: false,
     hasHintIds: false,
     concurrency: 1,
   });
@@ -275,8 +275,11 @@ test('private invalidation removes frames and boundaries and is idempotent', () 
   );
   const owner = { kind: 'frame' as const, id: 20, epoch: 0 };
   const fields = kernel as unknown as {
-    boundaries: Array<{ event: { vertexRef: VertexRef<TestGraph> } }>;
-    frames: Map<number, { owner: typeof owner; ref: VertexRef<TestGraph> }>;
+    boundaries: Array<{ event: { vertexRef: InternalVertexRef<TestGraph> } }>;
+    frames: Map<
+      number,
+      { owner: typeof owner; ref: InternalVertexRef<TestGraph> }
+    >;
     pendingRequests: Map<
       number,
       { call: { owner: typeof owner }; submitted: boolean }
@@ -323,7 +326,7 @@ test('kernel inspection maps breadth-first policy frames', () => {
     breadthFirstPolicy: {
       enqueueExpansion(
         owner: { kind: 'frame'; id: number; epoch: number },
-        ref: VertexRef<TestGraph>,
+        ref: InternalVertexRef<TestGraph>,
         depth: number,
       ): void;
     };
@@ -343,7 +346,7 @@ test('kernel inspection maps breadth-first policy frames', () => {
   const scheduling = (
     kernel as unknown as {
       scheduling: {
-        eligible: Array<{ ref: VertexRef<TestGraph>; order: string }>;
+        eligible: Array<{ ref: InternalVertexRef<TestGraph>; order: string }>;
       };
     }
   ).scheduling;
@@ -363,7 +366,7 @@ test('kernel inspection reports a depth-first child-wait frame index', () => {
       depthFirstPolicy: {
         push(
           owner: { kind: 'frame'; id: number; epoch: number },
-          ref: VertexRef<TestGraph>,
+          ref: InternalVertexRef<TestGraph>,
           depth: number,
         ): void;
         getFrames(): Array<{ stage: string; nextChild: number }>;

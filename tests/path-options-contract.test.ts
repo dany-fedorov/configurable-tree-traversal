@@ -53,14 +53,16 @@ for (const create of [
     const traversal = create();
     traversal.addVisitorFor(DepthFirstPhase.POST_ORDER, (_vertex, context) => {
       const view = context.originalTreeView!;
-      verifyQuery((options) => view.getPathTo(view.getRoot()!, options));
+      verifyQuery((options) => view.requirePathTo(view.getRoot()!, options));
     });
     const runner = traversal.createRunner();
     await runner.run();
     for (const view of [runner.getResolvedTreeView()]) {
       const root = view.getRoot()!;
-      verifyQuery((options) => view.getPathTo(root, options));
-      expect(view.getPathTo(root, { noRoot: true, noSelf: true })).toEqual([]);
+      verifyQuery((options) => view.requirePathTo(root, options));
+      expect(view.requirePathTo(root, { noRoot: true, noSelf: true })).toEqual(
+        [],
+      );
     }
   });
 
@@ -71,6 +73,7 @@ const graph = {
     vertex: { vertexId: id, vertexContent: { $data: id, $childHints: [] } },
   }),
   resolveChild: () => ({
+    identity: null,
     kind: 'omitted' as const,
     satisfiesDependencies: true as const,
   }),
@@ -95,11 +98,11 @@ for (const create of [
       runner.originalGraphView!,
     ]) {
       const root = view.getRoot()!;
-      verifyQuery((options) => view.getPathsTo(root, options));
-      expect(view.getVertexId(root)).toBe(id);
-      expect(view.getPathsTo(root, { noRoot: true, noSelf: true })).toEqual([
-        [],
-      ]);
+      verifyQuery((options) => view.requirePathsTo(root, options));
+      expect(view.requireVertexId(root)).toBe(id);
+      expect(view.requirePathsTo(root, { noRoot: true, noSelf: true })).toEqual(
+        [[]],
+      );
     }
   });
 
@@ -115,9 +118,9 @@ test('explicit tree store and its graph route share strict path option semantics
     }),
   );
   store.setRoot(root);
-  verifyQuery((options) => store.getPathTo(root, options));
+  verifyQuery((options) => store.requirePathTo(root, options));
   verifyQuery((options) =>
-    store.getResolvedGraphView().getPathsTo(root, options),
+    store.getResolvedGraphView().requirePathsTo(root, options),
   );
 });
 
@@ -153,7 +156,7 @@ test('graph query controls read accessors once across multiple paths', () => {
     const leaf = view.getVertexRefById('leaf')!;
     let rootReads = 0;
     let selfReads = 0;
-    const paths = view.getPathsTo(leaf, {
+    const paths = view.requirePathsTo(leaf, {
       get noRoot() {
         rootReads++;
         return true;
@@ -164,7 +167,7 @@ test('graph query controls read accessors once across multiple paths', () => {
       },
     });
     expect(
-      paths.map((path) => path.map((ref) => view.getVertexId(ref))),
+      paths.map((path) => path.map((ref) => view.requireVertexId(ref))),
     ).toEqual([['left'], ['right']]);
     expect([rootReads, selfReads]).toEqual([1, 1]);
   }

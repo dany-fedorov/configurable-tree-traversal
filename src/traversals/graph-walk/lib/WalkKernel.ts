@@ -240,7 +240,7 @@ export class WalkKernel<Data, Edge, ID> {
         () => ({
           kind: 'edge',
           edge: { ...via },
-          source: { ...source },
+          fromVertex: { ...source },
           depth,
           target:
             vertex === null
@@ -298,7 +298,7 @@ export class WalkKernel<Data, Edge, ID> {
             { ...candidate.via! },
             {
               ...this.routeContext(candidate.parent!),
-              source: { ...candidate.parent!.vertex },
+              fromVertex: { ...candidate.parent!.vertex },
               depth: candidate.parent!.depth + 1,
             },
           ),

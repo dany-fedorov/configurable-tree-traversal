@@ -37,6 +37,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           };
         },
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
@@ -49,7 +50,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         vertexId: 'a',
         milestone: 'work',
       }),
-    ).toMatchObject({ kind: 'unknown', discoveryComplete: false });
+    ).toMatchObject({ kind: 'unresolved', discoveryComplete: false });
     expect(calls).toBe(0);
     await runner.run();
     const captured = runner.inspectMilestones();
@@ -65,10 +66,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         vertexId: 'a',
         milestone: 'subgraphCompletion',
       }),
-    ).toMatchObject({ kind: 'known', satisfied: true });
+    ).toMatchObject({ kind: 'live', satisfied: true });
     expect(
       captured.explain({ vertexId: 'a', milestone: 'work' }),
-    ).toMatchObject({ kind: 'known', satisfied: false });
+    ).toMatchObject({ kind: 'live', satisfied: false });
     expect(calls).toBe(1);
   });
 }

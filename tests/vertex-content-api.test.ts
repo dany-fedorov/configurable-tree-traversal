@@ -30,7 +30,7 @@ const source: TreeSource<T> = {
 };
 
 describe('canonical vertex content', () => {
-  test('retains opaque data and hints and has only canonical accessors', () => {
+  test('retains opaque data and hint elements with owned hint membership', () => {
     const data = { $d: 'opaque', $childHints: 'also opaque' };
     const hint = { marker: Symbol('hint') };
     const hints = [hint];
@@ -42,8 +42,9 @@ describe('canonical vertex content', () => {
     expect(vertex.getData()).toBe(data);
     expect(vertex.$data).toBe(data);
     expect('$d' in vertex).toBe(false);
-    expect(vertex.getChildrenHints()).toBe(hints);
-    expect(vertex.$childHints).toBe(hints);
+    expect(vertex.getChildHints()).not.toBe(hints);
+    expect(vertex.getChildHints()[0]).toBe(hint);
+    expect(vertex.$childHints).toEqual(hints);
     expect('$c' in vertex).toBe(false);
     expect(vertex.hasNoChildHints()).toBe(false);
   });
@@ -53,11 +54,11 @@ describe('canonical vertex content', () => {
     const copied = new Vertex<T>(legacy);
     expect(copied.$data).toBe('legacy');
     expect(copied.$childHints).toEqual(['child']);
-    expect(copied.getChildrenHints()).toBe(legacy.$childHints);
+    expect(copied.getChildHints()).not.toBe(legacy.$childHints);
   });
 
   test.each(['replacement', undefined])(
-    'clones an existing Vertex with replacement data %s and unchanged hint identity',
+    'clones an existing Vertex with replacement data %s and independently copied hints',
     (data) => {
       const original = new Vertex<T>({
         $data: 'original',
@@ -68,23 +69,25 @@ describe('canonical vertex content', () => {
       const clone = original.clone(replacement);
 
       expect(clone.getData()).toBe(data);
-      expect(clone.getChildrenHints()).toBe(hints);
+      expect(clone.getChildHints()).toEqual(hints);
+      expect(clone.getChildHints()).not.toBe(replacement.$childHints);
       expect(clone).not.toBe(original);
       expect(clone).not.toBe(replacement);
       expect(original.getData()).toBe('original');
-      expect(original.getChildrenHints()).toEqual(['original-child']);
+      expect(original.getChildHints()).toEqual(['original-child']);
     },
   );
 
   test('clones canonical fields with explicitly undefined data', () => {
     const vertex = new Vertex<T>({ $data: 'root', $childHints: ['child'] });
     expect(vertex.clone({ $data: undefined }).getData()).toBeUndefined();
-    expect(vertex.clone({ $data: undefined }).getChildrenHints()).toEqual([
+    expect(vertex.clone({ $data: undefined }).getChildHints()).toEqual([
       'child',
     ]);
     expect(vertex.clone({ $childHints: [] }).hasNoChildHints()).toBe(true);
     expect(vertex.clone({}).getData()).toBe('root');
-    expect(vertex.clone().getChildrenHints()).toBe(vertex.$childHints);
+    expect(vertex.clone().getChildHints()).toEqual(vertex.$childHints);
+    expect(vertex.clone().getChildHints()).not.toBe(vertex.$childHints);
     expect(vertex.getData()).toBe('root');
   });
 
@@ -121,7 +124,7 @@ describe('canonical vertex content', () => {
       /canonical.*legacy|legacy.*canonical/i,
     );
     expect(vertex.getData()).toBe('root');
-    expect(vertex.getChildrenHints()).toEqual(['child']);
+    expect(vertex.getChildHints()).toEqual(['child']);
   });
 
   test.each([

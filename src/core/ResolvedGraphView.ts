@@ -16,11 +16,11 @@ export interface InternalResolvedGraphView<
   getRoot(): MutableRef<Vertex<T>> | null;
   getVertexRefs(): MutableRef<Vertex<T>>[];
   getVertexRefById(id: ID): MutableRef<Vertex<T>> | null;
-  getVertexId(ref: MutableRef<Vertex<T>>): ID;
+  requireVertexId(ref: MutableRef<Vertex<T>>): ID;
   getVisitStageOf(ref: MutableRef<Vertex<T>>): ResolvedVisitStage | null;
   getParentsOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
   getChildrenOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
-  getPathsTo(
+  requirePathsTo(
     ref: MutableRef<Vertex<T>>,
     options?: GetPathToOptions,
   ): MutableRef<Vertex<T>>[][];
@@ -34,11 +34,11 @@ export interface ResolvedGraphView<T extends VertexTypes, ID = unknown> {
   getRoot(): VertexHandle<T> | null;
   getVertexRefs(): readonly VertexHandle<T>[];
   getVertexRefById(id: ID): VertexHandle<T> | null;
-  getVertexId(ref: VertexHandle<T>): ID;
+  requireVertexId(ref: VertexHandle<T>): ID;
   getVisitStageOf(ref: VertexHandle<T>): ResolvedVisitStage | null;
   getParentsOf(ref: VertexHandle<T>): readonly VertexHandle<T>[] | null;
   getChildrenOf(ref: VertexHandle<T>): readonly VertexHandle<T>[] | null;
-  getPathsTo(
+  requirePathsTo(
     ref: VertexHandle<T>,
     options?: GetPathToOptions,
   ): readonly (readonly VertexHandle<T>[])[];
@@ -50,8 +50,8 @@ export type OriginalGraphView<T extends VertexTypes, ID = unknown> = Pick<
   | 'getRoot'
   | 'getVertexRefs'
   | 'getVertexRefById'
-  | 'getVertexId'
+  | 'requireVertexId'
   | 'getParentsOf'
   | 'getChildrenOf'
-  | 'getPathsTo'
+  | 'requirePathsTo'
 >;

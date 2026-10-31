@@ -1,0 +1,17 @@
+README.md 655ms
+CHANGELOG.md 98ms
+AGENTS.md 55ms
+docs/index.md 42ms
+docs/reference.md 793ms
+docs/agent-workflows.md 151ms
+docs/testing.md 76ms
+docs/migration-api-distinctions.md 40ms
+docs/migration-client-api.md 62ms
+docs/migration-idiomatic-api.md 138ms
+docs/migration-api-clarity.md 101ms
+docs/migration-uniform-api.md 169ms
+package.json 10ms
+scripts/build-api-index.cjs 51ms
+scripts/build-api-index.test.cjs 17ms
+scripts/verify-package.cjs 32ms
+examples/quickstart-example.ts 5ms

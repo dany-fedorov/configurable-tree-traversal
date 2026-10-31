@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "finalReportRows": 20,
+  "allCriteriaResolvedByBothReviewers": true,
+  "fullCheckExit": 0,
+  "minimumTypeScriptExit": 0,
+  "reviewedInputsUnchanged": 477,
+  "reportLinks": "valid",
+  "originalWorkspacePreserved": true,
+  "diffCheck": "passed"
+}

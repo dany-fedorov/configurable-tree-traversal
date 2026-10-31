@@ -8,8 +8,8 @@ import type { DagSummary } from '../src/traversals/dag-traversal/lib/DagProgress
 import type { DagTraversalRunner } from '../src/traversals/dag-traversal/lib/DagTraversalRunner';
 import type { AsyncDagTraversalRunner } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalRunner';
 import {
-  createDagWorkSession,
-  createAsyncDagWorkSession,
+  bindDagWorkSession,
+  bindAsyncDagWorkSession,
   type DagWorkSession,
   type AsyncDagWorkSession,
   type DagWorkBoundary,
@@ -22,9 +22,9 @@ type Input = VertexTypes<{ task: string }, number>;
 type Output = VertexTypes<{ result: number }, string>;
 declare const runner: DagTraversalRunner<Input, Output, TaskId>;
 declare const asyncRunner: AsyncDagTraversalRunner<Input, Output, TaskId>;
-const coordinator: DagWorkSession<TaskId> = createDagWorkSession(runner);
+const coordinator: DagWorkSession<TaskId> = bindDagWorkSession(runner);
 const asyncCoordinator: AsyncDagWorkSession<TaskId> =
-  createAsyncDagWorkSession(asyncRunner);
+  bindAsyncDagWorkSession(asyncRunner);
 const boundary: DagWorkBoundary<TaskId> = coordinator.advance();
 const pending: Promise<DagWorkBoundary<TaskId>> = asyncCoordinator.advance();
 const summary: DagSummary<TaskId> = coordinator.summary();
@@ -58,9 +58,9 @@ if (boundary.kind === 'awaitingSettlement') {
 // @ts-expect-error Ticket ownership cannot be constructed by the caller.
 const forged: DagWorkTicket<TaskId> = { vertexId: { task: 'forged' } };
 // @ts-expect-error A sync facade cannot wrap an async runner.
-createDagWorkSession(asyncRunner);
+bindDagWorkSession(asyncRunner);
 // @ts-expect-error An async facade cannot wrap a sync runner.
-createAsyncDagWorkSession(runner);
+bindAsyncDagWorkSession(runner);
 void [pending, summary, requested, forged];
 
 const syncState: TraversalExecutionState = coordinator;

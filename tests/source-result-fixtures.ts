@@ -12,6 +12,10 @@ export function graphResolution<V extends object>(
   result: { kind: 'found'; vertex: V } | { kind: 'omitted'; vertex?: never },
 ) {
   return result.kind === 'omitted'
-    ? { kind: 'omitted' as const, satisfiesDependencies: true as const }
+    ? {
+        identity: null,
+        kind: 'omitted' as const,
+        satisfiesDependencies: true as const,
+      }
     : result;
 }

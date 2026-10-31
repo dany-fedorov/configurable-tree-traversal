@@ -81,7 +81,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveChild: () => ({
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
-          vertexId: 'child',
+          identity: { vertexId: 'child' },
         }),
       },
       completedWork: new Set(['child']),

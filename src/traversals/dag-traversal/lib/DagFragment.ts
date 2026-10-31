@@ -11,12 +11,6 @@ export type DagFragment<
   ports: Readonly<Record<Port, ID>>;
 }>;
 
-export type DagFragmentInstance<
-  Data,
-  ID = unknown,
-  Port extends string = string,
-> = DagFragment<Data, ID, Port>;
-
 export type DagCompositionOptions<ID = unknown> = {
   readonly dependencies?: readonly {
     readonly dependent: ID;

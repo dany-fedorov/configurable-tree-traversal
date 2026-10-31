@@ -47,6 +47,7 @@ const tree = {
 const graph = {
   ...tree,
   resolveChild: () => ({
+    identity: null,
     kind: 'omitted' as const,
     satisfiesDependencies: true as const,
   }),

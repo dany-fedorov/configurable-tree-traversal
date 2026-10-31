@@ -45,15 +45,23 @@ export type DagBlocker<ID = unknown> =
 
 export type DagExplanation<ID = unknown> =
   | Readonly<{
-      kind: 'unknown' | 'deleted';
+      kind: 'unresolved' | 'deleted';
       target: DagMilestone<ID>;
       discoveryComplete: boolean;
     }>
   | Readonly<{
-      kind: 'known';
+      kind: 'live';
       target: DagMilestone<ID>;
       satisfied: boolean;
-      progress: DagVertexProgress<ID> | null;
+      progress: DagVertexProgress<ID>;
+      blockers: readonly DagBlocker<ID>[];
+      discoveryComplete: boolean;
+    }>
+  | Readonly<{
+      kind: 'omitted';
+      target: DagMilestone<ID>;
+      satisfied: true;
+      progress: null;
       blockers: readonly DagBlocker<ID>[];
       discoveryComplete: boolean;
     }>;
@@ -125,8 +133,17 @@ export function makeDagInspection<ID>(
     const kind = identities.get(target.vertexId);
     if (kind === undefined || kind === 'deleted')
       return {
-        kind: kind === undefined ? 'unknown' : kind,
+        kind: kind === undefined ? 'unresolved' : kind,
         target,
+        discoveryComplete,
+      };
+    if (kind === 'omitted')
+      return {
+        kind: 'omitted',
+        target,
+        satisfied: true,
+        progress: null,
+        blockers: [],
         discoveryComplete,
       };
     const isSatisfied = satisfied(target);
@@ -147,7 +164,8 @@ export function makeDagInspection<ID>(
           waiterStatus: status(edge.waiter),
           prerequisiteStatus: status(edge.prerequisite),
         });
-        if (edge.waiter.milestone === 'work') blockedWork.add(edge.waiter.vertexId);
+        if (edge.waiter.milestone === 'work')
+          blockedWork.add(edge.waiter.vertexId);
       }
       for (const current of [target, ...reachable.milestones]) {
         const endpoint = status(current);
@@ -165,21 +183,27 @@ export function makeDagInspection<ID>(
           if (state.expansion !== 'closed')
             blockers.push({
               kind: 'discoveryOpen',
-              target: { vertexId: current.vertexId, milestone: 'subgraphCompletion' },
+              target: {
+                vertexId: current.vertexId,
+                milestone: 'subgraphCompletion',
+              },
             });
           else if (state.initialCommitted && state.remainingChildren === 0)
             blockers.push({
               kind: 'completionPending',
-              target: { vertexId: current.vertexId, milestone: 'subgraphCompletion' },
+              target: {
+                vertexId: current.vertexId,
+                milestone: 'subgraphCompletion',
+              },
             });
         }
       }
     }
     return {
-      kind: 'known',
+      kind: 'live',
       target,
       satisfied: isSatisfied,
-      progress: kind === 'omitted' ? null : copyProgress(target.vertexId),
+      progress: copyProgress(target.vertexId),
       blockers,
       discoveryComplete,
     };

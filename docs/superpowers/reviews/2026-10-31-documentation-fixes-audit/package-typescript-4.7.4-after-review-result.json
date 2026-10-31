@@ -1,0 +1,7 @@
+{
+  "command": "CTT_TYPESCRIPT_COMPILER=TypeScript4.7.4 node scripts/verify-package.cjs",
+  "exitCode": 0,
+  "finishedAtUtc": "2026-10-31T16:22:10.906774+00:00",
+  "elapsedSeconds": 82.71,
+  "log": "package-typescript-4.7.4-after-review.log"
+}

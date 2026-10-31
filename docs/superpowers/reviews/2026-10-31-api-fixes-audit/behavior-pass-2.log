@@ -1,0 +1,282 @@
+
+> configurable-tree-traversal@0.11.0 test
+> jest --runInBand tests/api-distinction-behavior.test.ts tests/vertex-hint-ownership.test.ts tests/vertex-content-api.test.ts tests/dag-definition.test.ts tests/prepared-dag.test.ts tests/dag-inspection.test.ts tests/dag-inspection-explanations.test.ts tests/object.test.ts tests/rewrite-result-contract.test.ts tests/graph-walk-controls.test.ts
+
+FAIL tests/dag-inspection.test.ts
+  ✓ DagTraversal reports exact W waits when the same seeded ID still blocks C (33 ms)
+  ✓ DagTraversal owns exact nonempty W waits independently of union and C waits (7 ms)
+  ✓ AsyncDagTraversal reports exact W waits when the same seeded ID still blocks C (10 ms)
+  ✓ AsyncDagTraversal owns exact nonempty W waits independently of union and C waits (5 ms)
+  ✓ identity observations distinguish known omitted and deleted IDs from unknown IDs (3 ms)
+  ✓ scheduling observations retain per-vertex expansion and uncommitted completion facts (1 ms)
+  ✓ kernel observations retain partial expansion and remain stable after settlement (6 ms)
+  ✓ kernel observations preserve an omitted root with its own undefined identity (1 ms)
+  ✓ kernel observations hide the synthetic holder while preserving caller symbol IDs (3 ms)
+  ✓ DagTraversal navigates original W/C and structural constraints in both directions (9 ms)
+  ✓ AsyncDagTraversal navigates original W/C and structural constraints in both directions (5 ms)
+  ✓ DagTraversal preserves SameValueZero milestone identities and result ownership (6 ms)
+  ✓ DagTraversal terminates cyclic forward and reverse queries without returning the start (5 ms)
+  ✓ DagTraversal distinguishes known omissions from unresolved edge endpoints (4 ms)
+  ✓ DagTraversal captures lazy topology without adapter calls and retains it after settlement (9 ms)
+  ✓ AsyncDagTraversal preserves SameValueZero milestone identities and result ownership (5 ms)
+  ✓ AsyncDagTraversal terminates cyclic forward and reverse queries without returning the start (4 ms)
+  ✓ AsyncDagTraversal distinguishes known omissions from unresolved edge endpoints (3 ms)
+  ✓ AsyncDagTraversal captures lazy topology without adapter calls and retains it after settlement (7 ms)
+  ✓ DagTraversal retains old constraints after deletion and hides forest holders (5 ms)
+  ✓ DagTraversal queries tree-source identities while an iterator owns the runner (7 ms)
+  ✓ DagTraversal handles a known omitted root without inventing constraints (1 ms)
+  ✓ AsyncDagTraversal retains old constraints after deletion and hides forest holders (3 ms)
+  ✓ AsyncDagTraversal queries tree-source identities while an iterator owns the runner (19 ms)
+  ✓ AsyncDagTraversal handles a known omitted root without inventing constraints (2 ms)
+  ✓ inspection of a native async source does not interfere with a pending source call (3 ms)
+  ✓ transitive navigation uses an iterative walk on deep prerequisite chains (1029 ms)
+  ✓ DagTraversal hides an omitted synthetic root from the typed inspection bridge (2 ms)
+  ✓ AsyncDagTraversal hides an omitted synthetic root from the typed inspection bridge (1 ms)
+  ✕ DagTraversal inspects a deleted synthetic holder without dereferencing its removed vertex (11 ms)
+  ✕ AsyncDagTraversal inspects a deleted synthetic holder without dereferencing its removed vertex (2 ms)
+  ✓ DagTraversal runner inspection observes initial, active and finished execution without driving it (5 ms)
+  ✓ AsyncDagTraversal runner inspection observes initial, active and finished execution without driving it (3 ms)
+  ✓ async runner inspection stays synchronous while a source callback is pending (1 ms)
+
+  ● DagTraversal inspects a deleted synthetic holder without dereferencing its removed vertex
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "kind": "live",
+    +   "kind": "omitted",
+        "satisfied": true,
+      }
+
+      1014 |         milestone: 'work',
+      1015 |       }),
+    > 1016 |     ).toMatchObject({ kind: 'live', satisfied: true });
+           |       ^
+      1017 |   });
+      1018 | }
+      1019 |
+
+      at Object.<anonymous> (tests/dag-inspection.test.ts:1016:7)
+
+  ● AsyncDagTraversal inspects a deleted synthetic holder without dereferencing its removed vertex
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "kind": "live",
+    +   "kind": "omitted",
+        "satisfied": true,
+      }
+
+      1014 |         milestone: 'work',
+      1015 |       }),
+    > 1016 |     ).toMatchObject({ kind: 'live', satisfied: true });
+           |       ^
+      1017 |   });
+      1018 | }
+      1019 |
+
+      at Object.<anonymous> (tests/dag-inspection.test.ts:1016:7)
+
+FAIL tests/dag-inspection-explanations.test.ts
+  ✓ DagTraversal explains seeded W separately from child-blocked C and stops at satisfied edges (21 ms)
+  ✓ DagTraversal distinguishes ready work and pending completion before callback commit (15 ms)
+  ✓ DagTraversal distinguishes omitted deleted and unknown targets (9 ms)
+  ✓ AsyncDagTraversal explains seeded W separately from child-blocked C and stops at satisfied edges (26 ms)
+  ✓ AsyncDagTraversal distinguishes ready work and pending completion before callback commit (7 ms)
+  ✓ AsyncDagTraversal distinguishes omitted deleted and unknown targets (13 ms)
+  ✓ DagTraversal marks only locally open completion discovery (3 ms)
+  ✓ DagTraversal reports unresolved constraints without treating omissions as blockers (16 ms)
+  ✓ DagTraversal bounds cyclic explanations (5 ms)
+  ✓ AsyncDagTraversal marks only locally open completion discovery (7 ms)
+  ✓ AsyncDagTraversal reports unresolved constraints without treating omissions as blockers (6 ms)
+  ✓ AsyncDagTraversal bounds cyclic explanations (3 ms)
+  ✓ explanations walk deep unfinished work chains iteratively (1040 ms)
+  ✓ captured deleted endpoints remain explicit unsatisfied constraints (2 ms)
+  ✓ a closed vertex does not inherit global discovery incompleteness from another pending source call (3 ms)
+  ✕ explanations retain SameValueZero IDs without freezing caller objects (4 ms)
+
+  ● explanations retain SameValueZero IDs without freezing caller objects
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "unresolved"
+
+      521 |   expect(
+      522 |     inspection.explain({ vertexId: otherObject, milestone: 'work' }).kind,
+    > 523 |   ).toBe('unknown');
+          |     ^
+      524 |   expect(Object.isFrozen(object)).toBe(false);
+      525 | });
+      526 |
+
+      at Object.<anonymous> (tests/dag-inspection-explanations.test.ts:523:5)
+
+PASS tests/prepared-dag.test.ts
+  ✓ a prepared topology starts independent seeded runners without source I/O (8 ms)
+  ✓ async preparation supports both sync and async independent sessions (10 ms)
+  ✓ dependency invalidity is structured while adapter errors keep exact identity (4 ms)
+  ✓ prepareDag preserves exact source failures: undefined (1 ms)
+  ✓ prepareDag preserves exact source failures: null
+  ✓ prepareDag preserves exact source failures: Symbol(caller error)
+  ✓ prepareDag preserves exact source failures: {"reason": "caller error"}
+  ✓ prepareDag preserves exact source failures: [DagDiscoveryCycleError: Discovery cycle detected: "caller" -> "caller"] (1 ms)
+  ✓ prepareDag preserves exact source failures: [DagTraversalStallError: DAG traversal stalled: incomplete work]
+  ✓ prepareDag retains omitted hints and prerequisite identities across seeds (3 ms)
+  ✓ prepareDag distinguishes empty catalogs and explicitly omitted roots (3 ms)
+  ✓ prepareDag returns missing prerequisites as milestone issues (1 ms)
+  ✓ prepareDag returns dependency cycles as milestone issues (2 ms)
+  ✓ prepareDagAsync preserves exact source failures: undefined
+  ✓ prepareDagAsync preserves exact source failures: null (1 ms)
+  ✓ prepareDagAsync preserves exact source failures: Symbol(caller error)
+  ✓ prepareDagAsync preserves exact source failures: {"reason": "caller error"} (1 ms)
+  ✓ prepareDagAsync preserves exact source failures: [DagDiscoveryCycleError: Discovery cycle detected: "caller" -> "caller"]
+  ✓ prepareDagAsync preserves exact source failures: [DagTraversalStallError: DAG traversal stalled: incomplete work] (1 ms)
+  ✓ prepareDagAsync retains omitted hints and prerequisite identities across seeds (2 ms)
+  ✓ prepareDagAsync distinguishes empty catalogs and explicitly omitted roots (3 ms)
+  ✓ prepareDagAsync returns missing prerequisites as milestone issues (1 ms)
+  ✓ prepareDagAsync returns dependency cycles as milestone issues (1 ms)
+  ✓ prepared discovery retains undefined omission IDs and transitive detached prerequisites (5 ms)
+  ✓ unidentified omitted children do not become fake prepared identities (1 ms)
+  ✓ prepared definitions preserve effective implicit work dependencies and root policy (3 ms)
+  ✓ prepared forest completion joins retain structural sharing and order (3 ms)
+  ✓ definition arrays are immutable while arbitrary IDs and data stay shallow (5 ms)
+  ✓ prepared runners reject topology-changing visitor commands independently (4 ms)
+  ✓ prepared option boundaries reject overrides including present undefined before callbacks (14 ms)
+  ✓ source callback failures are never mistaken for validation results (3 ms)
+  ✓ hint identity may be unknown and default async sessions remain independent (1 ms)
+  ✓ prepareDag preserves non-enumerable IDs and inherited source fields (1 ms)
+  ✓ prepareDag preserves omission order with own and hint-supplied IDs (4 ms)
+  ✓ prepareDagAsync preserves non-enumerable IDs and inherited source fields (1 ms)
+  ✓ prepareDagAsync preserves omission order with own and hint-supplied IDs (3 ms)
+  ✓ sync discovery cycles expose an identity-preserving closed witness (self=false) (3 ms)
+  ✓ sync discovery cycles expose an identity-preserving closed witness (self=true) (1 ms)
+  ✓ async discovery cycles expose an identity-preserving closed witness (self=false) (1 ms)
+  ✓ async discovery cycles expose an identity-preserving closed witness (self=true) (2 ms)
+
+PASS tests/dag-definition.test.ts
+  ✓ definitions retain an omitted discovery slot before its dependent sibling (5 ms)
+  ✓ defineDag owns wrappers while retaining arbitrary data and ID references (6 ms)
+  ✓ defineDag rejects malformed declarations 0
+  ✓ defineDag rejects malformed declarations 1
+  ✓ defineDag rejects malformed declarations 2
+  ✓ defineDag rejects malformed declarations 3 (1 ms)
+  ✓ defineDag rejects malformed declarations 4
+  ✓ defineDag rejects malformed declarations 5 (1 ms)
+  ✓ defineDag rejects malformed declarations 6
+  ✓ defineDag rejects malformed declarations 7
+  ✓ defineDag rejects malformed declarations 8
+  ✓ defineDag rejects malformed declarations 9
+  ✓ defineDag rejects malformed declarations 10 (1 ms)
+  ✓ defineDag rejects malformed declarations 11
+  ✓ defineDag rejects malformed declarations 12 (1 ms)
+  ✓ defineDag rejects malformed declarations 13
+  ✓ defineDag rejects malformed declarations 14
+  ✓ defineDag rejects malformed declarations 15 (1 ms)
+  ✓ defineDag rejects SameValueZero duplicate vertices declarations
+  ✓ defineDag rejects SameValueZero duplicate omittedIds declarations (1 ms)
+  ✓ defineDag rejects SameValueZero duplicate mixed declarations
+  ✓ defineDag preserves non-enumerable own undefined IDs and exact accessor failures (1 ms)
+  ✓ definition replay preserves work and completion order with anonymous omissions false (8 ms)
+  ✓ definition replay preserves work and completion order with anonymous omissions true (4 ms)
+  ✓ definitions retain empty and omitted roots separately from forest catalogs (4 ms)
+  ✓ definition replay retains structural sharing and detached prerequisites without caller callbacks (4 ms)
+  ✓ defineDag accepts graph-invalid source facts without executing or validating them
+  ✓ an omitted synthetic catalog root does not expose its private holder identity (4 ms)
+  ✓ a live synthetic holder preserves omitted catalog entries for seed reuse (2 ms)
+  ✓ definition copies remain independent of later caller edits to arrays and wrappers (1 ms)
+
+PASS tests/object.test.ts
+  object rewriting
+    ✓ reconstructs nested arrays and objects after rewriting their leaves (9 ms)
+    ✓ traverses and reconstructs enumerable symbol properties (2 ms)
+    ✓ skips sparse slots while preserving symbol properties (3 ms)
+    ✓ compacts numeric array children after deletion (2 ms)
+    ✓ returns an unchanged null root (1 ms)
+    ✓ returns an unchanged undefined root (1 ms)
+    ✓ returns an unchanged number root (1 ms)
+    ✓ returns an unchanged string root
+    ✓ rewrites a primitive root
+    ✓ returns an absent result when the root is deleted (1 ms)
+    ✓ does not invoke a value converter for an absent root (1 ms)
+    ✓ forwards child sorting to the depth-first traversal (2 ms)
+    ✓ rejects an ancestor identity cycle with a descriptive path (5 ms)
+    ✓ rejects cycles under breadth-first traversal with repeated branches (3 ms)
+    ✓ detects cycles introduced by rewritten child hints (2 ms)
+    ✓ keeps cycle ancestry isolated across concurrent adapter runs (2 ms)
+    ✓ allows one object in separate branches (1 ms)
+    ✓ allows a traversable object adapter to be reused (1 ms)
+
+PASS tests/rewrite-result-contract.test.ts
+  rewrite result contracts
+    ✓ requires completion and converts the final root only once after resuming (8 ms)
+    ✓ reuses the initial successful conversion when the run already finished (3 ms)
+    ✓ retries after the exact final conversion error null (2 ms)
+    ✓ retries after the exact final conversion error undefined (1 ms)
+    ✓ retries after the exact final conversion error {"conversionFailure": true} (1 ms)
+    ✓ preserves exact initial conversion errors
+    ✓ preserves deleted and null final root presence after resuming (2 ms)
+    ✓ explicit output helper rewrites with and without options through the public exports (2 ms)
+    ✓ rejects a present traversableTree undefined before any callbacks (1 ms)
+    ✓ rejects a present traversableTree {} before any callbacks
+
+PASS tests/graph-walk-controls.test.ts
+  ✓ filters before inline hydration and target lookup, keeping link indices (7 ms)
+  ✓ emits pruned occurrences before expansion and retains the first pruning decision (2 ms)
+  ✓ shouldFollowEdge rejects nonbooleans and synchronous thenables (10 ms)
+  ✓ shouldExpandVertex rejects nonbooleans and synchronous thenables (4 ms)
+  ✓ shouldFollowEdge retains arbitrary thrown values (1 ms)
+  ✓ shouldExpandVertex retains arbitrary thrown values (1 ms)
+  ✓ detaches predicate wrappers from subsequent observations and expansion (1 ms)
+
+PASS tests/vertex-content-api.test.ts
+  canonical vertex content
+    ✓ retains opaque data and hint elements with owned hint membership (1 ms)
+    ✓ copies canonical construction and copies an existing Vertex (1 ms)
+    ✓ clones an existing Vertex with replacement data replacement and independently copied hints (1 ms)
+    ✓ clones an existing Vertex with replacement data undefined and independently copied hints
+    ✓ clones canonical fields with explicitly undefined data (1 ms)
+    ✓ keeps canonical clone updates including explicitly undefined data
+    ✓ rejects mixed construction shapes 0 (3 ms)
+    ✓ rejects mixed construction shapes 1 (1 ms)
+    ✓ rejects mixed construction shapes 2
+    ✓ rejects mixed construction shapes 3
+    ✓ rejects mixed construction shapes 4
+    ✓ rejects mixed construction shapes 5 (1 ms)
+    ✓ rejects mixed clone shapes 0
+    ✓ rejects mixed clone shapes 1 (1 ms)
+    ✓ rejects mixed clone shapes 2 (1 ms)
+    ✓ rejects mixed clone shapes 3
+    ✓ follows canonical hints through DFS (3 ms)
+    ✓ follows canonical hints through BFS (1 ms)
+    ✓ follows canonical hints through DAG tree source (2 ms)
+    ✓ follows canonical hints through async DFS (3 ms)
+    ✓ follows canonical hints through async BFS (2 ms)
+    ✓ follows canonical hints through async DAG tree source (2 ms)
+    ✓ preserves arbitrary graph IDs through canonical content (1 ms)
+    ✓ preserves arbitrary graph IDs through canonical content (1 ms)
+    ✓ accepts canonical object-tree hook content without skipping cycle checks (3 ms)
+
+PASS tests/api-distinction-behavior.test.ts
+  ✓ explicitly skipped expansion remains distinct from retained children and absent hints (7 ms)
+  ✓ limit replacement deliberately drops earlier bounds for sync and async walkers (3 ms)
+  ✓ prepared summaries drop omission slots while faithful definitions retain identity (4 ms)
+  ✓ tagged rewrite output keeps null and undefined distinct from deleted roots (3 ms)
+
+PASS tests/vertex-hint-ownership.test.ts
+  ✓ editing a structural observation clone cannot mutate a standalone input (1 ms)
+  ✓ constructor owns its editable hints without copying caller payload objects (1 ms)
+  ✓ clone overrides and Vertex overrides own their hint arrays
+
+Test Suites: 2 failed, 8 passed, 10 total
+Tests:       3 failed, 184 passed, 187 total
+Snapshots:   0 total
+Time:        8.097 s, estimated 9 s
+Ran all test suites matching /tests\/api-distinction-behavior.test.ts|tests\/vertex-hint-ownership.test.ts|tests\/vertex-content-api.test.ts|tests\/dag-definition.test.ts|tests\/prepared-dag.test.ts|tests\/dag-inspection.test.ts|tests\/dag-inspection-explanations.test.ts|tests\/object.test.ts|tests\/rewrite-result-contract.test.ts|tests\/graph-walk-controls.test.ts/i.

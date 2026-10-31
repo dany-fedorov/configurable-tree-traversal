@@ -1,0 +1,277 @@
+[
+  {
+    "id": "R01",
+    "requirement": "Independent constructor/clone hint membership; shallow payload identities",
+    "sourceFiles": [
+      "src/core/Vertex.ts",
+      "src/core/observationFacets.ts"
+    ],
+    "verificationFiles": [
+      "tests/vertex-hint-ownership.test.ts",
+      "tests/vertex-content-api.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R02",
+    "requirement": "Constructor limits and explicit replaceLimits patches; replacement/atomic rejection",
+    "sourceFiles": [
+      "src/traversals/graph-walk/GraphWalkOptions.ts",
+      "src/traversals/graph-walk/lib/normalizeWalkOptions.ts"
+    ],
+    "verificationFiles": [
+      "tests/api-distinction-behavior.test.ts",
+      "tests/graph-walk-limits.test.ts",
+      "tests/async-graph-walk-paths.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R03",
+    "requirement": "Hint transformer names, accessor, inspection capability flag and frame stage",
+    "sourceFiles": [
+      "src/core/ChildHintTransformer.ts",
+      "src/core/CoreInspection.ts",
+      "src/core/TraversalKernel.ts"
+    ],
+    "verificationFiles": [
+      "tests/core-inspection.test.ts",
+      "tests/vertex-content-api.test.ts",
+      "tests/api-distinction-contracts.typecheck.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R04",
+    "requirement": "Canonical source tags and configuration/context distinction in current guides",
+    "sourceFiles": [
+      "docs/reference.md",
+      "docs/migration-api-distinctions.md"
+    ],
+    "verificationFiles": [
+      "tests/uniform-source-results.test.ts",
+      "tests/idiomatic-object-contracts.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R05",
+    "requirement": "Absent dependsOnWork declaration default has a distinct name",
+    "sourceFiles": [
+      "src/core/assertPublicOptions.ts",
+      "src/core/scheduling/GraphScheduling.ts"
+    ],
+    "verificationFiles": [
+      "tests/uniform-dependencies.test.ts",
+      "tests/idiomatic-scoped-operations.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R06",
+    "requirement": "Lossy liveVertexSummaries and faithful definition remain distinct",
+    "sourceFiles": [
+      "src/traversals/dag-traversal/lib/PreparedDag.ts",
+      "src/traversals/dag-traversal/lib/makePreparedDag.ts"
+    ],
+    "verificationFiles": [
+      "tests/api-distinction-behavior.test.ts",
+      "tests/dag-definition.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R07",
+    "requirement": "Explicit skipped-expansion query independent of structural leaf/hint emptiness",
+    "sourceFiles": [
+      "src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunner.ts",
+      "src/traversals/depth-first-traversal/lib/AsyncDepthFirstTraversalRunner.ts"
+    ],
+    "verificationFiles": [
+      "tests/api-distinction-behavior.test.ts",
+      "tests/async-depth-first.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R08",
+    "requirement": "Binding existing runners versus creating independent prepared sessions",
+    "sourceFiles": [
+      "src/traversals/dag-traversal/coordinateDag.ts",
+      "src/traversals/dag-traversal/lib/makePreparedDag.ts"
+    ],
+    "verificationFiles": [
+      "tests/dag-coordination.test.ts",
+      "tests/prepared-dag.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R09",
+    "requirement": "Tagged output presence; conversion only for present roots; final gating/caching",
+    "sourceFiles": [
+      "src/tools/rewrite-object/rewriteObject.ts"
+    ],
+    "verificationFiles": [
+      "tests/api-distinction-behavior.test.ts",
+      "tests/rewrite-result-contract.test.ts",
+      "tests/object.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R10",
+    "requirement": "Discovery witness and structural SCC evidence field names",
+    "sourceFiles": [
+      "src/core/errors/DagDiscoveryCycleError.ts",
+      "src/traversals/dag-traversal/lib/DagDefinition.ts",
+      "src/core/graph/validateDefinition.ts"
+    ],
+    "verificationFiles": [
+      "tests/prepared-dag.test.ts",
+      "tests/dag-fragments.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R11",
+    "requirement": "Explicit identity wrappers in source/resolved omissions; anonymous and known undefined; tree forbids graph metadata",
+    "sourceFiles": [
+      "src/core/TraversableTree.ts",
+      "src/core/drivers/normalizeSourceResult.ts",
+      "src/core/graph/GraphStore.ts",
+      "src/core/observationFacets.ts"
+    ],
+    "verificationFiles": [
+      "tests/omission-identity-validation.test.ts",
+      "tests/api-distinction-behavior.test.ts",
+      "tests/prepared-source-contracts.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R12",
+    "requirement": "Canonical vertexId/unmetPrerequisiteIds in detached stall summaries",
+    "sourceFiles": [
+      "src/core/errors/DagTraversalStallError.ts",
+      "src/core/scheduling/GraphScheduling.ts",
+      "src/traversals/dag-traversal/lib/DagTerminalObservation.ts"
+    ],
+    "verificationFiles": [
+      "tests/dag-diagnostics.test.ts",
+      "tests/dag-inspection-terminal.test.ts",
+      "tests/dag-summary.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R13",
+    "requirement": "Named DagWorkSessionControl with concrete synchronous DAG inspection",
+    "sourceFiles": [
+      "src/traversals/dag-traversal/coordinateDag.ts",
+      "src/traversals/dag-traversal/index.ts"
+    ],
+    "verificationFiles": [
+      "tests/api-distinction-contracts.typecheck.ts",
+      "scripts/package-consumers/api-distinctions.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R14",
+    "requirement": "Hydration-policy parameter on reusable target/link aliases with broad default",
+    "sourceFiles": [
+      "src/traversals/graph-walk/GraphWalkSource.ts",
+      "src/traversals/graph-walk/index.ts"
+    ],
+    "verificationFiles": [
+      "tests/api-distinction-contracts.typecheck.ts",
+      "scripts/package-consumers/api-distinctions.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R15",
+    "requirement": "Readonly source/clone/command hint input arrays; editable owned outputs",
+    "sourceFiles": [
+      "src/core/Vertex.ts",
+      "src/core/TraversalVisitor.ts"
+    ],
+    "verificationFiles": [
+      "tests/api-distinction-contracts.typecheck.ts",
+      "tests/vertex-hint-ownership.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R16",
+    "requirement": "Walking fromVertex endpoints versus source adapter; frozen detached wrappers",
+    "sourceFiles": [
+      "src/traversals/graph-walk/GraphWalkEvent.ts",
+      "src/traversals/graph-walk/GraphWalkOptions.ts",
+      "src/traversals/graph-walk/lib/WalkKernel.ts"
+    ],
+    "verificationFiles": [
+      "tests/graph-walk-controls.test.ts",
+      "tests/graph-walk-observations.test.ts",
+      "tests/api-distinction-behavior.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R17",
+    "requirement": "Throwing requireVertexId/requirePathsTo/requirePathTo; arbitrary null/undefined IDs remain valid",
+    "sourceFiles": [
+      "src/core/ResolvedGraphView.ts",
+      "src/core/ResolvedTreeView.ts",
+      "src/core/ResolvedTree.ts"
+    ],
+    "verificationFiles": [
+      "tests/explicit-identity.test.ts",
+      "tests/tree-query-ownership.test.ts",
+      "scripts/package-consumers/api-distinctions.mjs"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R18",
+    "requirement": "Unresolved/deleted/live/omitted milestone explanations and precise progress typing",
+    "sourceFiles": [
+      "src/traversals/dag-traversal/lib/DagInspection.ts"
+    ],
+    "verificationFiles": [
+      "tests/dag-inspection-explanations.test.ts",
+      "tests/dag-inspection-terminal.test.ts",
+      "tests/api-distinction-behavior.test.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R19",
+    "requirement": "Explicit fragment ID mapping returns DagFragment; no unenforced instance alias",
+    "sourceFiles": [
+      "src/traversals/dag-traversal/dagFragments.ts",
+      "src/traversals/dag-traversal/lib/DagFragment.ts"
+    ],
+    "verificationFiles": [
+      "tests/dag-fragments.test.ts",
+      "tests/dag-fragments.typecheck.ts",
+      "scripts/package-consumers/api-distinctions.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  },
+  {
+    "id": "R20",
+    "requirement": "Canonical public VertexHandle; explicit InternalVertexRef; direct safe public graph types",
+    "sourceFiles": [
+      "src/core/index.ts",
+      "src/core/graph/types.ts"
+    ],
+    "verificationFiles": [
+      "tests/observation-facets.test.ts",
+      "tests/api-clarity-values.typecheck.ts",
+      "scripts/package-consumers/api-distinctions.ts"
+    ],
+    "status": "implemented; final gates and Fable review pending"
+  }
+]

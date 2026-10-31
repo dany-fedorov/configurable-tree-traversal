@@ -4,7 +4,10 @@ import { GraphStore } from '../src/core/graph/GraphStore';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import { dependencyMilestoneCycles } from '../src/core/scheduling/dependencyMilestones';
-import type { VertexRef, ResolvedVisitStage } from '../src/core/graph/types';
+import type {
+  InternalVertexRef,
+  ResolvedVisitStage,
+} from '../src/core/graph/types';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import type { TestGraph } from './helpers/graph-fixtures';
 
@@ -23,7 +26,7 @@ function setup() {
   })!;
   scheduling.takeReady();
   scheduling.markPreVisited(root);
-  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildHints());
   const accept = (index: number, result: MakeVertexResult<TestGraph>) =>
     scheduling.acceptVertex(
       {
@@ -31,11 +34,11 @@ function setup() {
         parentVertex: root.getValue(),
         depth: 1,
         hintIndex: index,
-        vertexHint: root.getValue().getChildrenHints()[index]!,
+        vertexHint: root.getValue().getChildHints()[index]!,
       },
       result,
     );
-  const finish = (ref: VertexRef<TestGraph>) => {
+  const finish = (ref: InternalVertexRef<TestGraph>) => {
     scheduling.markPreVisited(ref);
     scheduling.prepareSlots(ref, []);
     scheduling.closeExpansion(ref);

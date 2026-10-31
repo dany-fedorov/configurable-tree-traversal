@@ -1,5 +1,5 @@
 import {
-  createAsyncDagWorkSession,
+  bindAsyncDagWorkSession,
   DagVisitorPhase,
   defineDag,
   diffDagDefinitions,
@@ -774,7 +774,7 @@ describe('ordered atomic revisions', () => {
     [null],
     [false],
     [[]],
-    [{ kind: 'unknown' }],
+    [{ kind: 'unresolved' }],
     [Object.create({ kind: 'removeVertexDeclaration', vertexId: undefined })],
     [{ kind: 'removeVertexDeclaration' }],
     [{ kind: 'replaceVertex' }],
@@ -1035,7 +1035,7 @@ describe('revision session isolation', () => {
         },
       },
     });
-    const old = createAsyncDagWorkSession(oldRunner);
+    const old = bindAsyncDagWorkSession(oldRunner);
     const boundary = await old.advance();
     if (boundary.kind !== 'awaitingSettlement')
       throw new Error('Expected ticket');

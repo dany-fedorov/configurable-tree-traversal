@@ -75,7 +75,7 @@ async function main() {
   const graph = runner.getResolvedGraphView();
   const parser = graph.getVertexRefById('module:parser')!;
   assert.deepEqual(graph.getParentsOf(parser), []);
-  assert.deepEqual(graph.getPathsTo(parser), [[parser]]);
+  assert.deepEqual(graph.requirePathsTo(parser), [[parser]]);
   assert.equal(runner.summary().counts.subgraphCompleted, 4);
   console.log(events.join('\n'));
 }

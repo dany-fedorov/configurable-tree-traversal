@@ -187,9 +187,11 @@ describe('ResolvedTreeStore', () => {
     setResolved(tree, rootRef, null);
     setResolved(tree, detachedRef, null);
 
-    expect(tree.getPathTo(rootRef, { noRoot: true })).toEqual([]);
-    expect(tree.getPathTo(rootRef, { noRoot: true, noSelf: true })).toEqual([]);
-    expect(tree.getPathTo(detachedRef, { noRoot: true })).toEqual([
+    expect(tree.requirePathTo(rootRef, { noRoot: true })).toEqual([]);
+    expect(tree.requirePathTo(rootRef, { noRoot: true, noSelf: true })).toEqual(
+      [],
+    );
+    expect(tree.requirePathTo(detachedRef, { noRoot: true })).toEqual([
       detachedRef,
     ]);
   });
@@ -274,15 +276,15 @@ describe('DepthFirstTraversalResolvedTreesContainer', () => {
       savedRootRef.getValue(),
     );
 
-    rootRef.getValue().getChildrenHints().push('later-active-hint');
-    expect(savedRootRef.getValue().getChildrenHints()).toEqual(['child']);
+    rootRef.getValue().getChildHints().push('later-active-hint');
+    expect(savedRootRef.getValue().getChildHints()).toEqual(['child']);
 
     container.delete(rootRef);
 
     expect(container.resolvedTree.getRoot()).toBeNull();
     expect(savedTree.getRoot()).toBe(savedRootRef);
     expect(savedTree.getChildrenOf(savedRootRef)).toEqual([savedChildRef]);
-    expect(savedTree.getPathTo(savedChildRef)).toEqual([
+    expect(savedTree.requirePathTo(savedChildRef)).toEqual([
       savedRootRef,
       savedChildRef,
     ]);

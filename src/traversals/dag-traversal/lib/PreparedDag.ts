@@ -6,7 +6,7 @@ import type { DagDefinition } from './DagDefinition';
 import type { DagOptionsPatch } from './DagTraversalInstanceConfig';
 import type { DagTraversalRunner } from './DagTraversalRunner';
 
-export type PreparedDagVertex<Data, ID> = Readonly<{
+export type PreparedDagVertexSummary<Data, ID> = Readonly<{
   vertexId: ID;
   data: Data;
   children: readonly ID[];
@@ -20,8 +20,8 @@ type OwnedOptions = {
   syntheticRoot?: never;
   discovery?: never;
   rootWorkDependencies?: never;
-  omittedWorkDependencies?: never;
-  sortChildrenHints?: never;
+  dependsOnWorkDefault?: never;
+  transformChildHints?: never;
   traversalRunnerInternalObjects?: never;
 };
 
@@ -58,7 +58,7 @@ export type AsyncDagWorkSessionOptions<ID> = DagWorkSessionOptions<ID> & {
 /** An in-memory validated topology; data and identities remain shallow caller values. */
 export interface PreparedDag<Data, ID = unknown> {
   /** Live-child convenience projection; omission slots are absent. Do not use for round-trip reconstruction. */
-  readonly vertices: readonly PreparedDagVertex<Data, ID>[];
+  readonly liveVertexSummaries: readonly PreparedDagVertexSummary<Data, ID>[];
   /** Faithful ordered entry, slots, omissions, and W/C declarations for reconstruction or revision. */
   readonly definition: DagDefinition<Data, ID>;
   createRunner(

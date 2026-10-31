@@ -1,0 +1,9 @@
+{
+  "head": "8f20c2f43cbf7722025b2fb5682072f8e4952c1b",
+  "validatedInputHashes": 460,
+  "changedInputs": [],
+  "freshCensusEqualsPrevious": {
+    "public-api-census.json": true,
+    "public-api-census-summary.json": true
+  }
+}

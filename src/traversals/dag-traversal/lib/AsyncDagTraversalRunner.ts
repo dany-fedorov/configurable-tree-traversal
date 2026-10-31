@@ -189,13 +189,13 @@ export class InternalAsyncDagTraversalRunner<
           );
     const bindings = createCallbackBindings<T, R>({
       source,
-      ...(input.sortChildrenHints === null
+      ...(input.transformChildHints === null
         ? {}
         : {
             sortHints: (hints: (T | R)['VertexHint'][]) =>
-              input.sortChildrenHints!(
+              input.transformChildHints!(
                 hints as T['VertexHint'][],
-              ) as ReturnType<NonNullable<typeof input.sortChildrenHints>>,
+              ) as ReturnType<NonNullable<typeof input.transformChildHints>>,
           }),
       visit: {
         [DagVisitorPhase.ON_WORK_READY]: (call) => this.visit(call),
@@ -215,9 +215,9 @@ export class InternalAsyncDagTraversalRunner<
       ...(input.rootWorkDependencies === undefined
         ? {}
         : { rootWorkDependencies: input.rootWorkDependencies }),
-      ...(input.omittedWorkDependencies === undefined
+      ...(input.dependsOnWorkDefault === undefined
         ? {}
-        : { omittedWorkDependencies: input.omittedWorkDependencies }),
+        : { dependsOnWorkDefault: input.dependsOnWorkDefault }),
       ...(completedWork === undefined ? {} : { completedWork }),
       execution: 'async',
       sourceMode,
@@ -233,7 +233,7 @@ export class InternalAsyncDagTraversalRunner<
       },
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,
-      hasSorter: input.sortChildrenHints !== null,
+      hasHintTransformer: input.transformChildHints !== null,
       hasPrerequisiteResolver: source.resolvePrerequisite !== undefined,
       hasHintIds:
         sourceMode === 'graph' &&
@@ -411,7 +411,7 @@ export class InternalAsyncDagTraversalRunner<
             event: {
               vertex: vertexView(progress.event.vertex),
               vertexRef: vertexHandle(progress.event.vertexRef),
-              vertexId: this.getResolvedGraphView().getVertexId(
+              vertexId: this.getResolvedGraphView().requireVertexId(
                 progress.event.vertexRef,
               ),
               ...(progress.event.order === DagVisitorPhase.ON_WORK_READY

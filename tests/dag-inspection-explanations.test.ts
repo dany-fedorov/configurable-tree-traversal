@@ -44,10 +44,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const snapshot = inspectDagMilestones(runner);
     expect(
       snapshot.explain({ vertexId: 'bundle', milestone: 'work' }),
-    ).toMatchObject({ kind: 'known', satisfied: true, blockers: [] });
+    ).toMatchObject({ kind: 'live', satisfied: true, blockers: [] });
     const result = snapshot.explain({ vertexId: 'review', milestone: 'work' });
     expect(result).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       discoveryComplete: true,
       blockers: [
@@ -89,11 +89,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         vertexId: 'bundle',
         milestone: 'subgraphCompletion',
       }),
-    ).toMatchObject({ kind: 'known', satisfied: true, blockers: [] });
+    ).toMatchObject({ kind: 'live', satisfied: true, blockers: [] });
     expect(snapshot.explain({ vertexId: 'review', milestone: 'work' })).toEqual(
       result,
     );
-    if (result.kind !== 'known' || result.progress === null)
+    if (result.kind !== 'live' || result.progress === null)
       throw new Error('Expected live result');
     (result.progress.unmetPrerequisiteIds as string[]).push('changed');
     result.target.vertexId = 'changed';
@@ -139,13 +139,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         milestone: 'work',
       }),
     ).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       blockers: [{ kind: 'unfinishedWork', work: 'ready' }],
     });
     await runner.run();
     expect(pending).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       blockers: [
         {
@@ -159,7 +159,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         vertexId: 'leaf',
         milestone: 'subgraphCompletion',
       }),
-    ).toMatchObject({ kind: 'known', satisfied: true, blockers: [] });
+    ).toMatchObject({ kind: 'live', satisfied: true, blockers: [] });
   });
 
   test(`${Constructor.name} distinguishes omitted deleted and unknown targets`, async () => {
@@ -167,10 +167,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       traversableGraph: {
         resolveRoot: () => ({
           kind: 'omitted' as const,
-          vertexId: undefined,
+          identity: { vertexId: undefined },
           satisfiesDependencies: true as const,
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
@@ -183,7 +184,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         milestone: 'subgraphCompletion',
       }),
     ).toEqual({
-      kind: 'known',
+      kind: 'omitted',
       target: { vertexId: undefined, milestone: 'subgraphCompletion' },
       satisfied: true,
       progress: null,
@@ -214,7 +215,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         milestone: 'work',
       }),
     ).toEqual({
-      kind: 'unknown',
+      kind: 'unresolved',
       target: { vertexId: 'unknown', milestone: 'work' },
       discoveryComplete: true,
     });
@@ -253,7 +254,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(
       initial.explain({ vertexId: 'root', milestone: 'subgraphCompletion' }),
     ).toEqual({
-      kind: 'unknown',
+      kind: 'unresolved',
       target: { vertexId: 'root', milestone: 'subgraphCompletion' },
       discoveryComplete: false,
     });
@@ -262,7 +263,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(
       snapshot.explain({ vertexId: 'root', milestone: 'subgraphCompletion' }),
     ).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       discoveryComplete: false,
       blockers: [
@@ -277,7 +278,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(
       snapshot.explain({ vertexId: 'root', milestone: 'work' }),
     ).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       blockers: [{ kind: 'unfinishedWork', work: 'visiting' }],
     });
@@ -296,6 +297,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
@@ -303,7 +305,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           id === 'omitted'
             ? {
                 kind: 'omitted' as const,
-                vertexId: id,
+                identity: { vertexId: id },
                 satisfiesDependencies: true as const,
               }
             : { kind: 'missing' as const },
@@ -314,7 +316,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(
       inspection.explain({ vertexId: 'root', milestone: 'work' }),
     ).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       blockers: [
         {
@@ -330,14 +332,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     expect(
       inspection.explain({ vertexId: 'omitted', milestone: 'work' }),
     ).toMatchObject({
-      kind: 'known',
+      kind: 'omitted',
       satisfied: true,
       progress: null,
       blockers: [],
     });
     expect(
       inspection.explain({ vertexId: 'unresolved', milestone: 'work' }),
-    ).toMatchObject({ kind: 'unknown' });
+    ).toMatchObject({ kind: 'unresolved' });
   });
 
   test(`${Constructor.name} bounds cyclic explanations`, async () => {
@@ -357,7 +359,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         milestone: 'work',
       }),
     ).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       blockers: [
         {
@@ -392,7 +394,7 @@ test('explanations walk deep unfinished work chains iteratively', () => {
     vertexId: 0,
     milestone: 'work',
   });
-  if (result.kind !== 'known') throw new Error('Expected known work');
+  if (result.kind !== 'live') throw new Error('Expected known work');
   expect(result.blockers).toHaveLength(12000);
   expect(result.blockers[11999]).toEqual({
     kind: 'unfinishedWork',
@@ -427,7 +429,7 @@ test('captured deleted endpoints remain explicit unsatisfied constraints', () =>
   expect(
     inspection.explain({ vertexId: 'a', milestone: 'work' }),
   ).toMatchObject({
-    kind: 'known',
+    kind: 'live',
     satisfied: false,
     blockers: [{ kind: 'constraint', prerequisiteStatus: { kind: 'deleted' } }],
   });
@@ -474,7 +476,7 @@ test('a closed vertex does not inherit global discovery incompleteness from anot
   expect(
     inspection.explain({ vertexId: 'leaf', milestone: 'subgraphCompletion' }),
   ).toMatchObject({
-    kind: 'known',
+    kind: 'live',
     satisfied: false,
     discoveryComplete: false,
     blockers: [
@@ -510,17 +512,17 @@ test('explanations retain SameValueZero IDs without freezing caller objects', ()
   for (const id of ids) {
     const result = inspection.explain({ vertexId: id, milestone: 'work' });
     expect(result).toMatchObject({
-      kind: 'known',
+      kind: 'live',
       satisfied: false,
       blockers: [{ kind: 'unfinishedWork', work: 'ready' }],
     });
     expect(result.target.vertexId).toBe(id);
   }
   expect(inspection.explain({ vertexId: +0, milestone: 'work' }).kind).toBe(
-    'known',
+    'live',
   );
   expect(
     inspection.explain({ vertexId: otherObject, milestone: 'work' }).kind,
-  ).toBe('unknown');
+  ).toBe('unresolved');
   expect(Object.isFrozen(object)).toBe(false);
 });

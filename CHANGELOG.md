@@ -2,50 +2,22 @@
 
 ## Unreleased
 
-- Preserve fragment definition issues in exported `DagFragmentValidationError<ID = unknown>` while keeping direct success values and ordinary port/mapping TypeErrors. Add defaulted ID typing to `DagTraversalStallError` and synchronous `inspectDag()` on both DAG runners.
-- Allow `null` to clear walking predicates; keep omitted/undefined patches retaining previous predicates. Explicit optional predicate/source undefined inputs remain valid under exact optional property typing. Fix the DAG configure source guard shipped in 0.11.0 to ignore inherited/own-undefined placeholders, capture source getters once, and retain atomic source-mode rejection.
-- Clarify preparation/frontier choices, tree-only bases, legacy object adapter direct results, family root/slot distinctions, and buffered tree/DAG emission.
+This revision is not published; the package version remains 0.11.0 until a separately authorized release. The current README quickstart targets this source checkout. Start upgrades with the [final API checklist](docs/migration-api-distinctions.md).
 
-- Unify expected preparation/composition/revision failures under `invalid.issues` and align collection dependency selectors with `dependsOn` / `dependsOnComplete`, rejecting retired selector keys. Clarify ticket dispatch, committed event timing, faithful definitions, walking adapter mapping and structural sink semantics in current guides.
-
-- Simplify tree-source and object-hook omission to `{ kind: 'omitted' }`, including DAG traversal over tree adapters; reject graph acknowledgement metadata on trees while requiring explicit `satisfiesDependencies: true` on graph/prerequisite omissions.
-
-- Expose shared lifecycle inspection and `inspectDag()` on sync/async coordination sessions; use `failTraversal` as the sole fatal settlement method.
-- Export `DagDiscoveryCycleError` with an immutable closed ID witness from root, core and DAG traversal entry points.
-- Reject unknown walking option/limit keys before discovery while preserving configuration on invalid patches; accept explicit `undefined` arguments for shared parameterless NOOP/HALT commands.
-
-- Add lazy sync/async `GraphWalk` exploration and canonical `walkGraph` / `walkGraphAsync` helpers with mixed typed vertex/edge/path observations, hydrated targets, cyclic/parallel relationships, bounded simple paths/repeated walks, explicit completeness outcomes, cooperative pause and terminal iterator disposal.
-- Add finite catalog and selected DAG-declaration walking adapters, default-preserving common execution inspection, and coherent root/namespace/subpath CJS/ESM exports. Preserve tree/DAG contracts and the published 0.11.0 release boundary.
-
-- Add atomic validated `reviseDag` edits and pure shallow `diffDagDefinitions` results; preserve old sessions/tickets and require explicit host-selected completion facts for new sessions.
-- Hide omitted and deleted synthetic holder identities from DAG inspection while preserving caller symbol IDs.
-
-- Add faithful immutable `DagDefinition` values, `prepareDagDefinition` validation, typed fragment ports, explicit identity mapping, and validated composition with separate structural and W/C connections.
-
-- Add observational `inspectDag(runner)` snapshots with original W/C prerequisite/dependent navigation and flat current-blocker explanations; preserve exact work waits and distinguish unknown, omitted, deleted, unresolved, discovery-open and completion-pending facts.
-
-- Add inferred collection/forest source adapters with async materialization, reusable `prepareDag` definitions, and independent ticket-based coordination sessions.
-- Preserve typed IDs on discriminated DAG events and add data-guard filtered visitors. Keep exact ID inference when synchronous graph sources feed async APIs.
-- Preserve known omitted identities in discovery slots so prepared definitions replay prerequisite readiness in structural order; capture non-enumerable own IDs and inherited source content faithfully.
-
-- Add DAG `prepare()` for eager validated previews, atomic typed `deferredFrontier` records, and committed `workCompleted`/`subgraphCompleted` event kinds, preserving order/filter/timing.
-- Add family-safe sync/async execution capabilities and public cooperative `requestPause()` on all six runners.
-- Thread caller-selected ID types through graph/DAG APIs; require typed live IDs and reject inherited graph IDs. Raw container IDs include synthetic symbols; public views hide bookkeeping.
-- Add original labelled W/C diagnostic edges, including missing endpoints, and detach visitor registration query arrays/records while preserving callback/group identity.
-- Default rewrite output to unknown, add explicit `rewriteObjectAs<Out>` assertions and FINISHED-only cached `getOutput()`, and reject helper-owned source options even when present undefined. See the migration guide below.
-
-- Adopt descriptive `$data`/`$childHints` vertex fields and tagged `found`/`omitted`/lookup-only `missing` source results. Preserve deprecated input/access aliases; Vertex own fields, spread and JSON now use canonical names.
-- Honor ordinary root work prerequisites by default (`rootDependencies: 'honor'`) and make graph parent work inheritance opt-in (`implicitParentDependency: false`). Tree order is preserved. These are intentional behavior changes; see the [migration guide](docs/migration-uniform-api.md).
-- Add exclusive `DEFER_READY` commands and phase-neutral `REWRITE_CHILD_HINTS`; retain deprecated sentinel/command inputs. Name batching `commandCommitMode`, correct flat priority order before batching, add explicit ordered groups, and infer command phases across registration/configuration/helpers. Callback context exposes readonly metadata; retrieve executable records through traversal APIs.
-- Use progress `work: 'completed'` and tagged `workCompleted`/`traversalFailed` settlement outcomes, retaining deprecated boolean outcome inputs. All six helpers accept one options object with phase-keyed callbacks; direct positional overloads remain deprecated.
-- Refresh agent-first guides, runnable examples, and packed CJS/ESM runtime/type consumers. This revision is unreleased; the package version remains 0.11.0 pending a separately requested release.
-
-- Add independent `emitPhases`/`visitorPhases` selectors with field-wise updates and corrected legacy enable precedence; expose `getStopReason()` on runners/sessions.
-- Add `workCompletion: 'externalSettlement'` without dummy callbacks; retain guarded settlement and explicit early deferral.
-- Unify visitor definitions across classes/helpers, with group-owned batching, inert empty groups, and normalized list/set round trips.
-- Separate tree-only source result types from graph metadata; add tagged `resolveVertexHook` with deprecated hook compatibility.
-- Enforce generic mutation replacement types and typed partial object patches; reject malformed present rewrites.
-- Detach tree query arrays/contexts, add live shallow `ResolvedTreeView` facades, and distinguish reference IDs (`getRefId`) from graph IDs (`getVertexId`/`getVertexRefById`).
+- Add collection/roots DAG input materializers, reusable `prepareDag`/`prepareDagAsync` topology and independent `createWorkSession`/`createAsyncWorkSession` factories. Bind an existing externally settled runner with `bindDagWorkSession`/`bindAsyncDagWorkSession`. Dispatch from local `workTickets`; complete accepted work or fail the whole traversal with `failTraversal`.
+- Add faithful `DagDefinition` values, `prepareDagDefinition`, fragments, explicit `mapDagFragmentIds`, composition with separate structural links and milestone dependencies, atomic `reviseDag` and shallow `diffDagDefinitions`. Prepared `liveVertexSummaries` is a lossy convenience projection; use `definition` for reconstruction. Old sessions, tickets and admitted callbacks stay local; host-selected completion facts do not migrate automatically.
+- Add synchronous `inspectMilestones()` on sync/async runners and sessions, plus free `inspectDagMilestones()`. Capture original W/C prerequisite/dependent constraints and explanations distinguishing unresolved, deleted, live and omitted identities. Preserve arbitrary SameValueZero IDs and exact failures.
+- Unify expected preparation/composition/revision validation under `invalid.issues`. Source preparation reports engine `discoveryCycle` witnesses as `cycleWitnessVertexIds`; authored structural SCC issues use `componentVertexIds`. Direct runners still throw `DagDiscoveryCycleError`; exact source failures propagate. Export `DagFragmentValidationError` and ID-typed diagnostics using `{ vertexId, unmetPrerequisiteIds }` records.
+- Use `dependsOnWork` / `dependsOnSubgraphCompletion` selectors and declarations. Ordinary graph roots honor W by default (`rootWorkDependencies: 'honor'`); omitted work declarations default to no prerequisites (`dependsOnWorkDefault: 'none'`). Tree sources retain their structural ordering and reject graph-only dependency policies.
+- Use `workCompletion: 'afterWorkReadyChain'` by default, including zero/filtered callbacks; select `'externalSettlement'` for host completion. `DEFER_WORK_COMPLETION` exclusively ends a work-ready chain early; `PAUSE_TRAVERSAL` pauses it. Committed DAG events are `workCompleted`/`subgraphCompleted`; `emitEvents` selects delivery independently of `visitorPhases` admission.
+- Canonicalize `$data`/`$childHints`, tagged source results, explicit graph omission `identity: { vertexId } | null` and `satisfiesDependencies: true`. Tree omissions remain plain `{ kind: 'omitted' }`. Remove legacy content aliases, untagged source forms, old sentinels/commands, boolean settlement inputs and positional helper overloads; no deprecated compatibility forms remain.
+- Expose restricted `VertexHandle`/`VertexView` observations and live tree/graph query capabilities. `getRefId` identifies a reference; `requireVertexId` returns a host graph ID. Strict path queries are `requirePathTo`/`requirePathsTo`. Owned observation collections are detached/frozen; opaque payloads and IDs retain shallow identity. Standalone Vertex construction/clone copies readonly input hint membership.
+- Name hint transformation `transformChildHints`, with `ChildHintTransformer`/`AsyncChildHintTransformer`, `getChildHints`, `hasHintTransformer` and `transformHints` inspection. Separate explicit DFS `isChildExpansionSkipped` from structural leaf/hint emptiness. Use family deletion commands `DELETE_TREE_SUBTREE` / `DELETE_DAG_VERTEX_CASCADE`, stored-tree `deleteSubtree`, revision `removeVertexDeclaration`, and `{ state }` with `SET_VISITOR_CHAIN_STATE`.
+- Unify callback registration, priority-before-batching and explicit ordered groups under `commandCommitMode`; return detached query records with shared callbacks/group metadata. Provide family-safe execution capabilities and cooperative `requestPause`; expose no raw runner constructors, normalized options, continuation state or deep engine imports. Reject unsupported option keys and invalid patches atomically.
+- Make rewrite output `unknown` by default; infer output through `convertRootValue` or assert it with `rewriteObjectAs`. Use `outputResultAtReturn` / FINISHED-only cached `getOutputResult` with present/absent tags, preserving present null/undefined. Use typed object patches, explicit array index/collision policies and `resolveChildHook`; the helper owns its source.
+- Add lazy sync/async `GraphWalk`, `walkGraph`/`walkGraphAsync`, explicit resolver/inline-or-cached hydration, typed `fromVertex` endpoints and separate vertex/edge/path observations. Add catalog and DAG-declaration walking adapters, once/simplePaths/walks revisit policies, bounds and explicit completeness outcomes. Constructor `limits` and patch `replaceLimits` are distinct; predicate null clears, omitted/undefined retains.
+- Walking callbacks stay serial. Iterator return pauses; terminal close disposes open source iterators in reverse acquisition order. Failed close retains/rethrows the exact primary failure; overlapping async closes share a promise. Preserve coherent root/namespace/subpath CJS/ESM runtime and declaration identity.
+- Refresh the human quickstart and learning path, exact API contracts, public symbol index, executable examples and packed guide verification.
 
 ## 0.11.0 — 2026-10-23
 

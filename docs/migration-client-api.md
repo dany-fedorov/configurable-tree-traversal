@@ -1,5 +1,7 @@
 # Client API migration
 
+Apply the [latest API distinctions migration](migration-api-distinctions.md) for current presence, ownership and canonical naming contracts.
+
 [Documentation map](index.md) · [API reference](reference.md) · [Idiomatic API migration](migration-idiomatic-api.md)
 
 This guide covers the twenty client API corrections. Removed forms have no compatibility aliases. Use the [earlier migration checklist](migration-idiomatic-api.md#migration-checklist) for the preceding naming changes.
@@ -26,7 +28,7 @@ This guide covers the twenty client API corrections. Removed forms have no compa
 | F16     | `resolveVertexHook` / `ObjectVertexHookResult`                          | `resolveChildHook` / `ObjectChildHookResult`; map the root separately.                                                                         |
 | F17     | `ResolvedGraph` / `getResolvedGraph()` / `resolvedGraph`                | `ResolvedGraphView` / `getResolvedGraphView()` / `resolvedGraphView`.                                                                          |
 | F18     | Anonymous/private walking catalog selector types                        | `GraphWalkRecordSelectors`, `AsyncGraphWalkRecordSelectors`, and readonly `GraphWalkCatalogLink<Edge, ID>`.                                    |
-| F19     | Tree/DAG `sortChildHints` or walking `visitor` operation labels        | Diagnostics use `sortChildrenHints` and uniform callback `visit`; iterator operations remain distinct.                                         |
+| F19     | Tree/DAG `sortChildHints` or walking `visitor` operation labels         | Diagnostics use `transformChildHints` and uniform callback `visit`; iterator operations remain distinct.                                       |
 | F20     | `isTraversalRoot` / `isTraversalRootVertex`                             | Use family `isTreeRoot` / `isGraphRoot`; walking entry occurrences have `via: null`. There is no subtree-start option.                         |
 
 ## Truthful object discovery and output
@@ -49,11 +51,12 @@ const result = rewriteObject([1, 2], {
     return value.join(',');
   },
 });
-const output: string | null = result.getOutput();
+const final = result.getOutputResult();
+const output: string | null = final.kind === 'present' ? final.value : null;
 if (output !== '1,two') throw new Error('Unexpected converted output');
 ```
 
-Ordinary `rewriteObject` returns unknown output unless a converter establishes its type. `rewriteObjectAs<Out>` is the explicit unchecked final assertion and performs no schema validation. `outputAtReturn` is a one-time converted snapshot and may be partial at pause. Resume `traversalRunner`, then call `getOutput()` at FINISHED. Final output caches the first successful conversion; exact conversion failures propagate and remain retryable. A completed initial conversion is reused. Neither output API promises prototype preservation or deep immutability.
+Ordinary `rewriteObject` returns unknown output unless a converter establishes its type. `rewriteObjectAs<Out>` is the explicit unchecked final assertion and performs no schema validation. `outputResultAtReturn` is a one-time present/absent tagged snapshot and may be partial at pause. Resume `traversalRunner`, then call `getOutputResult()` at FINISHED. Final output caches the first successful conversion; exact conversion failures propagate and remain retryable. A completed initial conversion is reused. Neither output API promises prototype preservation or deep immutability.
 
 Object requests use `patch` containing only `key`/`value`; generic mutation requests use a complete replacement `value`. Omission and `keep` retain default behavior, including composite assembly. Conflicting/malformed operations reject. `resolveChildHook` never maps the root; the old hook name rejects even when its value is undefined.
 
@@ -100,8 +103,8 @@ The first admitted resolution wins, including omission; later inline contents do
 
 `afterWorkReadyChain` completes W after a normal work-ready chain, including empty/filtered chains. `externalSettlement` and explicit `DEFER_WORK_COMPLETION` retain host-controlled completion; `PAUSE_TRAVERSAL` pauses. Dispatch with work tickets or pre-work visitors. `workCompleted`/`subgraphCompleted` observations report committed W/C; callback completion and runner lifecycle are separate domains.
 
-`prepareDag`/`prepareDagAsync` convert only their own engine discovery cycles into `{ kind: 'discoveryCycle', vertexIds }`, preserving the ordered closed witness (for `a → b → a`, `['b', 'a', 'b']`). Authored-definition `structuralCycle` issues contain SCC membership instead. Direct runners and runner `prepare()` still throw. Source callback/getter/iterator exceptions keep their exact values, even caller-thrown instances of engine error classes.
+`prepareDag`/`prepareDagAsync` convert only their own engine discovery cycles into `{ kind: 'discoveryCycle', cycleWitnessVertexIds }`, preserving the ordered closed witness (for `a → b → a`, `['b', 'a', 'b']`). Authored-definition `structuralCycle` issues contain SCC membership instead. Direct runners and runner `prepare()` still throw. Source callback/getter/iterator exceptions keep their exact values, even caller-thrown instances of engine error classes.
 
 `emitEvents` selects records when delivered, including already buffered observations and deferred settlement events after resumption. Changing it never replays committed work or reruns callbacks. `visitorPhases` snapshots independently when a chain is admitted. Top-level inspection `executionOptions.emitEvents` controls current delivery; a chain's retained `emitEvents` is historical configuration. Explicit delivery selections narrow iterator kinds where supported. There is no emission-timing policy option.
 
-Pending-request `operation: 'visit'` describes callback work in every family; tree/DAG sorting is `sortChildrenHints`. Source/iterator operations keep distinct labels. Callback phase, chain state/index, graph visit stage, W/C milestones, callback counts and runner lifecycle describe different facts. Root flags identify tree/graph container roots; walking `via: null` identifies an entry occurrence, not an independent traversal-start feature.
+Pending-request `operation: 'visit'` describes callback work in every family; tree/DAG sorting is `transformChildHints`. Source/iterator operations keep distinct labels. Callback phase, chain state/index, graph visit stage, W/C milestones, callback counts and runner lifecycle describe different facts. Root flags identify tree/graph container roots; walking `via: null` identifies an entry occurrence, not an independent traversal-start feature.

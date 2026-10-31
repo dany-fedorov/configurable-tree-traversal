@@ -1,0 +1,11 @@
+
+> configurable-tree-traversal@0.11.0 check
+> npm run typecheck && npm run lint && npm run test:coverage && npm run verify-examples && npm run verify-package && npm run test:benchmark && npm run test:packaging
+
+
+> configurable-tree-traversal@0.11.0 typecheck
+> tsc --noEmit
+
+tests/api-distinction-contracts.typecheck.ts(41,1): error TS2578: Unused '@ts-expect-error' directive.
+tests/api-distinction-contracts.typecheck.ts(43,3): error TS2322: Type '{ kind: string; vertexId: string; }' is not assignable to type 'Readonly<{ vertexId: string; resolution?: GraphWalkVertexResult<string>; }>'.
+  Object literal may only specify known properties, and 'kind' does not exist in type 'Readonly<{ vertexId: string; resolution?: GraphWalkVertexResult<string>; }>'.

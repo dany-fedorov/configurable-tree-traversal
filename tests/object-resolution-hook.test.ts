@@ -1,3 +1,4 @@
+import { capturedOutputValue } from './helpers/rewriteOutput';
 import {
   AsyncBreadthFirstTreeTraversal,
   AsyncDagTraversal,
@@ -26,7 +27,9 @@ function rewriteWithHook(
   input: unknown,
   resolveChildHook: (hint: { key: PropertyKey; value: unknown }) => unknown,
 ) {
-  return rewriteObject(input, { resolveChildHook } as Options).outputAtReturn;
+  return capturedOutputValue(
+    rewriteObject(input, { resolveChildHook } as Options),
+  );
 }
 
 test('canonical hook replaces and omits properties in reconstructed output and delegates defaults', () => {
@@ -67,7 +70,7 @@ test('canonical found preserves exact data and child hint identity', () => {
     .addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
       seen.push(vertex.getData());
       if (vertex.getData() === data)
-        expect(vertex.getChildrenHints()).toEqual(childHints);
+        expect(vertex.getChildHints()).toEqual(childHints);
     })
     .createRunner()
     .run();
@@ -160,7 +163,7 @@ test('rewriteObject captures the canonical hook configuration getter once', () =
       return () => ({ kind: 'omitted' });
     },
   });
-  expect(rewriteObject({ a: 1 }, options).outputAtReturn).toEqual({});
+  expect(capturedOutputValue(rewriteObject({ a: 1 }, options))).toEqual({});
   expect(reads).toBe(1);
 });
 

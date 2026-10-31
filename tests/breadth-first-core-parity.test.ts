@@ -254,7 +254,7 @@ test('BFS resumes an injected reachable parent without regenerating its frontier
   const queue = runnerInternals(first).state.queue;
   expect(queue.map((context) => context.vertexHint)).toEqual(['A', 'B']);
   expect(runnerInternals(first).state.queueIndex).toBe(1);
-  expect(root.getValue().getChildrenHints()).toEqual(['A', 'B']);
+  expect(root.getValue().getChildHints()).toEqual(['A', 'B']);
 
   const calls: string[] = [];
   let queueAtResolution: string[] = [];

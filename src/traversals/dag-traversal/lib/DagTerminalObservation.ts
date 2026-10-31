@@ -15,9 +15,7 @@ type ObservedState = { [observationKey]?: DagTerminalObservation };
 const observations = new WeakMap<object, DagTerminalObservation | undefined>();
 
 function readObservation(state: object): DagTerminalObservation | undefined {
-  return (
-    observations.get(state) ?? (state as ObservedState)[observationKey]
-  );
+  return observations.get(state) ?? (state as ObservedState)[observationKey];
 }
 
 function retainObservation(
@@ -125,7 +123,9 @@ class DagTerminalObservation implements ObservationSource {
       ),
       readyOrDeferredIds: summary.readyOrDeferredIds.slice(),
       deferredWorkIds: summary.deferredWorkIds.slice(),
-      awaitingSettlement: summary.awaitingSettlement.map((item) => ({ ...item })),
+      awaitingSettlement: summary.awaitingSettlement.map((item) => ({
+        ...item,
+      })),
       activeVisitorVertexIds: summary.activeVisitorVertexIds.slice(),
       completedWorkIds: summary.completedWorkIds.slice(),
       completedSubgraphIds: summary.completedSubgraphIds.slice(),
@@ -134,15 +134,16 @@ class DagTerminalObservation implements ObservationSource {
         diagnostics === null
           ? null
           : {
-              dependencies: diagnostics.dependencies.map(({ id, unmet }) => ({
-                id,
-                unmet: unmet.slice(),
-              })),
+              dependencies: diagnostics.dependencies.map(
+                ({ vertexId, unmetPrerequisiteIds }) => ({
+                  vertexId,
+                  unmetPrerequisiteIds: unmetPrerequisiteIds.slice(),
+                }),
+              ),
               unknownPrerequisiteIds:
                 diagnostics.unknownPrerequisiteIds.slice(),
-              dependencyCycleComponents: diagnostics.dependencyCycleComponents.map((ids) =>
-                ids.slice(),
-              ),
+              dependencyCycleComponents:
+                diagnostics.dependencyCycleComponents.map((ids) => ids.slice()),
               dependencyEdges: diagnostics.dependencyEdges.map((edge) => ({
                 waiter: { ...edge.waiter },
                 prerequisite: { ...edge.prerequisite },

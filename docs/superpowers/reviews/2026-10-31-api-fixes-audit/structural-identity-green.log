@@ -1,0 +1,37 @@
+
+> configurable-tree-traversal@0.11.0 test
+> jest --runInBand tests/omission-identity-validation.test.ts
+
+PASS tests/omission-identity-validation.test.ts
+  ✓ DagTraversal rejects malformed or retired omission identity 0 (8 ms)
+  ✓ DagTraversal rejects malformed or retired omission identity 1 (1 ms)
+  ✓ DagTraversal rejects malformed or retired omission identity 2 (1 ms)
+  ✓ DagTraversal rejects malformed or retired omission identity 3
+  ✓ DagTraversal rejects malformed or retired omission identity 4 (1 ms)
+  ✓ DagTraversal rejects malformed or retired omission identity 5 (1 ms)
+  ✓ DagTraversal rejects malformed or retired omission identity 6 (1 ms)
+  ✓ DagTraversal preserves an omission identity getter failure 0 (1 ms)
+  ✓ DagTraversal preserves an omission identity getter failure 1
+  ✓ DagTraversal preserves an omission identity getter failure 2
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 0 (3 ms)
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 1
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 2
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 3 (1 ms)
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 4
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 5
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 6 (1 ms)
+  ✓ AsyncDagTraversal preserves an omission identity getter failure 0
+  ✓ AsyncDagTraversal preserves an omission identity getter failure 1 (1 ms)
+  ✓ AsyncDagTraversal preserves an omission identity getter failure 2
+  ✓ DepthFirstTreeTraversal rejects graph identity before reading its value (3 ms)
+  ✓ AsyncDepthFirstTreeTraversal rejects graph identity before reading its value (1 ms)
+  ✓ DagTraversal reads structural omission identity getters once (identified=false) (2 ms)
+  ✓ DagTraversal reads structural omission identity getters once (identified=true) (1 ms)
+  ✓ AsyncDagTraversal reads structural omission identity getters once (identified=false) (1 ms)
+  ✓ AsyncDagTraversal reads structural omission identity getters once (identified=true) (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       26 passed, 26 total
+Snapshots:   0 total
+Time:        3.936 s, estimated 6 s
+Ran all test suites matching /tests\/omission-identity-validation.test.ts/i.

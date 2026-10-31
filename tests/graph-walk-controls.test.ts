@@ -13,7 +13,7 @@ it('filters before inline hydration and target lookup, keeping link indices', ()
     source,
     shouldFollowEdge(edge, context) {
       expect(context.revisit).toBe('once');
-      expect(context.source.vertexId).toBe(edge.from);
+      expect(context.fromVertex.vertexId).toBe(edge.from);
       expect(context.depth).toBeGreaterThan(0);
       followed.push(`${edge.from}:${edge.outgoingIndex}`);
       return edge.to !== 'B';
@@ -155,7 +155,7 @@ it('detaches predicate wrappers from subsequent observations and expansion', () 
     source,
     shouldFollowEdge(edge, context) {
       (edge as { to: string }).to = 'bad';
-      (context.source as { vertexId: string }).vertexId = 'bad';
+      (context.fromVertex as { vertexId: string }).vertexId = 'bad';
       return true;
     },
     shouldExpandVertex(vertex, context) {
@@ -168,7 +168,7 @@ it('detaches predicate wrappers from subsequent observations and expansion', () 
     [
       {
         edge: { from: 'A', to: 'B' },
-        source: { vertexId: 'A' },
+        fromVertex: { vertexId: 'A' },
         target: { vertex: { vertexId: 'B' } },
       },
     ],

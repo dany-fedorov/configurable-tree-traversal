@@ -6,20 +6,18 @@ export type {
   DagTraversalStallDiagnostics,
 } from '../../core/errors/DagTraversalStallError';
 export { AsyncDagTraversal } from './AsyncDagTraversal';
-export {
-  createDagWorkSession,
-  createAsyncDagWorkSession,
-} from './coordinateDag';
+export { bindDagWorkSession, bindAsyncDagWorkSession } from './coordinateDag';
 export type {
   DagWorkTicket,
   DagWorkBoundary,
   DagSettlementReceipt,
+  DagWorkSessionControl,
   DagWorkSession,
   AsyncDagWorkSession,
 } from './coordinateDag';
 export {
   defineDagFragment,
-  instantiateDagFragment,
+  mapDagFragmentIds,
   composeDag,
 } from './dagFragments';
 export { DagTraversal } from './DagTraversal';
@@ -43,11 +41,7 @@ export type {
   DagDefinitionVertex,
   PrepareDagResult,
 } from './lib/DagDefinition';
-export type {
-  DagCompositionOptions,
-  DagFragment,
-  DagFragmentInstance,
-} from './lib/DagFragment';
+export type { DagCompositionOptions, DagFragment } from './lib/DagFragment';
 export { DagFragmentValidationError } from './lib/DagFragmentValidationError';
 export type {
   DagBlocker,
@@ -86,7 +80,7 @@ export type {
   DagEvent,
 } from './lib/DagTraversalVisitor';
 export type {
-  PreparedDagVertex,
+  PreparedDagVertexSummary,
   PreparedDagRunnerOptions,
   PreparedAsyncDagRunnerOptions,
   DagWorkSessionOptions,

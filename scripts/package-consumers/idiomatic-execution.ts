@@ -147,7 +147,7 @@ new ScopedDagTraversal({
 // @ts-expect-error Async synchronous-source inference preserves policy restrictions.
 new ScopedAsyncDagTraversal({
   traversableTree: scopedTree,
-  omittedWorkDependencies: 'none',
+  dependsOnWorkDefault: 'none',
 });
 const scopedMutation: ScopedMutationCommand<
   Tree,

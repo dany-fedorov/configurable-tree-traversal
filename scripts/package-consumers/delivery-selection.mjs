@@ -21,7 +21,11 @@ const graph = {
       vertexContent: { $data: vertexId, $childHints: [] },
     },
   }),
-  resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+  resolveChild: () => ({
+    identity: null,
+    kind: 'omitted',
+    satisfiesDependencies: true,
+  }),
 };
 for (const lib of [esm, cjs]) {
   for (const Constructor of [lib.DagTraversal, lib.AsyncDagTraversal]) {

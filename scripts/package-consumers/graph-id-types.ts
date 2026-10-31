@@ -49,7 +49,11 @@ const source: DagDiscoverySource<W, W, string> = {
   },
   resolvePrerequisite: (id) => {
     const typed: string = id;
-    return { kind: 'omitted', vertexId: typed, satisfiesDependencies: true };
+    return {
+      kind: 'omitted',
+      identity: { vertexId: typed },
+      satisfiesDependencies: true,
+    };
   },
   getVertexIdFromHint: (id) => ({ vertexId: id }),
 };
@@ -67,8 +71,8 @@ const diagnostics: DagTraversalStallDiagnostics<string> | null =
 const graph = runner.getResolvedGraphView();
 const ref = graph.getVertexRefById('a');
 if (ref !== null) {
-  const id: string = graph.getVertexId(ref);
-  const alias: string = graph.getVertexId(ref);
+  const id: string = graph.requireVertexId(ref);
+  const alias: string = graph.requireVertexId(ref);
   const dependencies: readonly string[] | undefined =
     graph.get(ref)?.dependsOnWork;
   void [id, alias, dependencies];
@@ -151,6 +155,7 @@ const missingUnion: DagVertexResolution<W, string> = {
   vertex: { vertexContent: { $data: 'a', $childHints: [] } },
 };
 const omitted: DagVertexOmitted<string> = {
+  identity: null,
   kind: 'omitted',
   satisfiesDependencies: true,
 };
@@ -197,7 +202,11 @@ function arbitraryIds<ID>(id: ID) {
       kind: 'found',
       vertex: { vertexId: id, vertexContent: { $data: 'a', $childHints: [] } },
     }),
-    resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+    resolveChild: () => ({
+      identity: null,
+      kind: 'omitted',
+      satisfiesDependencies: true,
+    }),
     getVertexIdFromHint: () => ({ vertexId: id }),
   };
   const run = new DagTraversal<W, W, ID>({
@@ -360,9 +369,9 @@ void [
 
 // Public views retain the caller's identity domain and hide synthetic holders.
 if (ref !== null) {
-  const publicId: string = containerGraph.getVertexId(ref);
+  const publicId: string = containerGraph.requireVertexId(ref);
   // @ts-expect-error Public string IDs cannot become synthetic symbols.
-  const syntheticId: symbol = containerGraph.getVertexId(ref);
+  const syntheticId: symbol = containerGraph.requireVertexId(ref);
   void [publicId, syntheticId];
 }
 

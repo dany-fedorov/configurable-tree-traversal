@@ -36,8 +36,8 @@ test('tree-generated vertex identities equal their reference UUIDs', () => {
     }),
   );
   const graph = tree.getResolvedGraphView();
-  expect(graph.getVertexId(root)).toBe(root.getRefId());
-  expect(graph.getVertexId(root)).toBe(root.getRefId());
+  expect(graph.requireVertexId(root)).toBe(root.getRefId());
+  expect(graph.requireVertexId(root)).toBe(root.getRefId());
   expect(graph.getVertexRefById(root.getRefId())).toBe(vertexHandle(root));
   expect(graph.getVertexRefById(root.getRefId())).toBe(vertexHandle(root));
 });
@@ -70,16 +70,18 @@ for (const syntheticRoot of [false, true]) {
       ] as const) {
         expect(graph.getVertexRefById(id)).toBe(expectedRef);
         expect(graph.getVertexRefById(id)).toBe(expectedRef);
-        expect(graph.getVertexId(expectedRef)).toBe(id);
-        expect(graph.getVertexId(expectedRef)).toBe(id);
-        expect(graph.getVertexId(expectedRef)).not.toBe(expectedRef.getRefId());
+        expect(graph.requireVertexId(expectedRef)).toBe(id);
+        expect(graph.requireVertexId(expectedRef)).toBe(id);
+        expect(graph.requireVertexId(expectedRef)).not.toBe(
+          expectedRef.getRefId(),
+        );
         expect(graph.getVertexRefById({})).toBeNull();
         expect(graph.getVertexRefById({})).toBeNull();
         const unknown = makeRef('unknown');
-        expect(() => graph.getVertexId(unknown)).toThrow(
+        expect(() => graph.requireVertexId(unknown)).toThrow(
           'Unknown vertex reference',
         );
-        expect(() => graph.getVertexId(unknown)).toThrow(
+        expect(() => graph.requireVertexId(unknown)).toThrow(
           'Unknown vertex reference',
         );
       }
@@ -90,12 +92,12 @@ for (const syntheticRoot of [false, true]) {
         expect(
           container.publicResolvedGraph.getVertexRefById(hiddenId),
         ).toBeNull();
-        expect(() => container.publicResolvedGraph.getVertexId(root)).toThrow(
-          'Unknown vertex reference',
-        );
-        expect(() => container.publicResolvedGraph.getVertexId(root)).toThrow(
-          'Unknown vertex reference',
-        );
+        expect(() =>
+          container.publicResolvedGraph.requireVertexId(root),
+        ).toThrow('Unknown vertex reference');
+        expect(() =>
+          container.publicResolvedGraph.requireVertexId(root),
+        ).toThrow('Unknown vertex reference');
       }
     },
   );

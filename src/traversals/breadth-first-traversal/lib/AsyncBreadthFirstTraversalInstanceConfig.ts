@@ -4,7 +4,7 @@ import {
 } from '@core/assertPublicOptions';
 import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
 import type { AsyncTreeVisitor } from '@core/AsyncTraversalVisitor';
-import type { AsyncChildHintSorter } from '@core/ChildHintSorter';
+import type { AsyncChildHintTransformer } from '@core/ChildHintTransformer';
 import type { VisitorRecord } from '@core/graph/types';
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -28,10 +28,10 @@ export type AsyncBreadthFirstTreeResolvedOptions<
   RW_TTP extends VertexTypes = TTP,
 > = Omit<
   BreadthFirstTreeResolvedOptions<TTP, RW_TTP>,
-  'traversableTree' | 'sortChildrenHints' | 'visitors'
+  'traversableTree' | 'transformChildHints' | 'visitors'
 > & {
   traversableTree: AsyncTreeSource<TTP, RW_TTP>;
-  sortChildrenHints: AsyncChildHintSorter<TTP> | null;
+  transformChildHints: AsyncChildHintTransformer<TTP> | null;
   visitors: AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>;
   concurrency: number;
 };
@@ -41,7 +41,7 @@ export type AsyncBreadthFirstTreeOptionsPatch<
   RW_TTP extends VertexTypes = TTP,
 > = {
   traversableTree?: AsyncTreeSource<TTP, RW_TTP> | undefined;
-  sortChildrenHints?: AsyncChildHintSorter<TTP> | null | undefined;
+  transformChildHints?: AsyncChildHintTransformer<TTP> | null | undefined;
   visitors?:
     | VisitorInputs<AsyncBreadthFirstTraversalVisitors<TTP, RW_TTP>>
     | undefined;
@@ -61,7 +61,7 @@ export const ASYNC_BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   'traversableTree'
 > = deepFreeze({
   ...BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-  sortChildrenHints: null,
+  transformChildHints: null,
   visitors: {
     [BreadthFirstPhase.LEVEL_ORDER]: [],
   },

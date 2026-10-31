@@ -18,7 +18,7 @@ export type DagWaitEdge<ID = unknown> = {
 };
 
 export type DagTraversalStallDiagnostics<ID = unknown> = {
-  dependencies: Array<{ id: ID; unmet: ID[] }>;
+  dependencies: Array<{ vertexId: ID; unmetPrerequisiteIds: ID[] }>;
   unknownPrerequisiteIds: ID[];
   /** Strongly connected component membership, not ordered cycle witnesses. */
   dependencyCycleComponents: ID[][];
@@ -44,10 +44,12 @@ export class DagTraversalStallError<ID = unknown> extends Error {
         Pick<DagTraversalStallDiagnostics<DiagnosticId<ID>>, 'dependencyEdges'>
       >,
   ) {
-    const ids = diagnostics.dependencies.flatMap(({ id, unmet }) => [
-      id,
-      ...unmet,
-    ]);
+    const ids = diagnostics.dependencies.flatMap(
+      ({ vertexId, unmetPrerequisiteIds }) => [
+        vertexId,
+        ...unmetPrerequisiteIds,
+      ],
+    );
     const detail =
       ids.length > 0
         ? ids.map(createVertexIdLabeler()).join(', ')
@@ -55,12 +57,16 @@ export class DagTraversalStallError<ID = unknown> extends Error {
     super(`DAG traversal stalled: ${detail}`);
     this.name = 'DagTraversalStallError';
     this.diagnostics = {
-      dependencies: diagnostics.dependencies.map(({ id, unmet }) => ({
-        id,
-        unmet: unmet.slice(),
-      })),
+      dependencies: diagnostics.dependencies.map(
+        ({ vertexId, unmetPrerequisiteIds }) => ({
+          vertexId,
+          unmetPrerequisiteIds: unmetPrerequisiteIds.slice(),
+        }),
+      ),
       unknownPrerequisiteIds: diagnostics.unknownPrerequisiteIds.slice(),
-      dependencyCycleComponents: diagnostics.dependencyCycleComponents.map((ids) => ids.slice()),
+      dependencyCycleComponents: diagnostics.dependencyCycleComponents.map(
+        (ids) => ids.slice(),
+      ),
       dependencyEdges: (diagnostics.dependencyEdges ?? []).map((edge) => ({
         waiter: { ...edge.waiter },
         prerequisite: { ...edge.prerequisite },

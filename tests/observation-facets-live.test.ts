@@ -24,40 +24,40 @@ test('standalone live facets refresh mutable vertex hints without changing retai
   const view = store.asReadOnly();
   const handle = view.getRoot()!;
   const observed = handle.getValue();
-  const oldHints = observed.getChildrenHints();
+  const oldHints = observed.getChildHints();
   const oldFieldHints = observed.$childHints;
   const hint = { label: 'new-child' };
 
-  vertex.getChildrenHints().push(hint);
+  vertex.getChildHints().push(hint);
 
   const currentHandle = store.asReadOnly().getRoot()!;
   expect(currentHandle).toBe(handle);
   expect(currentHandle.getValue()).toBe(observed);
-  const currentHints = currentHandle.getValue().getChildrenHints();
+  const currentHints = currentHandle.getValue().getChildHints();
   expect(currentHints).toEqual([hint]);
   expect(currentHandle.getValue().$childHints).toEqual([hint]);
   expect(currentHandle.getValue().hasNoChildHints()).toBe(false);
-  expect(currentHandle.getValue().clone().getChildrenHints()).toEqual(
+  expect(currentHandle.getValue().clone().getChildHints()).toEqual(
     currentHints,
   );
   expect(currentHints[0]).toBe(hint);
   expect(Object.isFrozen(hint)).toBe(false);
   expect(Object.isFrozen(currentHints)).toBe(true);
-  expect(currentHints).not.toBe(vertex.getChildrenHints());
+  expect(currentHints).not.toBe(vertex.getChildHints());
   expect(oldHints).toEqual([]);
   expect(oldFieldHints).toEqual([]);
   expect(Object.isFrozen(oldHints)).toBe(true);
   expect(Object.isFrozen(oldFieldHints)).toBe(true);
 
   const replacement = { label: 'replacement' };
-  vertex.getChildrenHints()[0] = replacement;
-  expect(observed.getChildrenHints()).toEqual([replacement]);
+  vertex.getChildHints()[0] = replacement;
+  expect(observed.getChildHints()).toEqual([replacement]);
   expect(observed.$childHints[0]).toBe(replacement);
   expect(currentHints).toEqual([hint]);
-  vertex.getChildrenHints().length = 0;
-  expect(observed.getChildrenHints()).toEqual([]);
+  vertex.getChildHints().length = 0;
+  expect(observed.getChildHints()).toEqual([]);
   expect(observed.hasNoChildHints()).toBe(true);
-  expect(observed.clone().getChildrenHints()).toEqual([]);
+  expect(observed.clone().getChildHints()).toEqual([]);
 });
 
 for (const Builder of [DagTraversal, AsyncDagTraversal]) {

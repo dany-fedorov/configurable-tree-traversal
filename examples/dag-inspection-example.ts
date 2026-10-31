@@ -35,11 +35,11 @@ assert.deepEqual(
 );
 assert.equal(
   captured.explain({ vertexId: 'bundle', milestone: 'work' }).kind,
-  'known',
+  'live',
 );
 const before = captured.explain({ vertexId: 'review', milestone: 'work' });
-assert.equal(before.kind, 'known');
-if (before.kind !== 'known') throw new Error('Expected discovered review');
+assert.equal(before.kind, 'live');
+if (before.kind !== 'live') throw new Error('Expected discovered review');
 assert.equal(before.satisfied, false);
 assert.deepEqual(
   before.blockers.map((blocker) => blocker.kind),
@@ -54,7 +54,7 @@ const after = runner.inspectMilestones().explain({
   vertexId: 'bundle',
   milestone: 'subgraphCompletion',
 });
-assert.equal(after.kind === 'known' && after.satisfied, true);
+assert.equal(after.kind === 'live' && after.satisfied, true);
 assert.deepEqual(
   captured.explain({ vertexId: 'review', milestone: 'work' }),
   before,

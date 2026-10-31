@@ -48,7 +48,7 @@ async function exercise(input: MaterializedDagInput<Item, string>) {
           .originalGraphView!.getVertexRefById('task')!
           .getValue()
           .getData();
-        const id: string = context.resolvedGraphView.getVertexId(
+        const id: string = context.resolvedGraphView.requireVertexId(
           context.vertexRef,
         );
         // @ts-expect-error Explicit rewrite data includes strings, not only original items.
@@ -84,7 +84,7 @@ async function exercise(input: MaterializedDagInput<Item, string>) {
       DagVisitorPhase.ON_WORK_READY,
       (vertex, context) => {
         const data: Item = vertex.getData();
-        const id: string = context.resolvedGraphView.getVertexId(
+        const id: string = context.resolvedGraphView.requireVertexId(
           context.vertexRef,
         );
         void [data, id];
@@ -209,7 +209,7 @@ const arbitraryData: { id: object | undefined } = arbitraryRef
   .getValue()
   .getData();
 const arbitraryId: object | undefined =
-  arbitraryGraph.getVertexId(arbitraryRef);
+  arbitraryGraph.requireVertexId(arbitraryRef);
 // @ts-expect-error Heterogeneous object/undefined identity inference does not admit numbers.
 arbitraryGraph.getVertexRefById(1);
 void [arbitraryData, arbitraryId];

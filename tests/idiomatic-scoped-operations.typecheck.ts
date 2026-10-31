@@ -43,12 +43,12 @@ new DagTraversal({ traversableTree: tree, rootWorkDependencies: 'ignore' });
 // @ts-expect-error Explicit graph policies are inapplicable to async tree discovery.
 new AsyncDagTraversal({
   traversableTree: tree,
-  omittedWorkDependencies: 'none',
+  dependsOnWorkDefault: 'none',
 });
 // @ts-expect-error Tree source patches cannot supply graph-only policies.
 new DagTraversal({ traversableTree: tree }).configure({
   traversableTree: tree,
-  omittedWorkDependencies: 'none',
+  dependsOnWorkDefault: 'none',
 });
 const shared: MutationCommand<T> = {
   commandName: Command.DELETE_DAG_VERTEX_CASCADE,

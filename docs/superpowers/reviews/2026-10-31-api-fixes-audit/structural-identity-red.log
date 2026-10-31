@@ -1,0 +1,129 @@
+
+> configurable-tree-traversal@0.11.0 test
+> jest --runInBand tests/omission-identity-validation.test.ts
+
+FAIL tests/omission-identity-validation.test.ts (5.383 s)
+  ✓ DagTraversal rejects malformed or retired omission identity 0 (8 ms)
+  ✓ DagTraversal rejects malformed or retired omission identity 1 (1 ms)
+  ✓ DagTraversal rejects malformed or retired omission identity 2 (1 ms)
+  ✓ DagTraversal rejects malformed or retired omission identity 3 (1 ms)
+  ✓ DagTraversal rejects malformed or retired omission identity 4
+  ✓ DagTraversal rejects malformed or retired omission identity 5
+  ✓ DagTraversal rejects malformed or retired omission identity 6 (1 ms)
+  ✓ DagTraversal preserves an omission identity getter failure 0 (1 ms)
+  ✓ DagTraversal preserves an omission identity getter failure 1 (1 ms)
+  ✓ DagTraversal preserves an omission identity getter failure 2 (1 ms)
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 0 (3 ms)
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 1 (1 ms)
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 2 (1 ms)
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 3
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 4 (1 ms)
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 5
+  ✓ AsyncDagTraversal rejects malformed or retired omission identity 6 (1 ms)
+  ✓ AsyncDagTraversal preserves an omission identity getter failure 0
+  ✓ AsyncDagTraversal preserves an omission identity getter failure 1
+  ✓ AsyncDagTraversal preserves an omission identity getter failure 2 (1 ms)
+  ✓ DepthFirstTreeTraversal rejects graph identity before reading its value (2 ms)
+  ✓ AsyncDepthFirstTreeTraversal rejects graph identity before reading its value (1 ms)
+  ✕ DagTraversal reads structural omission identity getters once (identified=false) (1 ms)
+  ✕ DagTraversal reads structural omission identity getters once (identified=true) (1 ms)
+  ✕ AsyncDagTraversal reads structural omission identity getters once (identified=false) (1 ms)
+  ✕ AsyncDagTraversal reads structural omission identity getters once (identified=true)
+
+  ● DagTraversal reads structural omission identity getters once (identified=false)
+
+    TypeError: Omitted source result requires explicit identity, not vertexId
+
+      78 |         !Object.prototype.hasOwnProperty.call(result, 'identity')
+      79 |       ) {
+    > 80 |         throw new TypeError(
+         |               ^
+      81 |           'Omitted source result requires explicit identity, not vertexId',
+      82 |         );
+      83 |       }
+
+      at normalizeSourceResult (src/core/drivers/normalizeSourceResult.ts:80:15)
+      at normalizeVertexResult (src/core/drivers/callbackBindings.ts:52:31)
+      at mapSourceResult (src/core/drivers/normalizeSourceResult.ts:125:42)
+      at Object.resolveRoot (src/core/drivers/callbackBindings.ts:116:22)
+      at Object.invoke (src/core/drivers/callbackBindings.ts:167:57)
+      at invokeAndSubmit (src/core/drivers/runSync.ts:60:20)
+      at runSync (src/core/drivers/runSync.ts:23:9)
+          at runSync.next (<anonymous>)
+      at InternalDagTraversalRunner.getInternalGenerator (src/traversals/dag-traversal/lib/DagTraversalRunner.ts:425:16)
+          at getInternalGenerator.next (<anonymous>)
+
+  ● DagTraversal reads structural omission identity getters once (identified=true)
+
+    TypeError: Omitted source result requires explicit identity, not vertexId
+
+      78 |         !Object.prototype.hasOwnProperty.call(result, 'identity')
+      79 |       ) {
+    > 80 |         throw new TypeError(
+         |               ^
+      81 |           'Omitted source result requires explicit identity, not vertexId',
+      82 |         );
+      83 |       }
+
+      at normalizeSourceResult (src/core/drivers/normalizeSourceResult.ts:80:15)
+      at normalizeVertexResult (src/core/drivers/callbackBindings.ts:52:31)
+      at mapSourceResult (src/core/drivers/normalizeSourceResult.ts:125:42)
+      at Object.resolveRoot (src/core/drivers/callbackBindings.ts:116:22)
+      at Object.invoke (src/core/drivers/callbackBindings.ts:167:57)
+      at invokeAndSubmit (src/core/drivers/runSync.ts:60:20)
+      at runSync (src/core/drivers/runSync.ts:23:9)
+          at runSync.next (<anonymous>)
+      at InternalDagTraversalRunner.getInternalGenerator (src/traversals/dag-traversal/lib/DagTraversalRunner.ts:425:16)
+          at getInternalGenerator.next (<anonymous>)
+
+  ● AsyncDagTraversal reads structural omission identity getters once (identified=false)
+
+    TypeError: Omitted source result requires explicit identity, not vertexId
+
+      78 |         !Object.prototype.hasOwnProperty.call(result, 'identity')
+      79 |       ) {
+    > 80 |         throw new TypeError(
+         |               ^
+      81 |           'Omitted source result requires explicit identity, not vertexId',
+      82 |         );
+      83 |       }
+
+      at normalizeSourceResult (src/core/drivers/normalizeSourceResult.ts:80:15)
+      at normalizeVertexResult (src/core/drivers/callbackBindings.ts:52:31)
+      at mapSourceResult (src/core/drivers/normalizeSourceResult.ts:125:42)
+      at Object.resolveRoot (src/core/drivers/callbackBindings.ts:116:22)
+      at Object.invoke (src/core/drivers/callbackBindings.ts:167:57)
+      at src/core/drivers/runAsync.ts:69:28
+      at captureOutcome (src/core/drivers/captureOutcome.ts:8:28)
+      at CallbackScheduler.startEligible (src/core/drivers/CallbackScheduler.ts:55:26)
+      at Object.advance (src/core/drivers/runAsync.ts:93:21)
+      at Object.advance (src/traversals/dag-traversal/lib/AsyncDagTraversalRunner.ts:406:34)
+
+  ● AsyncDagTraversal reads structural omission identity getters once (identified=true)
+
+    TypeError: Omitted source result requires explicit identity, not vertexId
+
+      78 |         !Object.prototype.hasOwnProperty.call(result, 'identity')
+      79 |       ) {
+    > 80 |         throw new TypeError(
+         |               ^
+      81 |           'Omitted source result requires explicit identity, not vertexId',
+      82 |         );
+      83 |       }
+
+      at normalizeSourceResult (src/core/drivers/normalizeSourceResult.ts:80:15)
+      at normalizeVertexResult (src/core/drivers/callbackBindings.ts:52:31)
+      at mapSourceResult (src/core/drivers/normalizeSourceResult.ts:125:42)
+      at Object.resolveRoot (src/core/drivers/callbackBindings.ts:116:22)
+      at Object.invoke (src/core/drivers/callbackBindings.ts:167:57)
+      at src/core/drivers/runAsync.ts:69:28
+      at captureOutcome (src/core/drivers/captureOutcome.ts:8:28)
+      at CallbackScheduler.startEligible (src/core/drivers/CallbackScheduler.ts:55:26)
+      at Object.advance (src/core/drivers/runAsync.ts:93:21)
+      at Object.advance (src/traversals/dag-traversal/lib/AsyncDagTraversalRunner.ts:406:34)
+
+Test Suites: 1 failed, 1 total
+Tests:       4 failed, 22 passed, 26 total
+Snapshots:   0 total
+Time:        5.49 s
+Ran all test suites matching /tests\/omission-identity-validation.test.ts/i.

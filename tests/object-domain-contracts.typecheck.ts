@@ -1,3 +1,4 @@
+import { outputValue } from './helpers/rewriteOutput';
 import {
   ObjectTreeSource,
   rewriteObject,
@@ -68,7 +69,7 @@ const converted = rewriteObject([1, 2], {
     return { value, complete };
   },
 });
-const complete: boolean = converted.getOutput()!.complete;
+const complete: boolean = outputValue(converted)!.complete;
 const bind = createObjectMutationBinder<
   ObjectTreeVertexTypes<'root', number>,
   ObjectTreeVertexTypes<'replacement', string>

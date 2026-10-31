@@ -1,0 +1,92 @@
+
+> configurable-tree-traversal@0.11.0 test
+> jest --runInBand tests/vertex-hint-ownership.test.ts
+
+FAIL tests/vertex-hint-ownership.test.ts (6.873 s)
+  ✕ editing a structural observation clone cannot mutate a standalone input (6 ms)
+  ✕ constructor owns its editable hints without copying caller payload objects (1 ms)
+  ✕ clone overrides and Vertex overrides own their hint arrays (1 ms)
+
+  ● editing a structural observation clone cannot mutate a standalone input
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 3
+
+      Array [
+        Object {
+          "id": 1,
+        },
+    +   Object {
+    +     "id": 2,
+    +   },
+      ]
+
+      10 |   const clone = observation.clone();
+      11 |   clone.getChildrenHints().push({ id: 2 });
+    > 12 |   expect(original.getChildrenHints()).toEqual([{ id: 1 }]);
+         |                                       ^
+      13 |   expect(clone.getData()).toBe(data);
+      14 |   expect(clone.getChildrenHints()[0]).toBe(hint);
+      15 | });
+
+      at Object.<anonymous> (tests/vertex-hint-ownership.test.ts:12:39)
+
+  ● constructor owns its editable hints without copying caller payload objects
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 3
+
+      Array [
+        Object {
+          "id": 1,
+        },
+    +   Object {
+    +     "id": 2,
+    +   },
+      ]
+
+      21 |   const vertex = new Vertex<Types>({ $data: data, $childHints: hints });
+      22 |   hints.push({ id: 2 });
+    > 23 |   expect(vertex.getChildrenHints()).toEqual([{ id: 1 }]);
+         |                                     ^
+      24 |   vertex.getChildrenHints().push({ id: 3 });
+      25 |   expect(hints).toEqual([{ id: 1 }, { id: 2 }]);
+      26 |   expect(vertex.getData()).toBe(data);
+
+      at Object.<anonymous> (tests/vertex-hint-ownership.test.ts:23:37)
+
+  ● clone overrides and Vertex overrides own their hint arrays
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 0
+    + Received  + 3
+
+      Array [
+        Object {
+          "id": 1,
+        },
+    +   Object {
+    +     "id": 2,
+    +   },
+      ]
+
+      33 |   const patched = base.clone({ $childHints: hints });
+      34 |   patched.getChildrenHints().push({ id: 2 });
+    > 35 |   expect(hints).toEqual([{ id: 1 }]);
+         |                 ^
+      36 |   const fromVertex = base.clone(patched);
+      37 |   fromVertex.getChildrenHints().push({ id: 3 });
+      38 |   expect(patched.getChildrenHints()).toEqual([{ id: 1 }, { id: 2 }]);
+
+      at Object.<anonymous> (tests/vertex-hint-ownership.test.ts:35:17)
+
+Test Suites: 1 failed, 1 total
+Tests:       3 failed, 3 total
+Snapshots:   0 total
+Time:        6.963 s
+Ran all test suites matching /tests\/vertex-hint-ownership.test.ts/i.

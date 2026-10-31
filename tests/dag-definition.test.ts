@@ -30,9 +30,9 @@ function omissionSource(anonymous = false): DagDiscoverySource<G, G, string> {
     resolveChild: (id) =>
       ['before', 'skip', 'after'].includes(id)
         ? {
+            identity: id === 'skip' ? { vertexId: id } : null,
             kind: 'omitted',
             satisfiesDependencies: true,
-            ...(id === 'skip' ? { vertexId: id } : {}),
           }
         : {
             kind: 'found',
@@ -280,7 +280,7 @@ for (const anonymous of [false, true]) {
     expect(replay.summary().counts.discovered).toBe(3);
     expect(replay.summary().unusedCompletedWorkIds).toEqual([]);
     expect(
-      replay.getResolvedGraphView().getRoot()!.getValue().getChildrenHints(),
+      replay.getResolvedGraphView().getRoot()!.getValue().getChildHints(),
     ).toEqual(['skip', 'b', 'c']);
   });
 }
@@ -290,9 +290,9 @@ test('definitions retain empty and omitted roots separately from forest catalogs
     const result = prepareDag<G, unknown>({
       traversableGraph: {
         resolveRoot: () => ({
+          identity: identified ? { vertexId: undefined } : null,
           kind: 'omitted',
           satisfiesDependencies: true,
-          ...(identified ? { vertexId: undefined } : {}),
         }),
         resolveChild: () => {
           throw new Error('No children');
@@ -331,6 +331,7 @@ test('definitions retain empty and omitted roots separately from forest catalogs
     syntheticRoot: true,
     traversableGraph: {
       resolveRoot: () => ({
+        identity: null,
         satisfiesDependencies: true as const,
         kind: 'omitted',
       }),
@@ -374,7 +375,7 @@ test('definition replay retains structural sharing and detached prerequisites wi
     resolveChild: (id) => {
       calls.push(id);
       return id === undefined
-        ? { kind: 'omitted', satisfiesDependencies: true }
+        ? { identity: null, kind: 'omitted', satisfiesDependencies: true }
         : {
             kind: 'found',
             vertex: {
@@ -407,7 +408,10 @@ test('definition replay retains structural sharing and detached prerequisites wi
     { kind: 'vertex', vertexId: sharedId },
   ]);
   expect(result.dag.definition.omittedIds).toEqual([undefined]);
-  expect(result.dag.vertices[0]!.children).toEqual([sharedId, sharedId]);
+  expect(result.dag.liveVertexSummaries[0]!.children).toEqual([
+    sharedId,
+    sharedId,
+  ]);
   const roundtrip = prepareDagDefinition(result.dag.definition);
   if (roundtrip.kind !== 'valid') throw new Error('Expected valid');
   expect(roundtrip.dag.definition).toEqual(result.dag.definition);
@@ -450,7 +454,7 @@ test('an omitted synthetic catalog root does not expose its private holder ident
     traversableGraph: {
       resolveRoot: () => ({
         kind: 'omitted',
-        vertexId: 'catalog',
+        identity: { vertexId: 'catalog' },
         satisfiesDependencies: true,
       }),
       resolveChild: () => {

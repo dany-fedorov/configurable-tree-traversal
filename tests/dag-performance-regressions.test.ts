@@ -4,7 +4,7 @@ import { Vertex } from '../src/core/Vertex';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
-import type { VertexRef } from '../src/core/graph/types';
+import type { InternalVertexRef } from '../src/core/graph/types';
 import type { TestGraph } from './helpers/graph-fixtures';
 import {
   AsyncDagTraversal,
@@ -27,12 +27,15 @@ function setup() {
       $childHints: ['a', 'duplicate', 'omit', 'deleted'],
     },
   })!;
-  const context = (index: number, parent: VertexRef<TestGraph> = root) => ({
+  const context = (
+    index: number,
+    parent: InternalVertexRef<TestGraph> = root,
+  ) => ({
     parentVertexRef: parent,
     parentVertex: parent.getValue(),
     depth: 1,
     hintIndex: index,
-    vertexHint: parent.getValue().getChildrenHints()[index]!,
+    vertexHint: parent.getValue().getChildHints()[index]!,
   });
   return { container, scheduling, root, context };
 }
@@ -60,7 +63,7 @@ test('narrow graph reads detach records and preserve depth, ID and declaration i
   const graph = store.graph.get(root)!;
   const declarations = store.getDeclaredDependencies(root);
   expect(store.getDiscoveryDepth(root)).toBe(4);
-  expect(store.graph.getVertexId(root)).toBeUndefined();
+  expect(store.graph.requireVertexId(root)).toBeUndefined();
   expect(declarations[0]).toBe(dependency);
   declarations.length = 0;
   (slot as { hint: string }).hint = 'changed';
@@ -89,7 +92,7 @@ test('narrow graph reads detach records and preserve depth, ID and declaration i
 test('discovery accounting survives duplicates, omissions, deleted arrivals and reconstruction', () => {
   const { container, scheduling, root, context } = setup();
   expect(scheduling.isDiscoveryComplete()).toBe(false);
-  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildHints());
   const a = scheduling.acceptVertex(context(0), {
     vertexId: 'a',
     dependsOnWork: [],
@@ -145,7 +148,7 @@ test('reconstructed unprepared discovery stays open until its resumed expansion 
 
 test('topology validation is reused through progress but invalidated by later declarations and deletion', () => {
   const { container, scheduling, root, context } = setup();
-  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildHints());
   scheduling.validateDiscoveredGraph();
   expect(scheduling.diagnoseTopology([root])).toBeNull();
   scheduling.markPreVisited(root);
@@ -180,7 +183,7 @@ test('topology reads do not certify validation and structural edits invalidate s
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
   scheduling.validateDiscoveredGraph();
-  scheduling.prepareSlots(root, root.getValue().getChildrenHints());
+  scheduling.prepareSlots(root, root.getValue().getChildHints());
   expect(scheduling.diagnoseTopology([root])).not.toBeNull();
   const child = new MutableRef(
     new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
@@ -225,7 +228,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         resolveChild: (id) => {
           if (id === 'probe') snapshots.push(runner.summary());
           return id === 'probe'
-            ? { kind: 'omitted' as const, satisfiesDependencies: true as const }
+            ? {
+                identity: null,
+                kind: 'omitted' as const,
+                satisfiesDependencies: true as const,
+              }
             : {
                 kind: 'found' as const,
                 vertex: {

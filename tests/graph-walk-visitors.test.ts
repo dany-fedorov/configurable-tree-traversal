@@ -17,7 +17,7 @@ it('runs mixed callbacks with emissions suppressed and unchanged source discover
   });
   traversal.addVisitorFor(Phase.EDGE, (event) => {
     seen.push(
-      `e:${event.source.vertexId}:${event.edge.outgoingIndex}:${event.target.kind}`,
+      `e:${event.fromVertex.vertexId}:${event.edge.outgoingIndex}:${event.target.kind}`,
     );
   });
   expect([

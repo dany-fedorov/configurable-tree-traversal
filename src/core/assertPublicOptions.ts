@@ -19,20 +19,20 @@ export function assertOwnKeys(
 
 export const TREE_OPTION_KEYS = [
   'traversableTree',
-  'sortChildrenHints',
+  'transformChildHints',
   'visitors',
   'retainOriginalTreeStructure',
 ] as const;
 export const DAG_OPTION_KEYS = [
   'traversableTree',
   'traversableGraph',
-  'sortChildrenHints',
+  'transformChildHints',
   'visitors',
   'retainOriginalGraphStructure',
   'workCompletion',
   'discovery',
   'rootWorkDependencies',
-  'omittedWorkDependencies',
+  'dependsOnWorkDefault',
   'syntheticRoot',
   'completedWork',
 ] as const;
@@ -99,9 +99,9 @@ export function assertTraversalFields(
     if (value !== undefined && typeof value !== 'boolean')
       throw new TypeError(`${key} must be boolean`);
   }
-  const sorter: unknown = Reflect.get(options, 'sortChildrenHints');
+  const sorter: unknown = Reflect.get(options, 'transformChildHints');
   if (sorter !== undefined && sorter !== null && typeof sorter !== 'function')
-    throw new TypeError('sortChildrenHints must be a function or null');
+    throw new TypeError('transformChildHints must be a function or null');
   const visitors: unknown = Reflect.get(options, 'visitors');
   if (visitors !== undefined) assertOwnKeys(visitors, phases);
   const discovery: unknown = Reflect.get(options, 'discovery');

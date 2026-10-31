@@ -1,17 +1,17 @@
 # configurable-tree-traversal
 
-**Dependency-aware building blocks for autonomous-agent workflows, plus general graph and tree traversal for TypeScript and JavaScript.**
+**Know which agent tasks can run next, and which must wait.**
 
-Give CTT a graph of work and accepted completion facts. It determines what can run next, enforces work and structural-completion dependencies, and exposes progress without executing business work. Your host chooses agents, dispatches tasks, accepts results, and persists state.
+Research can unlock implementation and test planning in parallel; review can wait for both. Give CTT your task graph and accepted completion facts. This TypeScript/JavaScript library computes a dependency-ready frontier and explains blockers. Your host chooses agents, dispatches work, accepts results and keeps durable state.
 
-[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Client API migration](docs/migration-client-api.md) · [Idiomatic API migration](docs/migration-idiomatic-api.md) · [API naming migration](docs/migration-api-clarity.md) · [Uniform API migration](docs/migration-uniform-api.md) · [npm](https://www.npmjs.com/package/configurable-tree-traversal)
+[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Public symbols](docs/api-index.md) · [Upgrade checklist](docs/migration-api-distinctions.md)
 
 ## Start with autonomous agents
 
 | You want to…                                                    | Use CTT for…                                             | Start here                                                                               |
 | --------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Coordinate research, implementation, testing, and review agents | Parallel branches and dependency joins                   | [Quickstart](#quickstart-find-the-next-agent-tasks)                                      |
-| Let a coordinator choose which agents run next                  | Deferred work and generation-bearing dispatch records    | [Host-controlled execution](docs/agent-workflows.md#choose-an-execution-model)           |
+| Let a coordinator choose which agents run next                  | Ready tasks returned as local work tickets               | [Host-controlled execution](docs/agent-workflows.md#choose-an-execution-model)           |
 | Resume after a process restart or wait for human input          | Reconstruction from accepted completion facts            | [Recovery and storage](docs/agent-workflows.md#persist-facts-and-reconstruct)            |
 | Review a composite task only after all its subtasks finish      | `dependsOnSubgraphCompletion`                            | [Work versus completion](docs/agent-workflows.md#work-dependencies-and-completion-joins) |
 | Fetch dependencies from a task catalog or service               | `resolvePrerequisite(id)`                                | [Discover prerequisites](docs/agent-workflows.md#discover-the-graph)                     |
@@ -22,9 +22,16 @@ CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool
 
 ## Install
 
+**Release status:** these guides describe an unreleased API. The published **0.11.0** package does not include the preparation and session APIs used below. For its released API, use [0.11.0 on npm](https://www.npmjs.com/package/configurable-tree-traversal/v/0.11.0).
+
+To try the quickstart from **this source checkout**:
+
 ```sh
-npm install configurable-tree-traversal
+npm ci
+npm run tsfile -- examples/quickstart-example.ts
 ```
+
+The example below uses package imports for consumers of this revision. To use it in another project before release, run `npm run build` and `npm pack --ignore-scripts` in this checkout, then install the resulting local `.tgz` in that project. This builds a local package; it does not publish it. Installing `configurable-tree-traversal@0.11.0` from the registry provides the earlier API.
 
 Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. TypeScript consumers are checked with 4.7.4 and 4.9.5.
 
@@ -57,34 +64,38 @@ const prepared = prepareDag(
     dependsOnWork: (task) => task.requires,
   }),
 );
-if (prepared.kind === 'invalid')
-  throw new Error('Invalid dependency constraints');
+if (prepared.kind === 'invalid') throw new Error('Invalid task graph');
 
-// In-memory stand-in for completion facts already accepted by the host.
+// Simulate completion facts already accepted by the host.
 const accepted = new Set(['research']);
 const session = prepared.dag.createWorkSession({ completedWork: accepted });
-const boundary = session.advance();
-if (boundary.kind === 'awaitingSettlement') {
-  if (
-    boundary.workTickets.map((ticket) => ticket.vertexId).join(',') !==
-    'implement,testPlan'
-  ) {
-    throw new Error('Unexpected ready tasks');
+while (true) {
+  const boundary = session.advance();
+  if (boundary.kind === 'finished') {
+    console.log('finished');
+    break;
   }
-  // Retain each frontier ticket with its host attempt.
-  const ticket = boundary.workTickets[0]!;
-  // Dispatch through host claims/capacity, then validate and persist the result.
-  accepted.add(ticket.vertexId); // Simulate durable acceptance.
-  session.completeWork(ticket); // { kind: 'accepted' }
-  const next = session.advance(); // Observe newly eligible work.
-  if (next.kind !== 'awaitingSettlement')
-    throw new Error('Expected pending work');
+  if (boundary.kind === 'paused') throw new Error('Unexpected pause');
+  console.log('ready:', boundary.workTickets.map((t) => t.vertexId).join(', '));
+  for (const ticket of boundary.workTickets) {
+    // Simulation: a real host dispatches, validates and persists acceptance here.
+    accepted.add(ticket.vertexId);
+    session.completeWork(ticket);
+  }
 }
 ```
 
-`materializeDagInputFromRecords` returns a `MaterializedDagInput` envelope (`traversableGraph` plus `syntheticRoot: true`) and copies collection membership and edge lists while sharing task data. `prepareDag` eagerly discovers and validates without executing work. Dependency validation failures and engine-discovered structural cycles return `invalid`; exact source failures and malformed inputs throw (see [preparation errors](docs/reference.md#reusable-prepared-dags)). Its reusable definition creates independent sessions without repeating source I/O. A session uses external settlement: `advance()` returns work tickets, `paused`, or `finished`; `completeWork(ticket)` accepts work without dispatching agents. Dispatch from `advance().workTickets` tickets; `ON_WORK_READY` visitors can also start work before deferral. `workCompleted` iterator events report work **after** commitment, so they are observations, not dispatch requests. Tickets belong to the issuing session and stay local. The host owns claims, durable acceptance, retries, and recovery from accepted facts. Build reusable workflow shapes with [typed fragments and explicit W/C composition](docs/reference.md#dag-fragments-and-composition).
+```text
+ready: implement, testPlan
+ready: review
+finished
+```
 
-See the [workflow guide](docs/agent-workflows.md#accept-results-and-resume) and [executable example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) for independent sessions, duplicate reports, and recovery. Custom graph adapters and existing `runner.prepare()` / guarded `settle()` APIs remain available.
+**Materialize** turns the collection and its explicit prerequisites into a discovery input. **Prepare** validates that graph once and creates reusable topology.
+
+**Advance** returns tickets for work whose dependencies are satisfied. After the host accepts a result, **completeWork** reports that fact; the next advance can release a dependent task. A ticket is a session-local completion capability, not a distributed claim.
+
+The loop simulates accepted work. A real coordinator filters readiness through claims, waits and capacity, then dispatches and durably accepts results before completing tickets. For that integration, continue with [agent workflows](docs/agent-workflows.md#choose-an-execution-model). The [reference](docs/reference.md#ticket-coordination) covers invalid graphs, local ticket ownership and duplicate reports; the [foundations example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/agent-api-foundations-example.ts) demonstrates independent sessions and recovery.
 
 ## Choose your next page
 
@@ -138,3 +149,5 @@ Existing README section links land here; each topic now has a dedicated location
 | <a id="development"></a>Development                                                               | [Read section](docs/reference.md#development)                                |
 
 MIT licensed.
+
+Use the [upgrade checklist](docs/migration-api-distinctions.md) for the final naming, ownership and output-presence changes from 0.11.0.

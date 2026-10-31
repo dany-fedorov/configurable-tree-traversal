@@ -11,7 +11,7 @@ export type BreadthFirstTraversalVisitorsState<
     'phaseVisitIndex' | 'visitorIndex'
   > & {
     previousPhaseVertexRef:
-      | import('@core/graph/types').VertexRef<TTP | RW_TTP>
+      | import('@core/graph/types').InternalVertexRef<TTP | RW_TTP>
       | null;
   };
 };

@@ -89,7 +89,7 @@ const result = walkGraph({
       const from: ID = event.edge.from;
       const to: ID = event.edge.to;
       const data: Relation = event.edge.data;
-      const sourceData: Data = event.source.data;
+      const sourceData: Data = event.fromVertex.data;
       if (event.target.kind === 'found') {
         const targetData: Data = event.target.vertex.data;
         const targetId: ID = event.target.vertex.vertexId;

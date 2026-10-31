@@ -1,23 +1,23 @@
 import type { InternalResolvedGraphView } from '@core/ResolvedGraphView';
 import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { VertexRef } from '@core/graph/types';
+import type { InternalVertexRef } from '@core/graph/types';
 
 /** A forest view: the scheduler's root remains private structural bookkeeping. */
 export function makeDagGraphView<T extends VertexTypes, ID = unknown>(
   graph: InternalResolvedGraphView<T, ID>,
-  hiddenRoot: () => VertexRef<T> | null,
+  hiddenRoot: () => InternalVertexRef<T> | null,
 ): InternalResolvedGraphView<T, ID> {
-  const visible = (ref: VertexRef<T>) => ref !== hiddenRoot();
+  const visible = (ref: InternalVertexRef<T>) => ref !== hiddenRoot();
   const getVertexRefById = (id: ID) => {
     const ref = graph.getVertexRefById(id);
     return ref !== null && visible(ref) ? ref : null;
   };
-  const getVertexId = (ref: VertexRef<T>) => {
+  const requireVertexId = (ref: InternalVertexRef<T>) => {
     if (!visible(ref)) throw new Error('Unknown vertex reference');
-    return graph.getVertexId(ref);
+    return graph.requireVertexId(ref);
   };
   return Object.freeze({
-    get: (ref: VertexRef<T>) => {
+    get: (ref: InternalVertexRef<T>) => {
       const vertex = visible(ref) ? graph.get(ref) : null;
       return vertex === null
         ? null
@@ -29,24 +29,24 @@ export function makeDagGraphView<T extends VertexTypes, ID = unknown>(
             ),
           });
     },
-    has: (ref: VertexRef<T>) => visible(ref) && graph.has(ref),
+    has: (ref: InternalVertexRef<T>) => visible(ref) && graph.has(ref),
     getRoot: () => null,
     getVertexRefs: () => graph.getVertexRefs().filter(visible),
     getVertexRefById,
-    getVertexId,
-    getVisitStageOf: (ref: VertexRef<T>) =>
+    requireVertexId,
+    getVisitStageOf: (ref: InternalVertexRef<T>) =>
       visible(ref) ? graph.getVisitStageOf(ref) : null,
-    getParentsOf: (ref: VertexRef<T>) =>
+    getParentsOf: (ref: InternalVertexRef<T>) =>
       visible(ref) ? graph.getParentsOf(ref)?.filter(visible) ?? null : null,
-    getChildrenOf: (ref: VertexRef<T>) =>
+    getChildrenOf: (ref: InternalVertexRef<T>) =>
       visible(ref) ? graph.getChildrenOf(ref) : null,
-    getPathsTo: (
-      ref: VertexRef<T>,
+    requirePathsTo: (
+      ref: InternalVertexRef<T>,
       options?: import('@core/ResolvedTree').GetPathToOptions,
     ) => {
       if (!visible(ref)) throw new Error('Unknown vertex reference');
       return graph
-        .getPathsTo(ref)
+        .requirePathsTo(ref)
         .map((path) => path.filter(visible))
         .filter((path) =>
           graph.getParentsOf(path[0]!)!.every((parent) => !visible(parent)),

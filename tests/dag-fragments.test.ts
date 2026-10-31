@@ -1,6 +1,6 @@
 import {
   defineDagFragment,
-  instantiateDagFragment,
+  mapDagFragmentIds,
   composeDag,
   DagFragmentValidationError,
   type DagDefinitionIssue,
@@ -44,10 +44,10 @@ test('two object-ID instances compose a completion wire without sharing local id
     [start, { name: 'second-start' }],
     [finish, { name: 'second-finish' }],
   ]);
-  const first = instantiateDagFragment(fragment, {
+  const first = mapDagFragmentIds(fragment, {
     mapId: (id) => firstIds.get(id)!,
   });
-  const second = instantiateDagFragment(fragment, {
+  const second = mapDagFragmentIds(fragment, {
     mapId: (id) => secondIds.get(id)!,
   });
   const result = composeDag([first, second], {
@@ -113,7 +113,7 @@ test('maps each live and omitted identity once across entry, slots, dependencies
   );
   const seen: unknown[] = [];
   const mapped = [{ n: 0 }, { n: 1 }, { n: 2 }];
-  const instance = instantiateDagFragment(local, {
+  const instance = mapDagFragmentIds(local, {
     mapId: (id) => {
       seen.push(id);
       return mapped[seen.length - 1]!;
@@ -247,7 +247,7 @@ test('composition validates structural and combined W/C cycles through the share
     }),
   ).toMatchObject({
     kind: 'invalid',
-    issues: [{ kind: 'structuralCycle', vertexIds: ['a', 'b'] }],
+    issues: [{ kind: 'structuralCycle', componentVertexIds: ['a', 'b'] }],
   });
   expect(
     composeDag([single('a'), single('b')], {
@@ -324,10 +324,10 @@ test('maps SameValueZero identities and rejects mapped live/omitted collisions',
     },
     { a: 'a' },
   );
-  expect(() => instantiateDagFragment(fragment, { mapId: () => NaN })).toThrow(
+  expect(() => mapDagFragmentIds(fragment, { mapId: () => NaN })).toThrow(
     TypeError,
   );
-  const result = instantiateDagFragment(single(), { mapId: () => undefined });
+  const result = mapDagFragmentIds(single(), { mapId: () => undefined });
   expect(result.ports.start).toBeUndefined();
   expect(composeDag([result]).kind).toBe('valid');
 });
@@ -377,7 +377,7 @@ test('retains caller error identity for mapping and port getters', () => {
   const failure = { reason: 'mapping' };
   expect.assertions(2);
   try {
-    instantiateDagFragment(single(), {
+    mapDagFragmentIds(single(), {
       mapId: () => {
         throw failure;
       },
@@ -416,7 +416,7 @@ test('copies and freezes owned fragment topology and port wrappers without freez
   expect(Object.isFrozen(fragment.ports)).toBe(true);
   expect(Object.isFrozen(fragment.definition.vertices[0]!.slots)).toBe(true);
   const mappedId = { name: 'mapped' };
-  const instance = instantiateDagFragment(fragment, { mapId: () => mappedId });
+  const instance = mapDagFragmentIds(fragment, { mapId: () => mappedId });
   expect(Object.isFrozen(instance)).toBe(true);
   expect(Object.isFrozen(instance.ports)).toBe(true);
   expect(Object.isFrozen(instance.definition)).toBe(true);
@@ -440,7 +440,7 @@ test('remaps forest entry references and empty omission catalogs before composit
     },
     { a: 'a' },
   );
-  const mapped = instantiateDagFragment(forest, {
+  const mapped = mapDagFragmentIds(forest, {
     mapId: (id) => (id === 'a' ? 1 : 2),
   });
   expect(mapped.definition.entry).toEqual({
@@ -450,7 +450,7 @@ test('remaps forest entry references and empty omission catalogs before composit
       { kind: 'vertex', vertexId: 1 },
     ],
   });
-  const empty = instantiateDagFragment(
+  const empty = mapDagFragmentIds(
     defineDagFragment(
       { vertices: [], omittedIds: ['root-skip'], entry: { kind: 'empty' } },
       {},
@@ -529,7 +529,7 @@ test('composition retains omitted discovery positions before dependent siblings'
     },
     { root: 'root' },
   );
-  const instance = instantiateDagFragment(fragment, { mapId: (id) => id });
+  const instance = mapDagFragmentIds(fragment, { mapId: (id) => id });
   const result = composeDag([instance]);
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(result.dag.definition.vertices[0]!.slots).toEqual([
@@ -557,7 +557,7 @@ test('composition retains omitted discovery positions before dependent siblings'
 });
 
 test('missing wire fields are malformed even when undefined is a live identity', () => {
-  const instance = instantiateDagFragment(single(), { mapId: () => undefined });
+  const instance = mapDagFragmentIds(single(), { mapId: () => undefined });
   for (const options of [
     { children: [{}] },
     { children: [null] },
@@ -705,7 +705,7 @@ test('forged fragments expose milestone validation before any mapping', () => {
   };
   expect.assertions(6);
   try {
-    instantiateDagFragment(fragment, {
+    mapDagFragmentIds(fragment, {
       mapId: () => {
         mappings++;
         return 'mapped';
@@ -755,12 +755,12 @@ test('fragment port and mapping failures retain their plain TypeError taxonomy',
     () => defineDagFragment(valid.definition, null as any),
     () => defineDagFragment(null as any, {}),
     () =>
-      instantiateDagFragment(
+      mapDagFragmentIds(
         { ...valid, ports: { start: 'unknown' } },
         { mapId: (id) => id },
       ),
     () =>
-      instantiateDagFragment(
+      mapDagFragmentIds(
         defineDagFragment(
           {
             vertices: [vertex('a'), vertex('b')],
@@ -807,7 +807,7 @@ test.each(['structuralCycle', 'milestone'] as const)(
     for (const construct of [
       () => defineDagFragment(definition, { root: id }),
       () =>
-        instantiateDagFragment(
+        mapDagFragmentIds(
           { definition, ports: { root: id } },
           {
             mapId: () => {
@@ -825,8 +825,8 @@ test.each(['structuralCycle', 'milestone'] as const)(
         const issue = error.issues[0]!;
         expect(issue.kind).toBe(kind);
         if (issue.kind === 'structuralCycle') {
-          expect(issue.vertexIds).toEqual([id, undefined]);
-          expect(issue.vertexIds[0]).toBe(id);
+          expect(issue.componentVertexIds).toEqual([id, undefined]);
+          expect(issue.componentVertexIds[0]).toBe(id);
         } else if (issue.kind === 'milestone') {
           const edge = issue.diagnostics.dependencyEdges.find(
             (edge) => edge.reason === 'subgraphCompletionDependency',

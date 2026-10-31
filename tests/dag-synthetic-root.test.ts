@@ -53,13 +53,13 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     ]) {
       expect(graph.getRoot()).toBeNull();
       expect(
-        graph.getVertexRefs().map((ref) => graph.getVertexId(ref)),
+        graph.getVertexRefs().map((ref) => graph.requireVertexId(ref)),
       ).toEqual(['a', 'b']);
       const a = graph.getVertexRefById('a')!;
       expect(graph.getParentsOf(a)).toEqual([]);
-      expect(graph.getPathsTo(a)).toEqual([[a]]);
-      expect(graph.getPathsTo(a, { noRoot: true })).toEqual([[a]]);
-      expect(graph.getPathsTo(a, { noSelf: true })).toEqual([[]]);
+      expect(graph.requirePathsTo(a)).toEqual([[a]]);
+      expect(graph.requirePathsTo(a, { noRoot: true })).toEqual([[a]]);
+      expect(graph.requirePathsTo(a, { noSelf: true })).toEqual([[]]);
     }
   });
 
@@ -99,6 +99,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           vertex: { vertexContent: { $data: 'catalog', $childHints: [] } },
         }),
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),
@@ -120,7 +121,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         syntheticRoot: true,
         discovery: 'eager',
         retainOriginalGraphStructure: true,
-        sortChildrenHints: (hints) => hints.slice(),
+        transformChildHints: (hints) => hints.slice(),
         traversableGraph: {
           resolveRoot: () => ({
             kind: 'found' as const,
@@ -165,12 +166,12 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         const b = graph.getVertexRefById('b')!;
         expect(graph.getParentsOf(shared)).toEqual([a, b]);
         expect(graph.getChildrenOf(a)).toEqual([shared]);
-        expect(graph.getPathsTo(shared)).toEqual([
+        expect(graph.requirePathsTo(shared)).toEqual([
           [a, shared],
           [b, shared],
         ]);
         expect(
-          graph.getPathsTo(shared, { noSelf: true, noRoot: true }),
+          graph.requirePathsTo(shared, { noSelf: true, noRoot: true }),
         ).toEqual([[a], [b]]);
       }
       const graph = runner.getResolvedGraphView();
@@ -178,7 +179,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       expect(
         graph
           .get(shared)!
-          .incoming.map((edge) => graph.getVertexId(edge.parentRef)),
+          .incoming.map((edge) => graph.requireVertexId(edge.parentRef)),
       ).toEqual(['a', 'b']);
       expect(graph.has(shared)).toBe(true);
       expect(graph.getVisitStageOf(shared)).toBe('COMPLETE');
@@ -274,10 +275,10 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const hidden = internal.getRoot()!;
     expect(graph.get(hidden)).toBeNull();
     expect(graph.has(hidden)).toBe(false);
-    expect(graph.getVertexRefById(internal.getVertexId(hidden))).toBeNull();
+    expect(graph.getVertexRefById(internal.requireVertexId(hidden))).toBeNull();
     expect(graph.getVertexRefById('absent')).toBeNull();
-    expect(() => graph.getVertexId(hidden)).toThrow();
-    expect(() => graph.getPathsTo(hidden)).toThrow();
+    expect(() => graph.requireVertexId(hidden)).toThrow();
+    expect(() => graph.requirePathsTo(hidden)).toThrow();
     expect(graph.getParentsOf(hidden)).toBeNull();
     expect(graph.getChildrenOf(hidden)).toBeNull();
     expect(graph.getVisitStageOf(hidden)).toBeNull();
@@ -288,6 +289,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           vertex: { vertexContent: { $data: 'foreign', $childHints: [] } },
         }),
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),
@@ -339,7 +341,7 @@ test('synthetic catalog preserves arbitrary IDs without freezing or consuming it
     runner
       .getResolvedGraphView()
       .getVertexRefs()
-      .map((ref) => runner.getResolvedGraphView().getVertexId(ref)),
+      .map((ref) => runner.getResolvedGraphView().requireVertexId(ref)),
   ).toEqual(ids);
   expect(Object.isFrozen(objectId)).toBe(false);
 });
@@ -359,6 +361,7 @@ test.each([undefined, null, NaN])(
         }),
         getVertexIdFromHint: () => ({ vertexId: id }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),

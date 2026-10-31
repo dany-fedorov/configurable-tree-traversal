@@ -4,18 +4,18 @@ import type { InternalResolvedGraphView } from '@core/ResolvedGraphView';
 import type { GetPathToOptions } from '@core/ResolvedTree';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { Vertex } from '@core/Vertex';
-import type { VertexRef, VertexId } from '@core/graph/types';
+import type { InternalVertexRef, VertexId } from '@core/graph/types';
 
 type SnapshotEntry<T extends VertexTypes> = {
-  ref: VertexRef<T>;
+  ref: InternalVertexRef<T>;
   id: VertexId;
   incoming: SnapshotEdge<T>[];
   children: SnapshotEdge<T>[];
 };
 
 type SnapshotEdge<T extends VertexTypes> = {
-  parentRef: VertexRef<T>;
-  childRef: VertexRef<T>;
+  parentRef: InternalVertexRef<T>;
+  childRef: InternalVertexRef<T>;
   hintIndex: number;
 };
 
@@ -23,8 +23,8 @@ export type StagedSnapshotVertex<
   T extends VertexTypes,
   R extends VertexTypes,
 > = {
-  activeRef: VertexRef<T | R>;
-  snapshotRef: VertexRef<T>;
+  activeRef: InternalVertexRef<T | R>;
+  snapshotRef: InternalVertexRef<T>;
   id: VertexId;
 };
 
@@ -40,28 +40,32 @@ export class StructuralGraphSnapshot<
   R extends VertexTypes = T,
 > {
   readonly graph: Omit<InternalResolvedGraphView<T>, 'get' | 'getVisitStageOf'>;
-  readonly refsMap = new Map<VertexRef<T | R>, VertexRef<T>>();
-  private readonly entries = new Map<VertexRef<T>, SnapshotEntry<T>>();
-  private readonly ids = new Map<VertexId, VertexRef<T>>();
-  private root: VertexRef<T> | null = null;
+  readonly refsMap = new Map<InternalVertexRef<T | R>, InternalVertexRef<T>>();
+  private readonly entries = new Map<InternalVertexRef<T>, SnapshotEntry<T>>();
+  private readonly ids = new Map<VertexId, InternalVertexRef<T>>();
+  private root: InternalVertexRef<T> | null = null;
 
   constructor() {
     const getVertexRefById = (id: VertexId) => this.ids.get(id) ?? null;
-    const getVertexId = (ref: VertexRef<T>) => this.getEntry(ref).id;
+    const requireVertexId = (ref: InternalVertexRef<T>) =>
+      this.getEntry(ref).id;
     this.graph = Object.freeze({
-      has: (ref: VertexRef<T>) => this.entries.has(ref),
+      has: (ref: InternalVertexRef<T>) => this.entries.has(ref),
       getRoot: () => this.root,
       getVertexRefs: () => Array.from(this.entries.keys()),
       getVertexRefById,
-      getVertexId,
-      getParentsOf: (ref: VertexRef<T>) => this.getParents(ref),
-      getChildrenOf: (ref: VertexRef<T>) => this.getChildren(ref),
-      getPathsTo: (ref: VertexRef<T>, options?: GetPathToOptions) =>
+      requireVertexId,
+      getParentsOf: (ref: InternalVertexRef<T>) => this.getParents(ref),
+      getChildrenOf: (ref: InternalVertexRef<T>) => this.getChildren(ref),
+      requirePathsTo: (ref: InternalVertexRef<T>, options?: GetPathToOptions) =>
         this.getPaths(ref, options),
     });
   }
 
-  stageVertex(ref: VertexRef<T | R>, id: VertexId): StagedSnapshotVertex<T, R> {
+  stageVertex(
+    ref: InternalVertexRef<T | R>,
+    id: VertexId,
+  ): StagedSnapshotVertex<T, R> {
     if (this.refsMap.has(ref)) {
       throw new Error('Vertex reference is already captured');
     }
@@ -72,7 +76,7 @@ export class StructuralGraphSnapshot<
       snapshotRef: new MutableRef(
         new Vertex<T>({
           $data: vertex.getData() as T['VertexData'],
-          $childHints: vertex.getChildrenHints().slice() as T['VertexHint'][],
+          $childHints: vertex.getChildHints().slice() as T['VertexHint'][],
         }),
       ),
       id,
@@ -91,7 +95,7 @@ export class StructuralGraphSnapshot<
     this.refsMap.set(staged.activeRef, staged.snapshotRef);
   }
 
-  setRoot(ref: VertexRef<T | R>): void {
+  setRoot(ref: InternalVertexRef<T | R>): void {
     const snapshotRef = this.refsMap.get(ref);
     if (snapshotRef === undefined) {
       throw new Error('Could not find original root reference');
@@ -100,9 +104,9 @@ export class StructuralGraphSnapshot<
   }
 
   stageEdge(
-    parentRef: VertexRef<T | R>,
+    parentRef: InternalVertexRef<T | R>,
     hintIndex: number,
-    childRef: VertexRef<T | R>,
+    childRef: InternalVertexRef<T | R>,
   ): StagedSnapshotEdge<T> {
     if (!Number.isInteger(hintIndex) || hintIndex < 0) {
       throw new Error('Unknown vertex slot');
@@ -136,14 +140,14 @@ export class StructuralGraphSnapshot<
     staged.child.incoming.push(edge);
   }
 
-  private getEntry(ref: VertexRef<T>): SnapshotEntry<T> {
+  private getEntry(ref: InternalVertexRef<T>): SnapshotEntry<T> {
     const entry = this.entries.get(ref);
     if (entry === undefined) throw new Error('Unknown vertex reference');
     return entry;
   }
 
   private getMappedEntry(
-    ref: VertexRef<T | R>,
+    ref: InternalVertexRef<T | R>,
     role: 'parent' | 'child',
   ): SnapshotEntry<T> {
     const snapshotRef = this.refsMap.get(ref);
@@ -153,11 +157,11 @@ export class StructuralGraphSnapshot<
     return this.getEntry(snapshotRef);
   }
 
-  private getParents(ref: VertexRef<T>): VertexRef<T>[] | null {
+  private getParents(ref: InternalVertexRef<T>): InternalVertexRef<T>[] | null {
     const entry = this.entries.get(ref);
     if (entry === undefined) return null;
-    const seen = new Set<VertexRef<T>>();
-    const parents: VertexRef<T>[] = [];
+    const seen = new Set<InternalVertexRef<T>>();
+    const parents: InternalVertexRef<T>[] = [];
     for (const edge of entry.incoming) {
       if (!seen.has(edge.parentRef)) {
         seen.add(edge.parentRef);
@@ -167,7 +171,9 @@ export class StructuralGraphSnapshot<
     return parents;
   }
 
-  private getChildren(ref: VertexRef<T>): VertexRef<T>[] | null {
+  private getChildren(
+    ref: InternalVertexRef<T>,
+  ): InternalVertexRef<T>[] | null {
     const entry = this.entries.get(ref);
     if (entry === undefined) return null;
     return entry.children
@@ -177,14 +183,14 @@ export class StructuralGraphSnapshot<
   }
 
   private getPaths(
-    ref: VertexRef<T>,
+    ref: InternalVertexRef<T>,
     options?: GetPathToOptions,
-  ): VertexRef<T>[][] {
+  ): InternalVertexRef<T>[][] {
     const pathOptions = normalizePathOptions(options);
     this.getEntry(ref);
-    const paths: VertexRef<T>[][] = [];
-    const reversedPath: VertexRef<T>[] = [ref];
-    const stack: Array<{ parents: VertexRef<T>[]; index: number }> = [
+    const paths: InternalVertexRef<T>[][] = [];
+    const reversedPath: InternalVertexRef<T>[] = [ref];
+    const stack: Array<{ parents: InternalVertexRef<T>[]; index: number }> = [
       { parents: this.getParents(ref)!, index: 0 },
     ];
     while (stack.length > 0) {

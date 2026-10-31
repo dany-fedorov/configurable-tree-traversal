@@ -121,7 +121,7 @@ export function validateDefinition<Data, ID>(
     const vertexIds = cycleById.get(id);
     if (vertexIds === undefined) continue;
     if (!emitted.has(vertexIds)) {
-      issues.push({ kind: 'structuralCycle', vertexIds });
+      issues.push({ kind: 'structuralCycle', componentVertexIds: vertexIds });
       emitted.add(vertexIds);
     }
     vertexIds.push(id);

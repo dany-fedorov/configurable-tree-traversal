@@ -60,9 +60,13 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
         ? {
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
-            vertexId: copied.vertexId as ID,
+            identity: { vertexId: copied.vertexId as ID },
           }
-        : { kind: 'omitted' as const, satisfiesDependencies: true as const };
+        : {
+            kind: 'omitted' as const,
+            identity: null,
+            satisfiesDependencies: true as const,
+          };
     }
     return { kind: 'found' as const, vertex: copied } as DagVertexResolution<
       T,

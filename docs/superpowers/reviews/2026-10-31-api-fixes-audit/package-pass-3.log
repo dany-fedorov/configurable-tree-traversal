@@ -1,0 +1,49 @@
+
+> configurable-tree-traversal@0.11.0 verify-package
+> npm run build && node scripts/verify-package.cjs
+
+
+> configurable-tree-traversal@0.11.0 build
+> npm run clean && tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json -s ./src && node scripts/build-esm.cjs
+
+
+> configurable-tree-traversal@0.11.0 clean
+> node -e "require('node:fs').rmSync('dist', {recursive: true, force: true})"
+
+Replaced 681 paths in 204 files
+Verified packed CJS/ESM denial for 26 internal paths and curated public runtime namespaces.
+Packed observation facets passed (CJS + ESM).
+Verified idiomatic API envelopes, identity, copied topology and retired runtime surface through all nine packed routes.
+Verified composable runtime capabilities with shared CJS/ESM identity.
+Packed DAG inspection consumers passed
+Packed DAG fragment consumers passed
+Packed DAG revision consumers passed
+Packed graph walking consumers passed
+Packed type consumers: Version 4.9.5
+dag-fragments.ts(165,35): error TS2339: Property 'componentVertexIds' does not exist on type '{ kind: "unreachable"; vertexIds: readonly Local[]; }'.
+rewrite-output.ts(1,15): error TS2300: Duplicate identifier 'VertexHandle'.
+rewrite-output.ts(7,8): error TS2300: Duplicate identifier 'VertexHandle'.
+node:child_process:981
+    throw err;
+    ^
+
+Error: Command failed: /home/df/.volta/tools/image/node/24.20.0/bin/node /home/df/.codex/worktrees/d56c/configurable-tree-traversal/node_modules/typescript/bin/tsc --strict --exactOptionalPropertyTypes --noUncheckedIndexedAccess --noEmit --target ES2020 --module commonjs --moduleResolution node consumer.ts supported-exports.ts observation-facets.ts uniform-api.ts rewrite-output.ts source-hint-contracts.ts materialized-rewrite-capability.ts execution-capabilities.ts delivery-selection.ts idiomatic-execution.ts idiomatic-diagnostics.ts idiomatic-api.ts graph-id-types.ts dag-preparation.ts dag-milestone-diagnostics.ts agent-api-foundations.ts dag-inspection.ts dag-fragments.ts dag-revisions.ts graph-walk.ts api-distinctions.ts
+    at genericNodeError (node:internal/errors:986:15)
+    at wrappedFn (node:internal/errors:540:14)
+    at checkExecSyncError (node:child_process:942:11)
+    at execFileSync (node:child_process:978:15)
+    at Object.<anonymous> (/home/df/.codex/worktrees/d56c/configurable-tree-traversal/scripts/verify-package.cjs:552:5)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19) {
+  status: 2,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 1028489,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v24.20.0

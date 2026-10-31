@@ -50,7 +50,7 @@ test('mutating child query arrays cannot corrupt forward/reverse topology or pat
 
   expect(tree.getChildrenOf(root)).toEqual([child]);
   expect(tree.getParentOf(child)).toBe(root);
-  expect(tree.getPathTo(child)).toEqual([root, child]);
+  expect(tree.requirePathTo(child)).toEqual([root, child]);
   expect(tree.getResolvedGraphView().getChildrenOf(root)).toEqual([
     vertexHandle(child),
   ]);
@@ -86,7 +86,7 @@ test('mutating query contexts cannot reparent a child or overwrite discovery met
     vertexHint: hint,
   });
   expect(tree.getParentOf(child)).toBe(root);
-  expect(tree.getPathTo(child)).toEqual([root, child]);
+  expect(tree.requirePathTo(child)).toEqual([root, child]);
   expect(tree.getResolvedGraphView().getParentsOf(child)).toEqual([
     vertexHandle(root),
   ]);
@@ -110,8 +110,10 @@ for (const Constructor of [
     const child = view.getChildrenOf(root)![0]!;
     expect(view.has(child)).toBe(true);
     expect(view.getParentOf(child)).toBe(root);
-    expect(view.getPathTo(child)).toEqual([root, child]);
-    expect(view.getPathTo(child, { noRoot: true, noSelf: true })).toEqual([]);
+    expect(view.requirePathTo(child)).toEqual([root, child]);
+    expect(view.requirePathTo(child, { noRoot: true, noSelf: true })).toEqual(
+      [],
+    );
     expect(root.getValue().getData()).toBe(rootData);
     const context = view.getResolutionContextOf(child)!;
     expect(context.parentVertex).toBe(root.getValue());
@@ -120,7 +122,7 @@ for (const Constructor of [
       (view.getChildrenOf(root)! as MutableRef<Vertex<T>>[]).length = 0;
     }).toThrow(TypeError);
     expect(() => {
-      (view.getPathTo(child) as MutableRef<Vertex<T>>[]).length = 0;
+      (view.requirePathTo(child) as MutableRef<Vertex<T>>[]).length = 0;
     }).toThrow(TypeError);
     expect(() => {
       // @ts-expect-error readonly context
@@ -128,7 +130,7 @@ for (const Constructor of [
     }).toThrow(TypeError);
     expect(view.getChildrenOf(root)).toEqual([child]);
     expect(view.getParentOf(child)).toBe(root);
-    expect(view.getPathTo(child)).toEqual([root, child]);
+    expect(view.requirePathTo(child)).toEqual([root, child]);
     expect(view.getResolutionContextOf(child)!.parentVertexRef).toBe(root);
     expect(view.getResolutionContextOf(root)).toBeNull();
     const unknown = new MutableRef(
@@ -138,7 +140,7 @@ for (const Constructor of [
     expect(view.getChildrenOf(unknown)).toBeNull();
     expect(view.getParentOf(unknown)).toBeNull();
     expect(view.getResolutionContextOf(unknown)).toBeNull();
-    expect(() => view.getPathTo(unknown)).toThrow(/Could not find ref/);
+    expect(() => view.requirePathTo(unknown)).toThrow(/Could not find ref/);
     // Deliberate editing remains available through the advanced container.
     const internal = runnerInternals(runner);
     const tree =
@@ -167,6 +169,7 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           satisfiesDependencies: true as const,
           kind: 'omitted' as const,
         }),
@@ -205,10 +208,10 @@ test('safe queries preserve saved topology while explicit active edits stay live
     internalRef(savedRoot);
   expect(savedView.getChildrenOf(savedRoot)).toEqual([savedChild]);
   expect(savedView.getParentOf(savedChild)).toBe(savedRoot);
-  expect(savedView.getPathTo(savedChild)).toEqual([savedRoot, savedChild]);
+  expect(savedView.requirePathTo(savedChild)).toEqual([savedRoot, savedChild]);
   expect(view.getChildrenOf(root)).toEqual([child]);
   tree.deleteSubtree(internalRef(child));
   expect(view.getChildrenOf(root)).toEqual([]);
   expect(savedView.getChildrenOf(savedRoot)).toEqual([savedChild]);
-  expect(savedView.getPathTo(savedChild)).toEqual([savedRoot, savedChild]);
+  expect(savedView.requirePathTo(savedChild)).toEqual([savedRoot, savedChild]);
 });

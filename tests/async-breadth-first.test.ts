@@ -343,7 +343,7 @@ test('snapshots builder configuration and reuses injected tree storage and state
       resolvedTreesContainer: runnerInternals(first).resolvedTreesContainer,
       state,
     },
-  }).configure({ sortChildrenHints: async (hints) => hints.reverse() });
+  }).configure({ transformChildHints: async (hints) => hints.reverse() });
   t.setVisitorsFor(Order.LEVEL_ORDER, [
     {
       priority: 1,

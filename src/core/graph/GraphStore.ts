@@ -13,12 +13,12 @@ import type {
   ResolvedVisitStage,
   HintVertexId,
   IdState,
-  VertexRef,
+  InternalVertexRef,
   VertexId,
 } from '@core/graph/types';
 
 type Entry<T extends VertexTypes> = {
-  ref: VertexRef<T>;
+  ref: InternalVertexRef<T>;
   id: VertexId;
   dependsOnWork: VertexId[];
   dependsOnSubgraphCompletion: VertexId[];
@@ -32,27 +32,31 @@ export class GraphStore<T extends VertexTypes>
   implements GraphStoreContract<T>
 {
   readonly graph: InternalResolvedGraphView<T>;
-  private readonly entries = new Map<VertexRef<T>, Entry<T>>();
+  private readonly entries = new Map<InternalVertexRef<T>, Entry<T>>();
   private readonly ids = new Map<VertexId, IdState<T>>();
-  private readonly treeRecords = new Map<VertexRef<T>, TreeVertexRecord<T>>();
-  private root: VertexRef<T> | null = null;
+  private readonly treeRecords = new Map<
+    InternalVertexRef<T>,
+    TreeVertexRecord<T>
+  >();
+  private root: InternalVertexRef<T> | null = null;
   private topologyVersion = 0;
 
   constructor(readonly mode: 'tree' | 'dag') {
     const getVertexRefById = (id: VertexId) => this.getVertexById(id);
-    const getVertexId = (ref: VertexRef<T>) => this.getEntry(ref).id;
+    const requireVertexId = (ref: InternalVertexRef<T>) =>
+      this.getEntry(ref).id;
     this.graph = Object.freeze({
-      get: (ref: VertexRef<T>) => this.getGraphVertex(ref),
-      has: (ref: VertexRef<T>) => this.has(ref),
+      get: (ref: InternalVertexRef<T>) => this.getGraphVertex(ref),
+      has: (ref: InternalVertexRef<T>) => this.has(ref),
       getRoot: () => this.root,
       getVertexRefs: () => Array.from(this.entries.keys()),
       getVertexRefById,
-      getVertexId,
-      getVisitStageOf: (ref: VertexRef<T>) =>
+      requireVertexId,
+      getVisitStageOf: (ref: InternalVertexRef<T>) =>
         this.entries.get(ref)?.visitStage ?? null,
-      getParentsOf: (ref: VertexRef<T>) => this.getParents(ref),
-      getChildrenOf: (ref: VertexRef<T>) => this.getChildren(ref),
-      getPathsTo: (ref: VertexRef<T>, options?: GetPathToOptions) =>
+      getParentsOf: (ref: InternalVertexRef<T>) => this.getParents(ref),
+      getChildrenOf: (ref: InternalVertexRef<T>) => this.getChildren(ref),
+      requirePathsTo: (ref: InternalVertexRef<T>, options?: GetPathToOptions) =>
         this.getPaths(ref, options),
     });
   }
@@ -67,31 +71,33 @@ export class GraphStore<T extends VertexTypes>
     return Array.from(this.ids, ([vertexId, { kind }]) => ({ vertexId, kind }));
   }
 
-  getTraversalSlots(ref: VertexRef<T>): readonly InternalChildSlot<T>[] | null {
+  getTraversalSlots(
+    ref: InternalVertexRef<T>,
+  ): readonly InternalChildSlot<T>[] | null {
     return this.getEntry(ref).slots?.map((slot) => ({ ...slot })) ?? null;
   }
 
   /** Narrow detached reads for internal traversal consumers. */
   getTraversalSlot(
-    ref: VertexRef<T>,
+    ref: InternalVertexRef<T>,
     index: number,
   ): InternalChildSlot<T> | undefined {
     const slot = this.getEntry(ref).slots?.[index];
     return slot === undefined ? undefined : { ...slot };
   }
 
-  getDiscoveryDepth(ref: VertexRef<T>): number {
+  getDiscoveryDepth(ref: InternalVertexRef<T>): number {
     const entry = this.getEntry(ref);
     return this.mode === 'tree'
       ? this.treeRecords.get(ref)?.getResolutionContext()?.depth ?? entry.depth
       : entry.depth;
   }
 
-  getDeclaredDependencies(ref: VertexRef<T>): VertexId[] {
+  getDeclaredDependencies(ref: InternalVertexRef<T>): VertexId[] {
     return this.getEntry(ref).dependsOnWork.slice();
   }
 
-  getDeclaredCompleteDependencies(ref: VertexRef<T>): VertexId[] {
+  getDeclaredCompleteDependencies(ref: InternalVertexRef<T>): VertexId[] {
     return this.getEntry(ref).dependsOnSubgraphCompletion.slice();
   }
 
@@ -100,7 +106,7 @@ export class GraphStore<T extends VertexTypes>
   }
 
   insertVertex(input: {
-    ref: VertexRef<T>;
+    ref: InternalVertexRef<T>;
     id: VertexId;
     dependsOnWork: readonly VertexId[];
     dependsOnSubgraphCompletion?: readonly VertexId[];
@@ -125,16 +131,19 @@ export class GraphStore<T extends VertexTypes>
     this.topologyVersion += 1;
   }
 
-  setRoot(ref: VertexRef<T> | null): void {
+  setRoot(ref: InternalVertexRef<T> | null): void {
     if (this.mode === 'dag' && ref !== null) this.getEntry(ref);
     this.root = ref;
   }
 
-  setVisitStage(ref: VertexRef<T>, visitStage: ResolvedVisitStage): void {
+  setVisitStage(
+    ref: InternalVertexRef<T>,
+    visitStage: ResolvedVisitStage,
+  ): void {
     this.getEntry(ref).visitStage = visitStage;
   }
 
-  resetTraversal(ref: VertexRef<T>): void {
+  resetTraversal(ref: InternalVertexRef<T>): void {
     if (this.mode !== 'tree') {
       throw new Error('TreeTraversal reset requires tree mode');
     }
@@ -144,7 +153,10 @@ export class GraphStore<T extends VertexTypes>
     this.topologyVersion += 1;
   }
 
-  prepareSlots(ref: VertexRef<T>, hints: readonly T['VertexHint'][]): void {
+  prepareSlots(
+    ref: InternalVertexRef<T>,
+    hints: readonly T['VertexHint'][],
+  ): void {
     const entry = this.getEntry(ref);
     if (entry.slots !== null)
       throw new Error('Vertex slots are already prepared');
@@ -153,9 +165,9 @@ export class GraphStore<T extends VertexTypes>
   }
 
   linkSlot(
-    parent: VertexRef<T>,
+    parent: InternalVertexRef<T>,
     index: number,
-    child: VertexRef<T>,
+    child: InternalVertexRef<T>,
     legacyTopologyAlreadyLinked = false,
   ): void {
     const parentEntry = this.getEntry(parent);
@@ -198,7 +210,7 @@ export class GraphStore<T extends VertexTypes>
   }
 
   closeSlot(
-    parent: VertexRef<T>,
+    parent: InternalVertexRef<T>,
     index: number,
     reason: 'omitted' | 'deleted' | 'disabled',
     omittedIdentity?: HintVertexId,
@@ -206,13 +218,17 @@ export class GraphStore<T extends VertexTypes>
     const entry = this.getEntry(parent);
     const slot = this.getSlot(entry, index);
     if (slot.kind !== 'pending') throw new Error('Slot is already resolved');
-    entry.slots![index] = {
-      kind: reason,
-      hint: slot.hint,
-      ...(omittedIdentity === undefined
-        ? {}
-        : { vertexId: omittedIdentity.vertexId }),
-    };
+    entry.slots![index] =
+      reason === 'omitted'
+        ? {
+            kind: 'omitted',
+            hint: slot.hint,
+            identity:
+              omittedIdentity === undefined
+                ? null
+                : { vertexId: omittedIdentity.vertexId },
+          }
+        : { kind: reason, hint: slot.hint };
     this.topologyVersion += 1;
   }
 
@@ -228,8 +244,8 @@ export class GraphStore<T extends VertexTypes>
     this.topologyVersion += 1;
   }
 
-  removeVertices(refs: ReadonlySet<VertexRef<T>>): void {
-    const removals = new Set<VertexRef<T>>();
+  removeVertices(refs: ReadonlySet<InternalVertexRef<T>>): void {
+    const removals = new Set<InternalVertexRef<T>>();
     const removedIds: VertexId[] = [];
     for (const ref of refs) {
       const entry = this.entries.get(ref);
@@ -261,11 +277,11 @@ export class GraphStore<T extends VertexTypes>
     if (this.root !== null && refs.has(this.root)) this.root = null;
   }
 
-  getTreeRecord(ref: VertexRef<T>): TreeVertexRecord<T> | null {
+  getTreeRecord(ref: InternalVertexRef<T>): TreeVertexRecord<T> | null {
     return this.treeRecords.get(ref) ?? null;
   }
 
-  setTreeRecord(ref: VertexRef<T>, record: TreeVertexRecord<T>): void {
+  setTreeRecord(ref: InternalVertexRef<T>, record: TreeVertexRecord<T>): void {
     if (this.mode !== 'tree') throw new Error('Tree records require tree mode');
     if (!this.entries.has(ref)) {
       const id = ref.getRefId();
@@ -290,11 +306,11 @@ export class GraphStore<T extends VertexTypes>
     this.treeRecords.set(ref, record);
   }
 
-  private has(ref: VertexRef<T>): boolean {
+  private has(ref: InternalVertexRef<T>): boolean {
     return this.entries.has(ref);
   }
 
-  private getEntry(ref: VertexRef<T>): Entry<T> {
+  private getEntry(ref: InternalVertexRef<T>): Entry<T> {
     const entry = this.entries.get(ref);
     if (entry === undefined) throw new Error('Unknown vertex reference');
     return entry;
@@ -309,13 +325,13 @@ export class GraphStore<T extends VertexTypes>
     return slot;
   }
 
-  private getVertexById(id: VertexId): VertexRef<T> | null {
+  private getVertexById(id: VertexId): InternalVertexRef<T> | null {
     const state = this.ids.get(id);
     return state?.kind === 'live' ? state.ref : null;
   }
 
   private getGraphVertex(
-    ref: VertexRef<T>,
+    ref: InternalVertexRef<T>,
   ): InternalResolvedGraphVertex<T> | null {
     const entry = this.entries.get(ref);
     if (entry === undefined) return null;
@@ -341,7 +357,9 @@ export class GraphStore<T extends VertexTypes>
     };
   }
 
-  private getTreeIncoming(ref: VertexRef<T>): InternalStructuralChildEdge<T>[] {
+  private getTreeIncoming(
+    ref: InternalVertexRef<T>,
+  ): InternalStructuralChildEdge<T>[] {
     const context = this.treeRecords.get(ref)?.getResolutionContext();
     if (context === undefined || context === null) return [];
     return [
@@ -354,14 +372,14 @@ export class GraphStore<T extends VertexTypes>
     ];
   }
 
-  private getParents(ref: VertexRef<T>): VertexRef<T>[] | null {
+  private getParents(ref: InternalVertexRef<T>): InternalVertexRef<T>[] | null {
     if (!this.entries.has(ref)) return null;
     const incoming =
       this.mode === 'tree'
         ? this.getTreeIncoming(ref)
         : this.getEntry(ref).incoming;
-    const seen = new Set<VertexRef<T>>();
-    const parents: VertexRef<T>[] = [];
+    const seen = new Set<InternalVertexRef<T>>();
+    const parents: InternalVertexRef<T>[] = [];
     for (const edge of incoming) {
       if (!seen.has(edge.parentRef)) {
         seen.add(edge.parentRef);
@@ -371,7 +389,9 @@ export class GraphStore<T extends VertexTypes>
     return parents;
   }
 
-  private getChildren(ref: VertexRef<T>): VertexRef<T>[] | null {
+  private getChildren(
+    ref: InternalVertexRef<T>,
+  ): InternalVertexRef<T>[] | null {
     if (!this.entries.has(ref)) return null;
     if (this.mode === 'tree') {
       return this.treeRecords.get(ref)?.getChildren().slice() ?? [];
@@ -382,12 +402,12 @@ export class GraphStore<T extends VertexTypes>
   }
 
   private findPath(
-    from: VertexRef<T>,
-    to: VertexRef<T>,
-  ): VertexRef<T>[] | null {
-    const pending: VertexRef<T>[] = [from];
-    const discovered = new Set<VertexRef<T>>([from]);
-    const previous = new Map<VertexRef<T>, VertexRef<T>>();
+    from: InternalVertexRef<T>,
+    to: InternalVertexRef<T>,
+  ): InternalVertexRef<T>[] | null {
+    const pending: InternalVertexRef<T>[] = [from];
+    const discovered = new Set<InternalVertexRef<T>>([from]);
+    const previous = new Map<InternalVertexRef<T>, InternalVertexRef<T>>();
     while (pending.length > 0) {
       const current = pending.pop()!;
       if (current === to) {
@@ -411,14 +431,14 @@ export class GraphStore<T extends VertexTypes>
   }
 
   private getPaths(
-    ref: VertexRef<T>,
+    ref: InternalVertexRef<T>,
     options?: GetPathToOptions,
-  ): VertexRef<T>[][] {
+  ): InternalVertexRef<T>[][] {
     const pathOptions = normalizePathOptions(options);
     this.getEntry(ref);
-    const paths: VertexRef<T>[][] = [];
-    const reversedPath: VertexRef<T>[] = [ref];
-    const stack: Array<{ parents: VertexRef<T>[]; index: number }> = [
+    const paths: InternalVertexRef<T>[][] = [];
+    const reversedPath: InternalVertexRef<T>[] = [ref];
+    const stack: Array<{ parents: InternalVertexRef<T>[]; index: number }> = [
       { parents: this.getParents(ref)!, index: 0 },
     ];
     while (stack.length > 0) {

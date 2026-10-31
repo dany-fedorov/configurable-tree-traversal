@@ -35,7 +35,7 @@ test('DFS options register all phases and honor child ordering', () => {
   const visits: string[] = [];
   const runner = traverseTreeDepthFirst({
     traversableTree: source(),
-    sortChildrenHints: (hints) => hints.reverse(),
+    transformChildHints: (hints) => hints.reverse(),
     visitors: {
       [F.PRE_ORDER]: (vertex) => {
         visits.push(`pre:${vertex.getData()}`);
@@ -67,7 +67,7 @@ test('async DFS options register all phases and honor async child ordering', asy
   const result = traverseTreeDepthFirstAsync({
     traversableTree: source(),
     concurrency: 1,
-    sortChildrenHints: async (hints) => hints.reverse(),
+    transformChildHints: async (hints) => hints.reverse(),
     visitors: {
       [F.PRE_ORDER]: async (vertex) => {
         visits.push(`pre:${vertex.getData()}`);
@@ -99,7 +99,7 @@ test('BFS options visit levels with configured ordering', async () => {
   const visits: string[] = [];
   const runner = traverseTreeBreadthFirst({
     traversableTree: source(),
-    sortChildrenHints: (hints) => hints.reverse(),
+    transformChildHints: (hints) => hints.reverse(),
     visitors: {
       [B.LEVEL_ORDER]: (vertex) => {
         visits.push(vertex.getData());
@@ -112,7 +112,7 @@ test('BFS options visit levels with configured ordering', async () => {
   const result = traverseTreeBreadthFirstAsync({
     traversableTree: source(),
     concurrency: 1,
-    sortChildrenHints: async (hints) => hints.reverse(),
+    transformChildHints: async (hints) => hints.reverse(),
     visitors: {
       [B.LEVEL_ORDER]: async (vertex) => {
         visits.push(vertex.getData());
@@ -128,8 +128,8 @@ test('DAG options support both source choices, phases, and discovery configurati
   const visits: string[] = [];
   const runner = traverseDag({
     traversableGraph: source(),
-    sortChildrenHints: (hints) => hints.reverse(),
-    omittedWorkDependencies: 'discoveryParentWork',
+    transformChildHints: (hints) => hints.reverse(),
+    dependsOnWorkDefault: 'discoveryParentWork',
     visitors: {
       [D.ON_WORK_READY]: (vertex) => {
         visits.push(`ready:${vertex.getData()}`);
@@ -152,7 +152,7 @@ test('DAG options support both source choices, phases, and discovery configurati
   const result = traverseDagAsync({
     traversableTree: source(),
     concurrency: 1,
-    sortChildrenHints: async (hints) => hints.reverse(),
+    transformChildHints: async (hints) => hints.reverse(),
     visitors: {
       [D.ON_WORK_READY]: async (vertex) => {
         visits.push(`ready:${vertex.getData()}`);

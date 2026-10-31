@@ -1,0 +1,54 @@
+
+> configurable-tree-traversal@0.11.0 test
+> jest --runInBand tests/omission-identity-validation.test.ts
+
+FAIL tests/omission-identity-validation.test.ts
+  ● Test suite failed to run
+
+    [96mtests/omission-identity-validation.test.ts[0m:[93m21[0m:[93m41[0m - [91merror[0m[90m TS2345: [0mArgument of type '() => DagTraversalRunner<T, T, unknown> | Promise<AsyncDagTraversalRunner<T, T, unknown>>' is not assignable to parameter of type '(value: void) => AsyncDagTraversalRunner<T, T, unknown> | PromiseLike<AsyncDagTraversalRunner<T, T, unknown>>'.
+      Type 'DagTraversalRunner<T, T, unknown> | Promise<AsyncDagTraversalRunner<T, T, unknown>>' is not assignable to type 'AsyncDagTraversalRunner<T, T, unknown> | PromiseLike<AsyncDagTraversalRunner<T, T, unknown>>'.
+        Type 'DagTraversalRunner<T, T, unknown>' is not assignable to type 'AsyncDagTraversalRunner<T, T, unknown> | PromiseLike<AsyncDagTraversalRunner<T, T, unknown>>'.
+          Type 'DagTraversalRunner<T, T, unknown>' is not assignable to type 'AsyncDagTraversalRunner<T, T, unknown>'.
+            The types returned by 'prepare()' are incompatible between these types.
+              Type 'DagTraversalRunner<T, T, unknown>' is missing the following properties from type 'Promise<AsyncDagTraversalRunner<T, T, unknown>>': then, catch, finally, [Symbol.toStringTag]
+
+    [7m21[0m     await expect(Promise.resolve().then(()=>runner.run())).rejects.toBeInstanceOf(TypeError);
+    [7m  [0m [91m                                        ~~~~~~~~~~~~~~~~[0m
+    [96mtests/omission-identity-validation.test.ts[0m:[93m26[0m:[93m44[0m - [91merror[0m[90m TS2769: [0mNo overload matches this call.
+      Overload 1 of 2, '(input: (Omit<({ traversableGraph: AsyncDagDiscoverySource<T, T, unknown>; traversableTree?: undefined; } & DagSchedulingOptions & { ...; } & { ...; }) | ({ ...; } & ... 2 more ... & { ...; }) | ({ ...; } & ... 2 more ... & { ...; }), "traversableGraph" | "traversableTree"> & ... 4 more ... & { ...; }) | (Omit<...> & ... 4 more ... & { ...; }) | (Omit<...> & ... 4 more ... & { ...; })): AsyncDagTraversal<...> | DagTraversal<...>', gave the following error.
+        Type 'void' is not assignable to type 'Readonly<{ vertexId: unknown; }> | null'.
+      Overload 2 of 2, '(input: ({ traversableGraph: AsyncDagDiscoverySource<T, T, unknown>; traversableTree?: undefined; } & DagSchedulingOptions & { completedWork?: ReadonlySet<...> | undefined; transformChildHints?: AsyncChildHintTransformer<...> | ... 1 more ... | undefined; visitors?: VisitorInputs<...> | undefined; retainOriginalGraphStructure?: boolean | undefined; concurrency?: number | undefined; } & { ...; } & { ...; } & { ...; } & { ...; }) | ({ ...; } & ... 5 more ... & { ...; }) | ({ ...; } & ... 5 more ... & { ...; }) | ({ ...; } & ... 5 more ... & { ...; }) | ({ ...; } & ... 5 more ... & { ...; })): AsyncDagTraversal<...> | DagTraversal<...>', gave the following error.
+        Type 'void' is not assignable to type 'Readonly<{ vertexId: unknown; }> | null'.
+
+    [7m26[0m       resolveRoot:()=>({kind:'omitted',get identity(){throw failure;},satisfiesDependencies:true}),
+    [7m  [0m [91m                                           ~~~~~~~~[0m
+
+    [96mtests/omission-identity-validation.test.ts[0m:[93m29[0m:[93m41[0m - [91merror[0m[90m TS2345: [0mArgument of type '() => DagTraversalRunner<T, T, unknown> | Promise<AsyncDagTraversalRunner<T, T, unknown>>' is not assignable to parameter of type '(value: void) => AsyncDagTraversalRunner<T, T, unknown> | PromiseLike<AsyncDagTraversalRunner<T, T, unknown>>'.
+      Type 'DagTraversalRunner<T, T, unknown> | Promise<AsyncDagTraversalRunner<T, T, unknown>>' is not assignable to type 'AsyncDagTraversalRunner<T, T, unknown> | PromiseLike<AsyncDagTraversalRunner<T, T, unknown>>'.
+        Type 'DagTraversalRunner<T, T, unknown>' is not assignable to type 'AsyncDagTraversalRunner<T, T, unknown> | PromiseLike<AsyncDagTraversalRunner<T, T, unknown>>'.
+          Type 'DagTraversalRunner<T, T, unknown>' is not assignable to type 'AsyncDagTraversalRunner<T, T, unknown>'.
+            The types returned by 'prepare()' are incompatible between these types.
+              Type 'DagTraversalRunner<T, T, unknown>' is missing the following properties from type 'Promise<AsyncDagTraversalRunner<T, T, unknown>>': then, catch, finally, [Symbol.toStringTag]
+
+    [7m29[0m     await expect(Promise.resolve().then(()=>runner.run())).rejects.toBe(failure);
+    [7m  [0m [91m                                        ~~~~~~~~~~~~~~~~[0m
+    [96mtests/omission-identity-validation.test.ts[0m:[93m37[0m:[93m41[0m - [91merror[0m[90m TS2345: [0mArgument of type '() => DepthFirstTreeRunner<T, T> | Promise<AsyncDepthFirstTreeRunner<T, T>>' is not assignable to parameter of type '(value: void) => AsyncDepthFirstTreeRunner<T, T> | PromiseLike<AsyncDepthFirstTreeRunner<T, T>>'.
+      Type 'DepthFirstTreeRunner<T, T> | Promise<AsyncDepthFirstTreeRunner<T, T>>' is not assignable to type 'AsyncDepthFirstTreeRunner<T, T> | PromiseLike<AsyncDepthFirstTreeRunner<T, T>>'.
+        Type 'DepthFirstTreeRunner<T, T>' is not assignable to type 'AsyncDepthFirstTreeRunner<T, T> | PromiseLike<AsyncDepthFirstTreeRunner<T, T>>'.
+          Type 'DepthFirstTreeRunner<T, T>' is not assignable to type 'AsyncDepthFirstTreeRunner<T, T>'.
+            The types returned by 'iterateEvents()' are incompatible between these types.
+              Property '[Symbol.asyncIterator]' is missing in type 'Generator<TreeTraversalEvent<DepthFirstPhase, T, T>, void, unknown>' but required in type 'AsyncGenerator<TreeTraversalEvent<DepthFirstPhase, T, T>, void, unknown>'.
+
+    [7m37[0m     await expect(Promise.resolve().then(()=>runner.run())).rejects.toBeInstanceOf(TypeError);
+    [7m  [0m [91m                                        ~~~~~~~~~~~~~~~~[0m
+
+      [96mnode_modules/typescript/lib/lib.es2018.asyncgenerator.d.ts[0m:[93m28[0m:[93m5[0m
+        [7m28[0m     [Symbol.asyncIterator](): AsyncGenerator<T, TReturn, TNext>;
+        [7m  [0m [96m    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+        '[Symbol.asyncIterator]' is declared here.
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        2.125 s
+Ran all test suites matching /tests\/omission-identity-validation.test.ts/i.

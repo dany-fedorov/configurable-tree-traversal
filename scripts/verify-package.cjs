@@ -8,6 +8,11 @@ const root = path.resolve(__dirname, '..');
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'ctt-package-'));
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 try {
+  execFileSync(
+    process.execPath,
+    [path.join(root, 'scripts/build-api-index.cjs'), '--check'],
+    { cwd: root, stdio: 'inherit' },
+  );
   const pack = JSON.parse(
     execFileSync(
       npm,
@@ -125,7 +130,7 @@ try {
     const lookupCalls = [];
     const lookupRunner = new dag.DagTraversal({ traversableGraph: {
       resolveRoot: () => ({ kind: 'found', vertex: { vertexId: 'app', dependsOnSubgraphCompletion: ['parser'], vertexContent: { $data: 'app', $childHints: [] } } }),
-      resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      resolveChild: () => ({ identity: null, kind: 'omitted', satisfiesDependencies: true }),
       resolvePrerequisite: id => { lookupCalls.push(id); return { kind: 'found', vertex: { dependsOnWork: id === 'parser' ? ['lexer'] : [], vertexContent: { $data: id, $childHints: [] } } }; },
     } }).createRunner().run();
     assert.deepEqual(lookupCalls, ['parser', 'lexer']);
@@ -141,8 +146,8 @@ try {
     const breadthVisits = [...new lib.BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner().iterateEvents()]
       .map(event => event.vertex.getData().key).slice(1);
     assert.deepEqual(breadthVisits, ['a', 'c', 'b']);
-    assert.deepEqual(lib.rewriteObject({ a: 1 }).outputAtReturn, { a: 1 });
-    assert.equal(lib.rewriteObject(null).outputAtReturn, null);
+    assert.deepEqual(lib.rewriteObject({ a: 1 }).outputResultAtReturn, { kind: 'present', value: { a: 1 } });
+    assert.deepEqual(lib.rewriteObject(null).outputResultAtReturn, { kind: 'present', value: null });
   `,
   );
   execFileSync(process.execPath, ['consumer.cjs'], {
@@ -255,7 +260,7 @@ try {
       }
     }
 
-    const deferredTraversal = new AsyncDagTraversal({ traversableGraph: { resolveRoot: () => ({ kind: 'found', vertex: { vertexId: 'task', vertexContent: { $data: 'task', $childHints: [] } } }), resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }) } });
+    const deferredTraversal = new AsyncDagTraversal({ traversableGraph: { resolveRoot: () => ({ kind: 'found', vertex: { vertexId: 'task', vertexContent: { $data: 'task', $childHints: [] } } }), resolveChild: () => ({ identity: null, kind: 'omitted', satisfiesDependencies: true }) } });
     deferredTraversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => ({ commands: [{ commandName: esm.TraversalVisitorCommandName.DEFER_WORK_COMPLETION }] }));
     const deferredRunner = deferredTraversal.createRunner();
     await deferredRunner.run();
@@ -267,7 +272,7 @@ try {
     const lookupEvents = [];
     const lookupTraversal = new AsyncDagTraversal({ traversableGraph: {
       resolveRoot: () => ({ kind: 'found', vertex: { vertexId: 'app', dependsOnWork: ['parser'], vertexContent: { $data: 'app', $childHints: [] } } }),
-      resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      resolveChild: () => ({ identity: null, kind: 'omitted', satisfiesDependencies: true }),
       resolvePrerequisite: async id => ({ kind: 'found', vertex: { vertexId: id, vertexContent: { $data: id, $childHints: [] } } }),
     } });
     lookupTraversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, v => { lookupEvents.push(v.getData()); });
@@ -289,7 +294,7 @@ try {
         resolveRoot: async () => ({ kind: 'found', vertex: {
           vertexId: 'root', vertexContent: { $data: 'root', $childHints: [] },
         } }),
-        resolveChild: async () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveChild: async () => ({ identity: null, kind: 'omitted', satisfiesDependencies: true }),
       },
     }).createRunner();
     const orders = [];
@@ -374,12 +379,13 @@ try {
     const runner = new DepthFirstTreeTraversal({ traversableTree: tree }).createRunner().run(config);
     const status: TraversalRunnerStatus = runner.getStatus();
     const failedStatus: TraversalRunnerStatus = TraversalRunnerStatus.FAILED;
-    const value: number | null = objectRewrite.rewriteObjectAs<number>(1).outputAtReturn;
+    const output = objectRewrite.rewriteObjectAs<number>(1).outputResultAtReturn;
+    const value: number | null = output.kind === 'present' ? output.value : null;
     const bfs = new BreadthFirstTreeTraversal({ traversableTree: tree }).createRunner();
     for (const { vertex } of bfs.iterateEvents()) { const key: string | number | symbol = vertex.getData().key; void key; }
     const graph: DagDiscoverySource<Tree> = {
       resolveRoot: () => ({ kind: 'found', vertex: { vertexId: 'root', dependsOnSubgraphCompletion: [] as readonly VertexId[], vertexContent: abstractRoot } }),
-      resolveChild: hint => hint === null ? { kind: 'omitted', satisfiesDependencies: true } : { kind: 'found', vertex: { vertexId: hint, vertexContent: hint } },
+      resolveChild: hint => hint === null ? { identity: null, kind: 'omitted', satisfiesDependencies: true } : { kind: 'found', vertex: { vertexId: hint, vertexContent: hint } },
       getVertexIdFromHint: hint => ({ vertexId: hint }),
       resolvePrerequisite: id => id === undefined ? { kind: 'missing' } : { kind: 'found', vertex: { vertexId: id, vertexContent: abstractRoot } },
     };
@@ -507,6 +513,7 @@ try {
     'dag-fragments',
     'dag-revisions',
     'graph-walk',
+    'api-distinctions',
   ];
   for (const name of typeFixtures) {
     for (const extension of ['ts', 'cts', 'mts']) {
@@ -528,6 +535,7 @@ try {
     'dag-fragments.mjs',
     'dag-revisions.mjs',
     'graph-walk.mjs',
+    'api-distinctions.mjs',
     'delivery-selection.mjs',
   ]) {
     fs.copyFileSync(
@@ -608,12 +616,14 @@ try {
     'README.md',
     'CHANGELOG.md',
     'docs/index.md',
+    'docs/api-index.md',
     'docs/agent-workflows.md',
     'docs/reference.md',
     'docs/migration-uniform-api.md',
     'docs/migration-api-clarity.md',
     'docs/migration-idiomatic-api.md',
     'docs/migration-client-api.md',
+    'docs/migration-api-distinctions.md',
     'docs/testing.md',
   ];
   const anchors = (markdown) => {
@@ -715,12 +725,14 @@ try {
     'LICENSE',
     'docs/testing.md',
     'docs/index.md',
+    'docs/api-index.md',
     'docs/agent-workflows.md',
     'docs/reference.md',
     'docs/migration-uniform-api.md',
     'docs/migration-api-clarity.md',
     'docs/migration-idiomatic-api.md',
     'docs/migration-client-api.md',
+    'docs/migration-api-distinctions.md',
     'dist/index.js',
     'dist/index.d.ts',
     'dist/core/index.js',

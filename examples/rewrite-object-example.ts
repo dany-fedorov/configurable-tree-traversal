@@ -66,7 +66,7 @@ const result = rewriteObject(obj, {
 
 console.log();
 console.log('Output');
-console.log(result.getOutput());
+console.log(outputValue(result));
 
 /*
 Input
@@ -114,3 +114,12 @@ Output
 }
 }
 */
+
+function outputValue<Out>(result: {
+  getOutputResult():
+    | { readonly kind: 'present'; readonly value: Out }
+    | { readonly kind: 'absent' };
+}): Out | null {
+  const output = result.getOutputResult();
+  return output.kind === 'present' ? output.value : null;
+}

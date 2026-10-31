@@ -19,7 +19,7 @@ export type GraphWalkEvent<Data, Edge, ID> =
   | Readonly<{
       kind: 'edge';
       edge: GraphWalkEdge<Edge, ID>;
-      source: GraphWalkVertex<Data, ID>;
+      fromVertex: GraphWalkVertex<Data, ID>;
       depth: number;
       target:
         | Readonly<{ kind: 'found'; vertex: GraphWalkVertex<Data, ID> }>

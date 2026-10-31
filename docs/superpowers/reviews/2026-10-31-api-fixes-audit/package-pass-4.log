@@ -1,0 +1,48 @@
+
+> configurable-tree-traversal@0.11.0 verify-package
+> npm run build && node scripts/verify-package.cjs
+
+
+> configurable-tree-traversal@0.11.0 build
+> npm run clean && tsc -p ./tsconfig.build.json && tsconfig-replace-paths --project tsconfig.paths.json -s ./src && node scripts/build-esm.cjs
+
+
+> configurable-tree-traversal@0.11.0 clean
+> node -e "require('node:fs').rmSync('dist', {recursive: true, force: true})"
+
+Replaced 681 paths in 204 files
+Verified packed CJS/ESM denial for 26 internal paths and curated public runtime namespaces.
+Packed observation facets passed (CJS + ESM).
+Verified idiomatic API envelopes, identity, copied topology and retired runtime surface through all nine packed routes.
+Verified composable runtime capabilities with shared CJS/ESM identity.
+Packed DAG inspection consumers passed
+Packed DAG fragment consumers passed
+Packed DAG revision consumers passed
+Packed graph walking consumers passed
+Packed type consumers: Version 4.9.5
+source-hint-contracts.cts(461,30): error TS7060: This syntax is reserved in files with the .mts or .cts extension. Add a trailing comma or explicit constraint.
+source-hint-contracts.mts(461,30): error TS7060: This syntax is reserved in files with the .mts or .cts extension. Add a trailing comma or explicit constraint.
+node:child_process:981
+    throw err;
+    ^
+
+Error: Command failed: /home/df/.volta/tools/image/node/24.20.0/bin/node /home/df/.codex/worktrees/d56c/configurable-tree-traversal/node_modules/typescript/bin/tsc --strict --exactOptionalPropertyTypes --noUncheckedIndexedAccess --noEmit --target ES2020 --module Node16 --moduleResolution node16 consumer.ts consumer.cts consumer.mts supported-exports.ts supported-exports.cts supported-exports.mts observation-facets.ts observation-facets.cts observation-facets.mts uniform-api.ts uniform-api.cts uniform-api.mts rewrite-output.ts rewrite-output.cts rewrite-output.mts source-hint-contracts.ts source-hint-contracts.cts source-hint-contracts.mts materialized-rewrite-capability.ts materialized-rewrite-capability.cts materialized-rewrite-capability.mts execution-capabilities.ts execution-capabilities.cts execution-capabilities.mts delivery-selection.ts delivery-selection.cts delivery-selection.mts idiomatic-execution.ts idiomatic-execution.cts idiomatic-execution.mts idiomatic-diagnostics.ts idiomatic-diagnostics.cts idiomatic-diagnostics.mts idiomatic-api.ts idiomatic-api.cts idiomatic-api.mts graph-id-types.ts graph-id-types.cts graph-id-types.mts dag-preparation.ts dag-preparation.cts dag-preparation.mts dag-milestone-diagnostics.ts dag-milestone-diagnostics.cts dag-milestone-diagnostics.mts agent-api-foundations.ts agent-api-foundations.cts agent-api-foundations.mts dag-inspection.ts dag-inspection.cts dag-inspection.mts dag-fragments.ts dag-fragments.cts dag-fragments.mts dag-revisions.ts dag-revisions.cts dag-revisions.mts graph-walk.ts graph-walk.cts graph-walk.mts api-distinctions.ts api-distinctions.cts api-distinctions.mts
+    at genericNodeError (node:internal/errors:986:15)
+    at wrappedFn (node:internal/errors:540:14)
+    at checkExecSyncError (node:child_process:942:11)
+    at execFileSync (node:child_process:978:15)
+    at Object.<anonymous> (/home/df/.codex/worktrees/d56c/configurable-tree-traversal/scripts/verify-package.cjs:552:5)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19) {
+  status: 2,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 1038174,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v24.20.0

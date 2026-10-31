@@ -6,10 +6,7 @@ import type { DagTraversalRunnerState } from './DagTraversalRunnerState';
 const runtimeOwners = new WeakMap<object, object>();
 
 /** Validates and tracks the public data-only DAG continuation boundary. */
-export class DagPolicy<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-> {
+export class DagPolicy<T extends VertexTypes, R extends VertexTypes = T> {
   private readonly owner = {};
 
   static allowsChainAdmission(

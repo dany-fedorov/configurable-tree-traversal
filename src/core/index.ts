@@ -1,6 +1,9 @@
 export type { AsyncTreeSource } from './AsyncTraversableTree';
 export type { AsyncTreeVisitor } from './AsyncTraversalVisitor';
-export type { AsyncChildHintSorter, ChildHintSorter } from './ChildHintSorter';
+export type {
+  AsyncChildHintTransformer,
+  ChildHintTransformer,
+} from './ChildHintTransformer';
 export type {
   TreeDagExecutionInspection,
   TreeDagInspectionOperation,
@@ -102,5 +105,3 @@ export type {
   VertexContentInput,
   VertexCloneContent,
 } from './Vertex';
-
-export type { VertexHandle as VertexRef } from './CTTRef';

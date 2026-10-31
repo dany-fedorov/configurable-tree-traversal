@@ -22,6 +22,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
@@ -54,9 +55,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       const graph = runner.getResolvedGraphView();
       const parser = graph.getVertexRefById('parser')!;
       expect(graph.getParentsOf(parser)).toEqual([]);
-      expect(graph.getPathsTo(parser)).toEqual([[parser]]);
+      expect(graph.requirePathsTo(parser)).toEqual([[parser]]);
       expect(graph.get(parser)!.discoveryDepth).toBe(0);
-      expect(graph.getVertexId(graph.getRoot()!)).toBe('app');
+      expect(graph.requireVertexId(graph.getRoot()!)).toBe('app');
       expect(runner.summary().counts.subgraphCompleted).toBe(3);
     });
   }
@@ -76,13 +77,18 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
         resolvePrerequisite: (id: unknown) => {
           calls.push(id);
           return omit
-            ? { kind: 'omitted' as const, satisfiesDependencies: true as const }
+            ? {
+                identity: null,
+                kind: 'omitted' as const,
+                satisfiesDependencies: true as const,
+              }
             : { kind: 'missing' as const };
         },
       };
@@ -201,12 +207,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
         resolvePrerequisite: (id) => {
           calls.push(id);
           return {
+            identity: null,
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
           };
@@ -264,7 +272,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       runnerInternals(runner).resolvedGraphsContainer.originalGraphView!;
     const originalParser = saved.getVertexRefById('parser')!;
     expect(saved.getParentsOf(originalParser)).toEqual([]);
-    expect(saved.getPathsTo(originalParser)).toEqual([[originalParser]]);
+    expect(saved.requirePathsTo(originalParser)).toEqual([[originalParser]]);
   });
 
   test.each([undefined, null, { reason: 'resolver' }])(
@@ -281,6 +289,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             },
           }),
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
           }),
@@ -307,13 +316,14 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
         resolvePrerequisite: () => ({
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
-          vertexId: undefined,
+          identity: { vertexId: undefined },
         }),
       },
     }).createRunner();
@@ -383,6 +393,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),
@@ -431,6 +442,7 @@ for (const kind of ['promise', 'getter', 'call'] as const) {
           },
         }),
         resolveChild: () => ({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }),

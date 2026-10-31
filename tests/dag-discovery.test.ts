@@ -107,6 +107,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             vertex: { vertexContent: { $data: 'root', $childHints: [] } },
           }),
           resolveChild: () => ({
+            identity: null,
             satisfiesDependencies: true as const,
             kind: 'omitted' as const,
           }),

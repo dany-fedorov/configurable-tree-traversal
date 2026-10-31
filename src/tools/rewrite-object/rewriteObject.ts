@@ -78,6 +78,11 @@ export type ObjectRewriteCallback<
 export const __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ =
   '__REWRITE_OBJECT_DEFAULT_ROOT_KEY__';
 
+/** Root presence is independent of a legitimate null/undefined converted value. */
+export type ObjectRewriteOutputResult<Out> =
+  | Readonly<{ kind: 'present'; value: Out }>
+  | Readonly<{ kind: 'absent' }>;
+
 export type RewriteObjectResult<
   InK extends TraversableObjectPropKey,
   InV,
@@ -86,9 +91,9 @@ export type RewriteObjectResult<
   OutV,
 > = {
   /** Converted output captured at return, possibly partial before completion. */
-  outputAtReturn: Out | null;
+  outputResultAtReturn: ObjectRewriteOutputResult<Out>;
   /** Final converted output; throws until the runner has finished. */
-  getOutput(): Out | null;
+  getOutputResult(): ObjectRewriteOutputResult<Out>;
   traversalRunner: DepthFirstTreeRunner<
     ObjectTreeVertexTypes<InK, InV>,
     ObjectCurrentVertexTypes<
@@ -236,9 +241,9 @@ export function rewriteObject<
   >({
     traversableTree: tree,
     ...{
-      ...(options?.sortChildrenHints === undefined
+      ...(options?.transformChildHints === undefined
         ? {}
-        : { sortChildrenHints: options.sortChildrenHints }),
+        : { transformChildHints: options.transformChildHints }),
       ...(options?.visitors === undefined
         ? {}
         : { visitors: options.visitors }),
@@ -287,32 +292,35 @@ export function rewriteObject<
         vertex,
         getKeyPath: (thisOptions?: GetPathToOptions) =>
           context.resolvedTreeView
-            .getPathTo(context.vertexRef, thisOptions)
+            .requirePathTo(context.vertexRef, thisOptions)
             .map((ps) => ps.getValue().getData().key),
       });
       return { commands: [makeMutationCommand(rw)] };
     },
   );
   const traversalRunner = traversal.createRunner().run();
-  const convertCurrentRoot = () => {
+  const convertCurrentRoot = (): ObjectRewriteOutputResult<Out> => {
     const resolvedTreeView = traversalRunner.getResolvedTreeView();
     const rootRef = resolvedTreeView.getRoot();
-    const rootValue =
-      rootRef === null || !resolvedTreeView.has(rootRef)
-        ? null
-        : rootRef.getValue().getData().value;
-    return convertRootValue(rootValue, {
-      complete: traversalRunner.getStatus() === TraversalRunnerStatus.FINISHED,
+    if (rootRef === null || !resolvedTreeView.has(rootRef)) {
+      return Object.freeze({ kind: 'absent' });
+    }
+    return Object.freeze({
+      kind: 'present',
+      value: convertRootValue(rootRef.getValue().getData().value, {
+        complete:
+          traversalRunner.getStatus() === TraversalRunnerStatus.FINISHED,
+      }),
     });
   };
-  const outputAtReturn = convertCurrentRoot();
+  const outputResultAtReturn = convertCurrentRoot();
   let hasFinalOutput =
     traversalRunner.getStatus() === TraversalRunnerStatus.FINISHED;
-  let finalOutput = outputAtReturn;
+  let finalOutput = outputResultAtReturn;
   return {
-    outputAtReturn,
+    outputResultAtReturn,
     traversalRunner,
-    getOutput() {
+    getOutputResult() {
       if (traversalRunner.getStatus() !== TraversalRunnerStatus.FINISHED) {
         throw new Error('Rewrite output is not complete');
       }

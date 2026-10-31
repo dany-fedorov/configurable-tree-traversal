@@ -15,6 +15,7 @@ const traversableGraph = {
     },
   }),
   resolveChild: () => ({
+    identity: null,
     satisfiesDependencies: true as const,
     kind: 'omitted' as const,
   }),

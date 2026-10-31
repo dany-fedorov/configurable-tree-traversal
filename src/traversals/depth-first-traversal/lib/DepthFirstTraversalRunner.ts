@@ -56,7 +56,7 @@ export interface DepthFirstTreeRunner<
   getResolvedTreeView(): ResolvedTreeView<TTP | RW_TTP>;
   getResolvedGraphView(): ResolvedGraphView<TTP | RW_TTP>;
   isTreeRootVertex(ref: VertexHandle<TTP | RW_TTP>): boolean;
-  isTraversalLeaf(ref: VertexHandle<TTP | RW_TTP>): boolean;
+  isChildExpansionSkipped(ref: VertexHandle<TTP | RW_TTP>): boolean;
 }
 
 export class InternalDepthFirstTreeRunner<
@@ -101,11 +101,11 @@ export class InternalDepthFirstTreeRunner<
         graphContainer,
         'DepthFirstTreeRunner',
       ),
-      ...(this.icfg.sortChildrenHints === null
+      ...(this.icfg.transformChildHints === null
         ? {}
         : {
             sortHints: (hints: (TTP | RW_TTP)['VertexHint'][]) =>
-              this.icfg.sortChildrenHints!(hints as TTP['VertexHint'][]) as (
+              this.icfg.transformChildHints!(hints as TTP['VertexHint'][]) as (
                 | TTP
                 | RW_TTP
               )['VertexHint'][],
@@ -169,7 +169,7 @@ export class InternalDepthFirstTreeRunner<
       ),
       iterableConfig: this.iterableConfig,
       inOrderConfig: this.icfg.inOrder,
-      hasSorter: this.icfg.sortChildrenHints !== null,
+      hasHintTransformer: this.icfg.transformChildHints !== null,
       hasHintIds: false,
       concurrency: 1,
     });
@@ -221,11 +221,8 @@ export class InternalDepthFirstTreeRunner<
     return internalRef(ref) === this.#getResolvedTreeStore().getRoot();
   }
 
-  isTraversalLeaf(ref: VertexHandle<TTP | RW_TTP>): boolean {
-    return (
-      this.state.subtreeTraversalDisabledRefs.has(internalRef(ref)) ||
-      ref.getValue().hasNoChildHints()
-    );
+  isChildExpansionSkipped(ref: VertexHandle<TTP | RW_TTP>): boolean {
+    return this.state.subtreeTraversalDisabledRefs.has(internalRef(ref));
   }
 
   private *getInternalGenerator(): Generator<Event<TTP, RW_TTP> | null> {

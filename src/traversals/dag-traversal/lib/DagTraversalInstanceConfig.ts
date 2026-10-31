@@ -2,7 +2,7 @@ import {
   assertTraversalFields,
   definedOptions,
 } from '@core/assertPublicOptions';
-import type { ChildHintSorter } from '@core/ChildHintSorter';
+import type { ChildHintTransformer } from '@core/ChildHintTransformer';
 import type { VisitorRecord } from '@core/graph/types';
 import type { DagDiscoverySource } from '@core/TraversableGraph';
 import type { TreeSource } from '@core/TraversableTree';
@@ -19,7 +19,7 @@ export type DagSchedulingOptions = {
   workCompletion?: 'afterWorkReadyChain' | 'externalSettlement' | undefined;
   discovery?: 'lazy' | 'eager' | undefined;
   rootWorkDependencies?: 'honor' | 'ignore' | undefined;
-  omittedWorkDependencies?: 'none' | 'discoveryParentWork' | undefined;
+  dependsOnWorkDefault?: 'none' | 'discoveryParentWork' | undefined;
   syntheticRoot?: boolean | undefined;
 };
 
@@ -51,7 +51,7 @@ type DagTraversalOptions<
   ID = unknown,
 > = DagSchedulingOptions & {
   completedWork?: ReadonlySet<ID> | undefined;
-  sortChildrenHints: ChildHintSorter<T> | null;
+  transformChildHints: ChildHintTransformer<T> | null;
   visitors: DagTraversalVisitors<T, R, ID>;
   retainOriginalGraphStructure: boolean;
   traversalRunnerInternalObjects: {
@@ -74,7 +74,7 @@ type DagTraversalOptionsInput<
   ID = unknown,
 > = DagSchedulingOptions & {
   completedWork?: ReadonlySet<ID> | undefined;
-  sortChildrenHints?: ChildHintSorter<T> | null | undefined;
+  transformChildHints?: ChildHintTransformer<T> | null | undefined;
   visitors?: VisitorInputs<DagTraversalVisitors<T, R, ID>> | undefined;
   retainOriginalGraphStructure?: boolean | undefined;
 };
@@ -87,7 +87,7 @@ export type DagOptions<
   DagTraversalOptionsInput<T, R, ID> &
   (
     | { traversableGraph: DagDiscoverySource<T, R, ID> }
-    | { rootWorkDependencies?: never; omittedWorkDependencies?: never }
+    | { rootWorkDependencies?: never; dependsOnWorkDefault?: never }
   );
 
 export type DagOptionsPatch<
@@ -102,7 +102,7 @@ export type DagOptionsPatch<
       }
     | {
         rootWorkDependencies?: never;
-        omittedWorkDependencies?: never;
+        dependsOnWorkDefault?: never;
         traversableTree?:
           | (unknown extends ID ? TreeSource<T, R> : never)
           | undefined;
@@ -114,7 +114,7 @@ export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
   VertexTypes,
   VertexTypes
 > = deepFreeze({
-  sortChildrenHints: null,
+  transformChildHints: null,
   visitors: {
     [DagVisitorPhase.ON_WORK_READY]: [],
     [DagVisitorPhase.ON_SUBGRAPH_READY]: [],
@@ -187,7 +187,7 @@ export function assertDagDependencyPolicies(
   if (
     !graphSource &&
     ('rootWorkDependencies' in originalInput ||
-      'omittedWorkDependencies' in originalInput)
+      'dependsOnWorkDefault' in originalInput)
   ) {
     throw new TypeError('Dependency policies require a graph discovery source');
   }
@@ -199,12 +199,12 @@ export function assertDagDependencyPolicies(
     throw new TypeError('rootWorkDependencies must be honor or ignore');
   }
   if (
-    input.omittedWorkDependencies !== undefined &&
-    input.omittedWorkDependencies !== 'none' &&
-    input.omittedWorkDependencies !== 'discoveryParentWork'
+    input.dependsOnWorkDefault !== undefined &&
+    input.dependsOnWorkDefault !== 'none' &&
+    input.dependsOnWorkDefault !== 'discoveryParentWork'
   ) {
     throw new TypeError(
-      'omittedWorkDependencies must be none or discoveryParentWork',
+      'dependsOnWorkDefault must be none or discoveryParentWork',
     );
   }
 }

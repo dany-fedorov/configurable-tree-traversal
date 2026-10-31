@@ -4,6 +4,7 @@ export { GraphWalk } from './GraphWalk';
 export type { GraphWalkRunner } from './GraphWalkRunner';
 export { GraphWalkPhase } from './GraphWalkPhase';
 export type {
+  GraphWalkHydration,
   GraphWalkVertex,
   GraphWalkVertexResult,
   GraphWalkTarget,

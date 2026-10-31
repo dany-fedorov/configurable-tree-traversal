@@ -1,5 +1,7 @@
 # Idiomatic API migration
 
+Apply the [latest API distinctions migration](migration-api-distinctions.md) for current presence, ownership and canonical naming contracts.
+
 [Documentation map](index.md) · [Client API migration](migration-client-api.md) · [API reference](reference.md) · [Earlier naming migration](migration-api-clarity.md) · [Uniform API migration](migration-uniform-api.md)
 
 The canonical API has one spelling for each supported operation. Removed exports, fields, literals, static members and overloads have no compatibility aliases. This guide covers all fifteen idiomatic API findings; the earlier guides retain their section anchors and the broader historical rename tables.
@@ -11,7 +13,7 @@ The canonical API has one spelling for each supported operation. Removed exports
 | F01     | Rewrite current values/context typed only as original input                                                                    | Current keys include input/output domains; current values and assembled containers are unknown; retained original views stay input-typed.                                |
 | F02     | `ObjectMutationPatch` permitting arbitrary metadata                                                                            | `ObjectPropertyPatch<T>` permits only `key` and `value`; unknown own fields throw.                                                                                       |
 | F03     | `DELETE_VERTEX`, store `delete`, revision `removeVertex`                                                                       | `DELETE_TREE_SUBTREE`, `DELETE_DAG_VERTEX_CASCADE`, `deleteSubtree`, `removeVertexDeclaration`, respectively.                                                            |
-| F04     | `rootDependencies`, `implicitParentDependency`                                                                                 | `rootWorkDependencies`; `omittedWorkDependencies: 'none' \| 'discoveryParentWork'`, on graph discovery only.                                                             |
+| F04     | `rootDependencies`, `implicitParentDependency`                                                                                 | `rootWorkDependencies`; `dependsOnWorkDefault: 'none' \| 'discoveryParentWork'`, on graph discovery only.                                                                |
 | F05     | Generic detailed inspection/default phase emission; `AsyncCoreExecution` and empty runtime bases                               | `ExecutionInspection` and `EmissionKind<Phase>` defaults; `CoreInspection` becomes `TreeDagExecutionInspection`; explicit family inspection and structural capabilities. |
 | F06     | `TraversalVisitor`, `AsyncTraversalVisitor`, `TraversalVisitorRecord`, `MutationCommandBinder`, `MutationCommandBinderFactory` | `TreeVisitor`, `AsyncTreeVisitor`, `TreeVisitorRecord`, `TreeMutationCommandBinder`, `TreeMutationCommandBinderFactory`.                                                 |
 | F07     | Inspection ready `order`; chain `order/phase/position/config/group`; pending request `kind`                                    | Ready `phase`; chain `phase/state/visitorIndex/executionOptions/commandCommitMode`; request `operation`.                                                                 |
@@ -163,7 +165,8 @@ const result = rewriteObject<
     return undefined;
   },
 });
-if (result.getOutput() !== 'changed')
+const output = result.getOutputResult();
+if (output.kind !== 'present' || output.value !== 'changed')
   throw new Error('Expected rewritten output');
 ```
 
@@ -258,7 +261,7 @@ const declaredHints = (hints: Input['VertexHint'][]) => hints.reverse();
 const discoveryHints: Input['VertexHint'][] = [1, 'extra'];
 const runner = traverseTreeDepthFirst({
   traversableTree: source,
-  ...{ sortChildrenHints: preserveHints },
+  ...{ transformChildHints: preserveHints },
   visitors: {
     PRE_ORDER: (_vertex, context) =>
       context.isTreeRoot
@@ -285,7 +288,7 @@ const value: number | string = runner
 if (value !== 'changed') throw new Error('Expected rewritten data');
 traverseTreeDepthFirst({
   traversableTree: source,
-  ...{ sortChildrenHints: declaredHints },
+  ...{ transformChildHints: declaredHints },
 });
 ```
 
@@ -338,7 +341,7 @@ Direct stored-tree deletion is `ResolvedTreeStore.deleteSubtree(ref)`. Revision 
 
 ## Policies, selectors and state
 
-Graph discovery defaults are `rootWorkDependencies: 'honor'` and `omittedWorkDependencies: 'none'`. Old `rootDependencies` maps to the first; graph-only `implicitParentDependency: false/true` maps to `'none'/'discoveryParentWork'`. Root ignoring affects W prerequisites only, never C. Omitted-list fallback applies only when `dependsOnWork` is absent; explicit lists including `[]` override it. Synthetic holder dependencies remain suppressed. Tree-source inputs reject these graph policies and preserve fixed tree ordering.
+Graph discovery defaults are `rootWorkDependencies: 'honor'` and `dependsOnWorkDefault: 'none'`. Old `rootDependencies` maps to the first; graph-only `implicitParentDependency: false/true` maps to `'none'/'discoveryParentWork'`. Root ignoring affects W prerequisites only, never C. Omitted-list fallback applies only when `dependsOnWork` is absent; explicit lists including `[]` override it. Synthetic holder dependencies remain suppressed. Tree-source inputs reject these graph policies and preserve fixed tree ordering.
 
 `emitEvents` selects events, and `visitorPhases` selects callbacks independently. DAG callbacks use `ON_WORK_READY`/`ON_SUBGRAPH_READY`; emitted kinds are committed `workCompleted`/`subgraphCompleted`. Seeds emit no synthetic work event. Trees use their phase names for events, and walkers use vertex/edge/path kinds. `commandCommitMode: 'afterEachVisitor' | 'afterGroup'` replaces `SEQUENTIAL` / `CONCURRENT`, respectively, and controls command visibility, independently of async concurrency. Flat visitors sort by priority before batching; explicit groups retain their ordered boundaries.
 
@@ -349,7 +352,7 @@ Graph discovery defaults are `rootWorkDependencies: 'honor'` and `omittedWorkDep
 | Retired form                                                                                                  | Replacement                                                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `$d` / `$c` input, getter and clone fields; `LegacyVertexContent`                                             | `$data` / `$childHints`; canonical fields are enumerable and serialized.                                                                                 |
-| `MutableRef.getId`, graph/view `getIdOf` / `getVertexById`                                                    | `getRefId`, `getVertexId`, `getVertexRefById`. Reference UUID and arbitrary host ID are separate.                                                        |
+| `MutableRef.getId`, graph/view `getIdOf` / `getVertexById`                                                    | `getRefId`, `requireVertexId`, `getVertexRefById`. Reference UUID and arbitrary host ID are separate.                                                    |
 | Untagged `{ vertexContent }`, null omission, undefined prerequisite absence                                   | Tagged `{ kind: 'found', vertex }`, `{ kind: 'omitted' }`, lookup-only `{ kind: 'missing' }`. Built-in sources also return tags.                         |
 | `DEFER_READY` sentinel and command spelling                                                                   | Sole `DEFER_WORK_COMPLETION` command in ON_WORK_READY; deferral discards buffered group commands and ends the chain.                                     |
 | `REWRITE_VERTEX_HINTS_ON_PRE_ORDER`                                                                           | `REWRITE_CHILD_HINTS`, with family phase restrictions.                                                                                                   |
@@ -370,7 +373,7 @@ Retired JS configuration keys reject before mutation/discovery where applicable,
 
 Generic `TraversalExecutionState`, `SyncTraversalExecution` and `AsyncTraversalExecution` default to `ExecutionInspection`; execution emission defaults to `EmissionKind<Phase>`. Concrete tree/DAG runners use `TreeDagExecutionInspection<Phase>`, walkers use `GraphWalkInspection`. Family phases and genuine sync/async differences remain intact. Graph ID generics stay after input/rewrite types (after phase for visitors); arbitrary ID identity and inference are preserved.
 
-Ready visits and chains expose callback `phase`; chains separately expose `state: 'running' | 'paused' | 'done' | 'invalid'`, `visitorIndex`, `executionOptions` and `commandCommitMode`. Pending `operation` names are `resolveRoot`, `resolveChild`, `resolvePrerequisite`, `sortChildrenHints`, `getVertexIdFromHint`, and `visit`; private engine effect keys are absent. DFS/BFS frame `stage` keeps its mechanical meaning.
+Ready visits and chains expose callback `phase`; chains separately expose `state: 'running' | 'paused' | 'done' | 'invalid'`, `visitorIndex`, `executionOptions` and `commandCommitMode`. Pending `operation` names are `resolveRoot`, `resolveChild`, `resolvePrerequisite`, `transformChildHints`, `getVertexIdFromHint`, and `visit`; private engine effect keys are absent. DFS/BFS frame `stage` keeps its mechanical meaning.
 
 | Old visit status | `ResolvedVisitStage`        |
 | ---------------- | --------------------------- |
@@ -385,7 +388,7 @@ Read graph `visitStage` or `getVisitStageOf(ref)`. Tree initial callbacks can re
 
 `getResolvedTreeView()` and graph views are live shallow queries; returned arrays/records are detached while refs/data retain identity. Retained original structure grows during discovery and keeps input data types; it is neither deep immutable storage nor rollback. `summary()` reads current progress, `inspect()` captures execution state, and `inspectDagMilestones()` captures fixed observational W/C facts. Refresh captured facts after settlement. Tickets/generations stay local; reconstruct from host-accepted `completedWork` facts.
 
-`rewriteObject` owns its source and defaults output to unknown. `rewriteObjectAs<Out>` asserts an output type without validation. `outputAtReturn` captures conversion once and can be partial at pause; resuming never refreshes it. Resume the runner, then call `getOutput()` only at FINISHED. It caches the first successful final conversion; exact conversion errors propagate and remain retryable. See [rewrite output](reference.md#rewrite-objects).
+`rewriteObject` owns its source and defaults output to unknown. `rewriteObjectAs<Out>` asserts an output type without validation. `outputResultAtReturn` captures a present/absent result once and can be partial at pause; resuming never refreshes it. Resume the runner, then call `getOutputResult()` only at FINISHED. It caches the first successful final conversion; exact conversion errors propagate and remain retryable. See [rewrite output](reference.md#rewrite-objects).
 
 ## Source-required options
 
@@ -430,7 +433,7 @@ chain, including an empty or filtered chain. `externalSettlement` still requires
 host settlement, and explicit `DEFER_WORK_COMPLETION` still ends the chain early.
 
 `prepareDag` and `prepareDagAsync` return engine-discovered structural cycles as
-`{ kind: 'invalid', issues: [{ kind: 'discoveryCycle', vertexIds }] }`. Preserve
+`{ kind: 'invalid', issues: [{ kind: 'discoveryCycle', cycleWitnessVertexIds }] }`. Preserve
 that ordered closed witness; authored `structuralCycle` issues describe SCC
 membership. Direct runner execution/preparation still throws `DagDiscoveryCycleError`.
 Exact source-thrown values, including same-class errors from callbacks, getters
@@ -443,7 +446,7 @@ and runtime provenance validation. `DagVertexProgress` always supplies readonly
 Update manual fixtures with both arrays. Overlapping IDs remain in both arrays;
 W cannot be recovered by subtracting C from `unmetPrerequisiteIds`.
 
-Tree/DAG pending-request diagnostics use `operation: 'sortChildrenHints'`, matching
+Tree/DAG pending-request diagnostics use `operation: 'transformChildHints'`, matching
 the sorter option. Replace the old diagnostic spelling in inspection consumers.
 
 ## Explicit walking hydration and reusable catalogs

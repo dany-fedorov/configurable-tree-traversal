@@ -70,7 +70,7 @@ async function main() {
   // It deliberately does not carry the old review artifact forward.
   const acceptedForRevision = ['build'];
   const knownIds = new Set([
-    ...revised.dag.vertices.map((vertex) => vertex.vertexId),
+    ...revised.dag.liveVertexSummaries.map((vertex) => vertex.vertexId),
     ...revised.dag.definition.omittedIds,
   ]);
   const next = await revised.dag.createAsyncWorkSession({

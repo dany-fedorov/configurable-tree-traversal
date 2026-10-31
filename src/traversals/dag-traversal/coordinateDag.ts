@@ -1,4 +1,6 @@
 import type { TraversalExecutionState } from '@core/TraversalExecution';
+import type { TreeDagExecutionInspection } from '@core/CoreInspection';
+import type { DagVisitorPhase } from './lib/DagTraversalOrder';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import { inspectDagMilestones } from './inspectDag';
 import type { AsyncDagTraversalRunner } from './lib/AsyncDagTraversalRunner';
@@ -33,7 +35,8 @@ export type DagSettlementReceipt =
   | Readonly<{ kind: 'accepted' }>
   | Readonly<{ kind: 'alreadyAccepted' }>;
 
-interface DagCoordinationControl<ID> extends TraversalExecutionState {
+export interface DagWorkSessionControl<ID = unknown>
+  extends TraversalExecutionState<TreeDagExecutionInspection<DagVisitorPhase>> {
   completeWork(ticket: DagWorkTicket<ID>): DagSettlementReceipt;
   /** Fatal for the whole traversal; keep retryable work deferred instead. */
   failTraversal(
@@ -47,12 +50,12 @@ interface DagCoordinationControl<ID> extends TraversalExecutionState {
 }
 
 export interface DagWorkSession<ID = unknown>
-  extends DagCoordinationControl<ID> {
+  extends DagWorkSessionControl<ID> {
   advance(): DagWorkBoundary<ID>;
 }
 
 export interface AsyncDagWorkSession<ID = unknown>
-  extends DagCoordinationControl<ID> {
+  extends DagWorkSessionControl<ID> {
   advance(): Promise<DagWorkBoundary<ID>>;
 }
 
@@ -126,7 +129,7 @@ function makeCoordination<ID>(
 }
 
 /** Wrap an external-settlement runner without executing or acquiring it. */
-export function createDagWorkSession<
+export function bindDagWorkSession<
   T extends VertexTypes,
   R extends VertexTypes,
   ID,
@@ -144,7 +147,7 @@ export function createDagWorkSession<
 }
 
 /** Async execution uses the runner's existing ownership and drain semantics. */
-export function createAsyncDagWorkSession<
+export function bindAsyncDagWorkSession<
   T extends VertexTypes,
   R extends VertexTypes,
   ID,

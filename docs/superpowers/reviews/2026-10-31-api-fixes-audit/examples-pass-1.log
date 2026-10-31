@@ -1,0 +1,5 @@
+
+> configurable-tree-traversal@0.11.0 verify-examples
+> node scripts/verify-examples.cjs
+
+Verified 22 TypeScript examples.

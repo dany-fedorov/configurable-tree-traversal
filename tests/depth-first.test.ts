@@ -53,7 +53,7 @@ describe('depth-first traversal', () => {
   test('sorts copied hints before resolving children', () => {
     const root = node('root', node('b'), node('a'));
     const t = traversal(root).configure({
-      sortChildrenHints: (hints) => hints.reverse(),
+      transformChildHints: (hints) => hints.reverse(),
     });
     expect(values(t.createRunner(), Order.PRE_ORDER)).toEqual([
       'root',
@@ -249,7 +249,7 @@ describe('depth-first traversal', () => {
     t.addVisitorFor(Order.PRE_ORDER, () => {
       seen.push('first');
     });
-    t.configure({ sortChildrenHints: null });
+    t.configure({ transformChildHints: null });
     const runner = t.createRunner();
     t.addVisitorFor(Order.PRE_ORDER, () => {
       seen.push('late');

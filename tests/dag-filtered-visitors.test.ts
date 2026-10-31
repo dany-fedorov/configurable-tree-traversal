@@ -46,9 +46,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       Order.ON_WORK_READY,
       filterDagDataVisitor(isTask, (data, options) => {
         seen.push(data, options.phase, options.vertexRef.getValue().getData());
-        expect(options.resolvedGraphView.getVertexId(options.vertexRef)).toBe(
-          'task',
-        );
+        expect(
+          options.resolvedGraphView.requireVertexId(options.vertexRef),
+        ).toBe('task');
         expect(options.registration.priority).toBe(12);
         return {
           commands: [
@@ -112,7 +112,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       })),
     );
     traversal.addVisitorFor(Order.ON_WORK_READY, (_, options) => {
-      after.push(options.resolvedGraphView.getVertexId(options.vertexRef));
+      after.push(options.resolvedGraphView.requireVertexId(options.vertexRef));
     });
     const runner = traversal.createRunner();
     await runner.run();

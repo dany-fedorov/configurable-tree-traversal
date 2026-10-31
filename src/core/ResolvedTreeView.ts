@@ -11,7 +11,7 @@ export interface ResolvedTreeView<T extends VertexTypes> {
   has(ref: VertexHandle<T>): boolean;
   getChildrenOf(ref: VertexHandle<T>): readonly VertexHandle<T>[] | null;
   getParentOf(ref: VertexHandle<T>): VertexHandle<T> | null;
-  getPathTo(
+  requirePathTo(
     ref: VertexHandle<T>,
     options?: GetPathToOptions,
   ): readonly VertexHandle<T>[];

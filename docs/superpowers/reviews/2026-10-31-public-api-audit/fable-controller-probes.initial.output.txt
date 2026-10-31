@@ -1,0 +1,15 @@
+/home/df/wd/personal/configurable-tree-traversal/docs/superpowers/reviews/2026-10-31-public-api-audit/fable-controller-probes.cjs:10
+const edge=events.find(e=>e.kind==='edge');assert.equal(edge.source.vertexId,0);assert.notEqual(edge.source,source);
+                                                             ^
+
+TypeError: Cannot read properties of undefined (reading 'source')
+    at Object.<anonymous> (/home/df/wd/personal/configurable-tree-traversal/docs/superpowers/reviews/2026-10-31-public-api-audit/fable-controller-probes.cjs:10:62)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.20.0

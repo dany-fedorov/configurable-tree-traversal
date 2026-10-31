@@ -65,7 +65,7 @@ const syncOptions: GraphWalkOptions<string, number, undefined> = {
   shouldExpandVertex: (_vertex, context) =>
     context.revisit === 'once' || context.path.depth >= 0,
   shouldFollowEdge: (_edge, context) => {
-    const data: string = context.source.data;
+    const data: string = context.fromVertex.data;
     void data;
     return true;
   },
@@ -310,7 +310,7 @@ const sameFactory: typeof registered = registered.addVisitorFor(
     const phase: Phase.EDGE = context.phase;
     const kind: 'edge' = event.kind;
     const edgeData: number = event.edge.data;
-    const id: undefined = event.source.vertexId;
+    const id: undefined = event.fromVertex.vertexId;
     // @ts-expect-error Exact phase registration cannot see a vertex event.
     event.vertex;
     // @ts-expect-error Context metadata exposes no executable callback.

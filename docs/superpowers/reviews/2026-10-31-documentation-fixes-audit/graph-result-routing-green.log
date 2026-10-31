@@ -1,0 +1,29 @@
+✔ one public symbol has every supported import route without duplicate sections (4.077017ms)
+✔ unexported reachable support declarations never become importable index entries (0.602846ms)
+✔ overloads survive and case-distinct exported names keep distinct stable anchors (0.395649ms)
+✔ namespace entries link only members exported by their supported package route (0.479258ms)
+✔ a missing public declaration fails generation instead of silently producing an incomplete reference (1.632699ms)
+✔ check mode detects stale output without overwriting it (1.788634ms)
+✔ filterDagDataVisitor routes to its specific contract and executable family example (0.387374ms)
+✔ filterAsyncDagDataVisitor routes to its specific contract and executable family example (0.226096ms)
+✔ ChildHintTransformer routes to its specific contract and executable family example (0.206278ms)
+✔ AsyncChildHintTransformer routes to its specific contract and executable family example (0.26193ms)
+✔ DagEvent routes to its specific contract and executable family example (0.187105ms)
+✔ DagDiscoverySource routes to its specific contract and executable family example (0.140697ms)
+✔ TreeSource routes to its specific contract and executable family example (0.105704ms)
+✔ TreeTraversalEvent routes to its specific contract and executable family example (4.56568ms)
+✔ InspectionFilters routes to its specific contract and executable family example (0.201878ms)
+✔ core routes to its specific contract and executable family example (0.198003ms)
+✔ DagVertexFound links to graph result contracts and a graph resolution recipe (0.705151ms)
+✔ DagVertexOmitted links to graph result contracts and a graph resolution recipe (0.088166ms)
+✔ DagVertexResolution links to graph result contracts and a graph resolution recipe (0.082627ms)
+✔ DagPrerequisiteResolution links to graph result contracts and a graph resolution recipe (0.063128ms)
+✔ PrerequisiteMissing links to graph result contracts and a graph resolution recipe (0.057383ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 26.863872

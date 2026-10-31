@@ -21,16 +21,24 @@ type InlineOrCachedTarget<Data, ID> =
     }>
   | Readonly<{ kind: 'cached'; vertexId: ID; resolution?: never }>;
 
-/** Resolver targets may hydrate inline; no-resolver targets declare cache use. */
-export type GraphWalkTarget<Data, ID> =
-  | ResolverTarget<Data, ID>
-  | InlineOrCachedTarget<Data, ID>;
+export type GraphWalkHydration = 'resolver' | 'inlineOrCached';
+
+/** The hydration parameter preserves the protocol policy in reusable helpers. */
+export type GraphWalkTarget<
+  Data,
+  ID,
+  Hydration extends GraphWalkHydration = GraphWalkHydration,
+> = Hydration extends 'resolver'
+  ? ResolverTarget<Data, ID>
+  : InlineOrCachedTarget<Data, ID>;
 
 type LinkTo<Edge, Target> = Readonly<{ target: Target; data: Edge }>;
-export type GraphWalkLink<Data, Edge, ID> = LinkTo<
+export type GraphWalkLink<
+  Data,
   Edge,
-  GraphWalkTarget<Data, ID>
->;
+  ID,
+  Hydration extends GraphWalkHydration = GraphWalkHydration,
+> = LinkTo<Edge, GraphWalkTarget<Data, ID, Hydration>>;
 
 type SourceProtocol<Data, Edge, ID, Target> = {
   roots(): Iterable<Target>;

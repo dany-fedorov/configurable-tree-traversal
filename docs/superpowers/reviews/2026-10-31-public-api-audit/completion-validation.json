@@ -1,0 +1,39 @@
+{
+  "status": "complete",
+  "baseline": "8f20c2f43cbf7722025b2fb5682072f8e4952c1b",
+  "requestedReviewers": {
+    "Fable": "claude-fable-5-1 / requested xhigh / terminal success",
+    "Astra": "gpt-6-astra / explicitly dispatched xhigh / completed"
+  },
+  "parallelReview": true,
+  "ownerGroups": 324,
+  "inventoryItems": 4242,
+  "bothOwnerAssignmentsExact": true,
+  "findingCount": 20,
+  "descendingScores": true,
+  "scoreDistribution": {
+    "3": 5,
+    "2": 12,
+    "1": 3
+  },
+  "allFindingsLinkedToOwners": true,
+  "relativeLinksChecked": 52,
+  "sourceReferencesWithinFileBounds": true,
+  "inputHashesVerified": 460,
+  "inputMismatches": [],
+  "freshBuildExit": 0,
+  "freshCensusMatchesPrior": true,
+  "finalProbeExits": {
+    "controllerRuntime": 0,
+    "controllerTypes": 0,
+    "controllerBoundaries": 0,
+    "astraRuntimeIndependentRerun": 0,
+    "astraTypesIndependentRerun": 0,
+    "fableOnlyCorrected": 0
+  },
+  "limits": [
+    "No full-suite rerun or source implementation",
+    "Item ledger expands authored owner-level reviews; it is coverage accounting, not separate per-item model testimony",
+    "Scoring and proposed redesign merit remain judgments; no guarantee against every possible misunderstanding"
+  ]
+}

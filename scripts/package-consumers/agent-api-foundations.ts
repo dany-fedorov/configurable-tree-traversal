@@ -6,8 +6,8 @@ import {
   materializeDagInputFromRootsAsync,
   prepareDag,
   prepareDagAsync,
-  createDagWorkSession,
-  createAsyncDagWorkSession,
+  bindDagWorkSession,
+  bindAsyncDagWorkSession,
   filterDagDataVisitor,
   filterAsyncDagDataVisitor,
   DagTraversal,
@@ -103,10 +103,10 @@ if (prepared.kind === 'valid') {
     ticket.vertexId = id;
     void [wrong, forged];
   }
-  const coordinator: DagWorkSession<ID> = createDagWorkSession(
+  const coordinator: DagWorkSession<ID> = bindDagWorkSession(
     dag.createRunner({ workCompletion: 'externalSettlement' }),
   );
-  const vertex = dag.vertices[0]!;
+  const vertex = dag.liveVertexSummaries[0]!;
   const data: Item = vertex.data;
   const children: readonly ID[] = vertex.children;
   // @ts-expect-error Definitions own their topology.
@@ -119,7 +119,7 @@ if (prepared.kind === 'valid') {
 } else {
   for (const issue of prepared.issues) {
     if (issue.kind === 'discoveryCycle') {
-      const witness: readonly ID[] = issue.vertexIds;
+      const witness: readonly ID[] = issue.cycleWitnessVertexIds;
       void witness;
     }
     if (issue.kind === 'milestone') {
@@ -184,7 +184,7 @@ async function checkAsync() {
     await result.dag.createAsyncWorkSession({
       concurrency: 2,
     });
-  const coordinator: AsyncDagWorkSession<ID> = createAsyncDagWorkSession(
+  const coordinator: AsyncDagWorkSession<ID> = bindAsyncDagWorkSession(
     await result.dag.createAsyncRunner({
       workCompletion: 'externalSettlement',
     }),
@@ -228,7 +228,7 @@ function inspectSession(session: DagWorkSession<ID> | AsyncDagWorkSession<ID>) {
   const ErrorConstructor: typeof cjs.DagDiscoveryCycleError =
     dagCjs.DagDiscoveryCycleError;
   const error = new ErrorConstructor<ID>([]);
-  const witness: readonly ID[] = error.vertexIds;
+  const witness: readonly ID[] = error.cycleWitnessVertexIds;
   void [state, inspection, fatal, witness];
 }
 void inspectSession;

@@ -1,0 +1,28 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 448504,
+  "num_turns": 73,
+  "session_id": "d7143bb4-e1da-47e1-9927-1561fc419476",
+  "modelUsage": {
+    "claude-fable-5-1": {
+      "inputTokens": 258,
+      "outputTokens": 34954,
+      "cacheReadInputTokens": 701388,
+      "cacheCreationInputTokens": 168186,
+      "webSearchRequests": 0,
+      "costUSD": 5.289347,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "thinkingTokens": 19154,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 168186,
+      "canonicalModel": "claude-fable-5-1",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "requestedModel": "fable",
+  "requestedEffort": "high"
+}

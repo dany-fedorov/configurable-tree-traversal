@@ -47,7 +47,7 @@ if (prepared.kind === 'valid') {
   const captured: DagDefinition<Data, ID> = prepared.dag.definition;
   const runner = prepared.dag.createRunner();
   for (const event of runner.iterateEvents()) {
-    const hints: readonly ID[] = event.vertex.getChildrenHints();
+    const hints: readonly ID[] = event.vertex.getChildHints();
     void hints;
   }
   void captured;
@@ -56,8 +56,8 @@ void definition;
 
 const validated: PrepareDagResult<Data, ID> = prepareDagDefinition(definition);
 if (validated.kind === 'valid') {
-  const id: ID = validated.dag.vertices[0]!.vertexId;
-  const data: Data = validated.dag.vertices[0]!.data;
+  const id: ID = validated.dag.liveVertexSummaries[0]!.vertexId;
+  const data: Data = validated.dag.liveVertexSummaries[0]!.data;
   // @ts-expect-error Valid results have no issues.
   validated.issues;
   void [id, data];

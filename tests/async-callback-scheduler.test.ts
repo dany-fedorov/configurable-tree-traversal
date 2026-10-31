@@ -170,7 +170,9 @@ test('discards only queued callbacks while invoked callbacks retain permits', as
 test.each([0, -1, 1.5, NaN, -Infinity])(
   'rejects invalid concurrency %s',
   (limit) => {
-    expect(() => new CallbackScheduler(limit)).toThrow(/positive integer.*Infinity/i);
+    expect(() => new CallbackScheduler(limit)).toThrow(
+      /positive integer.*Infinity/i,
+    );
   },
 );
 

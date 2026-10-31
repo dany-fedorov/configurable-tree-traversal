@@ -439,7 +439,7 @@ test('forest expansion shares records across parents', async () => {
     expect(
       graph
         .getParentsOf(graph.getVertexRefById('leaf')!)!
-        .map((ref) => graph.getVertexId(ref)),
+        .map((ref) => graph.requireVertexId(ref)),
     ).toEqual(['a', 'b']);
     expect(graph.getParentsOf(graph.getVertexRefById('a')!)).toEqual([]);
   }

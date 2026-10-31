@@ -108,13 +108,15 @@ export class InternalAsyncBreadthFirstTreeRunner<
         graphContainer,
         'AsyncBreadthFirstTreeRunner',
       ),
-      ...(this.icfg.sortChildrenHints === null
+      ...(this.icfg.transformChildHints === null
         ? {}
         : {
             sortHints: (hints: (TTP | RW_TTP)['VertexHint'][]) =>
-              this.icfg.sortChildrenHints!(
+              this.icfg.transformChildHints!(
                 hints as TTP['VertexHint'][],
-              ) as ReturnType<NonNullable<typeof this.icfg.sortChildrenHints>>,
+              ) as ReturnType<
+                NonNullable<typeof this.icfg.transformChildHints>
+              >,
           }),
       visit: {
         [BreadthFirstPhase.LEVEL_ORDER]: (
@@ -168,7 +170,7 @@ export class InternalAsyncBreadthFirstTreeRunner<
       },
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,
-      hasSorter: this.icfg.sortChildrenHints !== null,
+      hasHintTransformer: this.icfg.transformChildHints !== null,
       hasHintIds: false,
       concurrency: this.icfg.concurrency,
     });

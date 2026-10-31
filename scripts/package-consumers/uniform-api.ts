@@ -46,6 +46,7 @@ const found: DagVertexFound<T> = {
   vertex: { vertexId: undefined, vertexContent: canonical },
 };
 const omitted: import('configurable-tree-traversal').DagVertexOmitted = {
+  identity: null,
   kind: 'omitted',
   satisfiesDependencies: true,
 };
@@ -109,7 +110,7 @@ depth.addVisitorFor(F.POST_ORDER, () => ({
 const dag = new DagTraversal({
   traversableGraph: graph,
   rootWorkDependencies: 'honor',
-  omittedWorkDependencies: 'none',
+  dependsOnWorkDefault: 'none',
 });
 dag.addVisitorFor(D.ON_WORK_READY, (_v, options) => {
   const phase: D.ON_WORK_READY = options.phase;
@@ -243,6 +244,7 @@ const graphOmissionAsTree: TreeVertexOmitted = omitted;
 // @ts-expect-error Graph omissions require explicit acknowledgement.
 const treeOmissionAsGraph: DagVertexResolution<T> = treeOmitted;
 const undefinedAcknowledgement = {
+  identity: null,
   kind: 'omitted' as const,
   satisfiesDependencies: undefined,
 };
@@ -302,7 +304,7 @@ const resolved = externalRunner.getResolvedGraphView();
 const vertexRef = resolved.getVertexRefById(undefined);
 if (vertexRef) {
   const referenceId: string = vertexRef.getRefId();
-  const hostId: unknown = resolved.getVertexId(vertexRef);
+  const hostId: unknown = resolved.requireVertexId(vertexRef);
   void [referenceId, hostId];
 }
 const hookResult: ObjectChildHookResult<ObjectTreeVertexTypes<string, number>> =

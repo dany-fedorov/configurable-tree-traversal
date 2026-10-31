@@ -335,14 +335,12 @@ describe('saved resolved-tree consistency', () => {
         .getChildrenOf(savedRewriteRef)
         ?.map((ref) => ref.getValue().getData()),
     ).toEqual(['replacement-leaf']);
-    expect(savedRewriteRef.getValue().getChildrenHints()).toEqual([
-      originalLeaf,
-    ]);
+    expect(savedRewriteRef.getValue().getChildHints()).toEqual([originalLeaf]);
     expect(savedTree.getChildrenOf(savedDeletedRef)).toEqual([]);
     expect(savedTree.getChildrenOf(savedPrunedRef)).toEqual([]);
 
-    activeRootRef.getValue().getChildrenHints().push(node('active-only'));
-    expect(savedRootRef.getValue().getChildrenHints()).toHaveLength(4);
+    activeRootRef.getValue().getChildHints().push(node('active-only'));
+    expect(savedRootRef.getValue().getChildHints()).toHaveLength(4);
   });
 
   test('copies structural arrays while shallowly sharing user data', () => {
@@ -375,8 +373,8 @@ describe('saved resolved-tree consistency', () => {
     expect(savedRootRef).not.toBe(activeRootRef);
     expect(savedRootRef.getValue()).not.toBe(activeRootRef.getValue());
     expect(savedRootRef.getValue().getData()).toBe(sharedData);
-    expect(savedRootRef.getValue().getChildrenHints()).not.toBe(
-      activeRootRef.getValue().getChildrenHints(),
+    expect(savedRootRef.getValue().getChildHints()).not.toBe(
+      activeRootRef.getValue().getChildHints(),
     );
 
     activeRootRef.getValue().getData().nested.count = 2;
@@ -391,7 +389,7 @@ describe('ResolvedTreeStore paths', () => {
       .run()
       .getResolvedTreeView();
 
-    expect(() => tree.getPathTo(makeRef('missing'))).toThrow(
+    expect(() => tree.requirePathTo(makeRef('missing'))).toThrow(
       /could not find ref/i,
     );
   });
@@ -411,21 +409,23 @@ describe('ResolvedTreeStore paths', () => {
       throw new Error('Expected a branch and leaf');
     }
 
-    expect(tree.getPathTo(leafRef)).toEqual([rootRef, branchRef, leafRef]);
-    expect(tree.getPathTo(leafRef, { noRoot: true })).toEqual([
+    expect(tree.requirePathTo(leafRef)).toEqual([rootRef, branchRef, leafRef]);
+    expect(tree.requirePathTo(leafRef, { noRoot: true })).toEqual([
       branchRef,
       leafRef,
     ]);
-    expect(tree.getPathTo(leafRef, { noSelf: true })).toEqual([
+    expect(tree.requirePathTo(leafRef, { noSelf: true })).toEqual([
       rootRef,
       branchRef,
     ]);
-    expect(tree.getPathTo(leafRef, { noRoot: true, noSelf: true })).toEqual([
-      branchRef,
-    ]);
-    expect(tree.getPathTo(rootRef, { noRoot: true })).toEqual([]);
-    expect(tree.getPathTo(rootRef, { noSelf: true })).toEqual([]);
-    expect(tree.getPathTo(rootRef, { noRoot: true, noSelf: true })).toEqual([]);
+    expect(tree.requirePathTo(leafRef, { noRoot: true, noSelf: true })).toEqual(
+      [branchRef],
+    );
+    expect(tree.requirePathTo(rootRef, { noRoot: true })).toEqual([]);
+    expect(tree.requirePathTo(rootRef, { noSelf: true })).toEqual([]);
+    expect(tree.requirePathTo(rootRef, { noRoot: true, noSelf: true })).toEqual(
+      [],
+    );
   });
 
   test('keeps path semantics when a resolved tree is traversed again', () => {
@@ -451,7 +451,7 @@ describe('ResolvedTreeStore paths', () => {
 
     expect(
       secondTree
-        .getPathTo(secondLeafRef, { noRoot: true })
+        .requirePathTo(secondLeafRef, { noRoot: true })
         .map((ref) => ref.getValue().getData().getValue().getData()),
     ).toEqual(['branch', 'leaf']);
     expect(secondRootRef.getValue().getData()).toBe(firstTree.getRoot());

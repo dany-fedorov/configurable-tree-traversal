@@ -4,10 +4,7 @@ import type { DagDefinition } from './DagDefinition';
 import { captureDagDefinition, definitionSource } from './definitionSource';
 import { DagTraversal } from '../DagTraversal';
 import { AsyncDagTraversal } from '../AsyncDagTraversal';
-import {
-  createDagWorkSession,
-  createAsyncDagWorkSession,
-} from '../coordinateDag';
+import { bindDagWorkSession, bindAsyncDagWorkSession } from '../coordinateDag';
 import type {
   PreparedDag,
   PreparedDagRunnerOptions,
@@ -40,7 +37,7 @@ export function makePreparedDag<T extends VertexTypes, ID>(
   // rather than recapturing the hidden holder used for omitted empty entries.
   const definition =
     authoredDefinition ?? captureDagDefinition(container, candidates);
-  const vertices = Object.freeze(
+  const liveVertexSummaries = Object.freeze(
     definition.vertices.map((vertex) =>
       Object.freeze({
         vertexId: vertex.vertexId,
@@ -67,7 +64,7 @@ export function makePreparedDag<T extends VertexTypes, ID>(
       ...options,
       ...definitionSource(definition),
       rootWorkDependencies,
-      omittedWorkDependencies: 'none',
+      dependsOnWorkDefault: 'none',
     })
       .createRunner()
       .prepare();
@@ -80,25 +77,25 @@ export function makePreparedDag<T extends VertexTypes, ID>(
       ...options,
       ...definitionSource(definition),
       rootWorkDependencies,
-      omittedWorkDependencies: 'none',
+      dependsOnWorkDefault: 'none',
     })
       .createRunner()
       .prepare();
   };
   return Object.freeze({
-    vertices,
+    liveVertexSummaries,
     definition,
     createRunner,
     createAsyncRunner,
     createWorkSession: (options = {}) => {
       assertPreparedOptions(options, ['completedWork']);
-      return createDagWorkSession(
+      return bindDagWorkSession(
         createRunner({ ...options, workCompletion: 'externalSettlement' }),
       );
     },
     createAsyncWorkSession: async (options = {}) => {
       assertPreparedOptions(options, ['completedWork', 'concurrency']);
-      return createAsyncDagWorkSession(
+      return bindAsyncDagWorkSession(
         await createAsyncRunner({
           ...options,
           workCompletion: 'externalSettlement',

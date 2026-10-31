@@ -12,6 +12,7 @@ export function assertNoTreeMetadata(
   sourceName = 'Tree source',
 ): void {
   if (
+    Object.prototype.hasOwnProperty.call(result, 'identity') ||
     Object.prototype.hasOwnProperty.call(result, 'vertexId') ||
     Object.prototype.hasOwnProperty.call(result, 'dependsOnWork') ||
     Object.prototype.hasOwnProperty.call(
@@ -65,18 +66,31 @@ export function normalizeSourceResult<T extends VertexTypes, ID = unknown>(
       else assertOwnGraphIdentity(vertex);
       return vertex;
     }
-    case 'omitted':
-      if (
-        treeSourceName === undefined &&
-        result.satisfiesDependencies !== true
-      ) {
+    case 'omitted': {
+      if (treeSourceName !== undefined) return { vertexContent: null };
+      if (result.satisfiesDependencies !== true) {
         throw new TypeError(
           'Omitted source result requires satisfiesDependencies: true',
         );
       }
-      return Object.prototype.hasOwnProperty.call(result, 'vertexId')
-        ? { vertexContent: null, vertexId: result.vertexId }
-        : { vertexContent: null };
+      if ('vertexId' in result || !('identity' in result)) {
+        throw new TypeError(
+          'Omitted source result requires explicit identity, not vertexId',
+        );
+      }
+      const identity = result.identity;
+      if (identity === null) return { vertexContent: null };
+      if (
+        typeof identity !== 'object' ||
+        Array.isArray(identity) ||
+        !Object.prototype.hasOwnProperty.call(identity, 'vertexId')
+      ) {
+        throw new TypeError(
+          'Omission identity must be null or an own vertexId wrapper',
+        );
+      }
+      return { vertexContent: null, vertexId: identity.vertexId };
+    }
     case 'missing':
       if (!prerequisite) {
         throw new TypeError(

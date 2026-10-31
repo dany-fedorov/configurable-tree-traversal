@@ -12,7 +12,11 @@ async function main() {
           vertexContent: { $data: 'task', $childHints: [] },
         },
       }),
-      resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      resolveChild: () => ({
+        identity: null,
+        kind: 'omitted',
+        satisfiesDependencies: true,
+      }),
     },
     workCompletion: 'externalSettlement',
   });

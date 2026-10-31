@@ -2,7 +2,7 @@ import {
   assertTraversalFields,
   definedOptions,
 } from '@core/assertPublicOptions';
-import type { ChildHintSorter } from '@core/ChildHintSorter';
+import type { ChildHintTransformer } from '@core/ChildHintTransformer';
 import type { TreeSource } from '@core/TraversableTree';
 import type { VisitorInputs } from '@core/TraversalVisitor';
 import type { VertexTypes } from '@core/TreeTypeParameters';
@@ -17,7 +17,7 @@ export type BreadthFirstTreeResolvedOptions<
   RW_TTP extends VertexTypes = TTP,
 > = {
   traversableTree: TreeSource<TTP, RW_TTP>;
-  sortChildrenHints: ChildHintSorter<TTP> | null;
+  transformChildHints: ChildHintTransformer<TTP> | null;
   visitors: BreadthFirstTraversalVisitors<TTP, RW_TTP>;
   retainOriginalTreeStructure: boolean;
   traversalRunnerInternalObjects: {
@@ -38,7 +38,7 @@ export type BreadthFirstTreeOptionsPatch<
   RW_TTP extends VertexTypes = TTP,
 > = {
   traversableTree?: TreeSource<TTP, RW_TTP> | undefined;
-  sortChildrenHints?: ChildHintSorter<TTP> | null | undefined;
+  transformChildHints?: ChildHintTransformer<TTP> | null | undefined;
   visitors?:
     | VisitorInputs<BreadthFirstTraversalVisitors<TTP, RW_TTP>>
     | undefined;
@@ -56,7 +56,7 @@ export const BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
   BreadthFirstTreeResolvedOptions<VertexTypes, VertexTypes>,
   'traversableTree'
 > = deepFreeze({
-  sortChildrenHints: null,
+  transformChildHints: null,
   visitors: {
     [BreadthFirstPhase.LEVEL_ORDER]: [],
   },

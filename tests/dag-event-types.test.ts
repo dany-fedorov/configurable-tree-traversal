@@ -23,6 +23,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             },
           }),
           resolveChild: () => ({
+            identity: null,
             kind: 'omitted',
             satisfiesDependencies: true,
           }),
@@ -38,9 +39,9 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
         expect(event).toHaveProperty('vertexId');
         expect(event.vertexId).toBe(id);
         expect(event.vertexRef.getValue()).toBe(event.vertex);
-        expect(runner.getResolvedGraphView().getVertexId(event.vertexRef)).toBe(
-          id,
-        );
+        expect(
+          runner.getResolvedGraphView().requireVertexId(event.vertexRef),
+        ).toBe(id);
         expect(event).not.toHaveProperty('order');
         expect(event).not.toHaveProperty('phase');
         events.push(event.kind);
@@ -61,7 +62,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             vertexContent: { $data: 'task', $childHints: [] },
           },
         }),
-        resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveChild: () => ({
+          identity: null,
+          kind: 'omitted',
+          satisfiesDependencies: true,
+        }),
       },
     }).createRunner();
     const events = [];
@@ -89,7 +94,7 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     const ids = [];
     for await (const event of runner.iterateEvents()) {
       expect(event.vertexId).toBe(
-        runner.getResolvedGraphView().getVertexId(event.vertexRef),
+        runner.getResolvedGraphView().requireVertexId(event.vertexRef),
       );
       ids.push(event.vertexId);
     }
@@ -111,7 +116,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
             vertexContent: { $data: 'task', $childHints: [] },
           },
         }),
-        resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+        resolveChild: () => ({
+          identity: null,
+          kind: 'omitted',
+          satisfiesDependencies: true,
+        }),
       },
       visitors: {
         [DagVisitorPhase.ON_WORK_READY]: (_vertex, context) => {

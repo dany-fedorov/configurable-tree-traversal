@@ -27,7 +27,11 @@ for (const api of [esm, cjs]) {
           },
         };
       },
-      resolveChild: () => ({ kind: 'omitted', satisfiesDependencies: true }),
+      resolveChild: () => ({
+        identity: null,
+        kind: 'omitted',
+        satisfiesDependencies: true,
+      }),
     },
     visitors: {
       ON_WORK_READY: async () => {

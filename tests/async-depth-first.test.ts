@@ -179,7 +179,7 @@ test('uses new iterator filters when resuming after consumer closure', async () 
 
 test('supports promised sorting and tree runner graph and vertex queries', async () => {
   const runner = traversal(node('root', node('a'), node('b')))
-    .configure({ sortChildrenHints: async (hints) => hints.reverse() })
+    .configure({ transformChildHints: async (hints) => hints.reverse() })
     .createRunner();
   await expect(values(runner, Order.PRE_ORDER)).resolves.toEqual([
     'root',
@@ -193,8 +193,8 @@ test('supports promised sorting and tree runner graph and vertex queries', async
   if (children?.[0]?.kind !== 'linked') throw new Error('Expected a child');
   expect(runner.isTreeRootVertex(root)).toBe(true);
   expect(runner.isTreeRootVertex(root)).toBe(true);
-  expect(runner.isTraversalLeaf(root)).toBe(false);
-  expect(runner.isTraversalLeaf(children[0].childRef)).toBe(true);
+  expect(runner.isChildExpansionSkipped(root)).toBe(false);
+  expect(children[0].childRef.getValue().hasNoChildHints()).toBe(true);
 });
 
 test('retains saved original tree data through asynchronous mutations', async () => {

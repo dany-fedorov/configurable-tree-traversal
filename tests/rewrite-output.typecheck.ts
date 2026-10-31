@@ -1,3 +1,4 @@
+import { capturedOutputValue, outputValue } from './helpers/rewriteOutput';
 import {
   ObjectTreeSource,
   objectRewrite as rewriteApi,
@@ -9,7 +10,7 @@ import {
 } from '../src/tools/rewrite-object';
 
 // @ts-expect-error Reconstruction alone does not preserve arbitrary input shape.
-rewriteObject({ count: 1 }).outputAtReturn!.count;
+capturedOutputValue(rewriteObject({ count: 1 }))!.count;
 const changed = rewriteObject(
   { count: 1 },
   {
@@ -20,9 +21,9 @@ const changed = rewriteObject(
   },
 );
 // @ts-expect-error Arbitrary rewrites do not preserve the input shape.
-changed.outputAtReturn!.count;
+capturedOutputValue(changed)!.count;
 // @ts-expect-error The final output default is conservative too.
-changed.getOutput()!.count;
+outputValue(changed)!.count;
 const typed = rewriteObjectAs<{ renamed: number }>(
   { count: 1 },
   {
@@ -32,16 +33,16 @@ const typed = rewriteObjectAs<{ renamed: number }>(
         : undefined,
   },
 );
-const value: number = typed.getOutput()!.renamed;
-const namespaceValue: number = rewriteApi
-  .rewriteObjectAs<number>(1)
-  .getOutput()!;
-const subpathValue: number = subpathRewriteObjectAs<number>(1).getOutput()!;
+const value: number = outputValue(typed)!.renamed;
+const namespaceValue: number = outputValue(
+  rewriteApi.rewriteObjectAs<number>(1),
+)!;
+const subpathValue: number = outputValue(subpathRewriteObjectAs<number>(1))!;
 const inferred = rewriteObject(1, {
   convertRootValue: () => ({ converted: true }),
 });
-const converted: boolean = inferred.getOutput()!.converted;
-const snapshotConverted: boolean = inferred.outputAtReturn!.converted;
+const converted: boolean = outputValue(inferred)!.converted;
+const snapshotConverted: boolean = capturedOutputValue(inferred)!.converted;
 // @ts-expect-error A generic output selection requires a converter.
 const explicit = rewriteObject<
   Record<string, never>,
@@ -51,7 +52,7 @@ const explicit = rewriteObject<
   PropertyKey,
   unknown
 >({});
-const explicitValue: number = explicit.getOutput()!.renamed;
+const explicitValue: number = outputValue(explicit)!.renamed;
 const source = new ObjectTreeSource({ count: 1 });
 // @ts-expect-error The rewrite helper owns its source.
 rewriteObject({}, { traversableTree: source });

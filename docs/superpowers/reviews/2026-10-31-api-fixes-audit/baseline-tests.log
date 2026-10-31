@@ -1,0 +1,134 @@
+
+> configurable-tree-traversal@0.11.0 test
+> jest --runInBand tests/vertex-content-api.test.ts tests/dag-inspection.test.ts tests/dag-coordination.test.ts tests/object.test.ts tests/graph-walk-configuration.test.ts
+
+PASS tests/dag-inspection.test.ts (7.531 s)
+  ✓ DagTraversal reports exact W waits when the same seeded ID still blocks C (13 ms)
+  ✓ DagTraversal owns exact nonempty W waits independently of union and C waits (3 ms)
+  ✓ AsyncDagTraversal reports exact W waits when the same seeded ID still blocks C (4 ms)
+  ✓ AsyncDagTraversal owns exact nonempty W waits independently of union and C waits (2 ms)
+  ✓ identity observations distinguish known omitted and deleted IDs from unknown IDs (1 ms)
+  ✓ scheduling observations retain per-vertex expansion and uncommitted completion facts (1 ms)
+  ✓ kernel observations retain partial expansion and remain stable after settlement (3 ms)
+  ✓ kernel observations preserve an omitted root with its own undefined identity (1 ms)
+  ✓ kernel observations hide the synthetic holder while preserving caller symbol IDs (1 ms)
+  ✓ DagTraversal navigates original W/C and structural constraints in both directions (4 ms)
+  ✓ AsyncDagTraversal navigates original W/C and structural constraints in both directions (3 ms)
+  ✓ DagTraversal preserves SameValueZero milestone identities and result ownership (2 ms)
+  ✓ DagTraversal terminates cyclic forward and reverse queries without returning the start (3 ms)
+  ✓ DagTraversal distinguishes known omissions from unresolved edge endpoints (2 ms)
+  ✓ DagTraversal captures lazy topology without adapter calls and retains it after settlement (3 ms)
+  ✓ AsyncDagTraversal preserves SameValueZero milestone identities and result ownership (2 ms)
+  ✓ AsyncDagTraversal terminates cyclic forward and reverse queries without returning the start (1 ms)
+  ✓ AsyncDagTraversal distinguishes known omissions from unresolved edge endpoints (1 ms)
+  ✓ AsyncDagTraversal captures lazy topology without adapter calls and retains it after settlement (3 ms)
+  ✓ DagTraversal retains old constraints after deletion and hides forest holders (2 ms)
+  ✓ DagTraversal queries tree-source identities while an iterator owns the runner (2 ms)
+  ✓ DagTraversal handles a known omitted root without inventing constraints
+  ✓ AsyncDagTraversal retains old constraints after deletion and hides forest holders (2 ms)
+  ✓ AsyncDagTraversal queries tree-source identities while an iterator owns the runner (2 ms)
+  ✓ AsyncDagTraversal handles a known omitted root without inventing constraints
+  ✓ inspection of a native async source does not interfere with a pending source call (2 ms)
+  ✓ transitive navigation uses an iterative walk on deep prerequisite chains (594 ms)
+  ✓ DagTraversal hides an omitted synthetic root from the typed inspection bridge (1 ms)
+  ✓ AsyncDagTraversal hides an omitted synthetic root from the typed inspection bridge (1 ms)
+  ✓ DagTraversal inspects a deleted synthetic holder without dereferencing its removed vertex (1 ms)
+  ✓ AsyncDagTraversal inspects a deleted synthetic holder without dereferencing its removed vertex
+  ✓ DagTraversal runner inspection observes initial, active and finished execution without driving it (3 ms)
+  ✓ AsyncDagTraversal runner inspection observes initial, active and finished execution without driving it (2 ms)
+  ✓ async runner inspection stays synchronous while a source callback is pending (1 ms)
+
+PASS tests/dag-coordination.test.ts
+  ✓ sync observes work and accepts repeated completions without advancing it (7 ms)
+  ✓ sync rejects foreign and forged tickets without consuming work (13 ms)
+  ✓ sync preserves exact fatal errors and repeated failure acceptance: undefined (2 ms)
+  ✓ sync preserves exact fatal errors and repeated failure acceptance: null (2 ms)
+  ✓ sync preserves exact fatal errors and repeated failure acceptance: NaN (2 ms)
+  ✓ sync preserves exact fatal errors and repeated failure acceptance: {"reason": "failed"} (2 ms)
+  ✓ sync exposes detached summaries and empty finished boundaries (2 ms)
+  ✓ async observes work and accepts repeated completions without advancing it (3 ms)
+  ✓ async rejects foreign and forged tickets without consuming work (4 ms)
+  ✓ async preserves exact fatal errors and repeated failure acceptance: undefined (2 ms)
+  ✓ async preserves exact fatal errors and repeated failure acceptance: null (1 ms)
+  ✓ async preserves exact fatal errors and repeated failure acceptance: NaN (2 ms)
+  ✓ async preserves exact fatal errors and repeated failure acceptance: {"reason": "failed"} (1 ms)
+  ✓ async exposes detached summaries and empty finished boundaries (1 ms)
+  ✓ wrapping requires external settlement and does not claim or run the runner (4 ms)
+  ✓ sync cooperative pause preserves callback continuation (2 ms)
+  ✓ async pause drains admitted callbacks and concurrent advance keeps runner ownership (4 ms)
+  ✓ deleted work rejects previously issued tickets as stale (2 ms)
+  ✓ sync tickets preserve arbitrary ID identity: undefined (1 ms)
+  ✓ sync tickets preserve arbitrary ID identity: null (1 ms)
+  ✓ sync tickets preserve arbitrary ID identity: NaN (1 ms)
+  ✓ sync tickets preserve arbitrary ID identity: Symbol(id)
+  ✓ sync tickets preserve arbitrary ID identity: {"id": "object"} (1 ms)
+  ✓ sync forwards source and callback failures exactly (1 ms)
+  ✓ async tickets preserve arbitrary ID identity: undefined (1 ms)
+  ✓ async tickets preserve arbitrary ID identity: null (1 ms)
+  ✓ async tickets preserve arbitrary ID identity: NaN (1 ms)
+  ✓ async tickets preserve arbitrary ID identity: Symbol(id) (1 ms)
+  ✓ async tickets preserve arbitrary ID identity: {"id": "object"} (1 ms)
+  ✓ async forwards source and callback failures exactly (1 ms)
+  ✓ sync prepared sessions explain blockers without advancing or exposing tickets (6 ms)
+  ✓ sync failTraversal is the sole fatal settlement method: null (1 ms)
+  ✓ sync failTraversal is the sole fatal settlement method: undefined (1 ms)
+  ✓ sync failTraversal is the sole fatal settlement method: {"fatal": true} (1 ms)
+  ✓ async prepared sessions explain blockers without advancing or exposing tickets (3 ms)
+  ✓ async failTraversal is the sole fatal settlement method: null (1 ms)
+  ✓ async failTraversal is the sole fatal settlement method: undefined (1 ms)
+  ✓ async failTraversal is the sole fatal settlement method: {"fatal": true} (1 ms)
+
+PASS tests/vertex-content-api.test.ts
+  canonical vertex content
+    ✓ retains opaque data and hints and has only canonical accessors (1 ms)
+    ✓ copies canonical construction and copies an existing Vertex (1 ms)
+    ✓ clones an existing Vertex with replacement data replacement and unchanged hint identity (1 ms)
+    ✓ clones an existing Vertex with replacement data undefined and unchanged hint identity
+    ✓ clones canonical fields with explicitly undefined data (1 ms)
+    ✓ keeps canonical clone updates including explicitly undefined data
+    ✓ rejects mixed construction shapes 0 (4 ms)
+    ✓ rejects mixed construction shapes 1
+    ✓ rejects mixed construction shapes 2
+    ✓ rejects mixed construction shapes 3
+    ✓ rejects mixed construction shapes 4
+    ✓ rejects mixed construction shapes 5 (1 ms)
+    ✓ rejects mixed clone shapes 0 (1 ms)
+    ✓ rejects mixed clone shapes 1
+    ✓ rejects mixed clone shapes 2 (1 ms)
+    ✓ rejects mixed clone shapes 3
+    ✓ follows canonical hints through DFS (5 ms)
+    ✓ follows canonical hints through BFS (2 ms)
+    ✓ follows canonical hints through DAG tree source (2 ms)
+    ✓ follows canonical hints through async DFS (2 ms)
+    ✓ follows canonical hints through async BFS (2 ms)
+    ✓ follows canonical hints through async DAG tree source (1 ms)
+    ✓ preserves arbitrary graph IDs through canonical content (1 ms)
+    ✓ preserves arbitrary graph IDs through canonical content (1 ms)
+    ✓ accepts canonical object-tree hook content without skipping cycle checks (4 ms)
+
+PASS tests/object.test.ts
+  object rewriting
+    ✓ reconstructs nested arrays and objects after rewriting their leaves (7 ms)
+    ✓ traverses and reconstructs enumerable symbol properties (2 ms)
+    ✓ skips sparse slots while preserving symbol properties (2 ms)
+    ✓ compacts numeric array children after deletion (3 ms)
+    ✓ returns an unchanged null root
+    ✓ returns an unchanged undefined root
+    ✓ returns an unchanged number root (1 ms)
+    ✓ returns an unchanged string root (1 ms)
+    ✓ rewrites a primitive root (1 ms)
+    ✓ returns null when the root is deleted (1 ms)
+    ✓ passes deleted-root null through the output conversion hook (1 ms)
+    ✓ forwards child sorting to the depth-first traversal (1 ms)
+    ✓ rejects an ancestor identity cycle with a descriptive path (5 ms)
+    ✓ rejects cycles under breadth-first traversal with repeated branches (3 ms)
+    ✓ detects cycles introduced by rewritten child hints (1 ms)
+    ✓ keeps cycle ancestry isolated across concurrent adapter runs (2 ms)
+    ✓ allows one object in separate branches (1 ms)
+    ✓ allows a traversable object adapter to be reused (2 ms)
+
+Test Suites: 4 passed, 4 total
+Tests:       115 passed, 115 total
+Snapshots:   0 total
+Time:        8.243 s
+Ran all test suites matching /tests\/vertex-content-api.test.ts|tests\/dag-inspection.test.ts|tests\/dag-coordination.test.ts|tests\/object.test.ts|tests\/graph-walk-configuration.test.ts/i.

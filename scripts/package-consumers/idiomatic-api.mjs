@@ -365,6 +365,6 @@ for (const api of [esm, cjs]) {
     .run();
   const view = runner.getResolvedTreeView();
   const root = view.getRoot();
-  assert.deepEqual(view.getPathTo(root, { noRoot: undefined }), [root]);
-  assert.throws(() => view.getPathTo(root, { noRot: true }), TypeError);
+  assert.deepEqual(view.requirePathTo(root, { noRoot: undefined }), [root]);
+  assert.throws(() => view.requirePathTo(root, { noRot: true }), TypeError);
 }

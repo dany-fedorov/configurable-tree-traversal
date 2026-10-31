@@ -51,7 +51,7 @@ it('captures catalog topology eagerly while retaining shallow caller data', () =
       ['A', 'B', 0],
       ['A', 'B', 1],
     ]);
-    expect(events[0]!.source.data).toBe(a);
+    expect(events[0]!.fromVertex.data).toBe(a);
     expect(events[0]!.target).toEqual({
       kind: 'found',
       vertex: { vertexId: 'B', data: b },
@@ -492,7 +492,7 @@ it('copies mutable definitions and separates generated relationship wrappers acr
       [other, { kind: 'workDependency' }],
       [other, { kind: 'subgraphCompletionDependency' }],
     ]);
-    expect(events[0]!.source.data).toBe(data);
+    expect(events[0]!.fromVertex.data).toBe(data);
     (events[0]!.edge.data as any).kind = 'mutated';
   }
   expect(() => source.resolveVertex!({})).toThrow(TypeError);

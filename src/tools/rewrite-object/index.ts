@@ -1,5 +1,6 @@
 export { rewriteObject, rewriteObjectAs } from './rewriteObject';
 export type {
+  ObjectRewriteOutputResult,
   ObjectRewriteContext,
   ObjectRewriteInput,
   ObjectRewriteCallback,

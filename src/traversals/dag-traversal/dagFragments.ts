@@ -9,7 +9,6 @@ import type {
 import type {
   DagCompositionOptions,
   DagFragment,
-  DagFragmentInstance,
   InferredDagId,
 } from './lib/DagFragment';
 import { prepareDagDefinition } from './prepareDagDefinition';
@@ -53,10 +52,10 @@ export function defineDagFragment<Data, ID, Port extends string>(
 }
 
 /** Map every declared identity exactly once, retaining shallow data references. */
-export function instantiateDagFragment<Data, ID, Port extends string, MappedID>(
+export function mapDagFragmentIds<Data, ID, Port extends string, MappedID>(
   fragment: DagFragment<Data, ID, Port>,
   options: { mapId: (id: ID) => MappedID },
-): DagFragmentInstance<Data, MappedID, Port> {
+): DagFragment<Data, MappedID, Port> {
   assertOwnKeys(options, ['mapId']);
   const { mapId } = captureOptionFields(options, ['mapId']);
   if (typeof mapId !== 'function')
@@ -127,7 +126,7 @@ function requireWireFields(value: unknown, fields: readonly string[]): void {
 
 /** Combine ordered entries, append explicit links, then validate the whole DAG. */
 export function composeDag<Data, ID>(
-  instances: readonly DagFragmentInstance<Data, ID>[],
+  instances: readonly DagFragment<Data, ID>[],
   options: DagCompositionOptions<InferredDagId<ID>> = {},
 ): PrepareDagResult<Data, ID> {
   assertOwnKeys(options, ['children', 'dependencies']);

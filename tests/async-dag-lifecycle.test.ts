@@ -550,6 +550,7 @@ test('inspection is detached and inert during pending, halting, and failed work'
         };
       },
       resolveChild: () => ({
+        identity: null,
         kind: 'omitted' as const,
         satisfiesDependencies: true as const,
       }),
@@ -587,11 +588,16 @@ test('inspection is detached and inert during pending, halting, and failed work'
 });
 
 test('retains undefined as the exact traversal failure sentinel', async () => {
-  const root = deferred<{ kind: 'omitted'; satisfiesDependencies: true }>();
+  const root = deferred<{
+    kind: 'omitted';
+    identity: null;
+    satisfiesDependencies: true;
+  }>();
   const runner = new AsyncDagTraversal<TestGraph>({
     traversableGraph: {
       resolveRoot: () => root.promise,
       resolveChild: () => ({
+        identity: null,
         satisfiesDependencies: true as const,
         kind: 'omitted' as const,
       }),

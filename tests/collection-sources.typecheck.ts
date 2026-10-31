@@ -37,7 +37,9 @@ for (const traversal of [
 ]) {
   traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex, options) => {
     const item: Item = vertex.getData();
-    const id: number = options.resolvedGraphView.getVertexId(options.vertexRef);
+    const id: number = options.resolvedGraphView.requireVertexId(
+      options.vertexRef,
+    );
     void [item, id];
   });
   // @ts-expect-error The inferred ID domain is numeric.
@@ -48,7 +50,7 @@ const asyncTraversal = new AsyncDagTraversal({
   visitors: {
     [DagVisitorPhase.ON_WORK_READY]: async (vertex, options) => {
       const item: Item = vertex.getData();
-      const id: number = options.resolvedGraphView.getVertexId(
+      const id: number = options.resolvedGraphView.requireVertexId(
         options.vertexRef,
       );
       await Promise.resolve();

@@ -13,8 +13,9 @@ import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import { CallbackScheduler } from '@core/drivers/CallbackScheduler';
 import { Wakeup } from '@core/drivers/Wakeup';
 
-export type AsyncDriverControl<T extends VertexTypes> =
-  AsyncSessionControl<KernelEvent<T>> & { notifyProgress(): void };
+export type AsyncDriverControl<T extends VertexTypes> = AsyncSessionControl<
+  KernelEvent<T>
+> & { notifyProgress(): void };
 
 export function createAsyncDriver<
   T extends VertexTypes,

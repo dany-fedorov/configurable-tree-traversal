@@ -3,10 +3,9 @@ import {
   type DagDefinitionIssue,
   defineDag,
   defineDagFragment,
-  instantiateDagFragment,
+  mapDagFragmentIds,
   composeDag,
   type DagFragment,
-  type DagFragmentInstance,
   type DagCompositionOptions,
   type PrepareDagResult,
 } from '../src';
@@ -50,7 +49,7 @@ const badKey: keyof typeof fragment.ports = 'other';
 defineDagFragment(definition, { wrong: 'other' });
 // @ts-expect-error Bad port values cannot infer an object/string union.
 defineDagFragment(definition, { wrong: {} });
-const instance = instantiateDagFragment(fragment, {
+const instance = mapDagFragmentIds(fragment, {
   mapId: (id) => ({ local: id }),
 });
 const port: { local: Local } = instance.ports.start;
@@ -58,11 +57,9 @@ const port: { local: Local } = instance.ports.start;
 instance.ports.other;
 // @ts-expect-error Owned ports are readonly.
 instance.ports.start = { local: 'start' };
-const instances: DagFragmentInstance<
-  number,
-  { local: Local },
-  'start' | 'finish'
->[] = [instance];
+const instances: DagFragment<number, { local: Local }, 'start' | 'finish'>[] = [
+  instance,
+];
 composeDag(instances, {
   dependencies: [
     {

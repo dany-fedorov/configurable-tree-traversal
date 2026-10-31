@@ -6,7 +6,9 @@ export type VertexContent<TTP extends VertexTypes> = {
 };
 
 /** Canonical content only; retired spellings are rejected, including mixed inputs. */
-export type VertexContentInput<TTP extends VertexTypes> = VertexContent<TTP> & {
+export type VertexContentInput<TTP extends VertexTypes> = {
+  $data: TTP['VertexData'];
+  $childHints: readonly TTP['VertexHint'][];
   $d?: never;
   $c?: never;
 };
@@ -23,12 +25,12 @@ function assertCanonicalContent(content: object): void {
   }
 }
 
-/** Retain opaque caller data and hint identity. */
+/** Copy owned hint membership; retain opaque data and individual hint identity. */
 export function normalizeVertexContent<TTP extends VertexTypes>(
   content: VertexContentInput<TTP>,
 ): VertexContent<TTP> {
   assertCanonicalContent(content);
-  return content;
+  return { $data: content.$data, $childHints: Array.from(content.$childHints) };
 }
 
 export class Vertex<TTP extends VertexTypes> implements VertexContent<TTP> {
@@ -45,12 +47,12 @@ export class Vertex<TTP extends VertexTypes> implements VertexContent<TTP> {
     return this.$data;
   }
 
-  getChildrenHints(): TTP['VertexHint'][] {
+  getChildHints(): TTP['VertexHint'][] {
     return this.$childHints;
   }
 
   hasNoChildHints(): boolean {
-    return this.getChildrenHints().length === 0;
+    return this.getChildHints().length === 0;
   }
 
   clone(content?: VertexCloneContent<TTP>): Vertex<TTP> {
@@ -74,7 +76,7 @@ export interface VertexView<T extends VertexTypes> {
   readonly $data: T['VertexData'];
   readonly $childHints: readonly T['VertexHint'][];
   getData(): T['VertexData'];
-  getChildrenHints(): readonly T['VertexHint'][];
+  getChildHints(): readonly T['VertexHint'][];
   hasNoChildHints(): boolean;
   /** Creates an independent editable vertex and hint collection. */
   clone(content?: VertexCloneContent<T>): Vertex<T>;

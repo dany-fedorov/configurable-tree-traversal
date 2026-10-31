@@ -1,5 +1,5 @@
 import type { OwnerToken } from '@core/effects/types';
-import type { VertexRef } from '@core/graph/types';
+import type { InternalVertexRef } from '@core/graph/types';
 import type { VertexTypes } from '@core/TreeTypeParameters';
 import type { InOrderOptions } from './DepthFirstTraversalInOrderTraversalConfig';
 import { DepthFirstPhase } from './DepthFirstTraversalOrder';
@@ -8,7 +8,7 @@ import { shouldVisitParentOnInOrder } from '../in-order-helpers/shouldVisitParen
 export type DepthFirstFrameStage =
   | 'pre'
   | 'pre-visit'
-  | 'sort'
+  | 'transformHints'
   | 'sort-wait'
   | 'children'
   | 'child-wait'
@@ -20,7 +20,7 @@ export type DepthFirstFrameStage =
 
 export type DepthFirstFrame<T extends VertexTypes> = {
   owner: OwnerToken;
-  vertexRef: VertexRef<T>;
+  vertexRef: InternalVertexRef<T>;
   depth: number;
   stage: DepthFirstFrameStage;
   hints: T['VertexHint'][];
@@ -59,10 +59,14 @@ export class DepthFirstPolicy<T extends VertexTypes> {
 
   constructor(
     private readonly inOrderConfig: InOrderOptions,
-    private readonly hasSorter: boolean,
+    private readonly hasHintTransformer: boolean,
   ) {}
 
-  push(owner: OwnerToken, vertexRef: VertexRef<T>, depth: number): void {
+  push(
+    owner: OwnerToken,
+    vertexRef: InternalVertexRef<T>,
+    depth: number,
+  ): void {
     this.frames.push({
       owner,
       vertexRef,
@@ -76,8 +80,8 @@ export class DepthFirstPolicy<T extends VertexTypes> {
   }
 
   next(
-    hasVertex: (ref: VertexRef<T>) => boolean,
-    isDisabled: (ref: VertexRef<T>) => boolean,
+    hasVertex: (ref: InternalVertexRef<T>) => boolean,
+    isDisabled: (ref: InternalVertexRef<T>) => boolean,
   ): DepthFirstWork<T> | null {
     for (;;) {
       const frame = this.frames[this.frames.length - 1];
@@ -94,11 +98,11 @@ export class DepthFirstPolicy<T extends VertexTypes> {
             frame,
             order: DepthFirstPhase.PRE_ORDER,
           };
-        case 'sort': {
+        case 'transformHints': {
           const hints = isDisabled(frame.vertexRef)
             ? []
-            : frame.vertexRef.getValue().getChildrenHints().slice();
-          if (this.hasSorter) {
+            : frame.vertexRef.getValue().getChildHints().slice();
+          if (this.hasHintTransformer) {
             frame.stage = 'sort-wait';
             return { kind: 'SORT_HINTS', frame, hints };
           }
@@ -167,7 +171,7 @@ export class DepthFirstPolicy<T extends VertexTypes> {
   }
 
   completeVisit(frame: DepthFirstFrame<T>, order: DepthFirstPhase): void {
-    if (order === DepthFirstPhase.PRE_ORDER) frame.stage = 'sort';
+    if (order === DepthFirstPhase.PRE_ORDER) frame.stage = 'transformHints';
     else if (order === DepthFirstPhase.IN_ORDER)
       frame.stage = frame.resumeAfterInOrder;
     else frame.stage = 'done';

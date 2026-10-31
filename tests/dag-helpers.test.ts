@@ -27,7 +27,11 @@ function graph(
   return {
     resolveRoot: () =>
       root === null
-        ? { kind: 'omitted' as const, satisfiesDependencies: true as const }
+        ? {
+            identity: null,
+            kind: 'omitted' as const,
+            satisfiesDependencies: true as const,
+          }
         : result(root),
     resolveChild: (hint) => result(hint),
     getVertexIdFromHint: (hint) => ({ vertexId: hint }),

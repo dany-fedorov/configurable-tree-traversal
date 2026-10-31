@@ -1,0 +1,8 @@
+{
+  "command": "npm run check",
+  "compiler": "locked4.9.5",
+  "exitCode": 0,
+  "finishedAtUtc": "2026-10-31T16:42:41.451544+00:00",
+  "elapsedSeconds": 271.42,
+  "log": "check-final.log"
+}

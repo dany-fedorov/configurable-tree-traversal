@@ -96,10 +96,12 @@ test('finishes an empty graph', () => {
   const runner = new DagTraversal<TestGraph>({
     traversableGraph: {
       resolveRoot: () => ({
+        identity: null,
         satisfiesDependencies: true as const,
         kind: 'omitted' as const,
       }),
       resolveChild: () => ({
+        identity: null,
         satisfiesDependencies: true as const,
         kind: 'omitted' as const,
       }),
@@ -195,7 +197,7 @@ test('omission satisfies dependents without retaining the omitted vertex', () =>
         ? {
             kind: 'omitted' as const,
             satisfiesDependencies: true as const,
-            vertexId: 'missing',
+            identity: { vertexId: 'missing' },
           }
         : {
             kind: 'found' as const,
@@ -427,6 +429,7 @@ test('tree source rejects graph metadata', () => {
       },
     }),
     resolveChild: () => ({
+      identity: null,
       kind: 'omitted' as const,
       satisfiesDependencies: true as const,
     }),
@@ -465,7 +468,7 @@ test.each([false, true])(
     const events = [
       ...new DagTraversal<TestGraph>({
         traversableGraph: adapter,
-        sortChildrenHints: (children) => children.reverse(),
+        transformChildHints: (children) => children.reverse(),
       })
         .createRunner()
         .iterateEvents({ emitEvents: ['workCompleted'] }),
@@ -593,10 +596,12 @@ test('rejects thenables and retains callback failures', () => {
     traversableGraph: {
       resolveRoot: () =>
         Promise.resolve({
+          identity: null,
           kind: 'omitted' as const,
           satisfiesDependencies: true as const,
         }) as never,
       resolveChild: () => ({
+        identity: null,
         satisfiesDependencies: true as const,
         kind: 'omitted' as const,
       }),

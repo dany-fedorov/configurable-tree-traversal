@@ -298,9 +298,11 @@ it.each(policies)(
     expect((await factory.createRunner().run()).summary().outcome).toEqual({
       kind: 'exhausted',
     });
-    factory.configure({ limits: { maxDepth: 1 } }).configure({ revisit });
+    factory
+      .configure({ replaceLimits: { maxDepth: 1 } })
+      .configure({ revisit });
     expect(() =>
-      factory.configure({ limits: { maxAdmittedTargets: 5 } }),
+      factory.configure({ replaceLimits: { maxAdmittedTargets: 5 } }),
     ).toThrow(TypeError);
     const runner = await factory.createRunner().run();
     expect(runner.summary().counts.admittedTargets).toBe(

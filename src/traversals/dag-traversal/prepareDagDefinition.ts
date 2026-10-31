@@ -15,7 +15,7 @@ export function prepareDagDefinition<Data, ID = unknown>(
     {
       ...definitionSource(definition),
       rootWorkDependencies: 'honor',
-      omittedWorkDependencies: 'none',
+      dependsOnWorkDefault: 'none',
     },
     definition,
   );

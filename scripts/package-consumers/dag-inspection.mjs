@@ -12,12 +12,14 @@ assert.equal(esm.inspectDagMilestones, esm.dagTraversal.inspectDagMilestones);
 for (const Constructor of [esm.DagTraversal, cjs.AsyncDagTraversal]) {
   const task = { label: 'task' };
   const runner = new Constructor({
-    ...esm.materializeDagInputFromRecords([{ id: task }], { id: (item) => item.id }),
+    ...esm.materializeDagInputFromRecords([{ id: task }], {
+      id: (item) => item.id,
+    }),
     workCompletion: 'externalSettlement',
   }).createRunner();
   const target = { vertexId: task, milestone: 'work' };
   assert.deepEqual(runner.inspectMilestones().explain(target), {
-    kind: 'unknown',
+    kind: 'unresolved',
     target,
     discoveryComplete: false,
   });
@@ -35,14 +37,19 @@ for (const Constructor of [esm.DagTraversal, cjs.AsyncDagTraversal]) {
   runner.settle(task, { kind: 'workCompleted' }, ticket.generation);
   await runner.run();
   assert.equal(snapshot.explain(target).satisfied, false);
-  assert.equal(dag.inspectDagMilestones(runner).explain(target).satisfied, true);
+  assert.equal(
+    dag.inspectDagMilestones(runner).explain(target).satisfied,
+    true,
+  );
   assert.equal(runner.inspectMilestones().explain(target).satisfied, true);
   assert.deepEqual(snapshot.dependentsOf(target).milestones, [
     { vertexId: task, milestone: 'subgraphCompletion' },
   ]);
   assert.equal(
-    snapshot.prerequisitesOf({ vertexId: task, milestone: 'subgraphCompletion' })
-      .edges[0].reason,
+    snapshot.prerequisitesOf({
+      vertexId: task,
+      milestone: 'subgraphCompletion',
+    }).edges[0].reason,
     'ownWork',
   );
 }
