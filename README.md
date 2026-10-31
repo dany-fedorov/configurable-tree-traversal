@@ -1,8 +1,13 @@
-# configurable-tree-traversal (CTT)
+# configurable-tree-traversal
 
-**Hand it your task graph and the results you have accepted. It tells you which tasks can run now, and why every other task is still waiting.**
+**Your agents sit idle because the coordinator cannot tell which tasks are ready. Give CTT the task graph and the results you have accepted; it returns the ready set and explains every task that is still waiting.**
 
-Four tasks, one accepted result, three lines of output:
+```text
+research ──┬── implement ──┬── review
+           └── testPlan ───┘
+```
+
+After `research` is accepted:
 
 ```text
 ready: implement, testPlan
@@ -10,9 +15,22 @@ ready: review
 finished
 ```
 
-CTT is an in-memory TypeScript/JavaScript engine: tree traversal (DFS/BFS, sync and async), DAG work scheduling with explicit work and completion joins, and lazy walking of cyclic graphs with explicit bounds. It never runs your agents, retries, or stores anything; your coordinator does. Restart it from the facts you accepted and it recomputes the same frontier.
+Why is `review` still waiting, before anyone starts it? Two unmet dependencies on unfinished work:
 
-[Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Public symbols](docs/api-index.md)
+```text
+[ 'constraint', 'constraint', 'unfinishedWork', 'unfinishedWork' ]
+```
+
+No server, no database, no DSL. CTT is an in-memory TypeScript/JavaScript engine; your coordinator keeps dispatch, retries and storage, and can rebuild the same frontier from the facts it stored after any restart.
+
+- **Join on a whole subtree, not one task.** Review starts only after a composite and all of its children complete ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts)).
+- **Explain blockers without advancing.** Captured dependency snapshots answer "what is this waiting for" and "what depends on this" ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)).
+- **Restart from accepted facts.** A fresh session seeded with the same completed work yields the same ready set ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-reconciliation-example.ts)).
+- **Walk cyclic reference graphs with explicit bounds**, and traverse objects, ASTs and abstract trees without recursion ([walking](docs/agent-workflows.md#explore-context-and-references), [trees](#second-quickstart-walk-an-object)).
+
+Readiness for a 10,000-task graph in 60 to 200 ms on a laptop ([benchmarks](docs/reference.md#benchmark-results)). 3133 tests, 100% coverage, one runtime dependency.
+
+[Quickstart](#quickstart-find-the-next-agent-tasks) · [Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Public symbols](docs/api-index.md)
 
 ## Start with autonomous agents
 
@@ -25,8 +43,6 @@ CTT is an in-memory TypeScript/JavaScript engine: tree traversal (DFS/BFS, sync 
 | Fetch dependencies from a task catalog or service               | `resolvePrerequisite(id)`                                | [Discover prerequisites](docs/agent-workflows.md#discover-the-graph)                     |
 | Explore cyclic context, code references, or provenance          | Lazy typed vertex/edge/path walking with explicit bounds | [Graph exploration](docs/agent-workflows.md#explore-context-and-references)              |
 | Walk or transform a repository index, AST, or JSON object       | Iterative sync/async DFS, BFS, pruning, rewriting        | [Tree and object traversal](docs/reference.md#traverse-an-object)                        |
-
-CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool execution, claims, retries, timeouts, business outcomes, and durable storage. It can use SQLite, another database, or another storage provider without a CTT storage dependency.
 
 ## Install
 
@@ -48,11 +64,6 @@ Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime
 ## Quickstart: find the next agent tasks
 
 After `research` completes, `implement` and `testPlan` can run independently. `review` waits for both. Supply a flat task collection with explicit work dependencies:
-
-```text
-research ──┬── implement ──┬── review
-           └── testPlan ───┘
-```
 
 <!-- standalone -->
 

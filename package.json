@@ -1,7 +1,7 @@
 {
   "name": "configurable-tree-traversal",
   "version": "0.12.0",
-  "description": "Composable, type-safe tree and graph traversal, DAG coordination, and lazy graph walking for agent workflows.",
+  "description": "Give it a task graph and the results you have accepted; get the ready set and an explanation for every task still waiting. In-memory tree, DAG and graph traversal for TypeScript agent coordinators.",
   "main": "./dist/index.js",
   "scripts": {
     "test": "jest --runInBand",
@@ -43,7 +43,11 @@
     "dag",
     "graph walking",
     "agent",
-    "workflow"
+    "workflow",
+    "dependency graph",
+    "task scheduling",
+    "orchestration",
+    "typescript"
   ],
   "author": "Dany Fedorov",
   "license": "MIT",
