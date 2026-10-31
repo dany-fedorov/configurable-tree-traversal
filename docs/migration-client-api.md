@@ -1,6 +1,6 @@
 # Client API migration
 
-Apply the [latest API distinctions migration](migration-api-distinctions.md) for current presence, ownership and canonical naming contracts.
+Upgrade-only reading. Start from the [final upgrade checklist](migration-api-distinctions.md); this guide keeps the detailed tables and examples for one earlier stage and is not a step you apply in sequence. First-time readers should use the [README](../README.md) and [reference](reference.md) instead.
 
 [Documentation map](index.md) · [API reference](reference.md) · [Idiomatic API migration](migration-idiomatic-api.md)
 
@@ -68,7 +68,7 @@ Ordinary events, visitors, source contexts and query views expose canonical froz
 
 Tree contexts expose `resolvedTreeView`; graph contexts expose `resolvedGraphView`. For hidden synthetic DAG entry parents, `parentVertex` and `parentVertexRef` are both null; visible graph parents and tree parents remain non-null. Entry-slot depth, hint index and hint retain their discovery meanings. `OriginalGraphView`, `PreparedDag`, and `DagMilestoneSnapshot` remain distinct contracts.
 
-Configuration validates the complete candidate before replacing settings. Missing/undefined fields retain prior values under `exactOptionalPropertyTypes`, including phase and in-order fields. Null clears only explicitly nullable fields, such as sorters and walking predicates. Walking `limits` records replace the previous record. Existing runners retain their configuration snapshots. Builders, helpers, registration, execution, materializer and path-query option bags reject unsupported own keys before callbacks or mutation. Sources still accept inherited protocol methods and caller-owned state; task data and authored DAG declarations remain opaque/declaration inputs.
+Configuration validates the complete candidate before replacing settings. Missing/undefined fields retain prior values under `exactOptionalPropertyTypes`, including phase and in-order fields. Null clears only explicitly nullable fields, such as sorters and walking predicates. Walking construction accepts `limits`; `configure({ replaceLimits })` replaces the entire limits record. Existing runners retain their configuration snapshots. Builders, helpers, registration, execution, materializer and path-query option bags reject unsupported own keys before callbacks or mutation. Sources still accept inherited protocol methods and caller-owned state; task data and authored DAG declarations remain opaque/declaration inputs.
 
 <!-- standalone -->
 

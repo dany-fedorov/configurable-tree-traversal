@@ -18,6 +18,7 @@ This revision is not published; the package version remains 0.11.0 until a separ
 - Add lazy sync/async `GraphWalk`, `walkGraph`/`walkGraphAsync`, explicit resolver/inline-or-cached hydration, typed `fromVertex` endpoints and separate vertex/edge/path observations. Add catalog and DAG-declaration walking adapters, once/simplePaths/walks revisit policies, bounds and explicit completeness outcomes. Constructor `limits` and patch `replaceLimits` are distinct; predicate null clears, omitted/undefined retains.
 - Walking callbacks stay serial. Iterator return pauses; terminal close disposes open source iterators in reverse acquisition order. Failed close retains/rethrows the exact primary failure; overlapping async closes share a promise. Preserve coherent root/namespace/subpath CJS/ESM runtime and declaration identity.
 - Refresh the human quickstart and learning path, exact API contracts, public symbol index, executable examples and packed guide verification.
+- Release checklist: remove the "Status: unreleased" line under the README hook and the "published 0.11.0 does not include" sentence in Install when this revision is published.
 
 ## 0.11.0 — 2026-10-23
 

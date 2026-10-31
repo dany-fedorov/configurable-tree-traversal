@@ -1,6 +1,6 @@
 # Migrate to the clearer public API
 
-Apply the [latest API distinctions migration](migration-api-distinctions.md) for current presence, ownership and canonical naming contracts.
+Upgrade-only reading. Start from the [final upgrade checklist](migration-api-distinctions.md); this guide keeps the detailed tables and examples for one earlier stage and is not a step you apply in sequence. First-time readers should use the [README](../README.md) and [reference](reference.md) instead.
 
 [Documentation map](index.md) · [Reference](reference.md) · [Agent workflows](agent-workflows.md) · [Uniform API migration](migration-uniform-api.md)
 
