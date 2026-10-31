@@ -1,34 +1,48 @@
 # configurable-tree-traversal
 
-**Your agents sit idle because the coordinator cannot tell which tasks are ready. Give CTT the task graph and the results you have accepted; it returns the ready set and explains every task that is still waiting.**
+**One iterative engine for trees, dependency DAGs and cyclic graphs, in TypeScript. Built so an agent coordinator can ask "what can run next, and why not the rest?"**
+
+| Trees and objects                               | Task DAGs for agents                                  | Cyclic graphs                                |
+| ----------------------------------------------- | ----------------------------------------------------- | -------------------------------------------- |
+| DFS pre/in/post-order and BFS                   | Declare work and subtree-completion joins             | Walk shared and cyclic reference graphs      |
+| Plain objects, ASTs, or your own tree source    | Validate once; cycles reported with witness vertices  | Once, simple-paths or walks revisit policies |
+| Sync and async, no recursion                    | Get ready-work tickets; complete or fail them         | Explicit depth and budget bounds             |
+| Prune, pause, resume, iterate events            | Restart from accepted facts and get the same frontier | Typed vertices, edges and paths              |
+| Rewrite hints, delete subtrees, rewrite objects | Explain any blocker; revise the graph atomically      | Lazy sources with resolver hydration         |
+
+## Agent workflows
+
+Your coordinator owns the agents, the queue and the database. CTT owns the dependency logic: given the task graph and the results you have accepted so far, it returns the work that can start now and explains everything that cannot. Research unlocks implementation and test planning; review waits for both:
 
 ```text
 research ──┬── implement ──┬── review
            └── testPlan ───┘
 ```
 
-After `research` is accepted:
+| You report                       | CTT returns                    |
+| -------------------------------- | ------------------------------ |
+| `research` accepted              | ready: `implement`, `testPlan` |
+| `implement`, `testPlan` accepted | ready: `review`                |
+| `review` accepted                | finished                       |
+
+Ask why `review` is still waiting, at any point, without advancing anything:
 
 ```text
-ready: implement, testPlan
-ready: review
-finished
+review is waiting for work on: implement, testPlan
 ```
 
-Why is `review` still waiting, before anyone starts it? Two unmet dependencies on unfinished work:
+What that gives a coordinator loop, each backed by a runnable example:
 
-```text
-[ 'constraint', 'constraint', 'unfinishedWork', 'unfinishedWork' ]
-```
+- **Dispatch from tickets, not guesses.** Each `advance()` returns tickets for exactly the work whose dependencies are satisfied; you filter them through your own claims and capacity, dispatch, and report completion when you have accepted the result ([quickstart](#quickstart-find-the-next-agent-tasks)).
+- **Join on a whole subtree, not one task.** Packaging can wait for a composite compile task and both of its children, while compile itself waits only for the parent build's own work ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts)).
+- **Survive restarts and human waits.** Store accepted results in your own database; a fresh session seeded with them yields the same ready set, so a crash, a redeploy or an approval wait costs nothing to resume ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-reconciliation-example.ts)).
+- **Explain blockers without advancing.** Captured dependency snapshots answer "what is this waiting for" and "what depends on this", for dashboards and for agents deciding what to do next ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)).
+- **Change the plan mid-flight.** Revise the graph as an atomic batch, get a diff, and start a new session that carries forward only the results you still trust ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-revision-example.ts)).
+- **Reuse workflow shapes.** Define a fragment once, instantiate it with your own IDs, and compose instances with explicit dependencies ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-fragments-example.ts)).
+- **Discover lazily.** Resolve prerequisites from a task catalog or service as they are referenced, sync or async ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-prerequisite-resolution-example.ts)).
+- **Gather context from cyclic graphs.** Walk code references, citations or provenance with hard bounds, and know whether the walk was exhausted or limited ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/graph-walk-paths-example.ts)).
 
-No server, no database, no DSL. CTT is an in-memory TypeScript/JavaScript engine; your coordinator keeps dispatch, retries and storage, and can rebuild the same frontier from the facts it stored after any restart.
-
-- **Join on a whole subtree, not one task.** Review starts only after a composite and all of its children complete ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-completion-dependencies-example.ts)).
-- **Explain blockers without advancing.** Captured dependency snapshots answer "what is this waiting for" and "what depends on this" ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts)).
-- **Restart from accepted facts.** A fresh session seeded with the same completed work yields the same ready set ([example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-reconciliation-example.ts)).
-- **Walk cyclic reference graphs with explicit bounds**, and traverse objects, ASTs and abstract trees without recursion ([walking](docs/agent-workflows.md#explore-context-and-references), [trees](#second-quickstart-walk-an-object)).
-
-Readiness for a 10,000-task graph in 60 to 200 ms on a laptop ([benchmarks](docs/reference.md#benchmark-results)). 3133 tests, 100% coverage, one runtime dependency.
+No server, no database, no DSL. Readiness for a 10,000-task graph in 60 to 200 ms on a laptop ([benchmarks](docs/reference.md#benchmark-results)). 3133 tests, 100% coverage, one runtime dependency.
 
 [Quickstart](#quickstart-find-the-next-agent-tasks) · [Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Public symbols](docs/api-index.md)
 
@@ -112,7 +126,7 @@ ready: review
 finished
 ```
 
-Ask why a task is still waiting without advancing. On the same graph, before any ticket is completed, review is blocked by two work constraints and two unfinished prerequisites:
+Ask why a task is still waiting without advancing. On the same graph, after `research` is accepted and before any ticket is completed, review is blocked by its two work dependencies:
 
 <!-- standalone -->
 
@@ -141,16 +155,19 @@ session.advance();
 const explanation = session
   .inspectMilestones()
   .explain({ vertexId: 'review', milestone: 'work' });
-if (explanation.kind === 'live') {
-  console.log('satisfied:', explanation.satisfied);
-  console.log(explanation.blockers.map((blocker) => blocker.kind));
+if (explanation.kind === 'live' && !explanation.satisfied) {
+  const waitsFor = explanation.blockers.flatMap((blocker) =>
+    blocker.kind === 'constraint' ? [blocker.prerequisite.vertexId] : [],
+  );
+  console.log('review is waiting for work on:', waitsFor.join(', '));
 }
 ```
 
 ```text
-satisfied: false
-[ 'constraint', 'constraint', 'unfinishedWork', 'unfinishedWork' ]
+review is waiting for work on: implement, testPlan
 ```
+
+Each `constraint` blocker is an original dependency edge with the status of both ends; `unfinishedWork` blockers name the prerequisites whose work is still open. The [inspection example](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/examples/dag-inspection-example.ts) covers transitive dependents and seeded parents.
 
 **Materialize** turns the collection and its explicit prerequisites into a discovery input. **Prepare** discovers and validates the graph, then retains reusable topology; independent sessions reuse those facts without calling the original source again.
 
