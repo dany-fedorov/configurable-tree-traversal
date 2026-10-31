@@ -1,8 +1,0 @@
-{
-  "checkedAtUtc": "2026-10-31T15:20:45.836767+00:00",
-  "version": "0.11.0",
-  "tarballUrl": "https://registry.npmjs.org/configurable-tree-traversal/-/configurable-tree-traversal-0.11.0.tgz",
-  "sha256": "121125e2a4fd6469101b1435a33738abd85dbe00085920a82cf87f854ffed4ed",
-  "retrieval": "npm view; npm pack pinned version with --ignore-scripts",
-  "extracted": "only regular dist files and package.json; runtime dependency resolved from existing local node_modules"
-}

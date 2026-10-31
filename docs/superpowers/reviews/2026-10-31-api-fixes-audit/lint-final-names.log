@@ -1,4 +1,0 @@
-
-> configurable-tree-traversal@0.11.0 lint
-> eslint src tests examples --ext .ts
-

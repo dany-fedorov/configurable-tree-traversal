@@ -59,6 +59,9 @@ Start with the workflow guide for integration; use this page for exact lifecycle
 - [API compatibility](#api-compatibility)
   - [Supported imports](#supported-imports)
 - [Development](#development)
+  - [Benchmark results](#benchmark-results)
+    - [Discovery and summary: published 0.9.0 versus the optimized runtime](#discovery-and-summary-published-090-versus-the-optimized-runtime)
+    - [Lifecycle: settlement, resume and reconstruction](#lifecycle-settlement-resume-and-reconstruction)
 
 ## DAG traversal
 
@@ -2371,9 +2374,67 @@ The tests cover deterministic generated trees and DAGs, mutations, dependencies,
 
 The packed consumer check runs CommonJS, native ESM, and strict TypeScript imports from a temporary extracted tarball, using installed runtime dependencies. It checks classic Node and Node16 TypeScript resolution, mixed `.mts`/`.cts` consumers, all supported entry points and actual denial of private paths, native ESM resolution, and cross-loader identity and DAG lifecycle behavior. It uses `tar` and runs in CI on Linux. Node 22 and 24 run the full check; a separate Bun 1.4.4 lane runs the packed consumers and facade/benchmark correctness tests after an npm build. Jest and source coverage remain Node checks. No package is published by the verification commands. The benchmark compares deep and wide trees with both traversal strategies; timings depend on the machine and are not performance guarantees.
 
-The DAG inspector benchmark emits JSON with the loaded artifact/version, machine details, raw samples, and warmup-excluded medians/ranges. It covers five dependency shapes with empty and prerequisite-closed prefix seeds, full eager discovery, deferral admission, and repeated summaries. For registry-package reproduction, exact timing boundaries, and the limited independent Kahn baseline, see [the DAG baseline](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/docs/performance/2026-10-22-dag-baseline.md). Run `npm run build && npm run test:benchmark` for focused fixture, frontier, purity, and CLI checks.
+The DAG inspector benchmark emits JSON with the loaded artifact/version, machine details, raw samples, and warmup-excluded medians/ranges. It covers five dependency shapes with empty and prerequisite-closed prefix seeds, full eager discovery, deferral admission, and repeated summaries. Run `npm run build && npm run test:benchmark` for focused fixture, frontier, purity, and CLI checks; the benchmark CLI writes its JSON report locally, and the recorded results are summarized under [benchmark results](#benchmark-results).
 
-The lifecycle benchmark measures sync/async and eager/lazy runners separately, including bounded settlement batches, resumed runs, reconstruction from the same accepted completion facts, and summaries. Its async visitor awaits a resolved Promise, measuring callback scheduling overhead. JSON records exact settlement counts, partial lazy discovery, artifact tree hashes, raw ticks, and timing boundaries. Counts are bounded positive integers; `--library-path` selects a package directory or entry. See [the lifecycle measurements](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/docs/performance/2026-10-22-dag-lifecycle.md) for results and limitations. Both benchmark correctness suites run after the build in `npm run check`.
+The lifecycle benchmark measures sync/async and eager/lazy runners separately, including bounded settlement batches, resumed runs, reconstruction from the same accepted completion facts, and summaries. Its async visitor awaits a resolved Promise, measuring callback scheduling overhead. JSON records exact settlement counts, partial lazy discovery, artifact tree hashes, raw ticks, and timing boundaries. Counts are bounded positive integers; `--library-path` selects a package directory or entry. Both benchmark correctness suites run after the build in `npm run check`; timings depend on the machine and are not performance guarantees.
+
+### Benchmark results
+
+Recorded on 2026-10-22 with Node v24.20.0 (V8 13.6.233.17), Linux x64, Intel Core i7-12800HX (24 logical CPUs). Milliseconds, median over three samples after one excluded warmup; min–max in parentheses. Fixtures are deterministic: five prerequisite shapes (chain, independent, diamond, sparse, bounded-dense with fan-in 32), each with empty completed work or the prerequisite-closed first floor(V/2) IDs seeded. "Run" is `run()` from entry to the halted deferred frontier, including setup, eager discovery, validation and deferral admission; "summary/call" is a batch of ten `summary()` snapshots divided by ten, including allocation and possible GC. Assertions are outside timed regions. These are wall-clock observations on one shared machine and one Node version; they describe observed scaling, not asymptotic bounds, production throughput or speed guarantees. Reproduce with `npm run benchmark:dag -- --vertices 1000 --samples 3 --summary-iterations 10` and `npm run benchmark:dag:lifecycle -- --vertices 1000`; `--library-path` selects another package directory or entry.
+
+#### Discovery and summary: published 0.9.0 versus the optimized runtime
+
+The optimized runtime (the current source) removed repeated parent-snapshot copies and full discovery scans and reuses successful topology validation for eager summaries. Before: a preserved build of the published 0.9.0 runtime; after: the optimized candidate measured with the same harness.
+
+|     V | Shape         | Completed seeds |                   Before run |                 After run |     Before summary/call |   After summary/call |
+| ----: | :------------ | --------------: | ---------------------------: | ------------------------: | ----------------------: | -------------------: |
+|  1000 | chain         |               0 |       43.418 (39.901–44.852) |      7.791 (6.320–10.579) |     1.045 (0.924–1.060) |  0.313 (0.278–0.380) |
+|  1000 | chain         |             500 |       35.001 (33.270–36.568) |       6.340 (5.649–7.372) |     0.914 (0.832–0.963) |  0.267 (0.188–0.371) |
+|  1000 | independent   |               0 |       37.941 (34.079–55.097) |      8.413 (5.028–10.272) |     1.030 (0.776–1.361) |  0.298 (0.170–0.308) |
+|  1000 | independent   |             500 |       31.275 (31.030–31.890) |       5.608 (4.446–6.280) |     0.643 (0.617–0.769) |  0.174 (0.165–0.311) |
+|  1000 | diamond       |               0 |       30.609 (30.239–32.280) |       3.689 (3.553–5.053) |     0.834 (0.825–0.932) |  0.183 (0.150–0.184) |
+|  1000 | diamond       |             500 |       32.846 (32.109–33.792) |       4.058 (3.983–7.458) |     0.815 (0.813–1.023) |  0.178 (0.174–0.350) |
+|  1000 | sparse        |               0 |       30.669 (30.483–31.163) |       6.189 (3.408–6.400) |     0.904 (0.878–0.962) |  0.203 (0.149–0.357) |
+|  1000 | sparse        |             500 |       35.659 (34.877–40.281) |       4.669 (4.323–5.961) |     0.954 (0.871–1.048) |  0.171 (0.169–0.178) |
+|  1000 | bounded-dense |               0 |       41.158 (40.895–41.352) |    12.092 (11.571–12.728) |     3.420 (3.411–3.476) |  0.427 (0.396–0.644) |
+|  1000 | bounded-dense |             500 |       40.415 (40.414–42.616) |    11.648 (10.075–12.024) |     3.270 (3.224–3.359) |  0.325 (0.256–0.615) |
+| 10000 | chain         |               0 | 2587.974 (2546.761–3080.944) |    85.553 (72.501–87.988) |  15.931 (14.070–16.118) |  3.473 (2.796–4.655) |
+| 10000 | chain         |            5000 | 2712.691 (2685.970–2827.205) |    82.831 (70.526–90.733) |  15.172 (13.120–15.490) |  3.422 (3.414–3.452) |
+| 10000 | independent   |               0 | 2865.517 (2688.505–2940.734) |    70.237 (69.693–73.445) |  11.225 (11.034–11.536) |  3.464 (3.411–3.536) |
+| 10000 | independent   |            5000 | 3083.110 (2876.369–4731.455) |    67.968 (65.308–78.480) |  12.543 (11.813–18.177) |  3.193 (3.174–3.400) |
+| 10000 | diamond       |               0 | 3583.880 (3270.027–4022.159) |    70.018 (57.208–83.905) |  25.954 (23.073–30.677) |  2.772 (2.670–3.719) |
+| 10000 | diamond       |            5000 | 3294.820 (2874.482–3446.038) |    79.667 (67.558–81.375) |  18.809 (16.195–20.322) |  2.721 (2.658–3.086) |
+| 10000 | sparse        |               0 | 3311.562 (3071.829–3546.533) |    59.479 (54.076–64.064) |  21.289 (17.946–24.109) |  2.832 (2.772–2.938) |
+| 10000 | sparse        |            5000 | 2781.055 (2758.726–3052.574) | 127.323 (116.724–175.553) |  17.349 (15.451–18.532) |  5.449 (4.328–5.687) |
+| 10000 | bounded-dense |               0 | 3954.341 (3006.220–3993.956) | 195.158 (176.634–262.397) | 58.762 (49.330–109.630) | 8.698 (7.447–19.022) |
+| 10000 | bounded-dense |            5000 | 2824.632 (2712.519–2862.661) | 200.443 (178.291–285.242) |  45.661 (43.844–46.225) |  7.107 (6.354–7.146) |
+
+At 10,000 vertices, matched median runs fell from 2,587.974–3,954.341 ms to 59.479–200.443 ms and summaries from 11.225–58.762 ms/call to 2.721–8.698 ms/call. In the 0.9.0 baseline, a tenfold increase in V raised median run time 57.5–78.5 times and the interval before the first ready callback was 98.3–99.5% of the run; CPU profiles attributed that time to per-child vertex snapshot copies, `getGraphVertex`, and full discovery-completion scans, none of which remain among the top twenty self-time frames after the change (profiled wall time 4209.287 ms before, 142.829 ms after, for 10k independent discovery with empty seeds). An independent Kahn indexing/frontier pass over the same fixtures took 0.180–1.240 ms at 1,000 and 2.694–15.942 ms at 10,000 vertices in the baseline; it omits resolver, lifecycle, identity and validation work, so its ratio to CTT is not a speedup claim.
+
+#### Lifecycle: settlement, resume and reconstruction
+
+Measured on the optimized runtime with `scripts/benchmark-dag-lifecycle.cjs` (five ticks, batch 64, async concurrency 4). Each tick settles at most 64 deferred IDs, resumes the retained runner, and separately reconstructs a fresh runner from exactly the same accepted completion facts. The async visitor awaits `Promise.resolve()` and defers, so async timings measure callback scheduling overhead, not I/O. Empty-seed medians; settlement, resume, reconstruction and summary columns refer to tick one. Independent tick-one batches accept 64 IDs while chain and bounded-dense batches accept one, so settlement costs are not normalized across shapes; dense lazy boundaries remain partial while independent boundaries are complete.
+
+|    V | Shape         | Runner | Discovery | Initial run | Settle batch | Resume | Reconstruct total | Summary/call |
+| ---: | :------------ | :----- | :-------- | ----------: | -----------: | -----: | ----------------: | -----------: |
+|  100 | independent   | sync   | eager     |       0.844 |        0.061 |  0.224 |             0.598 |        0.020 |
+|  100 | independent   | sync   | lazy      |       0.487 |        0.059 |  0.157 |             0.581 |        0.020 |
+|  100 | independent   | async  | eager     |       1.945 |        0.065 |  0.318 |             1.826 |        0.016 |
+|  100 | independent   | async  | lazy      |       1.610 |        0.062 |  0.272 |             1.802 |        0.018 |
+|  100 | bounded-dense | sync   | eager     |       1.165 |        0.012 |  0.097 |             1.151 |        0.036 |
+|  100 | bounded-dense | sync   | lazy      |       1.079 |        0.018 |  0.483 |             1.241 |        0.378 |
+|  100 | bounded-dense | async  | eager     |       2.127 |        0.015 |  0.160 |             2.154 |        0.037 |
+|  100 | bounded-dense | async  | lazy      |       2.631 |        0.013 |  0.442 |             2.264 |        0.320 |
+| 1000 | independent   | sync   | eager     |       5.887 |        0.083 |  0.683 |             5.911 |        0.253 |
+| 1000 | independent   | sync   | lazy      |       5.283 |        0.070 |  0.672 |             6.207 |        0.264 |
+| 1000 | independent   | async  | eager     |      63.727 |        0.072 |  0.879 |           122.110 |        0.280 |
+| 1000 | independent   | async  | lazy      |     116.321 |        0.075 |  0.970 |            92.422 |        0.225 |
+| 1000 | bounded-dense | sync   | eager     |      11.199 |        0.018 |  0.981 |            13.007 |        0.492 |
+| 1000 | bounded-dense | sync   | lazy      |      13.625 |        0.022 |  4.525 |            11.256 |        4.045 |
+| 1000 | bounded-dense | async  | eager     |      91.673 |        0.023 |  1.087 |            88.064 |        0.523 |
+| 1000 | bounded-dense | async  | lazy      |      88.262 |        0.024 |  3.889 |            92.305 |        3.595 |
+
+At 1,000 vertices, empty-seed chain tick-one resume medians were 0.429/1.417 ms (sync eager/lazy) and 0.789/1.816 ms (async eager/lazy), while reconstruction totals were 6.474/7.174 ms and 92.854/140.609 ms: reconstruction repeats discovery and callback scheduling, so a retained resume is cheaper than rebuilding from facts, and the async overhead is callback scheduling at concurrency four. Tiny settlement timings are especially noisy. The harness measured the pre-rename candidate (`ON_READY`/`DEFER_READY`); the current scripts use the canonical `ON_WORK_READY`/`DEFER_WORK_COMPLETION` names with the same fixtures and timing boundaries. Neither benchmark measures business work, external I/O, cancellation, serialization or persistence.
 
 Retries, durable checkpoints, and callback cancellation are outside this release. User vertex data is not frozen. DAG execution requires valid structural and milestone constraints: preparation, composition and revision helpers return structured `invalid` results, while direct runners throw engine errors (see [validation results and failures](#validation-results-and-failures)); general graph walking supports cycles under its revisit policy.
 

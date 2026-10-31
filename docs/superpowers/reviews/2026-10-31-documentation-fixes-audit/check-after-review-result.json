@@ -1,7 +1,0 @@
-{
-  "command": "npm run check",
-  "exitCode": 0,
-  "finishedAtUtc": "2026-10-31T16:17:03.151384+00:00",
-  "elapsedSeconds": 268.17,
-  "log": "check-after-review.log"
-}

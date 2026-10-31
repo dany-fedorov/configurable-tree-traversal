@@ -72,6 +72,5 @@ Start with the [final upgrade checklist](migration-api-distinctions.md). It list
 
 - [Changelog](../CHANGELOG.md): changes and release history.
 - [Testing](testing.md): commands, coverage requirements, package/runtime checks.
-- [Performance reports](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/performance): measured artifacts and explicit limits; not universal speed guarantees.
-- [Agent API roadmap](https://github.com/dany-fedorov/configurable-tree-traversal/blob/main/docs/superpowers/specs/2026-10-25-agent-api-roadmap.md): ten proposals; the current reference documents the implemented collection, preparation, coordination, fragment composition, validated revisions, dependency inspection, event and visitor APIs. General graph walking (9) is implemented; items 5 and 10 remain future work.
-- [Research](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/research) and [design plans](https://github.com/dany-fedorov/configurable-tree-traversal/tree/main/docs/superpowers): decision history. Some proposals are superseded or describe downstream work that CTT does not implement. Use current guides and source/tests to establish behavior.
+- [Benchmark results](reference.md#benchmark-results): recorded discovery, summary and lifecycle timings with their limits; `npm run benchmark:dag` and `npm run benchmark:dag:lifecycle` reproduce them locally.
+- Decision history lives in [git history](https://github.com/dany-fedorov/configurable-tree-traversal/commits/main) and merged pull requests; the repository keeps no research notes, design plans or review packets. Use current guides and source/tests to establish behavior.

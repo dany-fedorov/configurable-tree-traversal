@@ -1,9 +1,0 @@
-isTraversalLeaf all omitted: false; resolved children: 0
-isTraversalLeaf after skip: true; resolved children: 1
-Vertex.clone shares original hint collection
-sortChildrenHints replaces expansion membership
-createDagWorkSession wrappers share runner progress but reject each other's tickets
-omittedWorkDependencies none: live child's undeclared dependsOnWork = []
-omittedWorkDependencies discoveryParentWork: live child's undeclared dependsOnWork = ["r"]
-retained null root and deleted root both return null
-All Astra public runtime assertions passed.

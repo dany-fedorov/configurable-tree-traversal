@@ -1,6 +1,0 @@
-scripts/build-api-index.cjs 141ms
-scripts/build-api-index.test.cjs 26ms
-docs/reference.md 1365ms
-docs/agent-workflows.md 161ms
-docs/index.md 36ms
-examples/quickstart-example.ts 7ms

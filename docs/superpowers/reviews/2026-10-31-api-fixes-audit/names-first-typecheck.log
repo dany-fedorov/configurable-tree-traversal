@@ -1,6 +1,0 @@
-
-> configurable-tree-traversal@0.11.0 typecheck
-> tsc --noEmit
-
-tests/api-clarity-values.typecheck.ts(1,15): error TS2300: Duplicate identifier 'VertexHandle'.
-tests/api-clarity-values.typecheck.ts(6,3): error TS2300: Duplicate identifier 'VertexHandle'.
