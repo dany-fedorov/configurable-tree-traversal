@@ -12,8 +12,6 @@ finished
 
 CTT is an in-memory TypeScript/JavaScript engine: tree traversal (DFS/BFS, sync and async), DAG work scheduling with explicit work and completion joins, and lazy walking of cyclic graphs with explicit bounds. It never runs your agents, retries, or stores anything; your coordinator does. Restart it from the facts you accepted and it recomputes the same frontier.
 
-**Status:** unreleased. The examples below need a source checkout or a local `npm pack` (see [Install](#install)). npm `0.11.0` is the previous API.
-
 [Documentation map](docs/index.md) · [Agent workflow guide](docs/agent-workflows.md) · [API reference](docs/reference.md) · [Public symbols](docs/api-index.md)
 
 ## Start with autonomous agents
@@ -32,16 +30,18 @@ CTT is an in-memory traversal engine. The host owns workflow meaning, agent/tool
 
 ## Install
 
-The published **0.11.0** package does not include the preparation and session APIs used in this README. For its released API, use [0.11.0 on npm](https://www.npmjs.com/package/configurable-tree-traversal/v/0.11.0).
+```sh
+npm install configurable-tree-traversal
+```
 
-To try the quickstart from **this source checkout**:
+Upgrading from 0.11.0? The API changed; follow the [upgrade checklist](docs/migration-api-distinctions.md).
+
+To run the examples from a source checkout instead:
 
 ```sh
 npm ci
 npm run tsfile -- examples/quickstart-example.ts
 ```
-
-The example below uses package imports for consumers of this revision. To use it in another project before release, run `npm run build` and `npm pack --ignore-scripts` in this checkout, then install the resulting local `.tgz` in that project. This builds a local package; it does not publish it. Installing `configurable-tree-traversal@0.11.0` from the registry provides the earlier API.
 
 Requires Node **22.12.0+**, or Bun **1.4.4**. CI covers the minimum Node runtime, current Node 22/24, and Bun. CI checks TypeScript consumers with the locked 4.9.5 compiler. The packed consumers also compile under 4.7.4 when `CTT_TYPESCRIPT_COMPILER` points at that compiler (see the [testing guide](docs/testing.md)).
 

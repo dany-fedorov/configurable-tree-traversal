@@ -393,7 +393,7 @@ test('the header promises an example only where one exists and names the current
   );
   assert.match(
     text,
-    /describe the current source checkout; see \[install\]\(\.\.\/README\.md#install\) for how to run it\./,
+    /describe `configurable-tree-traversal` 0\.12\.0; see \[install\]\(\.\.\/README\.md#install\)\./,
   );
   assert.doesNotMatch(text, /unreleased source checkout/);
 });

@@ -4,7 +4,7 @@
 
 CTT has three source families: tree sources (objects and abstract trees), DAG sources (work with dependencies), and walking sources (cyclic information graphs). Start with the [README quickstart](../README.md#quickstart-find-the-next-agent-tasks) to find ready tasks, continue with the [agent workflow guide](agent-workflows.md) to connect readiness to your executor and storage, and use the [reference](reference.md) for exact contracts. Pick a task below; each row ends when you have what the right column names.
 
-[Public symbol lookup](api-index.md) maps exported names to signatures, supported imports, owning contracts and examples. These guides target the current source checkout; follow the [README install instructions](../README.md#install) before running its APIs.
+[Public symbol lookup](api-index.md) maps exported names to signatures, supported imports, owning contracts and examples. These guides describe `configurable-tree-traversal` 0.12.0; see the [README install instructions](../README.md#install).
 
 ## Read by task
 

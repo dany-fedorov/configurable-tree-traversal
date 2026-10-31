@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-This revision is not published; the package version remains 0.11.0 until a separately authorized release. The current README quickstart targets this source checkout. Start upgrades with the [final API checklist](docs/migration-api-distinctions.md).
+## 0.12.0 — 2026-10-31
+
+Breaking release. Start upgrades from 0.11.0 with the [final API checklist](docs/migration-api-distinctions.md).
 
 - Add collection/roots DAG input materializers, reusable `prepareDag`/`prepareDagAsync` topology and independent `createWorkSession`/`createAsyncWorkSession` factories. Bind an existing externally settled runner with `bindDagWorkSession`/`bindAsyncDagWorkSession`. Dispatch from local `workTickets`; complete accepted work or fail the whole traversal with `failTraversal`.
 - Add faithful `DagDefinition` values, `prepareDagDefinition`, fragments, explicit `mapDagFragmentIds`, composition with separate structural links and milestone dependencies, atomic `reviseDag` and shallow `diffDagDefinitions`. Prepared `liveVertexSummaries` is a lossy convenience projection; use `definition` for reconstruction. Old sessions, tickets and admitted callbacks stay local; host-selected completion facts do not migrate automatically.
@@ -17,8 +19,7 @@ This revision is not published; the package version remains 0.11.0 until a separ
 - Make rewrite output `unknown` by default; infer output through `convertRootValue` or assert it with `rewriteObjectAs`. Use `outputResultAtReturn` / FINISHED-only cached `getOutputResult` with present/absent tags, preserving present null/undefined. Use typed object patches, explicit array index/collision policies and `resolveChildHook`; the helper owns its source.
 - Add lazy sync/async `GraphWalk`, `walkGraph`/`walkGraphAsync`, explicit resolver/inline-or-cached hydration, typed `fromVertex` endpoints and separate vertex/edge/path observations. Add catalog and DAG-declaration walking adapters, once/simplePaths/walks revisit policies, bounds and explicit completeness outcomes. Constructor `limits` and patch `replaceLimits` are distinct; predicate null clears, omitted/undefined retains.
 - Walking callbacks stay serial. Iterator return pauses; terminal close disposes open source iterators in reverse acquisition order. Failed close retains/rethrows the exact primary failure; overlapping async closes share a promise. Preserve coherent root/namespace/subpath CJS/ESM runtime and declaration identity.
-- Refresh the human quickstart and learning path, exact API contracts, public symbol index, executable examples and packed guide verification.
-- Release checklist: remove the "Status: unreleased" line under the README hook and the "published 0.11.0 does not include" sentence in Install when this revision is published.
+- Refresh the human quickstart and learning path, exact API contracts, public symbol index, executable examples and packed guide verification. Remove historical plans, research and review packets from the repository and record benchmark results in the reference.
 
 ## 0.11.0 — 2026-10-23
 

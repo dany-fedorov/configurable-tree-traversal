@@ -2,7 +2,7 @@
 
 [Documentation map](index.md) · [Behavior reference](reference.md) · [Upgrade checklist](migration-api-distinctions.md)
 
-These declarations describe the current source checkout; see [install](../README.md#install) for how to run it. Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.
+These declarations describe `configurable-tree-traversal` 0.12.0; see [install](../README.md#install). Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.
 
 Generated from the supported declaration census: **271 public symbols**, **540 export bindings**, **9 runtime entry points**. Run `npm run docs:api` to regenerate; package verification rejects stale output.
 
