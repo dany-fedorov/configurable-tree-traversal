@@ -1,4 +1,4 @@
-import { inspectDagMilestones, DagTraversalStallError } from '../src';
+import { captureDagMilestoneSnapshot, DagTraversalStallError } from '../src';
 import type * as dag from '../src/traversals/dag-traversal';
 import * as core from '../src/core';
 import type {
@@ -7,14 +7,18 @@ import type {
   DagMilestoneQueryOptions,
   AsyncDagDiscoverySource,
   DagDiscoverySource,
-  TreeSource,
+  TreeDiscoverySource,
 } from '../src';
 import {
-  AsyncDagTraversal,
-  DagTraversal,
-  materializeDagInputFromRecords,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
+  materializeMultiEntryDagInputFromRecordCatalog,
 } from '../src';
-import type { DagVertexProgress, DagSummary, VertexTypes } from '../src';
+import type {
+  DagVertexProgress,
+  DagProgressSnapshot,
+  VertexDataAndChildHintTypes,
+} from '../src';
 import type {
   DagInspectionState,
   GraphStoreContract,
@@ -25,31 +29,38 @@ const records: Array<{ id: ID; work: ID[] }> = [
   { id: 'review', work: ['work'] },
   { id: 'work', work: [] },
 ];
-const source = materializeDagInputFromRecords(records, {
-  id: (item) => item.id,
-  dependsOnWork: (item) => item.work,
+const source = materializeMultiEntryDagInputFromRecordCatalog(records, {
+  selectVertexId: (item) => item.id,
+  selectWorkPrerequisiteVertexIds: (item) => item.work,
 });
-const sync = new DagTraversal(source).createRunner();
-const asyncRunner = new AsyncDagTraversal(source).createRunner();
-const summaries: DagSummary<ID>[] = [sync.summary(), asyncRunner.summary()];
+const sync = new DagTraversalBuilder(
+  source,
+).createIndependentRunnerFromCurrentOptions();
+const asyncRunner = new AsyncDagTraversalBuilder(
+  source,
+).createIndependentRunnerFromCurrentOptions();
+const summaries: DagProgressSnapshot<ID>[] = [
+  sync.captureProgressSnapshot(),
+  asyncRunner.captureProgressSnapshot(),
+];
 const waits: readonly ID[] =
-  summaries[0]!.vertices.get('review')!.unmetWorkPrerequisiteIds;
+  summaries[0]!.progressByVertexId.get('review')!.unmetWorkMilestoneVertexIds;
 // Manually constructed progress records include both milestone wait arrays.
 const manual: DagVertexProgress<ID> = {
   vertexId: 'review',
-  work: 'pending',
-  subgraphComplete: false,
-  unmetPrerequisiteIds: ['work'],
-  unmetWorkPrerequisiteIds: ['work'],
-  unmetSubgraphPrerequisiteIds: [],
+  workState: 'waitingForPrerequisiteMilestones',
+  subgraphCompletionCommitted: false,
+  unmetPrerequisiteVertexIds: ['work'],
+  unmetWorkMilestoneVertexIds: ['work'],
+  unmetSubgraphCompletionMilestoneVertexIds: [],
 };
 const wrong: DagVertexProgress<ID> = {
   ...manual,
   // @ts-expect-error Exact W waits preserve the source ID domain.
-  unmetWorkPrerequisiteIds: ['other'],
+  unmetWorkMilestoneVertexIds: ['other'],
 };
 // @ts-expect-error Public exact wait arrays are readonly.
-manual.unmetWorkPrerequisiteIds.push('work');
+manual.unmetWorkMilestoneVertexIds.push('work');
 
 declare const state: DagInspectionState<ID>;
 // @ts-expect-error Internal identity collections expose no mutators.
@@ -59,54 +70,83 @@ state.schedulingStates[0]!.remainingChildren = 2;
 // @ts-expect-error Internal observations preserve the ID domain.
 const wrongId: 'other' = state.identityStates[0]!.vertexId;
 
-declare const store: GraphStoreContract<VertexTypes<string, string>, ID>;
-const identity: ID = store.inspectIdentityStates()[0]!.vertexId;
-void [waits, wrong, wrongId, identity];
+declare const store: GraphStoreContract<
+  VertexDataAndChildHintTypes<string, string>,
+  ID
+>;
+const omittedVertexIdentity: ID = store.inspectIdentityStates()[0]!.vertexId;
+void [waits, wrong, wrongId, omittedVertexIdentity];
 
 const inspections: DagMilestoneSnapshot<ID>[] = [
-  inspectDagMilestones(sync),
-  inspectDagMilestones(asyncRunner),
-  sync.inspectMilestones(),
-  asyncRunner.inspectMilestones(),
+  captureDagMilestoneSnapshot(sync),
+  captureDagMilestoneSnapshot(asyncRunner),
+  sync.captureMilestoneSnapshot(),
+  asyncRunner.captureMilestoneSnapshot(),
 ];
-const navigation: DagMilestoneQueryResult<ID> = inspections[0]!.prerequisitesOf(
-  { vertexId: 'review', milestone: 'work' },
-  { transitive: true },
+const navigation: DagMilestoneQueryResult<ID> =
+  inspections[0]!.queryOriginalPrerequisiteMilestonesOf(
+    { vertexId: 'review', milestone: 'workCompletion' },
+    { includeTransitiveMilestones: true },
+  );
+const options: DagMilestoneQueryOptions = {
+  includeTransitiveMilestones: false,
+};
+const milestoneId: ID = navigation.reachedMilestones[0]!.vertexId;
+const edgeId: ID =
+  navigation.originalMilestoneConstraints[0]!.prerequisiteMilestone.vertexId;
+inspections[0]!.queryOriginalDependentMilestonesOf(
+  // @ts-expect-error Navigation retains the declared source ID domain.
+  { vertexId: 'other', milestone: 'workCompletion' },
+  options,
 );
-const options: DagMilestoneQueryOptions = { transitive: false };
-const milestoneId: ID = navigation.milestones[0]!.vertexId;
-const edgeId: ID = navigation.edges[0]!.prerequisite.vertexId;
-// @ts-expect-error Navigation retains the declared source ID domain.
-inspections[0]!.dependentsOf({ vertexId: 'other', milestone: 'work' }, options);
-// @ts-expect-error Milestone kinds are qualified, not arbitrary strings.
-inspections[0]!.prerequisitesOf({ vertexId: 'work', milestone: 'ready' });
+inspections[0]!.queryOriginalPrerequisiteMilestonesOf({
+  vertexId: 'work',
+  // @ts-expect-error Milestone kinds are qualified, not arbitrary strings.
+  milestone: 'ready',
+});
 // @ts-expect-error Public result arrays expose no mutators.
-navigation.milestones.push({ vertexId: 'work', milestone: 'work' });
+navigation.reachedMilestones.push({
+  vertexId: 'work',
+  milestone: 'workCompletion',
+});
 // @ts-expect-error Inspection results preserve exact IDs instead of unknown.
 const narrowed: 'other' = milestoneId;
 declare const nativeAsyncSource: AsyncDagDiscoverySource<
-  VertexTypes<string, string>,
-  VertexTypes<string, string>,
+  VertexDataAndChildHintTypes<string, string>,
+  VertexDataAndChildHintTypes<string, string>,
   ID
 >;
-const nativeAsyncInspection: DagMilestoneSnapshot<ID> = inspectDagMilestones(
-  new AsyncDagTraversal({ traversableGraph: nativeAsyncSource }).createRunner(),
-);
-// @ts-expect-error Native async sources also retain their declared ID domain.
-nativeAsyncInspection.prerequisitesOf({ vertexId: 'other', milestone: 'work' });
+const nativeAsyncInspection: DagMilestoneSnapshot<ID> =
+  captureDagMilestoneSnapshot(
+    new AsyncDagTraversalBuilder({
+      dagDiscoverySource: nativeAsyncSource,
+    }).createIndependentRunnerFromCurrentOptions(),
+  );
+nativeAsyncInspection.queryOriginalPrerequisiteMilestonesOf({
+  // @ts-expect-error Native async sources also retain their declared ID domain.
+  vertexId: 'other',
+  milestone: 'workCompletion',
+});
 declare const numericSource: DagDiscoverySource<
-  VertexTypes<string, string>,
-  VertexTypes<string, string>,
+  VertexDataAndChildHintTypes<string, string>,
+  VertexDataAndChildHintTypes<string, string>,
   number
 >;
 // @ts-expect-error A different declared domain cannot substitute for this inspection.
-const anotherDomain: DagMilestoneSnapshot<ID> = inspectDagMilestones(
-  new DagTraversal({ traversableGraph: numericSource }).createRunner(),
+const anotherDomain: DagMilestoneSnapshot<ID> = captureDagMilestoneSnapshot(
+  new DagTraversalBuilder({
+    dagDiscoverySource: numericSource,
+  }).createIndependentRunnerFromCurrentOptions(),
 );
-declare const treeSource: TreeSource<VertexTypes<string, string>>;
-const treeInspection: DagMilestoneSnapshot<unknown> = inspectDagMilestones(
-  new DagTraversal({ traversableTree: treeSource }).createRunner(),
-);
+declare const treeSource: TreeDiscoverySource<
+  VertexDataAndChildHintTypes<string, string>
+>;
+const treeInspection: DagMilestoneSnapshot<unknown> =
+  captureDagMilestoneSnapshot(
+    new DagTraversalBuilder({
+      treeDiscoverySource: treeSource,
+    }).createIndependentRunnerFromCurrentOptions(),
+  );
 void [
   navigation,
   options,
@@ -117,35 +157,43 @@ void [
   treeInspection,
 ];
 
-const explanation = inspections[0]!.explain({
+const explanation = inspections[0]!.explainMilestone({
   vertexId: 'review',
-  milestone: 'work',
+  milestone: 'workCompletion',
 });
-const declaredExplanation: import('../src').DagExplanation<ID> = explanation;
-// @ts-expect-error Explanations preserve the source identity domain.
-inspections[0]!.explain({ vertexId: 'other', milestone: 'work' });
+const declaredExplanation: import('../src').DagMilestoneExplanation<ID> =
+  explanation;
+inspections[0]!.explainMilestone({
+  // @ts-expect-error Explanations preserve the source identity domain.
+  vertexId: 'other',
+  milestone: 'workCompletion',
+});
 if (explanation.kind === 'live') {
   const progress: DagVertexProgress<ID> | null = explanation.progress;
-  const blocker: import('../src').DagBlocker<ID> | undefined =
+  const blocker: import('../src').DagMilestoneBlocker<ID> | undefined =
     explanation.blockers[0];
   // @ts-expect-error Blocker collections are readonly.
   explanation.blockers.pop();
-  if (blocker?.kind === 'unfinishedWork') {
-    const work: 'pending' | 'ready' | 'visiting' | 'deferred' = blocker.work;
-    const milestone: 'work' = blocker.target.milestone;
+  if (blocker?.kind === 'workCompletionUncommitted') {
+    const work:
+      | 'waitingForPrerequisiteMilestones'
+      | 'readyForWorkVisitorAdmission'
+      | 'workVisitorChainAdmitted'
+      | 'workCompletionDeferred' = blocker.workState;
+    const milestone: 'workCompletion' = blocker.targetMilestone.milestone;
     void [work, milestone];
   }
   if (
-    blocker?.kind === 'discoveryOpen' ||
-    blocker?.kind === 'completionPending'
+    blocker?.kind === 'childDiscoveryNotClosed' ||
+    blocker?.kind === 'subgraphCompletionCommitPending'
   ) {
-    const milestone: 'subgraphCompletion' = blocker.target.milestone;
+    const milestone: 'subgraphCompletion' = blocker.targetMilestone.milestone;
     void milestone;
   }
-  if (blocker?.kind === 'constraint') {
+  if (blocker?.kind === 'unmetMilestoneConstraint') {
     const status: import('../src').DagMilestoneStatus =
       blocker.prerequisiteStatus;
-    const id: ID = blocker.prerequisite.vertexId;
+    const id: ID = blocker.prerequisiteMilestone.vertexId;
     void [status, id];
   }
   void progress;
@@ -154,35 +202,45 @@ void declaredExplanation;
 
 const typedStall: dag.DagTraversalStallError<ID> =
   new core.DagTraversalStallError<ID>({
-    dependencies: [{ vertexId: 'review', unmetPrerequisiteIds: ['work'] }],
-    unknownPrerequisiteIds: [],
-    dependencyCycleComponents: [],
-    dependencyBlockedIds: ['review'],
-    structurallyIncompleteIds: [],
+    blockedVertexPrerequisiteReports: [
+      { vertexId: 'review', prerequisiteVertexIdsInReport: ['work'] },
+    ],
+    unresolvedPrerequisiteVertexIds: [],
+    milestoneCycleVertexIdComponents: [],
+    nonCyclePrerequisiteBlockedVertexIds: ['review'],
+    incompleteVertexIdsWithoutUnmetPrerequisites: [],
   });
-const stallId: ID = typedStall.diagnostics.dependencies[0]!.vertexId;
+const stallId: ID =
+  typedStall.diagnostics.blockedVertexPrerequisiteReports[0]!.vertexId;
 const stallWait: ID =
-  typedStall.diagnostics.dependencies[0]!.unmetPrerequisiteIds[0]!;
+  typedStall.diagnostics.blockedVertexPrerequisiteReports[0]!
+    .prerequisiteVertexIdsInReport[0]!;
 const stallEdgeId: ID | undefined =
-  typedStall.diagnostics.dependencyEdges[0]?.prerequisite.vertexId;
+  typedStall.diagnostics.originalMilestoneConstraints[0]?.prerequisiteMilestone
+    .vertexId;
 const defaultStall: DagTraversalStallError = typedStall;
 // @ts-expect-error Defaults preserve unknown instead of allowing an unchecked ID.
-const unknownId: ID = defaultStall.diagnostics.dependencies[0]!.vertexId;
+const unknownId: ID =
+  defaultStall.diagnostics.blockedVertexPrerequisiteReports[0]!.vertexId;
 // @ts-expect-error A typed diagnostic cannot silently change ID domains.
 const wrongStall: DagTraversalStallError<'other'> = typedStall;
 const invalidStall = new DagTraversalStallError<ID>({
-  // @ts-expect-error Constructor diagnostics retain the chosen ID domain.
-  dependencies: [{ vertexId: 'other', unmetPrerequisiteIds: [] }],
-  unknownPrerequisiteIds: [],
-  dependencyCycleComponents: [],
-  dependencyBlockedIds: [],
-  structurallyIncompleteIds: [],
+  blockedVertexPrerequisiteReports: [
+    // @ts-expect-error Constructor diagnostics retain the chosen ID domain.
+    { vertexId: 'other', prerequisiteVertexIdsInReport: [] },
+  ],
+  unresolvedPrerequisiteVertexIds: [],
+  milestoneCycleVertexIdComponents: [],
+  nonCyclePrerequisiteBlockedVertexIds: [],
+  incompleteVertexIdsWithoutUnmetPrerequisites: [],
 });
 // @ts-expect-error Async runner inspection is synchronous.
 const asynchronousInspection: Promise<DagMilestoneSnapshot<ID>> =
-  asyncRunner.inspectMilestones();
-// @ts-expect-error Runner method preserves the declared ID domain.
-sync.inspectMilestones().explain({ vertexId: 'other', milestone: 'work' });
+  asyncRunner.captureMilestoneSnapshot();
+sync
+  .captureMilestoneSnapshot()
+  // @ts-expect-error Runner method preserves the declared ID domain.
+  .explainMilestone({ vertexId: 'other', milestone: 'workCompletion' });
 void [
   stallId,
   stallWait,
@@ -194,29 +252,29 @@ void [
 ];
 
 const heterogeneousStall = new DagTraversalStallError({
-  dependencies: [
+  blockedVertexPrerequisiteReports: [
     {
       vertexId: { task: 'root' },
-      unmetPrerequisiteIds: [undefined, null, NaN],
+      prerequisiteVertexIdsInReport: [undefined, null, NaN],
     },
   ],
-  unknownPrerequisiteIds: [undefined, null, NaN],
-  dependencyCycleComponents: [],
-  dependencyBlockedIds: [],
-  structurallyIncompleteIds: [],
+  unresolvedPrerequisiteVertexIds: [undefined, null, NaN],
+  milestoneCycleVertexIdComponents: [],
+  nonCyclePrerequisiteBlockedVertexIds: [],
+  incompleteVertexIdsWithoutUnmetPrerequisites: [],
 });
 const legacyUnknown: unknown =
-  heterogeneousStall.diagnostics.dependencies[0]!.vertexId;
+  heterogeneousStall.diagnostics.blockedVertexPrerequisiteReports[0]!.vertexId;
 // @ts-expect-error Omitting the error type argument preserves the unknown default.
 const legacyDomain: { task: string } | null | undefined | number =
-  heterogeneousStall.diagnostics.dependencies[0]!.vertexId;
+  heterogeneousStall.diagnostics.blockedVertexPrerequisiteReports[0]!.vertexId;
 void [legacyUnknown, legacyDomain];
 
 // @ts-expect-error Progress outputs always include both W and C wait arrays.
 const incompleteProgress: DagVertexProgress<ID> = {
   vertexId: 'review',
-  work: 'pending',
-  subgraphComplete: false,
-  unmetPrerequisiteIds: [],
+  workState: 'waitingForPrerequisiteMilestones',
+  subgraphCompletionCommitted: false,
+  unmetPrerequisiteVertexIds: [],
 };
 void incompleteProgress;

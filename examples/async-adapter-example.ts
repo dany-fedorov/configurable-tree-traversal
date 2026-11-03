@@ -1,11 +1,11 @@
 import {
-  type VertexTypes,
-  AsyncDepthFirstTreeTraversal,
-  DepthFirstPhase,
+  type VertexDataAndChildHintTypes,
+  AsyncDepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase,
 } from '../src';
 import assert from 'node:assert/strict';
 
-type ExampleTree = VertexTypes<string, string>;
+type ExampleTree = VertexDataAndChildHintTypes<string, string>;
 
 let releaseSlow!: () => void;
 const slowGate = new Promise<void>((resolve) => {
@@ -16,28 +16,33 @@ const slowStarted = new Promise<void>((resolve) => {
   reportSlowStarted = resolve;
 });
 
-const traversal = new AsyncDepthFirstTreeTraversal<ExampleTree>({
-  concurrency: 2,
-  traversableTree: {
+const traversal = new AsyncDepthFirstTreeTraversalBuilder<ExampleTree>({
+  maxConcurrentCallbackInvocations: 2,
+  treeDiscoverySource: {
     // Async adapters may return either a value or a promise from every callback.
-    resolveRoot: () => ({
-      kind: 'found' as const,
-      vertex: {
-        vertexContent: { $data: 'root', $childHints: ['fast', 'slow'] },
+    resolveRootVertex: () => ({
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
+        vertexContentInput: {
+          $vertexData: 'root',
+          $childDiscoveryHints: ['fast', 'slow'],
+        },
       },
     }),
-    resolveChild: (hint) => {
+    resolveChildVertexFromHint: (hint) => {
       if (hint === 'fast') {
         return {
-          kind: 'found' as const,
-          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
+          },
         };
       }
       reportSlowStarted();
       return slowGate.then(() => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: hint, $childHints: [] },
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
         },
       }));
     },
@@ -45,34 +50,35 @@ const traversal = new AsyncDepthFirstTreeTraversal<ExampleTree>({
 });
 
 async function main() {
-  const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents({
-    emitEvents: [DepthFirstPhase.PRE_ORDER],
-  });
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION],
+    });
   const rootEvent = await iterator.next();
   if (rootEvent.done) throw new Error('Expected the root event');
 
   const nextEvent = iterator.next();
   await slowStarted;
-  const pendingInspection = runner.inspect();
-  assert.equal(pendingInspection.execution, 'async');
-  assert.equal(pendingInspection.concurrency, 2);
-  assert(pendingInspection.inFlightCallbackCount >= 1);
-  assert(pendingInspection.inFlightCallbackCount <= 2);
+  const pendingInspection = runner.captureExecutionSnapshot();
+  assert.equal(pendingInspection.callbackExecutionMode, 'async');
+  assert.equal(pendingInspection.maxConcurrentCallbackInvocations, 2);
+  assert(pendingInspection.inFlightInvocationCount >= 1);
+  assert(pendingInspection.inFlightInvocationCount <= 2);
   assert(
-    pendingInspection.pendingRequests.some(
-      ({ operation }) => operation === 'resolveChild',
+    pendingInspection.pendingCallbackRequests.some(
+      ({ operation }) => operation === 'resolveChildVertexFromHint',
     ),
   );
 
   releaseSlow();
-  const values = [rootEvent.value.vertex.getData()];
+  const values = [rootEvent.value.vertex.getVertexData()];
   const childEvent = await nextEvent;
-  if (!childEvent.done) values.push(childEvent.value.vertex.getData());
-  for await (const event of iterator) values.push(event.vertex.getData());
+  if (!childEvent.done) values.push(childEvent.value.vertex.getVertexData());
+  for await (const event of iterator) values.push(event.vertex.getVertexData());
 
   assert.deepEqual(values, ['root', 'fast', 'slow']);
-  assert.equal(runner.inspect().inFlightCallbackCount, 0);
+  assert.equal(runner.captureExecutionSnapshot().inFlightInvocationCount, 0);
 }
 
 void main();

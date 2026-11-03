@@ -1,43 +1,57 @@
-import type { MutableRef } from '@core/CTTRef';
-import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
+import type { MutableValueReference } from '@core/CTTRef';
+import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
-import { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
+import { BreadthFirstTreeVisitPhase } from './BreadthFirstTraversalOrder';
 import type { BreadthFirstTraversalVisitorsState } from './BreadthFirstTraversalVisitorsState';
 
 export function initBreadthFirstVisitorsState<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
->(): BreadthFirstTraversalVisitorsState<TTP, RW_TTP> {
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+>(): BreadthFirstTraversalVisitorsState<
+  InputVertexTypes,
+  RewrittenVertexTypes
+> {
   return {
-    [BreadthFirstPhase.LEVEL_ORDER]: {
-      phaseVisitIndex: 0,
-      visitorIndex: 0,
-      previousPhaseVertexRef: null,
+    [BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX]: {
+      phaseVisitorChainIndex: 0,
+      visitorCallbackIndexInPhaseChain: 0,
+      previousCommittedVisitVertexHandleForSamePhase: null,
     },
   };
 }
 
 export class BreadthFirstTraversalRunnerState<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > {
-  queue: InternalVertexResolutionContext<TTP | RW_TTP>[];
+  queue: InternalChildDiscoveryContext<
+    InputVertexTypes | RewrittenVertexTypes
+  >[];
   queueIndex: number;
-  visitorsState: BreadthFirstTraversalVisitorsState<TTP, RW_TTP>;
-  traversalRootVertexRef: MutableRef<Vertex<TTP | RW_TTP>> | null;
+  visitorsState: BreadthFirstTraversalVisitorsState<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
+  traversalRootVertexRef: MutableValueReference<
+    Vertex<InputVertexTypes | RewrittenVertexTypes>
+  > | null;
   status: TraversalRunnerStatus;
-  subtreeTraversalDisabledRefs: Set<MutableRef<Vertex<TTP | RW_TTP>>>;
+  subtreeTraversalDisabledRefs: Set<
+    MutableValueReference<Vertex<InputVertexTypes | RewrittenVertexTypes>>
+  >;
 
   constructor(
-    from?: Partial<BreadthFirstTraversalRunnerState<TTP, RW_TTP>> | null,
+    from?: Partial<
+      BreadthFirstTraversalRunnerState<InputVertexTypes, RewrittenVertexTypes>
+    > | null,
   ) {
     this.queue = from?.queue ?? [];
     this.queueIndex = from?.queueIndex ?? 0;
     this.visitorsState = from?.visitorsState ?? initBreadthFirstVisitorsState();
     this.traversalRootVertexRef = from?.traversalRootVertexRef ?? null;
-    this.status = from?.status ?? TraversalRunnerStatus.INITIAL;
+    this.status = from?.status ?? TraversalRunnerStatus.NOT_STARTED;
     this.subtreeTraversalDisabledRefs =
       from?.subtreeTraversalDisabledRefs ?? new Set();
   }

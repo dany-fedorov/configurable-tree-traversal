@@ -7,54 +7,73 @@ const cjs = require('configurable-tree-traversal');
 const cjsDag = require('configurable-tree-traversal/traversals/dag-traversal');
 const entries = [esm, cjs, dag, cjsDag, esm.dagTraversal, cjs.dagTraversal];
 for (const entry of entries) {
-  assert.equal(entry.reviseDag, esm.reviseDag);
-  assert.equal(entry.diffDagDefinitions, esm.diffDagDefinitions);
-  const result = entry.prepareDagDefinition(
-    entry.defineDag({
-      vertices: [
+  assert.equal(
+    entry.applyDagDefinitionRevisionBatch,
+    esm.applyDagDefinitionRevisionBatch,
+  );
+  assert.equal(
+    entry.diffDagDefinitionDeclarationsShallowly,
+    esm.diffDagDefinitionDeclarationsShallowly,
+  );
+  const result = entry.validateAndPrepareDagDefinition(
+    entry.copyAndNormalizeDagDefinition({
+      vertexDeclarations: [
         {
           vertexId: 'task',
           data: 1,
-          slots: [],
-          dependsOnWork: [],
-          dependsOnSubgraphCompletion: [],
+          childDiscoverySlots: [],
+          workWaitsForWorkOf: [],
+          workWaitsForSubgraphCompletionOf: [],
         },
       ],
-      omittedIds: [],
+      omittedVertexIds: [],
       entry: { kind: 'root', vertexId: 'task' },
     }),
   );
   assert.equal(result.kind, 'valid');
-  const old = result.dag.createWorkSession();
-  const oldTicket = old.advance().workTickets[0];
-  const revision = entry.reviseDag(result.dag, [
-    {
-      kind: 'replaceVertex',
-      vertex: { ...result.dag.definition.vertices[0], data: 2 },
-    },
-  ]);
+  const old = result.validatedTopology.createExternalWorkSession();
+  const oldTicket = old.runUntilWorkBoundary().workSettlementTickets[0];
+  const revision = entry.applyDagDefinitionRevisionBatch(
+    result.validatedTopology,
+    [
+      {
+        kind: 'replaceVertexDeclaration',
+        vertexDeclaration: {
+          ...result.validatedTopology.definition.vertexDeclarations[0],
+          data: 2,
+        },
+      },
+    ],
+  );
   assert.equal(revision.kind, 'valid');
   assert.deepEqual(
     revision.changes,
-    entry.diffDagDefinitions(result.dag.definition, revision.dag.definition),
+    entry.diffDagDefinitionDeclarationsShallowly(
+      result.validatedTopology.definition,
+      revision.validatedTopology.definition,
+    ),
   );
-  assert.deepEqual(revision.changes.changedVertices, [
-    { vertexId: 'task', aspects: ['data'] },
+  assert.deepEqual(revision.changes.changedVertexDeclarations, [
+    { vertexId: 'task', changedDeclarationFields: ['data'] },
   ]);
   for (const fresh of [
-    revision.dag.createWorkSession(),
-    await revision.dag.createAsyncWorkSession(),
+    revision.validatedTopology.createExternalWorkSession(),
+    await revision.validatedTopology.createAsyncExternalWorkSession(),
   ]) {
-    assert.deepEqual(fresh.summary().completedWorkIds, []);
-    const ticket = (await fresh.advance()).workTickets[0];
-    assert.throws(() => fresh.completeWork(oldTicket), TypeError);
-    assert.equal(fresh.completeWork(ticket).kind, 'accepted');
-    assert.equal((await fresh.advance()).kind, 'finished');
+    assert.deepEqual(
+      fresh.captureProgressSnapshot().workCompletionCommittedVertexIds,
+      [],
+    );
+    const ticket = (await fresh.runUntilWorkBoundary())
+      .workSettlementTickets[0];
+    assert.throws(() => fresh.acceptCompletedWork(oldTicket), TypeError);
+    assert.equal(fresh.acceptCompletedWork(ticket).kind, 'accepted');
+    assert.equal((await fresh.runUntilWorkBoundary()).kind, 'finished');
   }
-  assert.equal(old.completeWork(oldTicket).kind, 'accepted');
-  assert.equal(old.advance().kind, 'finished');
+  assert.equal(old.acceptCompletedWork(oldTicket).kind, 'accepted');
+  assert.equal(old.runUntilWorkBoundary().kind, 'finished');
   assert.equal(
-    entry.reviseDag(result.dag, [
+    entry.applyDagDefinitionRevisionBatch(result.validatedTopology, [
       { kind: 'removeVertexDeclaration', vertexId: 'task' },
     ]).kind,
     'invalid',

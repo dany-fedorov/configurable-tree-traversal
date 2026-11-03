@@ -1,5 +1,7 @@
 # Idiomatic API migration
 
+> Historical release guide: the tables and examples below describe the released 0.12 API and its earlier migration. They are not the API of this unreleased checkout. Start with the [explicit API migration](migration-explicit-api.md) to move from released 0.12 to this checkout; use the [current reference](reference.md) for the implemented contracts.
+
 Upgrade-only reading. Start from the [final upgrade checklist](migration-api-distinctions.md); this guide keeps the detailed tables and examples for one earlier stage and is not a step you apply in sequence. First-time readers should use the [README](../README.md) and [reference](reference.md) instead.
 
 [Documentation map](index.md) · [Client API migration](migration-client-api.md) · [API reference](reference.md) · [Earlier naming migration](migration-api-clarity.md) · [Uniform API migration](migration-uniform-api.md)
@@ -34,7 +36,7 @@ The four names are `materializeDagInputFromRecords`, `materializeDagInputFromRoo
 
 The current recipe lives in the reference under [typed source composition](reference.md#typed-source-composition). Materialized catalog lookup ignores the current live context. Its source can therefore be composed with a disjoint rewrite-data domain without reconfiguring the materializer: `DagTraversal<VertexTypes<Item, ID>, Output, ID>` and its async/helper counterparts accept the returned envelope directly or by spread. Ordinary construction without explicit rewrite types still infers Item and ID precisely. The source continues to resolve input items and ID hints; original views retain Item. This capability is specific to context-independent lookup. A custom source whose hooks require input-only live data must still be configured for the traversal's full live context.
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {
@@ -81,7 +83,7 @@ if (current !== 'artifact' || original !== item) {
 
 Walking factories `materializeWalkSourceFromRecords`, `materializeWalkSourceFromRecordsAsync` and `materializeWalkSourceFromDagDefinition` return actual `GraphWalkSource` protocols. Keep those names and pass their result under walking `source`.
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {
@@ -128,7 +130,7 @@ The shared algebra keeps its standalone default while accepting a trailing `Sour
 
 `ObjectPropertyPatch<OutputTypes>` is `Partial<Pick<OutputTypes['VertexData'], 'key' | 'value'>>`. Unknown own fields, including symbols and non-enumerable fields, throw `TypeError`; metadata already on a property survives supported patches. An absent field differs from an own field containing undefined. An object operation with `kind: 'rewrite'` requires a non-null object `patch`; generic rewrite operations instead carry the complete replacement in `value`. For arbitrary full payload replacement, use `REWRITE_VERTEX_DATA` with `newData`. Patch fields retain output types; assembler results are unknown; bound commands emit the wider current domain. `ObjectMutationCommands<OutputTypes, InputTypes = OutputTypes>` keeps output first and appends input.
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {
@@ -174,7 +176,7 @@ The renamed `ObjectRewriteCallback`, `ObjectRewriteContext`, and `ObjectRewriteI
 
 A declared union allows both hint kinds to be discovered, independently of output-only value patches:
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {
@@ -232,7 +234,7 @@ if (child.getValue().getData().value !== 'discovered') {
 
 With TypeScript 4.7/4.9, an unannotated sorter inside an object spread can be contextualized as `unknown[]` before source inference. Previously this could silently widen visitor data to `unknown`; strict source composition now rejects it. Keep a sorter directly on the options object for contextual inference, or use a generic hint-preserving sorter or an explicit source hint domain when spreading it:
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {
@@ -296,7 +298,7 @@ traverseTreeDepthFirst({
 
 Tree deletion recursively removes the resolved subtree. DAG deletion removes the vertex, transitive work dependents through W and C relations, and orphaned structural descendants; shared children and detached structural anchors survive unless independently affected. Deleting the traversal root clears its graph. The **runner family** selects the deletion command even when a DAG runner consumes a tree source. Object mutation helpers produce tree deletion. Shared command types accept a trailing deletion-command parameter; tree binders narrow it to `DELETE_TREE_SUBTREE`.
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {

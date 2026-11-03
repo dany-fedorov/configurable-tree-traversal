@@ -1,83 +1,112 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 
-export type VertexContent<TTP extends VertexTypes> = {
-  $data: TTP['VertexData'];
-  $childHints: TTP['VertexHint'][];
+export type VertexContent<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  $vertexData: InputVertexTypes['VertexData'];
+  $childDiscoveryHints: InputVertexTypes['ChildHint'][];
 };
 
 /** Canonical content only; retired spellings are rejected, including mixed inputs. */
-export type VertexContentInput<TTP extends VertexTypes> = {
-  $data: TTP['VertexData'];
-  $childHints: readonly TTP['VertexHint'][];
+export type VertexContentInput<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  $vertexData: InputVertexTypes['VertexData'];
+  $childDiscoveryHints: readonly InputVertexTypes['ChildHint'][];
   $d?: never;
   $c?: never;
+  $data?: never;
+  $childHints?: never;
 };
 
-export type VertexCloneContent<TTP extends VertexTypes> = Partial<
-  VertexContentInput<TTP>
->;
+export type VertexContentOverridesForShallowClone<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = Partial<VertexContentInput<InputVertexTypes>>;
 
 function assertCanonicalContent(content: object): void {
-  if ('$d' in content || '$c' in content) {
+  if (
+    '$d' in content ||
+    '$c' in content ||
+    '$data' in content ||
+    '$childHints' in content
+  ) {
     throw new TypeError(
-      'Legacy vertex content fields are unsupported; use canonical $data and $childHints',
+      'Legacy vertex content fields are unsupported; use canonical $vertexData and $childDiscoveryHints',
     );
   }
 }
 
 /** Copy owned hint membership; retain opaque data and individual hint identity. */
-export function normalizeVertexContent<TTP extends VertexTypes>(
-  content: VertexContentInput<TTP>,
-): VertexContent<TTP> {
+export function normalizeVertexContent<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+>(
+  content: VertexContentInput<InputVertexTypes>,
+): VertexContent<InputVertexTypes> {
   assertCanonicalContent(content);
-  return { $data: content.$data, $childHints: Array.from(content.$childHints) };
+  return {
+    $vertexData: content.$vertexData,
+    $childDiscoveryHints: Array.from(content.$childDiscoveryHints),
+  };
 }
 
-export class Vertex<TTP extends VertexTypes> implements VertexContent<TTP> {
-  readonly $data: TTP['VertexData'];
-  readonly $childHints: TTP['VertexHint'][];
+export class Vertex<InputVertexTypes extends VertexDataAndChildHintTypes>
+  implements VertexContent<InputVertexTypes>
+{
+  readonly $vertexData: InputVertexTypes['VertexData'];
+  readonly $childDiscoveryHints: InputVertexTypes['ChildHint'][];
 
-  constructor(vertexContent: VertexContentInput<TTP>) {
+  constructor(vertexContent: VertexContentInput<InputVertexTypes>) {
     const content = normalizeVertexContent(vertexContent);
-    this.$data = content.$data;
-    this.$childHints = content.$childHints;
+    this.$vertexData = content.$vertexData;
+    this.$childDiscoveryHints = content.$childDiscoveryHints;
   }
 
-  getData(): TTP['VertexData'] {
-    return this.$data;
+  getVertexData(): InputVertexTypes['VertexData'] {
+    return this.$vertexData;
   }
 
-  getChildHints(): TTP['VertexHint'][] {
-    return this.$childHints;
+  getMutableChildDiscoveryHints(): InputVertexTypes['ChildHint'][] {
+    return this.$childDiscoveryHints;
   }
 
-  hasNoChildHints(): boolean {
-    return this.getChildHints().length === 0;
+  getDetachedChildDiscoveryHints(): readonly InputVertexTypes['ChildHint'][] {
+    return Object.freeze(this.$childDiscoveryHints.slice());
   }
 
-  clone(content?: VertexCloneContent<TTP>): Vertex<TTP> {
-    if (content instanceof Vertex) return new Vertex<TTP>(content);
+  hasChildDiscoveryHints(): boolean {
+    return this.getMutableChildDiscoveryHints().length > 0;
+  }
+
+  createEditableShallowCloneWithContentOverrides(
+    content?: VertexContentOverridesForShallowClone<InputVertexTypes>,
+  ): Vertex<InputVertexTypes> {
+    if (content instanceof Vertex) return new Vertex<InputVertexTypes>(content);
     if (content !== undefined) assertCanonicalContent(content);
-    let data = this.$data;
+    let data = this.$vertexData;
     if (content !== undefined) {
-      if (Object.prototype.hasOwnProperty.call(content, '$data')) {
-        data = content.$data as TTP['VertexData'];
+      if (Object.prototype.hasOwnProperty.call(content, '$vertexData')) {
+        data = content.$vertexData as InputVertexTypes['VertexData'];
       }
     }
-    return new Vertex<TTP>({
-      $data: data,
-      $childHints: content?.$childHints ?? this.$childHints,
+    return new Vertex<InputVertexTypes>({
+      $vertexData: data,
+      $childDiscoveryHints:
+        content?.$childDiscoveryHints ?? this.$childDiscoveryHints,
     });
   }
 }
 
 /** Read-only observation of CTT-owned vertex state; caller payloads remain shallow. */
-export interface VertexView<T extends VertexTypes> {
-  readonly $data: T['VertexData'];
-  readonly $childHints: readonly T['VertexHint'][];
-  getData(): T['VertexData'];
-  getChildHints(): readonly T['VertexHint'][];
-  hasNoChildHints(): boolean;
+export interface VertexView<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> {
+  readonly $vertexData: InputVertexTypes['VertexData'];
+  readonly $childDiscoveryHints: readonly InputVertexTypes['ChildHint'][];
+  getVertexData(): InputVertexTypes['VertexData'];
+  getDetachedChildDiscoveryHints(): readonly InputVertexTypes['ChildHint'][];
+  hasChildDiscoveryHints(): boolean;
   /** Creates an independent editable vertex and hint collection. */
-  clone(content?: VertexCloneContent<T>): Vertex<T>;
+  createEditableShallowCloneWithContentOverrides(
+    content?: VertexContentOverridesForShallowClone<InputVertexTypes>,
+  ): Vertex<InputVertexTypes>;
 }

@@ -1,8 +1,8 @@
 import {
   rewriteObject,
-  type ObjectPropertyPatch,
-  type ObjectTreeVertexTypes,
-  type TraversableObjectPropKey,
+  type ObjectPropertyKeyValuePatch,
+  type ObjectPropertyTreeVertexTypes,
+  type ObjectPropertyKey,
 } from '../src';
 
 const obj = {
@@ -23,44 +23,51 @@ console.log(JSON.stringify(obj, null, 2));
 console.log();
 
 const result = rewriteObject(obj, {
-  convertRootValue(value, { complete }) {
+  convertPresentRootOutputValue(value, { isTraversalFinished: complete }) {
     if (!complete) throw new Error('Expected the initial traversal to finish');
     return JSON.stringify(value, null, 2);
   },
-  resolveChildHook: (vertexHint) => {
-    if (vertexHint.value === null) {
-      return { kind: 'omitted' };
+  resolveChildPropertyOrUseDefault: (vertexHint) => {
+    if (vertexHint.propertyValue === null) {
+      return { kind: 'vertexIntentionallyOmitted' };
     }
-    return { kind: 'useDefault' };
+    return { kind: 'useDefaultChildPropertyResolution' };
   },
-  rewrite: function rewrite({ key, value }, options) {
+  rewritePropertyAfterChildTraversal: function rewrite(
+    { propertyKey: key, propertyValue: value },
+    options,
+  ) {
     const depth =
-      options.resolvedTreeView.getResolutionContextOf(options.vertexRef)
-        ?.depth ?? 0;
+      options.liveResolvedTreeView.getChildDiscoveryContextOrNull(
+        options.vertexHandle,
+      )?.discoveryDepthInEdges ?? 0;
     console.log(
       'depth:',
       depth,
       '; path:',
-      options.getKeyPath({ noRoot: true }).join('.').padEnd(7),
+      options
+        .requirePropertyKeyPathFromRoot({ includeDesignatedRoot: true })
+        .join('.')
+        .padEnd(7),
       '; value:',
       JSON.stringify(value),
     );
-    const rewriteCmd: ObjectPropertyPatch<
-      ObjectTreeVertexTypes<TraversableObjectPropKey, unknown>
+    const rewriteCmd: ObjectPropertyKeyValuePatch<
+      ObjectPropertyTreeVertexTypes<ObjectPropertyKey, unknown>
     > = {};
     if (value === 2) {
       return {
-        kind: 'delete',
+        kind: 'deletePropertySubtree',
       };
     }
     if (value === 1) {
-      rewriteCmd.value = 1000;
+      rewriteCmd.propertyValue = 1000;
     }
     if (depth % 2 === 0 && typeof key === 'string') {
       const newKey = [key, depth].join('__');
-      rewriteCmd.key = newKey;
+      rewriteCmd.propertyKey = newKey;
     }
-    return { kind: 'rewrite', patch: rewriteCmd };
+    return { kind: 'patchPropertyKeyOrValue', propertyPatch: rewriteCmd };
   },
 });
 
@@ -116,10 +123,10 @@ Output
 */
 
 function outputValue<Out>(result: {
-  getOutputResult():
+  getFinalOutputResult():
     | { readonly kind: 'present'; readonly value: Out }
     | { readonly kind: 'absent' };
 }): Out | null {
-  const output = result.getOutputResult();
+  const output = result.getFinalOutputResult();
   return output.kind === 'present' ? output.value : null;
 }

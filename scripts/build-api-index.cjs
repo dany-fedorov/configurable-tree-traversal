@@ -24,57 +24,57 @@ const cell = (text) =>
 // Semantic exceptions precede filename grouping: callbacks, observations and
 // source protocols can share declaration files while owning different contracts.
 const graphSourceResults = new Set([
-  'DagVertexFound',
-  'DagVertexOmitted',
-  'DagVertexResolution',
-  'DagPrerequisiteResolution',
-  'PrerequisiteMissing',
+  'FoundDagSourceVertex',
+  'OmittedDagSourceVertex',
+  'DagSourceVertexResolution',
+  'DagPrerequisiteLookupResult',
+  'DagPrerequisiteLookupMissing',
 ]);
 // Example targets are preferences: `exampleFor` keeps a target that names the
 // symbol, otherwise promotes an example program or reference snippet that does,
 // and otherwise labels the preferred family target as merely related.
 const symbolContracts = {
-  TreeVertexFound: ['abstract-trees', 'reference.md#abstract-trees'],
+  TreeVertexResolutionFound: ['abstract-trees', 'reference.md#abstract-trees'],
   TreeVertexResolution: ['abstract-trees', 'reference.md#abstract-trees'],
-  TreeVertexOmitted: [
+  TreeVertexResolutionOmitted: [
     'abstract-trees',
     'migration-uniform-api.md#source-resolution',
   ],
   MaybePromise: ['async-traversal', 'examples/async-adapter-example.ts'],
-  HintVertexId: ['dag-traversal', 'reference.md#dag-traversal'],
-  prepareDagDefinition: [
+  ChildHintVertexIdentity: ['dag-traversal', 'reference.md#dag-traversal'],
+  validateAndPrepareDagDefinition: [
     'materialized-dag-definitions',
     'examples/dag-revision-example.ts',
   ],
-  materializeDagInputFromRoots: [
+  materializeDagInputFromRootRecords: [
     'collection-and-forest-sources',
     'reference.md#roots-materialization-example',
   ],
-  materializeDagInputFromRootsAsync: [
+  materializeDagInputFromRootRecordsAsync: [
     'collection-and-forest-sources',
     'reference.md#roots-materialization-example',
   ],
-  DagRootSelectors: [
+  DagRootRecordSelectors: [
     'collection-and-forest-sources',
     'reference.md#roots-materialization-example',
   ],
-  AsyncDagRootSelectors: [
+  AsyncDagRootRecordSelectors: [
     'collection-and-forest-sources',
     'reference.md#roots-materialization-example',
   ],
-  bindDagWorkSession: [
+  bindDagExternalWorkSession: [
     'ticket-coordination',
     'reference.md#bind-an-existing-runner-example',
   ],
-  bindAsyncDagWorkSession: [
+  bindAsyncDagExternalWorkSession: [
     'ticket-coordination',
     'reference.md#bind-an-existing-runner-example',
   ],
-  materializeWalkSourceFromDagDefinition: [
+  materializeGraphWalkSourceFromDagDeclarationRelations: [
     'walking-adapters-and-inspection',
     'reference.md#definition-walk-example',
   ],
-  ResolvedTreeStore: [
+  MutableResolvedTreeStore: [
     'views-handles-identity-and-paths',
     'reference.md#edit-a-resolved-tree-store',
   ],
@@ -83,41 +83,44 @@ const symbolContracts = {
     'dag-dependency-queries-and-explanations',
     'examples/dag-inspection-example.ts',
   ],
-  DagWaitEdge: [
+  DagMilestoneConstraint: [
     'dag-dependency-queries-and-explanations',
     'examples/dag-inspection-example.ts',
   ],
-  ObjectCompositeClassification: [
+  ObjectPropertyAssemblyClassification: [
     'rewrite-objects',
     'reference.md#rewrite-objects',
   ],
-  ObjectCurrentVertexTypes: ['rewrite-objects', 'reference.md#rewrite-objects'],
+  LiveObjectPropertyVertexTypes: [
+    'rewrite-objects',
+    'reference.md#rewrite-objects',
+  ],
   core: ['api-compatibility', 'reference.md#api-compatibility'],
   TreeTraversalEvent: [
     'traversal-orders',
     'examples/traversable-object-iterable-example.ts',
   ],
-  InspectionFilters: [
+  TraversalExecutionSelections: [
     'inspection-and-execution',
     'reference.md#inspection-and-execution',
   ],
-  filterDagDataVisitor: [
+  createConditionalDagDataVisitor: [
     'filtered-dag-visitors',
     'reference.md#filtered-visitor-example',
   ],
-  filterAsyncDagDataVisitor: [
+  createConditionalAsyncDagDataVisitor: [
     'filtered-dag-visitors',
     'reference.md#filtered-visitor-example',
   ],
-  ChildHintTransformer: [
+  ChildHintsListTransformer: [
     'options-and-defaults',
     'reference.md#hint-transformation-example',
   ],
-  AsyncChildHintTransformer: [
+  AsyncChildHintsListTransformer: [
     'options-and-defaults',
     'reference.md#hint-transformation-example',
   ],
-  DagEvent: [
+  DagCommittedMilestoneEvent: [
     'deferred-dag-progress-and-reconciliation',
     'examples/event-delivery-selection-example.ts',
   ],
@@ -130,12 +133,15 @@ const symbolContracts = {
     'source-callback-contexts',
     'examples/dag-prerequisite-resolution-example.ts',
   ],
-  TreeSource: ['source-callback-contexts', 'reference.md#abstract-trees'],
-  AsyncTreeSource: [
+  TreeDiscoverySource: [
+    'source-callback-contexts',
+    'reference.md#abstract-trees',
+  ],
+  AsyncTreeDiscoverySource: [
     'source-callback-contexts',
     'examples/async-adapter-example.ts',
   ],
-  TreeChildResolutionContext: [
+  TreeChildResolverContext: [
     'source-callback-contexts',
     'reference.md#source-callback-contexts',
   ],
@@ -143,15 +149,15 @@ const symbolContracts = {
     'source-callback-contexts',
     'reference.md#source-callback-contexts',
   ],
-  VertexResolutionContext: [
+  ChildDiscoveryContext: [
     'source-callback-contexts',
     'reference.md#source-callback-contexts',
   ],
-  TraversalExecutionOptions: [
+  TraversalExecutionSelectionPatch: [
     'options-and-defaults',
     'examples/event-delivery-selection-example.ts',
   ],
-  VisitorPhaseSelection: [
+  VisitorCallbackPhaseSelection: [
     'options-and-defaults',
     'examples/event-delivery-selection-example.ts',
   ],
@@ -388,9 +394,9 @@ function renderApiIndex(census, sources = loadExampleSources()) {
   );
   let text = '# Public API symbol index\n\n';
   text +=
-    '[Documentation map](index.md) · [Behavior reference](reference.md) · [Upgrade checklist](migration-api-distinctions.md)\n\n';
+    '[Documentation map](index.md) · [Behavior reference](reference.md) · [Explicit API migration](migration-explicit-api.md)\n\n';
   text +=
-    'These declarations describe `configurable-tree-traversal` 0.12.0; see [install](../README.md#install). Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.\n\n';
+    'These declarations describe the unreleased explicit API in this source checkout. The package version remains `0.12.0`; the released `0.12.0` API differs. See [checkout installation](../README.md#install) and the [migration guide](migration-explicit-api.md). Look up a current exported name below, then follow its owning contract and, where one exists, a runnable or related example. Public import routes are exhaustive for each symbol; declaration-module paths are not consumer imports.\n\n';
   text += `Generated from the supported declaration census: **${names.length} public symbols**, **${census.bindings.length} export bindings**, **${routes.length} runtime entry points**. Run \`npm run docs:api\` to regenerate; package verification rejects stale output.\n\n`;
   text +=
     'Declaration excerpts preserve overloads and public members; referenced support types can be declaration-local and are not additional importable exports. Inline declaration-relative type imports are displayed by type name. These are declaration excerpts, not standalone programs; the linked guide examples are compiled and executed against the packed package. A runnable example or executable snippet names the symbol; a related example exercises the feature that produces or consumes it without naming it. Runtime failures/defaults belong to the linked behavior contract.\n\n';

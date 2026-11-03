@@ -1,20 +1,20 @@
 import { capturedOutputValue } from './helpers/rewriteOutput';
 import {
-  DepthFirstPhase,
-  DepthFirstTreeTraversal,
+  DepthFirstTreeVisitPhase,
+  DepthFirstTreeTraversalBuilder,
   objectRewrite as rewriteObjectApi,
-  ObjectTreeSource,
+  ObjectPropertyTreeSource,
   TraversalRunnerStatus,
   TraversalVisitorCommandName,
 } from '../src';
 
-const { rewriteObject, rewriteObjectAs } = rewriteObjectApi;
+const { rewriteObject, rewriteObjectWithAssertedOutputType } = rewriteObjectApi;
 
 describe('object traversal and rewriting edge cases', () => {
   test('custom assemblers receive renamed children before assembling their parent', () => {
     const assembled: Array<{
-      key: PropertyKey;
-      children: Array<{ key: PropertyKey; value: unknown }>;
+      propertyKey: PropertyKey;
+      children: Array<{ propertyKey: PropertyKey; propertyValue: unknown }>;
     }> = [];
     let branchCompositeSeenByRewrite: unknown;
 
@@ -22,24 +22,42 @@ describe('object traversal and rewriting edge cases', () => {
       rewriteObject(
         { branch: { old: 1, keep: 2 } },
         {
-          assembleCompositesBeforeRewrite: true,
-          assembleObject: (children, vertexData) => {
-            if (vertexData.key === 'branch') {
-              assembled.push({ key: vertexData.key, children: [...children] });
+          includeAssembledValueInRewriteInput: true,
+          assembleObjectValueFromChildProperties: (children, vertexData) => {
+            if (vertexData.propertyKey === 'branch') {
+              assembled.push({
+                propertyKey: vertexData.propertyKey,
+                children: [...children],
+              });
             }
             return Object.fromEntries(
-              children.map(({ key, value }) => [key, value]),
+              children.map(
+                ({
+                  propertyKey: propertyKey,
+                  propertyValue: propertyValue,
+                }) => [propertyKey, propertyValue],
+              ),
             );
           },
-          rewrite: ({ key, value, assembledComposite }) => {
-            if (key === 'old') {
-              return { kind: 'rewrite', patch: { key: 'renamed', value: 10 } };
+          rewritePropertyAfterChildTraversal: ({
+            propertyKey: propertyKey,
+            propertyValue: propertyValue,
+            assembledValueFromCurrentChildren,
+          }) => {
+            if (propertyKey === 'old') {
+              return {
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: { propertyKey: 'renamed', propertyValue: 10 },
+              };
             }
-            if (key === 'branch') {
-              branchCompositeSeenByRewrite = assembledComposite;
+            if (propertyKey === 'branch') {
+              branchCompositeSeenByRewrite = assembledValueFromCurrentChildren;
             }
-            return typeof value === 'number'
-              ? { kind: 'rewrite', patch: { value: value * 10 } }
+            return typeof propertyValue === 'number'
+              ? {
+                  kind: 'patchPropertyKeyOrValue',
+                  propertyPatch: { propertyValue: propertyValue * 10 },
+                }
               : undefined;
           },
         },
@@ -50,10 +68,10 @@ describe('object traversal and rewriting edge cases', () => {
     expect(outputAtReturn).toEqual({ branch: { renamed: 10, keep: 20 } });
     expect(assembled).toEqual([
       {
-        key: 'branch',
+        propertyKey: 'branch',
         children: [
-          { key: 'renamed', value: 10 },
-          { key: 'keep', value: 20 },
+          { propertyKey: 'renamed', propertyValue: 10 },
+          { propertyKey: 'keep', propertyValue: 20 },
         ],
       },
     ]);
@@ -64,30 +82,44 @@ describe('object traversal and rewriting edge cases', () => {
     const input: Array<number> & { label?: string; [tag]?: string } = [1, 2, 3];
     input.label = 'numbers';
     input[tag] = 'metadata';
-    const assemblyInputs: Array<Array<{ key: PropertyKey; value: unknown }>> =
-      [];
+    const assemblyInputs: Array<
+      Array<{ propertyKey: PropertyKey; propertyValue: unknown }>
+    > = [];
 
     const outputAtReturn = capturedOutputValue(
-      rewriteObjectAs<number[] & { name: string; [tag]: string }>(input, {
-        assembleArray: (children) => {
+      rewriteObjectWithAssertedOutputType<
+        number[] & { name: string; [tag]: string }
+      >(input, {
+        assembleArrayValueFromChildProperties: (children) => {
           assemblyInputs.push([...children]);
           const result = children
-            .filter(({ key }) => typeof key === 'number')
-            .map(({ value }) => value);
-          for (const { key, value } of children) {
-            if (typeof key !== 'number') {
-              Object.defineProperty(result, key, {
-                value,
+            .filter(
+              ({ propertyKey: propertyKey }) => typeof propertyKey === 'number',
+            )
+            .map(({ propertyValue: propertyValue }) => propertyValue);
+          for (const {
+            propertyKey: propertyKey,
+            propertyValue: propertyValue,
+          } of children) {
+            if (typeof propertyKey !== 'number') {
+              Object.defineProperty(result, propertyKey, {
+                value: propertyValue,
                 enumerable: true,
               });
             }
           }
           return result;
         },
-        rewrite: ({ key, value }) => {
-          if (value === 2) return { kind: 'delete' };
-          if (key === 'label')
-            return { kind: 'rewrite', patch: { key: 'name' } };
+        rewritePropertyAfterChildTraversal: ({
+          propertyKey: propertyKey,
+          propertyValue: propertyValue,
+        }) => {
+          if (propertyValue === 2) return { kind: 'deletePropertySubtree' };
+          if (propertyKey === 'label')
+            return {
+              kind: 'patchPropertyKeyOrValue',
+              propertyPatch: { propertyKey: 'name' },
+            };
           return undefined;
         },
       }),
@@ -95,10 +127,10 @@ describe('object traversal and rewriting edge cases', () => {
 
     expect(assemblyInputs).toEqual([
       [
-        { key: 0, value: 1 },
-        { key: 2, value: 3 },
-        { key: 'name', value: 'numbers' },
-        { key: tag, value: 'metadata' },
+        { propertyKey: 0, propertyValue: 1 },
+        { propertyKey: 2, propertyValue: 3 },
+        { propertyKey: 'name', propertyValue: 'numbers' },
+        { propertyKey: tag, propertyValue: 'metadata' },
       ],
     ]);
     expect(Array.from(outputAtReturn!)).toEqual([1, 3]);
@@ -113,25 +145,43 @@ describe('object traversal and rewriting edge cases', () => {
     const input = { boxed: new Box({ first: 1, second: 2 }) };
 
     const outputAtReturn = capturedOutputValue(
-      rewriteObjectAs<typeof input>(input, {
-        getChildrenOfProperty: (property) =>
-          property.value instanceof Box
-            ? Object.entries(property.value.entries).map(([key, value]) => ({
-                key,
-                value,
-              }))
-            : ObjectTreeSource.getChildrenOfPropertyDefault(property),
-        isObject: ({ value }) =>
-          value !== null && typeof value === 'object' && !Array.isArray(value),
-        assembleObject: (children, property) => {
+      rewriteObjectWithAssertedOutputType<typeof input>(input, {
+        enumerateChildPropertyHints: (property) =>
+          property.propertyValue instanceof Box
+            ? Object.entries(property.propertyValue.entries).map(
+                ([propertyKey, propertyValue]) => ({
+                  propertyKey,
+                  propertyValue,
+                }),
+              )
+            : ObjectPropertyTreeSource.enumerateOwnEnumerableChildProperties(
+                property,
+              ),
+        matchesObjectAssemblyPredicate: ({ propertyValue: propertyValue }) =>
+          propertyValue !== null &&
+          typeof propertyValue === 'object' &&
+          !Array.isArray(propertyValue),
+        assembleObjectValueFromChildProperties: (children, property) => {
           const entries = Object.fromEntries(
-            children.map(({ key, value }) => [key, value]),
+            children.map(
+              ({ propertyKey: propertyKey, propertyValue: propertyValue }) => [
+                propertyKey,
+                propertyValue,
+              ],
+            ),
           );
-          return property.value instanceof Box ? new Box(entries) : entries;
+          return property.propertyValue instanceof Box
+            ? new Box(entries)
+            : entries;
         },
-        rewrite: ({ value }) =>
-          typeof value === 'number'
-            ? { kind: 'rewrite', patch: { value: value * 10 } }
+        rewritePropertyAfterChildTraversal: ({
+          propertyValue: propertyValue,
+        }) =>
+          typeof propertyValue === 'number'
+            ? {
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: { propertyValue: propertyValue * 10 },
+              }
             : undefined,
       }),
     );
@@ -154,23 +204,32 @@ describe('object traversal and rewriting edge cases', () => {
           replace: { ignored: 3 },
         },
         {
-          resolveChildHook: (hint) => {
-            if (hint.key === 'prune') return { kind: 'omitted' };
-            if (hint.key === 'replace') {
+          resolveChildPropertyOrUseDefault: (hint) => {
+            if (hint.propertyKey === 'prune')
+              return { kind: 'vertexIntentionallyOmitted' };
+            if (hint.propertyKey === 'replace') {
               return {
-                kind: 'found',
-                vertex: {
-                  vertexContent: {
-                    $data: { key: 'replacement', value: { visible: 4 } },
-                    $childHints: [{ key: 'visible', value: 4 }],
+                kind: 'vertexResolved',
+                resolvedVertexInput: {
+                  vertexContentInput: {
+                    $vertexData: {
+                      propertyKey: 'replacement',
+                      propertyValue: { visible: 4 },
+                    },
+                    $childDiscoveryHints: [
+                      { propertyKey: 'visible', propertyValue: 4 },
+                    ],
                   },
                 },
               };
             }
-            return { kind: 'useDefault' };
+            return { kind: 'useDefaultChildPropertyResolution' };
           },
-          rewrite: ({ key }, { isTreeRoot }) => {
-            if (!isTreeRoot) visited.push(key);
+          rewritePropertyAfterChildTraversal: (
+            { propertyKey: propertyKey },
+            { isTreeRoot },
+          ) => {
+            if (!isTreeRoot) visited.push(propertyKey);
             return undefined;
           },
         },
@@ -195,27 +254,39 @@ describe('object traversal and rewriting edge cases', () => {
       rewriteObject(
         { change: 1, remove: 2 },
         {
-          retainOriginalTreeStructure: true,
-          rewrite: ({ key }, options) => {
-            if (key === 'change')
-              return { kind: 'rewrite', patch: { value: 10 } };
-            if (key === 'remove') return { kind: 'delete' };
+          retainDiscoveredTreeBeforeVisitorCommands: true,
+          rewritePropertyAfterChildTraversal: (
+            { propertyKey: propertyKey },
+            options,
+          ) => {
+            if (propertyKey === 'change')
+              return {
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: { propertyValue: 10 },
+              };
+            if (propertyKey === 'remove')
+              return { kind: 'deletePropertySubtree' };
             if (options.isTreeRoot) {
-              const originalTree = options.originalTreeView!;
-              const originalRoot = originalTree.getRoot()!;
-              const currentRoot = options.resolvedTreeView.getRoot()!;
+              const originalTree = options.preCommandDiscoveredTreeView!;
+              const originalRoot = originalTree.getRootVertexHandleOrNull()!;
+              const currentRoot =
+                options.liveResolvedTreeView.getRootVertexHandleOrNull()!;
               const originalChildren =
-                originalTree.getChildrenOf(originalRoot)!;
+                originalTree.getChildVertexHandlesOrNull(originalRoot)!;
               snapshot = {
                 rootIsIndependent: originalRoot !== currentRoot,
                 childKeys: originalChildren.map(
-                  (ref) => ref.getValue().getData().key,
+                  (ref) =>
+                    ref.getCurrentVertexView().getVertexData().propertyKey,
                 ),
                 childValues: originalChildren.map(
-                  (ref) => ref.getValue().getData().value,
+                  (ref) =>
+                    ref.getCurrentVertexView().getVertexData().propertyValue,
                 ),
                 parentsPointToSnapshotRoot: originalChildren.every(
-                  (ref) => originalTree.getParentOf(ref) === originalRoot,
+                  (ref) =>
+                    originalTree.getParentVertexHandleOrNull(ref) ===
+                    originalRoot,
                 ),
               };
             }
@@ -235,22 +306,23 @@ describe('object traversal and rewriting edge cases', () => {
   });
 
   test('outputAtReturn remains the return-time snapshot when its halted runner resumes', () => {
-    const input = { value: 1 };
+    const input = { propertyValue: 1 };
     let haltedAtRoot = false;
 
     const result = rewriteObject(input, {
       visitors: {
-        [DepthFirstPhase.POST_ORDER]: [
+        [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES]: [
           {
-            priority: 200,
-            commandCommitMode: 'afterEachVisitor' as const,
+            descendingExecutionPriorityWithinGroup: 200,
+            visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
             visitor: (_vertex, { isTreeRoot }) => {
               if (!isTreeRoot || haltedAtRoot) return undefined;
               haltedAtRoot = true;
               return {
                 commands: [
                   {
-                    commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
+                    commandName:
+                      TraversalVisitorCommandName.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY,
                   },
                 ],
               };
@@ -258,27 +330,34 @@ describe('object traversal and rewriting edge cases', () => {
           },
         ],
       },
-      rewrite: ({ value }) =>
-        typeof value === 'number'
-          ? { kind: 'rewrite', patch: { value: value + 1 } }
+      rewritePropertyAfterChildTraversal: ({ propertyValue: propertyValue }) =>
+        typeof propertyValue === 'number'
+          ? {
+              kind: 'patchPropertyKeyOrValue',
+              propertyPatch: { propertyValue: propertyValue + 1 },
+            }
           : undefined,
     });
 
-    expect(result.traversalRunner.getStatus()).toBe(
-      TraversalRunnerStatus.HALTED,
+    expect(result.traversalRunner.getTraversalLifecycleStatus()).toBe(
+      TraversalRunnerStatus.SUSPENDED,
     );
     expect(capturedOutputValue(result)).toBe(input);
-    expect(capturedOutputValue(result)).toEqual({ value: 1 });
+    expect(capturedOutputValue(result)).toEqual({ propertyValue: 1 });
 
-    result.traversalRunner.run();
-    const finalRoot = result.traversalRunner.getResolvedTreeView().getRoot()!;
+    result.traversalRunner.runUntilSuspendedOrTerminal();
+    const finalRoot = result.traversalRunner
+      .getLiveResolvedTreeView()
+      .getRootVertexHandleOrNull()!;
 
-    expect(result.traversalRunner.getStatus()).toBe(
+    expect(result.traversalRunner.getTraversalLifecycleStatus()).toBe(
       TraversalRunnerStatus.FINISHED,
     );
-    expect(finalRoot.getValue().getData().value).toEqual({ value: 2 });
+    expect(
+      finalRoot.getCurrentVertexView().getVertexData().propertyValue,
+    ).toEqual({ propertyValue: 2 });
     expect(capturedOutputValue(result)).toBe(input);
-    expect(capturedOutputValue(result)).toEqual({ value: 1 });
+    expect(capturedOutputValue(result)).toEqual({ propertyValue: 1 });
   });
 
   test('retains nested null and undefined values and can explicitly rewrite to them', () => {
@@ -290,10 +369,19 @@ describe('object traversal and rewriting edge cases', () => {
           nested: [null, undefined, 3, 4],
         },
         {
-          rewrite: ({ value }) => {
-            if (value === 3)
-              return { kind: 'rewrite', patch: { value: undefined } };
-            if (value === 4) return { kind: 'rewrite', patch: { value: null } };
+          rewritePropertyAfterChildTraversal: ({
+            propertyValue: propertyValue,
+          }) => {
+            if (propertyValue === 3)
+              return {
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: { propertyValue: undefined },
+              };
+            if (propertyValue === 4)
+              return {
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: { propertyValue: null },
+              };
             return undefined;
           },
         },
@@ -327,9 +415,14 @@ describe('object traversal and rewriting edge cases', () => {
 
     const outputAtReturn = capturedOutputValue(
       rewriteObject(input, {
-        rewrite: ({ value }) =>
-          typeof value === 'number'
-            ? { kind: 'rewrite', patch: { value: value * 10 } }
+        rewritePropertyAfterChildTraversal: ({
+          propertyValue: propertyValue,
+        }) =>
+          typeof propertyValue === 'number'
+            ? {
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: { propertyValue: propertyValue * 10 },
+              }
             : undefined,
       }),
     );
@@ -404,9 +497,15 @@ describe('object traversal and rewriting edge cases', () => {
 
     const outputAtReturn = capturedOutputValue(
       rewriteObject(cursor, {
-        rewrite: ({ key, value }) =>
-          key === 'leaf' && value === 1
-            ? { kind: 'rewrite', patch: { value: 2 } }
+        rewritePropertyAfterChildTraversal: ({
+          propertyKey: propertyKey,
+          propertyValue: propertyValue,
+        }) =>
+          propertyKey === 'leaf' && propertyValue === 1
+            ? {
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: { propertyValue: 2 },
+              }
             : undefined,
       }),
     );
@@ -420,40 +519,56 @@ describe('object traversal and rewriting edge cases', () => {
 
   test('a hook that substitutes an ancestor identity is rejected as a cycle', () => {
     const input = { child: { leaf: 1 } };
-    const tree = new ObjectTreeSource<typeof input>(input, {
-      resolveChildHook: (hint) =>
-        hint.key === 'child'
+    const tree = new ObjectPropertyTreeSource<typeof input>(input, {
+      resolveChildPropertyOrUseDefault: (hint) =>
+        hint.propertyKey === 'child'
           ? {
-              kind: 'found',
-              vertex: {
-                vertexContent: {
-                  $data: { key: hint.key, value: input },
-                  $childHints: [{ key: 'again', value: input }],
+              kind: 'vertexResolved',
+              resolvedVertexInput: {
+                vertexContentInput: {
+                  $vertexData: {
+                    propertyKey: hint.propertyKey,
+                    propertyValue: input,
+                  },
+                  $childDiscoveryHints: [
+                    { propertyKey: 'again', propertyValue: input },
+                  ],
                 },
               },
             }
-          : { kind: 'useDefault' },
+          : { kind: 'useDefaultChildPropertyResolution' },
     });
-    const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
+    const traversal = new DepthFirstTreeTraversalBuilder({
+      treeDiscoverySource: tree,
+    });
 
-    expect(() => traversal.createRunner().run()).toThrow(
-      /cycle.*\$\.child.*ancestor at \$/i,
-    );
+    expect(() =>
+      traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
+    ).toThrow(/cycle.*\$\.child.*ancestor at \$/i);
   });
 
   test('repeated object identities remain valid across interleaved runners', () => {
     const shared = { leaf: 1 };
-    const tree = new ObjectTreeSource({ left: shared, right: shared });
+    const tree = new ObjectPropertyTreeSource({ left: shared, right: shared });
     const makeTraversal = () => {
       const keys: PropertyKey[] = [];
-      const traversal = new DepthFirstTreeTraversal({ traversableTree: tree });
-      traversal.addVisitorFor(
-        DepthFirstPhase.PRE_ORDER,
+      const traversal = new DepthFirstTreeTraversalBuilder({
+        treeDiscoverySource: tree,
+      });
+      traversal.registerVisitorCallbackForPhase(
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         (vertex, { isTreeRoot }) => {
-          if (!isTreeRoot) keys.push(vertex.getData().key);
+          if (!isTreeRoot) keys.push(vertex.getVertexData().propertyKey);
         },
       );
-      return { keys, iterator: traversal.createRunner().iterateEvents() };
+      return {
+        keys,
+        iterator: traversal
+          .createIndependentRunnerFromCurrentOptions()
+          .runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+      };
     };
     const first = makeTraversal();
     const second = makeTraversal();

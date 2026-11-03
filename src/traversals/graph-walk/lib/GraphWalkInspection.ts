@@ -1,32 +1,32 @@
-import type { ExecutionInspection } from '@core/ExecutionInspection';
-import type { InspectionFilters } from '@core/CoreInspection';
+import type { TraversalExecutionSnapshot } from '@core/ExecutionInspection';
+import type { TraversalExecutionSelections } from '@core/CoreInspection';
 import type {
-  GraphWalkStrategy,
-  GraphWalkRevisitPolicy,
+  GraphWalkExpansionOrder,
+  GraphWalkRouteEnumerationPolicy,
 } from '../GraphWalkOptions';
-import type { GraphWalkPhase } from '../GraphWalkPhase';
-import type { GraphWalkCounts } from './GraphWalkSummary';
-import type { GraphWalkOperation } from '../GraphWalkOperation';
+import type { GraphWalkObservationKind } from '../GraphWalkPhase';
+import type { GraphWalkProgressCounts } from './GraphWalkSummary';
+import type { GraphWalkPendingInvocationOperation } from '../GraphWalkOperation';
 
-export interface GraphWalkInspection extends ExecutionInspection {
-  readonly kind: 'graph-walk';
+export interface GraphWalkInspection extends TraversalExecutionSnapshot {
+  readonly traversalAlgorithm: 'graph-walk';
   readonly sourceMode: 'graph';
   readonly concurrency: 1;
-  readonly strategy: GraphWalkStrategy;
-  readonly revisit: GraphWalkRevisitPolicy;
-  readonly executionOptions: InspectionFilters<GraphWalkPhase>;
-  readonly counts: GraphWalkCounts;
-  readonly frontierSize: number;
+  readonly expansionOrder: GraphWalkExpansionOrder;
+  readonly routeEnumerationPolicy: GraphWalkRouteEnumerationPolicy;
+  readonly executionOptions: TraversalExecutionSelections<GraphWalkObservationKind>;
+  readonly counts: GraphWalkProgressCounts;
+  readonly pendingRouteExpansionFrameCount: number;
   readonly openSourceIteratorCount: number;
-  readonly pendingObservationKinds: readonly GraphWalkPhase[];
-  readonly activeVisitor: Readonly<{
-    phase: GraphWalkPhase;
-    visitorIndex: number;
+  readonly pendingObservationKinds: readonly GraphWalkObservationKind[];
+  readonly visitorChainPosition: Readonly<{
+    observationKind: GraphWalkObservationKind;
+    visitorIndexInObservationChain: number;
   }> | null;
-  readonly pendingRequests: readonly Readonly<{
-    requestId: number;
-    operation: GraphWalkOperation;
+  readonly pendingInvocationRequests: readonly Readonly<{
+    runnerLocalInvocationRequestId: number;
+    operation: GraphWalkPendingInvocationOperation;
     /** Stable runner-local identity; never a caller vertex ID. */
-    vertexToken?: symbol | undefined;
+    runnerLocalVertexIdentityToken?: symbol | undefined;
   }>[];
 }

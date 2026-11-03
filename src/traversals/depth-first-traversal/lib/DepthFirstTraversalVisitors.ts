@@ -1,10 +1,14 @@
-import type { DepthFirstPhase } from './DepthFirstTraversalOrder';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { TreeVisitorRecord } from '@core/TraversalVisitor';
+import type { DepthFirstTreeVisitPhase } from './DepthFirstTraversalOrder';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import type { TreePhaseVisitorRegistrationRecord } from '@core/TraversalVisitor';
 
-export type DepthFirstTraversalVisitors<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+export type DepthFirstTreeVisitorRegistrationsByPhase<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  [K in DepthFirstPhase]: TreeVisitorRecord<K, TTP, RW_TTP>[];
+  [K in DepthFirstTreeVisitPhase]: TreePhaseVisitorRegistrationRecord<
+    K,
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >[];
 };

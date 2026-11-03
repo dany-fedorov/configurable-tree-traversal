@@ -2,12 +2,12 @@ import {
   assertTraversalFields,
   definedOptions,
 } from '@core/assertPublicOptions';
-import type { ChildHintTransformer } from '@core/ChildHintTransformer';
+import type { ChildHintsListTransformer } from '@core/ChildHintTransformer';
 import type { VisitorRecord } from '@core/graph/types';
 import type { DagDiscoverySource } from '@core/TraversableGraph';
-import type { TreeSource } from '@core/TraversableTree';
-import type { VisitorInputs } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { TreeDiscoverySource } from '@core/TraversableTree';
+import type { VisitorDefinitionsByPhase } from '@core/TraversalVisitor';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
 import { deepFreeze } from '@utils/deepFreeze';
 import { captureDagConfigPatch, captureDagSourcePatch } from './dagSourcePatch';
@@ -16,110 +16,170 @@ import type { DagTraversalRunnerInternalObjects } from './DagTraversalRunnerInte
 import type { DagVisitor } from './DagTraversalVisitor';
 
 export type DagSchedulingOptions = {
-  workCompletion?: 'afterWorkReadyChain' | 'externalSettlement' | undefined;
-  discovery?: 'lazy' | 'eager' | undefined;
-  rootWorkDependencies?: 'honor' | 'ignore' | undefined;
-  dependsOnWorkDefault?: 'none' | 'discoveryParentWork' | undefined;
-  syntheticRoot?: boolean | undefined;
+  workCompletionPolicy?:
+    | 'afterWorkReadyVisitorChain'
+    | 'requireExternalWorkSettlement'
+    | undefined;
+  discoveryTiming?:
+    | 'incrementalDuringTraversal'
+    | 'completeBeforeAnyVisitor'
+    | undefined;
+  rootWorkPrerequisitePolicy?: 'honor' | 'ignore' | undefined;
+  undeclaredWorkPrerequisitePolicy?:
+    | 'none'
+    | 'waitForDiscoveringParentWork'
+    | undefined;
+  sourceRootIsHiddenEntryHolder?: boolean | undefined;
 };
 
 export type DagSource<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > =
   | {
-      traversableGraph: DagDiscoverySource<T, R, ID>;
-      traversableTree?: undefined;
+      dagDiscoverySource: DagDiscoverySource<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        VertexId
+      >;
+      treeDiscoverySource?: undefined;
     }
   | {
-      traversableTree: unknown extends ID ? TreeSource<T, R> : never;
-      traversableGraph?: undefined;
+      treeDiscoverySource: unknown extends VertexId
+        ? TreeDiscoverySource<SourceVertexTypes, RewrittenVertexTypes>
+        : never;
+      dagDiscoverySource?: undefined;
     };
 
 export type DagTraversalVisitors<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > = {
-  [K in DagVisitorPhase]: VisitorRecord<DagVisitor<T, R, K, ID>>[];
+  [K in DagVisitorPhase]: VisitorRecord<
+    DagVisitor<SourceVertexTypes, RewrittenVertexTypes, K, VertexId>
+  >[];
 };
 
 type DagTraversalOptions<
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 > = DagSchedulingOptions & {
-  completedWork?: ReadonlySet<ID> | undefined;
-  transformChildHints: ChildHintTransformer<T> | null;
-  visitors: DagTraversalVisitors<T, R, ID>;
-  retainOriginalGraphStructure: boolean;
+  acceptedCompletedWorkVertexIds?: ReadonlySet<VertexId> | undefined;
+  transformChildHintsBeforeResolution: ChildHintsListTransformer<SourceVertexTypes> | null;
+  visitors: DagTraversalVisitors<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
+  retainDiscoveredGraphBeforeVisitorCommands: boolean;
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer:
-      | DagTraversalRunnerInternalObjects<T, R, ID>['resolvedGraphsContainer']
+      | DagTraversalRunnerInternalObjects<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
+        >['resolvedGraphsContainer']
       | null;
-    state: DagTraversalRunnerInternalObjects<T, R, ID>['state'] | null;
+    state:
+      | DagTraversalRunnerInternalObjects<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
+        >['state']
+      | null;
   };
 };
 
 export type DagResolvedOptions<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
-> = DagSource<T, R, ID> & DagTraversalOptions<T, R, ID>;
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
+> = DagSource<SourceVertexTypes, RewrittenVertexTypes, VertexId> &
+  DagTraversalOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId>;
 
 type DagTraversalOptionsInput<
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 > = DagSchedulingOptions & {
-  completedWork?: ReadonlySet<ID> | undefined;
-  transformChildHints?: ChildHintTransformer<T> | null | undefined;
-  visitors?: VisitorInputs<DagTraversalVisitors<T, R, ID>> | undefined;
-  retainOriginalGraphStructure?: boolean | undefined;
+  acceptedCompletedWorkVertexIds?: ReadonlySet<VertexId> | undefined;
+  transformChildHintsBeforeResolution?:
+    | ChildHintsListTransformer<SourceVertexTypes>
+    | null
+    | undefined;
+  visitors?:
+    | VisitorDefinitionsByPhase<
+        DagTraversalVisitors<SourceVertexTypes, RewrittenVertexTypes, VertexId>
+      >
+    | undefined;
+  retainDiscoveredGraphBeforeVisitorCommands?: boolean | undefined;
 };
 
-export type DagOptions<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
-> = DagSource<T, R, ID> &
-  DagTraversalOptionsInput<T, R, ID> &
-  (
-    | { traversableGraph: DagDiscoverySource<T, R, ID> }
-    | { rootWorkDependencies?: never; dependsOnWorkDefault?: never }
-  );
-
-export type DagOptionsPatch<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
-> = DagTraversalOptionsInput<T, R, ID> &
+export type DagTraversalBuilderOptions<
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
+> = DagSource<SourceVertexTypes, RewrittenVertexTypes, VertexId> &
+  DagTraversalOptionsInput<SourceVertexTypes, RewrittenVertexTypes, VertexId> &
   (
     | {
-        traversableGraph?: DagDiscoverySource<T, R, ID> | undefined;
-        traversableTree?: undefined;
+        dagDiscoverySource: DagDiscoverySource<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
+        >;
       }
     | {
-        rootWorkDependencies?: never;
-        dependsOnWorkDefault?: never;
-        traversableTree?:
-          | (unknown extends ID ? TreeSource<T, R> : never)
+        rootWorkPrerequisitePolicy?: never;
+        undeclaredWorkPrerequisitePolicy?: never;
+      }
+  );
+
+export type DagTraversalBuilderOptionsPatch<
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
+> = DagTraversalOptionsInput<
+  SourceVertexTypes,
+  RewrittenVertexTypes,
+  VertexId
+> &
+  (
+    | {
+        dagDiscoverySource?:
+          | DagDiscoverySource<
+              SourceVertexTypes,
+              RewrittenVertexTypes,
+              VertexId
+            >
           | undefined;
-        traversableGraph?: undefined;
+        treeDiscoverySource?: undefined;
+      }
+    | {
+        rootWorkPrerequisitePolicy?: never;
+        undeclaredWorkPrerequisitePolicy?: never;
+        treeDiscoverySource?:
+          | (unknown extends VertexId
+              ? TreeDiscoverySource<SourceVertexTypes, RewrittenVertexTypes>
+              : never)
+          | undefined;
+        dagDiscoverySource?: undefined;
       }
   );
 
 export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
-  VertexTypes,
-  VertexTypes
+  VertexDataAndChildHintTypes,
+  VertexDataAndChildHintTypes
 > = deepFreeze({
-  transformChildHints: null,
+  transformChildHintsBeforeResolution: null,
   visitors: {
     [DagVisitorPhase.ON_WORK_READY]: [],
-    [DagVisitorPhase.ON_SUBGRAPH_READY]: [],
+    [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]: [],
   },
-  retainOriginalGraphStructure: false,
+  retainDiscoveredGraphBeforeVisitorCommands: false,
   traversalRunnerInternalObjects: {
     resolvedGraphsContainer: null,
     state: null,
@@ -127,21 +187,25 @@ export const DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: DagTraversalOptions<
 });
 
 export function mergeDagTraversalInstanceConfigs<
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 >(
-  base: DagResolvedOptions<T, R, ID>,
-  input: DagOptionsPatch<T, R, ID>,
+  base: DagResolvedOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId>,
+  input: DagTraversalBuilderOptionsPatch<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >,
   sources = captureDagSourcePatch(input),
-): DagResolvedOptions<T, R, ID> {
+): DagResolvedOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId> {
   const capturedInput = captureDagConfigPatch(input, sources);
   assertTraversalFields(capturedInput, Object.values(DagVisitorPhase));
-  assertDagWorkCompletion(capturedInput.workCompletion);
+  assertDagWorkCompletion(capturedInput.workCompletionPolicy);
   assertDagDependencyPolicies(
     capturedInput,
-    sources.traversableGraph !== undefined ||
-      base.traversableGraph !== undefined,
+    sources.dagDiscoverySource !== undefined ||
+      base.dagDiscoverySource !== undefined,
     input,
   );
   const visitors = {
@@ -155,25 +219,26 @@ export function mergeDagTraversalInstanceConfigs<
       [DagVisitorPhase.ON_WORK_READY]: normalizeVisitorDefinitions(
         visitors[DagVisitorPhase.ON_WORK_READY],
       ),
-      [DagVisitorPhase.ON_SUBGRAPH_READY]: normalizeVisitorDefinitions(
-        visitors[DagVisitorPhase.ON_SUBGRAPH_READY],
-      ),
+      [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]:
+        normalizeVisitorDefinitions(
+          visitors[DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY],
+        ),
     },
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
     },
-  } as DagResolvedOptions<T, R, ID>;
+  } as DagResolvedOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId>;
 }
 
 /** Validate configuration before changing traversal ownership or executing callbacks. */
 export function assertDagWorkCompletion(policy: unknown): void {
   if (
     policy !== undefined &&
-    policy !== 'afterWorkReadyChain' &&
-    policy !== 'externalSettlement'
+    policy !== 'afterWorkReadyVisitorChain' &&
+    policy !== 'requireExternalWorkSettlement'
   ) {
     throw new TypeError(
-      'workCompletion must be afterWorkReadyChain or externalSettlement',
+      'workCompletionPolicy must be afterWorkReadyVisitorChain or requireExternalWorkSettlement',
     );
   }
 }
@@ -186,25 +251,25 @@ export function assertDagDependencyPolicies(
 ): void {
   if (
     !graphSource &&
-    ('rootWorkDependencies' in originalInput ||
-      'dependsOnWorkDefault' in originalInput)
+    ('rootWorkPrerequisitePolicy' in originalInput ||
+      'undeclaredWorkPrerequisitePolicy' in originalInput)
   ) {
     throw new TypeError('Dependency policies require a graph discovery source');
   }
   if (
-    input.rootWorkDependencies !== undefined &&
-    input.rootWorkDependencies !== 'honor' &&
-    input.rootWorkDependencies !== 'ignore'
+    input.rootWorkPrerequisitePolicy !== undefined &&
+    input.rootWorkPrerequisitePolicy !== 'honor' &&
+    input.rootWorkPrerequisitePolicy !== 'ignore'
   ) {
-    throw new TypeError('rootWorkDependencies must be honor or ignore');
+    throw new TypeError('rootWorkPrerequisitePolicy must be honor or ignore');
   }
   if (
-    input.dependsOnWorkDefault !== undefined &&
-    input.dependsOnWorkDefault !== 'none' &&
-    input.dependsOnWorkDefault !== 'discoveryParentWork'
+    input.undeclaredWorkPrerequisitePolicy !== undefined &&
+    input.undeclaredWorkPrerequisitePolicy !== 'none' &&
+    input.undeclaredWorkPrerequisitePolicy !== 'waitForDiscoveringParentWork'
   ) {
     throw new TypeError(
-      'dependsOnWorkDefault must be none or discoveryParentWork',
+      'undeclaredWorkPrerequisitePolicy must be none or waitForDiscoveringParentWork',
     );
   }
 }

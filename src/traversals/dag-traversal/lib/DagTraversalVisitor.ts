@@ -1,54 +1,85 @@
 import type { VertexHandle } from '@core/CTTRef';
 import type {
-  ResolvedGraphView,
-  OriginalGraphView,
+  LiveResolvedGraphView,
+  PreCommandDiscoveredGraphView,
 } from '@core/ResolvedGraphView';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { VertexView } from '@core/Vertex';
-import type { MaybePromise, VisitResult } from '@core/graph/types';
+import type {
+  MaybePromise,
+  VisitorCallbackReturnValue,
+} from '@core/graph/types';
 import type { VisitorRegistrationMetadata } from '@core/TraversalVisitor';
 import type { DagVisitorPhase } from './DagTraversalOrder';
 
 export type DagVisitorContext<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ORDER extends DagVisitorPhase = DagVisitorPhase,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  Phase extends DagVisitorPhase = DagVisitorPhase,
+  VertexId = unknown,
 > = {
-  resolvedGraphView: ResolvedGraphView<T | R, ID>;
-  originalGraphView: OriginalGraphView<T, ID> | null;
-  vertexRef: VertexHandle<T | R>;
-  phase: ORDER;
-  isGraphRoot: boolean;
-  phaseVisitIndex: number;
-  visitorIndex: number;
-  previousPhaseVertexRef: VertexHandle<T | R> | null;
-  visitorChainState: unknown;
-  registration: VisitorRegistrationMetadata;
+  liveResolvedGraphView: LiveResolvedGraphView<
+    SourceVertexTypes | RewrittenVertexTypes,
+    VertexId
+  >;
+  preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+    SourceVertexTypes,
+    VertexId
+  > | null;
+  vertexHandle: VertexHandle<SourceVertexTypes | RewrittenVertexTypes>;
+  visitorPhase: Phase;
+  isVisibleSourceRoot: boolean;
+  phaseVisitorChainAdmissionIndex: number;
+  visitorCallbackIndexInPhaseChain: number;
+  previousCommittedVisitVertexHandleForSamePhase: VertexHandle<
+    SourceVertexTypes | RewrittenVertexTypes
+  > | null;
+  currentVertexPhaseChainState: unknown;
+  visitorRegistrationMetadata: VisitorRegistrationMetadata;
 };
 
 export type DagVisitor<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ORDER extends DagVisitorPhase = DagVisitorPhase,
-  ID = unknown,
-> = VisitResult<R, ORDER, 'dag', T['VertexHint']> extends infer RESULT
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  Phase extends DagVisitorPhase = DagVisitorPhase,
+  VertexId = unknown,
+> = VisitorCallbackReturnValue<
+  RewrittenVertexTypes,
+  Phase,
+  'dag',
+  SourceVertexTypes['ChildHint']
+> extends infer VisitorResult
   ? (
-      vertex: VertexView<T | R>,
-      options: DagVisitorContext<T, R, ORDER, ID>,
-    ) => RESULT
+      vertex: VertexView<SourceVertexTypes | RewrittenVertexTypes>,
+      context: DagVisitorContext<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        Phase,
+        VertexId
+      >,
+    ) => VisitorResult
   : never;
 
 export type AsyncDagVisitor<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ORDER extends DagVisitorPhase = DagVisitorPhase,
-  ID = unknown,
-> = VisitResult<R, ORDER, 'dag', T['VertexHint']> extends infer RESULT
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  Phase extends DagVisitorPhase = DagVisitorPhase,
+  VertexId = unknown,
+> = VisitorCallbackReturnValue<
+  RewrittenVertexTypes,
+  Phase,
+  'dag',
+  SourceVertexTypes['ChildHint']
+> extends infer VisitorResult
   ? (
-      vertex: VertexView<T | R>,
-      options: DagVisitorContext<T, R, ORDER, ID>,
-    ) => MaybePromise<RESULT>
+      vertex: VertexView<SourceVertexTypes | RewrittenVertexTypes>,
+      context: DagVisitorContext<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        Phase,
+        VertexId
+      >,
+    ) => MaybePromise<VisitorResult>
   : never;
 
 /**
@@ -56,9 +87,15 @@ export type AsyncDagVisitor<
  * deferred settlement, while an `ON_WORK_READY` visitor runs before work.
  * Dispatch external work from coordinator frontier tickets or a pre-work visitor.
  */
-export type DagEvent<T extends VertexTypes, ID = unknown> = {
-  vertexId: ID;
-  vertex: VertexView<T>;
-  vertexRef: VertexHandle<T>;
-  isGraphRoot: boolean;
-} & ({ kind: 'workCompleted' } | { kind: 'subgraphCompleted' });
+export type DagCommittedMilestoneEvent<
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> = {
+  vertexId: VertexId;
+  vertex: VertexView<SourceVertexTypes>;
+  vertexHandle: VertexHandle<SourceVertexTypes>;
+  isVisibleSourceRoot: boolean;
+} & (
+  | { eventKind: 'workCompletionCommitted' }
+  | { eventKind: 'subgraphCompletionCommitted' }
+);

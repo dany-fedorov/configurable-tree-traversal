@@ -1,22 +1,22 @@
-export { ObjectTreeSource } from './TraversableObjectTree';
-export { createObjectMutationBinder } from './lib/makeMutationCommandFactory';
+export { ObjectPropertyTreeSource } from './TraversableObjectTree';
+export { createObjectPropertyMutationHelperBinder } from './lib/makeMutationCommandFactory';
 export type {
   ObjectMutationOptions,
-  ObjectAssemblyCache,
-  ObjectPropertyPatch,
-  ObjectMutationRequest,
-  ObjectMutationCommands,
-  ObjectMutationBinder,
-  ObjectMutationBinderFactory,
+  ObjectPropertyAssemblyCache,
+  ObjectPropertyKeyValuePatch,
+  ObjectPropertyRewriteRequest,
+  BoundObjectPropertyMutationHelpers,
+  ObjectPropertyMutationHelperBinder,
+  ObjectPropertyMutationHelperBinderFactory,
 } from './lib/makeMutationCommandFactory';
-export type { ObjectCompositeClassification } from './lib/TO_IsCompositeAssertionsMixin';
-export type { TraversableObject } from './lib/TraversableObject';
-export type { TraversableObjectProp } from './lib/TraversableObjectProp';
-export type { TraversableObjectPropKey } from './lib/TraversableObjectPropKey';
+export type { ObjectPropertyAssemblyClassification } from './lib/TO_IsCompositeAssertionsMixin';
+export type { NestedObjectOrArray } from './lib/TraversableObject';
+export type { ObjectPropertyRecord } from './lib/TraversableObjectProp';
+export type { ObjectPropertyKey } from './lib/TraversableObjectPropKey';
 export type {
-  ObjectChildHookResult,
-  ObjectTreeOptions,
-  ObjectTreePropertyAdapters,
+  ObjectChildPropertyResolutionOverrideResult,
+  ObjectPropertyTreeSourceOptions,
+  ObjectPropertyTreeAdapters,
 } from './lib/TraversableObjectTreeInstanceConfig';
-export type { ObjectTreeVertexTypes } from './lib/ObjectTreeVertexTypes';
-export type { ObjectCurrentVertexTypes } from './lib/ObjectCurrentVertexTypes';
+export type { ObjectPropertyTreeVertexTypes } from './lib/ObjectTreeVertexTypes';
+export type { LiveObjectPropertyVertexTypes } from './lib/ObjectCurrentVertexTypes';

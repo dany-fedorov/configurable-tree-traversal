@@ -1,51 +1,51 @@
-import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
-import { MutableRef } from '../src/core/CTTRef';
-import type { TreeSource } from '../src/core/TraversableTree';
+import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import { MutableValueReference } from '../src/core/CTTRef';
+import type { TreeDiscoverySource } from '../src/core/TraversableTree';
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import { Vertex } from '../src/core/Vertex';
-import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal';
+import { DepthFirstTreeTraversalBuilder } from '../src/traversals/depth-first-traversal';
 import type { DepthFirstTraversalRunnerState } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerState';
 import {
   createInternalDepthFirstTreeTraversal,
   runnerInternals,
 } from './internal-runner-fixtures';
 
-type Node = { $data: string; $childHints: Node[] };
-type Tree = VertexTypes<string, Node>;
+type Node = { $vertexData: string; $childDiscoveryHints: Node[] };
+type Tree = VertexDataAndChildHintTypes<string, Node>;
 
-const node = ($data: string, ...$childHints: Node[]): Node => ({
-  $data,
-  $childHints,
+const node = ($vertexData: string, ...$childDiscoveryHints: Node[]): Node => ({
+  $vertexData,
+  $childDiscoveryHints,
 });
-const adapter = (root: Node): TreeSource<Tree> => ({
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: root },
+const adapter = (root: Node): TreeDiscoverySource<Tree> => ({
+  resolveRootVertex: () => ({
+    kind: "vertexResolved" as const,
+    resolvedVertexInput: { vertexContentInput: root },
   }),
-  resolveChild: (hint) => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: hint },
+  resolveChildVertexFromHint: (hint) => ({
+    kind: "vertexResolved" as const,
+    resolvedVertexInput: { vertexContentInput: hint },
   }),
 });
-const ref = (data: string) => new MutableRef(new Vertex<Tree>(node(data)));
+const ref = (data: string) => new MutableValueReference(new Vertex<Tree>(node(data)));
 const context = (
-  parentVertexRef: MutableRef<Vertex<Tree>>,
+  parentVertexRef: MutableValueReference<Vertex<Tree>>,
   data: string,
   hintIndex: number,
-): VertexResolutionContext<Tree> => ({
-  depth: 1,
-  hintIndex,
-  parentVertex: parentVertexRef.getValue(),
-  parentVertexRef,
-  vertexHint: node(data),
+): ChildDiscoveryContext<Tree> => ({
+  discoveryDepthInEdges: 1,
+  parentChildHintIndex: hintIndex,
+  parentVertexAtChildResolution: parentVertexRef.getReferencedValue(),
+  parentVertexHandle: parentVertexRef,
+  childDiscoveryHint: node(data),
 });
 
 function makeState(): DepthFirstTraversalRunnerState<Tree, Tree> {
   return runnerInternals(
-    new DepthFirstTreeTraversal<Tree>({
-      traversableTree: adapter(node('root')),
-    }).createRunner(),
+    new DepthFirstTreeTraversalBuilder<Tree>({
+      treeDiscoverySource: adapter(node('root')),
+    }).createIndependentRunnerFromCurrentOptions(),
   ).state;
 }
 
@@ -61,13 +61,13 @@ test('depth-first state injection retains supplied continuation objects', () => 
   source.subtreeTraversalDisabledRefs.add(disabledParentRef);
   source.postOrderNotVisitedChildrenCountMap.set(activeParentRef, 2);
   source.traversalRootVertexRef = activeParentRef;
-  source.status = TraversalRunnerStatus.HALTED;
+  source.status = TraversalRunnerStatus.SUSPENDED;
 
   const injected = runnerInternals(
     createInternalDepthFirstTreeTraversal<Tree>({
-      traversableTree: adapter(node('unused')),
+      treeDiscoverySource: adapter(node('unused')),
       traversalRunnerInternalObjects: { state: source },
-    }).createRunner(),
+    }).createIndependentRunnerFromCurrentOptions(),
   ).state;
 
   expect(injected.STACK).toBe(source.STACK);
@@ -76,7 +76,7 @@ test('depth-first state injection retains supplied continuation objects', () => 
   );
   expect(injected.visitorsState).toBe(visitorsState);
   expect(injected.traversalRootVertexRef).toBe(activeParentRef);
-  expect(injected.status).toBe(TraversalRunnerStatus.HALTED);
+  expect(injected.status).toBe(TraversalRunnerStatus.SUSPENDED);
 
   expect(injected.popStack()).toEqual({
     stackIsEmpty: false,

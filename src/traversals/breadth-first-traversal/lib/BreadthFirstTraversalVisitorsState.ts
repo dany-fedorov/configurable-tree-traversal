@@ -1,17 +1,23 @@
 import type { TreeVisitorContext } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { BreadthFirstPhase } from './BreadthFirstTraversalOrder';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import type { BreadthFirstTreeVisitPhase } from './BreadthFirstTraversalOrder';
 
 export type BreadthFirstTraversalVisitorsState<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > = {
-  [K in BreadthFirstPhase]: Pick<
-    TreeVisitorContext<BreadthFirstPhase, TTP, RW_TTP>,
-    'phaseVisitIndex' | 'visitorIndex'
+  [K in BreadthFirstTreeVisitPhase]: Pick<
+    TreeVisitorContext<
+      BreadthFirstTreeVisitPhase,
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+    'phaseVisitorChainIndex' | 'visitorCallbackIndexInPhaseChain'
   > & {
-    previousPhaseVertexRef:
-      | import('@core/graph/types').InternalVertexRef<TTP | RW_TTP>
+    previousCommittedVisitVertexHandleForSamePhase:
+      | import('@core/graph/types').InternalVertexRef<
+          InputVertexTypes | RewrittenVertexTypes
+        >
       | null;
   };
 };

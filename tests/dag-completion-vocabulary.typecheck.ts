@@ -6,7 +6,7 @@ import type {
 } from '../src';
 import type { DagSettlementOutcome as SubpathOutcome } from '../src/traversals/dag-traversal';
 
-const completed: DagWorkState = 'completed';
+const completed: DagWorkState = 'workCompletionCommitted';
 const canonical: DagSettlementOutcome = { kind: 'workCompleted' };
 const fatal: SubpathOutcome = { kind: 'traversalFailed', error: undefined };
 // @ts-expect-error Boolean settlement feedback is retired.
@@ -34,11 +34,13 @@ const completedError: DagSettlementOutcome = {
 };
 // @ts-expect-error Legacy completed work carries no traversal error.
 const legacyCompletedError: DagSettlementOutcome = { ok: true, error: null };
-function settle(runner: DagTraversalRunner | AsyncDagTraversalRunner) {
-  runner.settle('id', canonical, Symbol());
-  runner.settle('id', fatal, Symbol());
-  runner.settle('id', legacy, Symbol());
-  runner.settle('id', legacyFatal, Symbol());
+function settleDeferredWork(
+  runner: DagTraversalRunner | AsyncDagTraversalRunner,
+) {
+  runner.settleDeferredWork('id', canonical, Symbol());
+  runner.settleDeferredWork('id', fatal, Symbol());
+  runner.settleDeferredWork('id', legacy, Symbol());
+  runner.settleDeferredWork('id', legacyFatal, Symbol());
 }
 void [
   completed,
@@ -49,5 +51,5 @@ void [
   conflicting,
   completedError,
   legacyCompletedError,
-  settle,
+  settleDeferredWork,
 ];

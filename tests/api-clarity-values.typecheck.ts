@@ -1,16 +1,16 @@
 import type {
   TreeVisitorContext,
-  TreeChildResolutionContext,
-  VertexTypes,
+  TreeChildResolverContext,
+  VertexDataAndChildHintTypes,
   VertexHandle,
 } from '../src';
-type T = VertexTypes<number, string>;
+type T = VertexDataAndChildHintTypes<number, string>;
 declare const visitor: TreeVisitorContext<string, T, T>;
-declare const child: TreeChildResolutionContext<T, T>;
+declare const child: TreeChildResolverContext<T, T>;
 // @ts-expect-error Original structure has no mutable record storage API.
-visitor.originalTreeView!.set;
+visitor.preCommandDiscoveredTreeView!.set;
 // @ts-expect-error Source callbacks receive the same read-only facade.
-child.originalTreeView!.set;
+child.preCommandDiscoveredTreeView!.set;
 declare const ref: VertexHandle<T>;
 const generic: VertexHandle<T> = ref;
 void generic;

@@ -5,33 +5,36 @@ import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig } from '../src/t
 import { DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
 import { makeEffectiveDepthFirstTraversalRunnerIterableConfig } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
-import type { VertexTypes } from '../src/core';
+import type { VertexDataAndChildHintTypes } from '../src/core';
 import {
-  BreadthFirstPhase,
-  BreadthFirstTreeTraversal,
+  BreadthFirstTreeVisitPhase,
+  BreadthFirstTreeTraversalBuilder,
 } from '../src/traversals/breadth-first-traversal';
 import {
-  DepthFirstPhase,
-  DepthFirstTreeTraversal,
+  DepthFirstTreeVisitPhase,
+  DepthFirstTreeTraversalBuilder,
 } from '../src/traversals/depth-first-traversal';
 import { traversalInternals } from './internal-runner-fixtures';
 
-type Node = { $data: string; $childHints: Node[] };
-type Tree = VertexTypes<string, Node>;
+type Node = { $vertexData: string; $childDiscoveryHints: Node[] };
+type Tree = VertexDataAndChildHintTypes<string, Node>;
 
 const root: Node = {
-  $data: 'root',
-  $childHints: ['a', 'b', 'c'].map(($data) => ({ $data, $childHints: [] })),
+  $vertexData: 'root',
+  $childDiscoveryHints: ['a', 'b', 'c'].map(($vertexData) => ({
+    $vertexData,
+    $childDiscoveryHints: [],
+  })),
 };
 
 const tree = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: root },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: { vertexContentInput: root },
   }),
-  resolveChild: (hint: Node) => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: hint },
+  resolveChildVertexFromHint: (hint: Node) => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: { vertexContentInput: hint },
   }),
 };
 
@@ -71,9 +74,10 @@ describe('internal traversal defaults', () => {
 
   test('mutating the internal DFS range cannot corrupt a future traversal', () => {
     const ranges =
-      DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.inOrder.afterChildIndices;
+      DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.childBoundaryVisits
+        .visitAfterChildIndices;
     if (ranges.ranges === undefined) throw new Error('Expected default ranges');
-    const original = ranges.ranges[0]!.from;
+    const original = ranges.ranges[0]!.fromInclusive;
     let mutationError: unknown;
 
     try {
@@ -83,14 +87,18 @@ describe('internal traversal defaults', () => {
     }
 
     try {
-      const traversal = new DepthFirstTreeTraversal<Tree>({
-        traversableTree: tree,
+      const traversal = new DepthFirstTreeTraversalBuilder<Tree>({
+        treeDiscoverySource: tree,
       });
       const values = [
-        ...traversal.createRunner().iterateEvents({
-          emitEvents: [DepthFirstPhase.IN_ORDER],
-        }),
-      ].map(({ vertex }) => vertex.getData());
+        ...traversal
+          .createIndependentRunnerFromCurrentOptions()
+          .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+            deliveredEventKinds: [
+              DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+            ],
+          }),
+      ].map(({ vertex }) => vertex.getVertexData());
 
       expect(values).toEqual(['a', 'root', 'b', 'root', 'c']);
       expect(mutationError).toBeInstanceOf(TypeError);
@@ -106,16 +114,16 @@ describe('internal traversal defaults', () => {
       DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT.iterateOver,
       makeEffectiveDepthFirstTraversalRunnerIterableConfig,
       [
-        DepthFirstPhase.PRE_ORDER,
-        DepthFirstPhase.IN_ORDER,
-        DepthFirstPhase.POST_ORDER,
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+        DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+        DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
       ],
     ],
     [
       'breadth-first',
       BREADTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT.iterateOver,
       makeEffectiveBreadthFirstTraversalRunnerIterableConfig,
-      [BreadthFirstPhase.LEVEL_ORDER],
+      [BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX],
     ],
   ] as const)(
     'mutating the exported %s iterable order cannot corrupt effective options',
@@ -143,13 +151,13 @@ describe('internal traversal defaults', () => {
   test('mutating the exported BFS visitor list cannot register a future visitor', () => {
     const records =
       BREADTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.visitors[
-        BreadthFirstPhase.LEVEL_ORDER
+        BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX
       ];
     let unexpectedVisits = 0;
     const record = {
-      addedIndex: 0,
-      priority: 100,
-      commandCommitMode: 'afterEachVisitor' as const,
+      phaseRegistrationInsertionIndex: 0,
+      descendingExecutionPriorityWithinGroup: 100,
+      visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       visitor: () => {
         unexpectedVisits += 1;
       },
@@ -163,9 +171,9 @@ describe('internal traversal defaults', () => {
     }
 
     try {
-      new BreadthFirstTreeTraversal<Tree>({ traversableTree: tree })
-        .createRunner()
-        .run();
+      new BreadthFirstTreeTraversalBuilder<Tree>({ treeDiscoverySource: tree })
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal();
       expect(unexpectedVisits).toBe(0);
       expect(mutationError).toBeInstanceOf(TypeError);
     } finally {
@@ -175,29 +183,34 @@ describe('internal traversal defaults', () => {
 
   test('mutating exported visitor options cannot change future visitor priority', () => {
     const mutableDefaults = DEFAULT_VISITOR_FN_OPTIONS as {
-      priority: number;
-      commandCommitMode: import('../src').CommandCommitMode;
+      descendingExecutionPriorityWithinGroup: number;
+      visitorCommandCommitTiming: import('../src').VisitorCommandCommitTiming;
     };
-    const original = mutableDefaults.priority;
+    const original = mutableDefaults.descendingExecutionPriorityWithinGroup;
     let mutationError: unknown;
 
     try {
-      mutableDefaults.priority = -1;
+      mutableDefaults.descendingExecutionPriorityWithinGroup = -1;
     } catch (error) {
       mutationError = error;
     }
 
     try {
-      const traversal = new DepthFirstTreeTraversal<Tree>({
-        traversableTree: tree,
-      }).addVisitorFor(DepthFirstPhase.PRE_ORDER, () => undefined);
+      const traversal = new DepthFirstTreeTraversalBuilder<Tree>({
+        treeDiscoverySource: tree,
+      }).registerVisitorCallbackForPhase(
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+        () => undefined,
+      );
       expect(
-        traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER)[0]?.priority,
+        traversal.getDetachedVisitorRegistrationRecordsForPhase(
+          DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+        )[0]?.descendingExecutionPriorityWithinGroup,
       ).toBe(100);
       expect(mutationError).toBeInstanceOf(TypeError);
     } finally {
       if (!Object.isFrozen(mutableDefaults))
-        mutableDefaults.priority = original;
+        mutableDefaults.descendingExecutionPriorityWithinGroup = original;
     }
   });
 
@@ -206,55 +219,59 @@ describe('internal traversal defaults', () => {
       makeEffectiveDepthFirstTraversalRunnerIterableConfig();
     const breadthIterable =
       makeEffectiveBreadthFirstTraversalRunnerIterableConfig();
-    const depthTraversal = new DepthFirstTreeTraversal<Tree>({
-      traversableTree: tree,
+    const depthTraversal = new DepthFirstTreeTraversalBuilder<Tree>({
+      treeDiscoverySource: tree,
     });
-    const breadthTraversal = new BreadthFirstTreeTraversal<Tree>({
-      traversableTree: tree,
+    const breadthTraversal = new BreadthFirstTreeTraversalBuilder<Tree>({
+      treeDiscoverySource: tree,
     });
     const depthRecord = {
-      addedIndex: 0,
-      priority: 100,
-      commandCommitMode: 'afterEachVisitor' as const,
+      phaseRegistrationInsertionIndex: 0,
+      descendingExecutionPriorityWithinGroup: 100,
+      visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       visitor: () => undefined,
     };
     const breadthRecord = {
-      addedIndex: 0,
-      priority: 100,
-      commandCommitMode: 'afterEachVisitor' as const,
+      phaseRegistrationInsertionIndex: 0,
+      descendingExecutionPriorityWithinGroup: 100,
+      visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       visitor: () => undefined,
     };
 
     expect(() => {
       depthIterable.iterateOver.length = 0;
       breadthIterable.iterateOver.length = 0;
-      traversalInternals(depthTraversal).icfg.retainOriginalTreeStructure =
-        true;
-      traversalInternals(breadthTraversal).icfg.retainOriginalTreeStructure =
-        true;
+      traversalInternals(
+        depthTraversal,
+      ).icfg.retainDiscoveredTreeBeforeVisitorCommands = true;
+      traversalInternals(
+        breadthTraversal,
+      ).icfg.retainDiscoveredTreeBeforeVisitorCommands = true;
       traversalInternals(depthTraversal).icfg.visitors[
-        DepthFirstPhase.PRE_ORDER
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION
       ].push(depthRecord);
       traversalInternals(breadthTraversal).icfg.visitors[
-        BreadthFirstPhase.LEVEL_ORDER
+        BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX
       ].push(breadthRecord);
     }).not.toThrow();
     expect(depthIterable.iterateOver).toEqual([]);
     expect(breadthIterable.iterateOver).toEqual([]);
     expect(
-      traversalInternals(depthTraversal).icfg.retainOriginalTreeStructure,
+      traversalInternals(depthTraversal).icfg
+        .retainDiscoveredTreeBeforeVisitorCommands,
     ).toBe(true);
     expect(
-      traversalInternals(breadthTraversal).icfg.retainOriginalTreeStructure,
+      traversalInternals(breadthTraversal).icfg
+        .retainDiscoveredTreeBeforeVisitorCommands,
     ).toBe(true);
     expect(
       traversalInternals(depthTraversal).icfg.visitors[
-        DepthFirstPhase.PRE_ORDER
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION
       ],
     ).toEqual([depthRecord]);
     expect(
       traversalInternals(breadthTraversal).icfg.visitors[
-        BreadthFirstPhase.LEVEL_ORDER
+        BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX
       ],
     ).toEqual([breadthRecord]);
   });

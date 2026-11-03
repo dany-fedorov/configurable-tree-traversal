@@ -1,217 +1,274 @@
-import { internalRef, vertexHandle } from '../src/core/observationFacets';
+import {
+  internalRef,
+  createVertexHandleFacet,
+} from '../src/core/observationFacets';
 import { internalTreeStore } from './internal-runner-fixtures';
 import {
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstTreeTraversal,
-  MutableRef,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  MutableValueReference,
   Vertex,
-  type VertexResolutionContext,
-  type VertexTypes,
+  type ChildDiscoveryContext,
+  type VertexHandle,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 import { runnerInternals } from './internal-runner-fixtures';
 
 type Hint = { label: string };
 type Data = { label: string; nested: { count: number } };
-type T = VertexTypes<Data, Hint>;
+type T = VertexDataAndChildHintTypes<Data, Hint>;
 const hint = { label: 'child' };
 const rootData = { label: 'root', nested: { count: 1 } };
 const source = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
-      vertexContent: { $data: rootData, $childHints: [hint] },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: {
+        $vertexData: rootData,
+        $childDiscoveryHints: [hint],
+      },
     },
   }),
-  resolveChild: (child: Hint) => ({
-    kind: 'found' as const,
-    vertex: {
-      vertexContent: {
-        $data: { label: child.label, nested: { count: 1 } },
-        $childHints: [],
+  resolveChildVertexFromHint: (child: Hint) => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: {
+        $vertexData: { label: child.label, nested: { count: 1 } },
+        $childDiscoveryHints: [],
       },
     },
   }),
 };
 
 test('mutating child query arrays cannot corrupt forward/reverse topology or paths', () => {
-  const runner = new DepthFirstTreeTraversal<T>({
-    traversableTree: source,
-  }).createRunner();
-  runner.run();
+  const runner = new DepthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource: source,
+  }).createIndependentRunnerFromCurrentOptions();
+  runner.runUntilSuspendedOrTerminal();
   const tree = internalTreeStore(runner);
-  const root = tree.getRoot()!;
-  const child = tree.getChildrenOf(root)![0]!;
-  const children = tree.getChildrenOf(root)!;
+  const root = tree.getRootVertexReferenceOrNull()!;
+  const child = tree.getDetachedChildReferenceListOrNull(root)![0]!;
+  const children = tree.getDetachedChildReferenceListOrNull(root)!;
   children.length = 0;
 
-  expect(tree.getChildrenOf(root)).toEqual([child]);
-  expect(tree.getParentOf(child)).toBe(root);
-  expect(tree.requirePathTo(child)).toEqual([root, child]);
-  expect(tree.getResolvedGraphView().getChildrenOf(root)).toEqual([
-    vertexHandle(child),
-  ]);
-  expect(tree.getResolvedGraphView().getParentsOf(child)).toEqual([
-    vertexHandle(root),
-  ]);
+  expect(tree.getDetachedChildReferenceListOrNull(root)).toEqual([child]);
+  expect(tree.getParentVertexReferenceOrNull(child)).toBe(root);
+  expect(tree.requireStructuralAncestorPathTo(child)).toEqual([root, child]);
+  expect(
+    tree
+      .getLiveResolvedGraphView()
+      .getStructuralChildHandlesInSlotOrderOrNull(
+        createVertexHandleFacet(root),
+      ),
+  ).toEqual([createVertexHandleFacet(child)]);
+  expect(
+    tree
+      .getLiveResolvedGraphView()
+      .getDistinctStructuralParentHandlesOrNull(createVertexHandleFacet(child)),
+  ).toEqual([createVertexHandleFacet(root)]);
 });
 
 test('mutating query contexts cannot reparent a child or overwrite discovery metadata', () => {
-  const runner = new DepthFirstTreeTraversal<T>({
-    traversableTree: source,
-  }).createRunner();
-  runner.run();
+  const runner = new DepthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource: source,
+  }).createIndependentRunnerFromCurrentOptions();
+  runner.runUntilSuspendedOrTerminal();
   const tree = internalTreeStore(runner);
-  const root = tree.getRoot()!;
-  const child = tree.getChildrenOf(root)![0]!;
-  const context = tree.getResolutionContextOf(child)!;
-  const unknown = new MutableRef(
-    new Vertex<T>({ $data: rootData, $childHints: [] }),
+  const root = tree.getRootVertexReferenceOrNull()!;
+  const child = tree.getDetachedChildReferenceListOrNull(root)![0]!;
+  const context = tree.getDetachedChildDiscoveryContextOrNull(child)!;
+  const unknown = new MutableValueReference(
+    new Vertex<T>({ $vertexData: rootData, $childDiscoveryHints: [] }),
   );
-  expect(context.parentVertex).toBe(root.getValue());
-  expect(context.vertexHint).toBe(hint);
-  context.parentVertexRef = unknown;
-  context.depth = 99;
-  context.hintIndex = 99;
-  context.vertexHint = { label: 'foreign' };
+  expect(context.parentVertexAtChildResolution).toBe(root.getReferencedValue());
+  expect(context.childDiscoveryHint).toBe(hint);
+  context.parentVertexHandle = unknown;
+  context.discoveryDepthInEdges = 99;
+  context.parentChildHintIndex = 99;
+  context.childDiscoveryHint = { label: 'foreign' };
 
-  expect(tree.getResolutionContextOf(child)).toEqual({
-    parentVertex: root.getValue(),
-    parentVertexRef: root,
-    depth: 1,
-    hintIndex: 0,
-    vertexHint: hint,
+  expect(tree.getDetachedChildDiscoveryContextOrNull(child)).toEqual({
+    parentVertexAtChildResolution: root.getReferencedValue(),
+    parentVertexHandle: root,
+    discoveryDepthInEdges: 1,
+    parentChildHintIndex: 0,
+    childDiscoveryHint: hint,
   });
-  expect(tree.getParentOf(child)).toBe(root);
-  expect(tree.requirePathTo(child)).toEqual([root, child]);
-  expect(tree.getResolvedGraphView().getParentsOf(child)).toEqual([
-    vertexHandle(root),
-  ]);
+  expect(tree.getParentVertexReferenceOrNull(child)).toBe(root);
+  expect(tree.requireStructuralAncestorPathTo(child)).toEqual([root, child]);
+  expect(
+    tree
+      .getLiveResolvedGraphView()
+      .getDistinctStructuralParentHandlesOrNull(createVertexHandleFacet(child)),
+  ).toEqual([createVertexHandleFacet(root)]);
 });
 
 for (const Constructor of [
-  DepthFirstTreeTraversal<T>,
-  AsyncDepthFirstTreeTraversal<T>,
-  BreadthFirstTreeTraversal<T>,
-  AsyncBreadthFirstTreeTraversal<T>,
-  DagTraversal<T>,
-  AsyncDagTraversal<T>,
+  DepthFirstTreeTraversalBuilder<T>,
+  AsyncDepthFirstTreeTraversalBuilder<T>,
+  BreadthFirstTreeTraversalBuilder<T>,
+  AsyncBreadthFirstTreeTraversalBuilder<T>,
+  DagTraversalBuilder<T>,
+  AsyncDagTraversalBuilder<T>,
 ]) {
   test(`${Constructor.name} exposes a stable live safe query view`, async () => {
-    const runner = new Constructor({ traversableTree: source }).createRunner();
-    const view = runner.getResolvedTreeView()!;
-    expect(view.getRoot()).toBeNull();
-    expect(runner.getResolvedTreeView()).toBe(view);
-    await runner.run();
-    const root = view.getRoot()!;
-    const child = view.getChildrenOf(root)![0]!;
-    expect(view.has(child)).toBe(true);
-    expect(view.getParentOf(child)).toBe(root);
-    expect(view.requirePathTo(child)).toEqual([root, child]);
-    expect(view.requirePathTo(child, { noRoot: true, noSelf: true })).toEqual(
-      [],
+    const runner = new Constructor({
+      treeDiscoverySource: source,
+    }).createIndependentRunnerFromCurrentOptions();
+    const view = runner.getLiveResolvedTreeView()!;
+    expect(view.getRootVertexHandleOrNull()).toBeNull();
+    expect(runner.getLiveResolvedTreeView()).toBe(view);
+    await runner.runUntilSuspendedOrTerminal();
+    const root = view.getRootVertexHandleOrNull()!;
+    const child = view.getChildVertexHandlesOrNull(root)![0]!;
+    expect(view.containsVertexHandle(child)).toBe(true);
+    expect(view.getParentVertexHandleOrNull(child)).toBe(root);
+    expect(view.requireStructuralAncestorPathTo(child)).toEqual([root, child]);
+    expect(
+      view.requireStructuralAncestorPathTo(child, {
+        includeDesignatedRoot: false,
+        includeTargetVertex: false,
+      }),
+    ).toEqual([]);
+    expect(root.getCurrentVertexView().getVertexData()).toBe(rootData);
+    const context = view.getChildDiscoveryContextOrNull(child)!;
+    expect(context.parentVertexAtChildResolution).toBe(
+      root.getCurrentVertexView(),
     );
-    expect(root.getValue().getData()).toBe(rootData);
-    const context = view.getResolutionContextOf(child)!;
-    expect(context.parentVertex).toBe(root.getValue());
-    expect(context.vertexHint).toBe(hint);
+    expect(context.childDiscoveryHint).toBe(hint);
     expect(() => {
-      (view.getChildrenOf(root)! as MutableRef<Vertex<T>>[]).length = 0;
+      (view.getChildVertexHandlesOrNull(root)! as VertexHandle<T>[]).length = 0;
     }).toThrow(TypeError);
     expect(() => {
-      (view.requirePathTo(child) as MutableRef<Vertex<T>>[]).length = 0;
+      (
+        view.requireStructuralAncestorPathTo(child) as VertexHandle<T>[]
+      ).length = 0;
     }).toThrow(TypeError);
     expect(() => {
       // @ts-expect-error readonly context
-      (context as VertexResolutionContext<T>).parentVertexRef = child;
+      (context as ChildDiscoveryContext<T>).parentVertexHandle = child;
     }).toThrow(TypeError);
-    expect(view.getChildrenOf(root)).toEqual([child]);
-    expect(view.getParentOf(child)).toBe(root);
-    expect(view.requirePathTo(child)).toEqual([root, child]);
-    expect(view.getResolutionContextOf(child)!.parentVertexRef).toBe(root);
-    expect(view.getResolutionContextOf(root)).toBeNull();
-    const unknown = new MutableRef(
-      new Vertex<T>({ $data: rootData, $childHints: [] }),
+    expect(view.getChildVertexHandlesOrNull(root)).toEqual([child]);
+    expect(view.getParentVertexHandleOrNull(child)).toBe(root);
+    expect(view.requireStructuralAncestorPathTo(child)).toEqual([root, child]);
+    expect(view.getChildDiscoveryContextOrNull(child)!.parentVertexHandle).toBe(
+      root,
     );
-    expect(view.has(unknown)).toBe(false);
-    expect(view.getChildrenOf(unknown)).toBeNull();
-    expect(view.getParentOf(unknown)).toBeNull();
-    expect(view.getResolutionContextOf(unknown)).toBeNull();
-    expect(() => view.requirePathTo(unknown)).toThrow(/Could not find ref/);
+    expect(view.getChildDiscoveryContextOrNull(root)).toBeNull();
+    const unknown = new MutableValueReference(
+      new Vertex<T>({ $vertexData: rootData, $childDiscoveryHints: [] }),
+    );
+    expect(view.containsVertexHandle(createVertexHandleFacet(unknown))).toBe(
+      false,
+    );
+    expect(
+      view.getChildVertexHandlesOrNull(createVertexHandleFacet(unknown)),
+    ).toBeNull();
+    expect(
+      view.getParentVertexHandleOrNull(createVertexHandleFacet(unknown)),
+    ).toBeNull();
+    expect(
+      view.getChildDiscoveryContextOrNull(createVertexHandleFacet(unknown)),
+    ).toBeNull();
+    expect(() =>
+      view.requireStructuralAncestorPathTo(createVertexHandleFacet(unknown)),
+    ).toThrow(/Could not find ref/);
     // Deliberate editing remains available through the advanced container.
     const internal = runnerInternals(runner);
     const tree =
       'resolvedTreesContainer' in internal
         ? internal.resolvedTreesContainer.resolvedTree
         : internal.resolvedGraphsContainer.treeContainer!.resolvedTree;
-    expect(view).toBe(tree.asReadOnly());
+    expect(view).toBe(tree.getLiveReadOnlyTreeView());
     tree.deleteSubtree(internalRef(child));
-    expect(view.getChildrenOf(root)).toEqual([]);
-    expect(view.has(child)).toBe(false);
-    expect(view.getParentOf(child)).toBeNull();
+    expect(view.getChildVertexHandlesOrNull(root)).toEqual([]);
+    expect(view.containsVertexHandle(child)).toBe(false);
+    expect(view.getParentVertexHandleOrNull(child)).toBeNull();
     tree.deleteSubtree(internalRef(root));
-    expect(view.getRoot()).toBeNull();
+    expect(view.getRootVertexHandleOrNull()).toBeNull();
   });
 }
 
-for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
+for (const Constructor of [
+  DagTraversalBuilder<T>,
+  AsyncDagTraversalBuilder<T>,
+]) {
   test(`${Constructor.name} has no tree view for graph sources`, async () => {
     const runner = new Constructor({
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: 'root',
-            vertexContent: { $data: rootData, $childHints: [] },
+            vertexContentInput: {
+              $vertexData: rootData,
+              $childDiscoveryHints: [],
+            },
           },
         }),
-        resolveChild: () => ({
-          identity: null,
-          satisfiesDependencies: true as const,
-          kind: 'omitted' as const,
+        resolveChildHint: () => ({
+          omittedVertexIdentity: null,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+          kind: 'vertexIntentionallyOmitted' as const,
         }),
       },
-    }).createRunner();
-    expect(runner.getResolvedTreeView()).toBeNull();
-    await runner.run();
-    expect(runner.getResolvedTreeView()).toBeNull();
+    }).createIndependentRunnerFromCurrentOptions();
+    expect(runner.getLiveResolvedTreeView()).toBeNull();
+    await runner.runUntilSuspendedOrTerminal();
+    expect(runner.getLiveResolvedTreeView()).toBeNull();
   });
 }
 
 test('safe queries preserve saved topology while explicit active edits stay live', () => {
-  const runner = new DepthFirstTreeTraversal<T>({
-    traversableTree: source,
-    retainOriginalTreeStructure: true,
+  const runner = new DepthFirstTreeTraversalBuilder<T>({
+    treeDiscoverySource: source,
+    retainDiscoveredTreeBeforeVisitorCommands: true,
   })
-    .createRunner()
-    .run();
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
   const tree = internalTreeStore(runner);
-  const view = tree.asReadOnly();
+  const view = tree.getLiveReadOnlyTreeView();
   const saved =
-    runnerInternals(runner).resolvedTreesContainer.originalTreeView!;
-  const savedView = saved.asReadOnly();
-  const root = view.getRoot()!;
-  const child = view.getChildrenOf(root)![0]!;
-  const savedRoot = savedView.getRoot()!;
-  const savedChild = savedView.getChildrenOf(savedRoot)![0]!;
+    runnerInternals(runner).resolvedTreesContainer
+      .preCommandDiscoveredTreeView!;
+  const savedView = saved.getLiveReadOnlyTreeView();
+  const root = view.getRootVertexHandleOrNull()!;
+  const child = view.getChildVertexHandlesOrNull(root)![0]!;
+  const savedRoot = savedView.getRootVertexHandleOrNull()!;
+  const savedChild = savedView.getChildVertexHandlesOrNull(savedRoot)![0]!;
   expect(savedRoot).not.toBe(root);
-  expect(savedRoot.getValue().getData()).toBe(rootData);
-  expect(savedView.getResolutionContextOf(savedChild)!.vertexHint).toBe(hint);
-  saved.getChildrenOf(internalRef(savedRoot))!.length = 0;
-  saved.getResolutionContextOf(internalRef(savedChild))!.parentVertexRef =
-    internalRef(child);
-  tree.getChildrenOf(internalRef(root))!.length = 0;
-  tree.getResolutionContextOf(internalRef(child))!.parentVertexRef =
-    internalRef(savedRoot);
-  expect(savedView.getChildrenOf(savedRoot)).toEqual([savedChild]);
-  expect(savedView.getParentOf(savedChild)).toBe(savedRoot);
-  expect(savedView.requirePathTo(savedChild)).toEqual([savedRoot, savedChild]);
-  expect(view.getChildrenOf(root)).toEqual([child]);
+  expect(savedRoot.getCurrentVertexView().getVertexData()).toBe(rootData);
+  expect(
+    savedView.getChildDiscoveryContextOrNull(savedChild)!.childDiscoveryHint,
+  ).toBe(hint);
+  saved.getDetachedChildReferenceListOrNull(internalRef(savedRoot))!.length = 0;
+  saved.getDetachedChildDiscoveryContextOrNull(
+    internalRef(savedChild),
+  )!.parentVertexHandle = internalRef(child);
+  tree.getDetachedChildReferenceListOrNull(internalRef(root))!.length = 0;
+  tree.getDetachedChildDiscoveryContextOrNull(
+    internalRef(child),
+  )!.parentVertexHandle = internalRef(savedRoot);
+  expect(savedView.getChildVertexHandlesOrNull(savedRoot)).toEqual([
+    savedChild,
+  ]);
+  expect(savedView.getParentVertexHandleOrNull(savedChild)).toBe(savedRoot);
+  expect(savedView.requireStructuralAncestorPathTo(savedChild)).toEqual([
+    savedRoot,
+    savedChild,
+  ]);
+  expect(view.getChildVertexHandlesOrNull(root)).toEqual([child]);
   tree.deleteSubtree(internalRef(child));
-  expect(view.getChildrenOf(root)).toEqual([]);
-  expect(savedView.getChildrenOf(savedRoot)).toEqual([savedChild]);
-  expect(savedView.requirePathTo(savedChild)).toEqual([savedRoot, savedChild]);
+  expect(view.getChildVertexHandlesOrNull(root)).toEqual([]);
+  expect(savedView.getChildVertexHandlesOrNull(savedRoot)).toEqual([
+    savedChild,
+  ]);
+  expect(savedView.requireStructuralAncestorPathTo(savedChild)).toEqual([
+    savedRoot,
+    savedChild,
+  ]);
 });

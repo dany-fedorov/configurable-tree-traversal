@@ -1,8 +1,11 @@
-import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
-import { MutableRef } from '../src/core/CTTRef';
+import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import { MutableValueReference } from '../src/core/CTTRef';
 import type { MakeVertexResult } from '../src/core/TraversableTree';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
-import type { HintVertexId, InternalVertexRef } from '../src/core/graph/types';
+import type {
+  ChildHintVertexIdentity,
+  InternalVertexRef,
+} from '../src/core/graph/types';
 import { GraphScheduling } from '../src/core/scheduling/GraphScheduling';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { Vertex } from '../src/core/Vertex';
@@ -16,13 +19,16 @@ function result(
   } = {},
 ): MakeVertexResult<TestGraph> {
   const value: MakeVertexResult<TestGraph> = {
-    vertexContent: { $data: label, $childHints: options.hints ?? [] },
+    vertexContent: {
+      $vertexData: label,
+      $childDiscoveryHints: options.hints ?? [],
+    },
   };
   if (Object.prototype.hasOwnProperty.call(options, 'id')) {
     value.vertexId = options.id;
   }
   if (Object.prototype.hasOwnProperty.call(options, 'dependsOnWork')) {
-    value.dependsOnWork = options.dependsOnWork!;
+    value.workWaitsForWorkOf = options.dependsOnWork!;
   }
   return value;
 }
@@ -36,13 +42,15 @@ function omitted(id?: unknown): MakeVertexResult<TestGraph> {
 function context(
   parentRef: InternalVertexRef<TestGraph>,
   hintIndex: number,
-): VertexResolutionContext<TestGraph> {
+): ChildDiscoveryContext<TestGraph> {
   return {
-    depth: 1,
-    parentVertex: parentRef.getValue(),
-    parentVertexRef: parentRef,
-    hintIndex,
-    vertexHint: parentRef.getValue().getChildHints()[hintIndex]!,
+    discoveryDepthInEdges: 1,
+    parentVertexAtChildResolution: parentRef.getReferencedValue(),
+    parentVertexHandle: parentRef,
+    parentChildHintIndex: hintIndex,
+    childDiscoveryHint: parentRef
+      .getReferencedValue()
+      .getMutableChildDiscoveryHints()[hintIndex]!,
   };
 }
 
@@ -80,7 +88,7 @@ test('root acceptance honors existing live, omitted, and deleted identities', ()
   expect(scheduling.acceptRoot(result('ignored', { id: 'root' }))).toBe(
     rootRef,
   );
-  expect(container.resolvedGraphView.getRoot()).toBe(rootRef);
+  expect(container.liveResolvedGraphView.getRoot()).toBe(rootRef);
 });
 
 test('scheduling rejects unknown enrollment and duplicate expansion transitions', () => {
@@ -89,20 +97,22 @@ test('scheduling rejects unknown enrollment and duplicate expansion transitions'
     saveOriginal: false,
   });
   const scheduling = new GraphScheduling(container);
-  const unknown = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'unknown', $childHints: [] }),
+  const unknown = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'unknown', $childDiscoveryHints: [] }),
   );
   expect(() => scheduling.markPreVisited(unknown)).toThrow(/unknown/i);
   container.store.insertVertex({
     ref: unknown,
     id: 'unknown',
-    dependsOnWork: [],
+    workWaitsForWorkOf: [],
     depth: 0,
   });
   expect(() => scheduling.markPreVisited(unknown)).toThrow(/not enrolled/i);
   expect(() => scheduling.markPreVisiting(unknown)).toThrow(/not enrolled/i);
   expect(() =>
-    scheduling.disableSubtree(new MutableRef(unknown.getValue())),
+    scheduling.disableSubtree(
+      new MutableValueReference(unknown.getReferencedValue()),
+    ),
   ).toThrow(/unknown/i);
 
   const rootRef = scheduling.acceptRoot(result('root', { id: 'root' }))!;
@@ -123,9 +133,11 @@ test('scheduling rejects unknown enrollment and duplicate expansion transitions'
       }
     ).noteLinkedSlot(rootRef, 0),
   ).toThrow(/after expansion is closed/i);
-  expect(scheduling.deleteVertex(new MutableRef(rootRef.getValue()))).toEqual(
-    new Set(),
-  );
+  expect(
+    scheduling.deleteVertex(
+      new MutableValueReference(rootRef.getReferencedValue()),
+    ),
+  ).toEqual(new Set());
 });
 
 test('known-hint and consumed-tree restoration handle absent and reusable slots', () => {
@@ -143,19 +155,22 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
     ).reusableTreeChildren.size,
   ).toBe(0);
   expect(
-    scheduling.acceptKnownHint(context(rootRef, 0), {} as HintVertexId),
+    scheduling.acceptKnownHint(
+      context(rootRef, 0),
+      {} as ChildHintVertexIdentity,
+    ),
   ).toBe(false);
   expect(
     scheduling.acceptKnownHint(context(rootRef, 0), { vertexId: 'missing' }),
   ).toBe(false);
   scheduling.restoreConsumedTreeSlot(context(rootRef, 0));
-  expect(container.resolvedGraphView.get(rootRef)?.slots[0]?.kind).toBe(
+  expect(container.liveResolvedGraphView.get(rootRef)?.slots[0]?.kind).toBe(
     'omitted',
   );
 
   const second = setup(['child']);
-  const childRef = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
+  const childRef = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'child', $childDiscoveryHints: [] }),
   );
   second.container.acceptVertex(
     childRef,
@@ -175,11 +190,13 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
   );
   second.scheduling.restoreConsumedTreeSlot(context(second.rootRef, 0));
   expect(
-    second.container.resolvedGraphView.getChildrenOf(second.rootRef),
+    second.container.liveResolvedGraphView.getChildrenOf(second.rootRef),
   ).toEqual([childRef]);
-  expect(second.container.resolvedGraphView.getVisitStageOf(childRef)).toBe(
-    'COMPLETE',
-  );
+  expect(
+    second.container.liveResolvedGraphView.getVertexVisitSchedulingStageOrNull(
+      childRef,
+    ),
+  ).toBe('COMPLETION_VISIT_COMMITTED');
   reusable.reusableTreeChildren.set(
     second.rootRef,
     new Map([[0, { ref: childRef, hint: 'different' }]]),
@@ -188,7 +205,7 @@ test('known-hint and consumed-tree restoration handle absent and reusable slots'
     (
       second.scheduling as unknown as {
         findExistingTreeChild(
-          value: VertexResolutionContext<TestGraph>,
+          value: ChildDiscoveryContext<TestGraph>,
         ): InternalVertexRef<TestGraph> | null;
       }
     ).findExistingTreeChild(context(second.rootRef, 0)),
@@ -233,7 +250,7 @@ test('admits an early dependent only after both later prerequisites are pre-visi
   expect(scheduling.takeReady()).toBeNull();
   scheduling.markPreVisited(bRef);
   expect(scheduling.takeReady()).toBe(joinRef);
-  expect(container.resolvedGraphView.get(joinRef)?.visitStage).toBe(
+  expect(container.liveResolvedGraphView.get(joinRef)?.visitStage).toBe(
     'INITIAL_VISIT_ELIGIBLE',
   );
 });
@@ -294,8 +311,12 @@ test('graph children have no work prerequisites unless explicitly declared', () 
     result('child', { id: 'child' }),
   )!;
 
-  expect(container.resolvedGraphView.get(rootRef)?.dependsOnWork).toEqual([]);
-  expect(container.resolvedGraphView.get(childRef)?.dependsOnWork).toEqual([]);
+  expect(
+    container.liveResolvedGraphView.get(rootRef)?.workWaitsForWorkOf,
+  ).toEqual([]);
+  expect(
+    container.liveResolvedGraphView.get(childRef)?.workWaitsForWorkOf,
+  ).toEqual([]);
   expect(scheduling.takeReady()).toBe(rootRef);
   expect(scheduling.takeReady()).toBe(childRef);
   expect(scheduling.takeReady()).toBeNull();
@@ -320,14 +341,17 @@ test('deduplicates dependencies with SameValueZero and accepts COMPLETION_VISIT_
       dependsOnWork: [dependencyId, dependencyId, NaN, NaN],
     }),
   )!;
-  expect(container.resolvedGraphView.get(dependentRef)?.dependsOnWork).toEqual([
-    dependencyId,
-    NaN,
-  ]);
+  expect(
+    container.liveResolvedGraphView.get(dependentRef)?.workWaitsForWorkOf,
+  ).toEqual([dependencyId, NaN]);
   expect(scheduling.takeReady()).toBeNull();
 
-  const omittedParent = new MutableRef(
-    rootRef.getValue().clone({ $childHints: ['missing'] }),
+  const omittedParent = new MutableValueReference(
+    rootRef
+      .getReferencedValue()
+      .createEditableShallowCloneWithContentOverrides({
+        $childDiscoveryHints: ['missing'],
+      }),
   );
   container.acceptVertex(
     omittedParent,
@@ -362,7 +386,9 @@ test('an omission releases reverse dependents once and repeated omissions close 
   ).toBeNull();
   expect(scheduling.takeReady()).toBeNull();
   expect(
-    container.resolvedGraphView.get(rootRef)?.slots.map((slot) => slot.kind),
+    container.liveResolvedGraphView
+      .get(rootRef)
+      ?.slots.map((slot) => slot.kind),
   ).toEqual(['linked', 'omitted', 'omitted']);
 });
 
@@ -381,12 +407,12 @@ test('supports null and undefined ids while anonymous null results reserve no id
     result('undefined-live', { id: undefined, dependsOnWork: [] }),
   )!;
 
-  expect(container.resolvedGraphView.getVertexRefById(null)).toBe(nullRef);
-  expect(container.resolvedGraphView.getVertexRefById(undefined)).toBe(
+  expect(container.liveResolvedGraphView.getVertexRefById(null)).toBe(nullRef);
+  expect(container.liveResolvedGraphView.getVertexRefById(undefined)).toBe(
     undefinedRef,
   );
   expect(scheduling.acceptVertex(context(rootRef, 2), omitted())).toBeNull();
-  expect(container.resolvedGraphView.getVertexRefs()).toEqual([
+  expect(container.liveResolvedGraphView.getVertexRefs()).toEqual([
     rootRef,
     nullRef,
     undefinedRef,
@@ -403,7 +429,7 @@ test('rejects content for an omitted identity without closing the conflicting sl
       result('conflict', { id: null }),
     ),
   ).toThrow(/omission.*content/i);
-  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+  expect(container.liveResolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
     'pending',
   );
 });
@@ -418,11 +444,11 @@ test('a duplicate null result links the first live identity and preserves its co
   expect(scheduling.acceptVertex(context(rootRef, 1), omitted('same'))).toBe(
     firstRef,
   );
-  expect(container.resolvedGraphView.getChildrenOf(rootRef)).toEqual([
+  expect(container.liveResolvedGraphView.getChildrenOf(rootRef)).toEqual([
     firstRef,
     firstRef,
   ]);
-  expect(firstRef.getValue().getData()).toBe('first');
+  expect(firstRef.getReferencedValue().getVertexData()).toBe('first');
 });
 
 test('duplicate live results add edges but retain first content and dependencies', () => {
@@ -443,10 +469,10 @@ test('duplicate live results add edges but retain first content and dependencies
   );
 
   expect(duplicateRef).toBe(firstRef);
-  expect(firstRef.getValue().getData()).toBe('first');
-  expect(container.resolvedGraphView.get(firstRef)?.dependsOnWork).toEqual([
-    'gate',
-  ]);
+  expect(firstRef.getReferencedValue().getVertexData()).toBe('first');
+  expect(
+    container.liveResolvedGraphView.get(firstRef)?.workWaitsForWorkOf,
+  ).toEqual(['gate']);
   expect(scheduling.takeReady()).toBeNull();
   scheduling.acceptVertex(context(rootRef, 2), omitted('gate'));
   expect(scheduling.takeReady()).toBe(firstRef);
@@ -476,8 +502,10 @@ test('uses authoritative hint identities and compares dual ids with SameValueZer
     { vertexId: 0 },
   );
 
-  expect(container.resolvedGraphView.getVertexRefById(undefined)).toBe(hinted);
-  expect(container.resolvedGraphView.getVertexRefById(NaN)).toBe(nan);
+  expect(container.liveResolvedGraphView.getVertexRefById(undefined)).toBe(
+    hinted,
+  );
+  expect(container.liveResolvedGraphView.getVertexRefById(NaN)).toBe(nan);
   expect(() =>
     scheduling.acceptVertex(
       context(rootRef, 3),
@@ -485,7 +513,7 @@ test('uses authoritative hint identities and compares dual ids with SameValueZer
       { vertexId: {} },
     ),
   ).toThrow(/id.*mismatch/i);
-  expect(container.resolvedGraphView.get(rootRef)?.slots[3]?.kind).toBe(
+  expect(container.liveResolvedGraphView.get(rootRef)?.slots[3]?.kind).toBe(
     'pending',
   );
 });
@@ -499,21 +527,23 @@ test('detects result ids as own properties rather than inherited values', () => 
   const inherited = Object.create({
     vertexId: 'inherited',
   }) as MakeVertexResult<TestGraph>;
-  inherited.vertexContent = { $data: 'root', $childHints: [] };
-  inherited.dependsOnWork = ['ignored'];
+  inherited.vertexContent = { $vertexData: 'root', $childDiscoveryHints: [] };
+  inherited.workWaitsForWorkOf = ['ignored'];
 
   const rootRef = scheduling.acceptRoot(inherited)!;
 
-  expect(container.resolvedGraphView.getVertexRefById('inherited')).toBeNull();
-  expect(container.resolvedGraphView.requireVertexId(rootRef)).toBe(
-    rootRef.getRefId(),
+  expect(
+    container.liveResolvedGraphView.getVertexRefById('inherited'),
+  ).toBeNull();
+  expect(container.liveResolvedGraphView.requireVertexId(rootRef)).toBe(
+    rootRef.getReferenceIdentity(),
   );
 });
 
 test('retries generated UUID identities that are already indexed', () => {
   const { container, scheduling, rootRef } = setup(['generated']);
   const getId = jest
-    .spyOn(MutableRef.prototype, 'getRefId')
+    .spyOn(MutableValueReference.prototype, 'getReferenceIdentity')
     .mockReturnValueOnce('root')
     .mockReturnValueOnce('fresh-generated-id');
   try {
@@ -522,7 +552,7 @@ test('retries generated UUID identities that are already indexed', () => {
       result('generated', { dependsOnWork: [] }),
     )!;
 
-    expect(container.resolvedGraphView.requireVertexId(generated)).toBe(
+    expect(container.liveResolvedGraphView.requireVertexId(generated)).toBe(
       'fresh-generated-id',
     );
   } finally {
@@ -545,7 +575,7 @@ test('closes arrivals for deleted identities without restoring them', () => {
     ),
   ).toBeNull();
   expect(container.store.getIdState('deleted')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+  expect(container.liveResolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
     'deleted',
   );
 });
@@ -568,7 +598,7 @@ test('tombstones a new identity whose dependency was already deleted', () => {
     ),
   ).toBeNull();
   expect(container.store.getIdState('dependent')).toEqual({ kind: 'deleted' });
-  expect(container.resolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
+  expect(container.liveResolvedGraphView.get(rootRef)?.slots[1]?.kind).toBe(
     'deleted',
   );
 });
@@ -582,7 +612,7 @@ test('an explicitly identified null root records omission and creates no root', 
 
   expect(scheduling.acceptRoot(omitted('empty-root'))).toBeNull();
   expect(container.store.getIdState('empty-root')).toEqual({ kind: 'omitted' });
-  expect(container.resolvedGraphView.getRoot()).toBeNull();
+  expect(container.liveResolvedGraphView.getRoot()).toBeNull();
   expect(scheduling.takeReady()).toBeNull();
 });
 
@@ -603,15 +633,17 @@ test('accepts a hint wrapper only when it carries an own vertexId', () => {
   const { container, scheduling, rootRef } = setup(['hint']);
   const inheritedHint = Object.create({
     vertexId: 'inherited',
-  }) as HintVertexId;
+  }) as ChildHintVertexIdentity;
   const hinted = scheduling.acceptVertex(
     context(rootRef, 0),
     result('hint', { dependsOnWork: [] }),
     inheritedHint,
   )!;
 
-  expect(container.resolvedGraphView.getVertexRefById('inherited')).toBeNull();
-  expect(container.resolvedGraphView.requireVertexId(hinted)).toBe(
-    hinted.getRefId(),
+  expect(
+    container.liveResolvedGraphView.getVertexRefById('inherited'),
+  ).toBeNull();
+  expect(container.liveResolvedGraphView.requireVertexId(hinted)).toBe(
+    hinted.getReferenceIdentity(),
   );
 });

@@ -1,272 +1,306 @@
 import {
-  BreadthFirstPhase as B,
-  DepthFirstPhase as F,
+  BreadthFirstTreeVisitPhase as B,
+  DepthFirstTreeVisitPhase as F,
   DagVisitorPhase as D,
   TraversalVisitorCommandName as C,
-  traverseTreeDepthFirst,
-  traverseTreeDepthFirstAsync,
-  traverseTreeBreadthFirst,
-  traverseTreeBreadthFirstAsync,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync,
+  runTreeBreadthFirstUntilSuspendedOrTerminal,
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
   traverseDag,
   traverseDagAsync,
 } from '../src';
 import type {
-  TreeSource,
+  TreeDiscoverySource,
   DagDiscoverySource,
-  VertexTypes,
+  VertexDataAndChildHintTypes,
   DepthFirstTreeRunner,
   AsyncDepthFirstTreeRunner,
   BreadthFirstTreeRunner,
   AsyncBreadthFirstTreeRunner,
   DagTraversalRunner,
   AsyncDagTraversalRunner,
-  TreeVisitor,
-  AsyncTreeVisitor,
+  TreeVertexPhaseVisitorCallback,
+  AsyncTreeVertexPhaseVisitorCallback,
   DagVisitor,
   AsyncDagVisitor,
 } from '../src';
-
-type T = VertexTypes<string, string>;
-declare const tree: TreeSource<T>;
+type T = VertexDataAndChildHintTypes<string, string>;
+declare const tree: TreeDiscoverySource<T>;
 declare const graph: DagDiscoverySource<T>;
-const common: TreeVisitor<string, T, T> = () => ({
-  commands: [{ commandName: C.NOOP }],
+const common: TreeVertexPhaseVisitorCallback<T, T, string> = () => ({
+  commands: [{ commandName: C.NO_OPERATION }],
 });
-const asyncCommon: AsyncTreeVisitor<string, T, T> = async () => ({
-  commands: [{ commandName: C.NOOP }],
+const asyncCommon: AsyncTreeVertexPhaseVisitorCallback<
+  T,
+  T,
+  string
+> = async () => ({
+  commands: [{ commandName: C.NO_OPERATION }],
 });
 const dagCommon: DagVisitor<T> = () => ({
-  commands: [{ commandName: C.NOOP }],
+  commands: [{ commandName: C.NO_OPERATION }],
 });
 const asyncDagCommon: AsyncDagVisitor<T> = async () => ({
-  commands: [{ commandName: C.NOOP }],
+  commands: [{ commandName: C.NO_OPERATION }],
 });
-const dfs: DepthFirstTreeRunner<T, T> = traverseTreeDepthFirst({
-  traversableTree: tree,
+const dfs: DepthFirstTreeRunner<T, T> =
+  runTreeDepthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource: tree,
+    visitors: {
+      [F.BEFORE_CHILD_EXPANSION]: (_vertex, options) => {
+        const phase: F.BEFORE_CHILD_EXPANSION = options.visitorPhase;
+        void phase;
+        return {
+          commands: [
+            {
+              commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+              commandArguments: { replacementChildHints: [] },
+            },
+          ],
+        };
+      },
+      [F.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: (_vertex, options) => {
+        const phase: F.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES =
+          options.visitorPhase;
+        void phase;
+      },
+      [F.AFTER_CHILD_SUBTREES]: common,
+    },
+  });
+const adfs: Promise<AsyncDepthFirstTreeRunner<T, T>> =
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: tree,
+    visitors: {
+      [F.BEFORE_CHILD_EXPANSION]: asyncCommon,
+      [F.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: asyncCommon,
+      [F.AFTER_CHILD_SUBTREES]: asyncCommon,
+    },
+  });
+const bfs: BreadthFirstTreeRunner<T, T> =
+  runTreeBreadthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource: tree,
+    visitors: {
+      [B.AT_LEVEL_ORDER_VERTEX]: (_vertex, options) => {
+        const phase: B.AT_LEVEL_ORDER_VERTEX = options.visitorPhase;
+        void phase;
+      },
+    },
+  });
+const abfs: Promise<AsyncBreadthFirstTreeRunner<T, T>> =
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: tree,
+    visitors: { [B.AT_LEVEL_ORDER_VERTEX]: asyncCommon },
+  });
+const dag: DagTraversalRunner<T, T> = traverseDag({
+  dagDiscoverySource: graph,
   visitors: {
-    [F.PRE_ORDER]: (_vertex, options) => {
-      const phase: F.PRE_ORDER = options.phase;
+    [D.ON_WORK_READY]: (_vertex, options) => {
+      const phase: D.ON_WORK_READY = options.visitorPhase;
       void phase;
       return {
         commands: [
-          {
-            commandName: C.REWRITE_CHILD_HINTS,
-            commandArguments: { newHints: [] },
-          },
+          { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
         ],
       };
     },
-    [F.IN_ORDER]: (_vertex, options) => {
-      const phase: F.IN_ORDER = options.phase;
-      void phase;
-    },
-    [F.POST_ORDER]: common,
-  },
-});
-const adfs: Promise<AsyncDepthFirstTreeRunner<T, T>> =
-  traverseTreeDepthFirstAsync({
-    traversableTree: tree,
-    visitors: {
-      [F.PRE_ORDER]: asyncCommon,
-      [F.IN_ORDER]: asyncCommon,
-      [F.POST_ORDER]: asyncCommon,
-    },
-  });
-const bfs: BreadthFirstTreeRunner<T, T> = traverseTreeBreadthFirst({
-  traversableTree: tree,
-  visitors: {
-    [B.LEVEL_ORDER]: (_vertex, options) => {
-      const phase: B.LEVEL_ORDER = options.phase;
-      void phase;
-    },
-  },
-});
-const abfs: Promise<AsyncBreadthFirstTreeRunner<T, T>> =
-  traverseTreeBreadthFirstAsync({
-    traversableTree: tree,
-    visitors: { [B.LEVEL_ORDER]: asyncCommon },
-  });
-const dag: DagTraversalRunner<T, T> = traverseDag({
-  traversableGraph: graph,
-  visitors: {
-    [D.ON_WORK_READY]: (_vertex, options) => {
-      const phase: D.ON_WORK_READY = options.phase;
-      void phase;
-      return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
-    },
-    [D.ON_SUBGRAPH_READY]: dagCommon,
+    [D.ON_SUBGRAPH_COMPLETION_READY]: dagCommon,
   },
 });
 const adag: Promise<AsyncDagTraversalRunner<T, T>> = traverseDagAsync({
-  traversableTree: tree,
+  treeDiscoverySource: tree,
   visitors: {
     [D.ON_WORK_READY]: asyncDagCommon,
-    [D.ON_SUBGRAPH_READY]: asyncDagCommon,
+    [D.ON_SUBGRAPH_COMPLETION_READY]: asyncDagCommon,
   },
 });
-traverseTreeDepthFirst({
-  traversableTree: tree,
+runTreeDepthFirstUntilSuspendedOrTerminal({
+  treeDiscoverySource: tree,
   visitors: {
-    [F.PRE_ORDER]: common,
-    [F.IN_ORDER]: common,
-    [F.POST_ORDER]: common,
+    [F.BEFORE_CHILD_EXPANSION]: common,
+    [F.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: common,
+    [F.AFTER_CHILD_SUBTREES]: common,
   },
 });
-traverseTreeBreadthFirst({
-  traversableTree: tree,
-  visitors: { [B.LEVEL_ORDER]: common },
+runTreeBreadthFirstUntilSuspendedOrTerminal({
+  treeDiscoverySource: tree,
+  visitors: { [B.AT_LEVEL_ORDER_VERTEX]: common },
 });
 traverseDag({
-  traversableTree: tree,
-  visitors: { [D.ON_WORK_READY]: dagCommon, [D.ON_SUBGRAPH_READY]: dagCommon },
+  treeDiscoverySource: tree,
+  visitors: {
+    [D.ON_WORK_READY]: dagCommon,
+    [D.ON_SUBGRAPH_COMPLETION_READY]: dagCommon,
+  },
 });
 // Async callback contexts infer the actual phase too.
-traverseTreeDepthFirstAsync({
-  traversableTree: tree,
+runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+  treeDiscoverySource: tree,
   visitors: {
-    [F.POST_ORDER]: async (_v, options) => {
-      const phase: F.POST_ORDER = options.phase;
+    [F.AFTER_CHILD_SUBTREES]: async (_v, options) => {
+      const phase: F.AFTER_CHILD_SUBTREES = options.visitorPhase;
       void phase;
     },
   },
 });
-traverseTreeBreadthFirstAsync({
-  traversableTree: tree,
+runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+  treeDiscoverySource: tree,
   visitors: {
-    [B.LEVEL_ORDER]: async (_v, options) => {
-      const phase: B.LEVEL_ORDER = options.phase;
+    [B.AT_LEVEL_ORDER_VERTEX]: async (_v, options) => {
+      const phase: B.AT_LEVEL_ORDER_VERTEX = options.visitorPhase;
       void phase;
     },
   },
 });
 traverseDagAsync({
-  traversableGraph: graph,
+  dagDiscoverySource: graph,
   visitors: {
-    [D.ON_SUBGRAPH_READY]: async (_v, options) => {
-      const phase: D.ON_SUBGRAPH_READY = options.phase;
+    [D.ON_SUBGRAPH_COMPLETION_READY]: async (_v, options) => {
+      const phase: D.ON_SUBGRAPH_COMPLETION_READY = options.visitorPhase;
       void phase;
     },
   },
 });
-declare const preOnly: TreeVisitor<F.PRE_ORDER, T, T>;
+declare const preOnly: TreeVertexPhaseVisitorCallback<
+  T,
+  T,
+  F.BEFORE_CHILD_EXPANSION
+>;
 declare const readyOnly: DagVisitor<T, T, D.ON_WORK_READY>;
 // @ts-expect-error Canonical DAG sources are exclusive.
-traverseDag<T>({ traversableGraph: graph, traversableTree: tree });
+traverseDag<T>({ dagDiscoverySource: graph, treeDiscoverySource: tree });
 // @ts-expect-error Async canonical DAG sources are exclusive.
-traverseDagAsync<T>({ traversableGraph: graph, traversableTree: tree });
+traverseDagAsync<T>({ dagDiscoverySource: graph, treeDiscoverySource: tree });
 // @ts-expect-error A source is required.
-traverseTreeDepthFirst<T>({ visitors: {} });
+runTreeDepthFirstUntilSuspendedOrTerminal<T>({ visitors: {} });
 // @ts-expect-error A source is required.
 traverseDag<T>({ visitors: {} });
-traverseTreeBreadthFirst<T>({
-  traversableTree: tree,
+runTreeBreadthFirstUntilSuspendedOrTerminal<T>({
+  treeDiscoverySource: tree,
   // @ts-expect-error Canonical configuration has no second nested source/config.
-  config: { traversableTree: tree },
+  config: { treeDiscoverySource: tree },
 });
-traverseTreeDepthFirst<T>({
-  traversableTree: tree,
+runTreeDepthFirstUntilSuspendedOrTerminal<T>({
+  treeDiscoverySource: tree,
   // @ts-expect-error PRE_ORDER-only callbacks cannot run in POST_ORDER.
-  visitors: { [F.POST_ORDER]: preOnly },
+  visitors: { [F.AFTER_CHILD_SUBTREES]: preOnly },
 });
-traverseTreeDepthFirstAsync<T>({
-  traversableTree: tree,
+runTreeDepthFirstUntilSuspendedOrTerminalAsync<T>({
+  treeDiscoverySource: tree,
   // @ts-expect-error Async POST_ORDER rejects initial-phase callbacks too.
-  visitors: { [F.POST_ORDER]: preOnly },
+  visitors: { [F.AFTER_CHILD_SUBTREES]: preOnly },
 });
 traverseDag<T>({
-  traversableGraph: graph,
+  dagDiscoverySource: graph,
   // @ts-expect-error Completion callbacks cannot require ON_WORK_READY.
-  visitors: { [D.ON_SUBGRAPH_READY]: readyOnly },
+  visitors: { [D.ON_SUBGRAPH_COMPLETION_READY]: readyOnly },
 });
 traverseDagAsync<T>({
-  traversableGraph: graph,
+  dagDiscoverySource: graph,
   // @ts-expect-error Async completion callbacks cannot require ON_WORK_READY.
-  visitors: { [D.ON_SUBGRAPH_READY]: readyOnly },
+  visitors: { [D.ON_SUBGRAPH_COMPLETION_READY]: readyOnly },
 });
-traverseTreeDepthFirst<T>({
-  traversableTree: tree,
+runTreeDepthFirstUntilSuspendedOrTerminal<T>({
+  treeDiscoverySource: tree,
   visitors: {
     // @ts-expect-error POST_ORDER cannot rewrite hints.
-    [F.POST_ORDER]: () => ({
+    [F.AFTER_CHILD_SUBTREES]: () => ({
       commands: [
         {
-          commandName: C.REWRITE_CHILD_HINTS,
-          commandArguments: { newHints: [] },
+          commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+          commandArguments: { replacementChildHints: [] },
         },
       ],
     }),
   },
 });
-traverseTreeDepthFirstAsync<T>({
-  traversableTree: tree,
+runTreeDepthFirstUntilSuspendedOrTerminalAsync<T>({
+  treeDiscoverySource: tree,
   visitors: {
     // @ts-expect-error IN_ORDER cannot rewrite hints asynchronously either.
-    [F.IN_ORDER]: async () => ({
+    [F.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: async () => ({
       commands: [
         {
-          commandName: C.REWRITE_CHILD_HINTS,
-          commandArguments: { newHints: [] },
+          commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+          commandArguments: { replacementChildHints: [] },
         },
       ],
     }),
   },
 });
 traverseDag<T>({
-  traversableGraph: graph,
+  dagDiscoverySource: graph,
   visitors: {
     // @ts-expect-error ON_SUBGRAPH_READY cannot defer.
-    [D.ON_SUBGRAPH_READY]: () => ({
-      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+    [D.ON_SUBGRAPH_COMPLETION_READY]: () => ({
+      commands: [
+        { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+      ],
     }),
   },
 });
 traverseDagAsync<T>({
-  traversableGraph: graph,
+  dagDiscoverySource: graph,
   visitors: {
     // @ts-expect-error Async ON_SUBGRAPH_READY cannot defer.
-    [D.ON_SUBGRAPH_READY]: async () => ({
-      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+    [D.ON_SUBGRAPH_COMPLETION_READY]: async () => ({
+      commands: [
+        { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+      ],
     }),
   },
 });
-traverseTreeBreadthFirst<T>({
-  traversableTree: tree,
+runTreeBreadthFirstUntilSuspendedOrTerminal<T>({
+  treeDiscoverySource: tree,
   visitors: {
     // @ts-expect-error BFS cannot defer work.
-    [B.LEVEL_ORDER]: () => ({
-      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+    [B.AT_LEVEL_ORDER_VERTEX]: () => ({
+      commands: [
+        { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+      ],
     }),
   },
 });
-traverseTreeBreadthFirstAsync<T>({
-  traversableTree: tree,
+runTreeBreadthFirstUntilSuspendedOrTerminalAsync<T>({
+  treeDiscoverySource: tree,
   visitors: {
     // @ts-expect-error Async BFS cannot defer work.
-    [B.LEVEL_ORDER]: async () => ({
-      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+    [B.AT_LEVEL_ORDER_VERTEX]: async () => ({
+      commands: [
+        { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+      ],
     }),
   },
 });
 traverseDag<T>({
-  traversableGraph: graph,
+  dagDiscoverySource: graph,
   visitors: {
-    [D.ON_WORK_READY]: [{ visitor: dagCommon, priority: 1 }],
+    [D.ON_WORK_READY]: [
+      { visitor: dagCommon, descendingExecutionPriorityWithinGroup: 1 },
+    ],
   },
 });
 void [dfs, adfs, bfs, abfs, dag, adag];
-
 // TS 4.7 cannot call a union of multiple generic overloaded helpers. Select
 // wrappers with one shared signature when choosing between sync and async.
 declare const chooseAsync: boolean;
 const selectedDfs = chooseAsync
-  ? (source: TreeSource<T>) =>
-      traverseTreeDepthFirstAsync({ traversableTree: source })
-  : (source: TreeSource<T>) =>
-      traverseTreeDepthFirst({ traversableTree: source });
+  ? (source: TreeDiscoverySource<T>) =>
+      runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+        treeDiscoverySource: source,
+      })
+  : (source: TreeDiscoverySource<T>) =>
+      runTreeDepthFirstUntilSuspendedOrTerminal({
+        treeDiscoverySource: source,
+      });
 const selectedBfs = chooseAsync
-  ? (source: TreeSource<T>) =>
-      traverseTreeBreadthFirstAsync({ traversableTree: source })
-  : (source: TreeSource<T>) =>
-      traverseTreeBreadthFirst({ traversableTree: source });
+  ? (source: TreeDiscoverySource<T>) =>
+      runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+        treeDiscoverySource: source,
+      })
+  : (source: TreeDiscoverySource<T>) =>
+      runTreeBreadthFirstUntilSuspendedOrTerminal({
+        treeDiscoverySource: source,
+      });
 selectedDfs(tree);
 selectedBfs(tree);

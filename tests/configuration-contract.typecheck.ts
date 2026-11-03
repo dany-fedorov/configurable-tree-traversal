@@ -1,76 +1,95 @@
 import {
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstTreeTraversal,
-  GraphWalk,
-  type TreeSource,
-  type VertexTypes,
-  type DepthFirstTreeOptionsPatch,
-  type InOrderOptions,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  GraphWalkBuilder,
+  type TreeDiscoverySource,
+  type VertexDataAndChildHintTypes,
+  type DepthFirstTreeTraversalBuilderOptionsPatch,
+  type DepthFirstChildBoundaryVisitOptions,
 } from '../src';
-const tree: TreeSource<VertexTypes> = {
-  resolveRoot: () => ({ kind: 'omitted' }),
-  resolveChild: () => ({ kind: 'omitted' }),
+const tree: TreeDiscoverySource<VertexDataAndChildHintTypes> = {
+  resolveRootVertex: () => ({ kind: 'vertexIntentionallyOmitted' }),
+  resolveChildVertexFromHint: () => ({ kind: 'vertexIntentionallyOmitted' }),
 };
-const patch: DepthFirstTreeOptionsPatch = {
-  traversableTree: undefined,
-  transformChildHints: undefined,
-  inOrder: { afterChildIndices: undefined, visitSingleChildParent: undefined },
-  visitors: { PRE_ORDER: undefined },
+const patch: DepthFirstTreeTraversalBuilderOptionsPatch = {
+  treeDiscoverySource: undefined,
+  transformChildHintsBeforeResolution: undefined,
+  childBoundaryVisits: {
+    visitAfterChildIndices: undefined,
+    alsoVisitAfterOnlyChild: undefined,
+  },
+  visitors: { BEFORE_CHILD_EXPANSION: undefined },
 };
-new DepthFirstTreeTraversal({ traversableTree: tree }).configure(patch);
-new AsyncDepthFirstTreeTraversal({ traversableTree: tree }).configure({
+new DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
+}).patchOptionsForFutureRunners(patch);
+new AsyncDepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
+}).patchOptionsForFutureRunners({
   ...patch,
-  concurrency: undefined,
+  maxConcurrentCallbackInvocations: undefined,
 });
-new BreadthFirstTreeTraversal({ traversableTree: tree }).configure({
-  traversableTree: undefined,
-  visitors: { LEVEL_ORDER: undefined },
+new BreadthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
+}).patchOptionsForFutureRunners({
+  treeDiscoverySource: undefined,
+  visitors: { AT_LEVEL_ORDER_VERTEX: undefined },
 });
-new AsyncBreadthFirstTreeTraversal({ traversableTree: tree }).configure({
-  concurrency: undefined,
+new AsyncBreadthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
+}).patchOptionsForFutureRunners({
+  maxConcurrentCallbackInvocations: undefined,
 });
-new DagTraversal({ traversableTree: tree }).configure({
-  discovery: undefined,
-  workCompletion: undefined,
+new DagTraversalBuilder({
+  treeDiscoverySource: tree,
+}).patchOptionsForFutureRunners({
+  discoveryTiming: undefined,
+  workCompletionPolicy: undefined,
   visitors: { ON_WORK_READY: undefined },
 });
-new AsyncDagTraversal({ traversableTree: tree }).configure({
-  concurrency: undefined,
-  completedWork: undefined,
+new AsyncDagTraversalBuilder({
+  treeDiscoverySource: tree,
+}).patchOptionsForFutureRunners({
+  maxConcurrentCallbackInvocations: undefined,
+  acceptedCompletedWorkVertexIds: undefined,
 });
-new GraphWalk({
-  source: {
-    hydration: 'inlineOrCached' as const,
-    roots: () => [],
-    outgoing: () => [],
+new GraphWalkBuilder({
+  graphWalkDiscoverySource: {
+    vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+    enumerateRootTargets: () => [],
+    enumerateOutgoingLinks: () => [],
   },
-}).configure({
-  source: undefined,
-  strategy: undefined,
+}).patchOptionsForFutureRunners({
+  graphWalkDiscoverySource: undefined,
+  expansionOrder: undefined,
   replaceLimits: undefined,
-  revisit: undefined,
-  visitors: { vertex: undefined },
+  routeEnumerationPolicy: undefined,
+  visitorsByObservationKind: { vertexOccurrence: undefined },
 });
-const inOrder: Partial<InOrderOptions> = {
-  afterChildIndices: { indices: [0, 2] },
-  fallbackChildIndices: { ranges: [{ from: -2, through: -1 }] },
+const inOrder: Partial<DepthFirstChildBoundaryVisitOptions> = {
+  visitAfterChildIndices: { indices: [0, 2] },
+  visitAfterChildIndicesWhenPrimarySelectionIsEmpty: {
+    ranges: [{ fromInclusive: -2, throughInclusive: -1 }],
+  },
 };
 void inOrder;
-// @ts-expect-error ambiguous tuples are removed
-const ambiguous: Partial<InOrderOptions> = { afterChildIndices: [0, 2] };
-const conflicting: Partial<InOrderOptions> = {
+const ambiguous: Partial<DepthFirstChildBoundaryVisitOptions> = {
+  // @ts-expect-error ambiguous tuples are removed
+  visitAfterChildIndices: [0, 2],
+};
+const conflicting: Partial<DepthFirstChildBoundaryVisitOptions> = {
   // @ts-expect-error a selection must choose one tag
-  afterChildIndices: { indices: [0], ranges: [] },
+  visitAfterChildIndices: { indices: [0], ranges: [] },
 };
 void ambiguous;
 void conflicting;
 
-const optionalPathOptions: import('../src').GetPathToOptions = {
-  noRoot: undefined,
-  noSelf: undefined,
+const optionalPathOptions: import('../src').StructuralAncestorPathOptions = {
+  includeDesignatedRoot: undefined,
+  includeTargetVertex: undefined,
 };
 void optionalPathOptions;

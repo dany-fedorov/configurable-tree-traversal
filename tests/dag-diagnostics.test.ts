@@ -1,8 +1,11 @@
 import {
-  DagTraversal,
-  AsyncDagTraversal,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
 } from '../src/traversals/dag-traversal';
-import { DagTraversalStallError, type VertexTypes } from '../src/core';
+import {
+  DagTraversalStallError,
+  type VertexDataAndChildHintTypes,
+} from '../src/core';
 import { graphAdapter } from './helpers/graph-fixtures';
 
 const fixture = {
@@ -19,26 +22,28 @@ function check(error: unknown) {
   expect(stall.name).toBe('DagTraversalStallError');
   expect(stall.message).toMatch(/^DAG traversal stalled:/);
   expect(stall.diagnostics).toEqual({
-    dependencies: [
-      { vertexId: 'A', unmetPrerequisiteIds: ['B', 'unknown'] },
-      { vertexId: 'B', unmetPrerequisiteIds: ['A'] },
-      { vertexId: 'C', unmetPrerequisiteIds: ['A'] },
-      { vertexId: 'D', unmetPrerequisiteIds: ['D'] },
+    blockedVertexPrerequisiteReports: [
+      { vertexId: 'A', prerequisiteVertexIdsInReport: ['B', 'unknown'] },
+      { vertexId: 'B', prerequisiteVertexIdsInReport: ['A'] },
+      { vertexId: 'C', prerequisiteVertexIdsInReport: ['A'] },
+      { vertexId: 'D', prerequisiteVertexIdsInReport: ['D'] },
     ],
-    unknownPrerequisiteIds: ['unknown'],
-    dependencyCycleComponents: [['A', 'B'], ['D']],
-    dependencyBlockedIds: ['C'],
-    structurallyIncompleteIds: ['root'],
-    dependencyEdges: expect.any(Array),
+    unresolvedPrerequisiteVertexIds: ['unknown'],
+    milestoneCycleVertexIdComponents: [['A', 'B'], ['D']],
+    nonCyclePrerequisiteBlockedVertexIds: ['C'],
+    incompleteVertexIdsWithoutUnmetPrerequisites: ['root'],
+    originalMilestoneConstraints: expect.any(Array),
   });
 }
 
 test('sync stalls distinguish unknown prerequisites, cycle members and downstream work', () => {
-  const runner = new DagTraversal<VertexTypes<string, string>>({
-    traversableGraph: graphAdapter(fixture),
-  }).createRunner();
+  const runner = new DagTraversalBuilder<
+    VertexDataAndChildHintTypes<string, string>
+  >({
+    dagDiscoverySource: graphAdapter(fixture),
+  }).createIndependentRunnerFromCurrentOptions();
   try {
-    runner.run();
+    runner.runUntilSuspendedOrTerminal();
     throw new Error('Expected stall');
   } catch (error) {
     check(error);
@@ -46,32 +51,38 @@ test('sync stalls distinguish unknown prerequisites, cycle members and downstrea
 });
 
 test('async stalls report the same detached diagnostic contract', async () => {
-  const runner = new AsyncDagTraversal<VertexTypes<string, string>>({
-    traversableGraph: graphAdapter(fixture),
-  }).createRunner();
-  await runner.run().then(() => {
+  const runner = new AsyncDagTraversalBuilder<
+    VertexDataAndChildHintTypes<string, string>
+  >({
+    dagDiscoverySource: graphAdapter(fixture),
+  }).createIndependentRunnerFromCurrentOptions();
+  await runner.runUntilSuspendedOrTerminal().then(() => {
     throw new Error('Expected stall');
   }, check);
 });
 
 test('reports a missing prerequisite separately from its blocked vertex', () => {
-  const runner = new DagTraversal<VertexTypes<string, string>>({
-    traversableGraph: graphAdapter({
+  const runner = new DagTraversalBuilder<
+    VertexDataAndChildHintTypes<string, string>
+  >({
+    dagDiscoverySource: graphAdapter({
       root: { children: ['task'], dependencies: [] },
       task: { children: [], dependencies: ['absent'] },
     }),
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
   try {
-    runner.run();
+    runner.runUntilSuspendedOrTerminal();
     throw new Error('Expected stall');
   } catch (error) {
     expect((error as DagTraversalStallError).diagnostics).toEqual({
-      dependencies: [{ vertexId: 'task', unmetPrerequisiteIds: ['absent'] }],
-      unknownPrerequisiteIds: ['absent'],
-      dependencyCycleComponents: [],
-      dependencyBlockedIds: ['task'],
-      structurallyIncompleteIds: ['root'],
-      dependencyEdges: expect.any(Array),
+      blockedVertexPrerequisiteReports: [
+        { vertexId: 'task', prerequisiteVertexIdsInReport: ['absent'] },
+      ],
+      unresolvedPrerequisiteVertexIds: ['absent'],
+      milestoneCycleVertexIdComponents: [],
+      nonCyclePrerequisiteBlockedVertexIds: ['task'],
+      incompleteVertexIdsWithoutUnmetPrerequisites: ['root'],
+      originalMilestoneConstraints: expect.any(Array),
     });
   }
 });
@@ -83,150 +94,179 @@ test('detaches reports and retains hostile and SameValueZero IDs without coercio
     },
   };
   const diagnostics = {
-    dependencies: [
-      { vertexId: hostile, unmetPrerequisiteIds: [undefined, null, NaN, -0] },
+    blockedVertexPrerequisiteReports: [
+      {
+        vertexId: hostile,
+        prerequisiteVertexIdsInReport: [undefined, null, NaN, -0],
+      },
     ],
-    unknownPrerequisiteIds: [undefined, null, NaN, -0],
-    dependencyCycleComponents: [[hostile]],
-    dependencyBlockedIds: [hostile],
-    structurallyIncompleteIds: [hostile],
+    unresolvedPrerequisiteVertexIds: [undefined, null, NaN, -0],
+    milestoneCycleVertexIdComponents: [[hostile]],
+    nonCyclePrerequisiteBlockedVertexIds: [hostile],
+    incompleteVertexIdsWithoutUnmetPrerequisites: [hostile],
   };
   const error = new DagTraversalStallError(diagnostics);
-  diagnostics.dependencies[0]!.unmetPrerequisiteIds.length = 0;
-  diagnostics.unknownPrerequisiteIds.length = 0;
-  diagnostics.dependencyCycleComponents[0]!.length = 0;
-  diagnostics.dependencyBlockedIds.length = 0;
-  diagnostics.structurallyIncompleteIds.length = 0;
-  expect(error.diagnostics.dependencies).toEqual([
-    { vertexId: hostile, unmetPrerequisiteIds: [undefined, null, NaN, -0] },
+  diagnostics.blockedVertexPrerequisiteReports[0]!.prerequisiteVertexIdsInReport.length = 0;
+  diagnostics.unresolvedPrerequisiteVertexIds.length = 0;
+  diagnostics.milestoneCycleVertexIdComponents[0]!.length = 0;
+  diagnostics.nonCyclePrerequisiteBlockedVertexIds.length = 0;
+  diagnostics.incompleteVertexIdsWithoutUnmetPrerequisites.length = 0;
+  expect(error.diagnostics.blockedVertexPrerequisiteReports).toEqual([
+    {
+      vertexId: hostile,
+      prerequisiteVertexIdsInReport: [undefined, null, NaN, -0],
+    },
   ]);
-  expect(error.diagnostics.unknownPrerequisiteIds).toEqual([
+  expect(error.diagnostics.unresolvedPrerequisiteVertexIds).toEqual([
     undefined,
     null,
     NaN,
     -0,
   ]);
-  expect(error.diagnostics.dependencyCycleComponents).toEqual([[hostile]]);
-  expect(error.diagnostics.dependencyBlockedIds[0]).toBe(hostile);
-  expect(error.diagnostics.structurallyIncompleteIds[0]).toBe(hostile);
+  expect(error.diagnostics.milestoneCycleVertexIdComponents).toEqual([
+    [hostile],
+  ]);
+  expect(error.diagnostics.nonCyclePrerequisiteBlockedVertexIds[0]).toBe(
+    hostile,
+  );
+  expect(
+    error.diagnostics.incompleteVertexIdsWithoutUnmetPrerequisites[0],
+  ).toBe(hostile);
   expect(
     new DagTraversalStallError({
-      dependencies: [],
-      unknownPrerequisiteIds: [],
-      dependencyCycleComponents: [],
-      dependencyBlockedIds: [],
-      structurallyIncompleteIds: ['root'],
+      blockedVertexPrerequisiteReports: [],
+      unresolvedPrerequisiteVertexIds: [],
+      milestoneCycleVertexIdComponents: [],
+      nonCyclePrerequisiteBlockedVertexIds: [],
+      incompleteVertexIdsWithoutUnmetPrerequisites: ['root'],
     }).message,
   ).toBe('DAG traversal stalled: incomplete work');
 });
 
 test('diagnoses a deep dependency chain without using the call stack', () => {
   const count = 12000;
-  const runner = new DagTraversal<
-    VertexTypes<string, number>,
-    VertexTypes<string, number>,
+  const runner = new DagTraversalBuilder<
+    VertexDataAndChildHintTypes<string, number>,
+    VertexDataAndChildHintTypes<string, number>,
     string | number
   >({
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: 'root',
-          vertexContent: {
-            $data: 'root',
-            $childHints: Array.from({ length: count }, (_, i) => i),
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: Array.from({ length: count }, (_, i) => i),
           },
         },
       }),
-      resolveChild: (id: number) => ({
-        kind: 'found' as const,
-        vertex: {
+      resolveChildHint: (id: number) => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: id,
-          dependsOnWork: [id === count - 1 ? id : id + 1],
-          vertexContent: { $data: 'task', $childHints: [] as number[] },
+          workWaitsForWorkOf: [id === count - 1 ? id : id + 1],
+          vertexContentInput: {
+            $vertexData: 'task',
+            $childDiscoveryHints: [] as number[],
+          },
         },
       }),
     },
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
   try {
-    runner.run();
+    runner.runUntilSuspendedOrTerminal();
     throw new Error('Expected stall');
   } catch (error) {
     const diagnostics = (error as DagTraversalStallError).diagnostics;
-    expect(diagnostics.dependencyCycleComponents).toEqual([[count - 1]]);
-    expect(diagnostics.dependencyBlockedIds).toHaveLength(count - 1);
-    expect(diagnostics.unknownPrerequisiteIds).toEqual([]);
+    expect(diagnostics.milestoneCycleVertexIdComponents).toEqual([[count - 1]]);
+    expect(diagnostics.nonCyclePrerequisiteBlockedVertexIds).toHaveLength(
+      count - 1,
+    );
+    expect(diagnostics.unresolvedPrerequisiteVertexIds).toEqual([]);
   }
 });
 
 test('scheduler diagnostics preserve arbitrary missing and cyclic IDs', () => {
   const hostile = Object.create(null) as object;
   const ids: unknown[] = [hostile, undefined, null, NaN, -0];
-  const runner = new DagTraversal({
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
+  const runner = new DagTraversalBuilder({
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: 'root',
-          vertexContent: { $data: 'root', $childHints: ids },
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: ids,
+          },
         },
       }),
-      resolveChild: (id: unknown) => ({
-        kind: 'found' as const,
-        vertex: {
+      resolveChildHint: (id: unknown) => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: id,
-          dependsOnWork: [id, 'missing'],
-          vertexContent: { $data: 'task', $childHints: [] as unknown[] },
+          workWaitsForWorkOf: [id, 'missing'],
+          vertexContentInput: {
+            $vertexData: 'task',
+            $childDiscoveryHints: [] as unknown[],
+          },
         },
       }),
     },
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
   try {
-    runner.run();
+    runner.runUntilSuspendedOrTerminal();
     throw new Error('Expected stall');
   } catch (error) {
     const diagnostics = (error as DagTraversalStallError).diagnostics;
-    expect(diagnostics.dependencyCycleComponents).toEqual([
+    expect(diagnostics.milestoneCycleVertexIdComponents).toEqual([
       [hostile],
       [undefined],
       [null],
       [NaN],
       [0],
     ]);
-    expect(diagnostics.unknownPrerequisiteIds).toEqual(['missing']);
-    expect(diagnostics.dependencies[0]!.vertexId).toBe(hostile);
+    expect(diagnostics.unresolvedPrerequisiteVertexIds).toEqual(['missing']);
+    expect(diagnostics.blockedVertexPrerequisiteReports[0]!.vertexId).toBe(
+      hostile,
+    );
   }
 });
 
 test('keeps undefined first when its cycle was discovered first', () => {
-  const runner = new DagTraversal({
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
+  const runner = new DagTraversalBuilder({
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: 'root',
-          vertexContent: {
-            $data: 'root',
-            $childHints: [undefined, 'b'] as unknown[],
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: [undefined, 'b'] as unknown[],
           },
         },
       }),
-      resolveChild: (id: unknown) => ({
-        kind: 'found' as const,
-        vertex: {
+      resolveChildHint: (id: unknown) => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: id,
-          dependsOnWork: [id === undefined ? 'b' : undefined],
-          vertexContent: { $data: 'task', $childHints: [] as unknown[] },
+          workWaitsForWorkOf: [id === undefined ? 'b' : undefined],
+          vertexContentInput: {
+            $vertexData: 'task',
+            $childDiscoveryHints: [] as unknown[],
+          },
         },
       }),
     },
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
   try {
-    runner.run();
+    runner.runUntilSuspendedOrTerminal();
     throw new Error('Expected stall');
   } catch (error) {
     expect(
-      (error as DagTraversalStallError).diagnostics.dependencyCycleComponents,
+      (error as DagTraversalStallError).diagnostics
+        .milestoneCycleVertexIdComponents,
     ).toEqual([[undefined, 'b']]);
   }
 });

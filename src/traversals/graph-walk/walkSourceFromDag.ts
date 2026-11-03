@@ -1,44 +1,56 @@
 import { assertOwnKeys } from '@core/assertPublicOptions';
-import { defineDag } from '../dag-traversal/defineDag';
+import { copyAndNormalizeDagDefinition } from '../dag-traversal/defineDag';
 import type {
   DagDefinition,
-  DagDefinitionSlot,
+  DagStructuralDiscoverySlot,
 } from '../dag-traversal/lib/DagDefinition';
 import type {
-  GraphWalkLink,
-  GraphWalkSource,
-  GraphWalkTarget,
-  GraphWalkVertexResult,
+  GraphWalkOutgoingLink,
+  GraphWalkDiscoverySource,
+  GraphWalkVertexResolutionTarget,
+  GraphWalkVertexResolutionResult,
 } from './GraphWalkSource';
 
-export type GraphWalkDagRelation =
-  | { kind: 'child'; slotIndex: number }
-  | { kind: 'workDependency' }
-  | { kind: 'subgraphCompletionDependency' };
+export type GraphWalkDagDeclarationRelation =
+  | { kind: 'structuralChildSlot'; childSlotIndex: number }
+  | { kind: 'workPrerequisite' }
+  | { kind: 'subgraphCompletionPrerequisite' };
 
-type RelationSelection =
-  | 'children'
-  | 'workDependencies'
-  | 'subgraphCompletionDependencies';
+type DagDeclarationRelationSelection =
+  | 'parentToChildSlots'
+  | 'dependentToWorkPrerequisites'
+  | 'dependentToSubgraphCompletionPrerequisites';
 
 /** Explore explicit declaration relationships without DAG scheduling or validation. */
-export function materializeWalkSourceFromDagDefinition<Data, ID>(
-  definition: DagDefinition<Data, ID>,
-  options: { relations: readonly [RelationSelection, ...RelationSelection[]] },
+export function materializeGraphWalkSourceFromDagDeclarationRelations<
+  VertexData,
+  VertexId,
+>(
+  definition: DagDefinition<VertexData, VertexId>,
+  options: {
+    includeDeclarationRelations: readonly [
+      DagDeclarationRelationSelection,
+      ...DagDeclarationRelationSelection[],
+    ];
+  },
 ): Extract<
-  GraphWalkSource<Data, GraphWalkDagRelation, ID>,
-  { hydration: 'resolver' }
+  GraphWalkDiscoverySource<
+    VertexData,
+    GraphWalkDagDeclarationRelation,
+    VertexId
+  >,
+  { vertexResolutionMode: 'resolverWithOptionalInlineResolution' }
 > {
-  assertOwnKeys(options, ['relations']);
-  const selection = options?.relations;
+  assertOwnKeys(options, ['includeDeclarationRelations']);
+  const selection = options?.includeDeclarationRelations;
   if (!Array.isArray(selection) || selection.length === 0)
     throw new TypeError('Select at least one DAG relationship');
-  const relations = new Set<RelationSelection>();
+  const relations = new Set<DagDeclarationRelationSelection>();
   for (const relation of selection) {
     if (
-      relation !== 'children' &&
-      relation !== 'workDependencies' &&
-      relation !== 'subgraphCompletionDependencies'
+      relation !== 'parentToChildSlots' &&
+      relation !== 'dependentToWorkPrerequisites' &&
+      relation !== 'dependentToSubgraphCompletionPrerequisites'
     )
       throw new TypeError('Unknown DAG relationship');
     if (relations.has(relation))
@@ -47,81 +59,96 @@ export function materializeWalkSourceFromDagDefinition<Data, ID>(
   }
   // Shape normalization copies topology and checks declared identity consistency.
   // Deliberately avoid preparation: selected relationships may contain cycles.
-  const snapshot = defineDag(definition);
-  const live = new Set(snapshot.vertices.map((vertex) => vertex.vertexId));
-  const omitted = new Set(snapshot.omittedIds);
+  const snapshot = copyAndNormalizeDagDefinition(definition);
+  const live = new Set(
+    snapshot.vertexDeclarations.map((vertex) => vertex.vertexId),
+  );
+  const omitted = new Set(snapshot.omittedVertexIds);
   const records = new Map<
-    ID,
+    VertexId,
     {
-      resolution: GraphWalkVertexResult<Data>;
-      links: GraphWalkLink<Data, GraphWalkDagRelation, ID>[];
+      resolution: GraphWalkVertexResolutionResult<VertexData>;
+      links: GraphWalkOutgoingLink<
+        VertexData,
+        GraphWalkDagDeclarationRelation,
+        VertexId
+      >[];
     }
   >();
-  for (const vertex of snapshot.vertices)
+  for (const vertex of snapshot.vertexDeclarations)
     records.set(vertex.vertexId, {
-      resolution: { kind: 'found', data: vertex.data },
+      resolution: { kind: 'found', vertexData: vertex.data },
       links: [],
     });
   for (const id of omitted)
     records.set(id, { resolution: { kind: 'omitted' }, links: [] });
-  const lookup = (id: ID) => {
+  const lookup = (id: VertexId) => {
     const record = records.get(id);
     if (record === undefined) throw new TypeError('Unknown walking vertex ID');
     return record;
   };
   const slotTarget = (
-    slot: DagDefinitionSlot<ID>,
-  ): GraphWalkTarget<Data, ID> | null => {
+    slot: DagStructuralDiscoverySlot<VertexId>,
+  ): GraphWalkVertexResolutionTarget<VertexData, VertexId> | null => {
     if (slot.kind === 'vertex') {
       if (!live.has(slot.vertexId))
         throw new TypeError('Expected a live DAG child identity');
       return { vertexId: slot.vertexId };
     }
-    if (slot.identity === null) return null;
-    if (!omitted.has(slot.identity.vertexId))
+    if (slot.omittedVertexIdentity === null) return null;
+    if (!omitted.has(slot.omittedVertexIdentity.vertexId))
       throw new TypeError('Expected an omitted DAG child identity');
-    return { vertexId: slot.identity.vertexId };
+    return { vertexId: slot.omittedVertexIdentity.vertexId };
   };
-  const roots: GraphWalkTarget<Data, ID>[] = [];
+  const roots: GraphWalkVertexResolutionTarget<VertexData, VertexId>[] = [];
   if (snapshot.entry.kind === 'root') {
     lookup(snapshot.entry.vertexId);
     roots.push({ vertexId: snapshot.entry.vertexId });
   } else if (snapshot.entry.kind === 'roots') {
-    for (const slot of snapshot.entry.slots) {
+    for (const slot of snapshot.entry.entryDiscoverySlots) {
       const target = slotTarget(slot);
       if (target !== null) roots.push(target);
     }
   }
-  for (const vertex of snapshot.vertices) {
+  for (const vertex of snapshot.vertexDeclarations) {
     const links = lookup(vertex.vertexId).links;
-    if (relations.has('children'))
-      vertex.slots.forEach((slot, slotIndex) => {
+    if (relations.has('parentToChildSlots'))
+      vertex.childDiscoverySlots.forEach((slot, childSlotIndex) => {
         const target = slotTarget(slot);
         if (target !== null)
-          links.push({ target, data: { kind: 'child', slotIndex } });
+          links.push({
+            targetToResolveOnAdmission: target,
+            edgeData: { kind: 'structuralChildSlot', childSlotIndex },
+          });
       });
-    if (relations.has('workDependencies'))
-      for (const vertexId of vertex.dependsOnWork) {
-        lookup(vertexId);
-        links.push({ target: { vertexId }, data: { kind: 'workDependency' } });
-      }
-    if (relations.has('subgraphCompletionDependencies'))
-      for (const vertexId of vertex.dependsOnSubgraphCompletion) {
+    if (relations.has('dependentToWorkPrerequisites'))
+      for (const vertexId of vertex.workWaitsForWorkOf) {
         lookup(vertexId);
         links.push({
-          target: { vertexId },
-          data: { kind: 'subgraphCompletionDependency' },
+          targetToResolveOnAdmission: { vertexId },
+          edgeData: { kind: 'workPrerequisite' },
+        });
+      }
+    if (relations.has('dependentToSubgraphCompletionPrerequisites'))
+      for (const vertexId of vertex.workWaitsForSubgraphCompletionOf) {
+        lookup(vertexId);
+        links.push({
+          targetToResolveOnAdmission: { vertexId },
+          edgeData: { kind: 'subgraphCompletionPrerequisite' },
         });
       }
   }
   return {
-    hydration: 'resolver',
-    roots: () => roots.map((target) => ({ vertexId: target.vertexId })),
-    resolveVertex: (vertexId) => ({ ...lookup(vertexId).resolution }),
-    outgoing: (vertex) =>
+    vertexResolutionMode: 'resolverWithOptionalInlineResolution',
+    enumerateRootTargets: () =>
+      roots.map((target) => ({ vertexId: target.vertexId })),
+    resolveVertexDataById: (vertexId) => ({ ...lookup(vertexId).resolution }),
+    enumerateOutgoingLinks: (vertex) =>
       lookup(vertex.vertexId).links.map((link) => ({
-        target: { vertexId: link.target.vertexId },
-        data: { ...link.data },
+        targetToResolveOnAdmission: {
+          vertexId: link.targetToResolveOnAdmission.vertexId,
+        },
+        edgeData: { ...link.edgeData },
       })),
   };
 }

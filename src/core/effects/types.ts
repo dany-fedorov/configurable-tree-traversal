@@ -1,5 +1,5 @@
-import type { InternalVertexResolutionContext } from '@core/ResolvedTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { InternalChildDiscoveryContext } from '@core/ResolvedTree';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalRunnerStatus,
   TraversalStopReason,
@@ -8,122 +8,169 @@ import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterable
 import type { MakeVertexResult } from '@core/TraversableTree';
 import type { Vertex } from '@core/Vertex';
 import type {
-  HintVertexId,
+  ChildHintVertexIdentity,
   MaybePromise,
   InternalVertexRef,
   VertexId,
-  VisitResult,
+  VisitorCallbackReturnValue,
 } from '@core/graph/types';
-import type { KernelInspection } from '@core/CoreInspection';
+import type { TreeOrDagSchedulerSnapshot } from '@core/CoreInspection';
 
-export type VisitPhase =
-  | 'PRE_ORDER'
-  | 'IN_ORDER'
-  | 'POST_ORDER'
-  | 'LEVEL_ORDER'
+export type TreeOrDagVisitorPhase =
+  | 'BEFORE_CHILD_EXPANSION'
+  | 'AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES'
+  | 'AFTER_CHILD_SUBTREES'
+  | 'AT_LEVEL_ORDER_VERTEX'
   | 'ON_WORK_READY'
-  | 'ON_SUBGRAPH_READY';
+  | 'ON_SUBGRAPH_COMPLETION_READY';
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
 export type PumpMode = 'drive' | 'settle' | 'drain';
 
-export type OwnerToken = {
-  kind: 'root' | 'frame' | 'chain' | 'prerequisite';
-  id: number;
-  epoch: number;
+export type SchedulingOwnerValidityToken = {
+  ownerKind:
+    | 'rootResolution'
+    | 'vertexTraversalFrame'
+    | 'vertexPhaseVisitorChain'
+    | 'prerequisiteResolution';
+  runnerLocalOwnerId: number;
+  validityGeneration: number;
 };
 
-export type VisitMetadata<T extends VertexTypes> = {
-  phaseVisitIndex: number;
-  visitorIndex: number;
-  previousPhaseVertexRef: InternalVertexRef<T> | null;
-  visitorChainState: unknown;
+export type VisitMetadata<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  phaseVisitorChainIndex: number;
+  visitorCallbackIndexInPhaseChain: number;
+  previousCommittedVisitVertexHandleForSamePhase: InternalVertexRef<InputVertexTypes> | null;
+  currentVertexPhaseChainState: unknown;
 };
 
-export type CallSpec<T extends VertexTypes, R extends VertexTypes = T> = {
+export type CallSpec<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> = {
   requestId: number;
-  owner: OwnerToken;
+  owner: SchedulingOwnerValidityToken;
 } & (
   | { kind: 'MAKE_ROOT' }
   | { kind: 'RESOLVE_PREREQUISITE'; vertexId: VertexId }
-  | { kind: 'SORT_HINTS'; hints: (T | R)['VertexHint'][] }
-  | { kind: 'HINT_ID'; hint: (T | R)['VertexHint']; hintIndex: number }
-  | { kind: 'MAKE_VERTEX'; context: InternalVertexResolutionContext<T | R> }
+  | {
+      kind: 'SORT_HINTS';
+      hints: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'][];
+    }
+  | {
+      kind: 'HINT_ID';
+      hint: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'];
+      hintIndex: number;
+    }
+  | {
+      kind: 'MAKE_VERTEX';
+      context: InternalChildDiscoveryContext<
+        InputVertexTypes | RewrittenVertexTypes
+      >;
+    }
   | {
       kind: 'VISIT';
-      ref: InternalVertexRef<T | R>;
-      order: VisitPhase;
+      ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>;
+      order: TreeOrDagVisitorPhase;
       recordIndex: number;
-      metadata: VisitMetadata<T | R>;
+      metadata: VisitMetadata<InputVertexTypes | RewrittenVertexTypes>;
     }
 );
 
-export type CallbackValues<T extends VertexTypes, R extends VertexTypes = T> = {
-  MAKE_ROOT: MakeVertexResult<T>;
-  RESOLVE_PREREQUISITE: MakeVertexResult<T> | undefined;
-  MAKE_VERTEX: MakeVertexResult<T>;
-  SORT_HINTS: (T | R)['VertexHint'][];
-  HINT_ID: HintVertexId | undefined;
-  VISIT: VisitResult<R, never, 'tree' | 'dag', T['VertexHint']>;
+export type CallbackValues<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> = {
+  MAKE_ROOT: MakeVertexResult<InputVertexTypes>;
+  RESOLVE_PREREQUISITE: MakeVertexResult<InputVertexTypes> | undefined;
+  MAKE_VERTEX: MakeVertexResult<InputVertexTypes>;
+  SORT_HINTS: (InputVertexTypes | RewrittenVertexTypes)['ChildHint'][];
+  HINT_ID: ChildHintVertexIdentity | undefined;
+  VISIT: VisitorCallbackReturnValue<
+    RewrittenVertexTypes,
+    never,
+    'tree' | 'dag',
+    InputVertexTypes['ChildHint']
+  >;
 };
 
-export type CallbackReply<T extends VertexTypes, R extends VertexTypes = T> = {
-  [K in keyof CallbackValues<T, R>]: {
+export type CallbackReply<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> = {
+  [K in keyof CallbackValues<InputVertexTypes, RewrittenVertexTypes>]: {
     requestId: number;
     kind: K;
-    outcome: Outcome<CallbackValues<T, R>[K]>;
+    outcome: Outcome<CallbackValues<InputVertexTypes, RewrittenVertexTypes>[K]>;
   };
-}[keyof CallbackValues<T, R>];
+}[keyof CallbackValues<InputVertexTypes, RewrittenVertexTypes>];
 
 export type RawCallbackResult<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > = {
-  [K in keyof CallbackValues<T, R>]: {
+  [K in keyof CallbackValues<InputVertexTypes, RewrittenVertexTypes>]: {
     kind: K;
-    value: MaybePromise<CallbackValues<T, R>[K]>;
+    value: MaybePromise<
+      CallbackValues<InputVertexTypes, RewrittenVertexTypes>[K]
+    >;
   };
-}[keyof CallbackValues<T, R>];
+}[keyof CallbackValues<InputVertexTypes, RewrittenVertexTypes>];
 
 export interface CallbackBindings<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > {
-  invoke(call: CallSpec<T, R>): RawCallbackResult<T, R>;
+  invoke(
+    call: CallSpec<InputVertexTypes, RewrittenVertexTypes>,
+  ): RawCallbackResult<InputVertexTypes, RewrittenVertexTypes>;
 }
 
-export type KernelEvent<T extends VertexTypes> = {
-  vertex: Vertex<T>;
-  vertexRef: InternalVertexRef<T>;
-  order: VisitPhase;
-  isRoot: boolean;
-};
+export type KernelEvent<InputVertexTypes extends VertexDataAndChildHintTypes> =
+  {
+    vertex: Vertex<InputVertexTypes>;
+    vertexHandle: InternalVertexRef<InputVertexTypes>;
+    order: TreeOrDagVisitorPhase;
+    isRoot: boolean;
+  };
 
-export type KernelAction<T extends VertexTypes, R extends VertexTypes = T> =
-  | { kind: 'CALL'; call: CallSpec<T, R> }
-  | { kind: 'EVENT'; event: KernelEvent<T | R>; boundaryId: number }
+export type KernelAction<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> =
+  | { kind: 'CALL'; call: CallSpec<InputVertexTypes, RewrittenVertexTypes> }
+  | {
+      kind: 'EVENT';
+      event: KernelEvent<InputVertexTypes | RewrittenVertexTypes>;
+      boundaryId: number;
+    }
   | { kind: 'WAIT' }
-  | { kind: 'HALTED' }
+  | { kind: 'SUSPENDED' }
   | { kind: 'FINISHED' }
   | { kind: 'FAILED'; error: unknown };
 
-export interface KernelPort<T extends VertexTypes, R extends VertexTypes = T> {
-  poll(mode: PumpMode): KernelAction<T, R>;
-  submit(reply: CallbackReply<T, R>): void;
+export interface KernelPort<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> {
+  poll(mode: PumpMode): KernelAction<InputVertexTypes, RewrittenVertexTypes>;
+  submit(reply: CallbackReply<InputVertexTypes, RewrittenVertexTypes>): void;
   discardRequest(requestId: number): void;
   acknowledgeEvent(boundaryId: number): void;
-  shouldEmit(phase: VisitPhase): boolean;
+  shouldEmit(phase: TreeOrDagVisitorPhase): boolean;
   requestHalt(): void;
   resume(
-    config?: TraversalIterableConfigInput<VisitPhase>,
+    config?: TraversalIterableConfigInput<TreeOrDagVisitorPhase>,
     preparation?: boolean,
   ): void;
   isRequestEligible(requestId: number, mode: PumpMode): boolean;
   isRequestValid(requestId: number): boolean;
   isHaltRequested(): boolean;
   getFailure(): { error: unknown } | null;
-  getStatus(): TraversalRunnerStatus;
-  getStopReason(): TraversalStopReason | null;
-  inspect(): KernelInspection;
+  getTraversalLifecycleStatus(): TraversalRunnerStatus;
+  getTraversalStopReason(): TraversalStopReason | null;
+  captureExecutionSnapshot(): TreeOrDagSchedulerSnapshot;
 }

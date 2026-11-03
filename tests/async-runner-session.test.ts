@@ -1,7 +1,7 @@
-import type { DriverInspection } from '../src/core/CoreInspection';
+import type { TreeOrDagCallbackDriverSnapshot } from '../src/core/CoreInspection';
 import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import { Wakeup } from '../src/core/drivers/Wakeup';
-import type { VisitPhase } from '../src/core/effects/types';
+import type { TreeOrDagVisitorPhase } from '../src/core/effects/types';
 import type {
   AsyncSessionControl,
   SessionProgress,
@@ -9,26 +9,26 @@ import type {
 import { TraversalRunnerStatus } from '../src/core/TraversalRunner';
 import { eventLoopTurn } from './helpers/graph-fixtures';
 
-const inspection: DriverInspection = Object.freeze({
-  status: TraversalRunnerStatus.INITIAL,
-  stopReason: null,
+const inspection: TreeOrDagCallbackDriverSnapshot = Object.freeze({
+  traversalLifecycleStatus: TraversalRunnerStatus.NOT_STARTED,
+  traversalStopReason: null,
   pauseRequested: false,
-  kind: 'depth-first',
-  execution: 'async',
-  sourceMode: 'tree',
-  concurrency: 2,
-  hasHintTransformer: false,
-  hasHintIds: false,
+  traversalAlgorithm: 'depth-first',
+  callbackExecutionMode: 'async',
+  sourceTopologyKind: 'tree',
+  maxConcurrentCallbackInvocations: 2,
+  hasChildHintsListTransformer: false,
+  hasChildHintVertexIdResolver: false,
   executionOptions: Object.freeze({
-    emitEvents: Object.freeze([]),
-    visitorPhases: 'all' as const,
+    deliveredEventKinds: Object.freeze([]),
+    admittedVisitorCallbackPhases: 'all' as const,
   }),
-  readyVisits: Object.freeze([]),
-  frames: Object.freeze([]),
-  chains: Object.freeze([]),
-  pendingRequests: Object.freeze([]),
-  pendingEventBoundaryCount: 0,
-  inFlightCallbackCount: 1,
+  dependencyEligiblePhaseVisits: Object.freeze([]),
+  vertexTraversalFrames: Object.freeze([]),
+  vertexPhaseVisitorChains: Object.freeze([]),
+  pendingCallbackRequests: Object.freeze([]),
+  unacknowledgedCommittedEventBoundaryCount: 0,
+  inFlightInvocationCount: 1,
 });
 
 class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
@@ -36,14 +36,14 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
   public readonly modes: string[] = [];
   public readonly acknowledged: number[] = [];
   public readonly resumedWith: (
-    | import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitPhase>
+    | import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<TreeOrDagVisitorPhase>
     | undefined
   )[] = [];
   public advanceCount = 0;
   private readonly wakeup = new Wakeup();
   private readonly actions: SessionProgress<E>[] = [];
   private readonly outstandingBoundaries = new Set<number>();
-  private status = TraversalRunnerStatus.INITIAL;
+  private status = TraversalRunnerStatus.NOT_STARTED;
   private failure: { error: unknown } | null = null;
 
   public advance(mode: 'drive' | 'settle' | 'drain'): SessionProgress<E> {
@@ -52,7 +52,7 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
     if (this.failure !== null) {
       return { kind: 'FAILED', error: this.failure.error };
     }
-    if (this.status === TraversalRunnerStatus.HALTED) return { kind: 'HALTED' };
+    if (this.status === TraversalRunnerStatus.SUSPENDED) return { kind: 'SUSPENDED' };
     const nextAction = this.actions[0];
     if (
       nextAction?.kind === 'FINISHED' &&
@@ -67,7 +67,7 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
     }
     if (action.kind === 'FINISHED')
       this.status = TraversalRunnerStatus.FINISHED;
-    if (action.kind === 'HALTED') this.status = TraversalRunnerStatus.HALTED;
+    if (action.kind === 'SUSPENDED') this.status = TraversalRunnerStatus.SUSPENDED;
     if (action.kind === 'FAILED') {
       this.status = TraversalRunnerStatus.FAILED;
       this.failure = { error: action.error };
@@ -94,20 +94,20 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
   }
 
   public resume(
-    config?: import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<VisitPhase>,
+    config?: import('../src/core/TraversalRunnerIterableConfig').TraversalIterableConfigInput<TreeOrDagVisitorPhase>,
   ): void {
     this.resumedWith.push(config);
     this.pauseRequested = false;
     this.status = TraversalRunnerStatus.RUNNING;
   }
 
-  public getStatus(): TraversalRunnerStatus {
+  public getTraversalLifecycleStatus(): TraversalRunnerStatus {
     return this.status;
   }
 
-  public getStopReason(): import('../src').TraversalStopReason | null {
+  public getTraversalStopReason(): import('../src').TraversalStopReason | null {
     switch (this.status) {
-      case TraversalRunnerStatus.HALTED:
+      case TraversalRunnerStatus.SUSPENDED:
         return 'paused';
       case TraversalRunnerStatus.FINISHED:
         return 'finished';
@@ -122,11 +122,11 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
     return this.failure;
   }
 
-  public inspect(): DriverInspection {
+  public captureExecutionSnapshot(): TreeOrDagCallbackDriverSnapshot {
     return {
       ...inspection,
-      status: this.status,
-      stopReason: this.getStopReason(),
+      traversalLifecycleStatus: this.status,
+      traversalStopReason: this.getTraversalStopReason(),
       pauseRequested: this.pauseRequested,
     };
   }
@@ -141,7 +141,7 @@ class FakeAsyncSessionControl<E> implements AsyncSessionControl<E> {
   }
 
   public reachHalted(): void {
-    this.actions.push({ kind: 'HALTED' });
+    this.actions.push({ kind: 'SUSPENDED' });
     this.wakeup.notify();
   }
 
@@ -156,7 +156,7 @@ test('return signals halt before an unresolved next and closes both at halt', as
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
 
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const next = iterator.next();
   const close = iterator.return(undefined);
   expect(control.pauseRequested).toBe(true);
@@ -167,7 +167,7 @@ test('return signals halt before an unresolved next and closes both at halt', as
 
 test('creation and closing before first next do not touch the runner', async () => {
   const control = new FakeAsyncSessionControl<string>();
-  const iterator = new AsyncRunnerSession(control).iterateEvents();
+  const iterator = new AsyncRunnerSession(control).runAndIterateObservationEventsUntilSuspendedOrTerminal();
 
   expect(iterator[Symbol.asyncIterator]()).toBe(iterator);
 
@@ -190,7 +190,7 @@ test('creation and closing before first next do not touch the runner', async () 
 
 test('throw before first next rejects with the original consumer value', async () => {
   const control = new FakeAsyncSessionControl<string>();
-  const iterator = new AsyncRunnerSession(control).iterateEvents();
+  const iterator = new AsyncRunnerSession(control).runAndIterateObservationEventsUntilSuspendedOrTerminal();
 
   await expect(iterator.throw(undefined)).rejects.toBeUndefined();
   await expect(iterator.next()).resolves.toEqual({
@@ -207,13 +207,13 @@ test('queues next calls, settles while idle, and acknowledges delivered boundari
     { kind: 'EVENT', event: 'second', boundaryId: 11 },
   );
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
 
   await expect(iterator.next()).resolves.toEqual({
     done: false,
     value: 'first',
   });
-  expect(session.inspect().bufferedEventCount).toBe(1);
+  expect(session.captureExecutionSnapshot().bufferedDeliveryEventCount).toBe(1);
   expect(control.modes.slice(0, 3)).toEqual(['drive', 'settle', 'settle']);
 
   const second = iterator.next();
@@ -228,7 +228,7 @@ test('new demand wakes a pump waiting on a conforming silent control', async () 
   const control = new FakeAsyncSessionControl<string>();
   control.enqueue({ kind: 'EVENT', event: 'first', boundaryId: 12 });
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await iterator.next();
   await eventLoopTurn();
   const advancesBeforeDemand = control.advanceCount;
@@ -251,7 +251,7 @@ test('an idle traversal failure rejects the active iterator on its next demand',
     { kind: 'EVENT', event: 'first', boundaryId: 13 },
     { kind: 'FAILED', error },
   );
-  const iterator = new AsyncRunnerSession(control).iterateEvents();
+  const iterator = new AsyncRunnerSession(control).runAndIterateObservationEventsUntilSuspendedOrTerminal();
 
   await expect(iterator.next()).resolves.toEqual({
     done: false,
@@ -269,13 +269,13 @@ test('non-closing failure delivers committed buffered events before rejecting', 
     { kind: 'FAILED', error },
   );
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
 
   await expect(iterator.next()).resolves.toEqual({
     done: false,
     value: 'first',
   });
-  expect(session.inspect().bufferedEventCount).toBe(1);
+  expect(session.captureExecutionSnapshot().bufferedDeliveryEventCount).toBe(1);
   await expect(iterator.next()).resolves.toEqual({
     done: false,
     value: 'buffered',
@@ -288,7 +288,7 @@ test('retains events buffered during close and acknowledges the delivered bounda
   const control = new FakeAsyncSessionControl<string>();
   control.enqueue({ kind: 'EVENT', event: 'delivered', boundaryId: 20 });
   const session = new AsyncRunnerSession(control);
-  const firstIterator = session.iterateEvents();
+  const firstIterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await expect(firstIterator.next()).resolves.toEqual({
     done: false,
     value: 'delivered',
@@ -304,10 +304,10 @@ test('retains events buffered during close and acknowledges the delivered bounda
     done: true,
     value: undefined,
   });
-  expect(session.inspect().bufferedEventCount).toBe(1);
+  expect(session.captureExecutionSnapshot().bufferedDeliveryEventCount).toBe(1);
   expect(control.acknowledged).toEqual([]);
 
-  const secondIterator = session.iterateEvents();
+  const secondIterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await expect(secondIterator.next()).resolves.toEqual({
     done: false,
     value: 'buffered',
@@ -321,12 +321,12 @@ test('retains events buffered during close and acknowledges the delivered bounda
 test('keeps the lease through closing and releases it once for repeated return', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const owner = session.iterateEvents();
+  const owner = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const pending = owner.next();
 
   const firstClose = owner.return(undefined);
   const secondClose = owner.return(undefined);
-  const contender = session.iterateEvents();
+  const contender = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await expect(contender.next()).rejects.toThrow(/active iterator/i);
 
   control.reachHalted();
@@ -337,7 +337,7 @@ test('keeps the lease through closing and releases it once for repeated return',
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
   await expect(owner.next()).resolves.toEqual({ done: true, value: undefined });
 
-  const resumed = session.iterateEvents();
+  const resumed = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const resumedNext = resumed.next();
   const resumedClose = resumed.return(undefined);
   control.reachHalted();
@@ -349,7 +349,7 @@ test('keeps the lease through closing and releases it once for repeated return',
 test('consumer throw wins its call while traversal failure rejects close and pending next', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const pending = iterator.next();
   const consumerError = new Error('consumer failed');
   const traversalError = new Error('traversal failed');
@@ -361,13 +361,13 @@ test('consumer throw wins its call while traversal failure rejects close and pen
   await expect(thrown).rejects.toBe(consumerError);
   await expect(close).rejects.toBe(traversalError);
   await expect(pending).rejects.toBe(traversalError);
-  await expect(session.run()).rejects.toBe(traversalError);
+  await expect(session.runUntilSuspendedOrTerminal()).rejects.toBe(traversalError);
 });
 
 test('consumer throw cleans up successfully without poisoning the resumable session', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const pending = iterator.next();
   const consumerError = new Error('stop consuming');
 
@@ -376,7 +376,7 @@ test('consumer throw cleans up successfully without poisoning the resumable sess
   await expect(thrown).rejects.toBe(consumerError);
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
 
-  const resumed = session.iterateEvents();
+  const resumed = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const resumedNext = resumed.next();
   const close = resumed.return(undefined);
   control.reachHalted();
@@ -387,14 +387,14 @@ test('consumer throw cleans up successfully without poisoning the resumable sess
 test('preserves an undefined traversal failure through close and later execution', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const pending = iterator.next();
   const close = iterator.return(undefined);
 
   control.fail(undefined);
   await expect(close).rejects.toBeUndefined();
   await expect(pending).rejects.toBeUndefined();
-  await expect(session.run()).rejects.toBeUndefined();
+  await expect(session.runUntilSuspendedOrTerminal()).rejects.toBeUndefined();
 });
 
 test('captures an undefined control exception without rejecting the detached pump', async () => {
@@ -406,15 +406,15 @@ test('captures an undefined control exception without rejecting the detached pum
 
   await expect(
     Promise.race([
-      session.iterateEvents().next(),
+      session.runAndIterateObservationEventsUntilSuspendedOrTerminal().next(),
       new Promise<never>((_resolve, reject) => {
         setTimeout(() => reject(new Error('session pump timed out')), 100);
       }),
     ]),
   ).rejects.toBeUndefined();
-  expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
-  expect(session.getStopReason()).toBe('failed');
-  expect(session.inspect().stopReason).toBe('failed');
+  expect(session.getTraversalLifecycleStatus()).toBe(TraversalRunnerStatus.FAILED);
+  expect(session.getTraversalStopReason()).toBe('failed');
+  expect(session.captureExecutionSnapshot().traversalStopReason).toBe('failed');
 });
 
 test('fails the session when acknowledging a delivered boundary throws', async () => {
@@ -422,7 +422,7 @@ test('fails the session when acknowledging a delivered boundary throws', async (
   const error = new Error('acknowledgement failed');
   control.enqueue({ kind: 'EVENT', event: 'value', boundaryId: 40 });
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await expect(iterator.next()).resolves.toEqual({
     done: false,
     value: 'value',
@@ -432,16 +432,16 @@ test('fails the session when acknowledging a delivered boundary throws', async (
   };
 
   await expect(iterator.next()).rejects.toBe(error);
-  expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
-  expect(session.getStopReason()).toBe('failed');
-  expect(session.inspect().stopReason).toBe('failed');
+  expect(session.getTraversalLifecycleStatus()).toBe(TraversalRunnerStatus.FAILED);
+  expect(session.getTraversalStopReason()).toBe('failed');
+  expect(session.captureExecutionSnapshot().traversalStopReason).toBe('failed');
 });
 
 test('rejects close and pending demand when requesting halt throws', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const error = new Error('halt request failed');
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const pending = iterator.next();
   control.requestHalt = () => {
     throw error;
@@ -449,9 +449,9 @@ test('rejects close and pending demand when requesting halt throws', async () =>
 
   await expect(iterator.return(undefined)).rejects.toBe(error);
   await expect(pending).rejects.toBe(error);
-  expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
-  expect(session.getStopReason()).toBe('failed');
-  expect(session.inspect().stopReason).toBe('failed');
+  expect(session.getTraversalLifecycleStatus()).toBe(TraversalRunnerStatus.FAILED);
+  expect(session.getTraversalStopReason()).toBe('failed');
+  expect(session.captureExecutionSnapshot().traversalStopReason).toBe('failed');
 });
 
 test('run drains the session iterator, returns itself, and applies its config', async () => {
@@ -461,14 +461,14 @@ test('run drains the session iterator, returns itself, and applies its config', 
     { kind: 'FINISHED' },
   );
   const session = new AsyncRunnerSession(control);
-  const config = { emitEvents: ['PRE_ORDER' as const] };
+  const config = { deliveredEventKinds: ['BEFORE_CHILD_EXPANSION' as const] };
 
-  await expect(session.run(config)).resolves.toBe(session);
+  await expect(session.runUntilSuspendedOrTerminal(config)).resolves.toBe(session);
   expect(control.resumedWith).toEqual([config]);
   expect(control.acknowledged).toEqual([30]);
-  expect(session.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
-  expect(session.isHalted()).toBe(false);
-  await expect(session.iterateEvents().next()).resolves.toEqual({
+  expect(session.getTraversalLifecycleStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect(session.isSuspended()).toBe(false);
+  await expect(session.runAndIterateObservationEventsUntilSuspendedOrTerminal().next()).resolves.toEqual({
     done: true,
     value: undefined,
   });
@@ -477,22 +477,22 @@ test('run drains the session iterator, returns itself, and applies its config', 
 test('run uses the iterator halt path when execution requests a halt', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const running = session.run();
+  const running = session.runUntilSuspendedOrTerminal();
 
   control.requestHalt();
   control.reachHalted();
   await expect(running).resolves.toBe(session);
   expect(control.modes).toContain('drain');
-  expect(session.isHalted()).toBe(true);
+  expect(session.isSuspended()).toBe(true);
 });
 
 test('run rejects while another iterator owns execution', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const pending = iterator.next();
 
-  await expect(session.run()).rejects.toThrow(/active iterator/i);
+  await expect(session.runUntilSuspendedOrTerminal()).rejects.toThrow(/active iterator/i);
   const close = iterator.return(undefined);
   control.reachHalted();
   await close;
@@ -502,16 +502,16 @@ test('run rejects while another iterator owns execution', async () => {
 test('inspection is synchronous, detached, and does not advance pending work', async () => {
   const control = new FakeAsyncSessionControl<string>();
   const session = new AsyncRunnerSession(control);
-  const iterator = session.iterateEvents();
+  const iterator = session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const pending = iterator.next();
   const advancesBeforeInspection = control.advanceCount;
 
-  const snapshot = session.inspect();
+  const snapshot = session.captureExecutionSnapshot();
 
   expect(snapshot).toEqual({
     ...inspection,
-    status: TraversalRunnerStatus.RUNNING,
-    bufferedEventCount: 0,
+    traversalLifecycleStatus: TraversalRunnerStatus.RUNNING,
+    bufferedDeliveryEventCount: 0,
   });
   expect(Object.isFrozen(snapshot)).toBe(true);
   expect(control.advanceCount).toBe(advancesBeforeInspection);
@@ -519,7 +519,7 @@ test('inspection is synchronous, detached, and does not advance pending work', a
   control.reachHalted();
   await close;
   await pending;
-  expect(session.isHalted()).toBe(true);
+  expect(session.isSuspended()).toBe(true);
 });
 
 test('internal resume errors remain terminal with their exact thrown value', async () => {
@@ -528,12 +528,12 @@ test('internal resume errors remain terminal with their exact thrown value', asy
     throw undefined;
   };
   const session = new AsyncRunnerSession(control);
-  await expect(session.run()).rejects.toBeUndefined();
-  expect(session.getStatus()).toBe(TraversalRunnerStatus.FAILED);
-  expect(session.getStopReason()).toBe('failed');
-  expect(session.inspect().stopReason).toBe('failed');
+  await expect(session.runUntilSuspendedOrTerminal()).rejects.toBeUndefined();
+  expect(session.getTraversalLifecycleStatus()).toBe(TraversalRunnerStatus.FAILED);
+  expect(session.getTraversalStopReason()).toBe('failed');
+  expect(session.captureExecutionSnapshot().traversalStopReason).toBe('failed');
   await expect(
-    session.run({ visitorPhases: { include: ['ON_WORK_READY'] } }),
+    session.runUntilSuspendedOrTerminal({ admittedVisitorCallbackPhases: { include: ['ON_WORK_READY'] } }),
   ).rejects.toBeUndefined();
-  await expect(session.run()).rejects.toBeUndefined();
+  await expect(session.runUntilSuspendedOrTerminal()).rejects.toBeUndefined();
 });

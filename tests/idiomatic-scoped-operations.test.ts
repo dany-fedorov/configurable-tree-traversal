@@ -1,124 +1,171 @@
 import {
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase,
-  DepthFirstPhase,
-  DepthFirstTreeTraversal,
-  defineDag,
-  prepareDagDefinition,
+  DepthFirstTreeVisitPhase,
+  DepthFirstTreeTraversalBuilder,
+  copyAndNormalizeDagDefinition,
+  validateAndPrepareDagDefinition,
   TraversalVisitorCommandName as importCommand,
-  type VertexTypes,
-  materializeWalkSourceFromDagDefinition,
-  defineDagFragment,
+  type VertexDataAndChildHintTypes,
+  materializeGraphWalkSourceFromDagDeclarationRelations,
+  validateAndCreateDagFragment,
   mapDagFragmentIds,
-  composeDag,
-  reviseDag,
+  composeAndValidateDagFragments,
+  applyDagDefinitionRevisionBatch,
 } from '../src';
 
-type T = VertexTypes<string, string>;
+type T = VertexDataAndChildHintTypes<string, string>;
 const tree = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: { $data: 'root', $childHints: ['child'] } },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: {
+        $vertexData: 'root',
+        $childDiscoveryHints: ['child'],
+      },
+    },
   }),
-  resolveChild: (id: string) => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: { $data: id, $childHints: [] as string[] } },
+  resolveChildVertexFromHint: (id: string) => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: {
+        $vertexData: id,
+        $childDiscoveryHints: [] as string[],
+      },
+    },
   }),
 };
 const graph = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { ...tree.resolveRoot().vertex, vertexId: 'root' },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      ...tree.resolveRootVertex().resolvedVertexInput,
+      vertexId: 'root',
+    },
   }),
-  resolveChild: (id: string) => ({
-    kind: 'found' as const,
-    vertex: { ...tree.resolveChild(id).vertex, vertexId: id },
+  resolveChildHint: (id: string) => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      ...tree.resolveChildVertexFromHint(id).resolvedVertexInput,
+      vertexId: id,
+    },
   }),
 };
 
 for (const Constructor of [
-  DepthFirstTreeTraversal<T>,
-  AsyncDepthFirstTreeTraversal<T>,
+  DepthFirstTreeTraversalBuilder<T>,
+  AsyncDepthFirstTreeTraversalBuilder<T>,
 ]) {
   test(`${Constructor.name} accepts only subtree deletion`, async () => {
-    const valid = new Constructor({ traversableTree: tree });
-    valid.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => ({
-      commands: [{ commandName: importCommand.DELETE_TREE_SUBTREE }],
-    }));
-    const runner = valid.createRunner();
-    await runner.run();
-    expect(runner.getResolvedTreeView().getRoot()).toBeNull();
+    const valid = new Constructor({ treeDiscoverySource: tree });
+    valid.registerVisitorCallbackForPhase(
+      DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+      () => ({
+        commands: [
+          {
+            commandName:
+              importCommand.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
+          },
+        ],
+      }),
+    );
+    const runner = valid.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.getLiveResolvedTreeView().getRootVertexHandleOrNull(),
+    ).toBeNull();
     for (const commandName of [
-      'DELETE_DAG_VERTEX_CASCADE',
+      'DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS',
       'DELETE_VERTEX',
       'DISABLE_SUBTREE_TRAVERSAL',
       'SET_VERTEX_VISITORS_CHAIN_STATE',
     ]) {
-      const invalid = new Constructor({ traversableTree: tree });
-      invalid.addVisitorFor(
-        DepthFirstPhase.PRE_ORDER,
+      const invalid = new Constructor({ treeDiscoverySource: tree });
+      invalid.registerVisitorCallbackForPhase(
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         () => ({ commands: [{ commandName }] } as never),
       );
       await expect(async () => {
-        await invalid.createRunner().run();
+        await invalid
+          .createIndependentRunnerFromCurrentOptions()
+          .runUntilSuspendedOrTerminal();
       }).rejects.toThrow();
     }
   });
-  test.each(['afterEachVisitor', 'afterGroup'] as const)(
+  test.each([
+    'afterEachVisitorCallback',
+    'afterContiguousVisitorBatch',
+  ] as const)(
     `${Constructor.name} state envelope honors %s and resets per phase`,
-    async (commandCommitMode) => {
-      const traversal = new Constructor({ traversableTree: tree });
+    async (visitorCommandCommitTiming) => {
+      const traversal = new Constructor({ treeDiscoverySource: tree });
       const state = { vertexVisitorsChainState: 'opaque payload is allowed' };
       const seen: unknown[] = [];
-      traversal.addVisitorGroupFor(DepthFirstPhase.PRE_ORDER, {
-        commandCommitMode,
-        visitors: [
-          (_vertex, context) => {
-            seen.push(context.visitorChainState);
-            return {
-              commands: [
-                {
-                  commandName: importCommand.SET_VISITOR_CHAIN_STATE,
-                  commandArguments: { state },
-                },
-              ],
-            };
-          },
-          (_vertex, context) => {
-            seen.push(context.visitorChainState);
-          },
-        ],
-      });
-      traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (_vertex, context) => {
-        seen.push(context.visitorChainState);
-        return {
-          commands: [
-            {
-              commandName: importCommand.SET_VISITOR_CHAIN_STATE,
-              commandArguments: { state: undefined },
+      traversal.appendVisitorGroupForPhase(
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+        {
+          visitorCommandCommitTiming,
+          visitors: [
+            (_vertex, context) => {
+              seen.push(context.currentVertexPhaseChainState);
+              return {
+                commands: [
+                  {
+                    commandName:
+                      importCommand.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
+                    commandArguments: { phaseChainState: state },
+                  },
+                ],
+              };
+            },
+            (_vertex, context) => {
+              seen.push(context.currentVertexPhaseChainState);
             },
           ],
-        };
-      });
-      traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (_vertex, context) => {
-        seen.push(context.visitorChainState);
-      });
-      traversal.addVisitorFor(
-        DepthFirstPhase.POST_ORDER,
-        (_vertex, context) => {
-          seen.push(context.visitorChainState);
         },
       );
-      await traversal.createRunner().run();
+      traversal.registerVisitorCallbackForPhase(
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+        (_vertex, context) => {
+          seen.push(context.currentVertexPhaseChainState);
+          return {
+            commands: [
+              {
+                commandName: importCommand.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
+                commandArguments: { phaseChainState: undefined },
+              },
+            ],
+          };
+        },
+      );
+      traversal.registerVisitorCallbackForPhase(
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+        (_vertex, context) => {
+          seen.push(context.currentVertexPhaseChainState);
+        },
+      );
+      traversal.registerVisitorCallbackForPhase(
+        DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
+        (_vertex, context) => {
+          seen.push(context.currentVertexPhaseChainState);
+        },
+      );
+      await traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal();
       expect(seen).toEqual([
         null,
-        commandCommitMode === 'afterEachVisitor' ? state : null,
+        visitorCommandCommitTiming === 'afterEachVisitorCallback'
+          ? state
+          : null,
         state,
         undefined,
         null,
-        commandCommitMode === 'afterEachVisitor' ? state : null,
+        visitorCommandCommitTiming === 'afterEachVisitorCallback'
+          ? state
+          : null,
         state,
         undefined,
         null,
@@ -136,57 +183,77 @@ for (const Constructor of [
   ])(
     `${Constructor.name} rejects retired or missing state envelope %p`,
     async (commandArguments) => {
-      const traversal = new Constructor({ traversableTree: tree });
-      traversal.addVisitorFor(
-        DepthFirstPhase.PRE_ORDER,
+      const traversal = new Constructor({ treeDiscoverySource: tree });
+      traversal.registerVisitorCallbackForPhase(
+        DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
         () =>
           ({
             commands: [
               {
-                commandName: importCommand.SET_VISITOR_CHAIN_STATE,
+                commandName: importCommand.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
                 commandArguments,
               },
             ],
           } as never),
       );
       await expect(async () => {
-        await traversal.createRunner().run();
+        await traversal
+          .createIndependentRunnerFromCurrentOptions()
+          .runUntilSuspendedOrTerminal();
       }).rejects.toThrow();
     },
   );
 }
 
-for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
+for (const Constructor of [
+  DagTraversalBuilder<T>,
+  AsyncDagTraversalBuilder<T>,
+]) {
   test.each(['tree', 'graph'] as const)(
     `${Constructor.name} deletion follows runner family with %s input`,
     async (mode) => {
       const options =
         mode === 'tree'
-          ? { traversableTree: tree }
-          : { traversableGraph: graph };
+          ? { treeDiscoverySource: tree }
+          : { dagDiscoverySource: graph };
       const valid = new Constructor(options);
-      valid.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => ({
-        commands: [{ commandName: importCommand.DELETE_DAG_VERTEX_CASCADE }],
-      }));
-      const runner = valid.createRunner();
-      await runner.run();
-      expect(runner.getResolvedGraphView().getVertexRefs()).toEqual([]);
+      valid.registerVisitorCallbackForPhase(
+        DagVisitorPhase.ON_WORK_READY,
+        () => ({
+          commands: [
+            {
+              commandName:
+                importCommand.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+            },
+          ],
+        }),
+      );
+      const runner = valid.createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal();
+      expect(runner.getLiveResolvedGraphView().getVertexHandles()).toEqual([]);
       const invalid = new Constructor(options);
-      invalid.addVisitorFor(
+      invalid.registerVisitorCallbackForPhase(
         DagVisitorPhase.ON_WORK_READY,
         () =>
           ({
-            commands: [{ commandName: importCommand.DELETE_TREE_SUBTREE }],
+            commands: [
+              {
+                commandName:
+                  importCommand.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
+              },
+            ],
           } as never),
       );
       await expect(async () => {
-        await invalid.createRunner().run();
+        await invalid
+          .createIndependentRunnerFromCurrentOptions()
+          .runUntilSuspendedOrTerminal();
       }).rejects.toThrow();
     },
   );
   test.each([
-    { rootWorkDependencies: 'ignore' },
-    { dependsOnWorkDefault: 'none' },
+    { rootWorkPrerequisitePolicy: 'ignore' },
+    { undeclaredWorkPrerequisitePolicy: 'none' },
     { rootDependencies: 'honor' },
     { implicitParentDependency: false },
   ])(
@@ -195,46 +262,54 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
       let calls = 0;
       const source = {
         ...tree,
-        resolveRoot: () => {
+        resolveRootVertex: () => {
           calls++;
-          return tree.resolveRoot();
+          return tree.resolveRootVertex();
         },
       };
       expect(
-        () => new Constructor({ traversableTree: source, ...policy } as never),
+        () =>
+          new Constructor({ treeDiscoverySource: source, ...policy } as never),
       ).toThrow();
-      const traversal = new Constructor({ traversableTree: source });
-      expect(() => traversal.configure(policy as never)).toThrow();
+      const traversal = new Constructor({ treeDiscoverySource: source });
+      expect(() =>
+        traversal.patchOptionsForFutureRunners(policy as never),
+      ).toThrow();
       expect(calls).toBe(0);
     },
   );
   test.each([
     { rootDependencies: 'honor' },
     { implicitParentDependency: true },
-    { dependsOnWorkDefault: true },
-    { rootWorkDependencies: 'bad' },
+    { undeclaredWorkPrerequisitePolicy: true },
+    { rootWorkPrerequisitePolicy: 'bad' },
   ])(
     `${Constructor.name} rejects invalid graph policy %p atomically`,
     async (policy) => {
-      const traversal = new Constructor({ traversableGraph: graph });
+      const traversal = new Constructor({ dagDiscoverySource: graph });
       let replacementCalls = 0;
       expect(() =>
-        traversal.configure({
+        traversal.patchOptionsForFutureRunners({
           ...policy,
-          traversableGraph: {
+          dagDiscoverySource: {
             ...graph,
-            resolveRoot: () => {
+            resolveRootVertex: () => {
               replacementCalls++;
-              return graph.resolveRoot();
+              return graph.resolveRootVertex();
             },
           },
         } as never),
       ).toThrow();
       const seen: string[] = [];
-      traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex) => {
-        seen.push(vertex.$data);
-      });
-      await traversal.createRunner().run();
+      traversal.registerVisitorCallbackForPhase(
+        DagVisitorPhase.ON_WORK_READY,
+        (vertex) => {
+          seen.push(vertex.$vertexData);
+        },
+      );
+      await traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal();
       expect(replacementCalls).toBe(0);
       expect(seen).toEqual(['root', 'child']);
     },
@@ -243,56 +318,66 @@ for (const Constructor of [DagTraversal<T>, AsyncDagTraversal<T>]) {
 
 test('roots entry preserves repeated ordered slots and own undefined omission identity', () => {
   const id = {};
-  const definition = defineDag({
-    vertices: [
+  const definition = copyAndNormalizeDagDefinition({
+    vertexDeclarations: [
       {
         vertexId: id,
         data: 'root',
-        slots: [],
-        dependsOnWork: [],
-        dependsOnSubgraphCompletion: [],
+        childDiscoverySlots: [],
+        workWaitsForWorkOf: [],
+        workWaitsForSubgraphCompletionOf: [],
       },
     ],
-    omittedIds: [undefined],
+    omittedVertexIds: [undefined],
     entry: {
       kind: 'roots',
-      slots: [
+      entryDiscoverySlots: [
         { kind: 'vertex', vertexId: id },
-        { kind: 'omitted', identity: { vertexId: undefined } },
+        { kind: 'omitted', omittedVertexIdentity: { vertexId: undefined } },
         { kind: 'vertex', vertexId: id },
       ],
     },
   } as never);
-  const prepared = prepareDagDefinition(definition);
+  const prepared = validateAndPrepareDagDefinition(definition);
   expect(prepared.kind).toBe('valid');
   if (prepared.kind !== 'valid') throw new Error('expected valid');
-  expect(prepared.dag.definition.entry).toEqual(definition.entry);
-  expect(prepared.dag.definition.vertices[0]!.vertexId).toBe(id);
-  const runner = prepared.dag.createRunner().run();
-  expect(runner.summary().completedWorkIds).toEqual([id]);
+  expect(prepared.validatedTopology.definition.entry).toEqual(definition.entry);
+  expect(
+    prepared.validatedTopology.definition.vertexDeclarations[0]!.vertexId,
+  ).toBe(id);
+  const runner = prepared.validatedTopology
+    .createIndependentRunnerFromValidatedTopology()
+    .runUntilSuspendedOrTerminal();
+  expect(
+    runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+  ).toEqual([id]);
   expect([
-    ...materializeWalkSourceFromDagDefinition(definition, {
-      relations: ['children'],
-    }).roots(),
+    ...materializeGraphWalkSourceFromDagDeclarationRelations(definition, {
+      includeDeclarationRelations: ['parentToChildSlots'],
+    }).enumerateRootTargets(),
   ]).toEqual([{ vertexId: id }, { vertexId: undefined }, { vertexId: id }]);
 });
 
 for (const Constructor of [
-  DagTraversal<T>,
-  AsyncDagTraversal<T>,
-  DepthFirstTreeTraversal<T>,
-  AsyncDepthFirstTreeTraversal<T>,
+  DagTraversalBuilder<T>,
+  AsyncDagTraversalBuilder<T>,
+  DepthFirstTreeTraversalBuilder<T>,
+  AsyncDepthFirstTreeTraversalBuilder<T>,
 ]) {
-  test.each(['rootWorkDependencies', 'dependsOnWorkDefault'])(
+  test.each(['rootWorkPrerequisitePolicy', 'undeclaredWorkPrerequisitePolicy'])(
     `${Constructor.name} rejects explicit nonenumerable tree policy %s`,
     (key) => {
-      const options = Object.defineProperty({ traversableTree: tree }, key, {
-        value: undefined,
-      });
+      const options = Object.defineProperty(
+        { treeDiscoverySource: tree },
+        key,
+        {
+          value: undefined,
+        },
+      );
       expect(() => new Constructor(options as never)).toThrow(TypeError);
-      const traversal = new Constructor({ traversableTree: tree });
+      const traversal = new Constructor({ treeDiscoverySource: tree });
       expect(() =>
-        traversal.configure(
+        traversal.patchOptionsForFutureRunners(
           Object.defineProperty({}, key, { value: undefined }) as never,
         ),
       ).toThrow(TypeError);
@@ -312,15 +397,15 @@ for (const asynchronous of [false, true]) {
       ) => ({
         vertexId,
         data: vertexId,
-        slots: children.map((id) => ({
+        childDiscoverySlots: children.map((id) => ({
           kind: 'vertex' as const,
           vertexId: id,
         })),
-        dependsOnWork,
-        dependsOnSubgraphCompletion,
+        workWaitsForWorkOf: dependsOnWork,
+        workWaitsForSubgraphCompletionOf: dependsOnSubgraphCompletion,
       });
-      const result = prepareDagDefinition({
-        vertices: [
+      const result = validateAndPrepareDagDefinition({
+        vertexDeclarations: [
           vertex('root', ['victim', 'safe', 'w', 'c'], ['anchor']),
           vertex('victim', ['orphan', 'shared']),
           vertex('safe', ['shared']),
@@ -331,7 +416,7 @@ for (const asynchronous of [false, true]) {
           vertex('anchor', ['anchorChild']),
           vertex('anchorChild'),
         ],
-        omittedIds: [],
+        omittedVertexIds: [],
         entry: { kind: 'root', vertexId: 'root' },
       });
       if (result.kind !== 'valid') throw new Error('expected valid');
@@ -347,24 +432,31 @@ for (const asynchronous of [false, true]) {
         [DagVisitorPhase.ON_WORK_READY]: (
           vertex: import('../src').VertexView<T>,
         ) => {
-          visited.push(vertex.$data);
-          return vertex.$data === target
+          visited.push(vertex.$vertexData);
+          return vertex.$vertexData === target
             ? {
                 commands: [
-                  { commandName: importCommand.DELETE_DAG_VERTEX_CASCADE },
+                  {
+                    commandName:
+                      importCommand.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS,
+                  },
                 ],
               }
             : undefined;
         },
       };
       const runner = asynchronous
-        ? await result.dag.createAsyncRunner({ visitors })
-        : result.dag.createRunner({ visitors });
-      await runner.run();
+        ? await result.validatedTopology.createIndependentAsyncRunnerFromValidatedTopology(
+            { visitors },
+          )
+        : result.validatedTopology.createIndependentRunnerFromValidatedTopology(
+            { visitors },
+          );
+      await runner.runUntilSuspendedOrTerminal();
       const ids = runner
-        .getResolvedGraphView()
-        .getVertexRefs()
-        .map((ref) => runner.getResolvedGraphView().requireVertexId(ref));
+        .getLiveResolvedGraphView()
+        .getVertexHandles()
+        .map((ref) => runner.getLiveResolvedGraphView().requireVertexId(ref));
       expect(new Set(ids)).toEqual(
         new Set(
           target === 'root'
@@ -389,62 +481,81 @@ test.each([undefined, NaN, Symbol('live'), {}])(
     const omitted = Symbol('omitted');
     const second = Symbol('second');
     const slot = { kind: 'vertex' as const, vertexId: id };
-    const definition = defineDag<string, unknown>({
-      vertices: [
+    const definition = copyAndNormalizeDagDefinition<string, unknown>({
+      vertexDeclarations: [
         {
           vertexId: id,
           data: 'first',
-          slots: [],
-          dependsOnWork: [],
-          dependsOnSubgraphCompletion: [],
+          childDiscoverySlots: [],
+          workWaitsForWorkOf: [],
+          workWaitsForSubgraphCompletionOf: [],
         },
         {
           vertexId: second,
           data: 'second',
-          slots: [slot],
-          dependsOnWork: [],
-          dependsOnSubgraphCompletion: [],
+          childDiscoverySlots: [slot],
+          workWaitsForWorkOf: [],
+          workWaitsForSubgraphCompletionOf: [],
         },
       ],
-      omittedIds: [omitted],
+      omittedVertexIds: [omitted],
       entry: {
         kind: 'roots',
-        slots: [
+        entryDiscoverySlots: [
           slot,
-          { kind: 'omitted', identity: { vertexId: omitted } },
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: omitted } },
           { kind: 'vertex', vertexId: second },
           slot,
         ],
       },
     });
-    const fragment = defineDagFragment(definition, { first: id });
+    const fragment = validateAndCreateDagFragment(definition, { first: id });
     const instance = mapDagFragmentIds(fragment, {
       mapId: (value) => value,
     });
-    const result = composeDag([instance]);
+    const result = composeAndValidateDagFragments([instance]);
     if (result.kind !== 'valid') throw new Error('expected valid composition');
-    const revised = reviseDag(result.dag, []);
+    const revised = applyDagDefinitionRevisionBatch(
+      result.validatedTopology,
+      [],
+    );
     if (revised.kind !== 'valid') throw new Error('expected valid revision');
     expect(fragment.definition.entry).toEqual(definition.entry);
     expect(instance.definition.entry).toEqual(definition.entry);
-    expect(result.dag.definition.entry).toEqual(definition.entry);
-    expect(revised.dag.definition.entry).toEqual(definition.entry);
+    expect(result.validatedTopology.definition.entry).toEqual(definition.entry);
+    expect(revised.validatedTopology.definition.entry).toEqual(
+      definition.entry,
+    );
     expect(revised.changes.entryChanged).toBe(false);
-    const sync = revised.dag.createRunner().run();
-    const asyncRunner = await revised.dag.createAsyncRunner();
-    await asyncRunner.run();
+    const sync = revised.validatedTopology
+      .createIndependentRunnerFromValidatedTopology()
+      .runUntilSuspendedOrTerminal();
+    const asyncRunner =
+      await revised.validatedTopology.createIndependentAsyncRunnerFromValidatedTopology();
+    await asyncRunner.runUntilSuspendedOrTerminal();
     for (const runner of [sync, asyncRunner]) {
-      expect(runner.summary().completedWorkIds).toEqual([id, second]);
-      const shared = runner.getResolvedGraphView().getVertexRefById(id)!;
-      const parent = runner.getResolvedGraphView().getVertexRefById(second)!;
-      expect(runner.getResolvedGraphView().getChildrenOf(parent)).toEqual([
-        shared,
-      ]);
+      expect(
+        runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+      ).toEqual([id, second]);
+      const shared = runner
+        .getLiveResolvedGraphView()
+        .getVertexHandleByIdOrNull(id)!;
+      const parent = runner
+        .getLiveResolvedGraphView()
+        .getVertexHandleByIdOrNull(second)!;
+      expect(
+        runner
+          .getLiveResolvedGraphView()
+          .getStructuralChildHandlesInSlotOrderOrNull(parent),
+      ).toEqual([shared]);
     }
     expect([
-      ...materializeWalkSourceFromDagDefinition(revised.dag.definition, {
-        relations: ['children'],
-      }).roots(),
+      ...materializeGraphWalkSourceFromDagDeclarationRelations(
+        revised.validatedTopology.definition,
+        {
+          includeDeclarationRelations: ['parentToChildSlots'],
+        },
+      ).enumerateRootTargets(),
     ]).toEqual([
       { vertexId: id },
       { vertexId: omitted },
@@ -455,23 +566,26 @@ test.each([undefined, NaN, Symbol('live'), {}])(
 );
 
 test('retired declaration names reject without changing a prepared definition', () => {
-  const result = prepareDagDefinition({
-    vertices: [],
-    omittedIds: [],
-    entry: { kind: 'roots', slots: [] },
+  const result = validateAndPrepareDagDefinition({
+    vertexDeclarations: [],
+    omittedVertexIds: [],
+    entry: { kind: 'roots', entryDiscoverySlots: [] },
   });
   if (result.kind !== 'valid') throw new Error('expected valid empty roots');
   expect(() =>
-    defineDag({
+    copyAndNormalizeDagDefinition({
       vertices: [],
       omittedIds: [],
       entry: { kind: 'forest', slots: [] },
     } as never),
   ).toThrow();
   expect(() =>
-    reviseDag(result.dag, [
+    applyDagDefinitionRevisionBatch(result.validatedTopology, [
       { kind: 'removeVertex', vertexId: undefined },
     ] as never),
   ).toThrow();
-  expect(result.dag.definition.entry).toEqual({ kind: 'roots', slots: [] });
+  expect(result.validatedTopology.definition.entry).toEqual({
+    kind: 'roots',
+    entryDiscoverySlots: [],
+  });
 });

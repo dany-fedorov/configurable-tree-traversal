@@ -1,50 +1,55 @@
 import {
-  BreadthFirstPhase as B,
-  DepthFirstPhase as F,
+  BreadthFirstTreeVisitPhase as B,
+  DepthFirstTreeVisitPhase as F,
   DagVisitorPhase as D,
   TraversalRunnerStatus,
   TraversalVisitorCommandName as C,
-  traverseTreeDepthFirst,
-  traverseTreeDepthFirstAsync,
-  traverseTreeBreadthFirst,
-  traverseTreeBreadthFirstAsync,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync,
+  runTreeBreadthFirstUntilSuspendedOrTerminal,
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
   traverseDag,
   traverseDagAsync,
 } from '../src';
-import type { DagDiscoverySource, TreeSource, VertexTypes } from '../src';
+import type {
+  DagDiscoverySource,
+  TreeDiscoverySource,
+  VertexDataAndChildHintTypes,
+} from '../src';
 
-type T = VertexTypes<string, string>;
-function source(root = 'root'): DagDiscoverySource<T> & TreeSource<T> {
+type T = VertexDataAndChildHintTypes<string, string>;
+function source(root = 'root'): DagDiscoverySource<T> & TreeDiscoverySource<T> {
   const make = (id: string) => ({
-    kind: 'found' as const,
-    vertex: {
-      vertexContent: {
-        $data: id,
-        $childHints: id === root ? ['a', 'b'] : [],
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: {
+        $vertexData: id,
+        $childDiscoveryHints: id === root ? ['a', 'b'] : [],
       },
     },
   });
   return {
-    resolveRoot: () => make(root),
-    resolveChild: make,
-    getVertexIdFromHint: (vertexId) => ({ vertexId }),
+    resolveRootVertex: () => make(root),
+    resolveChildHint: make,
+    resolveChildVertexFromHint: make,
+    tryGetVertexIdentityFromHint: (vertexId) => ({ vertexId }),
   };
 }
 
 test('DFS options register all phases and honor child ordering', () => {
   const visits: string[] = [];
-  const runner = traverseTreeDepthFirst({
-    traversableTree: source(),
-    transformChildHints: (hints) => hints.reverse(),
+  const runner = runTreeDepthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource: source(),
+    transformChildHintsBeforeResolution: (hints) => hints.reverse(),
     visitors: {
-      [F.PRE_ORDER]: (vertex) => {
-        visits.push(`pre:${vertex.getData()}`);
+      [F.BEFORE_CHILD_EXPANSION]: (vertex) => {
+        visits.push(`pre:${vertex.getVertexData()}`);
       },
-      [F.IN_ORDER]: (vertex) => {
-        visits.push(`in:${vertex.getData()}`);
+      [F.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: (vertex) => {
+        visits.push(`in:${vertex.getVertexData()}`);
       },
-      [F.POST_ORDER]: (vertex) => {
-        visits.push(`post:${vertex.getData()}`);
+      [F.AFTER_CHILD_SUBTREES]: (vertex) => {
+        visits.push(`post:${vertex.getVertexData()}`);
       },
     },
   });
@@ -59,29 +64,33 @@ test('DFS options register all phases and honor child ordering', () => {
     'post:a',
     'post:root',
   ]);
-  expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.FINISHED,
+  );
 });
 
 test('async DFS options register all phases and honor async child ordering', async () => {
   const visits: string[] = [];
-  const result = traverseTreeDepthFirstAsync({
-    traversableTree: source(),
-    concurrency: 1,
-    transformChildHints: async (hints) => hints.reverse(),
+  const result = runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: source(),
+    maxConcurrentCallbackInvocations: 1,
+    transformChildHintsBeforeResolution: async (hints) => hints.reverse(),
     visitors: {
-      [F.PRE_ORDER]: async (vertex) => {
-        visits.push(`pre:${vertex.getData()}`);
+      [F.BEFORE_CHILD_EXPANSION]: async (vertex) => {
+        visits.push(`pre:${vertex.getVertexData()}`);
       },
-      [F.IN_ORDER]: async (vertex) => {
-        visits.push(`in:${vertex.getData()}`);
+      [F.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: async (vertex) => {
+        visits.push(`in:${vertex.getVertexData()}`);
       },
-      [F.POST_ORDER]: async (vertex) => {
-        visits.push(`post:${vertex.getData()}`);
+      [F.AFTER_CHILD_SUBTREES]: async (vertex) => {
+        visits.push(`post:${vertex.getVertexData()}`);
       },
     },
   });
   expect(result).toBeInstanceOf(Promise);
-  expect((await result).getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect((await result).getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.FINISHED,
+  );
   expect(visits).toEqual([
     'pre:root',
     'pre:b',
@@ -97,49 +106,55 @@ test('async DFS options register all phases and honor async child ordering', asy
 
 test('BFS options visit levels with configured ordering', async () => {
   const visits: string[] = [];
-  const runner = traverseTreeBreadthFirst({
-    traversableTree: source(),
-    transformChildHints: (hints) => hints.reverse(),
+  const runner = runTreeBreadthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource: source(),
+    transformChildHintsBeforeResolution: (hints) => hints.reverse(),
     visitors: {
-      [B.LEVEL_ORDER]: (vertex) => {
-        visits.push(vertex.getData());
+      [B.AT_LEVEL_ORDER_VERTEX]: (vertex) => {
+        visits.push(vertex.getVertexData());
       },
     },
   });
-  expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.FINISHED,
+  );
   expect(visits).toEqual(['root', 'b', 'a']);
   visits.length = 0;
-  const result = traverseTreeBreadthFirstAsync({
-    traversableTree: source(),
-    concurrency: 1,
-    transformChildHints: async (hints) => hints.reverse(),
+  const result = runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: source(),
+    maxConcurrentCallbackInvocations: 1,
+    transformChildHintsBeforeResolution: async (hints) => hints.reverse(),
     visitors: {
-      [B.LEVEL_ORDER]: async (vertex) => {
-        visits.push(vertex.getData());
+      [B.AT_LEVEL_ORDER_VERTEX]: async (vertex) => {
+        visits.push(vertex.getVertexData());
       },
     },
   });
   expect(result).toBeInstanceOf(Promise);
-  expect((await result).getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect((await result).getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.FINISHED,
+  );
   expect(visits).toEqual(['root', 'b', 'a']);
 });
 
 test('DAG options support both source choices, phases, and discovery configuration', async () => {
   const visits: string[] = [];
   const runner = traverseDag({
-    traversableGraph: source(),
-    transformChildHints: (hints) => hints.reverse(),
-    dependsOnWorkDefault: 'discoveryParentWork',
+    dagDiscoverySource: source(),
+    transformChildHintsBeforeResolution: (hints) => hints.reverse(),
+    undeclaredWorkPrerequisitePolicy: 'waitForDiscoveringParentWork',
     visitors: {
       [D.ON_WORK_READY]: (vertex) => {
-        visits.push(`ready:${vertex.getData()}`);
+        visits.push(`ready:${vertex.getVertexData()}`);
       },
-      [D.ON_SUBGRAPH_READY]: (vertex) => {
-        visits.push(`complete:${vertex.getData()}`);
+      [D.ON_SUBGRAPH_COMPLETION_READY]: (vertex) => {
+        visits.push(`complete:${vertex.getVertexData()}`);
       },
     },
   });
-  expect(runner.getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect(runner.getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.FINISHED,
+  );
   expect(visits).toEqual([
     'ready:root',
     'ready:b',
@@ -150,20 +165,22 @@ test('DAG options support both source choices, phases, and discovery configurati
   ]);
   visits.length = 0;
   const result = traverseDagAsync({
-    traversableTree: source(),
-    concurrency: 1,
-    transformChildHints: async (hints) => hints.reverse(),
+    treeDiscoverySource: source(),
+    maxConcurrentCallbackInvocations: 1,
+    transformChildHintsBeforeResolution: async (hints) => hints.reverse(),
     visitors: {
       [D.ON_WORK_READY]: async (vertex) => {
-        visits.push(`ready:${vertex.getData()}`);
+        visits.push(`ready:${vertex.getVertexData()}`);
       },
-      [D.ON_SUBGRAPH_READY]: async (vertex) => {
-        visits.push(`complete:${vertex.getData()}`);
+      [D.ON_SUBGRAPH_COMPLETION_READY]: async (vertex) => {
+        visits.push(`complete:${vertex.getVertexData()}`);
       },
     },
   });
   expect(result).toBeInstanceOf(Promise);
-  expect((await result).getStatus()).toBe(TraversalRunnerStatus.FINISHED);
+  expect((await result).getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.FINISHED,
+  );
   expect(visits).toEqual([
     'ready:root',
     'ready:b',
@@ -177,31 +194,39 @@ test('DAG options support both source choices, phases, and discovery configurati
 test('canonical helpers accept omitted and empty visitor maps', async () => {
   for (const visitors of [undefined, {}]) {
     const treeOptions = {
-      traversableTree: source(),
+      treeDiscoverySource: source(),
       ...(visitors && { visitors }),
     };
     const graphOptions = {
-      traversableGraph: source(),
+      dagDiscoverySource: source(),
       ...(visitors && { visitors }),
     };
-    expect(traverseTreeDepthFirst(treeOptions).getStatus()).toBe(
+    expect(
+      runTreeDepthFirstUntilSuspendedOrTerminal(
+        treeOptions,
+      ).getTraversalLifecycleStatus(),
+    ).toBe(TraversalRunnerStatus.FINISHED);
+    expect(
+      runTreeBreadthFirstUntilSuspendedOrTerminal(
+        treeOptions,
+      ).getTraversalLifecycleStatus(),
+    ).toBe(TraversalRunnerStatus.FINISHED);
+    expect(traverseDag(graphOptions).getTraversalLifecycleStatus()).toBe(
       TraversalRunnerStatus.FINISHED,
     );
-    expect(traverseTreeBreadthFirst(treeOptions).getStatus()).toBe(
-      TraversalRunnerStatus.FINISHED,
-    );
-    expect(traverseDag(graphOptions).getStatus()).toBe(
-      TraversalRunnerStatus.FINISHED,
-    );
-    expect((await traverseTreeDepthFirstAsync(treeOptions)).getStatus()).toBe(
-      TraversalRunnerStatus.FINISHED,
-    );
-    expect((await traverseTreeBreadthFirstAsync(treeOptions)).getStatus()).toBe(
-      TraversalRunnerStatus.FINISHED,
-    );
-    expect((await traverseDagAsync(graphOptions)).getStatus()).toBe(
-      TraversalRunnerStatus.FINISHED,
-    );
+    expect(
+      (
+        await runTreeDepthFirstUntilSuspendedOrTerminalAsync(treeOptions)
+      ).getTraversalLifecycleStatus(),
+    ).toBe(TraversalRunnerStatus.FINISHED);
+    expect(
+      (
+        await runTreeBreadthFirstUntilSuspendedOrTerminalAsync(treeOptions)
+      ).getTraversalLifecycleStatus(),
+    ).toBe(TraversalRunnerStatus.FINISHED);
+    expect(
+      (await traverseDagAsync(graphOptions)).getTraversalLifecycleStatus(),
+    ).toBe(TraversalRunnerStatus.FINISHED);
   }
 });
 
@@ -210,9 +235,9 @@ test('canonical helper callbacks preserve exact failures', async () => {
   const fail = () => {
     throw failure;
   };
-  const capture = (run: () => unknown) => {
+  const capture = (runUntilSuspendedOrTerminal: () => unknown) => {
     try {
-      run();
+      runUntilSuspendedOrTerminal();
     } catch (error) {
       return error;
     }
@@ -220,43 +245,43 @@ test('canonical helper callbacks preserve exact failures', async () => {
   };
   expect(
     capture(() =>
-      traverseTreeDepthFirst({
-        traversableTree: source(),
-        visitors: { [F.PRE_ORDER]: fail },
+      runTreeDepthFirstUntilSuspendedOrTerminal({
+        treeDiscoverySource: source(),
+        visitors: { [F.BEFORE_CHILD_EXPANSION]: fail },
       }),
     ),
   ).toBe(failure);
   expect(
     capture(() =>
-      traverseTreeBreadthFirst({
-        traversableTree: source(),
-        visitors: { [B.LEVEL_ORDER]: fail },
+      runTreeBreadthFirstUntilSuspendedOrTerminal({
+        treeDiscoverySource: source(),
+        visitors: { [B.AT_LEVEL_ORDER_VERTEX]: fail },
       }),
     ),
   ).toBe(failure);
   expect(
     capture(() =>
       traverseDag({
-        traversableGraph: source(),
+        dagDiscoverySource: source(),
         visitors: { [D.ON_WORK_READY]: fail },
       }),
     ),
   ).toBe(failure);
   await expect(
-    traverseTreeDepthFirstAsync({
-      traversableTree: source(),
-      visitors: { [F.PRE_ORDER]: fail },
+    runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+      treeDiscoverySource: source(),
+      visitors: { [F.BEFORE_CHILD_EXPANSION]: fail },
     }),
   ).rejects.toBe(failure);
   await expect(
-    traverseTreeBreadthFirstAsync({
-      traversableTree: source(),
-      visitors: { [B.LEVEL_ORDER]: fail },
+    runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+      treeDiscoverySource: source(),
+      visitors: { [B.AT_LEVEL_ORDER_VERTEX]: fail },
     }),
   ).rejects.toBe(failure);
   await expect(
     traverseDagAsync({
-      traversableGraph: source(),
+      dagDiscoverySource: source(),
       visitors: { [D.ON_WORK_READY]: fail },
     }),
   ).rejects.toBe(failure);
@@ -264,69 +289,71 @@ test('canonical helper callbacks preserve exact failures', async () => {
 
 test('canonical commands reach the traversal runner', async () => {
   const halt = () => ({
-    commands: [{ commandName: C.PAUSE_TRAVERSAL as const }],
+    commands: [
+      { commandName: C.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY as const },
+    ],
   });
   expect(
-    traverseTreeDepthFirst({
-      traversableTree: source(),
-      visitors: { [F.POST_ORDER]: halt },
-    }).getStatus(),
-  ).toBe(TraversalRunnerStatus.HALTED);
+    runTreeDepthFirstUntilSuspendedOrTerminal({
+      treeDiscoverySource: source(),
+      visitors: { [F.AFTER_CHILD_SUBTREES]: halt },
+    }).getTraversalLifecycleStatus(),
+  ).toBe(TraversalRunnerStatus.SUSPENDED);
   expect(
-    traverseTreeBreadthFirst({
-      traversableTree: source(),
-      visitors: { [B.LEVEL_ORDER]: halt },
-    }).getStatus(),
-  ).toBe(TraversalRunnerStatus.HALTED);
+    runTreeBreadthFirstUntilSuspendedOrTerminal({
+      treeDiscoverySource: source(),
+      visitors: { [B.AT_LEVEL_ORDER_VERTEX]: halt },
+    }).getTraversalLifecycleStatus(),
+  ).toBe(TraversalRunnerStatus.SUSPENDED);
   expect(
     traverseDag({
-      traversableGraph: source(),
-      visitors: { [D.ON_SUBGRAPH_READY]: halt },
-    }).getStatus(),
-  ).toBe(TraversalRunnerStatus.HALTED);
+      dagDiscoverySource: source(),
+      visitors: { [D.ON_SUBGRAPH_COMPLETION_READY]: halt },
+    }).getTraversalLifecycleStatus(),
+  ).toBe(TraversalRunnerStatus.SUSPENDED);
   expect(
     (
-      await traverseTreeDepthFirstAsync({
-        traversableTree: source(),
-        visitors: { [F.POST_ORDER]: halt },
+      await runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+        treeDiscoverySource: source(),
+        visitors: { [F.AFTER_CHILD_SUBTREES]: halt },
       })
-    ).getStatus(),
-  ).toBe(TraversalRunnerStatus.HALTED);
+    ).getTraversalLifecycleStatus(),
+  ).toBe(TraversalRunnerStatus.SUSPENDED);
   expect(
     (
-      await traverseTreeBreadthFirstAsync({
-        traversableTree: source(),
-        visitors: { [B.LEVEL_ORDER]: halt },
+      await runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+        treeDiscoverySource: source(),
+        visitors: { [B.AT_LEVEL_ORDER_VERTEX]: halt },
       })
-    ).getStatus(),
-  ).toBe(TraversalRunnerStatus.HALTED);
+    ).getTraversalLifecycleStatus(),
+  ).toBe(TraversalRunnerStatus.SUSPENDED);
   expect(
     (
       await traverseDagAsync({
-        traversableGraph: source(),
-        visitors: { [D.ON_SUBGRAPH_READY]: halt },
+        dagDiscoverySource: source(),
+        visitors: { [D.ON_SUBGRAPH_COMPLETION_READY]: halt },
       })
-    ).getStatus(),
-  ).toBe(TraversalRunnerStatus.HALTED);
+    ).getTraversalLifecycleStatus(),
+  ).toBe(TraversalRunnerStatus.SUSPENDED);
 });
 
 test('helpers reject positional calls even when source and options fields overlap', () => {
   const legacy = {
     ...source('argument'),
-    traversableTree: source('extra-field'),
+    treeDiscoverySource: source('extra-field'),
     visitors: {},
   };
   for (const helper of [
-    traverseTreeDepthFirst,
-    traverseTreeBreadthFirst,
-    traverseTreeDepthFirstAsync,
-    traverseTreeBreadthFirstAsync,
+    runTreeDepthFirstUntilSuspendedOrTerminal,
+    runTreeBreadthFirstUntilSuspendedOrTerminal,
+    runTreeDepthFirstUntilSuspendedOrTerminalAsync,
+    runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
     traverseDag,
     traverseDagAsync,
   ]) {
     expect(() =>
       (helper as unknown as (...args: unknown[]) => unknown)(legacy, null, {
-        traversableTree: source('config'),
+        treeDiscoverySource: source('config'),
       }),
     ).toThrow(TypeError);
   }
@@ -337,46 +364,64 @@ test('canonical helpers preserve exact source failures', async () => {
   const fail = () => {
     throw failure;
   };
-  const broken = { ...source(), resolveRoot: fail };
-  const capture = (run: () => unknown) => {
+  const broken = { ...source(), resolveRootVertex: fail };
+  const capture = (runUntilSuspendedOrTerminal: () => unknown) => {
     try {
-      run();
+      runUntilSuspendedOrTerminal();
     } catch (error) {
       return error;
     }
     return undefined;
   };
   expect(
-    capture(() => traverseTreeDepthFirst({ traversableTree: broken })),
+    capture(() =>
+      runTreeDepthFirstUntilSuspendedOrTerminal({
+        treeDiscoverySource: broken,
+      }),
+    ),
   ).toBe(failure);
   expect(
-    capture(() => traverseTreeBreadthFirst({ traversableTree: broken })),
+    capture(() =>
+      runTreeBreadthFirstUntilSuspendedOrTerminal({
+        treeDiscoverySource: broken,
+      }),
+    ),
   ).toBe(failure);
-  expect(capture(() => traverseDag({ traversableGraph: broken }))).toBe(
+  expect(capture(() => traverseDag({ dagDiscoverySource: broken }))).toBe(
     failure,
   );
   await expect(
-    traverseTreeDepthFirstAsync({ traversableTree: broken }),
+    runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+      treeDiscoverySource: broken,
+    }),
   ).rejects.toBe(failure);
   await expect(
-    traverseTreeBreadthFirstAsync({ traversableTree: broken }),
+    runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+      treeDiscoverySource: broken,
+    }),
   ).rejects.toBe(failure);
-  await expect(traverseDagAsync({ traversableGraph: broken })).rejects.toBe(
+  await expect(traverseDagAsync({ dagDiscoverySource: broken })).rejects.toBe(
     failure,
   );
 });
 
 test('canonical async options retain constructor configuration validation', () => {
   expect(() =>
-    traverseTreeDepthFirstAsync({ traversableTree: source(), concurrency: 0 }),
-  ).toThrow(TypeError);
-  expect(() =>
-    traverseTreeBreadthFirstAsync({
-      traversableTree: source(),
-      concurrency: 0,
+    runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+      treeDiscoverySource: source(),
+      maxConcurrentCallbackInvocations: 0,
     }),
   ).toThrow(TypeError);
   expect(() =>
-    traverseDagAsync({ traversableGraph: source(), concurrency: 0 }),
+    runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+      treeDiscoverySource: source(),
+      maxConcurrentCallbackInvocations: 0,
+    }),
+  ).toThrow(TypeError);
+  expect(() =>
+    traverseDagAsync({
+      dagDiscoverySource: source(),
+      maxConcurrentCallbackInvocations: 0,
+    }),
   ).toThrow(TypeError);
 });

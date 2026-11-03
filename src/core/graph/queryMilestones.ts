@@ -1,19 +1,24 @@
 import type {
-  DagWaitEdge,
+  DagMilestoneConstraint,
   DagMilestone,
 } from '@core/errors/DagTraversalStallError';
 
 type MilestoneKind = DagMilestone['milestone'];
-type Adjacency<ID> = Map<ID, Map<MilestoneKind, DagWaitEdge<ID>[]>>;
+type Adjacency<VertexId> = Map<
+  VertexId,
+  Map<MilestoneKind, DagMilestoneConstraint<VertexId>[]>
+>;
 
 /** Index original constraints once; each walk returns fresh owned wrappers. */
-export function makeMilestoneQuery<ID>(edges: readonly DagWaitEdge<ID>[]) {
-  const forward: Adjacency<ID> = new Map();
-  const reverse: Adjacency<ID> = new Map();
+export function makeMilestoneQuery<VertexId>(
+  edges: readonly DagMilestoneConstraint<VertexId>[],
+) {
+  const forward: Adjacency<VertexId> = new Map();
+  const reverse: Adjacency<VertexId> = new Map();
   const append = (
-    adjacency: Adjacency<ID>,
-    endpoint: DagMilestone<ID>,
-    edge: DagWaitEdge<ID>,
+    adjacency: Adjacency<VertexId>,
+    endpoint: DagMilestone<VertexId>,
+    edge: DagMilestoneConstraint<VertexId>,
   ) => {
     let pair = adjacency.get(endpoint.vertexId);
     if (pair === undefined) {
@@ -26,26 +31,27 @@ export function makeMilestoneQuery<ID>(edges: readonly DagWaitEdge<ID>[]) {
   };
   for (const edge of edges) {
     const copy = {
-      waiter: { ...edge.waiter },
-      prerequisite: { ...edge.prerequisite },
+      waitingMilestone: { ...edge.waitingMilestone },
+      prerequisiteMilestone: { ...edge.prerequisiteMilestone },
       reason: edge.reason,
     };
-    append(forward, copy.waiter, copy);
-    append(reverse, copy.prerequisite, copy);
+    append(forward, copy.waitingMilestone, copy);
+    append(reverse, copy.prerequisiteMilestone, copy);
   }
   return (
-    target: DagMilestone<ID>,
+    target: DagMilestone<VertexId>,
     direction: 'prerequisites' | 'dependents',
     transitive: boolean,
-    includeEdge: (edge: DagWaitEdge<ID>) => boolean = () => true,
+    includeEdge: (edge: DagMilestoneConstraint<VertexId>) => boolean = () =>
+      true,
   ): {
-    milestones: DagMilestone<ID>[];
-    edges: DagWaitEdge<ID>[];
+    milestones: DagMilestone<VertexId>[];
+    edges: DagMilestoneConstraint<VertexId>[];
   } => {
     const adjacency = direction === 'prerequisites' ? forward : reverse;
-    const seen = new Map<ID, Set<MilestoneKind>>();
-    const queue: DagMilestone<ID>[] = [];
-    const visit = (milestone: DagMilestone<ID>) => {
+    const seen = new Map<VertexId, Set<MilestoneKind>>();
+    const queue: DagMilestone<VertexId>[] = [];
+    const visit = (milestone: DagMilestone<VertexId>) => {
       let pair = seen.get(milestone.vertexId);
       if (pair === undefined) {
         pair = new Set();
@@ -56,7 +62,7 @@ export function makeMilestoneQuery<ID>(edges: readonly DagWaitEdge<ID>[]) {
       queue.push(milestone);
     };
     visit({ vertexId: target.vertexId, milestone: target.milestone });
-    const result: DagWaitEdge<ID>[] = [];
+    const result: DagMilestoneConstraint<VertexId>[] = [];
     for (let index = 0; index < queue.length; index++) {
       const current = queue[index]!;
       for (const edge of adjacency
@@ -64,11 +70,15 @@ export function makeMilestoneQuery<ID>(edges: readonly DagWaitEdge<ID>[]) {
         ?.get(current.milestone) ?? []) {
         if (!includeEdge(edge)) continue;
         result.push({
-          waiter: { ...edge.waiter },
-          prerequisite: { ...edge.prerequisite },
+          waitingMilestone: { ...edge.waitingMilestone },
+          prerequisiteMilestone: { ...edge.prerequisiteMilestone },
           reason: edge.reason,
         });
-        visit(direction === 'prerequisites' ? edge.prerequisite : edge.waiter);
+        visit(
+          direction === 'prerequisites'
+            ? edge.prerequisiteMilestone
+            : edge.waitingMilestone,
+        );
       }
       if (!transitive) break;
     }

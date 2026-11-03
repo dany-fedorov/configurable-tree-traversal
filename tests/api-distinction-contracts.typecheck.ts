@@ -1,55 +1,65 @@
 import {
   rewriteObject,
   type ObjectRewriteOutputResult,
-  type DagWorkSession,
-  type DagWorkSessionControl,
-  type GraphWalkHydration,
-  type GraphWalkLink,
-  type GraphWalkTarget,
-  type GraphWalkSource,
+  type DagExternalWorkSession,
+  type DagExternalWorkSessionControl,
+  type GraphWalkVertexResolutionMode,
+  type GraphWalkOutgoingLink,
+  type GraphWalkVertexResolutionTarget,
+  type GraphWalkDiscoverySource,
   type VertexContentInput,
-  type VertexTypes,
+  type VertexDataAndChildHintTypes,
   type TraversalVisitorCommandArguments,
   TraversalVisitorCommandName,
 } from '../src';
 
-type T = VertexTypes<string, string>;
+type T = VertexDataAndChildHintTypes<string, string>;
 const readonlyContent: VertexContentInput<T> = {
-  $data: 'value',
-  $childHints: ['child'] as const,
+  $vertexData: 'value',
+  $childDiscoveryHints: ['child'] as const,
 };
-const hints: TraversalVisitorCommandArguments<T>[TraversalVisitorCommandName.REWRITE_CHILD_HINTS] =
-  { newHints: ['replacement'] as const };
+const hints: TraversalVisitorCommandArguments<T>[TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_CHILD_HINTS] =
+  { replacementChildHints: ['replacement'] as const };
 void readonlyContent;
 void hints;
-const mode: GraphWalkHydration = 'inlineOrCached';
-const target: GraphWalkTarget<string, string, typeof mode> = {
-  kind: 'inline',
+const mode: GraphWalkVertexResolutionMode =
+  'inlineResolutionOrPreviouslyAdmittedVertex';
+const target: GraphWalkVertexResolutionTarget<string, string, typeof mode> = {
+  kind: 'inlineResolution',
   vertexId: 'a',
-  resolution: { kind: 'found', data: 'value' },
+  resolutionIfNotPreviouslyAdmitted: { kind: 'found', vertexData: 'value' },
 };
-const inlineLink: GraphWalkLink<string, number, string, 'inlineOrCached'> = {
-  target,
-  data: 1,
+const inlineLink: GraphWalkOutgoingLink<
+  string,
+  number,
+  string,
+  'inlineResolutionOrPreviouslyAdmittedVertex'
+> = {
+  targetToResolveOnAdmission: target,
+  edgeData: 1,
 };
-const inlineSource: GraphWalkSource<string, number, string> = {
-  hydration: mode,
-  roots: () => [target],
-  outgoing: () => [inlineLink],
+const inlineSource: GraphWalkDiscoverySource<string, number, string> = {
+  vertexResolutionMode: mode,
+  enumerateRootTargets: () => [target],
+  enumerateOutgoingLinks: () => [inlineLink],
 };
 void inlineSource;
-const invalidTarget: GraphWalkTarget<string, string, 'resolver'> = {
+const invalidTarget: GraphWalkVertexResolutionTarget<
+  string,
+  string,
+  'resolverWithOptionalInlineResolution'
+> = {
   // @ts-expect-error Cache-only targets are outside resolver target vocabulary.
-  kind: 'cached',
+  kind: 'previouslyAdmittedVertex',
   vertexId: 'a',
 };
 void invalidTarget;
-declare const session: DagWorkSession<string>;
-const controls: DagWorkSessionControl<string> = session;
-const chains = controls.inspect().chains;
+declare const session: DagExternalWorkSession<string>;
+const controls: DagExternalWorkSessionControl<string> = session;
+const chains = controls.captureExecutionSnapshot().vertexPhaseVisitorChains;
 void chains;
 const output: ObjectRewriteOutputResult<unknown> =
-  rewriteObject(null).getOutputResult();
+  rewriteObject(null).getFinalOutputResult();
 if (output.kind === 'present') {
   const value: unknown = output.value;
   void value;

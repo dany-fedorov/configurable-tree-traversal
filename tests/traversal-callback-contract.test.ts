@@ -1,84 +1,106 @@
 import {
-  BreadthFirstTreeTraversal,
-  MutableRef,
-  DepthFirstTreeTraversal,
-  DepthFirstPhase,
-  ResolvedTreeStore,
+  BreadthFirstTreeTraversalBuilder,
+  MutableValueReference,
+  DepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase,
+  MutableResolvedTreeStore,
   TraversalVisitorCommandName,
   Vertex,
-  TreeVertexRecord,
+  MutableTreeVertexTopologyRecord,
 } from '../src';
 import type { TestGraph } from './helpers/graph-fixtures';
 
 test('BFS resolves one queued child at the next visit boundary', () => {
   const calls: string[] = [];
-  const traversal = new BreadthFirstTreeTraversal<TestGraph>({
-    traversableTree: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: { vertexContent: { $data: 'root', $childHints: ['A', 'B'] } },
+  const traversal = new BreadthFirstTreeTraversalBuilder<TestGraph>({
+    treeDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: ['A', 'B'],
+          },
+        },
       }),
-      resolveChild: (hint) => {
+      resolveChildVertexFromHint: (hint) => {
         calls.push(hint);
         return {
-          kind: 'found' as const,
-          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
+          },
         };
       },
     },
   });
-  const iterator = traversal.createRunner().iterateEvents();
-  expect(iterator.next().value?.vertex.getData()).toBe('root');
+  const iterator = traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runAndIterateObservationEventsUntilSuspendedOrTerminal();
+  expect(iterator.next().value?.vertex.getVertexData()).toBe('root');
   expect(calls).toEqual([]);
-  expect(iterator.next().value?.vertex.getData()).toBe('A');
+  expect(iterator.next().value?.vertex.getVertexData()).toBe('A');
   expect(calls).toEqual(['A']);
   iterator.return(undefined);
 });
 
 test('DFS preserves callback boundaries and observes in-order parent rewrites', () => {
   const trace: string[] = [];
-  const traversal = new DepthFirstTreeTraversal<TestGraph>({
-    traversableTree: {
-      resolveRoot: () => {
+  const traversal = new DepthFirstTreeTraversalBuilder<TestGraph>({
+    treeDiscoverySource: {
+      resolveRootVertex: () => {
         trace.push('adapter:root');
         return {
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'root', $childHints: ['left', 'right'] },
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: ['left', 'right'],
+            },
           },
         };
       },
-      resolveChild: (
+      resolveChildVertexFromHint: (
         hint,
-        { resolutionContext, resolvedTreeView: resolvedTree },
+        { childDiscoveryContext, liveResolvedTreeView: resolvedTree },
       ) => {
-        const root = resolvedTree.getRoot();
-        const resolved = root === null ? [] : resolvedTree.getChildrenOf(root);
+        const root = resolvedTree.getRootVertexHandleOrNull();
+        const resolved =
+          root === null ? [] : resolvedTree.getChildVertexHandlesOrNull(root);
         trace.push(
-          `adapter:${hint}:parent=${resolutionContext.parentVertex.getData()}:depth=${
-            resolutionContext.depth
-          }:index=${resolutionContext.hintIndex}:resolved=${[
-            root?.getValue().getData(),
-            ...(resolved?.map((ref) => ref.getValue().getData()) ?? []),
+          `adapter:${hint}:parent=${childDiscoveryContext.parentVertexAtChildResolution.getVertexData()}:depth=${
+            childDiscoveryContext.discoveryDepthInEdges
+          }:index=${childDiscoveryContext.parentChildHintIndex}:resolved=${[
+            root?.getCurrentVertexView().getVertexData(),
+            ...(resolved?.map((ref) =>
+              ref.getCurrentVertexView().getVertexData(),
+            ) ?? []),
           ].join(',')}`,
         );
         return {
-          kind: 'found' as const,
-          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
+          },
         };
       },
     },
   });
 
-  for (const order of Object.values(DepthFirstPhase)) {
-    traversal.addVisitorFor(order, (vertex) => {
-      trace.push(`visitor:${order}:${vertex.getData()}`);
-      if (order === DepthFirstPhase.IN_ORDER && vertex.getData() === 'root') {
+  for (const order of Object.values(DepthFirstTreeVisitPhase)) {
+    traversal.registerVisitorCallbackForPhase(order, (vertex) => {
+      trace.push(`visitor:${order}:${vertex.getVertexData()}`);
+      if (
+        order ===
+          DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES &&
+        vertex.getVertexData() === 'root'
+      ) {
         return {
           commands: [
             {
-              commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: 'rewritten-root' },
+              commandName:
+                TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: { replacementVertexData: 'rewritten-root' },
             },
           ],
         };
@@ -87,66 +109,71 @@ test('DFS preserves callback boundaries and observes in-order parent rewrites', 
     });
   }
 
-  const runner = traversal.createRunner();
-  for (const event of runner.iterateEvents()) {
-    trace.push(`iterator:${event.phase}:${event.vertex.getData()}`);
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  for (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
+    trace.push(`iterator:${event.eventKind}:${event.vertex.getVertexData()}`);
   }
 
-  const resolvedTree = runner.getResolvedTreeView();
-  const rootRef = resolvedTree.getRoot();
+  const resolvedTree = runner.getLiveResolvedTreeView();
+  const rootRef = resolvedTree.getRootVertexHandleOrNull();
   if (rootRef === null) throw new Error('Expected a resolved root');
   trace.push(
-    `tree:${rootRef.getValue().getData()}:${resolvedTree
-      .getChildrenOf(rootRef)
-      ?.map((ref) => ref.getValue().getData())
+    `tree:${rootRef.getCurrentVertexView().getVertexData()}:${resolvedTree
+      .getChildVertexHandlesOrNull(rootRef)
+      ?.map((ref) => ref.getCurrentVertexView().getVertexData())
       .join(',')}`,
   );
 
   expect(trace).toEqual([
     'adapter:root',
-    'visitor:PRE_ORDER:root',
-    'iterator:PRE_ORDER:root',
+    'visitor:BEFORE_CHILD_EXPANSION:root',
+    'iterator:BEFORE_CHILD_EXPANSION:root',
     'adapter:left:parent=root:depth=1:index=0:resolved=root',
-    'visitor:PRE_ORDER:left',
-    'iterator:PRE_ORDER:left',
-    'visitor:IN_ORDER:left',
-    'iterator:IN_ORDER:left',
-    'visitor:POST_ORDER:left',
-    'iterator:POST_ORDER:left',
-    'visitor:IN_ORDER:root',
-    'iterator:IN_ORDER:rewritten-root',
+    'visitor:BEFORE_CHILD_EXPANSION:left',
+    'iterator:BEFORE_CHILD_EXPANSION:left',
+    'visitor:AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES:left',
+    'iterator:AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES:left',
+    'visitor:AFTER_CHILD_SUBTREES:left',
+    'iterator:AFTER_CHILD_SUBTREES:left',
+    'visitor:AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES:root',
+    'iterator:AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES:rewritten-root',
     'adapter:right:parent=rewritten-root:depth=1:index=1:resolved=rewritten-root,left',
-    'visitor:PRE_ORDER:right',
-    'iterator:PRE_ORDER:right',
-    'visitor:IN_ORDER:right',
-    'iterator:IN_ORDER:right',
-    'visitor:POST_ORDER:right',
-    'iterator:POST_ORDER:right',
-    'visitor:POST_ORDER:rewritten-root',
-    'iterator:POST_ORDER:rewritten-root',
+    'visitor:BEFORE_CHILD_EXPANSION:right',
+    'iterator:BEFORE_CHILD_EXPANSION:right',
+    'visitor:AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES:right',
+    'iterator:AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES:right',
+    'visitor:AFTER_CHILD_SUBTREES:right',
+    'iterator:AFTER_CHILD_SUBTREES:right',
+    'visitor:AFTER_CHILD_SUBTREES:rewritten-root',
+    'iterator:AFTER_CHILD_SUBTREES:rewritten-root',
     'tree:rewritten-root:left,right',
   ]);
 });
 
 test('ResolvedTreeStore retains supplied records and their child arrays', () => {
-  const tree = new ResolvedTreeStore<TestGraph>();
-  const rootRef = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'root', $childHints: ['child'] }),
+  const tree = new MutableResolvedTreeStore<TestGraph>();
+  const rootRef = new MutableValueReference(
+    new Vertex<TestGraph>({
+      $vertexData: 'root',
+      $childDiscoveryHints: ['child'],
+    }),
   );
-  const childRef = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
+  const childRef = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'child', $childDiscoveryHints: [] }),
   );
   const children = [childRef];
-  const suppliedRecord = new TreeVertexRecord<TestGraph>({
-    metadata: { resolutionContext: null },
-    children: children,
+  const suppliedRecord = new MutableTreeVertexTopologyRecord<TestGraph>({
+    metadata: { childDiscoveryContext: null },
+    childReferences: children,
   });
 
-  tree.setRoot(rootRef);
-  tree.set(rootRef, suppliedRecord);
+  tree.setRootVertexReference(rootRef);
+  tree.setVertexRecord(rootRef, suppliedRecord);
 
-  expect(tree.get(rootRef)).toBe(suppliedRecord);
-  expect(tree.get(rootRef)?.getChildren()).toBe(children);
-  expect(tree.getChildrenOf(rootRef)).toEqual(children);
-  expect(tree.getChildrenOf(rootRef)).not.toBe(children);
+  expect(tree.getMutableVertexRecordOrNull(rootRef)).toBe(suppliedRecord);
+  expect(
+    tree.getMutableVertexRecordOrNull(rootRef)?.getMutableChildReferenceList(),
+  ).toBe(children);
+  expect(tree.getDetachedChildReferenceListOrNull(rootRef)).toEqual(children);
+  expect(tree.getDetachedChildReferenceListOrNull(rootRef)).not.toBe(children);
 });

@@ -3,21 +3,24 @@ import {
   assertOptionalCallbacks,
   captureOptionFields,
 } from '@core/assertPublicOptions';
-import type { DagVertexFound } from '@core/TraversableTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { FoundDagSourceVertex } from '@core/TraversableTree';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
-import type { AsyncCollection, MaterializedDagInput } from './types';
+import type {
+  SyncOrAsyncIterable,
+  MaterializedDagTraversalInput,
+} from './types';
 
-export type MaterializedRecord<Item, ID> = {
+export type MaterializedRecord<Item, VertexId> = {
   item: Item;
-  id: ID;
-  children: ID[];
-  dependsOnWork: ID[];
-  dependsOnSubgraphCompletion: ID[];
+  id: VertexId;
+  children: VertexId[];
+  workWaitsForWorkOf: VertexId[];
+  workWaitsForSubgraphCompletionOf: VertexId[];
 };
 
 export async function collect<Item>(
-  items: MaybePromise<AsyncCollection<Item>>,
+  items: MaybePromise<SyncOrAsyncIterable<Item>>,
 ): Promise<Item[]> {
   const result: Item[] = [];
   for await (const item of await items) result.push(item);
@@ -25,52 +28,59 @@ export async function collect<Item>(
 }
 
 /** Private records never escape: every lookup returns fresh topology arrays. */
-export function materializedSource<Item, ID>(
-  records: Map<ID, MaterializedRecord<Item, ID>>,
-  roots: ID[],
-): MaterializedDagInput<Item, ID> {
-  type T = VertexTypes<Item, ID>;
-  const found = (
-    record: MaterializedRecord<Item, ID>,
-  ): DagVertexFound<T, ID> => ({
-    kind: 'found',
-    vertex: {
+export function materializedSource<Item, VertexId>(
+  records: Map<VertexId, MaterializedRecord<Item, VertexId>>,
+  roots: VertexId[],
+): MaterializedDagTraversalInput<Item, VertexId> {
+  type SourceVertexTypes = VertexDataAndChildHintTypes<Item, VertexId>;
+  const vertexResolved = (
+    record: MaterializedRecord<Item, VertexId>,
+  ): FoundDagSourceVertex<SourceVertexTypes, VertexId> => ({
+    kind: 'vertexResolved',
+    resolvedVertexInput: {
       vertexId: record.id,
-      vertexContent: { $data: record.item, $childHints: [...record.children] },
-      dependsOnWork: [...record.dependsOnWork],
-      dependsOnSubgraphCompletion: [...record.dependsOnSubgraphCompletion],
+      vertexContentInput: {
+        $vertexData: record.item,
+        $childDiscoveryHints: [...record.children],
+      },
+      workWaitsForWorkOf: [...record.workWaitsForWorkOf],
+      workWaitsForSubgraphCompletionOf: [
+        ...record.workWaitsForSubgraphCompletionOf,
+      ],
     },
   });
   // The traversal replaces the holder identity and hides its data in public views.
-  const holder = Symbol('collection root') as ID;
+  const holder = Symbol('collection root') as VertexId;
   return {
-    syntheticRoot: true,
-    traversableGraph: {
-      resolveRoot: () =>
-        found({
+    sourceRootIsHiddenEntryHolder: true,
+    dagDiscoverySource: {
+      resolveRootVertex: () =>
+        vertexResolved({
           item: undefined as Item,
           id: holder,
           children: roots,
-          dependsOnWork: [],
-          dependsOnSubgraphCompletion: [],
+          workWaitsForWorkOf: [],
+          workWaitsForSubgraphCompletionOf: [],
         }),
-      resolveChild: (id: ID) => {
+      resolveChildHint: (id: VertexId) => {
         const record = records.get(id);
         if (record === undefined)
           throw new TypeError('Structural child is absent from the collection');
-        return found(record);
+        return vertexResolved(record);
       },
-      getVertexIdFromHint: (vertexId) => ({ vertexId }),
-      resolvePrerequisite: (id) => {
+      tryGetVertexIdentityFromHint: (vertexId) => ({ vertexId }),
+      resolvePrerequisiteByVertexId: (id) => {
         const record = records.get(id);
-        return record === undefined ? { kind: 'missing' } : found(record);
+        return record === undefined
+          ? { kind: 'missing' }
+          : vertexResolved(record);
       },
     },
   };
 }
 
-export function validateChildren<Item, ID>(
-  records: Map<ID, MaterializedRecord<Item, ID>>,
+export function validateChildren<Item, VertexId>(
+  records: Map<VertexId, MaterializedRecord<Item, VertexId>>,
 ): void {
   for (const record of records.values()) {
     for (const child of record.children) {
@@ -82,29 +92,31 @@ export function validateChildren<Item, ID>(
 
 /** Validate before catalog reads; keep structural lookups and caller receivers. */
 export function captureCollectionSelectors<
+  ChildSelector extends
+    | 'selectStructuralChildVertexIds'
+    | 'selectStructuralChildRecords',
   Selectors extends {
-    id: unknown;
-    children?: unknown;
-    dependsOnWork?: unknown;
-    dependsOnSubgraphCompletion?: unknown;
-  },
->(selectors: Selectors) {
+    selectVertexId: unknown;
+    selectWorkPrerequisiteVertexIds?: unknown;
+    selectSubgraphCompletionPrerequisiteVertexIds?: unknown;
+  } & Partial<Record<ChildSelector, unknown>>,
+>(selectors: Selectors, childSelector: ChildSelector) {
   const keys = [
-    'id',
-    'children',
-    'dependsOnWork',
-    'dependsOnSubgraphCompletion',
+    'selectVertexId',
+    childSelector,
+    'selectWorkPrerequisiteVertexIds',
+    'selectSubgraphCompletionPrerequisiteVertexIds',
   ] as const;
   assertOwnKeys(selectors, keys);
   for (const key of ['dependencies', 'completionDependencies']) {
     if (key in selectors)
       throw new TypeError(
-        'Use dependsOnWork and dependsOnSubgraphCompletion selectors',
+        'Use selectWorkPrerequisiteVertexIds and selectSubgraphCompletionPrerequisiteVertexIds selectors',
       );
   }
   const captured = captureOptionFields(selectors, keys);
   assertOptionalCallbacks(captured, keys);
-  if (typeof captured.id !== 'function')
-    throw new TypeError('Selectors require id');
+  if (typeof captured.selectVertexId !== 'function')
+    throw new TypeError('Selectors require selectVertexId');
   return captured;
 }

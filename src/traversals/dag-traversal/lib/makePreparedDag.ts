@@ -1,14 +1,17 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { DagDefinition } from './DagDefinition';
 import { captureDagDefinition, definitionSource } from './definitionSource';
-import { DagTraversal } from '../DagTraversal';
-import { AsyncDagTraversal } from '../AsyncDagTraversal';
-import { bindDagWorkSession, bindAsyncDagWorkSession } from '../coordinateDag';
+import { DagTraversalBuilder } from '../DagTraversal';
+import { AsyncDagTraversalBuilder } from '../AsyncDagTraversal';
+import {
+  bindDagExternalWorkSession,
+  bindAsyncDagExternalWorkSession,
+} from '../coordinateDag';
 import type {
-  PreparedDag,
-  PreparedDagRunnerOptions,
-  PreparedAsyncDagRunnerOptions,
+  ValidatedReusableDagTopology,
+  ValidatedDagTopologyRunnerOptions,
+  ValidatedDagTopologyAsyncRunnerOptions,
 } from './PreparedDag';
 
 export function assertPreparedOptions(
@@ -25,80 +28,99 @@ export function assertPreparedOptions(
 }
 
 /** Snapshot accepted topology; replay uses fresh vertices and normalized ID hints. */
-export function makePreparedDag<T extends VertexTypes, ID>(
-  container: ResolvedGraphsContainer<T, T, ID>,
-  candidates: ReadonlySet<ID>,
-  rootWorkDependencies: 'honor' | 'ignore',
-  authoredDefinition?: DagDefinition<T['VertexData'], ID>,
-): PreparedDag<T['VertexData'], ID> {
-  type Data = T['VertexData'];
-  type Replay = VertexTypes<Data, ID>;
+export function makePreparedDag<
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId,
+>(
+  container: ResolvedGraphsContainer<
+    SourceVertexTypes,
+    SourceVertexTypes,
+    VertexId
+  >,
+  candidates: ReadonlySet<VertexId>,
+  rootWorkPrerequisitePolicy: 'honor' | 'ignore',
+  authoredDefinition?: DagDefinition<SourceVertexTypes['VertexData'], VertexId>,
+): ValidatedReusableDagTopology<SourceVertexTypes['VertexData'], VertexId> {
+  type Data = SourceVertexTypes['VertexData'];
+  type Replay = VertexDataAndChildHintTypes<Data, VertexId>;
   // Definition preparation can retain authored entry mode and declaration order,
   // rather than recapturing the hidden holder used for omitted empty entries.
   const definition =
     authoredDefinition ?? captureDagDefinition(container, candidates);
   const liveVertexSummaries = Object.freeze(
-    definition.vertices.map((vertex) =>
+    definition.vertexDeclarations.map((vertex) =>
       Object.freeze({
         vertexId: vertex.vertexId,
         data: vertex.data,
-        children: Object.freeze(
-          vertex.slots.flatMap((slot) =>
+        liveStructuralChildVertexIds: Object.freeze(
+          vertex.childDiscoverySlots.flatMap((slot) =>
             slot.kind === 'vertex' ? [slot.vertexId] : [],
           ),
         ),
-        dependsOnWork: vertex.dependsOnWork,
-        dependsOnSubgraphCompletion: vertex.dependsOnSubgraphCompletion,
+        workWaitsForWorkOf: vertex.workWaitsForWorkOf,
+        workWaitsForSubgraphCompletionOf:
+          vertex.workWaitsForSubgraphCompletionOf,
       }),
     ),
   );
   const runnerFields = [
     'visitors',
-    'completedWork',
-    'workCompletion',
-    'retainOriginalGraphStructure',
+    'acceptedCompletedWorkVertexIds',
+    'workCompletionPolicy',
+    'retainDiscoveredGraphBeforeVisitorCommands',
   ];
-  const createRunner = (options: PreparedDagRunnerOptions<Data, ID> = {}) => {
-    assertPreparedOptions(options, runnerFields);
-    return new DagTraversal<Replay, Replay, ID>({
-      ...options,
-      ...definitionSource(definition),
-      rootWorkDependencies,
-      dependsOnWorkDefault: 'none',
-    })
-      .createRunner()
-      .prepare();
-  };
-  const createAsyncRunner = async (
-    options: PreparedAsyncDagRunnerOptions<Data, ID> = {},
+  const createIndependentRunnerFromValidatedTopology = (
+    options: ValidatedDagTopologyRunnerOptions<Data, VertexId> = {},
   ) => {
-    assertPreparedOptions(options, [...runnerFields, 'concurrency']);
-    return new AsyncDagTraversal<Replay, Replay, ID>({
+    assertPreparedOptions(options, runnerFields);
+    return new DagTraversalBuilder<Replay, Replay, VertexId>({
       ...options,
       ...definitionSource(definition),
-      rootWorkDependencies,
-      dependsOnWorkDefault: 'none',
+      rootWorkPrerequisitePolicy,
+      undeclaredWorkPrerequisitePolicy: 'none',
     })
-      .createRunner()
-      .prepare();
+      .createIndependentRunnerFromCurrentOptions()
+      .discoverValidateAndFreezeTopology();
+  };
+  const createIndependentAsyncRunnerFromValidatedTopology = async (
+    options: ValidatedDagTopologyAsyncRunnerOptions<Data, VertexId> = {},
+  ) => {
+    assertPreparedOptions(options, [
+      ...runnerFields,
+      'maxConcurrentCallbackInvocations',
+    ]);
+    return new AsyncDagTraversalBuilder<Replay, Replay, VertexId>({
+      ...options,
+      ...definitionSource(definition),
+      rootWorkPrerequisitePolicy,
+      undeclaredWorkPrerequisitePolicy: 'none',
+    })
+      .createIndependentRunnerFromCurrentOptions()
+      .discoverValidateAndFreezeTopology();
   };
   return Object.freeze({
     liveVertexSummaries,
     definition,
-    createRunner,
-    createAsyncRunner,
-    createWorkSession: (options = {}) => {
-      assertPreparedOptions(options, ['completedWork']);
-      return bindDagWorkSession(
-        createRunner({ ...options, workCompletion: 'externalSettlement' }),
+    createIndependentRunnerFromValidatedTopology,
+    createIndependentAsyncRunnerFromValidatedTopology,
+    createExternalWorkSession: (options = {}) => {
+      assertPreparedOptions(options, ['acceptedCompletedWorkVertexIds']);
+      return bindDagExternalWorkSession(
+        createIndependentRunnerFromValidatedTopology({
+          ...options,
+          workCompletionPolicy: 'requireExternalWorkSettlement',
+        }),
       );
     },
-    createAsyncWorkSession: async (options = {}) => {
-      assertPreparedOptions(options, ['completedWork', 'concurrency']);
-      return bindAsyncDagWorkSession(
-        await createAsyncRunner({
+    createAsyncExternalWorkSession: async (options = {}) => {
+      assertPreparedOptions(options, [
+        'acceptedCompletedWorkVertexIds',
+        'maxConcurrentCallbackInvocations',
+      ]);
+      return bindAsyncDagExternalWorkSession(
+        await createIndependentAsyncRunnerFromValidatedTopology({
           ...options,
-          workCompletion: 'externalSettlement',
+          workCompletionPolicy: 'requireExternalWorkSettlement',
         }),
       );
     },

@@ -1,44 +1,57 @@
 import {
-  prepareDag,
-  prepareDagAsync,
+  discoverValidateAndCaptureDag,
+  discoverValidateAndCaptureDagAsync,
 } from '../src/traversals/dag-traversal/prepareDag';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 
-type G = VertexTypes<string, string>;
+type G = VertexDataAndChildHintTypes<string, string>;
 
-for (const prepare of [prepareDag, prepareDagAsync]) {
+for (const prepare of [
+  discoverValidateAndCaptureDag,
+  discoverValidateAndCaptureDagAsync,
+]) {
   test(`${prepare.name} preserves non-enumerable own undefined identity`, async () => {
     const vertex = Object.defineProperty(
-      { vertexContent: { $data: 'task', $childHints: [] } },
+      { vertexContentInput: { $vertexData: 'task', $childDiscoveryHints: [] } },
       'vertexId',
       { value: undefined },
     );
     const result = await prepare<G, unknown>({
-      traversableGraph: {
-        resolveRoot: () => ({ kind: 'found', vertex }),
-        resolveChild: () => ({
-          identity: null,
-          satisfiesDependencies: true as const,
-          kind: 'omitted',
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: vertex,
+        }),
+        resolveChildHint: () => ({
+          omittedVertexIdentity: null,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+          kind: 'vertexIntentionallyOmitted',
         }),
       },
     });
     if (result.kind !== 'valid') throw new Error('Expected valid DAG');
     expect(
-      result.dag.liveVertexSummaries.map((entry) => entry.vertexId),
+      result.validatedTopology.liveVertexSummaries.map(
+        (entry) => entry.vertexId,
+      ),
     ).toEqual([undefined]);
     expect(
-      result.dag
-        .createRunner({ completedWork: new Set([undefined]) })
-        .run()
-        .summary().completedWorkIds,
+      result.validatedTopology
+        .createIndependentRunnerFromValidatedTopology({
+          acceptedCompletedWorkVertexIds: new Set([undefined]),
+        })
+        .runUntilSuspendedOrTerminal()
+        .captureProgressSnapshot().workCompletionCommittedVertexIds,
     ).toEqual([undefined]);
   });
 
   test(`${prepare.name} rejects own non-enumerable priority without reading it`, async () => {
     const vertex = Object.defineProperty(
-      { vertexId: 'task', vertexContent: { $data: 'task', $childHints: [] } },
+      {
+        vertexId: 'task',
+        vertexContentInput: { $vertexData: 'task', $childDiscoveryHints: [] },
+      },
       'priority',
       {
         get() {
@@ -48,24 +61,34 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
     );
     await expect(async () => {
       await prepare<G, string>({
-        traversableGraph: {
-          resolveRoot: () => ({ kind: 'found', vertex }),
-          resolveChild: () => ({
-            identity: null,
-            satisfiesDependencies: true as const,
-            kind: 'omitted',
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved',
+            resolvedVertexInput: vertex,
+          }),
+          resolveChildHint: () => ({
+            omittedVertexIdentity: null,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+            kind: 'vertexIntentionallyOmitted',
           }),
         },
       });
     }).rejects.toThrow(/priority metadata is not supported/);
   });
 
-  test.each(['vertexId', 'dependsOnWork', 'dependsOnSubgraphCompletion'])(
+  test.each([
+    'vertexId',
+    'workWaitsForWorkOf',
+    'workWaitsForSubgraphCompletionOf',
+  ])(
     `${prepare.name} preserves exact non-enumerable %s getter errors`,
     async (field) => {
       const error = { field };
       const vertex = Object.defineProperty(
-        { vertexId: 'task', vertexContent: { $data: 'task', $childHints: [] } },
+        {
+          vertexId: 'task',
+          vertexContentInput: { $vertexData: 'task', $childDiscoveryHints: [] },
+        },
         field,
         {
           enumerable: false,
@@ -76,12 +99,15 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       );
       await expect(async () => {
         await prepare<G, string>({
-          traversableGraph: {
-            resolveRoot: () => ({ kind: 'found', vertex }),
-            resolveChild: () => ({
-              identity: null,
-              satisfiesDependencies: true as const,
-              kind: 'omitted',
+          dagDiscoverySource: {
+            resolveRootVertex: () => ({
+              kind: 'vertexResolved',
+              resolvedVertexInput: vertex,
+            }),
+            resolveChildHint: () => ({
+              omittedVertexIdentity: null,
+              satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+              kind: 'vertexIntentionallyOmitted',
             }),
           },
         });
@@ -92,32 +118,38 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
   test(`${prepare.name} preserves inherited content and both dependency kinds`, async () => {
     class Entry {
       constructor(readonly vertexId: string) {}
-      get vertexContent() {
+      get vertexContentInput() {
         return {
-          $data: this.vertexId,
-          $childHints: this.vertexId === 'root' ? ['a', 'b', 'c'] : [],
+          $vertexData: this.vertexId,
+          $childDiscoveryHints: this.vertexId === 'root' ? ['a', 'b', 'c'] : [],
         };
       }
-      get dependsOnWork() {
+      get workWaitsForWorkOf() {
         return this.vertexId === 'b' ? ['a'] : [];
       }
-      get dependsOnSubgraphCompletion() {
+      get workWaitsForSubgraphCompletionOf() {
         return this.vertexId === 'c' ? ['b'] : [];
       }
     }
     const source: DagDiscoverySource<G, G, string> = {
-      resolveRoot: () => ({ kind: 'found', vertex: new Entry('root') }),
-      resolveChild: (id) => ({ kind: 'found', vertex: new Entry(id) }),
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved',
+        resolvedVertexInput: new Entry('root'),
+      }),
+      resolveChildHint: (id) => ({
+        kind: 'vertexResolved',
+        resolvedVertexInput: new Entry(id),
+      }),
     };
-    const result = await prepare<G, string>({ traversableGraph: source });
+    const result = await prepare<G, string>({ dagDiscoverySource: source });
     if (result.kind !== 'valid') throw new Error('Expected valid DAG');
     expect(
-      result.dag.liveVertexSummaries.map(
-        ({ vertexId, dependsOnWork, dependsOnSubgraphCompletion }) => [
+      result.validatedTopology.liveVertexSummaries.map(
+        ({
           vertexId,
-          dependsOnWork,
-          dependsOnSubgraphCompletion,
-        ],
+          workWaitsForWorkOf: workWaitsForWorkOf,
+          workWaitsForSubgraphCompletionOf: workWaitsForSubgraphCompletionOf,
+        }) => [vertexId, workWaitsForWorkOf, workWaitsForSubgraphCompletionOf],
       ),
     ).toEqual([
       ['root', [], []],
@@ -125,16 +157,19 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
       ['b', ['a'], []],
       ['c', [], ['b']],
     ]);
-    expect(result.dag.createRunner().run().summary().completedWorkIds).toEqual([
-      'root',
-      'a',
-      'b',
-      'c',
-    ]);
+    expect(
+      result.validatedTopology
+        .createIndependentRunnerFromValidatedTopology()
+        .runUntilSuspendedOrTerminal()
+        .captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual(['root', 'a', 'b', 'c']);
   });
 }
 
-for (const prepare of [prepareDag, prepareDagAsync]) {
+for (const prepare of [
+  discoverValidateAndCaptureDag,
+  discoverValidateAndCaptureDagAsync,
+]) {
   test.each([false, true])(
     `${prepare.name} ignores inherited hint identity without reading its getter (%s)`,
     async (throwingGetter) => {
@@ -147,30 +182,41 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         : { vertexId: 'wrong' };
       const inherited = Object.create(prototype) as { vertexId: string };
       const result = await prepare<G, string>({
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found',
-            vertex: {
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
               vertexId: 'root',
-              vertexContent: { $data: 'root', $childHints: ['b'] },
+              vertexContentInput: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['b'],
+              },
             },
           }),
-          getVertexIdFromHint: () => inherited,
-          resolveChild: () => ({
-            kind: 'found',
-            vertex: {
+          tryGetVertexIdentityFromHint: () => inherited,
+          resolveChildHint: () => ({
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
               vertexId: 'b',
-              vertexContent: { $data: 'b', $childHints: [] },
+              vertexContentInput: {
+                $vertexData: 'b',
+                $childDiscoveryHints: [],
+              },
             },
           }),
         },
       });
       if (result.kind !== 'valid') throw new Error('Expected valid DAG');
       expect(
-        result.dag.liveVertexSummaries.map(({ vertexId }) => vertexId),
+        result.validatedTopology.liveVertexSummaries.map(
+          ({ vertexId }) => vertexId,
+        ),
       ).toEqual(['root', 'b']);
       expect(
-        result.dag.createRunner().run().summary().completedWorkIds,
+        result.validatedTopology
+          .createIndependentRunnerFromValidatedTopology()
+          .runUntilSuspendedOrTerminal()
+          .captureProgressSnapshot().workCompletionCommittedVertexIds,
       ).toEqual(['root', 'b']);
     },
   );
@@ -182,41 +228,59 @@ for (const prepare of [prepareDag, prepareDagAsync]) {
         vertexId: typeof id;
       };
       const result = await prepare<G, unknown>({
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found',
-            vertex: {
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
               vertexId: 'root',
-              vertexContent: { $data: 'root', $childHints: ['skip', 'b'] },
+              vertexContentInput: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['skip', 'b'],
+              },
             },
           }),
-          getVertexIdFromHint: (hint) =>
+          tryGetVertexIdentityFromHint: (hint) =>
             hint === 'skip' ? wrapper : { vertexId: hint },
-          resolveChild: (hint) =>
+          resolveChildHint: (hint) =>
             hint === 'skip'
-              ? { identity: null, kind: 'omitted', satisfiesDependencies: true }
+              ? {
+                  omittedVertexIdentity: null,
+                  kind: 'vertexIntentionallyOmitted',
+                  satisfiesWorkAndSubgraphCompletionPrerequisites: true,
+                }
               : {
-                  kind: 'found',
-                  vertex: {
+                  kind: 'vertexResolved',
+                  resolvedVertexInput: {
                     vertexId: 'b',
-                    dependsOnWork: [id],
-                    vertexContent: { $data: 'b', $childHints: [] },
+                    workWaitsForWorkOf: [id],
+                    vertexContentInput: {
+                      $vertexData: 'b',
+                      $childDiscoveryHints: [],
+                    },
                   },
                 },
         },
       });
       if (result.kind !== 'valid') throw new Error('Expected valid DAG');
       expect(
-        result.dag.liveVertexSummaries.map(({ vertexId, dependsOnWork }) => [
-          vertexId,
-          dependsOnWork,
-        ]),
+        result.validatedTopology.liveVertexSummaries.map(
+          ({ vertexId, workWaitsForWorkOf: workWaitsForWorkOf }) => [
+            vertexId,
+            workWaitsForWorkOf,
+          ],
+        ),
       ).toEqual([
         ['root', []],
         ['b', [id]],
       ]);
-      const runner = result.dag.createRunner({ completedWork: new Set([id]) });
-      expect(runner.run().summary().completedWorkIds).toEqual(['root', 'b']);
+      const runner =
+        result.validatedTopology.createIndependentRunnerFromValidatedTopology({
+          acceptedCompletedWorkVertexIds: new Set([id]),
+        });
+      expect(
+        runner.runUntilSuspendedOrTerminal().captureProgressSnapshot()
+          .workCompletionCommittedVertexIds,
+      ).toEqual(['root', 'b']);
     },
   );
 }

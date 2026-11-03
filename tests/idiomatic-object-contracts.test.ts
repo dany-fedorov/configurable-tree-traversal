@@ -1,13 +1,13 @@
 import { outputValue } from './helpers/rewriteOutput';
 import {
-  createObjectMutationBinder,
-  DepthFirstPhase,
+  createObjectPropertyMutationHelperBinder,
+  DepthFirstTreeVisitPhase,
   rewriteObject,
   TraversalVisitorCommandName,
-  traverseTreeDepthFirst,
-  type VertexTypes,
-  type ObjectTreeVertexTypes,
-  type ObjectCurrentVertexTypes,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
+  type VertexDataAndChildHintTypes,
+  type ObjectPropertyTreeVertexTypes,
+  type LiveObjectPropertyVertexTypes,
 } from '../src';
 
 describe('object callback and patch contracts', () => {
@@ -22,36 +22,51 @@ describe('object callback and patch contracts', () => {
       symbol,
       string
     >(1, {
-      retainOriginalTreeStructure: true,
-      getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
-      getChildrenOfProperty: () => [],
+      retainDiscoveredTreeBeforeVisitorCommands: true,
+      mapInputToRootProperty: (propertyValue) => ({
+        propertyKey: 'input',
+        propertyValue: propertyValue,
+      }),
+      enumerateChildPropertyHints: () => [],
       visitors: {
-        [DepthFirstPhase.PRE_ORDER]: () => ({
+        [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: () => ({
           commands: [
             {
-              commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+              commandName:
+                TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
               commandArguments: {
-                newData: { key: outputKey, value: 'changed' },
+                replacementVertexData: {
+                  propertyKey: outputKey,
+                  propertyValue: 'changed',
+                },
               },
             },
           ],
         }),
       },
-      rewrite(prop, context) {
+      rewritePropertyAfterChildTraversal(prop, context) {
         seen.push(
           prop,
-          context.vertex.getData(),
-          context.vertexRef.getValue().getData(),
-          context.resolvedTreeView.getRoot()!.getValue().getData(),
+          context.vertex.getVertexData(),
+          context.vertexHandle.getCurrentVertexView().getVertexData(),
+          context.liveResolvedTreeView
+            .getRootVertexHandleOrNull()!
+            .getCurrentVertexView()
+            .getVertexData(),
         );
-        expect(context.getKeyPath()).toEqual([outputKey]);
+        expect(context.requirePropertyKeyPathFromRoot()).toEqual([outputKey]);
         expect(
-          context.originalTreeView!.getRoot()!.getValue().getData(),
-        ).toEqual({ key: 'input', value: 1 });
+          context
+            .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+            .getCurrentVertexView()
+            .getVertexData(),
+        ).toEqual({ propertyKey: 'input', propertyValue: 1 });
         return undefined;
       },
     });
-    expect(seen).toEqual(Array(4).fill({ key: outputKey, value: 'changed' }));
+    expect(seen).toEqual(
+      Array(4).fill({ propertyKey: outputKey, propertyValue: 'changed' }),
+    );
     expect(outputValue(result)).toBe('changed');
   });
 
@@ -67,34 +82,41 @@ describe('object callback and patch contracts', () => {
         PropertyKey,
         string
       >(1, {
-        getRootPropertyFromInputObject: (value) => ({ key: 'root', value }),
-        getChildrenOfProperty: () => [],
+        mapInputToRootProperty: (propertyValue) => ({
+          propertyKey: 'root',
+          propertyValue: propertyValue,
+        }),
+        enumerateChildPropertyHints: () => [],
         visitors: {
-          [DepthFirstPhase.PRE_ORDER]: (vertex) => ({
+          [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: (vertex) => ({
             commands: [
               {
-                commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+                commandName:
+                  TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
                 commandArguments: {
-                  newData: { key: vertex.getData().key, value: 'changed' },
+                  replacementVertexData: {
+                    propertyKey: vertex.getVertexData().propertyKey,
+                    propertyValue: 'changed',
+                  },
                 },
               },
             ],
           }),
         },
-        isArray: (prop) => {
-          seen.push(prop.value);
+        matchesArrayAssemblyPredicate: (prop) => {
+          seen.push(prop.propertyValue);
           return kind === 'array';
         },
-        isObject: (prop) => {
-          seen.push(prop.value);
+        matchesObjectAssemblyPredicate: (prop) => {
+          seen.push(prop.propertyValue);
           return kind === 'object';
         },
-        assembleArray: (_children, prop) => {
-          seen.push(prop.value);
+        assembleArrayValueFromChildProperties: (_children, prop) => {
+          seen.push(prop.propertyValue);
           return 'assembled array';
         },
-        assembleObject: (_children, prop) => {
-          seen.push(prop.value);
+        assembleObjectValueFromChildProperties: (_children, prop) => {
+          seen.push(prop.propertyValue);
           return 'assembled object';
         },
       });
@@ -115,22 +137,31 @@ describe('object callback and patch contracts', () => {
         string,
         string
       >(0, {
-        getRootPropertyFromInputObject: (value) => ({ key: 'root', value }),
-        getChildrenOfProperty: (prop) =>
-          prop.key === 'root' ? [{ key: 'child', value: 1 }] : [],
-        isArray: (prop) => prop.key === 'root' && kind === 'array',
-        isObject: (prop) => prop.key === 'root' && kind === 'object',
-        assembleArray: (children) => {
+        mapInputToRootProperty: (propertyValue) => ({
+          propertyKey: 'root',
+          propertyValue: propertyValue,
+        }),
+        enumerateChildPropertyHints: (prop) =>
+          prop.propertyKey === 'root'
+            ? [{ propertyKey: 'child', propertyValue: 1 }]
+            : [],
+        matchesArrayAssemblyPredicate: (prop) =>
+          prop.propertyKey === 'root' && kind === 'array',
+        matchesObjectAssemblyPredicate: (prop) =>
+          prop.propertyKey === 'root' && kind === 'object',
+        assembleArrayValueFromChildProperties: (children) => {
           childrenSeen.push(children);
           return 'assembled';
         },
-        assembleObject: (children) => {
+        assembleObjectValueFromChildProperties: (children) => {
           childrenSeen.push(children);
           return 'assembled';
         },
-        rewrite: () => undefined,
+        rewritePropertyAfterChildTraversal: () => undefined,
       });
-      expect(childrenSeen).toEqual([[{ key: 'child', value: 1 }]]);
+      expect(childrenSeen).toEqual([
+        [{ propertyKey: 'child', propertyValue: 1 }],
+      ]);
       expect(outputValue(result)).toBe('assembled');
     },
   );
@@ -139,51 +170,59 @@ describe('object callback and patch contracts', () => {
     const metadataKey = Symbol('metadata');
     const metadata = { retained: true };
     type Prop = {
-      key: PropertyKey;
-      value: unknown;
+      propertyKey: PropertyKey;
+      propertyValue: unknown;
       note: object;
       [metadataKey]: object;
     };
-    type Types = VertexTypes<Prop, Prop>;
-    const bind = createObjectMutationBinder<Types, Types>();
+    type Types = VertexDataAndChildHintTypes<Prop, Prop>;
+    const bind = createObjectPropertyMutationHelperBinder<Types, Types>();
     const newKey = Symbol('renamed');
-    const runner = traverseTreeDepthFirst<Types>({
-      traversableTree: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: {
-            vertexContent: {
-              $data: {
-                key: 'root',
-                value: 1,
+    const runner = runTreeDepthFirstUntilSuspendedOrTerminal<Types>({
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: {
+                propertyKey: 'root',
+                propertyValue: 1,
                 note: metadata,
                 [metadataKey]: metadata,
               },
-              $childHints: [],
+              $childDiscoveryHints: [],
             },
           },
         }),
-        resolveChild: () => ({ kind: 'omitted' }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted',
+        }),
       },
       visitors: {
-        [DepthFirstPhase.POST_ORDER]: (vertex, context) => ({
+        [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES]: (vertex, context) => ({
           commands: [
-            bind(vertex, context).makeMutationCommand({
-              kind: 'rewrite',
-              patch: { key: newKey, value: undefined },
+            bind(vertex, context).createObjectPropertyMutationCommand({
+              kind: 'patchPropertyKeyOrValue',
+              propertyPatch: { propertyKey: newKey, propertyValue: undefined },
             }),
           ],
         }),
       },
     });
-    const prop = runner.getResolvedTreeView().getRoot()!.getValue().getData();
+    const prop = runner
+      .getLiveResolvedTreeView()
+      .getRootVertexHandleOrNull()!
+      .getCurrentVertexView()
+      .getVertexData();
     expect(prop).toEqual({
-      key: newKey,
-      value: undefined,
+      propertyKey: newKey,
+      propertyValue: undefined,
       note: metadata,
       [metadataKey]: metadata,
     });
-    expect(Object.prototype.hasOwnProperty.call(prop, 'value')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(prop, 'propertyValue')).toBe(
+      true,
+    );
     expect(prop.note).toBe(metadata);
     expect(prop[metadataKey]).toBe(metadata);
   });
@@ -196,34 +235,43 @@ describe('object callback and patch contracts', () => {
   ])(
     'rejects unknown own patch field $field (enumerable=$enumerable) before returning a command',
     ({ field, enumerable }) => {
-      type Prop = { key: string; value: number; note: string };
-      type Types = VertexTypes<Prop, Prop>;
-      const bind = createObjectMutationBinder<Types, Types>();
+      type Prop = { propertyKey: string; propertyValue: number; note: string };
+      type Types = VertexDataAndChildHintTypes<Prop, Prop>;
+      const bind = createObjectPropertyMutationHelperBinder<Types, Types>();
       let current: unknown;
       expect(() =>
-        traverseTreeDepthFirst<Types>({
-          traversableTree: {
-            resolveRoot: () => ({
-              kind: 'found',
-              vertex: {
-                vertexContent: {
-                  $data: { key: 'root', value: 1, note: 'old' },
-                  $childHints: [],
+        runTreeDepthFirstUntilSuspendedOrTerminal<Types>({
+          treeDiscoverySource: {
+            resolveRootVertex: () => ({
+              kind: 'vertexResolved',
+              resolvedVertexInput: {
+                vertexContentInput: {
+                  $vertexData: {
+                    propertyKey: 'root',
+                    propertyValue: 1,
+                    note: 'old',
+                  },
+                  $childDiscoveryHints: [],
                 },
               },
             }),
-            resolveChild: () => ({ kind: 'omitted' }),
+            resolveChildVertexFromHint: () => ({
+              kind: 'vertexIntentionallyOmitted',
+            }),
           },
           visitors: {
-            [DepthFirstPhase.POST_ORDER]: (vertex, context) => {
-              current = vertex.getData();
+            [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES]: (
+              vertex,
+              context,
+            ) => {
+              current = vertex.getVertexData();
               const command = Reflect.apply(
-                bind(vertex, context).makeMutationCommand,
+                bind(vertex, context).createObjectPropertyMutationCommand,
                 undefined,
                 [
                   {
-                    kind: 'rewrite',
-                    patch: Object.defineProperty({}, field, {
+                    kind: 'patchPropertyKeyOrValue',
+                    propertyPatch: Object.defineProperty({}, field, {
                       value: 'new',
                       enumerable,
                     }),
@@ -235,7 +283,11 @@ describe('object callback and patch contracts', () => {
           },
         }),
       ).toThrow(TypeError);
-      expect(current).toEqual({ key: 'root', value: 1, note: 'old' });
+      expect(current).toEqual({
+        propertyKey: 'root',
+        propertyValue: 1,
+        note: 'old',
+      });
     },
   );
 });
@@ -243,19 +295,19 @@ describe('object callback and patch contracts', () => {
 describe('independent key/value patch domains', () => {
   test.each([
     {
-      patch: { value: 'changed' },
-      expected: { key: 'input', value: 'changed' },
+      propertyPatch: { propertyValue: 'changed' },
+      expected: { propertyKey: 'input', propertyValue: 'changed' },
     },
     {
-      patch: { key: 'output' as const },
-      expected: { key: 'output', value: 1 },
+      propertyPatch: { propertyKey: 'output' as const },
+      expected: { propertyKey: 'output', propertyValue: 1 },
     },
   ])(
     'retains mixed records after patch $patch across classifiers and live callback paths',
-    ({ patch, expected }) => {
-      type Input = ObjectTreeVertexTypes<'input', number>;
-      type Output = ObjectTreeVertexTypes<'output', string>;
-      const bind = createObjectMutationBinder<Input, Output>();
+    ({ propertyPatch, expected }) => {
+      type Input = ObjectPropertyTreeVertexTypes<'input', number>;
+      type Output = ObjectPropertyTreeVertexTypes<'output', string>;
+      const bind = createObjectPropertyMutationHelperBinder<Input, Output>();
       const observed: unknown[] = [];
       const result = rewriteObject<
         number,
@@ -265,59 +317,71 @@ describe('independent key/value patch domains', () => {
         'output',
         string
       >(1, {
-        retainOriginalTreeStructure: true,
-        getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
-        getChildrenOfProperty: () => [],
+        retainDiscoveredTreeBeforeVisitorCommands: true,
+        mapInputToRootProperty: (propertyValue) => ({
+          propertyKey: 'input',
+          propertyValue: propertyValue,
+        }),
+        enumerateChildPropertyHints: () => [],
         visitors: {
-          [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
+          [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: (
+            vertex,
+            context,
+          ) => ({
             commands: [
-              bind(vertex, context).makeMutationCommand({
-                kind: 'rewrite',
-                patch: patch,
+              bind(vertex, context).createObjectPropertyMutationCommand({
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: propertyPatch,
               }),
             ],
           }),
         },
-        isArray: (prop) => {
+        matchesArrayAssemblyPredicate: (prop) => {
           observed.push(prop);
           return false;
         },
-        isObject: (prop) => {
+        matchesObjectAssemblyPredicate: (prop) => {
           observed.push(prop);
           return false;
         },
-        rewrite(prop, context) {
+        rewritePropertyAfterChildTraversal(prop, context) {
           observed.push(
             prop,
-            context.vertex.getData(),
-            context.vertexRef.getValue().getData(),
-            context.resolvedTreeView.getRoot()!.getValue().getData(),
+            context.vertex.getVertexData(),
+            context.vertexHandle.getCurrentVertexView().getVertexData(),
+            context.liveResolvedTreeView
+              .getRootVertexHandleOrNull()!
+              .getCurrentVertexView()
+              .getVertexData(),
           );
           expect(
-            context.originalTreeView!.getRoot()!.getValue().getData(),
-          ).toEqual({ key: 'input', value: 1 });
+            context
+              .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+              .getCurrentVertexView()
+              .getVertexData(),
+          ).toEqual({ propertyKey: 'input', propertyValue: 1 });
           return undefined;
         },
       });
       expect(observed).toEqual(Array(6).fill(expected));
       expect(
         result.traversalRunner
-          .getResolvedTreeView()
-          .getRoot()!
-          .getValue()
-          .getData(),
+          .getLiveResolvedTreeView()
+          .getRootVertexHandleOrNull()!
+          .getCurrentVertexView()
+          .getVertexData(),
       ).toEqual(expected);
-      expect(outputValue(result)).toBe(expected.value);
+      expect(outputValue(result)).toBe(expected.propertyValue);
     },
   );
 });
 
-test.each(['value', 'key'] as const)(
+test.each(['propertyValue', 'propertyKey'] as const)(
   'supplies mixed %s-patched children and previous refs to postorder assembly',
   (field) => {
-    type Input = ObjectTreeVertexTypes<'input', number>;
-    type Output = ObjectTreeVertexTypes<'output', string>;
-    const bind = createObjectMutationBinder<Input, Output>();
+    type Input = ObjectPropertyTreeVertexTypes<'input', number>;
+    type Output = ObjectPropertyTreeVertexTypes<'output', string>;
+    const bind = createObjectPropertyMutationHelperBinder<Input, Output>();
     const previous: unknown[] = [];
     const assembledChildren: unknown[] = [];
     const result = rewriteObject<
@@ -328,56 +392,68 @@ test.each(['value', 'key'] as const)(
       'output',
       string
     >(0, {
-      getRootPropertyFromInputObject: (value) => ({ key: 'input', value }),
-      getChildrenOfProperty: (prop) =>
-        prop.value === 0
+      mapInputToRootProperty: (propertyValue) => ({
+        propertyKey: 'input',
+        propertyValue: propertyValue,
+      }),
+      enumerateChildPropertyHints: (prop) =>
+        prop.propertyValue === 0
           ? [
-              { key: 'input', value: 1 },
-              { key: 'input', value: 2 },
+              { propertyKey: 'input', propertyValue: 1 },
+              { propertyKey: 'input', propertyValue: 2 },
             ]
           : [],
       visitors: {
-        [DepthFirstPhase.PRE_ORDER]: (vertex, context) =>
-          vertex.getData().value === 0
+        [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: (vertex, context) =>
+          vertex.getVertexData().propertyValue === 0
             ? undefined
             : {
                 commands: [
-                  bind(vertex, context).makeMutationCommand({
-                    kind: 'rewrite',
-                    patch:
-                      field === 'value'
-                        ? { value: 'changed' }
-                        : { key: 'output' },
+                  bind(vertex, context).createObjectPropertyMutationCommand({
+                    kind: 'patchPropertyKeyOrValue',
+                    propertyPatch:
+                      field === 'propertyValue'
+                        ? { propertyValue: 'changed' }
+                        : { propertyKey: 'output' },
                   }),
                 ],
               },
       },
-      isObject: (prop) => prop.value === 0,
-      assembleObject(children) {
+      matchesObjectAssemblyPredicate: (prop) => prop.propertyValue === 0,
+      assembleObjectValueFromChildProperties(children) {
         assembledChildren.push(children);
         return 'assembled';
       },
-      rewrite(prop, context) {
-        if (prop.value !== 0 && context.previousPhaseVertexRef !== null) {
-          previous.push(context.previousPhaseVertexRef.getValue().getData());
+      rewritePropertyAfterChildTraversal(prop, context) {
+        if (
+          prop.propertyValue !== 0 &&
+          context.previousCommittedVisitVertexHandleForSamePhase !== null
+        ) {
+          previous.push(
+            context.previousCommittedVisitVertexHandleForSamePhase
+              .getCurrentVertexView()
+              .getVertexData(),
+          );
         }
         return undefined;
       },
     });
-    if (field === 'value') {
-      expect(previous).toEqual([{ key: 'input', value: 'changed' }]);
+    if (field === 'propertyValue') {
+      expect(previous).toEqual([
+        { propertyKey: 'input', propertyValue: 'changed' },
+      ]);
       expect(assembledChildren).toEqual([
         [
-          { key: 'input', value: 'changed' },
-          { key: 'input', value: 'changed' },
+          { propertyKey: 'input', propertyValue: 'changed' },
+          { propertyKey: 'input', propertyValue: 'changed' },
         ],
       ]);
     } else {
-      expect(previous).toEqual([{ key: 'output', value: 1 }]);
+      expect(previous).toEqual([{ propertyKey: 'output', propertyValue: 1 }]);
       expect(assembledChildren).toEqual([
         [
-          { key: 'output', value: 1 },
-          { key: 'output', value: 2 },
+          { propertyKey: 'output', propertyValue: 1 },
+          { propertyKey: 'output', propertyValue: 2 },
         ],
       ]);
     }
@@ -386,61 +462,90 @@ test.each(['value', 'key'] as const)(
 );
 
 test('retains input metadata after a partial output patch through a generic traversal', () => {
-  type InputProp = { key: 'input'; value: number; tag: 'input'; note: object };
+  type InputProp = {
+    propertyKey: 'input';
+    propertyValue: number;
+    tag: 'input';
+    note: object;
+  };
   type OutputProp = {
-    key: 'output';
-    value: string;
+    propertyKey: 'output';
+    propertyValue: string;
     tag: 'output';
     otherNote: object;
   };
-  type Input = VertexTypes<InputProp, InputProp>;
-  type Output = VertexTypes<OutputProp, OutputProp>;
-  type Current = ObjectCurrentVertexTypes<Input, Output>;
+  type Input = VertexDataAndChildHintTypes<InputProp, InputProp>;
+  type Output = VertexDataAndChildHintTypes<OutputProp, OutputProp>;
+  type Current = LiveObjectPropertyVertexTypes<Input, Output>;
   const note = { retained: true };
   const seen: unknown[] = [];
-  const bind = createObjectMutationBinder<Input, Output>({
-    isArray: (prop) => {
+  const bind = createObjectPropertyMutationHelperBinder<Input, Output>({
+    matchesArrayAssemblyPredicate: (prop) => {
       seen.push(prop);
       return false;
     },
   });
-  const runner = traverseTreeDepthFirst<Input, Current>({
-    retainOriginalTreeStructure: true,
-    traversableTree: {
-      resolveRoot: () => ({
-        kind: 'found',
-        vertex: {
-          vertexContent: {
-            $data: { key: 'input', value: 1, tag: 'input', note },
-            $childHints: [],
+  const runner = runTreeDepthFirstUntilSuspendedOrTerminal<Input, Current>({
+    retainDiscoveredTreeBeforeVisitorCommands: true,
+    treeDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved',
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: {
+              propertyKey: 'input',
+              propertyValue: 1,
+              tag: 'input',
+              note,
+            },
+            $childDiscoveryHints: [],
           },
         },
       }),
-      resolveChild: () => ({ kind: 'omitted' }),
+      resolveChildVertexFromHint: () => ({
+        kind: 'vertexIntentionallyOmitted',
+      }),
     },
     visitors: {
-      [DepthFirstPhase.PRE_ORDER]: (vertex, context) => ({
+      [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: (vertex, context) => ({
         commands: [
-          bind(vertex, context).makeMutationCommand({
-            kind: 'rewrite',
-            patch: { value: 'changed' },
+          bind(vertex, context).createObjectPropertyMutationCommand({
+            kind: 'patchPropertyKeyOrValue',
+            propertyPatch: { propertyValue: 'changed' },
           }),
         ],
       }),
-      [DepthFirstPhase.POST_ORDER]: (vertex, context) => {
+      [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES]: (vertex, context) => {
         bind(vertex, context);
         expect(
-          context.originalTreeView!.getRoot()!.getValue().getData(),
-        ).toEqual({ key: 'input', value: 1, tag: 'input', note });
+          context
+            .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+            .getCurrentVertexView()
+            .getVertexData(),
+        ).toEqual({
+          propertyKey: 'input',
+          propertyValue: 1,
+          tag: 'input',
+          note,
+        });
       },
     },
   });
   expect(seen).toEqual([
-    { key: 'input', value: 1, tag: 'input', note },
-    { key: 'input', value: 'changed', tag: 'input', note },
+    { propertyKey: 'input', propertyValue: 1, tag: 'input', note },
+    { propertyKey: 'input', propertyValue: 'changed', tag: 'input', note },
   ]);
-  const data = runner.getResolvedTreeView().getRoot()!.getValue().getData();
-  expect(data).toEqual({ key: 'input', value: 'changed', tag: 'input', note });
+  const data = runner
+    .getLiveResolvedTreeView()
+    .getRootVertexHandleOrNull()!
+    .getCurrentVertexView()
+    .getVertexData();
+  expect(data).toEqual({
+    propertyKey: 'input',
+    propertyValue: 'changed',
+    tag: 'input',
+    note,
+  });
   if (data.tag !== 'input') throw new Error('Expected retained input metadata');
   expect(data.note).toBe(note);
 });

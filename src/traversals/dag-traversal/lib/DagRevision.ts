@@ -3,52 +3,55 @@ import type {
   DagDefinitionIssue,
   DagDefinitionVertex,
 } from './DagDefinition';
-import type { PreparedDag } from './PreparedDag';
+import type { ValidatedReusableDagTopology } from './PreparedDag';
 
 /** Full declaration edits, applied in order before final graph validation. */
-export type DagRevisionOperation<Data, ID = unknown> =
+export type DagRevisionOperation<Data, VertexId = unknown> =
   | {
-      readonly kind: 'addVertex';
-      readonly vertex: DagDefinitionVertex<Data, ID>;
+      readonly kind: 'addVertexDeclaration';
+      readonly vertexDeclaration: DagDefinitionVertex<Data, VertexId>;
     }
   | {
-      readonly kind: 'replaceVertex';
-      readonly vertex: DagDefinitionVertex<Data, ID>;
+      readonly kind: 'replaceVertexDeclaration';
+      readonly vertexDeclaration: DagDefinitionVertex<Data, VertexId>;
     }
-  | { readonly kind: 'removeVertexDeclaration'; readonly vertexId: ID }
+  | { readonly kind: 'removeVertexDeclaration'; readonly vertexId: VertexId }
   | {
-      readonly kind: 'replaceEntry';
-      readonly entry: DagDefinition<Data, ID>['entry'];
+      readonly kind: 'replaceEntryDeclaration';
+      readonly entry: DagDefinition<Data, VertexId>['entry'];
     }
-  | { readonly kind: 'replaceOmissions'; readonly omittedIds: readonly ID[] };
+  | {
+      readonly kind: 'replaceOmittedVertexIds';
+      readonly omittedVertexIds: readonly VertexId[];
+    };
 
-export type DagRevisionResult<Data, ID = unknown> =
+export type DagRevisionResult<Data, VertexId = unknown> =
   | {
       kind: 'valid';
-      dag: PreparedDag<Data, ID>;
-      changes: DagDefinitionDiff<ID>;
+      validatedTopology: ValidatedReusableDagTopology<Data, VertexId>;
+      changes: DagDefinitionDiff<VertexId>;
     }
-  | { kind: 'invalid'; issues: readonly DagDefinitionIssue<ID>[] };
+  | { kind: 'invalid'; issues: readonly DagDefinitionIssue<VertexId>[] };
 
 /** Declaration aspects, listed in the order used by definition diffs. */
 export type DagDefinitionChangeAspect =
   | 'data'
-  | 'slots'
-  | 'workDependencies'
-  | 'subgraphCompletionDependencies';
+  | 'childDiscoverySlots'
+  | 'workWaitsForWorkOf'
+  | 'workWaitsForSubgraphCompletionOf';
 
-export type DagDefinitionVertexChange<ID = unknown> = {
-  readonly vertexId: ID;
-  readonly aspects: readonly DagDefinitionChangeAspect[];
+export type DagDefinitionVertexChange<VertexId = unknown> = {
+  readonly vertexId: VertexId;
+  readonly changedDeclarationFields: readonly DagDefinitionChangeAspect[];
 };
 
 /** Shallow declaration changes; the host decides artifact validity. */
-export type DagDefinitionDiff<ID = unknown> = {
-  readonly addedIds: readonly ID[];
-  readonly removedIds: readonly ID[];
-  readonly changedVertices: readonly DagDefinitionVertexChange<ID>[];
+export type DagDefinitionDiff<VertexId = unknown> = {
+  readonly addedVertexDeclarationIds: readonly VertexId[];
+  readonly removedVertexDeclarationIds: readonly VertexId[];
+  readonly changedVertexDeclarations: readonly DagDefinitionVertexChange<VertexId>[];
   /** True whenever the ordered live ID sequence differs, including add/remove. */
-  readonly vertexOrderChanged: boolean;
+  readonly vertexDeclarationSequenceChanged: boolean;
   readonly entryChanged: boolean;
-  readonly omissionsChanged: boolean;
+  readonly omittedVertexIdSequenceChanged: boolean;
 };

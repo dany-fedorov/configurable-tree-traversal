@@ -1,6 +1,6 @@
-import type { VertexTypes } from '../../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../../src/core/TreeTypeParameters';
 
-export type TestGraph = VertexTypes<string, string>;
+export type TestGraph = VertexDataAndChildHintTypes<string, string>;
 export type GraphFixture = Record<
   string,
   {
@@ -21,15 +21,18 @@ export function graphAdapter(nodes: GraphFixture = diamond) {
     const entry = nodes[id];
     if (entry === undefined) throw new Error(`Unknown fixture id: ${id}`);
     return {
-      kind: 'found' as const,
-      vertex: {
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
         vertexId: id,
-        dependsOnWork: entry.dependencies.slice(),
-        vertexContent: { $data: id, $childHints: entry.children.slice() },
+        workWaitsForWorkOf: entry.dependencies.slice(),
+        vertexContentInput: {
+          $vertexData: id,
+          $childDiscoveryHints: entry.children.slice(),
+        },
       },
     };
   }
-  return { resolveRoot: () => result('root'), resolveChild: result };
+  return { resolveRootVertex: () => result('root'), resolveChildHint: result };
 }
 
 export function deferred<T>() {

@@ -1,38 +1,44 @@
 import type {
-  GraphWalkOperation,
+  GraphWalkPendingInvocationOperation,
   GraphWalkInspection,
-  VertexTypes,
-  DepthFirstTreeOptions,
-  AsyncDagOptionsPatch,
+  VertexDataAndChildHintTypes,
+  DepthFirstTreeTraversalBuilderOptions,
+  AsyncDagTraversalBuilderOptionsPatch,
 } from 'configurable-tree-traversal';
-import { materializeDagInputFromRecords } from 'configurable-tree-traversal/sources';
-import { materializeDagInputFromRecords as rootMaterializer } from 'configurable-tree-traversal';
-const materializer: typeof rootMaterializer = materializeDagInputFromRecords;
-const operations: GraphWalkOperation[] = [
-  'roots',
-  'rootNext',
-  'resolveVertex',
-  'outgoing',
-  'edgeNext',
-  'shouldFollowEdge',
-  'shouldExpandVertex',
-  'visit',
-  'iteratorReturn',
+import { materializeMultiEntryDagInputFromRecordCatalog } from 'configurable-tree-traversal/dag-input-materialization';
+import type { materializeMultiEntryDagInputFromRecordCatalog as rootMaterializer } from 'configurable-tree-traversal';
+const materializer: typeof rootMaterializer =
+  materializeMultiEntryDagInputFromRecordCatalog;
+const operations: GraphWalkPendingInvocationOperation[] = [
+  'enumerateRootTargets',
+  'readNextRootTarget',
+  'resolveVertexDataById',
+  'enumerateOutgoingLinks',
+  'readNextOutgoingLinkOrCachedReplay',
+  'shouldAdmitOutgoingLinkTarget',
+  'shouldExpandVertexOccurrence',
+  'invokeVisitorCallback',
+  'returnSourceIteratorForDisposal',
 ];
-const operation: GraphWalkOperation = (null as unknown as GraphWalkInspection)
-  .pendingRequests[0]!.operation;
+const operation: GraphWalkPendingInvocationOperation = (
+  null as unknown as GraphWalkInspection
+).pendingInvocationRequests[0]!.operation;
 // @ts-expect-error Walking callback diagnostics use visit.
-const retiredVisitOperation: GraphWalkOperation = 'visitor';
+const retiredVisitOperation: GraphWalkPendingInvocationOperation = 'visitor';
 void retiredVisitOperation;
 // @ts-expect-error predicate diagnostics match public callback names
-const oldOperation: GraphWalkOperation = 'followEdge';
-const options: DepthFirstTreeOptions<VertexTypes> = {
-  traversableTree: {
-    resolveRoot: () => ({ kind: 'omitted' }),
-    resolveChild: () => ({ kind: 'omitted' }),
-  },
-};
-const patch: AsyncDagOptionsPatch<VertexTypes> = { concurrency: 2 };
+const oldOperation: GraphWalkPendingInvocationOperation = 'followEdge';
+const options: DepthFirstTreeTraversalBuilderOptions<VertexDataAndChildHintTypes> =
+  {
+    treeDiscoverySource: {
+      resolveRootVertex: () => ({ kind: 'vertexIntentionallyOmitted' }),
+      resolveChildVertexFromHint: () => ({
+        kind: 'vertexIntentionallyOmitted',
+      }),
+    },
+  };
+const patch: AsyncDagTraversalBuilderOptionsPatch<VertexDataAndChildHintTypes> =
+  { maxConcurrentCallbackInvocations: 2 };
 void [materializer, operations, operation, oldOperation, options, patch];
 // @ts-expect-error unsupported package path must not resolve
 import * as denied0 from 'configurable-tree-traversal/core/TraversalKernel';
@@ -105,7 +111,7 @@ import type { TraversalVisitorFunctionResolutionStyle } from 'configurable-tree-
 // @ts-expect-error engine and legacy scaffolding is not a supported root contract
 import type { WalkAction } from 'configurable-tree-traversal';
 // @ts-expect-error engine and legacy scaffolding is not a supported root contract
-import type { KernelInspection } from 'configurable-tree-traversal';
+import type { TreeOrDagSchedulerSnapshot } from 'configurable-tree-traversal';
 // @ts-expect-error engine and legacy scaffolding is not a supported root contract
 import type { mergeInstanceConfigs } from 'configurable-tree-traversal';
 // @ts-expect-error engine and legacy scaffolding is not a supported root contract
@@ -117,7 +123,7 @@ import type { DepthFirstTreeResolvedOptions as SubpathDepthFirstTreeResolvedOpti
 // @ts-expect-error curated subpaths do not restore engine contracts
 import type { BreadthFirstTraversalRunnerState as SubpathBreadthFirstTraversalRunnerState } from 'configurable-tree-traversal/traversals/breadth-first-traversal';
 // @ts-expect-error curated subpaths do not restore engine contracts
-import type { ObjectTreeResolvedOptions as SubpathObjectTreeResolvedOptions } from 'configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree';
+import type { NormalizedObjectPropertyTreeSourceOptions as SubpathObjectTreeResolvedOptions } from 'configurable-tree-traversal/traversable-tree-implementations/traversable-object-tree';
 // @ts-expect-error curated subpaths do not restore engine contracts
 import type { WalkAction as SubpathWalkAction } from 'configurable-tree-traversal/traversals/graph-walk';
 // @ts-expect-error curated subpaths do not restore engine contracts
@@ -126,27 +132,37 @@ import type { normalizeVertexContent as SubpathnormalizeVertexContent } from 'co
 import type { __REWRITE_OBJECT_DEFAULT_ROOT_KEY__ as Subpath__REWRITE_OBJECT_DEFAULT_ROOT_KEY__ } from 'configurable-tree-traversal/tools/rewrite-object';
 
 // The minimum compiler must preserve walking enum-to-event literal mapping.
-import type { EmissionKind, GraphWalkPhase } from 'configurable-tree-traversal';
-type WalkKinds = 'vertex' | 'edge' | 'path';
-const widenKinds = (value: EmissionKind<GraphWalkPhase>): WalkKinds => value;
-const narrowKinds = (value: WalkKinds): EmissionKind<GraphWalkPhase> => value;
+import type {
+  TraversalEventKindForVisitorPhase,
+  GraphWalkObservationKind,
+} from 'configurable-tree-traversal';
+type WalkKinds = 'vertexOccurrence' | 'admittedEdgeOccurrence' | 'routePrefix';
+const widenKinds = (
+  value: TraversalEventKindForVisitorPhase<GraphWalkObservationKind>,
+): WalkKinds => value;
+const narrowKinds = (
+  value: WalkKinds,
+): TraversalEventKindForVisitorPhase<GraphWalkObservationKind> => value;
 void [widenKinds, narrowKinds];
 
-import { ResolvedTreeStore } from 'configurable-tree-traversal';
+import { MutableResolvedTreeStore } from 'configurable-tree-traversal';
 // @ts-expect-error public tree editing does not grant graph-engine access
-new ResolvedTreeStore<VertexTypes>().getGraphStore();
+new MutableResolvedTreeStore<VertexDataAndChildHintTypes>().getGraphStore();
 // @ts-expect-error the internal tree bridge is not an exported package path
 import * as treeCapability from 'configurable-tree-traversal/core/graph/treeStoreCapabilities';
 // @ts-expect-error the internal tree bridge is not an exported package path
 import * as explicitTreeCapability from 'configurable-tree-traversal/core/graph/treeStoreCapabilities.js';
 
-import { DagTraversal, AsyncDagTraversal } from 'configurable-tree-traversal';
-const inspectionDag = new DagTraversal({
-  traversableTree: options.traversableTree,
-}).createRunner();
-const inspectionAsyncDag = new AsyncDagTraversal({
-  traversableTree: options.traversableTree,
-}).createRunner();
+import {
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
+} from 'configurable-tree-traversal';
+const inspectionDag = new DagTraversalBuilder({
+  treeDiscoverySource: options.treeDiscoverySource,
+}).createIndependentRunnerFromCurrentOptions();
+const inspectionAsyncDag = new AsyncDagTraversalBuilder({
+  treeDiscoverySource: options.treeDiscoverySource,
+}).createIndependentRunnerFromCurrentOptions();
 // @ts-expect-error assembly-only state is not a public runner capability
 inspectionDag.inspectDagState();
 // @ts-expect-error assembly-only state is not a public async runner capability

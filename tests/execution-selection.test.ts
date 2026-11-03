@@ -7,17 +7,17 @@ import { DEPTH_FIRST_TRAVERSAL_RUNNER_ITERABLE_CONFIG_DEFAULT as defaultDFS } fr
 import { makeEffectiveBreadthFirstTraversalRunnerIterableConfig as makeBFS } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstTraversalRunnerIterableConfig';
 import { makeEffectiveDagTraversalRunnerIterableConfig as makeDAG } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerIterableConfig';
 import { makeEffectiveDepthFirstTraversalRunnerIterableConfig as makeDFS } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalRunnerIterableConfig';
-import type { TreeDagExecutionInspection } from '../src';
+import type { TreeOrDagExecutionSnapshot } from '../src';
 import {
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstPhase as BFS,
-  BreadthFirstTreeTraversal,
-  DagTraversal,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeVisitPhase as BFS,
+  BreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase as DAG,
-  DepthFirstPhase as DFS,
-  DepthFirstTreeTraversal,
+  DepthFirstTreeVisitPhase as DFS,
+  DepthFirstTreeTraversalBuilder,
   TraversalVisitorCommandName as Command,
 } from '../src';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
@@ -29,67 +29,87 @@ import {
   createInternalDagTraversalRunner,
 } from './internal-runner-fixtures';
 
-type Event = { phase?: string; kind?: string; vertex: { getData(): string } };
+type Event = {
+  eventKind: string;
+  vertex: { getVertexData(): string };
+};
 type Runner = {
-  iterateEvents(
+  runAndIterateObservationEventsUntilSuspendedOrTerminal(
     config?: unknown,
   ): Generator<Event> | AsyncGenerator<Event, void, unknown>;
-  run(config?: unknown): unknown;
-  inspect(): TreeDagExecutionInspection;
+  runUntilSuspendedOrTerminal(config?: unknown): unknown;
+  captureExecutionSnapshot(): TreeOrDagExecutionSnapshot;
 };
 const tree = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: { $data: 'root', $childHints: [] } },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: { $vertexData: 'root', $childDiscoveryHints: [] },
+    },
   }),
-  resolveChild: (_hint: string) => ({ kind: 'omitted' as const }),
+  resolveChildVertexFromHint: (_hint: string) => ({
+    kind: 'vertexIntentionallyOmitted' as const,
+  }),
 };
 const graph = {
   ...tree,
-  resolveChild: () => ({
-    identity: null,
-    kind: 'omitted' as const,
-    satisfiesDependencies: true as const,
+  resolveChildHint: () => ({
+    omittedVertexIdentity: null,
+    kind: 'vertexIntentionallyOmitted' as const,
+    satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
   }),
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { ...tree.resolveRoot().vertex, vertexId: 'root' },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      ...tree.resolveRootVertex().resolvedVertexInput,
+      vertexId: 'root',
+    },
   }),
 };
 const families = [
   {
     name: 'sync DFS',
-    phase: DFS.PRE_ORDER,
+    phase: DFS.BEFORE_CHILD_EXPANSION,
     make: () =>
-      new DepthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
+      new DepthFirstTreeTraversalBuilder<TestGraph>({
+        treeDiscoverySource: tree,
+      }),
   },
   {
     name: 'async DFS',
-    phase: DFS.PRE_ORDER,
+    phase: DFS.BEFORE_CHILD_EXPANSION,
     make: () =>
-      new AsyncDepthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
+      new AsyncDepthFirstTreeTraversalBuilder<TestGraph>({
+        treeDiscoverySource: tree,
+      }),
   },
   {
     name: 'sync BFS',
-    phase: BFS.LEVEL_ORDER,
+    phase: BFS.AT_LEVEL_ORDER_VERTEX,
     make: () =>
-      new BreadthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
+      new BreadthFirstTreeTraversalBuilder<TestGraph>({
+        treeDiscoverySource: tree,
+      }),
   },
   {
     name: 'async BFS',
-    phase: BFS.LEVEL_ORDER,
+    phase: BFS.AT_LEVEL_ORDER_VERTEX,
     make: () =>
-      new AsyncBreadthFirstTreeTraversal<TestGraph>({ traversableTree: tree }),
+      new AsyncBreadthFirstTreeTraversalBuilder<TestGraph>({
+        treeDiscoverySource: tree,
+      }),
   },
   {
     name: 'sync DAG',
     phase: DAG.ON_WORK_READY,
-    make: () => new DagTraversal<TestGraph>({ traversableGraph: graph }),
+    make: () =>
+      new DagTraversalBuilder<TestGraph>({ dagDiscoverySource: graph }),
   },
   {
     name: 'async DAG',
     phase: DAG.ON_WORK_READY,
-    make: () => new AsyncDagTraversal<TestGraph>({ traversableGraph: graph }),
+    make: () =>
+      new AsyncDagTraversalBuilder<TestGraph>({ dagDiscoverySource: graph }),
   },
 ];
 
@@ -99,27 +119,40 @@ function create(family: typeof families[number], halt = false) {
   const calls: string[] = [];
   const traversal = family.make();
   const phase = family.phase;
-  const add = traversal.addVisitorFor.bind(traversal) as (
+  const add = traversal.registerVisitorCallbackForPhase.bind(traversal) as (
     phase: string,
-    visitor: (
-      vertex: VertexView<TestGraph>,
-    ) => void | { commands: { commandName: Command.PAUSE_TRAVERSAL }[] },
+    visitor: (vertex: VertexView<TestGraph>) => void | {
+      commands: {
+        commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY;
+      }[];
+    },
   ) => unknown;
   add(phase, (vertex) => {
-    calls.push(vertex.getData());
-    if (halt) return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+    calls.push(vertex.getVertexData());
+    if (halt)
+      return {
+        commands: [
+          { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+        ],
+      };
     return undefined;
   });
   if (halt)
     add(phase, () => {
       calls.push('continued');
     });
-  return { runner: traversal.createRunner() as unknown as Runner, calls };
+  return {
+    runner:
+      traversal.createIndependentRunnerFromCurrentOptions() as unknown as Runner,
+    calls,
+  };
 }
 async function events(runner: Runner, config?: unknown) {
   const result: string[] = [];
-  for await (const event of runner.iterateEvents(config))
-    result.push(event.kind ?? event.phase!);
+  for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    config,
+  ))
+    result.push(event.eventKind);
   return result;
 }
 
@@ -130,20 +163,23 @@ describe.each(families)('$name execution selection', (family) => {
     [{ exclude: [] }, true],
   ])(
     'selects callbacks with %j independently of empty emission',
-    async (visitorPhases, enabled) => {
+    async (admittedVisitorCallbackPhases, enabled) => {
       const { runner, calls } = create(family);
-      expect(await events(runner, { emitEvents: [], visitorPhases })).toEqual(
-        [],
-      );
+      expect(
+        await events(runner, {
+          deliveredEventKinds: [],
+          admittedVisitorCallbackPhases,
+        }),
+      ).toEqual([]);
       expect(calls).toEqual(enabled ? ['root'] : []);
     },
   );
 
   test('private normalized defaults reject as public inputs and leave the runner reusable', async () => {
     const configs =
-      family.phase === DFS.PRE_ORDER
+      family.phase === DFS.BEFORE_CHILD_EXPANSION
         ? [makeDFS(), defaultDFS]
-        : family.phase === BFS.LEVEL_ORDER
+        : family.phase === BFS.AT_LEVEL_ORDER_VERTEX
         ? [makeBFS(), defaultBFS]
         : [makeDAG(), defaultDAG];
     for (const config of configs) {
@@ -151,22 +187,24 @@ describe.each(families)('$name execution selection', (family) => {
       await expect(events(runner, config)).rejects.toThrow(TypeError);
       expect(calls).toEqual([]);
       expect(
-        await events(runner, { emitEvents: [emissionKind(family.phase)] }),
+        await events(runner, {
+          deliveredEventKinds: [emissionKind(family.phase)],
+        }),
       ).toEqual([emissionKind(family.phase)]);
       expect(calls).toEqual(['root']);
     }
   });
 
   test('includes and excludes actual family phases', async () => {
-    for (const [visitorPhases, want] of [
+    for (const [admittedVisitorCallbackPhases, want] of [
       [{ include: [family.phase] }, ['root']],
       [{ exclude: [family.phase] }, []],
     ] as const) {
       const { runner, calls } = create(family);
       expect(
         await events(runner, {
-          emitEvents: [emissionKind(family.phase)],
-          visitorPhases,
+          deliveredEventKinds: [emissionKind(family.phase)],
+          admittedVisitorCallbackPhases,
         }),
       ).toEqual([emissionKind(family.phase)]);
       expect(calls).toEqual(want);
@@ -177,14 +215,16 @@ describe.each(families)('$name execution selection', (family) => {
     const { runner, calls } = create(family);
     await expect(
       Promise.resolve().then(() =>
-        runner.run({
+        runner.runUntilSuspendedOrTerminal({
           enableVisitorFunctionsFor: [family.phase],
           disableVisitorFunctionsFor: [family.phase],
         }),
       ),
     ).rejects.toThrow(TypeError);
     expect(calls).toEqual([]);
-    await runner.run({ visitorPhases: { include: [family.phase] } });
+    await runner.runUntilSuspendedOrTerminal({
+      admittedVisitorCallbackPhases: { include: [family.phase] },
+    });
     expect(calls).toEqual(['root']);
   });
 
@@ -192,81 +232,95 @@ describe.each(families)('$name execution selection', (family) => {
     const { runner, calls } = create(family);
     const include: string[] = [];
     const emit = [emissionKind(family.phase)];
-    const iterator = runner.iterateEvents({
-      emitEvents: emit,
-      visitorPhases: { include },
-    });
+    const iterator =
+      runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+        deliveredEventKinds: emit,
+        admittedVisitorCallbackPhases: { include },
+      });
     expect((await iterator.next()).done).toBe(false);
     include.push(family.phase);
     emit.length = 0;
-    expect(runner.inspect().executionOptions).toMatchObject({
-      emitEvents: [emissionKind(family.phase)],
-      visitorPhases: { include: [] },
+    expect(runner.captureExecutionSnapshot().executionOptions).toMatchObject({
+      deliveredEventKinds: [emissionKind(family.phase)],
+      admittedVisitorCallbackPhases: { include: [] },
     });
     await iterator.return(undefined);
-    await runner.run({ emitEvents: [] });
+    await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
     expect(calls).toEqual([]);
-    expect(runner.inspect().executionOptions).toMatchObject({
-      emitEvents: [],
-      visitorPhases: { include: [] },
+    expect(runner.captureExecutionSnapshot().executionOptions).toMatchObject({
+      deliveredEventKinds: [],
+      admittedVisitorCallbackPhases: { include: [] },
     });
   });
 
   test('explicit selection patches replace the prior policy while draining admitted callbacks', async () => {
     const { runner, calls } = create(family, true);
-    await runner.run({ visitorPhases: { include: [family.phase] } });
-    await runner.run({
-      visitorPhases: { exclude: [family.phase] },
-      emitEvents: [],
+    await runner.runUntilSuspendedOrTerminal({
+      admittedVisitorCallbackPhases: { include: [family.phase] },
+    });
+    await runner.runUntilSuspendedOrTerminal({
+      admittedVisitorCallbackPhases: { exclude: [family.phase] },
+      deliveredEventKinds: [],
     });
     expect(calls).toEqual(['root', 'continued']);
-    expect(runner.inspect().executionOptions).toMatchObject({
-      emitEvents: [],
-      visitorPhases: { exclude: [family.phase] },
+    expect(runner.captureExecutionSnapshot().executionOptions).toMatchObject({
+      deliveredEventKinds: [],
+      admittedVisitorCallbackPhases: { exclude: [family.phase] },
     });
   });
 
   test('an exclude patch replaces a previous include selection', async () => {
     const { runner } = create(family, true);
-    await runner.run({ visitorPhases: { include: [family.phase] } });
-    await runner.run({ visitorPhases: { exclude: [family.phase] } });
-    expect(runner.inspect().executionOptions).toMatchObject({
-      visitorPhases: { exclude: [family.phase] },
+    await runner.runUntilSuspendedOrTerminal({
+      admittedVisitorCallbackPhases: { include: [family.phase] },
     });
-    expect(runner.inspect().executionOptions).not.toHaveProperty('iterateOver');
-    expect(runner.inspect().executionOptions).not.toHaveProperty(
-      'enableVisitorFunctionsFor',
-    );
+    await runner.runUntilSuspendedOrTerminal({
+      admittedVisitorCallbackPhases: { exclude: [family.phase] },
+    });
+    expect(runner.captureExecutionSnapshot().executionOptions).toMatchObject({
+      admittedVisitorCallbackPhases: { exclude: [family.phase] },
+    });
+    expect(
+      runner.captureExecutionSnapshot().executionOptions,
+    ).not.toHaveProperty('iterateOver');
+    expect(
+      runner.captureExecutionSnapshot().executionOptions,
+    ).not.toHaveProperty('enableVisitorFunctionsFor');
   });
 
   test('active chains retain visitor admission but delivery uses the resume selector', async () => {
     const { runner, calls } = create(family, true);
-    await runner.run({ emitEvents: [emissionKind(family.phase)] });
+    await runner.runUntilSuspendedOrTerminal({
+      deliveredEventKinds: [emissionKind(family.phase)],
+    });
     expect(calls).toEqual(['root']);
-    expect(runner.inspect().chains).toEqual(
+    expect(runner.captureExecutionSnapshot().vertexPhaseVisitorChains).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          executionOptions: expect.objectContaining({
-            emitEvents: [emissionKind(family.phase)],
-            visitorPhases: 'all',
+          executionSelectionsAtAdmission: expect.objectContaining({
+            deliveredEventKinds: [emissionKind(family.phase)],
+            admittedVisitorCallbackPhases: 'all',
           }),
         }),
       ]),
     );
     expect(
-      await events(runner, { emitEvents: [], visitorPhases: { include: [] } }),
+      await events(runner, {
+        deliveredEventKinds: [],
+        admittedVisitorCallbackPhases: { include: [] },
+      }),
     ).toEqual([]);
     expect(calls).toEqual(['root', 'continued']);
   });
 
   test('a previously unselected paused chain can emit without replaying callbacks', async () => {
     const { runner, calls } = create(family, true);
-    await runner.run({ emitEvents: [] });
+    await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
     expect(calls).toEqual(['root']);
     expect(
       await events(runner, {
-        emitEvents: [emissionKind(family.phase)],
-        visitorPhases: { include: [] },
+        deliveredEventKinds: [emissionKind(family.phase)],
+        admittedVisitorCallbackPhases: { include: [] },
       }),
     ).toEqual([emissionKind(family.phase)]);
     expect(calls).toEqual(['root', 'continued']);
@@ -278,59 +332,65 @@ describe.each(families)('$name execution selection', (family) => {
     'retains a nested undefined %s selector while resuming',
     async (field) => {
       const { runner, calls } = create(family);
-      const iterator = runner.iterateEvents({
-        emitEvents: [emissionKind(family.phase)],
-        visitorPhases: { include: [] },
-      });
+      const iterator =
+        runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+          deliveredEventKinds: [emissionKind(family.phase)],
+          admittedVisitorCallbackPhases: { include: [] },
+        });
       expect((await iterator.next()).done).toBe(false);
       await iterator.return(undefined);
-      await runner.run({ visitorPhases: { [field]: undefined } });
+      await runner.runUntilSuspendedOrTerminal({
+        admittedVisitorCallbackPhases: { [field]: undefined },
+      });
       expect(calls).toEqual([]);
-      expect(runner.inspect().executionOptions.visitorPhases).toEqual({
+      expect(
+        runner.captureExecutionSnapshot().executionOptions
+          .admittedVisitorCallbackPhases,
+      ).toEqual({
         include: [],
       });
     },
   );
 
   test.each([
-    { emitEvents: ['WRONG_PHASE'] },
+    { deliveredEventKinds: ['WRONG_PHASE'] },
     { emitPhases: [] },
     { typo: [] },
-    { emitEvents: new Array(1) },
+    { deliveredEventKinds: new Array(1) },
     { iterateOver: ['WRONG_PHASE'] },
-    { visitorPhases: { include: ['WRONG_PHASE'] } },
-    { visitorPhases: { exclude: ['WRONG_PHASE'] } },
+    { admittedVisitorCallbackPhases: { include: ['WRONG_PHASE'] } },
+    { admittedVisitorCallbackPhases: { exclude: ['WRONG_PHASE'] } },
     { enableVisitorFunctionsFor: ['WRONG_PHASE'] },
     { disableVisitorFunctionsFor: ['WRONG_PHASE'] },
-    { visitorPhases: { include: [], exclude: [] } },
-    { visitorPhases: { include: [], extra: [] } },
-    { visitorPhases: [] },
-    { visitorPhases: {} },
-    { visitorPhases: null },
-    { visitorPhases: 'none' },
-    { visitorPhases: { include: null } },
-    { emitEvents: null },
-    { emitEvents: [], iterateOver: [] },
-    { emitEvents: undefined, iterateOver: undefined },
+    { admittedVisitorCallbackPhases: { include: [], exclude: [] } },
+    { admittedVisitorCallbackPhases: { include: [], extra: [] } },
+    { admittedVisitorCallbackPhases: [] },
+    { admittedVisitorCallbackPhases: {} },
+    { admittedVisitorCallbackPhases: null },
+    { admittedVisitorCallbackPhases: 'none' },
+    { admittedVisitorCallbackPhases: { include: null } },
+    { deliveredEventKinds: null },
+    { deliveredEventKinds: [], iterateOver: [] },
+    { deliveredEventKinds: undefined, iterateOver: undefined },
     null,
     false,
     'invalid',
     [],
-    { visitorPhases: 'all', enableVisitorFunctionsFor: null },
-    { visitorPhases: 'all', disableVisitorFunctionsFor: [] },
+    { admittedVisitorCallbackPhases: 'all', enableVisitorFunctionsFor: null },
+    { admittedVisitorCallbackPhases: 'all', disableVisitorFunctionsFor: [] },
   ])(
     'rejects malformed input before changing configuration: %j',
     async (input) => {
       const { runner, calls } = create(family);
-      const before = runner.inspect();
+      const before = runner.captureExecutionSnapshot();
       await expect(
-        Promise.resolve().then(() => runner.run(input)),
+        Promise.resolve().then(() => runner.runUntilSuspendedOrTerminal(input)),
       ).rejects.toThrow(TypeError);
-      expect(runner.inspect().executionOptions).toEqual(
+      expect(runner.captureExecutionSnapshot().executionOptions).toEqual(
         before.executionOptions,
       );
       expect(calls).toEqual([]);
-      await runner.run({ emitEvents: [] });
+      await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
       expect(calls).toEqual(['root']);
     },
   );
@@ -341,12 +401,12 @@ describe.each(families)('$name execution selection', (family) => {
     let selectionReads = 0;
     let includeReads = 0;
     const input = {
-      get emitEvents() {
+      get deliveredEventKinds() {
         emissionReads += 1;
         if (emissionReads > 1) throw new Error('emission reread');
         return [];
       },
-      get visitorPhases() {
+      get admittedVisitorCallbackPhases() {
         selectionReads += 1;
         if (selectionReads > 1) throw new Error('selector reread');
         return {
@@ -358,12 +418,12 @@ describe.each(families)('$name execution selection', (family) => {
         };
       },
     };
-    await runner.run(input);
+    await runner.runUntilSuspendedOrTerminal(input);
     expect(calls).toEqual(['root']);
     expect([emissionReads, selectionReads, includeReads]).toEqual([1, 1, 1]);
-    expect(runner.inspect().executionOptions).toMatchObject({
-      emitEvents: [],
-      visitorPhases: { include: [family.phase] },
+    expect(runner.captureExecutionSnapshot().executionOptions).toMatchObject({
+      deliveredEventKinds: [],
+      admittedVisitorCallbackPhases: { include: [family.phase] },
     });
   });
 
@@ -378,47 +438,49 @@ describe.each(families)('$name execution selection', (family) => {
         return reads === 1 ? emissionKind(family.phase) : 'WRONG_PHASE';
       },
     });
-    expect(await events(runner, { emitEvents: phases })).toEqual([
+    expect(await events(runner, { deliveredEventKinds: phases })).toEqual([
       emissionKind(family.phase),
     ]);
     expect(reads).toBe(1);
     expect(calls).toEqual(['root']);
-    expect(runner.inspect().executionOptions).toMatchObject({
-      emitEvents: [emissionKind(family.phase)],
+    expect(runner.captureExecutionSnapshot().executionOptions).toMatchObject({
+      deliveredEventKinds: [emissionKind(family.phase)],
     });
   });
 
   test('preserves exact caller getter errors and permits a valid retry', async () => {
     const { runner, calls } = create(family);
     const error = { caller: 'options' };
-    const before = runner.inspect();
+    const before = runner.captureExecutionSnapshot();
     await expect(
       Promise.resolve().then(() =>
-        runner.run({
-          get emitEvents() {
+        runner.runUntilSuspendedOrTerminal({
+          get deliveredEventKinds() {
             throw error;
           },
         }),
       ),
     ).rejects.toBe(error);
-    expect(runner.inspect()).toEqual(before);
+    expect(runner.captureExecutionSnapshot()).toEqual(before);
     expect(calls).toEqual([]);
-    await runner.run({ emitEvents: [] });
+    await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
     expect(calls).toEqual(['root']);
   });
 
   test('callback-only and omitted resumes preserve emission selection', async () => {
     const { runner, calls } = create(family, true);
-    await runner.run({ emitEvents: [] });
-    expect(runner.inspect().executionOptions).toMatchObject({
-      emitEvents: [],
-      visitorPhases: 'all',
+    await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
+    expect(runner.captureExecutionSnapshot().executionOptions).toMatchObject({
+      deliveredEventKinds: [],
+      admittedVisitorCallbackPhases: 'all',
     });
-    await runner.run({ visitorPhases: { exclude: [] } });
-    await runner.run();
-    expect(runner.inspect().executionOptions).toMatchObject({
-      emitEvents: [],
-      visitorPhases: { exclude: [] },
+    await runner.runUntilSuspendedOrTerminal({
+      admittedVisitorCallbackPhases: { exclude: [] },
+    });
+    await runner.runUntilSuspendedOrTerminal();
+    expect(runner.captureExecutionSnapshot().executionOptions).toMatchObject({
+      deliveredEventKinds: [],
+      admittedVisitorCallbackPhases: { exclude: [] },
     });
     expect(calls).toEqual(['root', 'continued']);
   });
@@ -427,8 +489,8 @@ describe.each(families)('$name execution selection', (family) => {
     const { runner, calls } = create(family);
     expect(
       await events(runner, {
-        emitEvents: [emissionKind(family.phase)],
-        visitorPhases: { exclude: [] },
+        deliveredEventKinds: [emissionKind(family.phase)],
+        admittedVisitorCallbackPhases: { exclude: [] },
       }),
     ).toEqual([emissionKind(family.phase)]);
     expect(calls).toEqual(['root']);
@@ -442,30 +504,35 @@ function checkHelper<ORDER extends string>(
     previous?: TraversalRunnerIterableConfig<ORDER>,
   ) => TraversalRunnerIterableConfig<ORDER>,
 ) {
-  const included = make({ visitorPhases: { include: [phase] } });
-  expect(make({ emitEvents: [] }, included).enableVisitorFunctionsFor).toEqual([
-    phase,
-  ]);
+  const included = make({
+    admittedVisitorCallbackPhases: { include: [phase] },
+  });
+  expect(
+    make({ deliveredEventKinds: [] }, included).enableVisitorFunctionsFor,
+  ).toEqual([phase]);
   const emit = [emissionKind(phase)];
   const exclude = [phase];
-  const initial = make({ emitEvents: emit, visitorPhases: { exclude } });
+  const initial = make({
+    deliveredEventKinds: emit,
+    admittedVisitorCallbackPhases: { exclude },
+  });
   emit.length = 0;
   exclude.length = 0;
   expect(initial.iterateOver).toEqual([phase]);
   expect(initial.disableVisitorFunctionsFor).toEqual([phase]);
-  const patched = make({ emitEvents: [] }, initial);
+  const patched = make({ deliveredEventKinds: [] }, initial);
   expect(patched.iterateOver).toEqual([]);
   expect(patched.disableVisitorFunctionsFor).toEqual([phase]);
   expect(make(undefined, patched)).toEqual(patched);
-  const all = make({ visitorPhases: 'all' }, patched);
+  const all = make({ admittedVisitorCallbackPhases: 'all' }, patched);
   expect(all.iterateOver).toEqual([]);
   expect(all.enableVisitorFunctionsFor).toBeNull();
   expect(all.disableVisitorFunctionsFor).toBeNull();
 }
 
 test('family config helpers share defaults, detachment, and independent patches', () => {
-  checkHelper<DFS>(DFS.PRE_ORDER, makeDFS);
-  checkHelper<BFS>(BFS.LEVEL_ORDER, makeBFS);
+  checkHelper<DFS>(DFS.BEFORE_CHILD_EXPANSION, makeDFS);
+  checkHelper<BFS>(BFS.AT_LEVEL_ORDER_VERTEX, makeBFS);
   checkHelper<DAG>(DAG.ON_WORK_READY, makeDAG);
 });
 
@@ -478,7 +545,7 @@ test.each([false, true])(
     });
     const make = () => {
       const input = {
-        traversableGraph: graph,
+        dagDiscoverySource: graph,
         traversalRunnerInternalObjects: {
           state: new DagTraversalRunnerState<TestGraph>(),
           resolvedGraphsContainer: container,
@@ -489,22 +556,26 @@ test.each([false, true])(
         : createInternalDagTraversalRunner<TestGraph>(input);
     };
     const runner = make();
-    const before = runner.inspect();
+    const before = runner.captureExecutionSnapshot();
     const error = { options: 'getter failed' };
     await expect(
       Promise.resolve().then(async () => {
-        await runner.run({
-          get emitEvents(): [] {
+        await runner.runUntilSuspendedOrTerminal({
+          get deliveredEventKinds(): [] {
             throw error;
           },
         });
       }),
     ).rejects.toBe(error);
-    expect(runner.inspect()).toEqual(before);
+    expect(runner.captureExecutionSnapshot()).toEqual(before);
     const competitor = make();
-    await competitor.run({ emitEvents: [] });
+    await competitor.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
     expect(
-      competitor.getResolvedGraphView().getRoot()?.getValue().getData(),
+      competitor
+        .getLiveResolvedGraphView()
+        .getDesignatedRootHandleOrNull()
+        ?.getCurrentVertexView()
+        .getVertexData(),
     ).toBe('root');
   },
 );

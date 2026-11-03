@@ -1,35 +1,41 @@
 import type { GraphWalkEvent } from '../GraphWalkEvent';
-import type { GraphWalkPhase } from '../GraphWalkPhase';
+import type { GraphWalkObservationKind } from '../GraphWalkPhase';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
-import { GraphWalkPhase as Phase } from '../GraphWalkPhase';
+import { GraphWalkObservationKind as ObservationKind } from '../GraphWalkPhase';
 import type { WalkKernel } from './WalkKernel';
 import { rejectThenable } from './rejectThenable';
 
-export class SyncWalkSession<Data, Edge, ID> {
+export class SyncWalkSession<VertexData, EdgeData, VertexId> {
   private owner: symbol | null = null;
-  constructor(private readonly kernel: WalkKernel<Data, Edge, ID>) {}
+  constructor(
+    private readonly kernel: WalkKernel<VertexData, EdgeData, VertexId>,
+  ) {}
   close(): void {
     if (this.owner !== null)
       throw new Error('Graph walk already has an execution owner');
     this.kernel.beginClose();
-    this.iterateEvents().next();
+    this.runAndIterateObservationEventsUntilSuspendedOrTerminal().next();
   }
-  iterateEvents(
-    config?: TraversalIterableConfigInput<GraphWalkPhase>,
-  ): Generator<GraphWalkEvent<Data, Edge, ID>, void, unknown> {
+  runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    config?: TraversalIterableConfigInput<GraphWalkObservationKind>,
+  ): Generator<GraphWalkEvent<VertexData, EdgeData, VertexId>, void, unknown> {
     const patch =
       config === undefined
         ? undefined
         : detachTraversalExecutionOptions(
-            [Phase.VERTEX, Phase.EDGE, Phase.PATH],
+            [
+              ObservationKind.VERTEX_OCCURRENCE,
+              ObservationKind.ADMITTED_EDGE_OCCURRENCE,
+              ObservationKind.ROUTE_PREFIX,
+            ],
             config,
           );
     return this.iterate(patch);
   }
   private *iterate(
-    config?: TraversalIterableConfigInput<GraphWalkPhase>,
-  ): Generator<GraphWalkEvent<Data, Edge, ID>, void, unknown> {
+    config?: TraversalIterableConfigInput<GraphWalkObservationKind>,
+  ): Generator<GraphWalkEvent<VertexData, EdgeData, VertexId>, void, unknown> {
     if (this.owner !== null)
       throw new Error('Graph walk already has an execution owner');
     this.kernel.resume(config);
@@ -41,17 +47,20 @@ export class SyncWalkSession<Data, Edge, ID> {
       for (;;) {
         const action = this.kernel.poll();
         if (action.kind === 'CALL') {
-          let outcome;
+          let terminalOutcome;
           try {
             const value = action.invoke();
             rejectThenable(value);
-            outcome = { ok: true as const, value };
+            terminalOutcome = { ok: true as const, value };
           } catch (error) {
-            outcome = { ok: false as const, error };
+            terminalOutcome = { ok: false as const, error };
           }
-          this.kernel.submit(action.requestId, outcome);
+          this.kernel.submit(
+            action.runnerLocalInvocationRequestId,
+            terminalOutcome,
+          );
         } else if (action.kind === 'OBSERVATION') {
-          const event = this.kernel.shouldEmit(action.phase)
+          const event = this.kernel.shouldEmit(action.observationKind)
             ? action.event()
             : null;
           this.kernel.acknowledgeObservation(action.boundaryId);
@@ -63,7 +72,7 @@ export class SyncWalkSession<Data, Edge, ID> {
       }
     } finally {
       this.owner = null;
-      this.kernel.requestPause();
+      this.kernel.requestPauseAfterAdmittedCallbacksDrain();
       this.kernel.poll();
     }
   }

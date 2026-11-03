@@ -68,11 +68,11 @@ assert.equal(typeof root.rewriteObject, 'function');
 for (const module of [
   root,
   root.core,
-  root.depthFirstTraversal,
-  root.breadthFirstTraversal,
+  root.depthFirstTreeTraversal,
+  root.breadthFirstTreeTraversal,
   root.dagTraversal,
   root.graphWalk,
-  root.traversableObjectTree,
+  root.objectPropertyTree,
   root.objectRewrite,
 ]) {
   for (const name of Object.keys(module)) {
@@ -85,23 +85,27 @@ for (const module of [
   }
 }
 
-assert.equal('getGraphStore' in new root.ResolvedTreeStore(), false);
+assert.equal('getGraphStore' in new root.MutableResolvedTreeStore(), false);
 console.log(
   'Verified packed CJS/ESM denial for 26 internal paths and curated public runtime namespaces.',
 );
 
-for (const Constructor of [root.DagTraversal, root.AsyncDagTraversal]) {
+for (const Constructor of [
+  root.DagTraversalBuilder,
+  root.AsyncDagTraversalBuilder,
+]) {
   const runner = new Constructor(
-    root.materializeDagInputFromRecords([{ id: 'a' }], {
-      id: (item) => item.id,
+    root.materializeMultiEntryDagInputFromRecordCatalog([{ id: 'a' }], {
+      selectVertexId: (item) => item.id,
     }),
-  ).createRunner();
+  ).createIndependentRunnerFromCurrentOptions();
   assert.equal('inspectDagState' in runner, false);
-  await runner.run();
+  await runner.runUntilSuspendedOrTerminal();
   assert.equal(
     root
-      .inspectDagMilestones(runner)
-      .explain({ vertexId: 'a', milestone: 'subgraphCompletion' }).satisfied,
+      .captureDagMilestoneSnapshot(runner)
+      .explainMilestone({ vertexId: 'a', milestone: 'subgraphCompletion' })
+      .milestoneSatisfied,
     true,
   );
 }

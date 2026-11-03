@@ -5,20 +5,23 @@ import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus as Status } from '@core/TraversalRunner';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 import type { GraphWalkEdge, GraphWalkEvent } from '../GraphWalkEvent';
-import type { GraphWalkRouteContext } from '../GraphWalkOptions';
-import { GraphWalkPhase as Phase } from '../GraphWalkPhase';
+import type { GraphWalkRouteEnumerationContext } from '../GraphWalkOptions';
+import { GraphWalkObservationKind as ObservationKind } from '../GraphWalkPhase';
 import type {
-  GraphWalkVertex,
-  GraphWalkVertexResult,
+  GraphWalkResolvedVertex,
+  GraphWalkVertexResolutionResult,
 } from '../GraphWalkSource';
 import type { GraphWalkInspection } from './GraphWalkInspection';
-import type { GraphWalkOutcome, GraphWalkSummary } from './GraphWalkSummary';
+import type {
+  GraphWalkTerminalOutcome,
+  GraphWalkProgressSnapshot,
+} from './GraphWalkSummary';
 import type {
   GraphWalkResolvedOptions,
   WalkVisitor,
 } from './normalizeWalkOptions';
 import type { WalkAction } from './WalkEffects';
-import type { GraphWalkOperation } from '../GraphWalkOperation';
+import type { GraphWalkPendingInvocationOperation } from '../GraphWalkOperation';
 import type { WalkRoute } from './WalkFrontier';
 import { projectPath, routeContains, WalkFrontier } from './WalkFrontier';
 import { WalkResources } from './WalkResources';
@@ -32,83 +35,97 @@ import {
 } from './WalkSourceCache';
 import { WalkVisitorChain } from './WalkVisitorChain';
 
-const phases = [Phase.VERTEX, Phase.EDGE, Phase.PATH];
-type Observation<Data, Edge, ID> = Extract<
-  WalkAction<Data, Edge, ID>,
+const phases = [
+  ObservationKind.VERTEX_OCCURRENCE,
+  ObservationKind.ADMITTED_EDGE_OCCURRENCE,
+  ObservationKind.ROUTE_PREFIX,
+];
+type Observation<VertexData, EdgeData, VertexId> = Extract<
+  WalkAction<VertexData, EdgeData, VertexId>,
   { kind: 'OBSERVATION' }
-> & { admissionIndex: number; vertexToken: symbol };
-type Request<Data, Edge, ID> = Extract<
-  WalkAction<Data, Edge, ID>,
+> & {
+  admittedTargetOccurrenceIndex: number;
+  runnerLocalVertexIdentityToken: symbol;
+};
+type Request<VertexData, EdgeData, VertexId> = Extract<
+  WalkAction<VertexData, EdgeData, VertexId>,
   { kind: 'CALL' }
 > & {
   issued: boolean;
   accept: (value: unknown) => void;
 };
-type Candidate<Data, Edge, ID> = {
-  target: WalkTarget<ID>;
-  parent: WalkRoute<Data, Edge, ID> | null;
-  via: GraphWalkEdge<Edge, ID> | null;
+type Candidate<VertexData, EdgeData, VertexId> = {
+  targetToResolveOnAdmission: WalkTarget<VertexId>;
+  parent: WalkRoute<VertexData, EdgeData, VertexId> | null;
+  via: GraphWalkEdge<EdgeData, VertexId> | null;
 };
 
 /** Promise-free transition owner. Only CALL closures perform source I/O. */
-export class WalkKernel<Data, Edge, ID> {
+export class WalkKernel<VertexData, EdgeData, VertexId> {
   private readonly resources = new WalkResources();
-  private readonly vertexTokens = new Map<ID, symbol>();
+  private readonly vertexTokens = new Map<VertexId, symbol>();
   private tornDown = false;
-  private status = Status.INITIAL;
+  private status = Status.NOT_STARTED;
   private pauseRequested = false;
-  private outcome: GraphWalkOutcome | null = null;
-  private request: Request<Data, Edge, ID> | null = null;
-  private requestId = 0;
+  private terminalOutcome: GraphWalkTerminalOutcome | null = null;
+  private request: Request<VertexData, EdgeData, VertexId> | null = null;
+  private runnerLocalInvocationRequestId = 0;
   private boundaryId = 0;
   private roots: WalkCursor | null = null;
-  private readonly rootIds = new Set<ID>();
-  private readonly cache: WalkSourceCache<Data, Edge, ID>;
-  private readonly frontier: WalkFrontier<Data, Edge, ID>;
-  private readonly observations: Observation<Data, Edge, ID>[] = [];
-  private chain: WalkVisitorChain<Data, Edge, ID> | null = null;
-  private expansion: WalkRoute<Data, Edge, ID> | null = null;
+  private readonly rootIds = new Set<VertexId>();
+  private readonly cache: WalkSourceCache<VertexData, EdgeData, VertexId>;
+  private readonly frontier: WalkFrontier<VertexData, EdgeData, VertexId>;
+  private readonly observations: Observation<VertexData, EdgeData, VertexId>[] =
+    [];
+  private chain: WalkVisitorChain<VertexData, EdgeData, VertexId> | null = null;
+  private expansion: WalkRoute<VertexData, EdgeData, VertexId> | null = null;
   private depthLimited = false;
   private counts = {
-    candidateReadAttempts: 0,
-    admittedTargets: 0,
-    uniqueFoundVertices: 0,
-    uniqueOmittedVertices: 0,
-    discoveredLinks: 0,
-    processedObservations: {
-      [Phase.VERTEX]: 0,
-      [Phase.EDGE]: 0,
-      [Phase.PATH]: 0,
+    rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 0,
+    admittedRootOrLinkTargetOccurrences: 0,
+    resolvedFoundVertexIdCount: 0,
+    resolvedOmittedVertexIdCount: 0,
+    freshSourceOutgoingLinkCount: 0,
+    acknowledgedObservationCountsByKind: {
+      [ObservationKind.VERTEX_OCCURRENCE]: 0,
+      [ObservationKind.ADMITTED_EDGE_OCCURRENCE]: 0,
+      [ObservationKind.ROUTE_PREFIX]: 0,
     },
   };
   private execution;
 
   constructor(
-    private readonly options: GraphWalkResolvedOptions<Data, Edge, ID>,
+    private readonly options: GraphWalkResolvedOptions<
+      VertexData,
+      EdgeData,
+      VertexId
+    >,
     private readonly executionKind: 'sync' | 'async' = 'sync',
   ) {
-    this.cache = new WalkSourceCache(options.source.hydration);
-    this.frontier = new WalkFrontier(options.strategy);
+    this.cache = new WalkSourceCache(
+      options.graphWalkDiscoverySource.vertexResolutionMode,
+    );
+    this.frontier = new WalkFrontier(options.expansionOrder);
     this.execution = options.execution;
   }
-  getStatus(): Status {
+  getTraversalLifecycleStatus(): Status {
     return this.status;
   }
-  getStopReason(): TraversalStopReason | null {
-    if (this.status === Status.HALTED) return 'paused';
+  getTraversalStopReason(): TraversalStopReason | null {
+    if (this.status === Status.SUSPENDED) return 'paused';
     if (this.status === Status.FINISHED) return 'finished';
     if (this.status === Status.FAILED) return 'failed';
     return null;
   }
-  isHalted(): boolean {
-    return this.status === Status.HALTED;
+  isSuspended(): boolean {
+    return this.status === Status.SUSPENDED;
   }
-  requestPause(): boolean {
+  requestPauseAfterAdmittedCallbacksDrain(): boolean {
     if (this.status !== Status.RUNNING || this.pauseRequested) return false;
     this.pauseRequested = true;
     return true;
   }
-  resume(config?: TraversalIterableConfigInput<Phase>): void {
+  resume(config?: TraversalIterableConfigInput<ObservationKind>): void {
     const execution = normalizeTraversalExecutionOptions(
       phases,
       config,
@@ -125,40 +142,48 @@ export class WalkKernel<Data, Edge, ID> {
     if (this.status === Status.FAILED || this.status === Status.FINISHED)
       return;
     this.status = Status.FINISHED;
-    this.outcome = { kind: 'closed' };
+    this.terminalOutcome = { kind: 'permanentlyClosedByCaller' };
   }
-  shouldEmit(phase: Phase): boolean {
-    return this.execution.emitEvents.includes(phase);
+  shouldEmit(observationKind: ObservationKind): boolean {
+    return this.execution.deliveredEventKinds.includes(observationKind);
   }
 
   private call(
-    operation: GraphWalkOperation,
+    operation: GraphWalkPendingInvocationOperation,
     invoke: () => unknown,
     accept: (value: unknown) => void,
-    vertexToken?: symbol,
+    runnerLocalVertexIdentityToken?: symbol,
   ): void {
     this.request = {
       kind: 'CALL',
-      requestId: this.requestId++,
+      runnerLocalInvocationRequestId: this.runnerLocalInvocationRequestId++,
       operation,
-      vertexToken,
+      runnerLocalVertexIdentityToken,
       invoke,
       accept,
       issued: false,
     };
   }
-  submit(requestId: number, outcome: Outcome<unknown>): void {
+  submit(
+    runnerLocalInvocationRequestId: number,
+    terminalOutcome: Outcome<unknown>,
+  ): void {
     const request = this.request;
-    if (request === null || request.requestId !== requestId || !request.issued)
+    if (
+      request === null ||
+      request.runnerLocalInvocationRequestId !==
+        runnerLocalInvocationRequestId ||
+      !request.issued
+    )
       throw new Error('Invalid walking request settlement');
     this.request = null;
     try {
-      if (!outcome.ok) throw outcome.error;
-      request.accept(outcome.value);
+      if (!terminalOutcome.ok) throw terminalOutcome.error;
+      request.accept(terminalOutcome.value);
     } catch (error) {
-      if (this.outcome?.kind !== 'failed') {
+      if (this.terminalOutcome?.kind !== 'failed') {
         this.status = Status.FAILED;
-        this.outcome = { kind: 'failed', error };
+        this.terminalOutcome = { kind: 'failed', error };
       }
     }
   }
@@ -166,11 +191,13 @@ export class WalkKernel<Data, Edge, ID> {
     const observation = this.observations[0];
     if (observation === undefined || observation.boundaryId !== boundaryId)
       throw new Error('Invalid walking observation acknowledgement');
-    this.counts.processedObservations[observation.phase]++;
+    this.counts.acknowledgedObservationCountsByKind[
+      observation.observationKind
+    ]++;
     this.observations.shift();
     this.chain = null;
   }
-  private token(vertexId: ID): symbol {
+  private token(vertexId: VertexId): symbol {
     let token = this.vertexTokens.get(vertexId);
     if (token === undefined) {
       token = Symbol('walking vertex');
@@ -179,90 +206,118 @@ export class WalkKernel<Data, Edge, ID> {
     return token;
   }
   private observe(
-    phase: Phase,
-    event: () => GraphWalkEvent<Data, Edge, ID>,
-    vertexId: ID,
+    observationKind: ObservationKind,
+    event: () => GraphWalkEvent<VertexData, EdgeData, VertexId>,
+    vertexId: VertexId,
   ): void {
     this.observations.push({
       kind: 'OBSERVATION',
-      phase,
-      vertexToken: this.token(vertexId),
-      admissionIndex: this.counts.admittedTargets - 1,
+      observationKind,
+      runnerLocalVertexIdentityToken: this.token(vertexId),
+      admittedTargetOccurrenceIndex:
+        this.counts.admittedRootOrLinkTargetOccurrences - 1,
       boundaryId: this.boundaryId++,
       event,
     });
   }
 
-  private admit(candidate: Candidate<Data, Edge, ID>): void {
-    this.counts.admittedTargets++;
-    const { target } = candidate;
-    if (this.cache.resolutions.has(target.vertexId)) {
+  private admit(candidate: Candidate<VertexData, EdgeData, VertexId>): void {
+    this.counts.admittedRootOrLinkTargetOccurrences++;
+    const { targetToResolveOnAdmission } = candidate;
+    if (this.cache.resolutions.has(targetToResolveOnAdmission.vertexId)) {
       this.commit(
         candidate,
-        this.cache.resolutions.get(target.vertexId)!,
+        this.cache.resolutions.get(targetToResolveOnAdmission.vertexId)!,
         false,
       );
-    } else if (target.resolution !== undefined) {
-      this.commit(candidate, copyResolution<Data>(target.resolution), true);
+    } else if (
+      targetToResolveOnAdmission.resolutionIfNotPreviouslyAdmitted !== undefined
+    ) {
+      this.commit(
+        candidate,
+        copyResolution<VertexData>(
+          targetToResolveOnAdmission.resolutionIfNotPreviouslyAdmitted,
+        ),
+        true,
+      );
     } else {
-      const source = this.options.source;
-      const resolveVertex = source.resolveVertex;
-      if (resolveVertex === undefined)
+      const graphWalkDiscoverySource = this.options.graphWalkDiscoverySource;
+      const resolveVertexDataById =
+        graphWalkDiscoverySource.resolveVertexDataById;
+      if (resolveVertexDataById === undefined)
         throw new TypeError('Cached walking target has no admitted resolution');
       this.call(
-        'resolveVertex',
-        () => resolveVertex.call(source.receiver, target.vertexId),
-        (value) => this.commit(candidate, copyResolution<Data>(value), true),
-        this.token(target.vertexId),
+        'resolveVertexDataById',
+        () =>
+          resolveVertexDataById.call(
+            graphWalkDiscoverySource.receiver,
+            targetToResolveOnAdmission.vertexId,
+          ),
+        (value) =>
+          this.commit(candidate, copyResolution<VertexData>(value), true),
+        this.token(targetToResolveOnAdmission.vertexId),
       );
     }
   }
   private commit(
-    candidate: Candidate<Data, Edge, ID>,
-    result: GraphWalkVertexResult<Data>,
+    candidate: Candidate<VertexData, EdgeData, VertexId>,
+    result: GraphWalkVertexResolutionResult<VertexData>,
     fresh: boolean,
   ): void {
-    const { target, parent, via } = candidate;
+    const { targetToResolveOnAdmission, parent, via } = candidate;
     if (fresh) {
-      this.cache.resolutions.set(target.vertexId, result);
-      if (result.kind === 'found') this.counts.uniqueFoundVertices++;
-      else this.counts.uniqueOmittedVertices++;
+      this.cache.resolutions.set(targetToResolveOnAdmission.vertexId, result);
+      if (result.kind === 'found') this.counts.resolvedFoundVertexIdCount++;
+      else this.counts.resolvedOmittedVertexIdCount++;
     }
-    const vertex: GraphWalkVertex<Data, ID> | null =
+    const vertex: GraphWalkResolvedVertex<VertexData, VertexId> | null =
       result.kind === 'found'
-        ? { vertexId: target.vertexId, data: result.data }
+        ? {
+            vertexId: targetToResolveOnAdmission.vertexId,
+            vertexData: result.vertexData,
+          }
         : null;
     const depth = parent === null ? 0 : parent.depth + 1;
     if (via !== null) {
-      const source = parent!.vertex;
+      const graphWalkDiscoverySource = parent!.vertex;
       this.observe(
-        Phase.EDGE,
+        ObservationKind.ADMITTED_EDGE_OCCURRENCE,
         () => ({
-          kind: 'edge',
+          eventKind: 'admittedEdgeOccurrence',
           edge: { ...via },
-          fromVertex: { ...source },
-          depth,
-          target:
+          fromVertex: { ...graphWalkDiscoverySource },
+          targetHopDepth: depth,
+          targetResolution:
             vertex === null
               ? { kind: 'omitted' }
               : { kind: 'found', vertex: { ...vertex } },
         }),
-        target.vertexId,
+        targetToResolveOnAdmission.vertexId,
       );
     }
-    if ((fresh || this.options.revisit !== 'once') && vertex !== null) {
+    if (
+      (fresh ||
+        this.options.routeEnumerationPolicy !==
+          'firstAdmittedFoundRoutePerVertex') &&
+      vertex !== null
+    ) {
       const route = { vertex, depth, via, parent };
       this.observe(
-        Phase.VERTEX,
+        ObservationKind.VERTEX_OCCURRENCE,
         () => ({
-          kind: 'vertex',
+          eventKind: 'vertexOccurrence',
           vertex: { ...vertex },
-          depth,
-          via: via === null ? null : { ...via },
+          vertexHopDepth: depth,
+          incomingEdgeFromParentRouteOccurrence:
+            via === null ? null : { ...via },
         }),
-        target.vertexId,
+        targetToResolveOnAdmission.vertexId,
       );
-      this.observe(Phase.PATH, () => projectPath(route), target.vertexId);
+      this.observe(
+        ObservationKind.ROUTE_PREFIX,
+        () => projectPath(route),
+        targetToResolveOnAdmission.vertexId,
+      );
       this.expansion = route;
     }
   }
@@ -274,62 +329,66 @@ export class WalkKernel<Data, Edge, ID> {
   }
 
   private routeContext(
-    route: WalkRoute<Data, Edge, ID>,
-  ): GraphWalkRouteContext<Data, Edge, ID> {
-    const revisit = this.options.revisit;
-    return revisit === 'once'
-      ? { revisit }
-      : { revisit, path: projectPath(route) };
+    route: WalkRoute<VertexData, EdgeData, VertexId>,
+  ): GraphWalkRouteEnumerationContext<VertexData, EdgeData, VertexId> {
+    const routeEnumerationPolicy = this.options.routeEnumerationPolicy;
+    return routeEnumerationPolicy === 'firstAdmittedFoundRoutePerVertex'
+      ? { routeEnumerationPolicy }
+      : { routeEnumerationPolicy, routePrefix: projectPath(route) };
   }
 
-  private follow(candidate: Candidate<Data, Edge, ID>): void {
+  private follow(candidate: Candidate<VertexData, EdgeData, VertexId>): void {
     if (
-      this.options.revisit === 'simplePaths' &&
-      routeContains(candidate.parent!, candidate.target.vertexId)
+      this.options.routeEnumerationPolicy === 'allVertexSimpleRoutePrefixes' &&
+      routeContains(
+        candidate.parent!,
+        candidate.targetToResolveOnAdmission.vertexId,
+      )
     )
       return;
-    const predicate = this.options.shouldFollowEdge;
+    const predicate = this.options.shouldAdmitOutgoingLinkTarget;
     if (predicate === undefined) this.admit(candidate);
     else {
       this.call(
-        'shouldFollowEdge',
+        'shouldAdmitOutgoingLinkTarget',
         () =>
           predicate(
             { ...candidate.via! },
             {
               ...this.routeContext(candidate.parent!),
               fromVertex: { ...candidate.parent!.vertex },
-              depth: candidate.parent!.depth + 1,
+              targetHopDepth: candidate.parent!.depth + 1,
             },
           ),
         (value) => {
           if (this.booleanResult(value)) this.admit(candidate);
         },
-        this.token(candidate.target.vertexId),
+        this.token(candidate.targetToResolveOnAdmission.vertexId),
       );
     }
   }
 
-  private expand(route: WalkRoute<Data, Edge, ID>): void {
+  private expand(route: WalkRoute<VertexData, EdgeData, VertexId>): void {
     const accept = (expand: boolean) => {
       if (!expand) return;
-      const maxDepth = this.options.limits.maxDepth;
-      if (maxDepth !== undefined && route.depth >= maxDepth)
+      const maxRouteHopDepth = this.options.limits.maxRouteHopDepth;
+      if (maxRouteHopDepth !== undefined && route.depth >= maxRouteHopDepth)
         this.depthLimited = true;
       else this.frontier.push(route);
     };
-    const predicate = this.options.shouldExpandVertex;
+    const predicate = this.options.shouldExpandVertexOccurrence;
     if (predicate === undefined) accept(true);
     else {
       this.call(
-        'shouldExpandVertex',
+        'shouldExpandVertexOccurrence',
         () =>
           predicate(
             { ...route.vertex },
             {
               ...this.routeContext(route),
-              depth: route.depth,
-              via: route.via === null ? null : { ...route.via },
+              vertexHopDepth: route.depth,
+              incomingEdgeFromParentRouteOccurrence:
+                route.via === null ? null : { ...route.via },
             },
           ),
         (value) => accept(this.booleanResult(value)),
@@ -340,14 +399,18 @@ export class WalkKernel<Data, Edge, ID> {
 
   /** Pure completion checks run before this gate; no exhaustion probing. */
   private limitBeforePull(): boolean {
-    const { maxAdmittedTargets, maxCandidateReadAttempts } =
-      this.options.limits;
+    const {
+      maxAdmittedRootOrLinkTargetOccurrences,
+      maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay,
+    } = this.options.limits;
     const admissionLimitReached =
-      maxAdmittedTargets !== undefined &&
-      this.counts.admittedTargets >= maxAdmittedTargets;
+      maxAdmittedRootOrLinkTargetOccurrences !== undefined &&
+      this.counts.admittedRootOrLinkTargetOccurrences >=
+        maxAdmittedRootOrLinkTargetOccurrences;
     const readLimitReached =
-      maxCandidateReadAttempts !== undefined &&
-      this.counts.candidateReadAttempts >= maxCandidateReadAttempts;
+      maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay !== undefined &&
+      this.counts.rootOrLinkReadAttemptsIncludingDoneAndCacheReplay >=
+        maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay;
     if (!admissionLimitReached && !readLimitReached) return false;
     this.finish(admissionLimitReached, readLimitReached);
     return true;
@@ -357,23 +420,29 @@ export class WalkKernel<Data, Edge, ID> {
     admissionLimitReached = false,
     readLimitReached = false,
   ): void {
-    const reasons: (
-      | 'maxDepth'
-      | 'maxAdmittedTargets'
-      | 'maxCandidateReadAttempts'
+    const reachedLimits: (
+      | 'maxRouteHopDepth'
+      | 'maxAdmittedRootOrLinkTargetOccurrences'
+      | 'maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay'
     )[] = [];
-    if (this.depthLimited) reasons.push('maxDepth');
-    if (admissionLimitReached) reasons.push('maxAdmittedTargets');
-    if (readLimitReached) reasons.push('maxCandidateReadAttempts');
+    if (this.depthLimited) reachedLimits.push('maxRouteHopDepth');
+    if (admissionLimitReached)
+      reachedLimits.push('maxAdmittedRootOrLinkTargetOccurrences');
+    if (readLimitReached)
+      reachedLimits.push(
+        'maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay',
+      );
     this.status = Status.FINISHED;
-    this.outcome =
-      reasons.length > 0 ? { kind: 'limited', reasons } : { kind: 'exhausted' };
+    this.terminalOutcome =
+      reachedLimits.length > 0
+        ? { kind: 'traversalLimitsReached', reachedLimits }
+        : { kind: 'sourceRoutesExhausted' };
   }
 
-  poll(retainObservation = false): WalkAction<Data, Edge, ID> {
+  poll(retainObservation = false): WalkAction<VertexData, EdgeData, VertexId> {
     for (;;) {
       if (this.request !== null && this.request.issued) return { kind: 'WAIT' };
-      if (this.outcome !== null) {
+      if (this.terminalOutcome !== null) {
         if (!this.tornDown) {
           this.tornDown = true;
           this.request = null;
@@ -391,26 +460,38 @@ export class WalkKernel<Data, Edge, ID> {
         const resource = this.resources.takeLast();
         if (resource !== undefined) {
           this.call(
-            'iteratorReturn',
+            'returnSourceIteratorForDisposal',
             () => {
               const close: (() => unknown) | undefined =
                 resource.iterator.return;
               return close == null ? undefined : close.call(resource.iterator);
             },
             () => undefined,
-            resource.vertexToken,
+            resource.runnerLocalVertexIdentityToken,
           );
           const request = this.request!;
           request.issued = true;
-          const { kind, requestId, operation, invoke, vertexToken } = request;
-          return { kind, requestId, operation, invoke, vertexToken };
+          const {
+            kind,
+            runnerLocalInvocationRequestId,
+            operation,
+            invoke,
+            runnerLocalVertexIdentityToken,
+          } = request;
+          return {
+            kind,
+            runnerLocalInvocationRequestId,
+            operation,
+            invoke,
+            runnerLocalVertexIdentityToken,
+          };
         }
-        return this.outcome.kind === 'failed'
-          ? { kind: 'FAILED', error: this.outcome.error }
+        return this.terminalOutcome.kind === 'failed'
+          ? { kind: 'FAILED', error: this.terminalOutcome.error }
           : { kind: 'FINISHED' };
       }
-      if (this.status === Status.HALTED) return { kind: 'HALTED' };
-      if (this.status === Status.INITIAL) return { kind: 'WAIT' };
+      if (this.status === Status.SUSPENDED) return { kind: 'SUSPENDED' };
+      if (this.status === Status.NOT_STARTED) return { kind: 'WAIT' };
       // An admitted callback chain drains on cooperative pause. HALT keeps the
       // same chain at its next callback until a new execution lease resumes it.
       if (this.chain !== null) {
@@ -419,25 +500,36 @@ export class WalkKernel<Data, Edge, ID> {
           chain.paused ||
           (chain.done && retainObservation && this.pauseRequested)
         ) {
-          this.status = Status.HALTED;
-          return { kind: 'HALTED' };
+          this.status = Status.SUSPENDED;
+          return { kind: 'SUSPENDED' };
         }
         if (chain.done) return this.observations[0]!;
         this.call(
-          'visit',
+          'invokeVisitorCallback',
           () => chain.invoke(),
           (value) => chain.submit(value),
-          this.observations[0]!.vertexToken,
+          this.observations[0]!.runnerLocalVertexIdentityToken,
         );
       } else if (this.pauseRequested) {
-        this.status = Status.HALTED;
-        return { kind: 'HALTED' };
+        this.status = Status.SUSPENDED;
+        return { kind: 'SUSPENDED' };
       }
       if (this.request !== null) {
         this.request.issued = true;
-        const { kind, requestId, operation, invoke, vertexToken } =
-          this.request;
-        return { kind, requestId, operation, invoke, vertexToken };
+        const {
+          kind,
+          runnerLocalInvocationRequestId,
+          operation,
+          invoke,
+          runnerLocalVertexIdentityToken,
+        } = this.request;
+        return {
+          kind,
+          runnerLocalInvocationRequestId,
+          operation,
+          invoke,
+          runnerLocalVertexIdentityToken,
+        };
       }
       if (this.observations.length > 0) {
         const observation = this.observations[0]!;
@@ -447,20 +539,25 @@ export class WalkKernel<Data, Edge, ID> {
         } = this.execution;
         const enabled =
           include !== null
-            ? include.includes(observation.phase)
-            : exclude === null || !exclude.includes(observation.phase);
-        // The phase-keyed records and projection originate at the same boundary.
+            ? include.includes(observation.observationKind)
+            : exclude === null ||
+              !exclude.includes(observation.observationKind);
+        // The observationKind-keyed records and projection originate at the same boundary.
         const records = enabled
-          ? (this.options.visitors[observation.phase] as VisitorRecord<
-              WalkVisitor<Data, Edge, Phase, ID>
+          ? (this.options.visitorsByObservationKind[
+              observation.observationKind
+            ] as VisitorRecord<
+              WalkVisitor<VertexData, EdgeData, ObservationKind, VertexId>
             >[])
           : [];
         this.chain = new WalkVisitorChain(
           records,
-          observation.phase,
+          observation.observationKind,
           observation.event,
-          observation.admissionIndex,
-          this.counts.processedObservations[observation.phase],
+          observation.admittedTargetOccurrenceIndex,
+          this.counts.acknowledgedObservationCountsByKind[
+            observation.observationKind
+          ],
         );
         continue;
       }
@@ -470,36 +567,46 @@ export class WalkKernel<Data, Edge, ID> {
         this.expand(route);
         continue;
       }
-      const source = this.options.source;
+      const graphWalkDiscoverySource = this.options.graphWalkDiscoverySource;
       if (this.roots === null) {
         if (this.limitBeforePull()) continue;
         this.call(
-          'roots',
-          () => source.roots.call(source.receiver),
+          'enumerateRootTargets',
+          () =>
+            graphWalkDiscoverySource.enumerateRootTargets.call(
+              graphWalkDiscoverySource.receiver,
+            ),
           (value) => {
             this.roots = makeCursor(value);
           },
         );
       } else if (
         !this.roots.done &&
-        (this.options.strategy === 'breadthFirst' || this.frontier.size === 0)
+        (this.options.expansionOrder === 'breadthFirst' ||
+          this.frontier.size === 0)
       ) {
         if (this.limitBeforePull()) continue;
         const roots = this.roots;
-        this.counts.candidateReadAttempts++;
+        this.counts.rootOrLinkReadAttemptsIncludingDoneAndCacheReplay++;
         this.call(
-          'rootNext',
+          'readNextRootTarget',
           () => pullCursor(roots, this.executionKind, this.resources),
           (value) => {
             const step = readStep(value);
             if (step.done) {
               roots.done = true;
-              this.resources.exhausted(roots.iterator!);
+              this.resources.sourceRoutesExhausted(roots.iterator!);
             } else {
-              const target = this.cache.copyTarget(step.value);
-              if (!this.rootIds.has(target.vertexId)) {
-                this.rootIds.add(target.vertexId);
-                this.admit({ target, parent: null, via: null });
+              const targetToResolveOnAdmission = this.cache.copyTarget(
+                step.value,
+              );
+              if (!this.rootIds.has(targetToResolveOnAdmission.vertexId)) {
+                this.rootIds.add(targetToResolveOnAdmission.vertexId);
+                this.admit({
+                  targetToResolveOnAdmission,
+                  parent: null,
+                  via: null,
+                });
               }
             }
           },
@@ -511,8 +618,12 @@ export class WalkKernel<Data, Edge, ID> {
         if (entries.cursor === null) {
           if (this.limitBeforePull()) continue;
           this.call(
-            'outgoing',
-            () => source.outgoing.call(source.receiver, { ...route.vertex }),
+            'enumerateOutgoingLinks',
+            () =>
+              graphWalkDiscoverySource.enumerateOutgoingLinks.call(
+                graphWalkDiscoverySource.receiver,
+                { ...route.vertex },
+              ),
             (value) => {
               entries.cursor = makeCursor(value);
             },
@@ -521,12 +632,13 @@ export class WalkKernel<Data, Edge, ID> {
         } else {
           if (this.limitBeforePull()) continue;
           const cursor = entries.cursor;
-          const cached = frame.index < entries.links.length || cursor.done;
-          this.counts.candidateReadAttempts++;
+          const previouslyAdmittedVertex =
+            frame.index < entries.links.length || cursor.done;
+          this.counts.rootOrLinkReadAttemptsIncludingDoneAndCacheReplay++;
           this.call(
-            'edgeNext',
+            'readNextOutgoingLinkOrCachedReplay',
             () =>
-              cached
+              previouslyAdmittedVertex
                 ? frame.index < entries.links.length
                   ? { done: false, value: entries.links[frame.index] }
                   : { done: true }
@@ -539,28 +651,28 @@ export class WalkKernel<Data, Edge, ID> {
             (value) => {
               const step = readStep(value);
               if (step.done) {
-                if (!cached) {
+                if (!previouslyAdmittedVertex) {
                   cursor.done = true;
-                  this.resources.exhausted(cursor.iterator!);
+                  this.resources.sourceRoutesExhausted(cursor.iterator!);
                 }
                 this.frontier.remove();
               } else {
-                const link = cached
+                const link = previouslyAdmittedVertex
                   ? entries.links[frame.index]!
                   : this.cache.copyLink(step.value);
                 const index = frame.index++;
-                if (!cached) {
+                if (!previouslyAdmittedVertex) {
                   entries.links.push(link);
-                  this.counts.discoveredLinks++;
+                  this.counts.freshSourceOutgoingLinkCount++;
                 }
                 this.follow({
-                  target: link.target,
+                  targetToResolveOnAdmission: link.targetToResolveOnAdmission,
                   parent: route,
                   via: {
-                    from: route.vertex.vertexId,
-                    outgoingIndex: index,
-                    to: link.target.vertexId,
-                    data: link.data,
+                    fromVertexId: route.vertex.vertexId,
+                    sourceOutgoingLinkIndexBeforeFiltering: index,
+                    toVertexId: link.targetToResolveOnAdmission.vertexId,
+                    edgeData: link.edgeData,
                   },
                 });
               }
@@ -573,83 +685,85 @@ export class WalkKernel<Data, Edge, ID> {
       }
     }
   }
-  summary(): GraphWalkSummary {
+  captureProgressSnapshot(): GraphWalkProgressSnapshot {
     return Object.freeze({
       status: this.status,
       counts: Object.freeze({
         ...this.counts,
-        processedObservations: Object.freeze({
-          ...this.counts.processedObservations,
+        acknowledgedObservationCountsByKind: Object.freeze({
+          ...this.counts.acknowledgedObservationCountsByKind,
         }),
       }),
-      outcome:
-        this.outcome === null
+      terminalOutcome:
+        this.terminalOutcome === null
           ? null
-          : this.outcome.kind === 'limited'
+          : this.terminalOutcome.kind === 'traversalLimitsReached'
           ? Object.freeze({
-              ...this.outcome,
-              reasons: Object.freeze([...this.outcome.reasons]),
+              ...this.terminalOutcome,
+              reachedLimits: Object.freeze([
+                ...this.terminalOutcome.reachedLimits,
+              ]),
             })
-          : Object.freeze({ ...this.outcome }),
+          : Object.freeze({ ...this.terminalOutcome }),
     });
   }
-  inspect(): GraphWalkInspection {
-    const { emitEvents, visitorPhases } = normalizeTraversalExecutionOptions(
-      phases,
-      undefined,
-      this.execution,
-    );
-    const execution = { emitEvents, visitorPhases };
-    Object.freeze(execution.emitEvents);
-    if (execution.visitorPhases !== 'all') {
-      if ('include' in execution.visitorPhases)
-        Object.freeze(execution.visitorPhases.include);
-      else Object.freeze(execution.visitorPhases.exclude);
-      Object.freeze(execution.visitorPhases);
+  captureExecutionSnapshot(): GraphWalkInspection {
+    const { deliveredEventKinds, admittedVisitorCallbackPhases } =
+      normalizeTraversalExecutionOptions(phases, undefined, this.execution);
+    const execution = { deliveredEventKinds, admittedVisitorCallbackPhases };
+    Object.freeze(execution.deliveredEventKinds);
+    if (execution.admittedVisitorCallbackPhases !== 'all') {
+      if ('include' in execution.admittedVisitorCallbackPhases)
+        Object.freeze(execution.admittedVisitorCallbackPhases.include);
+      else Object.freeze(execution.admittedVisitorCallbackPhases.exclude);
+      Object.freeze(execution.admittedVisitorCallbackPhases);
     }
-    const counts = this.summary().counts;
-    Object.freeze(counts.processedObservations);
+    const counts = this.captureProgressSnapshot().counts;
+    Object.freeze(counts.acknowledgedObservationCountsByKind);
     return Object.freeze({
-      kind: 'graph-walk',
+      traversalAlgorithm: 'graph-walk',
       sourceMode: 'graph',
       concurrency: 1,
-      status: this.status,
-      stopReason: this.getStopReason(),
+      traversalLifecycleStatus: this.status,
+      traversalStopReason: this.getTraversalStopReason(),
       pauseRequested: this.pauseRequested,
-      execution: this.executionKind,
-      strategy: this.options.strategy,
-      revisit: this.options.revisit,
+      callbackExecutionMode: this.executionKind,
+      expansionOrder: this.options.expansionOrder,
+      routeEnumerationPolicy: this.options.routeEnumerationPolicy,
       executionOptions: Object.freeze(execution),
       counts: Object.freeze(counts),
-      frontierSize: this.frontier.size,
+      pendingRouteExpansionFrameCount: this.frontier.size,
       // A taken resource remains open until its return request settles.
       openSourceIteratorCount:
         this.resources.size +
-        (this.request?.operation === 'iteratorReturn' ? 1 : 0),
+        (this.request?.operation === 'returnSourceIteratorForDisposal' ? 1 : 0),
       pendingObservationKinds: Object.freeze(
-        this.observations.map((item) => item.phase),
+        this.observations.map((item) => item.observationKind),
       ),
-      activeVisitor:
+      visitorChainPosition:
         this.chain === null
           ? null
           : Object.freeze({
-              phase: this.chain.phase,
-              visitorIndex: this.chain.visitorIndex,
+              observationKind: this.chain.observationKind,
+              visitorIndexInObservationChain:
+                this.chain.visitorIndexInObservationChain,
             }),
-      pendingRequests: Object.freeze(
+      pendingInvocationRequests: Object.freeze(
         this.request === null
           ? []
           : [
               Object.freeze({
-                requestId: this.request.requestId,
+                runnerLocalInvocationRequestId:
+                  this.request.runnerLocalInvocationRequestId,
                 operation: this.request.operation,
-                vertexToken: this.request.vertexToken,
+                runnerLocalVertexIdentityToken:
+                  this.request.runnerLocalVertexIdentityToken,
               }),
             ],
       ),
-      inFlightCallbackCount:
+      inFlightInvocationCount:
         this.request !== null && this.request.issued ? 1 : 0,
-      bufferedEventCount: this.observations.length,
+      bufferedDeliveryEventCount: this.observations.length,
     });
   }
 }

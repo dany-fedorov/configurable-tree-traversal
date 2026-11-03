@@ -1,57 +1,85 @@
-import type { MutableRef } from '@core/CTTRef';
-import type { GetPathToOptions } from '@core/ResolvedTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { MutableValueReference } from '@core/CTTRef';
+import type { StructuralAncestorPathOptions } from '@core/ResolvedTree';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type {
   InternalResolvedGraphVertex,
-  ResolvedVisitStage,
+  VertexVisitSchedulingStage,
 } from '@core/graph/types';
 
 export interface InternalResolvedGraphView<
-  T extends VertexTypes,
-  ID = unknown,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 > {
-  get(ref: MutableRef<Vertex<T>>): InternalResolvedGraphVertex<T, ID> | null;
-  has(ref: MutableRef<Vertex<T>>): boolean;
-  getRoot(): MutableRef<Vertex<T>> | null;
-  getVertexRefs(): MutableRef<Vertex<T>>[];
-  getVertexRefById(id: ID): MutableRef<Vertex<T>> | null;
-  requireVertexId(ref: MutableRef<Vertex<T>>): ID;
-  getVisitStageOf(ref: MutableRef<Vertex<T>>): ResolvedVisitStage | null;
-  getParentsOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
-  getChildrenOf(ref: MutableRef<Vertex<T>>): MutableRef<Vertex<T>>[] | null;
+  get(
+    ref: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): InternalResolvedGraphVertex<InputVertexTypes, VertexId> | null;
+  has(ref: MutableValueReference<Vertex<InputVertexTypes>>): boolean;
+  getRoot(): MutableValueReference<Vertex<InputVertexTypes>> | null;
+  getVertexRefs(): MutableValueReference<Vertex<InputVertexTypes>>[];
+  getVertexRefById(
+    id: VertexId,
+  ): MutableValueReference<Vertex<InputVertexTypes>> | null;
+  requireVertexId(
+    ref: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): VertexId;
+  getVertexVisitSchedulingStageOrNull(
+    ref: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): VertexVisitSchedulingStage | null;
+  getParentsOf(
+    ref: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): MutableValueReference<Vertex<InputVertexTypes>>[] | null;
+  getChildrenOf(
+    ref: MutableValueReference<Vertex<InputVertexTypes>>,
+  ): MutableValueReference<Vertex<InputVertexTypes>>[] | null;
   requirePathsTo(
-    ref: MutableRef<Vertex<T>>,
-    options?: GetPathToOptions,
-  ): MutableRef<Vertex<T>>[][];
+    ref: MutableValueReference<Vertex<InputVertexTypes>>,
+    options?: StructuralAncestorPathOptions,
+  ): MutableValueReference<Vertex<InputVertexTypes>>[][];
 }
 
 import type { VertexHandle } from './CTTRef';
-import type { ResolvedGraphVertex } from './graph/types';
-export interface ResolvedGraphView<T extends VertexTypes, ID = unknown> {
-  get(ref: VertexHandle<T>): ResolvedGraphVertex<T, ID> | null;
-  has(ref: VertexHandle<T>): boolean;
-  getRoot(): VertexHandle<T> | null;
-  getVertexRefs(): readonly VertexHandle<T>[];
-  getVertexRefById(id: ID): VertexHandle<T> | null;
-  requireVertexId(ref: VertexHandle<T>): ID;
-  getVisitStageOf(ref: VertexHandle<T>): ResolvedVisitStage | null;
-  getParentsOf(ref: VertexHandle<T>): readonly VertexHandle<T>[] | null;
-  getChildrenOf(ref: VertexHandle<T>): readonly VertexHandle<T>[] | null;
-  requirePathsTo(
-    ref: VertexHandle<T>,
-    options?: GetPathToOptions,
-  ): readonly (readonly VertexHandle<T>[])[];
+import type { ResolvedGraphVertexSnapshot } from './graph/types';
+export interface LiveResolvedGraphView<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> {
+  getVertexSnapshotOrNull(
+    ref: VertexHandle<InputVertexTypes>,
+  ): ResolvedGraphVertexSnapshot<InputVertexTypes, VertexId> | null;
+  containsVertexHandle(ref: VertexHandle<InputVertexTypes>): boolean;
+  getDesignatedRootHandleOrNull(): VertexHandle<InputVertexTypes> | null;
+  getVertexHandles(): readonly VertexHandle<InputVertexTypes>[];
+  getVertexHandleByIdOrNull(
+    id: VertexId,
+  ): VertexHandle<InputVertexTypes> | null;
+  requireVertexId(ref: VertexHandle<InputVertexTypes>): VertexId;
+  getVertexVisitSchedulingStageOrNull(
+    ref: VertexHandle<InputVertexTypes>,
+  ): VertexVisitSchedulingStage | null;
+  getDistinctStructuralParentHandlesOrNull(
+    ref: VertexHandle<InputVertexTypes>,
+  ): readonly VertexHandle<InputVertexTypes>[] | null;
+  getStructuralChildHandlesInSlotOrderOrNull(
+    ref: VertexHandle<InputVertexTypes>,
+  ): readonly VertexHandle<InputVertexTypes>[] | null;
+  requireAllStructuralAncestorPathsTo(
+    ref: VertexHandle<InputVertexTypes>,
+    options?: StructuralAncestorPathOptions,
+  ): readonly (readonly VertexHandle<InputVertexTypes>[])[];
 }
 
-export type OriginalGraphView<T extends VertexTypes, ID = unknown> = Pick<
-  ResolvedGraphView<T, ID>,
-  | 'has'
-  | 'getRoot'
-  | 'getVertexRefs'
-  | 'getVertexRefById'
+export type PreCommandDiscoveredGraphView<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+> = Pick<
+  LiveResolvedGraphView<InputVertexTypes, VertexId>,
+  | 'containsVertexHandle'
+  | 'getDesignatedRootHandleOrNull'
+  | 'getVertexHandles'
+  | 'getVertexHandleByIdOrNull'
   | 'requireVertexId'
-  | 'getParentsOf'
-  | 'getChildrenOf'
-  | 'requirePathsTo'
+  | 'getDistinctStructuralParentHandlesOrNull'
+  | 'getStructuralChildHandlesInSlotOrderOrNull'
+  | 'requireAllStructuralAncestorPathsTo'
 >;

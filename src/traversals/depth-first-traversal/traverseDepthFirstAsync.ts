@@ -1,16 +1,24 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import { AsyncDepthFirstTreeTraversal } from './AsyncDepthFirstTraversal';
-import type { AsyncDepthFirstTreeOptions } from './lib/AsyncDepthFirstTraversalInstanceConfig';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import { AsyncDepthFirstTreeTraversalBuilder } from './AsyncDepthFirstTraversal';
+import type { AsyncDepthFirstTreeTraversalBuilderOptions } from './lib/AsyncDepthFirstTraversalInstanceConfig';
 import type { AsyncDepthFirstTreeRunner } from './lib/AsyncDepthFirstTraversalRunner';
 
-export function traverseTreeDepthFirstAsync<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+export function runTreeDepthFirstUntilSuspendedOrTerminalAsync<
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 >(
-  options: AsyncDepthFirstTreeOptions<TTP, RW_TTP>,
-): Promise<AsyncDepthFirstTreeRunner<TTP, RW_TTP>> {
+  options: AsyncDepthFirstTreeTraversalBuilderOptions<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >,
+): Promise<AsyncDepthFirstTreeRunner<InputVertexTypes, RewrittenVertexTypes>> {
   if (arguments.length !== 1)
     throw new TypeError('Traversal helpers require a single options object');
-  const traversal = new AsyncDepthFirstTreeTraversal<TTP, RW_TTP>(options);
-  return traversal.createRunner().run();
+  const traversal = new AsyncDepthFirstTreeTraversalBuilder<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >(options);
+  return traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
 }

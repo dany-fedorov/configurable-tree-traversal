@@ -1,47 +1,60 @@
-import type { GraphWalkVertex } from './GraphWalkSource';
-import type { GraphWalkPhase } from './GraphWalkPhase';
+import type { GraphWalkResolvedVertex } from './GraphWalkSource';
+import type { GraphWalkObservationKind } from './GraphWalkPhase';
 
-export type GraphWalkEdge<Edge, ID> = Readonly<{
-  from: ID;
+export type GraphWalkEdge<EdgeData, VertexId> = Readonly<{
+  fromVertexId: VertexId;
   /** Zero-based source adjacency position before filtering; stable on cached replay. */
-  outgoingIndex: number;
-  to: ID;
-  data: Edge;
+  sourceOutgoingLinkIndexBeforeFiltering: number;
+  toVertexId: VertexId;
+  edgeData: EdgeData;
 }>;
 
-export type GraphWalkEvent<Data, Edge, ID> =
+export type GraphWalkEvent<VertexData, EdgeData, VertexId> =
   | Readonly<{
-      kind: 'vertex';
-      vertex: GraphWalkVertex<Data, ID>;
-      depth: number;
-      via: GraphWalkEdge<Edge, ID> | null;
+      eventKind: 'vertexOccurrence';
+      vertex: GraphWalkResolvedVertex<VertexData, VertexId>;
+      vertexHopDepth: number;
+      incomingEdgeFromParentRouteOccurrence: GraphWalkEdge<
+        EdgeData,
+        VertexId
+      > | null;
     }>
   | Readonly<{
-      kind: 'edge';
-      edge: GraphWalkEdge<Edge, ID>;
-      fromVertex: GraphWalkVertex<Data, ID>;
-      depth: number;
-      target:
-        | Readonly<{ kind: 'found'; vertex: GraphWalkVertex<Data, ID> }>
+      eventKind: 'admittedEdgeOccurrence';
+      edge: GraphWalkEdge<EdgeData, VertexId>;
+      fromVertex: GraphWalkResolvedVertex<VertexData, VertexId>;
+      targetHopDepth: number;
+      targetResolution:
+        | Readonly<{
+            kind: 'found';
+            vertex: GraphWalkResolvedVertex<VertexData, VertexId>;
+          }>
         | Readonly<{ kind: 'omitted' }>;
     }>
   | Readonly<{
-      kind: 'path';
-      vertices: readonly GraphWalkVertex<Data, ID>[];
-      edges: readonly GraphWalkEdge<Edge, ID>[];
-      depth: number;
+      eventKind: 'routePrefix';
+      verticesInRootToTargetOrder: readonly GraphWalkResolvedVertex<
+        VertexData,
+        VertexId
+      >[];
+      edgesInRootToTargetOrder: readonly GraphWalkEdge<EdgeData, VertexId>[];
+      routeHopLength: number;
     }>;
 
-export type GraphWalkEventFor<
-  Data,
-  Edge,
-  Phase extends `${GraphWalkPhase}`,
-  ID,
-> = Extract<GraphWalkEvent<Data, Edge, ID>, { kind: `${Phase}` }>;
-
-export type GraphWalkPathEvent<Data, Edge, ID> = GraphWalkEventFor<
-  Data,
-  Edge,
-  GraphWalkPhase.PATH,
-  ID
+export type GraphWalkEventForObservationKind<
+  VertexData,
+  EdgeData,
+  ObservationKind extends `${GraphWalkObservationKind}`,
+  VertexId,
+> = Extract<
+  GraphWalkEvent<VertexData, EdgeData, VertexId>,
+  { eventKind: `${ObservationKind}` }
 >;
+
+export type GraphWalkRoutePrefixEvent<VertexData, EdgeData, VertexId> =
+  GraphWalkEventForObservationKind<
+    VertexData,
+    EdgeData,
+    GraphWalkObservationKind.ROUTE_PREFIX,
+    VertexId
+  >;

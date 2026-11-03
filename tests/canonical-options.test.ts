@@ -1,123 +1,137 @@
-import { bindDagWorkSession } from '../src';
+import { bindDagExternalWorkSession } from '../src';
 import {
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  AsyncGraphWalk,
-  BreadthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstTreeTraversal,
-  GraphWalk,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  AsyncGraphWalkBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  GraphWalkBuilder,
   rewriteObject,
 } from '../src';
 
 for (const Builder of [
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  AsyncBreadthFirstTreeTraversalBuilder,
 ]) {
   test(`${Builder.name} requires a source without calling it during construction or configuration`, async () => {
     let calls = 0;
-    const traversableTree = {
-      resolveRoot: () => {
+    const treeDiscoverySource = {
+      resolveRootVertex: () => {
         calls++;
-        return { kind: 'omitted' as const };
+        return { kind: 'vertexIntentionallyOmitted' as const };
       },
-      resolveChild: () => {
+      resolveChildVertexFromHint: () => {
         calls++;
-        return { kind: 'omitted' as const };
+        return { kind: 'vertexIntentionallyOmitted' as const };
       },
     };
-    const traversal = new Builder({ traversableTree });
-    expect(traversal.configure({ visitors: {} })).toBe(traversal);
-    const runner = traversal.createRunner();
+    const traversal = new Builder({ treeDiscoverySource });
+    expect(traversal.patchOptionsForFutureRunners({ visitors: {} })).toBe(
+      traversal,
+    );
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
     expect(calls).toBe(0);
     expect(() =>
-      traversal.configure({ traversalRunnerInternalObjects: {} } as never),
+      traversal.patchOptionsForFutureRunners({
+        traversalRunnerInternalObjects: {},
+      } as never),
     ).toThrow(TypeError);
     expect(
       () =>
         new Builder({
-          traversableTree,
+          treeDiscoverySource,
           traversalRunnerInternalObjects: {},
         } as never),
     ).toThrow(TypeError);
     expect(calls).toBe(0);
-    await runner.run();
+    await runner.runUntilSuspendedOrTerminal();
     expect(calls).toBe(1);
-    expect(runner.inspect().executionOptions).toEqual({
-      emitEvents: expect.any(Array),
-      visitorPhases: 'all',
+    expect(runner.captureExecutionSnapshot().executionOptions).toEqual({
+      deliveredEventKinds: expect.any(Array),
+      admittedVisitorCallbackPhases: 'all',
     });
   });
 }
-for (const Builder of [DagTraversal, AsyncDagTraversal]) {
+for (const Builder of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Builder.name} rejects raw state atomically without source IO`, async () => {
     let calls = 0;
-    const traversableGraph = {
-      resolveRoot: () => {
+    const dagDiscoverySource = {
+      resolveRootVertex: () => {
         calls++;
         return {
-          identity: null,
-          kind: 'omitted' as const,
-          satisfiesDependencies: true as const,
+          omittedVertexIdentity: null,
+          kind: 'vertexIntentionallyOmitted' as const,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         };
       },
-      resolveChild: () => {
+      resolveChildHint: () => {
         calls++;
         return {
-          identity: null,
-          kind: 'omitted' as const,
-          satisfiesDependencies: true as const,
+          omittedVertexIdentity: null,
+          kind: 'vertexIntentionallyOmitted' as const,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
         };
       },
     };
-    const traversal = new Builder({ traversableGraph });
-    expect(traversal.configure({ visitors: {} })).toBe(traversal);
+    const traversal = new Builder({ dagDiscoverySource });
+    expect(traversal.patchOptionsForFutureRunners({ visitors: {} })).toBe(
+      traversal,
+    );
     expect(() =>
-      traversal.configure({ traversalRunnerInternalObjects: {} } as never),
+      traversal.patchOptionsForFutureRunners({
+        traversalRunnerInternalObjects: {},
+      } as never),
     ).toThrow(TypeError);
     expect(
       () =>
         new Builder({
-          traversableGraph,
+          dagDiscoverySource,
           traversalRunnerInternalObjects: {},
         } as never),
     ).toThrow(TypeError);
-    const runner = traversal.createRunner();
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
     expect(calls).toBe(0);
-    await runner.run();
+    await runner.runUntilSuspendedOrTerminal();
     expect(calls).toBe(1);
-    expect(runner.inspect().executionOptions).toEqual({
-      emitEvents: ['workCompleted', 'subgraphCompleted'],
-      visitorPhases: 'all',
+    expect(runner.captureExecutionSnapshot().executionOptions).toEqual({
+      deliveredEventKinds: [
+        'workCompletionCommitted',
+        'subgraphCompletionCommitted',
+      ],
+      admittedVisitorCallbackPhases: 'all',
     });
   });
 }
-for (const Builder of [GraphWalk, AsyncGraphWalk]) {
+for (const Builder of [GraphWalkBuilder, AsyncGraphWalkBuilder]) {
   test(`${Builder.name} inspection exposes only effective public selectors`, async () => {
     let calls = 0;
     const traversal = new Builder({
-      source: {
-        hydration: 'inlineOrCached' as const,
-        roots: () => {
+      graphWalkDiscoverySource: {
+        vertexResolutionMode:
+          'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+        enumerateRootTargets: () => {
           calls++;
           return [];
         },
-        outgoing: () => [],
+        enumerateOutgoingLinks: () => [],
       },
     });
-    expect(traversal.configure({ visitorPhases: { include: [] } })).toBe(
-      traversal,
-    );
-    const runner = traversal.createRunner();
+    expect(
+      traversal.patchOptionsForFutureRunners({
+        admittedVisitorCallbackPhases: { include: [] },
+      }),
+    ).toBe(traversal);
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
     expect(calls).toBe(0);
-    await runner.run();
+    await runner.runUntilSuspendedOrTerminal();
     expect(calls).toBe(1);
-    expect(runner.inspect().executionOptions).toEqual({
-      emitEvents: ['vertex'],
-      visitorPhases: { include: [] },
+    expect(runner.captureExecutionSnapshot().executionOptions).toEqual({
+      deliveredEventKinds: ['vertexOccurrence'],
+      admittedVisitorCallbackPhases: { include: [] },
     });
   });
 }
@@ -128,23 +142,23 @@ test('rewrite helpers own fresh runner state', () => {
 });
 
 test('DAG coordination requires the registered runner identity', () => {
-  const runner = new DagTraversal({
-    workCompletion: 'externalSettlement',
-    traversableGraph: {
-      resolveRoot: () => ({
-        identity: null,
-        satisfiesDependencies: true as const,
-        kind: 'omitted' as const,
+  const runner = new DagTraversalBuilder({
+    workCompletionPolicy: 'requireExternalWorkSettlement',
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        omittedVertexIdentity: null,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+        kind: 'vertexIntentionallyOmitted' as const,
       }),
-      resolveChild: () => ({
-        identity: null,
-        satisfiesDependencies: true as const,
-        kind: 'omitted' as const,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+        kind: 'vertexIntentionallyOmitted' as const,
       }),
     },
-  }).createRunner();
-  expect(() => bindDagWorkSession(Object.create(runner))).toThrow(
-    /externalSettlement/,
+  }).createIndependentRunnerFromCurrentOptions();
+  expect(() => bindDagExternalWorkSession(Object.create(runner))).toThrow(
+    /requireExternalWorkSettlement/,
   );
-  expect(() => bindDagWorkSession(runner)).not.toThrow();
+  expect(() => bindDagExternalWorkSession(runner)).not.toThrow();
 });

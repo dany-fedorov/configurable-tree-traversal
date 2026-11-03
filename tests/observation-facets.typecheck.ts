@@ -2,39 +2,44 @@ import {
   Vertex,
   type VertexHandle,
   type VertexView,
-  type VertexTypes,
+  type VertexDataAndChildHintTypes,
   type DepthFirstTreeRunner,
   type AsyncDepthFirstTreeRunner,
   type DagTraversalRunner,
   type AsyncDagTraversalRunner,
   type TreeVisitorContext,
   type DagVisitorContext,
-  type TreeChildResolutionContext,
+  type TreeChildResolverContext,
   type DagChildResolutionContext,
-  type ResolvedGraphView,
+  type LiveResolvedGraphView,
 } from '../src';
 // @ts-expect-error removed graph view name
 import type { ResolvedGraph as _ResolvedGraph } from '../src';
-type Input = VertexTypes<{ input: string }, { hint: string }>;
-type Output = VertexTypes<{ output: number }, { hint: string }>;
+type Input = VertexDataAndChildHintTypes<{ input: string }, { hint: string }>;
+type Output = VertexDataAndChildHintTypes<{ output: number }, { hint: string }>;
 declare const handle: VertexHandle<Input>;
 declare const vertex: VertexView<Input>;
 // @ts-expect-error no editing capability on observation handles
-handle.setValue(new Vertex<Input>({ $data: { input: '' }, $childHints: [] }));
+handle.replaceReferencedValue(
+  new Vertex<Input>({ $vertexData: { input: '' }, $childDiscoveryHints: [] }),
+);
 // @ts-expect-error CTT field is readonly
-vertex.$data = { input: 'changed' };
+vertex.$vertexData = { input: 'changed' };
 // @ts-expect-error hints are readonly
-vertex.$childHints.push({ hint: 'changed' });
+vertex.$childDiscoveryHints.push({ hint: 'changed' });
 // @ts-expect-error query hints are readonly
-vertex.getChildHints().length = 0;
+vertex.getDetachedChildDiscoveryHints().length = 0;
 // Opaque caller payloads remain shallow and writable.
-vertex.getData().input = 'caller update';
-vertex.getChildHints()[0]!.hint = 'caller hint update';
-vertex.clone().getChildHints().push({ hint: 'independent clone' });
+vertex.getVertexData().input = 'caller update';
+vertex.getDetachedChildDiscoveryHints()[0]!.hint = 'caller hint update';
+vertex
+  .createEditableShallowCloneWithContentOverrides()
+  .getMutableChildDiscoveryHints()
+  .push({ hint: 'independent clone' });
 
 declare const tree: TreeVisitorContext<string, Input, Output>;
 declare const dag: DagVisitorContext<Input, Output>;
-declare const treeSource: TreeChildResolutionContext<Input, Output>;
+declare const treeSource: TreeChildResolverContext<Input, Output>;
 declare const dagSource: DagChildResolutionContext<Input, Output>;
 // @ts-expect-error ordinary callbacks expose a query view only
 tree.resolvedTree;
@@ -43,55 +48,74 @@ dag.resolvedGraph;
 // @ts-expect-error no live store access
 treeSource.resolvedTree;
 // @ts-expect-error readonly nested source reference
-treeSource.resolutionContext.parentVertexRef.setValue(vertex);
+treeSource.childDiscoveryContext.parentVertexHandle.replaceReferencedValue(
+  vertex.createEditableShallowCloneWithContentOverrides(),
+);
 // @ts-expect-error old traversal-start flag removed
 dag.isTraversalRoot;
 // @ts-expect-error previous callback identity has no editing capability
-tree.previousPhaseVertexRef?.setValue(vertex);
+tree.previousCommittedVisitVertexHandleForSamePhase?.replaceReferencedValue(
+  vertex.createEditableShallowCloneWithContentOverrides(),
+);
 const originalInput: string = tree
-  .originalTreeView!.getRoot()!
-  .getValue()
-  .getData().input;
-// @ts-expect-error original tree data stays in the input domain
-tree.originalTreeView!.getRoot()!.getValue().getData().output;
+  .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+  .getCurrentVertexView()
+  .getVertexData().input;
+tree
+  .preCommandDiscoveredTreeView!.getRootVertexHandleOrNull()!
+  .getCurrentVertexView()
+  // @ts-expect-error original tree data stays in the input domain
+  .getVertexData().output;
 const originalGraphInput: string = dag
-  .originalGraphView!.getRoot()!
-  .getValue()
-  .getData().input;
+  .preCommandDiscoveredGraphView!.getDesignatedRootHandleOrNull()!
+  .getCurrentVertexView()
+  .getVertexData().input;
 const treeParent: VertexHandle<Input | Output> =
-  treeSource.resolutionContext.parentVertexRef;
-if (dagSource.resolutionContext.parentVertexRef === null) {
-  const hiddenParent: null = dagSource.resolutionContext.parentVertex;
+  treeSource.childDiscoveryContext.parentVertexHandle;
+if (dagSource.structuralChildResolution.parentVertexHandle === null) {
+  const hiddenParent: null =
+    dagSource.structuralChildResolution.parentVertexAtChildResolution;
   void hiddenParent;
 } else {
   const parent: VertexView<Input | Output> =
-    dagSource.resolutionContext.parentVertex;
+    dagSource.structuralChildResolution.parentVertexAtChildResolution;
   void parent;
 }
 // @ts-expect-error synthetic entries have no public parent
-dagSource.resolutionContext.parentVertex.getData();
+dagSource.structuralChildResolution.parentVertexAtChildResolution.getVertexData();
 
 declare const dfs: DepthFirstTreeRunner<Input, Output>;
 declare const adfs: AsyncDepthFirstTreeRunner<Input, Output>;
 declare const d: DagTraversalRunner<Input, Output>;
 declare const ad: AsyncDagTraversalRunner<Input, Output>;
 for (const runner of [dfs, adfs, d, ad]) {
-  const graph: ResolvedGraphView<Input | Output> =
-    runner.getResolvedGraphView();
+  const graph: LiveResolvedGraphView<Input | Output> =
+    runner.getLiveResolvedGraphView();
   // @ts-expect-error old graph getter removed
   runner.getResolvedGraph();
   // @ts-expect-error ordinary runners do not expose stores
   runner.getResolvedTreeStore();
   // @ts-expect-error independent traversal-start predicate removed
   runner.isTraversalRootVertex(handle);
-  // @ts-expect-error event record refs cannot edit
-  graph.get(handle)!.vertexRef.setValue(vertex);
-  // @ts-expect-error structural edges cannot edit
-  graph.get(handle)!.incoming[0]!.parentRef.setValue(vertex);
-  const slot = graph.get(handle)!.slots[0]!;
-  if (slot.kind === 'linked') {
+  graph
+    .getVertexSnapshotOrNull(handle)!
+    // @ts-expect-error event record refs cannot edit
+    .vertexHandle.replaceReferencedValue(
+      vertex.createEditableShallowCloneWithContentOverrides(),
+    );
+  graph
+    .getVertexSnapshotOrNull(handle)!
+    // @ts-expect-error structural edges cannot edit
+    .incomingStructuralChildEdges[0]!.parentVertexHandle.replaceReferencedValue(
+      vertex.createEditableShallowCloneWithContentOverrides(),
+    );
+  const slot =
+    graph.getVertexSnapshotOrNull(handle)!.orderedChildDiscoverySlots[0]!;
+  if (slot.kind === 'linkedToVertex') {
     // @ts-expect-error structural slots cannot edit
-    slot.childRef.setValue(vertex);
+    slot.childVertexHandle.replaceReferencedValue(
+      vertex.createEditableShallowCloneWithContentOverrides(),
+    );
   }
 }
 void [originalInput, originalGraphInput, treeParent];

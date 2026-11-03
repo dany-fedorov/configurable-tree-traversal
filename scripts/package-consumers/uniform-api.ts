@@ -1,133 +1,170 @@
 import { TraversalVisitorCommandName as VisitorCommand } from 'configurable-tree-traversal';
 import {
-  AsyncDagTraversal,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase as D,
-  DepthFirstTreeTraversal,
-  DepthFirstPhase as F,
-  BreadthFirstPhase as B,
+  DepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase as F,
+  BreadthFirstTreeVisitPhase as B,
   TraversalVisitorCommandName as C,
   core,
-  traverseTreeDepthFirst,
-  traverseTreeDepthFirstAsync,
-  traverseTreeBreadthFirst,
-  traverseTreeBreadthFirstAsync,
+  runTreeDepthFirstUntilSuspendedOrTerminal,
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync,
+  runTreeBreadthFirstUntilSuspendedOrTerminal,
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync,
   traverseDag,
   traverseDagAsync,
 } from 'configurable-tree-traversal';
 import type {
-  VertexTypes,
-  TreeSource,
+  VertexDataAndChildHintTypes,
+  TreeDiscoverySource,
   DagDiscoverySource,
-  DagVertexResolution,
-  DagVertexFound,
-  PrerequisiteMissing,
-  DagPrerequisiteResolution,
+  DagSourceVertexResolution,
+  FoundDagSourceVertex,
+  DagPrerequisiteLookupMissing,
+  DagPrerequisiteLookupResult,
   VertexContent,
   VertexContentInput,
   VisitorRegistrationMetadata,
-  TreeVisitor,
+  TreeVertexPhaseVisitorCallback,
   DagVisitor,
   DagSettlementOutcome,
   DagWorkState,
 } from 'configurable-tree-traversal';
-
-type T = VertexTypes<string | undefined, string>;
-const canonical: VertexContent<T> = { $data: 'root', $childHints: ['leaf'] };
+type T = VertexDataAndChildHintTypes<string | undefined, string>;
+const canonical: VertexContent<T> = {
+  $vertexData: 'root',
+  $childDiscoveryHints: ['leaf'],
+};
 // @ts-expect-error Retired content spelling is not accepted.
 const legacy: VertexContentInput<T> = { $d: 'old', $c: [] };
-const vertex = new core.Vertex<T>(canonical).clone({ $data: undefined });
-const data: string | undefined = vertex.$data;
-const alias: string | undefined = vertex.$data;
+const vertex = new core.Vertex<T>(
+  canonical,
+).createEditableShallowCloneWithContentOverrides({ $vertexData: undefined });
+const data: string | undefined = vertex.$vertexData;
+const alias: string | undefined = vertex.$vertexData;
 // @ts-expect-error mixed vertex spellings are ambiguous
-new core.Vertex<T>({ $data: '', $c: [] });
-const found: DagVertexFound<T> = {
-  kind: 'found',
-  vertex: { vertexId: undefined, vertexContent: canonical },
+new core.Vertex<T>({ $vertexData: '', $c: [] });
+const found: FoundDagSourceVertex<T> = {
+  kind: 'vertexResolved',
+  resolvedVertexInput: { vertexId: undefined, vertexContentInput: canonical },
 };
-const omitted: import('configurable-tree-traversal').DagVertexOmitted = {
-  identity: null,
-  kind: 'omitted',
-  satisfiesDependencies: true,
+const omitted: import('configurable-tree-traversal').OmittedDagSourceVertex = {
+  omittedVertexIdentity: null,
+  kind: 'vertexIntentionallyOmitted',
+  satisfiesWorkAndSubgraphCompletionPrerequisites: true,
 };
-const missing: PrerequisiteMissing = { kind: 'missing' };
-const source: DagVertexResolution<T> = found;
-const lookup: DagPrerequisiteResolution<T> = missing;
+const missing: DagPrerequisiteLookupMissing = { kind: 'missing' };
+const source: DagSourceVertexResolution<T> = found;
+const lookup: DagPrerequisiteLookupResult<T> = missing;
 // @ts-expect-error missing is valid only in prerequisite lookup
-const invalidSource: DagVertexResolution<T> = missing;
-const tree: TreeSource<T> = {
-  resolveRoot: () => ({ kind: 'found', vertex: { vertexContent: canonical } }),
-  resolveChild: () => ({ kind: 'omitted' }),
+const invalidSource: DagSourceVertexResolution<T> = missing;
+const tree: TreeDiscoverySource<T> = {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved',
+    resolvedVertexInput: { vertexContentInput: canonical },
+  }),
+  resolveChildVertexFromHint: () => ({ kind: 'vertexIntentionallyOmitted' }),
 };
 const graph: DagDiscoverySource<T> = {
-  resolveRoot: () => source,
-  resolveChild: () => omitted,
-  resolvePrerequisite: () => lookup,
+  resolveRootVertex: () => source,
+  resolveChildHint: () => omitted,
+  resolvePrerequisiteByVertexId: () => lookup,
 };
-const common: TreeVisitor<string, T, T> = (_vertex, options) => {
-  const metadata: VisitorRegistrationMetadata = options.registration;
+const common: TreeVertexPhaseVisitorCallback<T, T, string> = (
+  _vertex,
+  options,
+) => {
+  const metadata: VisitorRegistrationMetadata =
+    options.visitorRegistrationMetadata;
   // @ts-expect-error callback context exposes metadata, not executable records
   metadata.visitor;
   // @ts-expect-error callback metadata is readonly
-  metadata.priority = 0;
-  return { commands: [{ commandName: C.NOOP }] };
+  metadata.descendingExecutionPriorityWithinGroup = 0;
+  return { commands: [{ commandName: C.NO_OPERATION }] };
 };
 const dagCommon: DagVisitor<T> = () => ({
-  commands: [{ commandName: C.NOOP }],
+  commands: [{ commandName: C.NO_OPERATION }],
 });
-const depth = new DepthFirstTreeTraversal({ traversableTree: tree });
-depth.addVisitorFor(F.POST_ORDER, common);
-depth.configure({
+const depth = new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: tree });
+depth.registerVisitorCallbackForPhase(F.AFTER_CHILD_SUBTREES, common);
+depth.patchOptionsForFutureRunners({
   visitors: {
-    [F.POST_ORDER]: [{ visitor: common, priority: 1 }],
+    [F.AFTER_CHILD_SUBTREES]: [
+      { visitor: common, descendingExecutionPriorityWithinGroup: 1 },
+    ],
   },
 });
-depth.setVisitorsFor(F.POST_ORDER, [{ visitor: common, priority: 1 }]);
-const callback = depth.listVisitorsFor(F.POST_ORDER)[0]!.visitor;
-depth.addVisitorFor(
-  F.PRE_ORDER,
+depth.replaceVisitorDefinitionsForPhase(F.AFTER_CHILD_SUBTREES, [
+  { visitor: common, descendingExecutionPriorityWithinGroup: 1 },
+]);
+const callback = depth.getDetachedVisitorRegistrationRecordsForPhase(
+  F.AFTER_CHILD_SUBTREES,
+)[0]!.visitor;
+depth.registerVisitorCallbackForPhase(
+  F.BEFORE_CHILD_EXPANSION,
   (_v, options) => {
-    const phase: F.PRE_ORDER = options.phase;
+    const phase: F.BEFORE_CHILD_EXPANSION = options.visitorPhase;
     void phase;
     return {
       commands: [
         {
-          commandName: C.REWRITE_CHILD_HINTS,
-          commandArguments: { newHints: [] },
+          commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+          commandArguments: { replacementChildHints: [] },
         },
       ],
     };
   },
-  { commandCommitMode: 'afterGroup' },
+  { visitorCommandCommitTiming: 'afterContiguousVisitorBatch' },
 );
-depth.addVisitorFor(F.PRE_ORDER, common, { commandCommitMode: 'afterGroup' });
-depth.addVisitorFor(F.POST_ORDER, () => ({
+depth.registerVisitorCallbackForPhase(F.BEFORE_CHILD_EXPANSION, common, {
+  visitorCommandCommitTiming: 'afterContiguousVisitorBatch',
+});
+depth.registerVisitorCallbackForPhase(F.AFTER_CHILD_SUBTREES, () => ({
   commands: [
-    // @ts-expect-error hint rewriting is invalid after children complete
-    { commandName: C.REWRITE_CHILD_HINTS, commandArguments: { newHints: [] } },
+    {
+      // @ts-expect-error hint rewriting is invalid after children complete
+      commandName: C.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+      // @ts-expect-error post-child callbacks do not accept replacement child hints
+      commandArguments: { replacementChildHints: [] },
+    },
   ],
 }));
-const dag = new DagTraversal({
-  traversableGraph: graph,
-  rootWorkDependencies: 'honor',
-  dependsOnWorkDefault: 'none',
+const dag = new DagTraversalBuilder({
+  dagDiscoverySource: graph,
+  rootWorkPrerequisitePolicy: 'honor',
+  undeclaredWorkPrerequisitePolicy: 'none',
 });
-dag.addVisitorFor(D.ON_WORK_READY, (_v, options) => {
-  const phase: D.ON_WORK_READY = options.phase;
+dag.registerVisitorCallbackForPhase(D.ON_WORK_READY, (_v, options) => {
+  const phase: D.ON_WORK_READY = options.visitorPhase;
   void phase;
-  return { commands: [{ commandName: C.DEFER_WORK_COMPLETION }] };
+  return {
+    commands: [
+      { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+    ],
+  };
 });
-dag.addVisitorFor(D.ON_WORK_READY, () => ({
-  commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION as const }],
+dag.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => ({
+  commands: [
+    {
+      commandName:
+        VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+    },
+  ],
 }));
-dag.addVisitorFor(D.ON_SUBGRAPH_READY, dagCommon);
-dag.addVisitorFor(D.ON_SUBGRAPH_READY, () => ({
-  // @ts-expect-error completion visitors cannot defer
-  commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+dag.registerVisitorCallbackForPhase(D.ON_SUBGRAPH_COMPLETION_READY, dagCommon);
+dag.registerVisitorCallbackForPhase(D.ON_SUBGRAPH_COMPLETION_READY, () => ({
+  commands: [
+    // @ts-expect-error completion visitors cannot defer
+    { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+  ],
 }));
-dag.addVisitorFor(D.ON_WORK_READY, () => ({
-  // @ts-expect-error deferral must be the only command
-  commands: [{ commandName: C.NOOP }, { commandName: C.DEFER_WORK_COMPLETION }],
+dag.registerVisitorCallbackForPhase(D.ON_WORK_READY, () => ({
+  commands: [
+    // @ts-expect-error deferral must be the only command
+    { commandName: C.NO_OPERATION },
+    { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+  ],
 }));
 const outcome: DagSettlementOutcome = {
   kind: 'traversalFailed',
@@ -135,75 +172,79 @@ const outcome: DagSettlementOutcome = {
 };
 // @ts-expect-error Boolean settlement feedback is removed.
 const oldOutcome: DagSettlementOutcome = { ok: false, error: undefined };
-const work: DagWorkState = 'completed';
+const work: DagWorkState = 'workCompletionCommitted';
 // @ts-expect-error old progress string is replaced
 const oldWork: DagWorkState = 'succeeded';
 const syncHelpers = [
-  traverseTreeDepthFirst({
-    traversableTree: tree,
-    visitors: { [F.POST_ORDER]: common },
+  runTreeDepthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource: tree,
+    visitors: { [F.AFTER_CHILD_SUBTREES]: common },
   }),
-  traverseTreeBreadthFirst({
-    traversableTree: tree,
-    visitors: { [B.LEVEL_ORDER]: common },
+  runTreeBreadthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource: tree,
+    visitors: { [B.AT_LEVEL_ORDER_VERTEX]: common },
   }),
   traverseDag({
-    traversableGraph: graph,
+    dagDiscoverySource: graph,
     visitors: { [D.ON_WORK_READY]: dagCommon },
   }),
-  traverseTreeDepthFirst({
-    traversableTree: tree,
-    visitors: { POST_ORDER: common },
+  runTreeDepthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource: tree,
+    visitors: { AFTER_CHILD_SUBTREES: common },
   }),
-  traverseTreeBreadthFirst({
-    traversableTree: tree,
-    visitors: { LEVEL_ORDER: common },
+  runTreeBreadthFirstUntilSuspendedOrTerminal({
+    treeDiscoverySource: tree,
+    visitors: { AT_LEVEL_ORDER_VERTEX: common },
   }),
   traverseDag({
-    ...{ traversableGraph: graph },
+    ...{ dagDiscoverySource: graph },
     visitors: { ON_WORK_READY: dagCommon },
   }),
 ];
 const asyncHelpers: Promise<unknown>[] = [
-  traverseTreeDepthFirstAsync({
-    traversableTree: tree,
-    visitors: { [F.POST_ORDER]: common },
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: tree,
+    visitors: { [F.AFTER_CHILD_SUBTREES]: common },
   }),
-  traverseTreeBreadthFirstAsync({
-    traversableTree: tree,
-    visitors: { [B.LEVEL_ORDER]: common },
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: tree,
+    visitors: { [B.AT_LEVEL_ORDER_VERTEX]: common },
   }),
   traverseDagAsync({
-    traversableGraph: graph,
+    dagDiscoverySource: graph,
     visitors: { [D.ON_WORK_READY]: dagCommon },
   }),
-  traverseTreeDepthFirstAsync({
-    traversableTree: tree,
-    visitors: { POST_ORDER: common },
+  runTreeDepthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: tree,
+    visitors: { AFTER_CHILD_SUBTREES: common },
   }),
-  traverseTreeBreadthFirstAsync({
-    traversableTree: tree,
-    visitors: { LEVEL_ORDER: common },
+  runTreeBreadthFirstUntilSuspendedOrTerminalAsync({
+    treeDiscoverySource: tree,
+    visitors: { AT_LEVEL_ORDER_VERTEX: common },
   }),
   traverseDagAsync({
-    ...{ traversableGraph: graph },
+    ...{ dagDiscoverySource: graph },
     visitors: { ON_WORK_READY: dagCommon },
   }),
 ];
 // @ts-expect-error helper has exactly one source
-traverseDag({ traversableTree: tree, traversableGraph: graph });
+traverseDag({ treeDiscoverySource: tree, dagDiscoverySource: graph });
 traverseDag({
-  traversableGraph: graph,
+  dagDiscoverySource: graph,
   visitors: {
     // @ts-expect-error helper phase prevents completion deferral
-    [D.ON_SUBGRAPH_READY]: () => ({
-      commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+    [D.ON_SUBGRAPH_COMPLETION_READY]: () => ({
+      commands: [
+        { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+      ],
     }),
   },
 });
-const asyncDag = new AsyncDagTraversal({ traversableGraph: graph });
-asyncDag.addVisitorFor(D.ON_WORK_READY, async () => ({
-  commands: [{ commandName: C.DEFER_WORK_COMPLETION }],
+const asyncDag = new AsyncDagTraversalBuilder({ dagDiscoverySource: graph });
+asyncDag.registerVisitorCallbackForPhase(D.ON_WORK_READY, async () => ({
+  commands: [
+    { commandName: C.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION },
+  ],
 }));
 void [
   data,
@@ -217,116 +258,175 @@ void [
   syncHelpers,
   asyncHelpers,
 ];
-
 // All new contracts compile through both declaration loader branches.
 import type {
   TreeVertexResolution,
-  TreeVertexFound,
-  TreeVertexOmitted,
-  TraversalExecutionOptions,
+  TreeVertexResolutionFound,
+  TreeVertexResolutionOmitted,
+  TraversalExecutionSelectionPatch,
   TraversalStopReason,
-  VisitorPhaseInput,
+  VisitorDefinitionsForPhase,
   VisitorGroupMember,
-  ResolvedTreeView,
-  ObjectChildHookResult,
-  ObjectTreeVertexTypes,
-  MutationCommandBuilder,
-  ObjectPropertyPatch,
+  LiveResolvedTreeView,
+  ObjectChildPropertyResolutionOverrideResult,
+  ObjectPropertyTreeVertexTypes,
+  VertexDataMutationCommandBuilder,
+  ObjectPropertyKeyValuePatch,
 } from 'configurable-tree-traversal';
-import { ObjectTreeSource, rewriteObject } from 'configurable-tree-traversal';
-const treeFound: TreeVertexFound<T> = {
-  kind: 'found',
-  vertex: { vertexContent: canonical },
+import {
+  ObjectPropertyTreeSource,
+  rewriteObject,
+} from 'configurable-tree-traversal';
+const treeFound: TreeVertexResolutionFound<T> = {
+  kind: 'vertexResolved',
+  resolvedVertexInput: { vertexContentInput: canonical },
 };
-const treeOmitted: TreeVertexOmitted = { kind: 'omitted' };
+const treeOmitted: TreeVertexResolutionOmitted = {
+  kind: 'vertexIntentionallyOmitted',
+};
 // @ts-expect-error Tree omissions cannot acknowledge graph milestones.
-const graphOmissionAsTree: TreeVertexOmitted = omitted;
+const graphOmissionAsTree: TreeVertexResolutionOmitted = omitted;
 // @ts-expect-error Graph omissions require explicit acknowledgement.
-const treeOmissionAsGraph: DagVertexResolution<T> = treeOmitted;
+const treeOmissionAsGraph: DagSourceVertexResolution<T> = treeOmitted;
 const undefinedAcknowledgement = {
   identity: null,
   kind: 'omitted' as const,
   satisfiesDependencies: undefined,
 };
 // @ts-expect-error Even present undefined is graph metadata.
-const undefinedOmissionAsTree: TreeVertexOmitted = undefinedAcknowledgement;
+const undefinedOmissionAsTree: TreeVertexResolutionOmitted =
+  undefinedAcknowledgement;
 void [graphOmissionAsTree, treeOmissionAsGraph, undefinedOmissionAsTree];
 const treeResult: TreeVertexResolution<T> = treeFound;
-// @ts-expect-error Untagged tree results are removed.
-const oldTreeResult: TreeVertexResolution<T> = { vertexContent: canonical };
+const oldTreeResult: TreeVertexResolution<T> = {
+  // @ts-expect-error Untagged tree results are removed.
+  vertexContentInput: canonical,
+};
 // @ts-expect-error tree sources do not accept graph identity
 const wrongTree: TreeVertexResolution<T> = found;
-const execution: TraversalExecutionOptions<F> = {
-  emitEvents: [],
-  visitorPhases: { exclude: [] },
+const execution: TraversalExecutionSelectionPatch<F> = {
+  deliveredEventKinds: [],
+  admittedVisitorCallbackPhases: { exclude: [] },
 };
-const bothSelectors: TraversalExecutionOptions<F> = {
+const bothSelectors: TraversalExecutionSelectionPatch<F> = {
   // @ts-expect-error a callback selector has exactly one mode
-  visitorPhases: { include: [], exclude: [] },
+  admittedVisitorCallbackPhases: { include: [], exclude: [] },
 };
-const mixedSelectors: TraversalExecutionOptions<F> = {
-  emitEvents: [],
+const mixedSelectors: TraversalExecutionSelectionPatch<F> = {
+  deliveredEventKinds: [],
   // @ts-expect-error canonical and legacy emission names cannot coexist
   iterateOver: [],
 };
-const phaseDefinition: VisitorPhaseInput<typeof common> = {
+const phaseDefinition: VisitorDefinitionsForPhase<typeof common> = {
   groups: [
     {
-      commandCommitMode: 'afterGroup',
-      visitors: [{ visitor: common, priority: 1 }],
+      visitorCommandCommitTiming: 'afterContiguousVisitorBatch',
+      visitors: [
+        { visitor: common, descendingExecutionPriorityWithinGroup: 1 },
+      ],
     },
     { visitors: [common] },
   ],
 };
-depth.configure({ visitors: { [F.POST_ORDER]: phaseDefinition } });
-depth.setVisitorsFor(F.POST_ORDER, depth.listVisitorsFor(F.POST_ORDER));
-depth.addVisitorGroupFor(F.POST_ORDER, { visitors: [common] });
+depth.patchOptionsForFutureRunners({
+  visitors: { [F.AFTER_CHILD_SUBTREES]: phaseDefinition },
+});
+depth.replaceVisitorDefinitionsForPhase(
+  F.AFTER_CHILD_SUBTREES,
+  depth.getDetachedVisitorRegistrationRecordsForPhase(F.AFTER_CHILD_SUBTREES),
+);
+depth.appendVisitorGroupForPhase(F.AFTER_CHILD_SUBTREES, {
+  visitors: [common],
+});
 const badMember: VisitorGroupMember<typeof common> = {
   visitor: common,
   // @ts-expect-error explicit group policy cannot be set by members
-  commandCommitMode: 'afterGroup',
+  visitorCommandCommitTiming: 'afterGroup',
 };
-const externalDag = new DagTraversal({
-  traversableGraph: graph,
-  workCompletion: 'externalSettlement',
+const externalDag = new DagTraversalBuilder({
+  dagDiscoverySource: graph,
+  workCompletionPolicy: 'requireExternalWorkSettlement',
 });
-const externalRunner = externalDag.createRunner();
-const reason: TraversalStopReason | null = externalRunner.getStopReason();
-const treeView: ResolvedTreeView<T> | null =
-  externalRunner.getResolvedTreeView();
+const externalRunner = externalDag.createIndependentRunnerFromCurrentOptions();
+const reason: TraversalStopReason | null =
+  externalRunner.getTraversalStopReason();
+const treeView: LiveResolvedTreeView<T> | null =
+  externalRunner.getLiveResolvedTreeView();
 if (treeView) {
   // @ts-expect-error safe facades have no raw records
-  treeView.get(treeView.getRoot()!);
-  // @ts-expect-error query collections are readonly
-  treeView.getChildrenOf(treeView.getRoot()!)!.push(treeView.getRoot()!);
+  treeView.get(treeView.getRootVertexHandleOrNull()!);
+  treeView
+    .getChildVertexHandlesOrNull(treeView.getRootVertexHandleOrNull()!)!
+    // @ts-expect-error query collections are readonly
+    .push(treeView.getRootVertexHandleOrNull()!);
 }
-const resolved = externalRunner.getResolvedGraphView();
-const vertexRef = resolved.getVertexRefById(undefined);
-if (vertexRef) {
-  const referenceId: string = vertexRef.getRefId();
-  const hostId: unknown = resolved.requireVertexId(vertexRef);
+const resolved = externalRunner.getLiveResolvedGraphView();
+const vertexHandle = resolved.getVertexHandleByIdOrNull(undefined);
+if (vertexHandle) {
+  const referenceId: string = vertexHandle.getReferenceIdentity();
+  const hostId: unknown = resolved.requireVertexId(vertexHandle);
   void [referenceId, hostId];
 }
-const hookResult: ObjectChildHookResult<ObjectTreeVertexTypes<string, number>> =
-  { kind: 'useDefault' };
-new ObjectTreeSource({ a: 1 }, { resolveChildHook: () => hookResult });
-// @ts-expect-error Preferred object options use the tagged resolution hook.
-new ObjectTreeSource({ a: 1 }, { makeVertexHook: () => ({ returnMe: null }) });
-type Prop = ObjectTreeVertexTypes<string, number | undefined>;
-const objectPatch: ObjectPropertyPatch<Prop> = { value: undefined };
-const objectFactory = ObjectTreeSource.createObjectMutationBinder<Prop, Prop>();
-const objectVisitor: TreeVisitor<F.POST_ORDER, Prop, Prop> = (v, options) => {
-  const { makeMutationCommand } = objectFactory(v, options);
-  makeMutationCommand({ kind: 'rewrite', patch: objectPatch });
-  makeMutationCommand({ kind: 'rewrite', patch: { key: 'renamed' } });
-  // @ts-expect-error typed object helper rejects wrong value types
-  makeMutationCommand({ kind: 'rewrite', patch: { value: 'wrong' } });
+const hookResult: ObjectChildPropertyResolutionOverrideResult<
+  ObjectPropertyTreeVertexTypes<string, number>
+> = { kind: 'useDefaultChildPropertyResolution' };
+new ObjectPropertyTreeSource(
+  { a: 1 },
+  { resolveChildPropertyOrUseDefault: () => hookResult },
+);
+new ObjectPropertyTreeSource(
+  { a: 1 },
+  // @ts-expect-error Preferred object options use the tagged resolution hook.
+  { makeVertexHook: () => ({ returnMe: null }) },
+);
+type Prop = ObjectPropertyTreeVertexTypes<string, number | undefined>;
+const objectPatch: ObjectPropertyKeyValuePatch<Prop> = {
+  propertyValue: undefined,
 };
-declare const replace: MutationCommandBuilder<Prop>;
-replace({ kind: 'rewrite', value: { key: 'new', value: 1 } });
-// @ts-expect-error generic builder requires complete data by default
-replace({ kind: 'rewrite', value: { key: 'incomplete' } });
-rewriteObject({ a: 1 }, { resolveChildHook: () => ({ kind: 'useDefault' }) });
+const objectFactory =
+  ObjectPropertyTreeSource.createObjectPropertyMutationHelperBinder<
+    Prop,
+    Prop
+  >();
+const objectVisitor: TreeVertexPhaseVisitorCallback<
+  Prop,
+  Prop,
+  F.AFTER_CHILD_SUBTREES
+> = (v, options) => {
+  const { createObjectPropertyMutationCommand: makeVertexDataMutationCommand } =
+    objectFactory(v, options);
+  makeVertexDataMutationCommand({
+    kind: 'patchPropertyKeyOrValue',
+    propertyPatch: objectPatch,
+  });
+  makeVertexDataMutationCommand({
+    kind: 'patchPropertyKeyOrValue',
+    propertyPatch: { propertyKey: 'renamed' },
+  });
+  makeVertexDataMutationCommand({
+    kind: 'patchPropertyKeyOrValue',
+    // @ts-expect-error typed object helper rejects wrong value types
+    propertyPatch: { propertyValue: 'wrong' },
+  });
+};
+declare const replace: VertexDataMutationCommandBuilder<Prop>;
+replace({
+  kind: 'replaceData',
+  replacementData: { propertyKey: 'new', propertyValue: 1 },
+});
+replace({
+  kind: 'replaceData',
+  // @ts-expect-error generic builder requires complete data by default
+  replacementData: { propertyKey: 'incomplete' },
+});
+rewriteObject(
+  { a: 1 },
+  {
+    resolveChildPropertyOrUseDefault: () => ({
+      kind: 'useDefaultChildPropertyResolution',
+    }),
+  },
+);
 void [
   treeOmitted,
   treeResult,

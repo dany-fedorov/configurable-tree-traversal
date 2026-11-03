@@ -1,15 +1,18 @@
-import type { OriginalGraphView } from '@core/ResolvedGraphView';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { PreCommandDiscoveredGraphView } from '@core/ResolvedGraphView';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 
 /** True when exactly one resolved vertex has no structural children.
  * Empty graphs return false and a single leaf returns true; W/C edges are ignored.
  */
-export function hasSingleStructuralSink<T extends VertexTypes>(
-  graph: OriginalGraphView<T>,
-): boolean {
+export function hasExactlyOneResolvedStructuralLeaf<
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+>(graph: PreCommandDiscoveredGraphView<SourceVertexTypes>): boolean {
   let count = 0;
-  for (const ref of graph.getVertexRefs()) {
-    if ((graph.getChildrenOf(ref)?.length ?? 0) === 0) count++;
+  for (const ref of graph.getVertexHandles()) {
+    if (
+      (graph.getStructuralChildHandlesInSlotOrderOrNull(ref)?.length ?? 0) === 0
+    )
+      count++;
     if (count > 1) return false;
   }
   return count === 1;

@@ -4,112 +4,186 @@ import {
   captureOptionFields,
 } from '@core/assertPublicOptions';
 import type { MaybePromise } from '@core/graph/types';
-import type { GraphWalkSource } from './GraphWalkSource';
+import type { GraphWalkDiscoverySource } from './GraphWalkSource';
 
 /** Catalog relations identify endpoints; lazy walking links wrap targets. */
-export type GraphWalkCatalogLink<Edge, ID> = Readonly<{ to: ID; data: Edge }>;
+export type GraphWalkCatalogOutgoingLinkToVertexId<EdgeData, VertexId> =
+  Readonly<{ toVertexId: VertexId; edgeData: EdgeData }>;
 
-export interface GraphWalkRecordSelectors<Data, Edge, ID> {
-  id(item: Data): ID;
-  outgoing(item: Data): Iterable<GraphWalkCatalogLink<Edge, ID>>;
-  roots: Iterable<ID>;
+export interface GraphWalkRecordMaterializationOptions<
+  VertexData,
+  EdgeData,
+  VertexId,
+> {
+  getVertexId(vertexRecord: VertexData): VertexId;
+  enumerateOutgoingLinks(
+    vertexRecord: VertexData,
+  ): Iterable<GraphWalkCatalogOutgoingLinkToVertexId<EdgeData, VertexId>>;
+  rootVertexIds: Iterable<VertexId>;
 }
 
-export interface AsyncGraphWalkRecordSelectors<Data, Edge, ID> {
-  id(item: Data): MaybePromise<ID>;
-  outgoing(
-    item: Data,
+export interface AsyncGraphWalkRecordMaterializationOptions<
+  VertexData,
+  EdgeData,
+  VertexId,
+> {
+  getVertexId(vertexRecord: VertexData): MaybePromise<VertexId>;
+  enumerateOutgoingLinks(
+    vertexRecord: VertexData,
   ): MaybePromise<
-    | Iterable<GraphWalkCatalogLink<Edge, ID>>
-    | AsyncIterable<GraphWalkCatalogLink<Edge, ID>>
+    | Iterable<GraphWalkCatalogOutgoingLinkToVertexId<EdgeData, VertexId>>
+    | AsyncIterable<GraphWalkCatalogOutgoingLinkToVertexId<EdgeData, VertexId>>
   >;
-  roots: Iterable<ID> | AsyncIterable<ID>;
+  rootVertexIds: Iterable<VertexId> | AsyncIterable<VertexId>;
 }
-type CatalogRecord<Data, Edge, ID> = {
-  data: Data;
-  links: GraphWalkCatalogLink<Edge, ID>[];
+type CatalogRecord<VertexData, EdgeData, VertexId> = {
+  vertexData: VertexData;
+  links: GraphWalkCatalogOutgoingLinkToVertexId<EdgeData, VertexId>[];
 };
 
-function materializedSource<Data, Edge, ID>(
-  records: Map<ID, CatalogRecord<Data, Edge, ID>>,
-  roots: ID[],
-): Extract<GraphWalkSource<Data, Edge, ID>, { hydration: 'resolver' }> {
-  const lookup = (id: ID): CatalogRecord<Data, Edge, ID> => {
-    const record = records.get(id);
+function materializedSource<VertexData, EdgeData, VertexId>(
+  records: Map<VertexId, CatalogRecord<VertexData, EdgeData, VertexId>>,
+  rootVertexIds: VertexId[],
+): Extract<
+  GraphWalkDiscoverySource<VertexData, EdgeData, VertexId>,
+  { vertexResolutionMode: 'resolverWithOptionalInlineResolution' }
+> {
+  const lookup = (
+    getVertexId: VertexId,
+  ): CatalogRecord<VertexData, EdgeData, VertexId> => {
+    const record = records.get(getVertexId);
     if (record === undefined) throw new TypeError('Unknown walking vertex ID');
     return record;
   };
-  for (const id of roots) lookup(id);
+  for (const getVertexId of rootVertexIds) lookup(getVertexId);
   for (const record of records.values())
-    for (const link of record.links) lookup(link.to);
+    for (const link of record.links) lookup(link.toVertexId);
   return {
-    hydration: 'resolver',
-    roots: () => roots.map((vertexId) => ({ vertexId })),
-    resolveVertex: (vertexId) => ({
+    vertexResolutionMode: 'resolverWithOptionalInlineResolution',
+    enumerateRootTargets: () => rootVertexIds.map((vertexId) => ({ vertexId })),
+    resolveVertexDataById: (vertexId) => ({
       kind: 'found',
-      data: lookup(vertexId).data,
+      vertexData: lookup(vertexId).vertexData,
     }),
-    outgoing: (vertex) =>
+    enumerateOutgoingLinks: (vertex) =>
       lookup(vertex.vertexId).links.map((link) => ({
-        target: { vertexId: link.to },
-        data: link.data,
+        targetToResolveOnAdmission: { vertexId: link.toVertexId },
+        edgeData: link.edgeData,
       })),
   };
 }
 
-/** Eagerly copy a finite catalog's topology, retaining caller data and IDs. */
-export function materializeWalkSourceFromRecords<Data, Edge, ID>(
-  items: Iterable<Data>,
-  options: GraphWalkRecordSelectors<Data, Edge, ID>,
-): Extract<GraphWalkSource<Data, Edge, ID>, { hydration: 'resolver' }> {
-  assertOwnKeys(options, ['id', 'outgoing', 'roots']);
-  const captured = captureOptionFields(options, ['id', 'outgoing', 'roots']);
-  assertOptionalCallbacks(captured, ['id', 'outgoing']);
+/** Eagerly copy a finite catalog's topology, retaining caller edgeData and IDs. */
+export function materializeGraphWalkSourceFromVertexRecords<
+  VertexData,
+  EdgeData,
+  VertexId,
+>(
+  vertexRecords: Iterable<VertexData>,
+  options: GraphWalkRecordMaterializationOptions<
+    VertexData,
+    EdgeData,
+    VertexId
+  >,
+): Extract<
+  GraphWalkDiscoverySource<VertexData, EdgeData, VertexId>,
+  { vertexResolutionMode: 'resolverWithOptionalInlineResolution' }
+> {
+  assertOwnKeys(options, [
+    'getVertexId',
+    'enumerateOutgoingLinks',
+    'rootVertexIds',
+  ]);
+  const captured = captureOptionFields(options, [
+    'getVertexId',
+    'enumerateOutgoingLinks',
+    'rootVertexIds',
+  ]);
+  assertOptionalCallbacks(captured, ['getVertexId', 'enumerateOutgoingLinks']);
   if (
-    typeof captured.id !== 'function' ||
-    typeof captured.outgoing !== 'function'
+    typeof captured.getVertexId !== 'function' ||
+    typeof captured.enumerateOutgoingLinks !== 'function'
   )
-    throw new TypeError('Walking selectors require id/outgoing');
-  const records = new Map<ID, CatalogRecord<Data, Edge, ID>>();
-  for (const item of items) {
-    const id = captured.id.call(options, item);
-    if (records.has(id)) throw new TypeError('Duplicate walking vertex ID');
-    records.set(id, {
-      data: item,
-      links: Array.from(captured.outgoing.call(options, item), (link) => ({
-        to: link.to,
-        data: link.data,
-      })),
+    throw new TypeError(
+      'Walking selectors require getVertexId/enumerateOutgoingLinks',
+    );
+  const records = new Map<
+    VertexId,
+    CatalogRecord<VertexData, EdgeData, VertexId>
+  >();
+  for (const vertexRecord of vertexRecords) {
+    const getVertexId = captured.getVertexId.call(options, vertexRecord);
+    if (records.has(getVertexId))
+      throw new TypeError('Duplicate walking vertex ID');
+    records.set(getVertexId, {
+      vertexData: vertexRecord,
+      links: Array.from(
+        captured.enumerateOutgoingLinks.call(options, vertexRecord),
+        (link) => ({
+          toVertexId: link.toVertexId,
+          edgeData: link.edgeData,
+        }),
+      ),
     });
   }
-  return materializedSource(records, [...captured.roots]);
+  return materializedSource(records, [...captured.rootVertexIds]);
 }
 
 /** Await finite inputs once and return a reusable synchronous walking source. */
-export async function materializeWalkSourceFromRecordsAsync<Data, Edge, ID>(
-  items: Iterable<Data> | AsyncIterable<Data>,
-  options: AsyncGraphWalkRecordSelectors<Data, Edge, ID>,
+export async function materializeSynchronousGraphWalkSourceFromAsyncRecords<
+  VertexData,
+  EdgeData,
+  VertexId,
+>(
+  vertexRecords: Iterable<VertexData> | AsyncIterable<VertexData>,
+  options: AsyncGraphWalkRecordMaterializationOptions<
+    VertexData,
+    EdgeData,
+    VertexId
+  >,
 ): Promise<
-  Extract<GraphWalkSource<Data, Edge, ID>, { hydration: 'resolver' }>
+  Extract<
+    GraphWalkDiscoverySource<VertexData, EdgeData, VertexId>,
+    { vertexResolutionMode: 'resolverWithOptionalInlineResolution' }
+  >
 > {
-  assertOwnKeys(options, ['id', 'outgoing', 'roots']);
-  const captured = captureOptionFields(options, ['id', 'outgoing', 'roots']);
-  assertOptionalCallbacks(captured, ['id', 'outgoing']);
+  assertOwnKeys(options, [
+    'getVertexId',
+    'enumerateOutgoingLinks',
+    'rootVertexIds',
+  ]);
+  const captured = captureOptionFields(options, [
+    'getVertexId',
+    'enumerateOutgoingLinks',
+    'rootVertexIds',
+  ]);
+  assertOptionalCallbacks(captured, ['getVertexId', 'enumerateOutgoingLinks']);
   if (
-    typeof captured.id !== 'function' ||
-    typeof captured.outgoing !== 'function'
+    typeof captured.getVertexId !== 'function' ||
+    typeof captured.enumerateOutgoingLinks !== 'function'
   )
-    throw new TypeError('Walking selectors require id/outgoing');
-  const records = new Map<ID, CatalogRecord<Data, Edge, ID>>();
-  for await (const item of items) {
-    const id = await captured.id.call(options, item);
-    if (records.has(id)) throw new TypeError('Duplicate walking vertex ID');
-    const links: GraphWalkCatalogLink<Edge, ID>[] = [];
-    for await (const link of await captured.outgoing.call(options, item))
-      links.push({ to: link.to, data: link.data });
-    records.set(id, { data: item, links });
+    throw new TypeError(
+      'Walking selectors require getVertexId/enumerateOutgoingLinks',
+    );
+  const records = new Map<
+    VertexId,
+    CatalogRecord<VertexData, EdgeData, VertexId>
+  >();
+  for await (const vertexRecord of vertexRecords) {
+    const getVertexId = await captured.getVertexId.call(options, vertexRecord);
+    if (records.has(getVertexId))
+      throw new TypeError('Duplicate walking vertex ID');
+    const links: GraphWalkCatalogOutgoingLinkToVertexId<EdgeData, VertexId>[] =
+      [];
+    for await (const link of await captured.enumerateOutgoingLinks.call(
+      options,
+      vertexRecord,
+    ))
+      links.push({ toVertexId: link.toVertexId, edgeData: link.edgeData });
+    records.set(getVertexId, { vertexData: vertexRecord, links });
   }
-  const roots: ID[] = [];
-  for await (const id of captured.roots) roots.push(id);
-  return materializedSource(records, roots);
+  const rootVertexIds: VertexId[] = [];
+  for await (const getVertexId of captured.rootVertexIds)
+    rootVertexIds.push(getVertexId);
+  return materializedSource(records, rootVertexIds);
 }

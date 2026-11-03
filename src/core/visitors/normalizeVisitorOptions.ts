@@ -1,26 +1,35 @@
 import {
   DEFAULT_VISITOR_PRIORITY,
-  type TraversalVisitorFunctionOptions,
+  type VisitorRegistrationOptions,
 } from '@core/TraversalVisitor';
 
 export function normalizeVisitorOptions(
-  options: Partial<TraversalVisitorFunctionOptions>,
-): Required<TraversalVisitorFunctionOptions> {
-  const { priority, commandCommitMode } = options;
+  options: Partial<VisitorRegistrationOptions>,
+): Required<VisitorRegistrationOptions> {
+  const {
+    descendingExecutionPriorityWithinGroup:
+      descendingExecutionPriorityWithinGroup,
+    visitorCommandCommitTiming,
+  } = options;
   if (
-    priority !== undefined &&
-    (typeof priority !== 'number' || !Number.isFinite(priority))
+    descendingExecutionPriorityWithinGroup !== undefined &&
+    (typeof descendingExecutionPriorityWithinGroup !== 'number' ||
+      !Number.isFinite(descendingExecutionPriorityWithinGroup))
   )
-    throw new TypeError('Visitor priority must be finite');
+    throw new TypeError(
+      'Visitor descendingExecutionPriorityWithinGroup must be finite',
+    );
   if (
-    commandCommitMode !== undefined &&
-    commandCommitMode !== 'afterEachVisitor' &&
-    commandCommitMode !== 'afterGroup'
+    visitorCommandCommitTiming !== undefined &&
+    visitorCommandCommitTiming !== 'afterEachVisitorCallback' &&
+    visitorCommandCommitTiming !== 'afterContiguousVisitorBatch'
   ) {
     throw new TypeError('Unknown visitor command commit mode');
   }
   return {
-    priority: priority ?? DEFAULT_VISITOR_PRIORITY,
-    commandCommitMode: commandCommitMode ?? 'afterEachVisitor',
+    descendingExecutionPriorityWithinGroup:
+      descendingExecutionPriorityWithinGroup ?? DEFAULT_VISITOR_PRIORITY,
+    visitorCommandCommitTiming:
+      visitorCommandCommitTiming ?? 'afterEachVisitorCallback',
   };
 }

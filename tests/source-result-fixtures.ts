@@ -1,21 +1,21 @@
 /** Canonical fixture adapter for nullable tree content, retaining caller identities. */
 export function treeResolution<D, H>(
-  content: { $data: D; $childHints: H[] } | null,
+  content: { $vertexData: D; $childDiscoveryHints: H[] } | null,
 ) {
   return content === null
-    ? { kind: 'omitted' as const }
-    : { kind: 'found' as const, vertex: { vertexContent: content } };
+    ? { kind: 'vertexIntentionallyOmitted' as const }
+    : { kind: 'vertexResolved' as const, resolvedVertexInput: { vertexContentInput: content } };
 }
 
 /** Graph acknowledgement belongs only to graph omissions. */
 export function graphResolution<V extends object>(
-  result: { kind: 'found'; vertex: V } | { kind: 'omitted'; vertex?: never },
+  result: { kind: 'vertexResolved'; resolvedVertexInput: V } | { kind: 'vertexIntentionallyOmitted'; resolvedVertexInput?: never },
 ) {
-  return result.kind === 'omitted'
+  return result.kind === 'vertexIntentionallyOmitted'
     ? {
-        identity: null,
-        kind: 'omitted' as const,
-        satisfiesDependencies: true as const,
+        omittedVertexIdentity: null,
+        kind: 'vertexIntentionallyOmitted' as const,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
       }
     : result;
 }

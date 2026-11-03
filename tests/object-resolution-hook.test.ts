@@ -1,21 +1,21 @@
 import { capturedOutputValue } from './helpers/rewriteOutput';
 import {
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstPhase,
-  DepthFirstTreeTraversal,
-  ObjectTreeSource,
-  type ObjectTreeVertexTypes,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeVisitPhase,
+  DepthFirstTreeTraversalBuilder,
+  ObjectPropertyTreeSource,
+  type ObjectPropertyTreeVertexTypes,
 } from '../src';
 import {
   rewriteObject,
-  type RewriteObjectOptions,
+  type ObjectPropertyRewriteOptions,
 } from '../src/tools/rewrite-object/rewriteObject';
 
-type Options = RewriteObjectOptions<
+type Options = ObjectPropertyRewriteOptions<
   unknown,
   PropertyKey,
   unknown,
@@ -25,55 +25,66 @@ type Options = RewriteObjectOptions<
 >;
 function rewriteWithHook(
   input: unknown,
-  resolveChildHook: (hint: { key: PropertyKey; value: unknown }) => unknown,
+  resolveChildPropertyOrUseDefault: (hint: {
+    propertyKey: PropertyKey;
+    propertyValue: unknown;
+  }) => unknown,
 ) {
   return capturedOutputValue(
-    rewriteObject(input, { resolveChildHook } as Options),
+    rewriteObject(input, { resolveChildPropertyOrUseDefault } as Options),
   );
 }
 
 test('canonical hook replaces and omits properties in reconstructed output and delegates defaults', () => {
   expect(
     rewriteWithHook({ keep: { leaf: 1 }, replace: 2, skip: 3 }, (hint) =>
-      hint.key === 'skip'
-        ? { kind: 'omitted' }
-        : hint.key === 'replace'
+      hint.propertyKey === 'skip'
+        ? { kind: 'vertexIntentionallyOmitted' }
+        : hint.propertyKey === 'replace'
         ? {
-            kind: 'found',
-            vertex: {
-              vertexContent: {
-                $data: { key: 'replacement', value: 9 },
-                $childHints: [],
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
+              vertexContentInput: {
+                $vertexData: { propertyKey: 'replacement', propertyValue: 9 },
+                $childDiscoveryHints: [],
               },
             },
           }
-        : { kind: 'useDefault' },
+        : { kind: 'useDefaultChildPropertyResolution' },
     ),
   ).toEqual({ keep: { leaf: 1 }, replacement: 9 });
 });
 
 test('canonical found preserves exact data and child hint identity', () => {
-  const hint = { key: 'nested', value: 2 };
-  const data = { key: 'replacement', value: {} };
+  const hint = { propertyKey: 'nested', propertyValue: 2 };
+  const data = { propertyKey: 'replacement', propertyValue: {} };
   const childHints = [hint];
-  const tree = new ObjectTreeSource({ original: 1 }, {
-    resolveChildHook: (input: { key: PropertyKey }) =>
-      input.key === 'original'
+  const tree = new ObjectPropertyTreeSource({ original: 1 }, {
+    resolveChildPropertyOrUseDefault: (input: { propertyKey: PropertyKey }) =>
+      input.propertyKey === 'original'
         ? {
-            kind: 'found',
-            vertex: { vertexContent: { $data: data, $childHints: childHints } },
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
+              vertexContentInput: {
+                $vertexData: data,
+                $childDiscoveryHints: childHints,
+              },
+            },
           }
-        : { kind: 'useDefault' },
+        : { kind: 'useDefaultChildPropertyResolution' },
   } as Options);
   const seen: unknown[] = [];
-  new DepthFirstTreeTraversal({ traversableTree: tree })
-    .addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
-      seen.push(vertex.getData());
-      if (vertex.getData() === data)
-        expect(vertex.getChildHints()).toEqual(childHints);
-    })
-    .createRunner()
-    .run();
+  new DepthFirstTreeTraversalBuilder({ treeDiscoverySource: tree })
+    .registerVisitorCallbackForPhase(
+      DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+      (vertex) => {
+        seen.push(vertex.getVertexData());
+        if (vertex.getVertexData() === data)
+          expect(vertex.getDetachedChildDiscoveryHints()).toEqual(childHints);
+      },
+    )
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
   expect(seen.slice(1)).toEqual([data, hint]);
   expect(seen[1]).toBe(data);
   expect(seen[2]).toBe(hint);
@@ -83,18 +94,20 @@ test('canonical found still detects ancestor cycles and permits shared sibling o
   const input = { child: 1 };
   expect(() =>
     rewriteWithHook(input, () => ({
-      kind: 'found',
-      vertex: {
-        vertexContent: {
-          $data: { key: 'back', value: input },
-          $childHints: [],
+      kind: 'vertexResolved',
+      resolvedVertexInput: {
+        vertexContentInput: {
+          $vertexData: { propertyKey: 'back', propertyValue: input },
+          $childDiscoveryHints: [],
         },
       },
     })),
   ).toThrow(/cycle/i);
   const shared = { leaf: 1 };
   expect(
-    rewriteWithHook({ a: shared, b: shared }, () => ({ kind: 'useDefault' })),
+    rewriteWithHook({ a: shared, b: shared }, () => ({
+      kind: 'useDefaultChildPropertyResolution',
+    })),
   ).toEqual({ a: { leaf: 1 }, b: { leaf: 1 } });
 });
 
@@ -103,25 +116,28 @@ test.each([
   null,
   {},
   { kind: 'other' },
-  { kind: 'found', vertex: null },
-  { kind: 'found', vertex: { vertexContent: null } },
+  { kind: 'vertexResolved', resolvedVertexInput: null },
+  { kind: 'vertexResolved', resolvedVertexInput: { vertexContentInput: null } },
 ])('rejects malformed canonical result %p', (result) => {
   expect(() => rewriteWithHook({ a: 1 }, () => result)).toThrow(TypeError);
 });
 
 test.each([
   'vertexId',
-  'dependsOnWork',
-  'dependsOnSubgraphCompletion',
+  'workWaitsForWorkOf',
+  'workWaitsForSubgraphCompletionOf',
   'satisfiesDependencies',
 ])('rejects hook %s before omission/default discards it', (field) => {
   for (const result of [
-    { kind: 'useDefault', [field]: undefined },
-    { kind: 'omitted', [field]: undefined },
+    { kind: 'useDefaultChildPropertyResolution', [field]: undefined },
+    { kind: 'vertexIntentionallyOmitted', [field]: undefined },
     {
-      kind: 'found',
-      vertex: {
-        vertexContent: { $data: { key: 'a', value: 2 }, $childHints: [] },
+      kind: 'vertexResolved',
+      resolvedVertexInput: {
+        vertexContentInput: {
+          $vertexData: { propertyKey: 'a', propertyValue: 2 },
+          $childDiscoveryHints: [],
+        },
         [field]: undefined,
       },
     },
@@ -136,7 +152,9 @@ test.each([undefined, null, () => ({})])(
   (makeVertexHook) => {
     expect(() =>
       rewriteObject({ a: 1 }, {
-        resolveChildHook: () => ({ kind: 'useDefault' }),
+        resolveChildPropertyOrUseDefault: () => ({
+          kind: 'useDefaultChildPropertyResolution',
+        }),
         makeVertexHook,
       } as never),
     ).toThrow(TypeError);
@@ -144,25 +162,35 @@ test.each([undefined, null, () => ({})])(
 );
 
 test('canonical found and omitted hook results reconstruct output', () => {
-  const content = { $data: { key: 'changed', value: 4 }, $childHints: [] };
+  const content = {
+    $vertexData: { propertyKey: 'changed', propertyValue: 4 },
+    $childDiscoveryHints: [],
+  };
   expect(
     rewriteWithHook({ a: 1, skip: 2 }, (hint) =>
-      hint.key === 'skip'
-        ? { kind: 'omitted' }
-        : { kind: 'found', vertex: { vertexContent: content } },
+      hint.propertyKey === 'skip'
+        ? { kind: 'vertexIntentionallyOmitted' }
+        : {
+            kind: 'vertexResolved',
+            resolvedVertexInput: { vertexContentInput: content },
+          },
     ),
   ).toEqual({ changed: 4 });
 });
 
 test('rewriteObject captures the canonical hook configuration getter once', () => {
   let reads = 0;
-  const options = Object.defineProperty({}, 'resolveChildHook', {
-    get() {
-      reads++;
-      if (reads > 1) throw new Error('configuration read twice');
-      return () => ({ kind: 'omitted' });
+  const options = Object.defineProperty(
+    {},
+    'resolveChildPropertyOrUseDefault',
+    {
+      get() {
+        reads++;
+        if (reads > 1) throw new Error('configuration read twice');
+        return () => ({ kind: 'vertexIntentionallyOmitted' });
+      },
     },
-  });
+  );
   expect(capturedOutputValue(rewriteObject({ a: 1 }, options))).toEqual({});
   expect(reads).toBe(1);
 });
@@ -195,13 +223,16 @@ test.each([undefined, null, false, Symbol('hook failure')])(
 
 test.each([
   'vertexId',
-  'dependsOnWork',
-  'dependsOnSubgraphCompletion',
+  'workWaitsForWorkOf',
+  'workWaitsForSubgraphCompletionOf',
   'satisfiesDependencies',
 ])(
   'canonical hook cannot discard %s metadata before default/pruning',
   (field) => {
-    for (const kind of ['useDefault', 'omitted']) {
+    for (const kind of [
+      'useDefaultChildPropertyResolution',
+      'vertexIntentionallyOmitted',
+    ]) {
       expect(() =>
         rewriteWithHook({ a: 1 }, () => ({ kind, [field]: undefined })),
       ).toThrow(/graph metadata/i);
@@ -211,49 +242,59 @@ test.each([
 
 test('rejects a nonfunction canonical hook before traversal', () => {
   expect(() =>
-    rewriteObject({}, { resolveChildHook: null } as unknown as Options),
+    rewriteObject({}, {
+      resolveChildPropertyOrUseDefault: null,
+    } as unknown as Options),
   ).toThrow(TypeError);
 });
 
-type ObjectT = ObjectTreeVertexTypes<string | number | symbol, unknown>;
+type ObjectT = ObjectPropertyTreeVertexTypes<string | number | symbol, unknown>;
 for (const Constructor of [
-  DepthFirstTreeTraversal<ObjectT>,
-  AsyncDepthFirstTreeTraversal<ObjectT>,
-  BreadthFirstTreeTraversal<ObjectT>,
-  AsyncBreadthFirstTreeTraversal<ObjectT>,
-  DagTraversal<ObjectT>,
-  AsyncDagTraversal<ObjectT>,
+  DepthFirstTreeTraversalBuilder<ObjectT>,
+  AsyncDepthFirstTreeTraversalBuilder<ObjectT>,
+  BreadthFirstTreeTraversalBuilder<ObjectT>,
+  AsyncBreadthFirstTreeTraversalBuilder<ObjectT>,
+  DagTraversalBuilder<ObjectT>,
+  AsyncDagTraversalBuilder<ObjectT>,
 ]) {
   test(`${Constructor.name} object hooks use plain omissions and preserve callback errors`, async () => {
-    const tree: import('../src').TreeSource<ObjectT> = new ObjectTreeSource(
-      { keep: 1, skip: 2 },
-      {
-        resolveChildHook: (hint) =>
-          hint.key === 'skip' ? { kind: 'omitted' } : { kind: 'useDefault' },
-      },
-    );
-    const runner = new Constructor({ traversableTree: tree }).createRunner();
+    const tree: import('../src').TreeDiscoverySource<ObjectT> =
+      new ObjectPropertyTreeSource(
+        { keep: 1, skip: 2 },
+        {
+          resolveChildPropertyOrUseDefault: (hint) =>
+            hint.propertyKey === 'skip'
+              ? { kind: 'vertexIntentionallyOmitted' }
+              : { kind: 'useDefaultChildPropertyResolution' },
+        },
+      );
+    const runner = new Constructor({
+      treeDiscoverySource: tree,
+    }).createIndependentRunnerFromCurrentOptions();
     const keys: unknown[] = [];
-    for await (const event of runner.iterateEvents()) {
-      if (event !== null && !keys.includes(event.vertex.getData().key))
-        keys.push(event.vertex.getData().key);
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
+      if (
+        event !== null &&
+        !keys.includes(event.vertex.getVertexData().propertyKey)
+      )
+        keys.push(event.vertex.getVertexData().propertyKey);
     }
     expect(keys).toContain('keep');
     expect(keys).not.toContain('skip');
     for (const failure of [undefined, null, Symbol('object callback')]) {
       const failed = new Constructor({
-        traversableTree: new ObjectTreeSource(
+        treeDiscoverySource: new ObjectPropertyTreeSource(
           { child: 1 },
           {
-            resolveChildHook: () => {
+            resolveChildPropertyOrUseDefault: () => {
               throw failure;
             },
           },
         ),
-      }).createRunner();
+      }).createIndependentRunnerFromCurrentOptions();
       let caught = false;
       try {
-        await failed.run();
+        await failed.runUntilSuspendedOrTerminal();
       } catch (error) {
         caught = true;
         expect(error).toBe(failure);

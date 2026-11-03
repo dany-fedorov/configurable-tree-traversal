@@ -1,42 +1,43 @@
-import { MutableRef } from '../src/core/CTTRef';
+import { createVertexHandleFacet } from '../src/core/observationFacets';
+import { MutableValueReference } from '../src/core/CTTRef';
 import {
   executeVisitors,
   sortVisitorRecords,
 } from '../src/core/executeVisitors';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import {
   TraversalVisitorCommandName as Command,
   type TraversalVisitorCommand,
-  type TreeVisitorRecord,
+  type TreePhaseVisitorRegistrationRecord,
 } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
 
-type Tree = VertexTypes<string, string>;
-type Record = TreeVisitorRecord<'ORDER', Tree, Tree>;
+type Tree = VertexDataAndChildHintTypes<string, string>;
+type Record = TreePhaseVisitorRegistrationRecord<'ORDER', Tree, Tree>;
 
 test('yields for an external halt after the first callback batch', () => {
-  const vertexRef = new MutableRef(
-    new Vertex<Tree>({ $data: 'root', $childHints: [] }),
+  const vertexHandle = new MutableValueReference(
+    new Vertex<Tree>({ $vertexData: 'root', $childDiscoveryHints: [] }),
   );
   const calls: string[] = [];
   let halted = false;
   let firstBatch = true;
   const execution = executeVisitors({
-    vertexRef,
+    vertexHandle,
     records: [
       {
-        addedIndex: 0,
-        priority: 100,
-        commandCommitMode: 'afterEachVisitor' as const,
+        phaseRegistrationInsertionIndex: 0,
+        descendingExecutionPriorityWithinGroup: 100,
+        visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
         visitor: () => {
           calls.push('sequential');
         },
       },
     ],
     state: {
-      phaseVisitIndex: 0,
-      visitorIndex: 0,
-      previousPhaseVertexRef: null,
+      phaseVisitorChainIndex: 0,
+      visitorCallbackIndexInPhaseChain: 0,
+      previousCommittedVisitVertexHandleForSamePhase: null,
     },
     getOptions: () => null as never,
     executeCommands: (commands) => {
@@ -45,7 +46,7 @@ test('yields for an external halt after the first callback batch', () => {
       firstBatch = false;
       return {};
     },
-    isHalted: () => halted,
+    isSuspended: () => halted,
     isDeleted: () => false,
   });
 
@@ -57,33 +58,33 @@ test('yields for an external halt after the first callback batch', () => {
 });
 
 test('synchronously drives grouped callbacks while retaining halt metadata', () => {
-  const vertexRef = new MutableRef(
-    new Vertex<Tree>({ $data: 'root', $childHints: [] }),
+  const vertexHandle = new MutableValueReference(
+    new Vertex<Tree>({ $vertexData: 'root', $childDiscoveryHints: [] }),
   );
   const calls: unknown[] = [];
   const commandBatches: TraversalVisitorCommand<Tree>[][] = [];
   let halted = false;
   const records: Record[] = [
     {
-      addedIndex: 0,
-      priority: 100,
-      commandCommitMode: 'afterEachVisitor' as const,
+      phaseRegistrationInsertionIndex: 0,
+      descendingExecutionPriorityWithinGroup: 100,
+      visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       visitor: (_vertex, options) => {
-        calls.push(['sequential', options.visitorChainState]);
+        calls.push(['sequential', options.currentVertexPhaseChainState]);
       },
     },
     {
-      addedIndex: 1,
-      priority: 100,
-      commandCommitMode: 'afterGroup' as const,
+      phaseRegistrationInsertionIndex: 1,
+      descendingExecutionPriorityWithinGroup: 100,
+      visitorCommandCommitTiming: 'afterContiguousVisitorBatch' as const,
       visitor: (_vertex, options) => {
-        calls.push(['concurrent', options.visitorChainState]);
+        calls.push(['concurrent', options.currentVertexPhaseChainState]);
         return {
           commands: [
-            { commandName: Command.PAUSE_TRAVERSAL },
+            { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
             {
-              commandName: Command.SET_VISITOR_CHAIN_STATE,
-              commandArguments: { state: undefined },
+              commandName: Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
+              commandArguments: { phaseChainState: undefined },
             },
           ],
         };
@@ -91,42 +92,46 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     },
   ];
   const state = {
-    phaseVisitIndex: 7,
-    visitorIndex: 42,
-    previousPhaseVertexRef: null,
+    phaseVisitorChainIndex: 7,
+    visitorCallbackIndexInPhaseChain: 42,
+    previousCommittedVisitVertexHandleForSamePhase: null,
   };
   const execution = executeVisitors({
-    vertexRef,
+    vertexHandle,
     records: records.slice().reverse(),
     state,
-    getOptions: (registration, visitorChainState) => ({
-      resolvedTreeView: null as never,
-      originalTreeView: null,
-      phaseVisitIndex: state.phaseVisitIndex,
-      visitorIndex: state.visitorIndex,
-      previousPhaseVertexRef: state.previousPhaseVertexRef,
+    getOptions: (registration, currentVertexPhaseChainState) => ({
+      liveResolvedTreeView: null as never,
+      preCommandDiscoveredTreeView: null,
+      phaseVisitorChainIndex: state.phaseVisitorChainIndex,
+      visitorCallbackIndexInPhaseChain: state.visitorCallbackIndexInPhaseChain,
+      previousCommittedVisitVertexHandleForSamePhase:
+        state.previousCommittedVisitVertexHandleForSamePhase,
       isTreeRoot: true,
-      vertexRef,
-      visitorChainState,
-      registration,
-      phase: 'ORDER',
+      vertexHandle: createVertexHandleFacet(vertexHandle),
+      currentVertexPhaseChainState,
+      visitorRegistrationMetadata: registration,
+      visitorPhase: 'ORDER',
     }),
     executeCommands: (commands) => {
       commandBatches.push(commands);
       if (
         commands.some(
-          (command) => command.commandName === Command.PAUSE_TRAVERSAL,
+          (command) =>
+            command.commandName ===
+            Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY,
         )
       ) {
         halted = true;
       }
       return commands.some(
-        (command) => command.commandName === Command.SET_VISITOR_CHAIN_STATE,
+        (command) =>
+          command.commandName === Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
       )
-        ? { visitorChainState: undefined }
+        ? { currentVertexPhaseChainState: undefined }
         : {};
     },
-    isHalted: () => halted,
+    isSuspended: () => halted,
     isDeleted: () => false,
   });
 
@@ -134,10 +139,10 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
   expect(calls).toEqual([['concurrent', null]]);
   expect(commandBatches).toEqual([
     [
-      { commandName: Command.PAUSE_TRAVERSAL },
+      { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
       {
-        commandName: Command.SET_VISITOR_CHAIN_STATE,
-        commandArguments: { state: undefined },
+        commandName: Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
+        commandArguments: { phaseChainState: undefined },
       },
     ],
   ]);
@@ -148,46 +153,47 @@ test('synchronously drives grouped callbacks while retaining halt metadata', () 
     ['sequential', undefined],
   ]);
   expect(state).toEqual({
-    phaseVisitIndex: 8,
-    visitorIndex: 2,
-    previousPhaseVertexRef: vertexRef,
+    phaseVisitorChainIndex: 8,
+    visitorCallbackIndexInPhaseChain: 2,
+    previousCommittedVisitVertexHandleForSamePhase: vertexHandle,
   });
 });
 
 test('validates all command commit modes before invoking a compatibility callback', () => {
-  const vertexRef = new MutableRef(
-    new Vertex<Tree>({ $data: 'root', $childHints: [] }),
+  const vertexHandle = new MutableValueReference(
+    new Vertex<Tree>({ $vertexData: 'root', $childDiscoveryHints: [] }),
   );
   const calls: string[] = [];
   const records: Record[] = [
     {
-      addedIndex: 0,
-      priority: 100,
-      commandCommitMode: 'afterEachVisitor' as const,
+      phaseRegistrationInsertionIndex: 0,
+      descendingExecutionPriorityWithinGroup: 100,
+      visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       visitor: () => {
         calls.push('valid');
       },
     },
     {
-      addedIndex: 1,
-      priority: 100,
-      commandCommitMode: 'ASYNC' as import('../src').CommandCommitMode,
+      phaseRegistrationInsertionIndex: 1,
+      descendingExecutionPriorityWithinGroup: 100,
+      visitorCommandCommitTiming:
+        'ASYNC' as import('../src').VisitorCommandCommitTiming,
       visitor: () => {
         calls.push('invalid');
       },
     },
   ];
   const execution = executeVisitors({
-    vertexRef,
+    vertexHandle,
     records,
     state: {
-      phaseVisitIndex: 0,
-      visitorIndex: 0,
-      previousPhaseVertexRef: null,
+      phaseVisitorChainIndex: 0,
+      visitorCallbackIndexInPhaseChain: 0,
+      previousCommittedVisitVertexHandleForSamePhase: null,
     },
     getOptions: () => null as never,
     executeCommands: () => ({}),
-    isHalted: () => false,
+    isSuspended: () => false,
     isDeleted: () => false,
   });
 
@@ -200,28 +206,33 @@ test('validates all command commit modes before invoking a compatibility callbac
 test('sortVisitorRecords returns priority and registration order copies', () => {
   const visitor = () => undefined;
   const late = {
-    addedIndex: 2,
-    priority: 100,
-    commandCommitMode: 'afterEachVisitor' as const,
+    phaseRegistrationInsertionIndex: 2,
+    descendingExecutionPriorityWithinGroup: 100,
+    visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
     visitor,
   };
   const high = {
-    addedIndex: 1,
-    priority: 200,
-    commandCommitMode: 'afterEachVisitor' as const,
+    phaseRegistrationInsertionIndex: 1,
+    descendingExecutionPriorityWithinGroup: 200,
+    visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
     visitor,
   };
   const early = {
-    addedIndex: 0,
-    priority: 100,
-    commandCommitMode: 'afterEachVisitor' as const,
+    phaseRegistrationInsertionIndex: 0,
+    descendingExecutionPriorityWithinGroup: 100,
+    visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
     visitor,
   };
 
   const sorted = sortVisitorRecords<'ORDER', Tree, Tree>([late, high, early]);
 
   expect(
-    sorted.map(({ priority, addedIndex }) => [priority, addedIndex]),
+    sorted.map(
+      ({
+        descendingExecutionPriorityWithinGroup: priority,
+        phaseRegistrationInsertionIndex,
+      }) => [priority, phaseRegistrationInsertionIndex],
+    ),
   ).toEqual([
     [200, 1],
     [100, 0],

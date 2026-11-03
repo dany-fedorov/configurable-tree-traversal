@@ -1,6 +1,6 @@
-import { ObjectTreeSource } from '@traversable-object-tree/index';
-import { DepthFirstTreeTraversal } from '@depth-first-traversal/DepthFirstTraversal';
-import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { ObjectPropertyTreeSource } from '@traversable-object-tree/index';
+import { DepthFirstTreeTraversalBuilder } from '@depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTreeVisitPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
 const obj = {
@@ -10,32 +10,32 @@ const obj = {
   d: [{ d1: { d11: 'd11', d12: 'd12' } }],
 };
 
-const tree = new ObjectTreeSource(obj);
-const t = new DepthFirstTreeTraversal({
-  traversableTree: tree,
+const tree = new ObjectPropertyTreeSource(obj);
+const t = new DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: tree,
 });
-t.addVisitorFor(DepthFirstPhase.PRE_ORDER, (v) => {
-  console.log('PRE_ORDER', v.getData());
+t.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION, (v) => {
+  console.log('BEFORE_CHILD_EXPANSION', v.getVertexData());
 });
-t.addVisitorFor(DepthFirstPhase.POST_ORDER, (v) => {
-  console.log('POST_ORDER', v.getData());
-  if (v.getData().key === 'a') {
+t.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES, (v) => {
+  console.log('AFTER_CHILD_SUBTREES', v.getVertexData());
+  if (v.getVertexData().propertyKey === 'a') {
     return {
       commands: [
         {
-          commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL,
+          commandName: TraversalVisitorCommandName.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY,
         },
       ],
     };
   }
   return {};
 });
-t.addVisitorFor(DepthFirstPhase.IN_ORDER, (v) => {
-  console.log('IN_ORDER', v.getData());
+t.registerVisitorCallbackForPhase(DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES, (v) => {
+  console.log('AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES', v.getVertexData());
 });
 
-const runner = t.createRunner();
-runner.run();
-console.log(runner.getStatus());
-runner.run();
-console.log(runner.getStatus());
+const runner = t.createIndependentRunnerFromCurrentOptions();
+runner.runUntilSuspendedOrTerminal();
+console.log(runner.getTraversalLifecycleStatus());
+runner.runUntilSuspendedOrTerminal();
+console.log(runner.getTraversalLifecycleStatus());

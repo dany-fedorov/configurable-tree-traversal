@@ -1,141 +1,214 @@
 import {
-  GraphWalk,
-  AsyncGraphWalk,
-  prepareDag,
+  GraphWalkBuilder,
+  AsyncGraphWalkBuilder,
+  discoverValidateAndCaptureDag,
   rewriteObject,
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
   TraversalVisitorCommandName as Command,
-  type VertexTypes,
-  type TreeSource,
+  type VertexDataAndChildHintTypes,
+  type TreeDiscoverySource,
 } from '../src';
 
-type Tree = VertexTypes<string, string>;
-const treeSource: TreeSource<Tree> = {
-  resolveRoot: () => ({
-    kind: 'found',
-    vertex: { vertexContent: { $data: 'root', $childHints: ['a', 'b'] } },
+type Tree = VertexDataAndChildHintTypes<string, string>;
+const treeSource: TreeDiscoverySource<Tree> = {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved',
+    resolvedVertexInput: {
+      vertexContentInput: {
+        $vertexData: 'root',
+        $childDiscoveryHints: ['a', 'b'],
+      },
+    },
   }),
-  resolveChild: (hint) => ({
-    kind: 'found',
-    vertex: { vertexContent: { $data: hint, $childHints: [] } },
+  resolveChildVertexFromHint: (hint) => ({
+    kind: 'vertexResolved',
+    resolvedVertexInput: {
+      vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
+    },
   }),
 };
 
 test('explicitly skipped expansion remains distinct from retained children and absent hints', async () => {
   for (const Builder of [
-    DepthFirstTreeTraversal,
-    AsyncDepthFirstTreeTraversal,
+    DepthFirstTreeTraversalBuilder,
+    AsyncDepthFirstTreeTraversalBuilder,
   ]) {
     const runner = new Builder<Tree>({
-      traversableTree: treeSource,
+      treeDiscoverySource: treeSource,
       visitors: {
-        IN_ORDER: (_v, ctx) =>
+        AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES: (_v, ctx) =>
           ctx.isTreeRoot
-            ? { commands: [{ commandName: Command.SKIP_REMAINING_CHILDREN }] }
+            ? {
+                commands: [
+                  {
+                    commandName:
+                      Command.SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX,
+                  },
+                ],
+              }
             : undefined,
       },
-    }).createRunner();
-    await runner.run();
-    const view = runner.getResolvedTreeView(),
-      root = view.getRoot()!;
-    expect(view.getChildrenOf(root)).toHaveLength(1);
-    expect(runner.isChildExpansionSkipped(root)).toBe(true);
-    expect(runner.isChildExpansionSkipped(view.getChildrenOf(root)![0]!)).toBe(
-      false,
-    );
+    }).createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    const view = runner.getLiveResolvedTreeView(),
+      root = view.getRootVertexHandleOrNull()!;
+    expect(view.getChildVertexHandlesOrNull(root)).toHaveLength(1);
+    expect(runner.hasSkippedPendingChildDiscovery(root)).toBe(true);
+    expect(
+      runner.hasSkippedPendingChildDiscovery(
+        view.getChildVertexHandlesOrNull(root)![0]!,
+      ),
+    ).toBe(false);
     const empty = new Builder<Tree>({
-      traversableTree: {
+      treeDiscoverySource: {
         ...treeSource,
-        resolveChild: () => ({ kind: 'omitted' }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted',
+        }),
       },
-    }).createRunner();
-    await empty.run();
-    const emptyView = empty.getResolvedTreeView();
-    expect(emptyView.getChildrenOf(emptyView.getRoot()!)).toEqual([]);
-    expect(empty.isChildExpansionSkipped(emptyView.getRoot()!)).toBe(false);
+    }).createIndependentRunnerFromCurrentOptions();
+    await empty.runUntilSuspendedOrTerminal();
+    const emptyView = empty.getLiveResolvedTreeView();
+    expect(
+      emptyView.getChildVertexHandlesOrNull(
+        emptyView.getRootVertexHandleOrNull()!,
+      ),
+    ).toEqual([]);
+    expect(
+      empty.hasSkippedPendingChildDiscovery(
+        emptyView.getRootVertexHandleOrNull()!,
+      ),
+    ).toBe(false);
   }
 });
 
 test('limit replacement deliberately drops earlier bounds for sync and async walkers', async () => {
   const source = {
-    hydration: 'resolver' as const,
-    roots: () => [{ vertexId: 0 }],
-    resolveVertex: (id: number) => ({ kind: 'found' as const, data: id }),
-    outgoing: (v: { vertexId: number }) =>
+    vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+    enumerateRootTargets: () => [{ vertexId: 0 }],
+    resolveVertexDataById: (id: number) => ({
+      kind: 'found' as const,
+      vertexData: id,
+    }),
+    enumerateOutgoingLinks: (v: { vertexId: number }) =>
       v.vertexId === 0
-        ? [1, 2].map((vertexId) => ({ target: { vertexId }, data: 'edge' }))
+        ? [1, 2].map((vertexId) => ({
+            targetToResolveOnAdmission: { vertexId },
+            edgeData: 'edge',
+          }))
         : [],
   };
-  for (const Builder of [GraphWalk, AsyncGraphWalk]) {
+  for (const Builder of [GraphWalkBuilder, AsyncGraphWalkBuilder]) {
     const builder = new Builder({
-      source,
-      limits: { maxAdmittedTargets: 1, maxCandidateReadAttempts: 10 },
+      graphWalkDiscoverySource: source,
+      limits: {
+        maxAdmittedRootOrLinkTargetOccurrences: 1,
+        maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 10,
+      },
     });
     const before = [];
-    for await (const e of builder.createRunner().iterateEvents())
+    for await (const e of builder
+      .createIndependentRunnerFromCurrentOptions()
+      .runAndIterateObservationEventsUntilSuspendedOrTerminal())
       before.push(e);
     expect(before).toHaveLength(1);
-    builder.configure({ replaceLimits: { maxDepth: 1 } });
+    builder.patchOptionsForFutureRunners({
+      replaceLimits: { maxRouteHopDepth: 1 },
+    });
     const after = [];
     for await (const e of builder
-      .createRunner()
-      .iterateEvents({ emitEvents: ['vertex', 'edge'] }))
+      .createIndependentRunnerFromCurrentOptions()
+      .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+        deliveredEventKinds: ['vertexOccurrence', 'admittedEdgeOccurrence'],
+      }))
       after.push(e);
-    expect(after.filter((e) => e.kind === 'vertex')).toHaveLength(3);
-    const edge = after.find((e) => e.kind === 'edge');
-    if (edge?.kind !== 'edge') throw new Error('Expected edge');
-    expect(edge.fromVertex).toEqual({ vertexId: 0, data: 0 });
+    expect(
+      after.filter((e) => e.eventKind === 'vertexOccurrence'),
+    ).toHaveLength(3);
+    const edge = after.find((e) => e.eventKind === 'admittedEdgeOccurrence');
+    if (edge?.eventKind !== 'admittedEdgeOccurrence')
+      throw new Error('Expected edge');
+    expect(edge.fromVertex).toEqual({ vertexId: 0, vertexData: 0 });
   }
 });
 
 test('prepared summaries drop omission slots while faithful definitions retain identity', () => {
-  const prepared = prepareDag<VertexTypes<string, string>, string | undefined>({
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found',
-        vertex: {
+  const prepared = discoverValidateAndCaptureDag<
+    VertexDataAndChildHintTypes<string, string>,
+    string | undefined
+  >({
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved',
+        resolvedVertexInput: {
           vertexId: 'r',
-          vertexContent: { $data: 'root', $childHints: ['omit'] },
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: ['omit'],
+          },
         },
       }),
-      resolveChild: () => ({
-        kind: 'omitted',
-        identity: { vertexId: undefined },
-        satisfiesDependencies: true,
+      resolveChildHint: () => ({
+        kind: 'vertexIntentionallyOmitted',
+        omittedVertexIdentity: { vertexId: undefined },
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true,
       }),
     },
   });
   if (prepared.kind !== 'valid') throw new Error('Expected valid');
-  expect(prepared.dag.liveVertexSummaries[0]!.children).toEqual([]);
-  expect(prepared.dag.definition.vertices[0]!.slots).toEqual([
-    { kind: 'omitted', identity: { vertexId: undefined } },
+  expect(
+    prepared.validatedTopology.liveVertexSummaries[0]!
+      .liveStructuralChildVertexIds,
+  ).toEqual([]);
+  expect(
+    prepared.validatedTopology.definition.vertexDeclarations[0]!
+      .childDiscoverySlots,
+  ).toEqual([
+    {
+      kind: 'omitted',
+      omittedVertexIdentity: { vertexId: undefined },
+    },
   ]);
-  expect(prepared.dag.definition.omittedIds).toEqual([undefined]);
-  const runner = prepared.dag.createRunner().run();
+  expect(prepared.validatedTopology.definition.omittedVertexIds).toEqual([
+    undefined,
+  ]);
+  const runner = prepared.validatedTopology
+    .createIndependentRunnerFromValidatedTopology()
+    .runUntilSuspendedOrTerminal();
   expect(
     runner
-      .inspectMilestones()
-      .explain({ vertexId: undefined, milestone: 'work' }),
-  ).toMatchObject({ kind: 'omitted', satisfied: true, progress: null });
-  expect(
-    runner
-      .inspectMilestones()
-      .explain({ vertexId: 'missing', milestone: 'work' }).kind,
-  ).toBe('unresolved');
-  const root = runner.getResolvedGraphView().getRoot()!;
-  expect(runner.getResolvedGraphView().get(root)!.slots[0]).toMatchObject({
+      .captureMilestoneSnapshot()
+      .explainMilestone({ vertexId: undefined, milestone: 'workCompletion' }),
+  ).toMatchObject({
     kind: 'omitted',
-    identity: { vertexId: undefined },
+    milestoneSatisfied: true,
+    progress: null,
+  });
+  expect(
+    runner
+      .captureMilestoneSnapshot()
+      .explainMilestone({ vertexId: 'missing', milestone: 'workCompletion' })
+      .kind,
+  ).toBe('unresolved');
+  const root = runner
+    .getLiveResolvedGraphView()
+    .getDesignatedRootHandleOrNull()!;
+  expect(
+    runner.getLiveResolvedGraphView().getVertexSnapshotOrNull(root)!
+      .orderedChildDiscoverySlots[0],
+  ).toMatchObject({
+    kind: 'omitted',
+    omittedVertexIdentity: { vertexId: undefined },
   });
 });
 
 test('tagged rewrite output keeps null and undefined distinct from deleted roots', () => {
-  expect(rewriteObject(null).getOutputResult()).toEqual({
+  expect(rewriteObject(null).getFinalOutputResult()).toEqual({
     kind: 'present',
     value: null,
   });
-  expect(rewriteObject(undefined).getOutputResult()).toEqual({
+  expect(rewriteObject(undefined).getFinalOutputResult()).toEqual({
     kind: 'present',
     value: undefined,
   });
@@ -143,14 +216,15 @@ test('tagged rewrite output keeps null and undefined distinct from deleted roots
   const absent = rewriteObject(
     { a: 1 },
     {
-      rewrite: (_p, ctx) => (ctx.isTreeRoot ? { kind: 'delete' } : undefined),
-      convertRootValue: (value) => {
+      rewritePropertyAfterChildTraversal: (_p, ctx) =>
+        ctx.isTreeRoot ? { kind: 'deletePropertySubtree' } : undefined,
+      convertPresentRootOutputValue: (value) => {
         conversions++;
         return value;
       },
     },
   );
-  expect(absent.outputResultAtReturn).toEqual({ kind: 'absent' });
-  expect(absent.getOutputResult()).toEqual({ kind: 'absent' });
+  expect(absent.capturedOutputResultAtReturn).toEqual({ kind: 'absent' });
+  expect(absent.getFinalOutputResult()).toEqual({ kind: 'absent' });
   expect(conversions).toBe(0);
 });

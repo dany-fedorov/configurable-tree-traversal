@@ -1,33 +1,34 @@
-import type { InternalVertexResolutionContext as VertexResolutionContext } from '../src/core/ResolvedTree';
-import { MutableRef } from '../src/core/CTTRef';
+import { createVertexHandleFacet } from '../src/core/observationFacets';
+import type { InternalChildDiscoveryContext as ChildDiscoveryContext } from '../src/core/ResolvedTree';
+import { MutableValueReference } from '../src/core/CTTRef';
 import { GraphStore } from '../src/core/graph/GraphStore';
 import { createVertexIdLabeler } from '../src/core/graph/identity';
 import { StructuralGraphSnapshot } from '../src/core/graph/snapshot';
 import { Vertex } from '../src/core/Vertex';
 import { BreadthFirstPolicy } from '../src/traversals/breadth-first-traversal/lib/BreadthFirstPolicy';
-import { DepthFirstTreeTraversal } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
+import { DepthFirstTreeTraversalBuilder } from '../src/traversals/depth-first-traversal/DepthFirstTraversal';
 import { shouldYieldForOrder } from '../src/traversals/depth-first-traversal/iterable-helpers/shouldYieldForOrder';
 import { DepthFirstPolicy } from '../src/traversals/depth-first-traversal/lib/DepthFirstPolicy';
-import { DepthFirstPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
+import { DepthFirstTreeVisitPhase } from '../src/traversals/depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { TestGraph } from './helpers/graph-fixtures';
 import { runnerInternals } from './internal-runner-fixtures';
 
 function ref(data: string, hints: string[] = []) {
-  return new MutableRef(
-    new Vertex<TestGraph>({ $data: data, $childHints: hints }),
+  return new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: data, $childDiscoveryHints: hints }),
   );
 }
 
 function context(
-  parentVertexRef: ReturnType<typeof ref>,
+  parentVertexHandle: ReturnType<typeof ref>,
   hintIndex = 0,
-): VertexResolutionContext<TestGraph> {
+): ChildDiscoveryContext<TestGraph> {
   return {
-    depth: 1,
-    parentVertex: parentVertexRef.getValue(),
-    parentVertexRef,
-    hintIndex,
-    vertexHint: `child-${hintIndex}`,
+    discoveryDepthInEdges: 1,
+    parentVertexAtChildResolution: parentVertexHandle.getReferencedValue(),
+    parentVertexHandle: parentVertexHandle,
+    parentChildHintIndex: hintIndex,
+    childDiscoveryHint: `child-${hintIndex}`,
   };
 }
 
@@ -71,8 +72,8 @@ test('structural graph snapshots validate staging and expose detached topology',
   ]);
   expect(
     snapshot.graph.requirePathsTo(stagedA.snapshotRef, {
-      noRoot: true,
-      noSelf: true,
+      includeDesignatedRoot: false,
+      includeTargetVertex: false,
     }),
   ).toEqual([[]]);
 
@@ -97,8 +98,11 @@ test('structural graph snapshots order independent roots and shared paths', () =
   const left = ref('left', ['join']);
   const right = ref('right', ['join']);
   const join = ref('join');
-  const staged = [left, right, join].map((vertexRef) =>
-    snapshot.stageVertex(vertexRef, vertexRef.getValue().getData()),
+  const staged = [left, right, join].map((vertexHandle) =>
+    snapshot.stageVertex(
+      vertexHandle,
+      vertexHandle.getReferencedValue().getVertexData(),
+    ),
   );
   staged.forEach((vertex) => snapshot.commitVertex(vertex));
   snapshot.commitEdge(snapshot.stageEdge(right, 0, join));
@@ -112,7 +116,12 @@ test('structural graph snapshots order independent roots and shared paths', () =
 test('graph traversal slots retain the unprepared/prepared distinction', () => {
   const store = new GraphStore<TestGraph>('dag');
   const root = ref('root');
-  store.insertVertex({ ref: root, id: 'root', dependsOnWork: [], depth: 0 });
+  store.insertVertex({
+    ref: root,
+    id: 'root',
+    workWaitsForWorkOf: [],
+    depth: 0,
+  });
   expect(store.getTraversalSlots(root)).toBeNull();
   store.prepareSlots(root, []);
   expect(store.getTraversalSlots(root)).toEqual([]);
@@ -121,34 +130,44 @@ test('graph traversal slots retain the unprepared/prepared distinction', () => {
 });
 
 test('small vertex and identity helpers report their remaining cases', () => {
-  expect(ref('leaf').getValue().hasNoChildHints()).toBe(true);
-  expect(ref('branch', ['leaf']).getValue().hasNoChildHints()).toBe(false);
+  expect(!ref('leaf').getReferencedValue().hasChildDiscoveryHints()).toBe(true);
+  expect(
+    !ref('branch', ['leaf']).getReferencedValue().hasChildDiscoveryHints(),
+  ).toBe(false);
   expect(createVertexIdLabeler()(1n)).toBe('1n');
   expect(
     shouldYieldForOrder(
       {
-        iterateOver: [DepthFirstPhase.POST_ORDER],
+        iterateOver: [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES],
         enableVisitorFunctionsFor: null,
         disableVisitorFunctionsFor: null,
       },
-      DepthFirstPhase.PRE_ORDER,
+      DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
     ),
   ).toBe(false);
 });
 
 test('depth runner leaf checks include explicit subtree disabling', () => {
-  const runner = new DepthFirstTreeTraversal<TestGraph>({
-    traversableTree: {
-      resolveRoot: () => ({ kind: 'omitted' as const }),
-      resolveChild: () => ({ kind: 'omitted' as const }),
+  const runner = new DepthFirstTreeTraversalBuilder<TestGraph>({
+    treeDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexIntentionallyOmitted' as const,
+      }),
+      resolveChildVertexFromHint: () => ({
+        kind: 'vertexIntentionallyOmitted' as const,
+      }),
     },
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
   const leaf = ref('leaf');
   const branch = ref('branch', ['child']);
-  expect(leaf.getValue().hasNoChildHints()).toBe(true);
-  expect(runner.isChildExpansionSkipped(branch)).toBe(false);
+  expect(!leaf.getReferencedValue().hasChildDiscoveryHints()).toBe(true);
+  expect(
+    runner.hasSkippedPendingChildDiscovery(createVertexHandleFacet(branch)),
+  ).toBe(false);
   runnerInternals(runner).state.subtreeTraversalDisabledRefs.add(branch);
-  expect(runner.isChildExpansionSkipped(branch)).toBe(true);
+  expect(
+    runner.hasSkippedPendingChildDiscovery(createVertexHandleFacet(branch)),
+  ).toBe(true);
 });
 
 test('breadth-first policy validates every owned transition', () => {
@@ -166,8 +185,24 @@ test('breadth-first policy validates every owned transition', () => {
   );
 
   const missing = ref('missing');
-  policy.enqueueExpansion({ kind: 'frame', id: 1, epoch: 0 }, missing, 0);
-  policy.enqueueExpansion({ kind: 'frame', id: 2, epoch: 0 }, parent, 0);
+  policy.enqueueExpansion(
+    {
+      ownerKind: 'vertexTraversalFrame' as const,
+      runnerLocalOwnerId: 1,
+      validityGeneration: 0,
+    },
+    missing,
+    0,
+  );
+  policy.enqueueExpansion(
+    {
+      ownerKind: 'vertexTraversalFrame' as const,
+      runnerLocalOwnerId: 2,
+      validityGeneration: 0,
+    },
+    parent,
+    0,
+  );
   const sort = policy.next(
     (candidate) => candidate !== missing,
     () => false,
@@ -182,15 +217,29 @@ test('breadth-first policy validates every owned transition', () => {
   if (sort?.kind !== 'SORT_HINTS') throw new Error('Expected sort work');
   expect(() =>
     policy.setHints(
-      { ...sort.expansion, owner: { kind: 'frame', id: 99, epoch: 0 } },
+      {
+        ...sort.expansion,
+        owner: {
+          ownerKind: 'vertexTraversalFrame' as const,
+          runnerLocalOwnerId: 99,
+          validityGeneration: 0,
+        },
+      },
       [],
     ),
   ).toThrow(/unknown/i);
   expect(() =>
-    policy.setSortedHints({ kind: 'frame', id: 99, epoch: 0 }, []),
+    policy.setSortedHints(
+      {
+        ownerKind: 'vertexTraversalFrame' as const,
+        runnerLocalOwnerId: 99,
+        validityGeneration: 0,
+      },
+      [],
+    ),
   ).toThrow(/owner/i);
   expect(policy.setSortedHints(sort.expansion.owner, ['a'])).toEqual({
-    vertexRef: parent,
+    vertexHandle: parent,
     empty: false,
   });
 
@@ -200,7 +249,11 @@ test('breadth-first policy validates every owned transition', () => {
   );
   expect(work?.kind).toBe('MAKE_VERTEX');
   if (work?.kind !== 'MAKE_VERTEX') throw new Error('Expected resolution work');
-  const owner = { kind: 'frame' as const, id: 3, epoch: 0 };
+  const owner = {
+    ownerKind: 'vertexTraversalFrame' as const,
+    runnerLocalOwnerId: 3,
+    validityGeneration: 0,
+  };
   policy.startResolution(owner, work.context);
   expect(
     policy.next(
@@ -212,7 +265,11 @@ test('breadth-first policy validates every owned transition', () => {
   expect(frames[frames.length - 1]?.pendingIndices).toEqual([0]);
   expect(() => policy.startResolution(owner, work.context)).toThrow(/pending/i);
   expect(() =>
-    policy.completeResolution({ kind: 'frame', id: 4, epoch: 0 }),
+    policy.completeResolution({
+      ownerKind: 'vertexTraversalFrame' as const,
+      runnerLocalOwnerId: 4,
+      validityGeneration: 0,
+    }),
   ).toThrow(/unknown/i);
   expect(policy.completeResolution(owner)).toEqual({
     context: work.context,
@@ -235,7 +292,15 @@ test('breadth-first policy handles disabled expansion and invalid progress', () 
     false,
   );
   expect(policy.activateInjectedFrontier(parent)).toBe(true);
-  policy.enqueueExpansion({ kind: 'frame', id: 1, epoch: 0 }, parent, 0);
+  policy.enqueueExpansion(
+    {
+      ownerKind: 'vertexTraversalFrame' as const,
+      runnerLocalOwnerId: 1,
+      validityGeneration: 0,
+    },
+    parent,
+    0,
+  );
   const work = policy.next(
     () => true,
     () => true,
@@ -246,11 +311,19 @@ test('breadth-first policy handles disabled expansion and invalid progress', () 
 
   const unrelated = ref('unrelated');
   policy.startResolution(
-    { kind: 'frame', id: 2, epoch: 0 },
+    {
+      ownerKind: 'vertexTraversalFrame' as const,
+      runnerLocalOwnerId: 2,
+      validityGeneration: 0,
+    },
     context(unrelated),
   );
   expect(() =>
-    policy.completeResolution({ kind: 'frame', id: 2, epoch: 0 }),
+    policy.completeResolution({
+      ownerKind: 'vertexTraversalFrame' as const,
+      runnerLocalOwnerId: 2,
+      validityGeneration: 0,
+    }),
   ).toThrow(/parent expansion/i);
   policy.clear();
   expect(policy.getFrames()).toEqual([]);
@@ -262,26 +335,42 @@ test('policy inspections expose unresolved BFS and waiting DFS frames', () => {
     { queue: [], queueIndex: 0 },
     false,
   );
-  breadth.enqueueExpansion({ kind: 'frame', id: 1, epoch: 0 }, parent, 0);
+  breadth.enqueueExpansion(
+    {
+      ownerKind: 'vertexTraversalFrame' as const,
+      runnerLocalOwnerId: 1,
+      validityGeneration: 0,
+    },
+    parent,
+    0,
+  );
   expect(breadth.getFrames()[0]?.stage).toBe('resolve');
 
   const depth = new DepthFirstPolicy<TestGraph>(
     {
-      afterChildIndices: { indices: [0] },
-      fallbackChildIndices: { indices: [0] },
-      visitSingleChildParent: true,
-      visitAfterOmittedChildren: true,
+      visitAfterChildIndices: { indices: [0] },
+      visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [0] },
+      alsoVisitAfterOnlyChild: true,
+      allowBoundaryVisitsAfterOmittedChildSlots: true,
     },
     false,
   );
-  depth.push({ kind: 'frame', id: 1, epoch: 0 }, parent, 0);
+  depth.push(
+    {
+      ownerKind: 'vertexTraversalFrame' as const,
+      runnerLocalOwnerId: 1,
+      validityGeneration: 0,
+    },
+    parent,
+    0,
+  );
   const frame = depth.getFrames()[0]!;
   for (const stage of [
-    'pre-visit',
-    'sort-wait',
-    'child-wait',
-    'in-visit',
-    'post-visit',
+    'waitingForInitialVisitChain',
+    'waitingForChildHintTransformation',
+    'waitingForChildResolution',
+    'waitingForChildBoundaryVisitChain',
+    'waitingForCompletionVisitChain',
   ] as const) {
     frame.stage = stage;
     expect(

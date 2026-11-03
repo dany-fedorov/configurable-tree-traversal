@@ -1,65 +1,88 @@
 import type {
-  ResolvedGraphView,
-  OriginalGraphView,
+  LiveResolvedGraphView,
+  PreCommandDiscoveredGraphView,
 } from '@core/ResolvedGraphView';
-import type { VertexResolutionContext } from '@core/ResolvedTree';
+import type { ChildDiscoveryContext } from '@core/ResolvedTree';
 import type {
-  DagVertexResolution,
-  DagPrerequisiteResolution,
+  DagSourceVertexResolution,
+  DagPrerequisiteLookupResult,
 } from '@core/TraversableTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { HintVertexId, MaybePromise } from '@core/graph/types';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import type { ChildHintVertexIdentity, MaybePromise } from '@core/graph/types';
 
 export type DagChildResolutionContext<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > = {
-  resolutionContext:
-    | VertexResolutionContext<T | R>
+  structuralChildResolution:
+    | ChildDiscoveryContext<SourceVertexTypes | RewrittenVertexTypes>
     | Readonly<
         Omit<
-          VertexResolutionContext<T | R>,
-          'parentVertex' | 'parentVertexRef'
+          ChildDiscoveryContext<SourceVertexTypes | RewrittenVertexTypes>,
+          'parentVertexAtChildResolution' | 'parentVertexHandle'
         > & {
           /** Synthetic entry-slot parent is private; both parent fields are null. */
-          parentVertex: null;
-          parentVertexRef: null;
+          parentVertexAtChildResolution: null;
+          parentVertexHandle: null;
         }
       >;
-  resolvedGraphView: ResolvedGraphView<T | R, ID>;
-  originalGraphView: OriginalGraphView<T, ID> | null;
+  liveResolvedGraphView: LiveResolvedGraphView<
+    SourceVertexTypes | RewrittenVertexTypes,
+    VertexId
+  >;
+  preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+    SourceVertexTypes,
+    VertexId
+  > | null;
 };
 
 /** Input T owns discovery hints/results; callbacks must accept the full T | R live context. */
 export interface DagDiscoverySource<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > {
-  resolvePrerequisite?: (id: ID) => DagPrerequisiteResolution<T, ID>;
-  resolveRoot: () => DagVertexResolution<T, ID>;
-  resolveChild: (
-    hint: T['VertexHint'],
-    options: DagChildResolutionContext<T, R, ID>,
-  ) => DagVertexResolution<T, ID>;
-  getVertexIdFromHint?: (hint: T['VertexHint']) => HintVertexId<ID> | undefined;
+  resolvePrerequisiteByVertexId?: (
+    vertexId: VertexId,
+  ) => DagPrerequisiteLookupResult<SourceVertexTypes, VertexId>;
+  resolveRootVertex: () => DagSourceVertexResolution<
+    SourceVertexTypes,
+    VertexId
+  >;
+  resolveChildHint: (
+    hint: SourceVertexTypes['ChildHint'],
+    context: DagChildResolutionContext<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      VertexId
+    >,
+  ) => DagSourceVertexResolution<SourceVertexTypes, VertexId>;
+  tryGetVertexIdentityFromHint?: (
+    hint: SourceVertexTypes['ChildHint'],
+  ) => ChildHintVertexIdentity<VertexId> | undefined;
 }
 
 export interface AsyncDagDiscoverySource<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > {
-  resolvePrerequisite?: (
-    id: ID,
-  ) => MaybePromise<DagPrerequisiteResolution<T, ID>>;
-  resolveRoot: () => MaybePromise<DagVertexResolution<T, ID>>;
-  resolveChild: (
-    hint: T['VertexHint'],
-    options: DagChildResolutionContext<T, R, ID>,
-  ) => MaybePromise<DagVertexResolution<T, ID>>;
-  getVertexIdFromHint?: (
-    hint: T['VertexHint'],
-  ) => MaybePromise<HintVertexId<ID> | undefined>;
+  resolvePrerequisiteByVertexId?: (
+    vertexId: VertexId,
+  ) => MaybePromise<DagPrerequisiteLookupResult<SourceVertexTypes, VertexId>>;
+  resolveRootVertex: () => MaybePromise<
+    DagSourceVertexResolution<SourceVertexTypes, VertexId>
+  >;
+  resolveChildHint: (
+    hint: SourceVertexTypes['ChildHint'],
+    context: DagChildResolutionContext<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      VertexId
+    >,
+  ) => MaybePromise<DagSourceVertexResolution<SourceVertexTypes, VertexId>>;
+  tryGetVertexIdentityFromHint?: (
+    hint: SourceVertexTypes['ChildHint'],
+  ) => MaybePromise<ChildHintVertexIdentity<VertexId> | undefined>;
 }

@@ -1,41 +1,43 @@
 import {
-  DepthFirstTreeTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  AsyncBreadthFirstTreeTraversal,
-  DagTraversal,
-  AsyncDagTraversal,
-  GraphWalk,
-  AsyncGraphWalk,
-  DepthFirstPhase,
-  ObjectTreeSource,
+  DepthFirstTreeTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  GraphWalkBuilder,
+  AsyncGraphWalkBuilder,
+  DepthFirstTreeVisitPhase,
+  ObjectPropertyTreeSource,
 } from '../src';
-const source = new ObjectTreeSource({ value: 1 });
+const source = new ObjectPropertyTreeSource({ value: 1 });
 // @ts-expect-error construction requires its source
-new DepthFirstTreeTraversal({});
+new DepthFirstTreeTraversalBuilder({});
 // @ts-expect-error construction requires its source
-new AsyncDepthFirstTreeTraversal({});
+new AsyncDepthFirstTreeTraversalBuilder({});
 // @ts-expect-error construction requires its source
-new BreadthFirstTreeTraversal({});
+new BreadthFirstTreeTraversalBuilder({});
 // @ts-expect-error construction requires its source
-new AsyncBreadthFirstTreeTraversal({});
+new AsyncBreadthFirstTreeTraversalBuilder({});
 // @ts-expect-error construction requires its source
-new DagTraversal({});
+new DagTraversalBuilder({});
 // @ts-expect-error construction requires its source
-new AsyncDagTraversal({});
+new AsyncDagTraversalBuilder({});
 // @ts-expect-error construction requires its source
-new GraphWalk({});
+new GraphWalkBuilder({});
 // @ts-expect-error construction requires its source
-new AsyncGraphWalk({});
-const traversal = new DepthFirstTreeTraversal({ traversableTree: source });
-traversal.configure({ visitors: {} });
+new AsyncGraphWalkBuilder({});
+const traversal = new DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: source,
+});
+traversal.patchOptionsForFutureRunners({ visitors: {} });
 // @ts-expect-error mutable engine state is not a public configuration port
-traversal.configure({ traversalRunnerInternalObjects: {} });
+traversal.patchOptionsForFutureRunners({ traversalRunnerInternalObjects: {} });
 // @ts-expect-error mutable configuration is private
 traversal.icfg;
 // @ts-expect-error registrations are accessed through detached list queries
 traversal.visitors;
-const runner = traversal.createRunner();
+const runner = traversal.createIndependentRunnerFromCurrentOptions();
 // @ts-expect-error mutable runner configuration is private
 runner.icfg;
 // @ts-expect-error mutable runner state is private
@@ -44,17 +46,23 @@ runner.state;
 runner.resolvedTreesContainer;
 // @ts-expect-error execution ownership is private
 runner.curGenerator;
-// @ts-expect-error legacy execution selectors are not canonical inputs
-runner.run({ iterateOver: [DepthFirstPhase.PRE_ORDER] });
-traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, () => undefined, {
-  // @ts-expect-error registration policy has one canonical vocabulary
-  resolutionStyle: 'SEQUENTIAL',
+runner.runUntilSuspendedOrTerminal({
+  // @ts-expect-error legacy execution selectors are not canonical inputs
+  iterateOver: [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION],
 });
+traversal.registerVisitorCallbackForPhase(
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+  () => undefined,
+  {
+    // @ts-expect-error registration policy has one canonical vocabulary
+    resolutionStyle: 'SEQUENTIAL',
+  },
+);
 // @ts-expect-error public effective inspection contains canonical selectors
-runner.inspect().executionOptions.iterateOver;
+runner.captureExecutionSnapshot().executionOptions.iterateOver;
 
 // @ts-expect-error preferred object options use the tagged resolution hook
-new ObjectTreeSource({}, { makeVertexHook: () => ({}) });
+new ObjectPropertyTreeSource({}, { makeVertexHook: () => ({}) });
 // @ts-expect-error runners are public capabilities, not normalized constructors
 new (null as unknown as typeof import('../src')).DepthFirstTreeRunner({});
 // @ts-expect-error runners are public capabilities, not normalized constructors
@@ -62,12 +70,12 @@ new (null as unknown as typeof import('../src')).GraphWalkRunner({});
 // @ts-expect-error runners are public capabilities, not normalized constructors
 new (null as unknown as typeof import('../src')).DagTraversalRunner({});
 
-const inspectionDag = new DagTraversal({
-  traversableTree: source,
-}).createRunner();
-const inspectionAsyncDag = new AsyncDagTraversal({
-  traversableTree: source,
-}).createRunner();
+const inspectionDag = new DagTraversalBuilder({
+  treeDiscoverySource: source,
+}).createIndependentRunnerFromCurrentOptions();
+const inspectionAsyncDag = new AsyncDagTraversalBuilder({
+  treeDiscoverySource: source,
+}).createIndependentRunnerFromCurrentOptions();
 // @ts-expect-error assembly-only state is not a public runner capability
 inspectionDag.inspectDagState();
 // @ts-expect-error assembly-only state is not a public async runner capability

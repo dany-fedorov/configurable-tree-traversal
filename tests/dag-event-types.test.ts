@@ -1,100 +1,124 @@
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import {
-  AsyncDagTraversal,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase,
 } from '../src/traversals/dag-traversal';
 
 const identities = [undefined, null, NaN, { name: 'task' }, Symbol('task')];
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test.each(identities)(
     `${Constructor.name} keeps exact event identity %p and committed phase timing`,
     async (id) => {
-      type G = VertexTypes<string, never>;
+      type G = VertexDataAndChildHintTypes<string, never>;
       const runner = new Constructor<G, G, typeof id>({
-        workCompletion: 'externalSettlement',
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found',
-            vertex: {
+        workCompletionPolicy: 'requireExternalWorkSettlement',
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
               vertexId: id,
-              vertexContent: { $data: 'task', $childHints: [] },
+              vertexContentInput: {
+                $vertexData: 'task',
+                $childDiscoveryHints: [],
+              },
             },
           }),
-          resolveChild: () => ({
-            identity: null,
-            kind: 'omitted',
-            satisfiesDependencies: true,
+          resolveChildHint: () => ({
+            omittedVertexIdentity: null,
+            kind: 'vertexIntentionallyOmitted',
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true,
           }),
         },
-      }).createRunner();
+      }).createIndependentRunnerFromCurrentOptions();
       const before = [];
-      for await (const event of runner.iterateEvents()) before.push(event);
+      for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+        before.push(event);
       expect(before).toEqual([]);
-      const record = runner.summary().awaitingSettlement[0]!;
-      runner.settle(id, { kind: 'workCompleted' }, record.generation);
+      const record =
+        runner.captureProgressSnapshot().workAwaitingSettlement[0]!;
+      runner.settleDeferredWork(
+        id,
+        { kind: 'workCompleted' },
+        record.settlementToken,
+      );
       const events = [];
-      for await (const event of runner.iterateEvents()) {
+      for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
         expect(event).toHaveProperty('vertexId');
         expect(event.vertexId).toBe(id);
-        expect(event.vertexRef.getValue()).toBe(event.vertex);
+        expect(event.vertexHandle.getCurrentVertexView()).toBe(event.vertex);
         expect(
-          runner.getResolvedGraphView().requireVertexId(event.vertexRef),
+          runner.getLiveResolvedGraphView().requireVertexId(event.vertexHandle),
         ).toBe(id);
         expect(event).not.toHaveProperty('order');
         expect(event).not.toHaveProperty('phase');
-        events.push(event.kind);
+        events.push(event.eventKind);
       }
-      expect(events).toEqual(['workCompleted', 'subgraphCompleted']);
+      expect(events).toEqual([
+        'workCompletionCommitted',
+        'subgraphCompletionCommitted',
+      ]);
     },
   );
 
   test(`${Constructor.name} seeded work emits only the selected completion event`, async () => {
-    type G = VertexTypes<string, never>;
+    type G = VertexDataAndChildHintTypes<string, never>;
     const runner = new Constructor<G, G, string>({
-      completedWork: new Set(['task']),
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: {
+      acceptedCompletedWorkVertexIds: new Set(['task']),
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
             vertexId: 'task',
-            vertexContent: { $data: 'task', $childHints: [] },
+            vertexContentInput: {
+              $vertexData: 'task',
+              $childDiscoveryHints: [],
+            },
           },
         }),
-        resolveChild: () => ({
-          identity: null,
-          kind: 'omitted',
-          satisfiesDependencies: true,
+        resolveChildHint: () => ({
+          omittedVertexIdentity: null,
+          kind: 'vertexIntentionallyOmitted',
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true,
         }),
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     const events = [];
-    for await (const event of runner.iterateEvents({
-      emitEvents: ['subgraphCompleted'],
-    })) {
-      events.push([event.vertexId, event.kind]);
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      {
+        deliveredEventKinds: ['subgraphCompletionCommitted'],
+      },
+    )) {
+      events.push([event.vertexId, event.eventKind]);
     }
-    expect(events).toEqual([['task', 'subgraphCompleted']]);
+    expect(events).toEqual([['task', 'subgraphCompletionCommitted']]);
   });
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Constructor.name} tree-source events retain generated identity`, async () => {
-    type G = VertexTypes<string, never>;
+    type G = VertexDataAndChildHintTypes<string, never>;
     const runner = new Constructor<G>({
-      traversableTree: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: { vertexContent: { $data: 'task', $childHints: [] } },
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'task',
+              $childDiscoveryHints: [],
+            },
+          },
         }),
-        resolveChild: () => ({ kind: 'omitted' }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted',
+        }),
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     const ids = [];
-    for await (const event of runner.iterateEvents()) {
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
       expect(event.vertexId).toBe(
-        runner.getResolvedGraphView().requireVertexId(event.vertexRef),
+        runner.getLiveResolvedGraphView().requireVertexId(event.vertexHandle),
       );
       ids.push(event.vertexId);
     }
@@ -103,49 +127,62 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
   });
 }
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Constructor.name} separates readiness callbacks from committed work observations`, async () => {
-    type G = VertexTypes<string, never>;
+    type G = VertexDataAndChildHintTypes<string, never>;
     const calls: string[] = [];
     const runner = new Constructor<G, G, string>({
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: {
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
             vertexId: 'task',
-            vertexContent: { $data: 'task', $childHints: [] },
+            vertexContentInput: {
+              $vertexData: 'task',
+              $childDiscoveryHints: [],
+            },
           },
         }),
-        resolveChild: () => ({
-          identity: null,
-          kind: 'omitted',
-          satisfiesDependencies: true,
+        resolveChildHint: () => ({
+          omittedVertexIdentity: null,
+          kind: 'vertexIntentionallyOmitted',
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true,
         }),
       },
       visitors: {
         [DagVisitorPhase.ON_WORK_READY]: (_vertex, context) => {
-          expect(context.phase).toBe(DagVisitorPhase.ON_WORK_READY);
-          expect(context.visitorIndex).toBe(0);
-          expect(context.phaseVisitIndex).toBe(0);
-          expect(context.previousPhaseVertexRef).toBeNull();
-          expect(context.registration).toHaveProperty('priority');
+          expect(context.visitorPhase).toBe(DagVisitorPhase.ON_WORK_READY);
+          expect(context.visitorCallbackIndexInPhaseChain).toBe(0);
+          expect(context.phaseVisitorChainAdmissionIndex).toBe(0);
+          expect(
+            context.previousCommittedVisitVertexHandleForSamePhase,
+          ).toBeNull();
+          expect(context.visitorRegistrationMetadata).toHaveProperty(
+            'descendingExecutionPriorityWithinGroup',
+          );
           expect(context).not.toHaveProperty('order');
-          expect(runner.summary().completedWorkIds).toEqual([]);
+          expect(
+            runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+          ).toEqual([]);
           calls.push('ready');
         },
       },
-    }).createRunner();
-    for await (const event of runner.iterateEvents({
-      emitEvents: ['workCompleted'],
-    })) {
+    }).createIndependentRunnerFromCurrentOptions();
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      {
+        deliveredEventKinds: ['workCompletionCommitted'],
+      },
+    )) {
       expect(calls).toEqual(['ready']);
-      expect(event.kind).toBe('workCompleted');
-      expect(runner.summary().completedWorkIds).toEqual(['task']);
-      calls.push(event.kind);
+      expect(event.eventKind).toBe('workCompletionCommitted');
+      expect(
+        runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+      ).toEqual(['task']);
+      calls.push(event.eventKind);
     }
-    expect(calls).toEqual(['ready', 'workCompleted']);
-    expect(runner.inspect().executionOptions.emitEvents).toEqual([
-      'workCompleted',
-    ]);
+    expect(calls).toEqual(['ready', 'workCompletionCommitted']);
+    expect(
+      runner.captureExecutionSnapshot().executionOptions.deliveredEventKinds,
+    ).toEqual(['workCompletionCommitted']);
   });
 }

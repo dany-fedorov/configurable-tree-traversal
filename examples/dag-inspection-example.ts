@@ -1,72 +1,95 @@
 import {
-  DagTraversal,
-  materializeDagInputFromRecords,
-  inspectDagMilestones,
+  DagTraversalBuilder,
+  materializeMultiEntryDagInputFromRecordCatalog,
+  captureDagMilestoneSnapshot,
 } from '../src';
 import assert from 'node:assert/strict';
 
 // Parent work is reusable, while its unfinished child still blocks a C join.
-const runner = new DagTraversal({
-  ...materializeDagInputFromRecords(
+const runner = new DagTraversalBuilder({
+  ...materializeMultiEntryDagInputFromRecordCatalog(
     [
       { id: 'bundle', children: ['child'], complete: [] as string[] },
       { id: 'child', children: [], complete: [] },
       { id: 'review', children: [], complete: ['bundle'] },
     ],
     {
-      id: (item) => item.id,
-      children: (item) => item.children,
-      dependsOnSubgraphCompletion: (item) => item.complete,
+      selectVertexId: (item) => item.id,
+      selectStructuralChildVertexIds: (item) => item.children,
+      selectSubgraphCompletionPrerequisiteVertexIds: (item) => item.complete,
     },
   ),
-  completedWork: new Set(['bundle']),
-  workCompletion: 'externalSettlement',
-}).createRunner();
-runner.prepare();
-runner.run();
-const captured = runner.inspectMilestones();
+  acceptedCompletedWorkVertexIds: new Set(['bundle']),
+  workCompletionPolicy: 'requireExternalWorkSettlement',
+}).createIndependentRunnerFromCurrentOptions();
+runner.discoverValidateAndFreezeTopology();
+runner.runUntilSuspendedOrTerminal();
+const captured = runner.captureMilestoneSnapshot();
 // The free function remains equivalent; async runners expose the same sync method.
 assert.deepEqual(
-  inspectDagMilestones(runner).explain({
+  captureDagMilestoneSnapshot(runner).explainMilestone({
     vertexId: 'review',
-    milestone: 'work',
+    milestone: 'workCompletion',
   }),
-  captured.explain({ vertexId: 'review', milestone: 'work' }),
+  captured.explainMilestone({
+    vertexId: 'review',
+    milestone: 'workCompletion',
+  }),
 );
 assert.equal(
-  captured.explain({ vertexId: 'bundle', milestone: 'work' }).kind,
+  captured.explainMilestone({ vertexId: 'bundle', milestone: 'workCompletion' })
+    .kind,
   'live',
 );
-const before = captured.explain({ vertexId: 'review', milestone: 'work' });
+const before = captured.explainMilestone({
+  vertexId: 'review',
+  milestone: 'workCompletion',
+});
 assert.equal(before.kind, 'live');
 if (before.kind !== 'live') throw new Error('Expected discovered review');
-assert.equal(before.satisfied, false);
+assert.equal(before.milestoneSatisfied, false);
 assert.deepEqual(
   before.blockers.map((blocker) => blocker.kind),
-  ['constraint', 'constraint', 'constraint', 'unfinishedWork'],
+  [
+    'unmetMilestoneConstraint',
+    'unmetMilestoneConstraint',
+    'unmetMilestoneConstraint',
+    'workCompletionUncommitted',
+  ],
 );
 console.log('Captured blockers:', before.blockers);
 
-const child = runner.summary().awaitingSettlement[0]!;
-runner.settle(child.vertexId, { kind: 'workCompleted' }, child.generation);
-runner.run();
-const after = runner.inspectMilestones().explain({
+const child = runner.captureProgressSnapshot().workAwaitingSettlement[0]!;
+runner.settleDeferredWork(
+  child.vertexId,
+  { kind: 'workCompleted' },
+  child.settlementToken,
+);
+runner.runUntilSuspendedOrTerminal();
+const after = runner.captureMilestoneSnapshot().explainMilestone({
   vertexId: 'bundle',
   milestone: 'subgraphCompletion',
 });
-assert.equal(after.kind === 'live' && after.satisfied, true);
+assert.equal(after.kind === 'live' && after.milestoneSatisfied, true);
 assert.deepEqual(
-  captured.explain({ vertexId: 'review', milestone: 'work' }),
+  captured.explainMilestone({
+    vertexId: 'review',
+    milestone: 'workCompletion',
+  }),
   before,
 );
 // Static navigation keeps the original constraints after those milestones commit.
 assert.equal(
-  inspectDagMilestones(runner).prerequisitesOf({
+  captureDagMilestoneSnapshot(runner).queryOriginalPrerequisiteMilestonesOf({
     vertexId: 'review',
-    milestone: 'work',
-  }).edges.length,
+    milestone: 'workCompletion',
+  }).originalMilestoneConstraints.length,
   1,
 );
-const review = runner.summary().awaitingSettlement[0]!;
-runner.settle(review.vertexId, { kind: 'workCompleted' }, review.generation);
-runner.run();
+const review = runner.captureProgressSnapshot().workAwaitingSettlement[0]!;
+runner.settleDeferredWork(
+  review.vertexId,
+  { kind: 'workCompleted' },
+  review.settlementToken,
+);
+runner.runUntilSuspendedOrTerminal();

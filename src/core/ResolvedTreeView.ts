@@ -1,21 +1,27 @@
 import type { VertexHandle } from '@core/CTTRef';
 import type {
-  GetPathToOptions,
-  VertexResolutionContext,
+  StructuralAncestorPathOptions,
+  ChildDiscoveryContext,
 } from '@core/ResolvedTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 
 /** Live tree queries with detached collections and contexts; refs and caller data remain shallow. */
-export interface ResolvedTreeView<T extends VertexTypes> {
-  getRoot(): VertexHandle<T> | null;
-  has(ref: VertexHandle<T>): boolean;
-  getChildrenOf(ref: VertexHandle<T>): readonly VertexHandle<T>[] | null;
-  getParentOf(ref: VertexHandle<T>): VertexHandle<T> | null;
-  requirePathTo(
-    ref: VertexHandle<T>,
-    options?: GetPathToOptions,
-  ): readonly VertexHandle<T>[];
-  getResolutionContextOf(
-    ref: VertexHandle<T>,
-  ): Readonly<VertexResolutionContext<T>> | null;
+export interface LiveResolvedTreeView<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> {
+  getRootVertexHandleOrNull(): VertexHandle<InputVertexTypes> | null;
+  containsVertexHandle(ref: VertexHandle<InputVertexTypes>): boolean;
+  getChildVertexHandlesOrNull(
+    ref: VertexHandle<InputVertexTypes>,
+  ): readonly VertexHandle<InputVertexTypes>[] | null;
+  getParentVertexHandleOrNull(
+    ref: VertexHandle<InputVertexTypes>,
+  ): VertexHandle<InputVertexTypes> | null;
+  requireStructuralAncestorPathTo(
+    ref: VertexHandle<InputVertexTypes>,
+    options?: StructuralAncestorPathOptions,
+  ): readonly VertexHandle<InputVertexTypes>[];
+  getChildDiscoveryContextOrNull(
+    ref: VertexHandle<InputVertexTypes>,
+  ): Readonly<ChildDiscoveryContext<InputVertexTypes>> | null;
 }

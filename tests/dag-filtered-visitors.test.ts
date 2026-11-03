@@ -1,130 +1,156 @@
 import { TraversalVisitorCommandName as VisitorCommand } from '../src';
 import {
-  DagTraversal,
-  AsyncDagTraversal,
+  DagTraversalBuilder,
+  AsyncDagTraversalBuilder,
   DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
 import {
-  filterDagDataVisitor,
-  filterAsyncDagDataVisitor,
+  createConditionalDagDataVisitor,
+  createConditionalAsyncDagDataVisitor,
 } from '../src/traversals/dag-traversal/filterDagVisitor';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import type { DagDiscoverySource } from '../src/core/TraversableGraph';
 
 type Task = { kind: 'task'; label: string };
 type Group = { kind: 'group'; title: string };
 type Data = Task | Group;
-type G = VertexTypes<Data, string>;
+type G = VertexDataAndChildHintTypes<Data, string>;
 const group: Group = { kind: 'group', title: 'group' };
 const task: Task = { kind: 'task', label: 'task' };
 const isTask = (data: Data): data is Task => data.kind === 'task';
 const source: DagDiscoverySource<G, G, string> = {
-  resolveRoot: () => ({
-    kind: 'found',
-    vertex: {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved',
+    resolvedVertexInput: {
       vertexId: 'group',
-      vertexContent: { $data: group, $childHints: ['task'] },
+      vertexContentInput: {
+        $vertexData: group,
+        $childDiscoveryHints: ['task'],
+      },
     },
   }),
-  resolveChild: () => ({
-    kind: 'found',
-    vertex: {
+  resolveChildHint: () => ({
+    kind: 'vertexResolved',
+    resolvedVertexInput: {
       vertexId: 'task',
-      vertexContent: { $data: task, $childHints: [] },
+      vertexContentInput: { $vertexData: task, $childDiscoveryHints: [] },
     },
   }),
 };
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
   test(`${Constructor.name} filters data while preserving command results and context`, async () => {
     const traversal = new Constructor<G, G, string>({
-      traversableGraph: source,
+      dagDiscoverySource: source,
     });
     const seen: unknown[] = [];
-    traversal.addVisitorFor(
+    traversal.registerVisitorCallbackForPhase(
       Order.ON_WORK_READY,
-      filterDagDataVisitor(isTask, (data, options) => {
-        seen.push(data, options.phase, options.vertexRef.getValue().getData());
+      createConditionalDagDataVisitor(isTask, (data, options) => {
+        seen.push(
+          data,
+          options.visitorPhase,
+          options.vertexHandle.getCurrentVertexView().getVertexData(),
+        );
         expect(
-          options.resolvedGraphView.requireVertexId(options.vertexRef),
+          options.liveResolvedGraphView.requireVertexId(options.vertexHandle),
         ).toBe('task');
-        expect(options.registration.priority).toBe(12);
+        expect(
+          options.visitorRegistrationMetadata
+            .descendingExecutionPriorityWithinGroup,
+        ).toBe(12);
         return {
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_DATA,
+              commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
               commandArguments: {
-                newData: { kind: 'task', label: data.label.toUpperCase() },
+                replacementVertexData: {
+                  kind: 'task',
+                  label: data.label.toUpperCase(),
+                },
               },
             },
             {
-              commandName: Command.SET_VISITOR_CHAIN_STATE,
-              commandArguments: { state: data },
+              commandName: Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
+              commandArguments: { phaseChainState: data },
             },
           ],
         };
       }),
-      { priority: 12 },
+      { descendingExecutionPriorityWithinGroup: 12 },
     );
-    traversal.addVisitorFor(
+    traversal.registerVisitorCallbackForPhase(
       Order.ON_WORK_READY,
-      filterDagDataVisitor(
+      createConditionalDagDataVisitor(
         (data: Data) => data.kind === 'task',
         (data, options) => {
           expect(data).toEqual({ kind: 'task', label: 'TASK' });
-          expect(options.visitorChainState).toBe(task);
+          expect(options.currentVertexPhaseChainState).toBe(task);
           seen.push('after');
         },
       ),
-      { priority: 1 },
+      { descendingExecutionPriorityWithinGroup: 1 },
     );
-    const runner = traversal.createRunner();
-    await runner.run();
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expect(seen).toEqual([task, Order.ON_WORK_READY, task, 'after']);
     expect(
       runner
-        .getResolvedGraphView()
-        .getVertexRefById('group')!
-        .getValue()
-        .getData(),
+        .getLiveResolvedGraphView()
+        .getVertexHandleByIdOrNull('group')!
+        .getCurrentVertexView()
+        .getVertexData(),
     ).toBe(group);
     expect(
       runner
-        .getResolvedGraphView()
-        .getVertexRefById('task')!
-        .getValue()
-        .getData(),
+        .getLiveResolvedGraphView()
+        .getVertexHandleByIdOrNull('task')!
+        .getCurrentVertexView()
+        .getVertexData(),
     ).toEqual({ kind: 'task', label: 'TASK' });
   });
 
   test(`${Constructor.name} forwards filtered deferral without running later visitors`, async () => {
     const traversal = new Constructor<G, G, string>({
-      traversableGraph: source,
+      dagDiscoverySource: source,
     });
     const after: string[] = [];
-    traversal.addVisitorFor(
+    traversal.registerVisitorCallbackForPhase(
       Order.ON_WORK_READY,
-      filterDagDataVisitor(isTask, () => ({
+      createConditionalDagDataVisitor(isTask, () => ({
         commands: [
-          { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+          {
+            commandName:
+              VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+          },
         ],
       })),
     );
-    traversal.addVisitorFor(Order.ON_WORK_READY, (_, options) => {
-      after.push(options.resolvedGraphView.requireVertexId(options.vertexRef));
-    });
-    const runner = traversal.createRunner();
-    await runner.run();
+    traversal.registerVisitorCallbackForPhase(
+      Order.ON_WORK_READY,
+      (_, options) => {
+        after.push(
+          options.liveResolvedGraphView.requireVertexId(options.vertexHandle),
+        );
+      },
+    );
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expect(after).toEqual(['group']);
-    expect(runner.summary().deferredWorkIds).toEqual(['task']);
-    runner.settle(
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['task']);
+    runner.settleDeferredWork(
       'task',
       { kind: 'workCompleted' },
-      runner.summary().awaitingSettlement[0]!.generation,
+      runner.captureProgressSnapshot().workAwaitingSettlement[0]!
+        .settlementToken,
     );
-    await runner.run();
-    expect(runner.summary().completedWorkIds).toEqual(['group', 'task']);
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual(['group', 'task']);
   });
 
   test.each(['predicate', 'callback'] as const)(
@@ -132,11 +158,11 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     async (where) => {
       const error = { where };
       const traversal = new Constructor<G, G, string>({
-        traversableGraph: source,
+        dagDiscoverySource: source,
       });
-      traversal.addVisitorFor(
+      traversal.registerVisitorCallbackForPhase(
         Order.ON_WORK_READY,
-        filterDagDataVisitor(
+        createConditionalDagDataVisitor(
           (data: Data) => {
             if (where === 'predicate') throw error;
             return isTask(data);
@@ -146,94 +172,109 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
           },
         ),
       );
-      const runner = traversal.createRunner();
+      const runner = traversal.createIndependentRunnerFromCurrentOptions();
       await expect(async () => {
-        await runner.run();
+        await runner.runUntilSuspendedOrTerminal();
       }).rejects.toBe(error);
     },
   );
 }
 
 test('async filtered callbacks await commands and preserve rejected values', async () => {
-  const traversal = new AsyncDagTraversal<G, G, string>({
-    traversableGraph: source,
+  const traversal = new AsyncDagTraversalBuilder<G, G, string>({
+    dagDiscoverySource: source,
   });
-  traversal.addVisitorFor(
+  traversal.registerVisitorCallbackForPhase(
     Order.ON_WORK_READY,
-    filterAsyncDagDataVisitor(isTask, async (data) => {
+    createConditionalAsyncDagDataVisitor(isTask, async (data) => {
       await Promise.resolve();
       return {
         commands: [
           {
-            commandName: Command.REWRITE_VERTEX_DATA,
+            commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
             commandArguments: {
-              newData: { kind: 'task', label: `${data.label}!` },
+              replacementVertexData: { kind: 'task', label: `${data.label}!` },
             },
           },
         ],
       };
     }),
   );
-  const runner = traversal.createRunner();
-  await runner.run();
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  await runner.runUntilSuspendedOrTerminal();
   expect(
     runner
-      .getResolvedGraphView()
-      .getVertexRefById('task')!
-      .getValue()
-      .getData(),
+      .getLiveResolvedGraphView()
+      .getVertexHandleByIdOrNull('task')!
+      .getCurrentVertexView()
+      .getVertexData(),
   ).toEqual({ kind: 'task', label: 'task!' });
-  traversal.addVisitorFor(
-    Order.ON_SUBGRAPH_READY,
-    filterAsyncDagDataVisitor(isTask, async () => {
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_SUBGRAPH_COMPLETION_READY,
+    createConditionalAsyncDagDataVisitor(isTask, async () => {
       throw undefined;
     }),
   );
-  await expect(traversal.createRunner().run()).rejects.toBeUndefined();
+  await expect(
+    traversal
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal(),
+  ).rejects.toBeUndefined();
 });
 
 test('async filtering preserves deferral after awaited host work', async () => {
-  const traversal = new AsyncDagTraversal<G, G, string>({
-    traversableGraph: source,
+  const traversal = new AsyncDagTraversalBuilder<G, G, string>({
+    dagDiscoverySource: source,
   });
-  traversal.addVisitorFor(
+  traversal.registerVisitorCallbackForPhase(
     Order.ON_WORK_READY,
-    filterAsyncDagDataVisitor(
+    createConditionalAsyncDagDataVisitor(
       isTask,
       async (): Promise<{
-        commands: [{ commandName: VisitorCommand.DEFER_WORK_COMPLETION }];
+        commands: [
+          {
+            commandName: VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION;
+          },
+        ];
       }> => {
         await Promise.resolve();
         return {
           commands: [
-            { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+            {
+              commandName:
+                VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+            },
           ],
         };
       },
     ),
   );
-  const runner = traversal.createRunner();
-  await runner.run();
-  expect(runner.summary().deferredWorkIds).toEqual(['task']);
-  runner.settle(
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  await runner.runUntilSuspendedOrTerminal();
+  expect(
+    runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+  ).toEqual(['task']);
+  runner.settleDeferredWork(
     'task',
     { kind: 'workCompleted' },
-    runner.summary().awaitingSettlement[0]!.generation,
+    runner.captureProgressSnapshot().workAwaitingSettlement[0]!.settlementToken,
   );
-  await runner.run();
-  expect(runner.summary().completedWorkIds).toEqual(['group', 'task']);
+  await runner.runUntilSuspendedOrTerminal();
+  expect(
+    runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+  ).toEqual(['group', 'task']);
 });
 
 test.each(['predicate', 'callback'] as const)(
   'async filter preserves exact synchronous %s errors',
   async (where) => {
     const error = { where };
-    const traversal = new AsyncDagTraversal<G, G, string>({
-      traversableGraph: source,
+    const traversal = new AsyncDagTraversalBuilder<G, G, string>({
+      dagDiscoverySource: source,
     });
-    traversal.addVisitorFor(
+    traversal.registerVisitorCallbackForPhase(
       Order.ON_WORK_READY,
-      filterAsyncDagDataVisitor(
+      createConditionalAsyncDagDataVisitor(
         (data: Data) => {
           if (where === 'predicate') throw error;
           return isTask(data);
@@ -243,6 +284,10 @@ test.each(['predicate', 'callback'] as const)(
         },
       ),
     );
-    await expect(traversal.createRunner().run()).rejects.toBe(error);
+    await expect(
+      traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
+    ).rejects.toBe(error);
   },
 );

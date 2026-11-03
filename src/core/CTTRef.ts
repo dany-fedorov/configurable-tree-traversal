@@ -1,6 +1,6 @@
 import * as uuid from 'uuid';
 
-export class MutableRef<T> {
+export class MutableValueReference<T> {
   private _ref: T;
   private readonly _id: string;
 
@@ -9,23 +9,23 @@ export class MutableRef<T> {
     this._id = uuid.v4();
   }
 
-  getValue(): T {
+  getReferencedValue(): T {
     return this._ref;
   }
 
-  setValue(ref: T): void {
+  replaceReferencedValue(ref: T): void {
     this._ref = ref;
   }
 
-  getRefId(): string {
+  getReferenceIdentity(): string {
     return this._id;
   }
 }
 
 /** Stable observation identity with no editing authority. */
 export interface VertexHandle<
-  T extends import('./TreeTypeParameters').VertexTypes,
+  InputVertexTypes extends import('./TreeTypeParameters').VertexDataAndChildHintTypes,
 > {
-  getValue(): import('./Vertex').VertexView<T>;
-  getRefId(): string;
+  getCurrentVertexView(): import('./Vertex').VertexView<InputVertexTypes>;
+  getReferenceIdentity(): string;
 }

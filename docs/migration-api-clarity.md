@@ -1,5 +1,7 @@
 # Migrate to the clearer public API
 
+> Historical release guide: the tables and examples below describe the released 0.12 API and its earlier migration. They are not the API of this unreleased checkout. Start with the [explicit API migration](migration-explicit-api.md) to move from released 0.12 to this checkout; use the [current reference](reference.md) for the implemented contracts.
+
 Upgrade-only reading. Start from the [final upgrade checklist](migration-api-distinctions.md); this guide keeps the detailed tables and examples for one earlier stage and is not a step you apply in sequence. First-time readers should use the [README](../README.md) and [reference](reference.md) instead.
 
 [Documentation map](index.md) · [Reference](reference.md) · [Agent workflows](agent-workflows.md) · [Uniform API migration](migration-uniform-api.md)
@@ -225,7 +227,7 @@ In-order positions are child **indices**: zero means after child index zero. Neg
 
 ## A complete canonical migration example
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import {

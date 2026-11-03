@@ -1,79 +1,96 @@
-import type { OwnerToken, VisitPhase } from '@core/effects/types';
+import type {
+  SchedulingOwnerValidityToken,
+  TreeOrDagVisitorPhase,
+} from '@core/effects/types';
 import type {
   TraversalRunnerStatus,
   TraversalStopReason,
 } from '@core/TraversalRunner';
 import type {
-  EmissionKind,
-  VisitorPhaseSelection,
+  TraversalEventKindForVisitorPhase,
+  VisitorCallbackPhaseSelection,
 } from './TraversalRunnerIterableConfig';
 
-export type InspectionFilters<
-  Phase extends string = VisitPhase,
-  EmittedKind extends string = EmissionKind<Phase>,
+export type TraversalExecutionSelections<
+  Phase extends string = TreeOrDagVisitorPhase,
+  EmittedKind extends string = TraversalEventKindForVisitorPhase<Phase>,
 > = Readonly<{
-  emitEvents: readonly EmittedKind[];
-  visitorPhases: VisitorPhaseSelection<Phase>;
+  deliveredEventKinds: readonly EmittedKind[];
+  admittedVisitorCallbackPhases: VisitorCallbackPhaseSelection<Phase>;
 }>;
 
 /** Public callbacks observed by a tree or DAG runner. Engine effect keys stay private. */
-export type TreeDagInspectionOperation =
-  | 'resolveRoot'
-  | 'resolveChild'
-  | 'resolvePrerequisite'
-  | 'transformChildHints'
-  | 'getVertexIdFromHint'
-  | 'visit';
+export type TreeOrDagCallbackOperation =
+  | 'resolveRootVertex'
+  | 'resolveChildVertexFromHint'
+  | 'resolveChildHint'
+  | 'resolvePrerequisiteByVertexId'
+  | 'transformChildHintsBeforeResolution'
+  | 'tryGetVertexIdentityFromHint'
+  | 'invokeVisitorCallback';
 
-export type KernelInspection<Phase extends string = VisitPhase> = Readonly<{
-  status: TraversalRunnerStatus;
-  stopReason: TraversalStopReason | null;
+export type TreeOrDagSchedulerSnapshot<
+  Phase extends string = TreeOrDagVisitorPhase,
+> = Readonly<{
+  traversalLifecycleStatus: TraversalRunnerStatus;
+  traversalStopReason: TraversalStopReason | null;
   pauseRequested: boolean;
-  kind: 'depth-first' | 'breadth-first' | 'dag';
-  execution: 'sync' | 'async';
-  sourceMode: 'tree' | 'graph';
-  concurrency: number;
-  hasHintTransformer: boolean;
-  hasHintIds: boolean;
-  /** Current delivery selector and default admission policy for new chains. */
-  executionOptions: InspectionFilters<Phase>;
-  readyVisits: readonly Readonly<{
-    vertexRefId: string;
-    phase: Phase;
+  traversalAlgorithm: 'depth-first' | 'breadth-first' | 'dag';
+  callbackExecutionMode: 'sync' | 'async';
+  sourceTopologyKind: 'tree' | 'graph';
+  maxConcurrentCallbackInvocations: number;
+  hasChildHintsListTransformer: boolean;
+  hasChildHintVertexIdResolver: boolean;
+  /** Current delivery selector and default admission policy for new vertexPhaseVisitorChains. */
+  executionOptions: TraversalExecutionSelections<Phase>;
+  dependencyEligiblePhaseVisits: readonly Readonly<{
+    vertexReferenceIdentity: string;
+    visitorPhase: Phase;
   }>[];
-  frames: readonly Readonly<{
-    owner: Readonly<OwnerToken>;
-    vertexRefId: string;
+  vertexTraversalFrames: readonly Readonly<{
+    owner: Readonly<SchedulingOwnerValidityToken>;
+    vertexReferenceIdentity: string;
     stage:
-      | 'transformHints'
-      | 'identify'
-      | 'resolve'
-      | 'closed'
-      | import('@depth-first-traversal/lib/DepthFirstPolicy').DepthFirstFrameStage;
-    pendingIndices: readonly number[];
+      | 'transformingChildHints'
+      | 'resolvingChildHintVertexIds'
+      | 'resolvingChildVertexContent'
+      | 'childDiscoveryClosed'
+      | import('@depth-first-traversal/lib/DepthFirstPolicy').DepthFirstTraversalFrameStage;
+    pendingChildHintIndices: readonly number[];
   }>[];
-  chains: readonly Readonly<{
-    owner: Readonly<OwnerToken>;
-    vertexRefId: string;
-    phase: Phase;
-    state: 'running' | 'paused' | 'done' | 'invalid';
-    commandCommitMode: import('@core/TraversalVisitor').CommandCommitMode;
-    visitorIndex: number;
-    waitingFor: 'none' | 'callback' | 'batch';
+  vertexPhaseVisitorChains: readonly Readonly<{
+    owner: Readonly<SchedulingOwnerValidityToken>;
+    vertexReferenceIdentity: string;
+    visitorPhase: Phase;
+    state:
+      | 'active'
+      | 'pausedAtCommandBoundary'
+      | 'phaseChainFinished'
+      | 'invalidated';
+    visitorCommandCommitTiming: import('@core/TraversalVisitor').VisitorCommandCommitTiming;
+    visitorCallbackIndexInPhaseChain: number;
+    pendingCallbackOrCommandBatch:
+      | 'none'
+      | 'visitorCallbackResult'
+      | 'commandBatchCommit';
     /** Admission snapshot: visitorPhases governs this chain; emitEvents is historical. */
-    executionOptions: InspectionFilters<Phase>;
+    executionSelectionsAtAdmission: TraversalExecutionSelections<Phase>;
   }>[];
-  pendingRequests: readonly Readonly<{
-    requestId: number;
-    operation: TreeDagInspectionOperation;
-    owner: Readonly<OwnerToken>;
-    valid: boolean;
+  pendingCallbackRequests: readonly Readonly<{
+    callbackRequestId: number;
+    operation: TreeOrDagCallbackOperation;
+    owner: Readonly<SchedulingOwnerValidityToken>;
+    ownerStillValid: boolean;
   }>[];
-  pendingEventBoundaryCount: number;
+  unacknowledgedCommittedEventBoundaryCount: number;
 }>;
 
-export type DriverInspection<Phase extends string = VisitPhase> =
-  KernelInspection<Phase> & Readonly<{ inFlightCallbackCount: number }>;
+export type TreeOrDagCallbackDriverSnapshot<
+  Phase extends string = TreeOrDagVisitorPhase,
+> = TreeOrDagSchedulerSnapshot<Phase> &
+  Readonly<{ inFlightInvocationCount: number }>;
 
-export type TreeDagExecutionInspection<Phase extends string = VisitPhase> =
-  DriverInspection<Phase> & Readonly<{ bufferedEventCount: number }>;
+export type TreeOrDagExecutionSnapshot<
+  Phase extends string = TreeOrDagVisitorPhase,
+> = TreeOrDagCallbackDriverSnapshot<Phase> &
+  Readonly<{ bufferedDeliveryEventCount: number }>;

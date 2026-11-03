@@ -6,49 +6,70 @@ for (const api of [esm, cjs]) {
   const data = { value: 'root' };
   const hint = { value: 'child' };
   for (const Builder of [
-    api.DepthFirstTreeTraversal,
-    api.AsyncDepthFirstTreeTraversal,
-    api.BreadthFirstTreeTraversal,
-    api.AsyncBreadthFirstTreeTraversal,
-    api.DagTraversal,
-    api.AsyncDagTraversal,
+    api.DepthFirstTreeTraversalBuilder,
+    api.AsyncDepthFirstTreeTraversalBuilder,
+    api.BreadthFirstTreeTraversalBuilder,
+    api.AsyncBreadthFirstTreeTraversalBuilder,
+    api.DagTraversalBuilder,
+    api.AsyncDagTraversalBuilder,
   ]) {
     const runner = new Builder({
-      traversableTree: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: { vertexContent: { $data: data, $childHints: [hint] } },
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: data,
+              $childDiscoveryHints: [hint],
+            },
+          },
         }),
-        resolveChild: (_hint, context) => {
+        resolveChildVertexFromHint: (_hint, context) => {
           assert.equal('resolvedTree' in context, false);
-          assert.equal('set' in context.resolvedTreeView, false);
+          assert.equal('set' in context.liveResolvedTreeView, false);
           assert.equal(
-            'setValue' in context.resolutionContext.parentVertexRef,
+            'setValue' in context.childDiscoveryContext.parentVertexHandle,
             false,
           );
           return {
-            kind: 'found',
-            vertex: { vertexContent: { $data: hint, $childHints: [] } },
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
+              vertexContentInput: {
+                $vertexData: hint,
+                $childDiscoveryHints: [],
+              },
+            },
           };
         },
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     const events = [];
-    for await (const event of runner.iterateEvents()) events.push(event);
-    const view = runner.getResolvedTreeView();
-    const root = view.getRoot();
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      events.push(event);
+    const view = runner.getLiveResolvedTreeView();
+    const root = view.getRootVertexHandleOrNull();
     assert.equal('getResolvedTreeStore' in runner, false);
     assert.equal('getResolvedGraph' in runner, false);
     assert.equal('isTraversalRootVertex' in runner, false);
     assert.equal('isTraversalRoot' in events[0], false);
     assert.equal('setValue' in root, false);
-    assert.equal(events[0].vertexRef, root);
-    assert.equal(runner.getResolvedGraphView().getRoot(), root);
+    assert.equal(events[0].vertexHandle, root);
+    assert.equal(
+      runner.getLiveResolvedGraphView().getDesignatedRootHandleOrNull(),
+      root,
+    );
     assert(Object.isFrozen(root));
-    assert(Object.isFrozen(root.getValue()));
-    assert(Object.isFrozen(root.getValue().getChildHints()));
-    assert.equal(root.getValue().getData(), data);
-    assert.equal(root.getValue().getChildHints()[0], hint);
+    assert(Object.isFrozen(root.getCurrentVertexView()));
+    assert(
+      Object.isFrozen(
+        root.getCurrentVertexView().getDetachedChildDiscoveryHints(),
+      ),
+    );
+    assert.equal(root.getCurrentVertexView().getVertexData(), data);
+    assert.equal(
+      root.getCurrentVertexView().getDetachedChildDiscoveryHints()[0],
+      hint,
+    );
     assert.equal(Object.isFrozen(data), false);
     assert.equal(Object.isFrozen(hint), false);
   }

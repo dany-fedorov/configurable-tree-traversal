@@ -1,15 +1,21 @@
 type SourceIterator = Iterator<unknown> | AsyncIterator<unknown>;
-type Resource = { iterator: SourceIterator; vertexToken?: symbol | undefined };
+type Resource = {
+  iterator: SourceIterator;
+  runnerLocalVertexIdentityToken?: symbol | undefined;
+};
 
-/** Only actual iterator acquisitions enter this registry. Cleanup consumes each once. */
+/** Only actual iterator acquisitions enter this registry. Cleanup consumes each firstAdmittedFoundRoutePerVertex. */
 export class WalkResources {
   private readonly opened = new Map<SourceIterator, Resource>();
   private closing: Resource[] | null = null;
 
-  open(iterator: SourceIterator, vertexToken?: symbol | undefined): void {
-    this.opened.set(iterator, { iterator, vertexToken });
+  open(
+    iterator: SourceIterator,
+    runnerLocalVertexIdentityToken?: symbol | undefined,
+  ): void {
+    this.opened.set(iterator, { iterator, runnerLocalVertexIdentityToken });
   }
-  exhausted(iterator: SourceIterator): void {
+  sourceRoutesExhausted(iterator: SourceIterator): void {
     this.opened.delete(iterator);
   }
   get size(): number {

@@ -1,4 +1,7 @@
-import { DepthFirstTreeTraversal, DepthFirstPhase } from '../src';
+import {
+  DepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase,
+} from '../src';
 
 /**
  * Utils
@@ -20,11 +23,11 @@ const ANSI_ESCAPE =
 
 function getFgColorFor(order: unknown): string {
   switch (order) {
-    case DepthFirstPhase.PRE_ORDER:
+    case DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION:
       return RED_FG;
-    case DepthFirstPhase.IN_ORDER:
+    case DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES:
       return GREEN_FG;
-    case DepthFirstPhase.POST_ORDER:
+    case DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES:
       return BLUE_FG;
     default:
       return '';
@@ -33,7 +36,7 @@ function getFgColorFor(order: unknown): string {
 
 const seq: string[] = [];
 
-function reportVisit(order: DepthFirstPhase, data: any) {
+function reportVisit(order: DepthFirstTreeVisitPhase, data: any) {
   seq.push([WHITE_BG, getFgColorFor(order), data, BLACK_FG, '-'].join(''));
 }
 
@@ -60,7 +63,7 @@ logWhiteRow('');
 logWhiteRow(
   [
     LEFT_PADDING,
-    getFgColorFor(DepthFirstPhase.PRE_ORDER),
+    getFgColorFor(DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION),
     'Pre-order'.padEnd(10),
     BLACK_FG,
   ].join(''),
@@ -68,7 +71,9 @@ logWhiteRow(
 logWhiteRow(
   [
     LEFT_PADDING,
-    getFgColorFor(DepthFirstPhase.IN_ORDER),
+    getFgColorFor(
+      DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+    ),
     'In-order'.padEnd(10),
     BLACK_FG,
   ].join(''),
@@ -76,7 +81,7 @@ logWhiteRow(
 logWhiteRow(
   [
     LEFT_PADDING,
-    getFgColorFor(DepthFirstPhase.POST_ORDER),
+    getFgColorFor(DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES),
     'Post-order'.padEnd(10),
     BLACK_FG,
   ].join(''),
@@ -101,39 +106,59 @@ process.on('beforeExit', () => {
 // @webstorm-formatter:off
 // prettier-ignore
 const treeData =
-  { $data: 'F', $childHints: [
-      { $data: 'B', $childHints: [
-          { $data: 'A', $childHints: [] },
-          { $data: 'D', $childHints: [
-              { $data: 'C', $childHints: [] },
-              { $data: 'E', $childHints: [] }] }] },
-      { $data: 'G', $childHints: [
+  { $vertexData: 'F', $childDiscoveryHints: [
+      { $vertexData: 'B', $childDiscoveryHints: [
+          { $vertexData: 'A', $childDiscoveryHints: [] },
+          { $vertexData: 'D', $childDiscoveryHints: [
+              { $vertexData: 'C', $childDiscoveryHints: [] },
+              { $vertexData: 'E', $childDiscoveryHints: [] }] }] },
+      { $vertexData: 'G', $childDiscoveryHints: [
           null,
-          { $data: 'I', $childHints: [
-              { $data: 'H', $childHints: [] }] }] }] };
+          { $vertexData: 'I', $childDiscoveryHints: [
+              { $vertexData: 'H', $childDiscoveryHints: [] }] }] }] };
 
-const traversal = new DepthFirstTreeTraversal({
-  traversableTree: {
-    resolveRoot: () => ({
-      kind: 'found' as const,
-      vertex: { vertexContent: treeData },
+const traversal = new DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: {
+    resolveRootVertex: () => ({
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: { vertexContentInput: treeData },
     }),
-    resolveChild: (childHint: any) =>
+    resolveChildVertexFromHint: (childHint: any) =>
       childHint === null
-        ? { kind: 'omitted' }
-        : { kind: 'found', vertex: { vertexContent: childHint } },
+        ? { kind: 'vertexIntentionallyOmitted' }
+        : {
+            kind: 'vertexResolved',
+            resolvedVertexInput: { vertexContentInput: childHint },
+          },
   },
 });
-traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) =>
-  reportVisit(DepthFirstPhase.PRE_ORDER, vertex.getData()),
+traversal.registerVisitorCallbackForPhase(
+  DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+  (vertex) =>
+    reportVisit(
+      DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+      vertex.getVertexData(),
+    ),
 );
-traversal.addVisitorFor(DepthFirstPhase.IN_ORDER, (vertex) =>
-  reportVisit(DepthFirstPhase.IN_ORDER, vertex.getData()),
+traversal.registerVisitorCallbackForPhase(
+  DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+  (vertex) =>
+    reportVisit(
+      DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+      vertex.getVertexData(),
+    ),
 );
-traversal.addVisitorFor(DepthFirstPhase.POST_ORDER, (vertex) =>
-  reportVisit(DepthFirstPhase.POST_ORDER, vertex.getData()),
+traversal.registerVisitorCallbackForPhase(
+  DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
+  (vertex) =>
+    reportVisit(
+      DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
+      vertex.getVertexData(),
+    ),
 );
-traversal.createRunner().run();
+traversal
+  .createIndependentRunnerFromCurrentOptions()
+  .runUntilSuspendedOrTerminal();
 
 /*
     Pre-order

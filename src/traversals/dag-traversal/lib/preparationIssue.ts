@@ -1,23 +1,24 @@
-import { DagDiscoveryCycleError } from '@core/errors/DagDiscoveryCycleError';
+import { DagStructuralDiscoveryCycleError } from '@core/errors/DagDiscoveryCycleError';
 import type { DagTraversalStallDiagnostics } from '@core/errors/DagTraversalStallError';
 import { engineDagValidationErrors } from '@core/errors/engineDagValidationErrors';
 import type { DagDefinitionIssue } from './DagDefinition';
 
 /** Only the preparing runner's own engine failures become structured issues. */
-export function preparationIssue<ID>(
+export function preparationIssue<VertexId>(
   store: object,
   error: unknown,
-): DagDefinitionIssue<ID> | undefined {
+): DagDefinitionIssue<VertexId> | undefined {
   const validation = engineDagValidationErrors.get(store);
   if (validation === undefined || validation !== error) return undefined;
-  return validation instanceof DagDiscoveryCycleError
+  return validation instanceof DagStructuralDiscoveryCycleError
     ? {
-        kind: 'discoveryCycle',
+        kind: 'discoveredStructuralChildCycleWitness',
         cycleWitnessVertexIds:
-          validation.cycleWitnessVertexIds as readonly ID[],
+          validation.cycleWitnessVertexIds as readonly VertexId[],
       }
     : {
-        kind: 'milestone',
-        diagnostics: validation.diagnostics as DagTraversalStallDiagnostics<ID>,
+        kind: 'milestoneDependencyStall',
+        diagnostics:
+          validation.diagnostics as DagTraversalStallDiagnostics<VertexId>,
       };
 }

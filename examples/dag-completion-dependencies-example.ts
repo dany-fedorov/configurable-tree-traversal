@@ -1,48 +1,56 @@
 import {
-  DagTraversal,
+  DagTraversalBuilder,
   DagVisitorPhase as Order,
-  type VertexTypes,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 import assert from 'node:assert/strict';
 
-type Build = VertexTypes<string, string>;
+type Build = VertexDataAndChildHintTypes<string, string>;
 const events: string[] = [];
-const traversal = new DagTraversal<Build>({
-  traversableGraph: {
-    resolveRoot: () => ({
-      kind: 'found' as const,
-      vertex: {
+const traversal = new DagTraversalBuilder<Build>({
+  dagDiscoverySource: {
+    resolveRootVertex: () => ({
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
         vertexId: 'build',
-        vertexContent: { $data: 'build', $childHints: ['package', 'compile'] },
+        vertexContentInput: {
+          $vertexData: 'build',
+          $childDiscoveryHints: ['package', 'compile'],
+        },
       },
     }),
-    resolveChild: (id) => ({
-      kind: 'found' as const,
-      vertex: {
+    resolveChildHint: (id) => ({
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
         vertexId: id,
-        dependsOnWork: [
+        workWaitsForWorkOf: [
           id === 'package' || id === 'compile' ? 'build' : 'compile',
         ],
         // Packaging needs the compiled bundle, including both retained children.
         ...(id === 'package'
-          ? { dependsOnSubgraphCompletion: ['compile'] }
+          ? { workWaitsForSubgraphCompletionOf: ['compile'] }
           : {}),
-        vertexContent: {
-          $data: id,
-          $childHints:
+        vertexContentInput: {
+          $vertexData: id,
+          $childDiscoveryHints:
             id === 'compile' ? ['compile-client', 'compile-server'] : [],
         },
       },
     }),
   },
 });
-traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-  events.push(`work:${vertex.getData()}`);
+traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+  events.push(`work:${vertex.getVertexData()}`);
 });
-traversal.addVisitorFor(Order.ON_SUBGRAPH_READY, (vertex) => {
-  events.push(`complete:${vertex.getData()}`);
-});
-const runner = traversal.createRunner().run();
+traversal.registerVisitorCallbackForPhase(
+  Order.ON_SUBGRAPH_COMPLETION_READY,
+  (vertex) => {
+    events.push(`complete:${vertex.getVertexData()}`);
+  },
+);
+const runner = traversal
+  .createIndependentRunnerFromCurrentOptions()
+  .runUntilSuspendedOrTerminal();
 assert(events.indexOf('work:package') > events.indexOf('complete:compile'));
 assert(
   events.indexOf('complete:compile') >
@@ -53,7 +61,8 @@ assert(
     events.indexOf('complete:compile-server'),
 );
 assert.deepEqual(
-  runner.summary().vertices.get('package')!.unmetSubgraphPrerequisiteIds,
+  runner.captureProgressSnapshot().progressByVertexId.get('package')!
+    .unmetSubgraphCompletionMilestoneVertexIds,
   [],
 );
 console.log(events.join('\n'));

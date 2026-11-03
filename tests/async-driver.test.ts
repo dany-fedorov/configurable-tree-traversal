@@ -12,7 +12,9 @@ import type { TestGraph } from './helpers/graph-fixtures';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 import type { InternalVertexRef } from '../src/core/graph/types';
 
-function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
+function makeKernel(
+  iterateOver: Array<'BEFORE_CHILD_EXPANSION' | 'AFTER_CHILD_SUBTREES'> = [],
+) {
   return new TraversalKernel<TestGraph>({
     kind: 'depth-first',
     execution: 'async',
@@ -22,7 +24,7 @@ function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
       saveOriginal: false,
     }),
     stateBridge: {
-      status: TraversalRunnerStatus.INITIAL,
+      status: TraversalRunnerStatus.NOT_STARTED,
       traversalRootVertexRef: null,
       subtreeTraversalDisabledRefs: new Set(),
       visitorsState: {},
@@ -34,22 +36,22 @@ function makeKernel(iterateOver: Array<'PRE_ORDER' | 'POST_ORDER'> = []) {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: {
-      afterChildIndices: { indices: [0] },
-      fallbackChildIndices: { indices: [0] },
-      visitSingleChildParent: true,
-      visitAfterOmittedChildren: true,
+      visitAfterChildIndices: { indices: [0] },
+      visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [0] },
+      alsoVisitAfterOnlyChild: true,
+      allowBoundaryVisitsAfterOmittedChildSlots: true,
     },
-    hasHintTransformer: false,
-    hasHintIds: false,
-    concurrency: 2,
+    hasChildHintsListTransformer: false,
+    hasChildHintVertexIdResolver: false,
+    maxConcurrentCallbackInvocations: 2,
   });
 }
 
 test('closes while root resolution is pending and consumes it after resume', async () => {
   const root = deferred<{
-    vertexContent: { $data: string; $childHints: string[] };
+    vertexContent: { $vertexData: string; $childDiscoveryHints: string[] };
   }>();
-  const kernel = makeKernel(['PRE_ORDER']);
+  const kernel = makeKernel(['BEFORE_CHILD_EXPANSION']);
   const bindings: CallbackBindings<TestGraph> = {
     invoke: (call) => {
       if (call.kind !== 'MAKE_ROOT') throw new Error('Unexpected callback');
@@ -58,27 +60,35 @@ test('closes while root resolution is pending and consumes it after resume', asy
   };
   const driver = createAsyncDriver(kernel, bindings, 1);
   const session = new AsyncRunnerSession(driver);
-  const first = session.iterateEvents();
+  const first =
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const pending = first.next();
   await eventLoopTurn();
-  expect(driver.inspect().inFlightCallbackCount).toBe(1);
+  expect(driver.captureExecutionSnapshot().inFlightInvocationCount).toBe(1);
 
   await expect(first.return(undefined)).resolves.toEqual({
     done: true,
     value: undefined,
   });
   await expect(pending).resolves.toEqual({ done: true, value: undefined });
-  expect(kernel.getStatus()).toBe(TraversalRunnerStatus.HALTED);
+  expect(kernel.getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.SUSPENDED,
+  );
 
-  root.resolve({ vertexContent: { $data: 'root', $childHints: [] } });
+  root.resolve({
+    vertexContent: { $vertexData: 'root', $childDiscoveryHints: [] },
+  });
   await eventLoopTurn();
-  expect(driver.inspect().inFlightCallbackCount).toBe(0);
-  expect(kernel.inspect().pendingRequests).toHaveLength(1);
+  expect(driver.captureExecutionSnapshot().inFlightInvocationCount).toBe(0);
+  expect(
+    kernel.captureExecutionSnapshot().pendingCallbackRequests,
+  ).toHaveLength(1);
 
-  const resumed = session.iterateEvents();
+  const resumed =
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await expect(resumed.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'root' }, order: 'PRE_ORDER' },
+    value: { vertex: { $vertexData: 'root' }, order: 'BEFORE_CHILD_EXPANSION' },
   });
   await expect(resumed.next()).resolves.toEqual({
     done: true,
@@ -99,7 +109,9 @@ test('validates callback result kinds and concurrency', async () => {
     1,
   );
   const session = new AsyncRunnerSession(driver);
-  await expect(session.run()).rejects.toThrow(/returned VISIT.*MAKE_ROOT/i);
+  await expect(session.runUntilSuspendedOrTerminal()).rejects.toThrow(
+    /returned VISIT.*MAKE_ROOT/i,
+  );
 });
 
 test('stores a root outcome submitted after halt until direct resume', async () => {
@@ -119,12 +131,16 @@ test('stores a root outcome submitted after halt until direct resume', async () 
   driver.requestHalt();
   root.resolve({ vertexContent: null });
   await eventLoopTurn();
-  expect(driver.advance('drain')).toEqual({ kind: 'HALTED' });
-  expect(kernel.inspect().pendingRequests).toHaveLength(1);
+  expect(driver.advance('drain')).toEqual({ kind: 'SUSPENDED' });
+  expect(
+    kernel.captureExecutionSnapshot().pendingCallbackRequests,
+  ).toHaveLength(1);
 
   driver.resume();
   expect(driver.advance('drive')).toEqual({ kind: 'FINISHED' });
-  expect(kernel.inspect().pendingRequests).toHaveLength(0);
+  expect(
+    kernel.captureExecutionSnapshot().pendingCallbackRequests,
+  ).toHaveLength(0);
 });
 
 test('retains a stored root rejection and fails with the original value on resume', async () => {
@@ -145,7 +161,7 @@ test('retains a stored root rejection and fails with the original value on resum
   driver.requestHalt();
   root.reject(error);
   await eventLoopTurn();
-  expect(driver.advance('drain')).toEqual({ kind: 'HALTED' });
+  expect(driver.advance('drain')).toEqual({ kind: 'SUSPENDED' });
   driver.resume();
   expect(driver.advance('drive')).toEqual({ kind: 'FAILED', error });
 });
@@ -164,7 +180,7 @@ test('waitForProgress wakes for halt signaling', async () => {
 test('deletion cancels queued callbacks while an invalid running permit drains', async () => {
   const first = deferred<{ vertexContent: null }>();
   const started: string[] = [];
-  const kernel = makeKernel(['PRE_ORDER']);
+  const kernel = makeKernel(['BEFORE_CHILD_EXPANSION']);
   const driver = createAsyncDriver(
     kernel,
     {
@@ -173,12 +189,15 @@ test('deletion cancels queued callbacks while an invalid running permit drains',
           return {
             kind: call.kind,
             value: {
-              vertexContent: { $data: 'root', $childHints: ['A', 'B', 'C'] },
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['A', 'B', 'C'],
+              },
             },
           };
         }
         if (call.kind === 'MAKE_VERTEX') {
-          started.push(call.context.vertexHint);
+          started.push(call.context.childDiscoveryHint);
           return { kind: call.kind, value: first.promise };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -193,7 +212,7 @@ test('deletion cancels queued callbacks while an invalid running permit drains',
   driver.acknowledgeEvent(rootEvent.boundaryId);
   expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
   expect(started).toEqual(['A']);
-  expect(driver.inspect().inFlightCallbackCount).toBe(1);
+  expect(driver.captureExecutionSnapshot().inFlightInvocationCount).toBe(1);
 
   const internals = kernel as unknown as {
     scheduling: {
@@ -204,30 +223,36 @@ test('deletion cancels queued callbacks while an invalid running permit drains',
     invalidateRefs(
       refs: ReadonlySet<InternalVertexRef<TestGraph>>,
       except: {
-        kind: 'chain';
-        id: number;
-        epoch: number;
+        ownerKind: 'vertexPhaseVisitorChain';
+        runnerLocalOwnerId: number;
+        validityGeneration: number;
       },
     ): void;
   };
-  const removed = internals.scheduling.deleteVertex(rootEvent.event.vertexRef);
-  internals.invalidateRefs(removed, { kind: 'chain', id: -1, epoch: 0 });
+  const removed = internals.scheduling.deleteVertex(
+    rootEvent.event.vertexHandle,
+  );
+  internals.invalidateRefs(removed, {
+    ownerKind: 'vertexPhaseVisitorChain',
+    runnerLocalOwnerId: -1,
+    validityGeneration: 0,
+  });
 
   expect(driver.advance('settle')).toEqual({ kind: 'FINISHED' });
   expect(started).toEqual(['A']);
-  expect(driver.inspect()).toMatchObject({
-    status: TraversalRunnerStatus.FINISHED,
-    inFlightCallbackCount: 1,
-    pendingRequests: [{ valid: false }],
+  expect(driver.captureExecutionSnapshot()).toMatchObject({
+    traversalLifecycleStatus: TraversalRunnerStatus.FINISHED,
+    inFlightInvocationCount: 1,
+    pendingCallbackRequests: [{ ownerStillValid: false }],
   });
 
   first.reject(new Error('ignored late error'));
   await eventLoopTurn();
   expect(driver.advance('settle')).toEqual({ kind: 'FINISHED' });
-  expect(driver.inspect()).toMatchObject({
-    status: TraversalRunnerStatus.FINISHED,
-    inFlightCallbackCount: 0,
-    pendingRequests: [],
+  expect(driver.captureExecutionSnapshot()).toMatchObject({
+    traversalLifecycleStatus: TraversalRunnerStatus.FINISHED,
+    inFlightInvocationCount: 0,
+    pendingCallbackRequests: [],
   });
   expect(kernel.getFailure()).toBeNull();
 });
@@ -261,12 +286,20 @@ test('drops a stored root outcome whose owner is invalidated before resume', asy
   await eventLoopTurn();
   driver.advance('drain');
   const internals = kernel as unknown as {
-    invalidateOwner(owner: { kind: 'root'; id: number; epoch: number }): void;
+    invalidateOwner(owner: {
+      ownerKind: 'rootResolution';
+      runnerLocalOwnerId: number;
+      validityGeneration: number;
+    }): void;
   };
-  internals.invalidateOwner({ kind: 'root', id: 1, epoch: 0 });
+  internals.invalidateOwner({
+    ownerKind: 'rootResolution',
+    runnerLocalOwnerId: 1,
+    validityGeneration: 0,
+  });
   driver.resume();
   expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
-  expect(kernel.inspect().pendingRequests).toEqual([]);
+  expect(kernel.captureExecutionSnapshot().pendingCallbackRequests).toEqual([]);
 });
 
 test('applies a settled invalidation before admitting a released permit', async () => {
@@ -275,12 +308,20 @@ test('applies a settled invalidation before admitting a released permit', async 
     {
       requestId: 1,
       kind: 'MAKE_ROOT',
-      owner: { kind: 'root', id: 1, epoch: 0 },
+      owner: {
+        ownerKind: 'rootResolution',
+        runnerLocalOwnerId: 1,
+        validityGeneration: 0,
+      },
     },
     {
       requestId: 2,
       kind: 'MAKE_ROOT',
-      owner: { kind: 'root', id: 2, epoch: 0 },
+      owner: {
+        ownerKind: 'rootResolution',
+        runnerLocalOwnerId: 2,
+        validityGeneration: 0,
+      },
     },
   ];
   const started: number[] = [];

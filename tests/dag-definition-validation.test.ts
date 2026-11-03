@@ -1,15 +1,21 @@
-import { defineDag, prepareDagDefinition, type DagDefinition } from '../src';
+import {
+  copyAndNormalizeDagDefinition,
+  validateAndPrepareDagDefinition,
+  type DagDefinition,
+} from '../src';
 
 function vertex(
   vertexId: string,
-  overrides: Partial<DagDefinition<string, string>['vertices'][number]> = {},
+  overrides: Partial<
+    DagDefinition<string, string>['vertexDeclarations'][number]
+  > = {},
 ) {
   return {
     vertexId,
     data: vertexId,
-    slots: [],
-    dependsOnWork: [],
-    dependsOnSubgraphCompletion: [],
+    childDiscoverySlots: [],
+    workWaitsForWorkOf: [],
+    workWaitsForSubgraphCompletionOf: [],
     ...overrides,
   };
 }
@@ -17,75 +23,87 @@ function vertex(
 // Accepting a disconnected record would silently drop authored work at replay.
 test('materialized definitions reject records outside entry and prerequisite closure', () => {
   expect(
-    prepareDagDefinition(
-      defineDag({
-        vertices: [vertex('root'), vertex('orphan')],
-        omittedIds: [],
+    validateAndPrepareDagDefinition(
+      copyAndNormalizeDagDefinition({
+        vertexDeclarations: [vertex('root'), vertex('orphan')],
+        omittedVertexIds: [],
         entry: { kind: 'root', vertexId: 'root' },
       }),
     ),
   ).toEqual({
     kind: 'invalid',
-    issues: [{ kind: 'unreachable', vertexIds: ['orphan'] }],
+    issues: [{ kind: 'outsideEntryDiscoveryClosure', vertexIds: ['orphan'] }],
   });
 });
 
 // Structural cycles must be rejected before source replay can throw or loop.
 test('materialized definitions report structural SCC membership', () => {
   expect(
-    prepareDagDefinition(
-      defineDag({
-        vertices: [
-          vertex('a', { slots: [{ kind: 'vertex', vertexId: 'b' }] }),
-          vertex('b', { slots: [{ kind: 'vertex', vertexId: 'a' }] }),
+    validateAndPrepareDagDefinition(
+      copyAndNormalizeDagDefinition({
+        vertexDeclarations: [
+          vertex('a', {
+            childDiscoverySlots: [{ kind: 'vertex', vertexId: 'b' }],
+          }),
+          vertex('b', {
+            childDiscoverySlots: [{ kind: 'vertex', vertexId: 'a' }],
+          }),
         ],
-        omittedIds: [],
+        omittedVertexIds: [],
         entry: { kind: 'root', vertexId: 'a' },
       }),
     ),
   ).toEqual({
     kind: 'invalid',
-    issues: [{ kind: 'structuralCycle', componentVertexIds: ['a', 'b'] }],
+    issues: [
+      { kind: 'structuralChildCycleComponent', componentVertexIds: ['a', 'b'] },
+    ],
   });
 });
 
 test('materialized definitions accept detached W and C prerequisite closures', () => {
-  const result = prepareDagDefinition({
-    vertices: [
-      vertex('remoteC', { slots: [{ kind: 'vertex', vertexId: 'child' }] }),
-      vertex('root', {
-        dependsOnWork: ['remoteW'],
-        dependsOnSubgraphCompletion: ['remoteC'],
+  const result = validateAndPrepareDagDefinition({
+    vertexDeclarations: [
+      vertex('remoteC', {
+        childDiscoverySlots: [{ kind: 'vertex', vertexId: 'child' }],
       }),
-      vertex('remoteW', { dependsOnWork: ['skip'] }),
+      vertex('root', {
+        workWaitsForWorkOf: ['remoteW'],
+        workWaitsForSubgraphCompletionOf: ['remoteC'],
+      }),
+      vertex('remoteW', { workWaitsForWorkOf: ['skip'] }),
       vertex('child'),
     ],
-    omittedIds: ['skip'],
+    omittedVertexIds: ['skip'],
     entry: { kind: 'root', vertexId: 'root' },
   });
   if (result.kind !== 'valid') throw new Error(JSON.stringify(result));
-  expect(result.dag.definition.vertices.map((v) => v.vertexId)).toEqual([
-    'remoteC',
-    'root',
-    'remoteW',
-    'child',
-  ]);
-  const runner = result.dag.createRunner();
-  const graph = runner.getResolvedGraphView();
-  expect(graph.getParentsOf(graph.getVertexRefById('remoteC')!)).toEqual([]);
   expect(
-    [...runner.iterateEvents()]
-      .filter((event) => event.kind === 'workCompleted')
+    result.validatedTopology.definition.vertexDeclarations.map(
+      (v) => v.vertexId,
+    ),
+  ).toEqual(['remoteC', 'root', 'remoteW', 'child']);
+  const runner =
+    result.validatedTopology.createIndependentRunnerFromValidatedTopology();
+  const graph = runner.getLiveResolvedGraphView();
+  expect(
+    graph.getDistinctStructuralParentHandlesOrNull(
+      graph.getVertexHandleByIdOrNull('remoteC')!,
+    ),
+  ).toEqual([]);
+  expect(
+    [...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()]
+      .filter((event) => event.eventKind === 'workCompletionCommitted')
       .map((event) => event.vertexId),
   ).toEqual(['remoteW', 'remoteC', 'child', 'root']);
 });
 
-test.each(['dependsOnWork', 'dependsOnSubgraphCompletion'] as const)(
+test.each(['workWaitsForWorkOf', 'workWaitsForSubgraphCompletionOf'] as const)(
   'unknown %s endpoints use milestone diagnostics',
   (field) => {
-    const result = prepareDagDefinition({
-      vertices: [vertex('root', { [field]: ['missing'] })],
-      omittedIds: [],
+    const result = validateAndPrepareDagDefinition({
+      vertexDeclarations: [vertex('root', { [field]: ['missing'] })],
+      omittedVertexIds: [],
       entry: { kind: 'root', vertexId: 'root' },
     });
     expect(result.kind).toBe('invalid');
@@ -93,48 +111,48 @@ test.each(['dependsOnWork', 'dependsOnSubgraphCompletion'] as const)(
     expect(result).not.toHaveProperty('dag');
     expect(result.issues).toMatchObject([
       {
-        kind: 'milestone',
-        diagnostics: { unknownPrerequisiteIds: ['missing'] },
+        kind: 'milestoneDependencyStall',
+        diagnostics: { unresolvedPrerequisiteVertexIds: ['missing'] },
       },
     ]);
   },
 );
 
 test('combined W/C cycles use existing labelled milestone diagnostics', () => {
-  const result = prepareDagDefinition({
-    vertices: [
+  const result = validateAndPrepareDagDefinition({
+    vertexDeclarations: [
       vertex('root', {
-        slots: [{ kind: 'vertex', vertexId: 'child' }],
-        dependsOnSubgraphCompletion: ['child'],
+        childDiscoverySlots: [{ kind: 'vertex', vertexId: 'child' }],
+        workWaitsForSubgraphCompletionOf: ['child'],
       }),
-      vertex('child', { dependsOnWork: ['root'] }),
+      vertex('child', { workWaitsForWorkOf: ['root'] }),
     ],
-    omittedIds: [],
+    omittedVertexIds: [],
     entry: { kind: 'root', vertexId: 'root' },
   });
   if (result.kind !== 'invalid') throw new Error('Expected invalid');
   expect(result).not.toHaveProperty('dag');
   expect(result.issues).toMatchObject([
     {
-      kind: 'milestone',
-      diagnostics: { dependencyCycleComponents: [['root', 'child']] },
+      kind: 'milestoneDependencyStall',
+      diagnostics: { milestoneCycleVertexIdComponents: [['root', 'child']] },
     },
   ]);
 });
 
 test('structural validation distinguishes missing links, invalid omissions and unreachable declarations', () => {
-  const result = prepareDagDefinition({
-    vertices: [
+  const result = validateAndPrepareDagDefinition({
+    vertexDeclarations: [
       vertex('root', {
-        slots: [
+        childDiscoverySlots: [
           { kind: 'vertex', vertexId: 'skip' },
           { kind: 'vertex', vertexId: 'missing' },
-          { kind: 'omitted', identity: { vertexId: 'root' } },
-          { kind: 'omitted', identity: { vertexId: 'unknown' } },
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: 'root' } },
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: 'unknown' } },
         ],
       }),
     ],
-    omittedIds: ['skip', 'unused'],
+    omittedVertexIds: ['skip', 'unused'],
     entry: { kind: 'root', vertexId: 'root' },
   });
   expect(result).toEqual({
@@ -150,8 +168,8 @@ test('structural validation distinguishes missing links, invalid omissions and u
         parent: { vertexId: 'root' },
         vertexId: 'missing',
       },
-      { kind: 'invalidOmission', vertexIds: ['root', 'unknown'] },
-      { kind: 'unreachable', vertexIds: ['unused'] },
+      { kind: 'omissionIdentityNotDeclared', vertexIds: ['root', 'unknown'] },
+      { kind: 'outsideEntryDiscoveryClosure', vertexIds: ['unused'] },
     ],
   });
 });
@@ -160,11 +178,14 @@ test.each([
   { kind: 'root', vertexId: 'missing' },
   { kind: 'root', vertexId: 'skip' },
   { kind: 'empty' },
-  { kind: 'roots', slots: [{ kind: 'omitted', identity: null }] },
+  {
+    kind: 'roots',
+    entryDiscoverySlots: [{ kind: 'omitted', omittedVertexIdentity: null }],
+  },
 ] as const)('invalid entry has no executable DAG %#', (entry) => {
-  const result = prepareDagDefinition({
-    vertices: [vertex('root')],
-    omittedIds: ['skip'],
+  const result = validateAndPrepareDagDefinition({
+    vertexDeclarations: [vertex('root')],
+    omittedVertexIds: ['skip'],
     entry,
   });
   if (result.kind !== 'invalid') throw new Error('Expected invalid');
@@ -176,7 +197,7 @@ test.each([
         ? 'unknownRoot'
         : entry.kind === 'empty'
         ? 'emptyWithVertices'
-        : 'anonymousCatalogEntry',
+        : 'entryOmissionMissingIdentity',
     vertexIds:
       entry.kind === 'root'
         ? [entry.vertexId]
@@ -188,10 +209,13 @@ test.each([
 
 test('forest missing structural endpoints carry a null parent', () => {
   expect(
-    prepareDagDefinition({
-      vertices: [],
-      omittedIds: [],
-      entry: { kind: 'roots', slots: [{ kind: 'vertex', vertexId: null }] },
+    validateAndPrepareDagDefinition({
+      vertexDeclarations: [],
+      omittedVertexIds: [],
+      entry: {
+        kind: 'roots',
+        entryDiscoverySlots: [{ kind: 'vertex', vertexId: null }],
+      },
     }),
   ).toEqual({
     kind: 'invalid',
@@ -202,53 +226,60 @@ test('forest missing structural endpoints carry a null parent', () => {
 });
 
 test('structural self cycles use SameValueZero identity and deterministic declaration order', () => {
-  const result = prepareDagDefinition({
-    vertices: [
+  const result = validateAndPrepareDagDefinition({
+    vertexDeclarations: [
       {
         vertexId: NaN,
         data: 1,
-        slots: [{ kind: 'vertex', vertexId: NaN }],
-        dependsOnWork: [],
-        dependsOnSubgraphCompletion: [],
+        childDiscoverySlots: [{ kind: 'vertex', vertexId: NaN }],
+        workWaitsForWorkOf: [],
+        workWaitsForSubgraphCompletionOf: [],
       },
     ],
-    omittedIds: [],
+    omittedVertexIds: [],
     entry: { kind: 'root', vertexId: NaN },
   });
   expect(result).toEqual({
     kind: 'invalid',
-    issues: [{ kind: 'structuralCycle', componentVertexIds: [NaN] }],
+    issues: [
+      { kind: 'structuralChildCycleComponent', componentVertexIds: [NaN] },
+    ],
   });
 });
 
-test.each([{ omittedIds: [] }, { omittedIds: [undefined, null, NaN] }])(
+test.each([
+  { omittedVertexIds: [] },
+  { omittedVertexIds: [undefined, null, NaN] },
+])(
   'empty entries preserve authored mode and known omitted identity seeds %#',
-  ({ omittedIds }) => {
-    const result = prepareDagDefinition({
-      vertices: [],
-      omittedIds,
+  ({ omittedVertexIds }) => {
+    const result = validateAndPrepareDagDefinition({
+      vertexDeclarations: [],
+      omittedVertexIds,
       entry: { kind: 'empty' },
     });
     if (result.kind !== 'valid') throw new Error('Expected valid');
-    expect(result.dag.definition).toEqual({
-      vertices: [],
-      omittedIds,
+    expect(result.validatedTopology.definition).toEqual({
+      vertexDeclarations: [],
+      omittedVertexIds,
       entry: { kind: 'empty' },
     });
     expect([
-      ...result.dag
-        .createRunner({ completedWork: new Set(omittedIds) })
-        .iterateEvents(),
+      ...result.validatedTopology
+        .createIndependentRunnerFromValidatedTopology({
+          acceptedCompletedWorkVertexIds: new Set(omittedVertexIds),
+        })
+        .runAndIterateObservationEventsUntilSuspendedOrTerminal(),
     ]).toEqual([]);
   },
 );
 
 test('preparation normalizes shape before semantics and preserves exact accessor errors', () => {
-  expect(() => prepareDagDefinition(null as any)).toThrow(TypeError);
+  expect(() => validateAndPrepareDagDefinition(null as any)).toThrow(TypeError);
   const error = { exact: true };
   try {
-    prepareDagDefinition(
-      Object.defineProperty({}, 'vertices', {
+    validateAndPrepareDagDefinition(
+      Object.defineProperty({}, 'vertexDeclarations', {
         get() {
           throw error;
         },
@@ -265,93 +296,107 @@ test('forest definitions preserve authored order, structural sharing and omitted
   const id = { label: 'shared' };
   const data = { value: 1 };
   const input: DagDefinition<typeof data, unknown> = {
-    vertices: [
+    vertexDeclarations: [
       {
         vertexId: id,
         data,
-        slots: [],
-        dependsOnWork: [undefined],
-        dependsOnSubgraphCompletion: [undefined],
+        childDiscoverySlots: [],
+        workWaitsForWorkOf: [undefined],
+        workWaitsForSubgraphCompletionOf: [undefined],
       },
       {
         vertexId: null,
         data,
-        slots: [
+        childDiscoverySlots: [
           { kind: 'vertex', vertexId: id },
           { kind: 'vertex', vertexId: id },
         ],
-        dependsOnWork: [],
-        dependsOnSubgraphCompletion: [],
+        workWaitsForWorkOf: [],
+        workWaitsForSubgraphCompletionOf: [],
       },
     ],
-    omittedIds: [undefined],
+    omittedVertexIds: [undefined],
     entry: {
       kind: 'roots',
-      slots: [
-        { kind: 'omitted', identity: { vertexId: undefined } },
+      entryDiscoverySlots: [
+        { kind: 'omitted', omittedVertexIdentity: { vertexId: undefined } },
         { kind: 'vertex', vertexId: null },
       ],
     },
   };
-  const result = prepareDagDefinition(input);
+  const result = validateAndPrepareDagDefinition(input);
   if (result.kind !== 'valid') throw new Error('Expected valid');
-  expect(result.dag.definition).toEqual(input);
-  expect(result.dag.definition).not.toBe(input);
-  expect(result.dag.definition.vertices[0]!.vertexId).toBe(id);
-  expect(result.dag.liveVertexSummaries[0]!.data).toBe(data);
-  expect(result.dag.liveVertexSummaries[1]!.children).toEqual([id, id]);
-  const runner = await result.dag.createAsyncRunner({
-    completedWork: new Set([undefined]),
-  });
+  expect(result.validatedTopology.definition).toEqual(input);
+  expect(result.validatedTopology.definition).not.toBe(input);
+  expect(
+    result.validatedTopology.definition.vertexDeclarations[0]!.vertexId,
+  ).toBe(id);
+  expect(result.validatedTopology.liveVertexSummaries[0]!.data).toBe(data);
+  expect(
+    result.validatedTopology.liveVertexSummaries[1]!
+      .liveStructuralChildVertexIds,
+  ).toEqual([id, id]);
+  const runner =
+    await result.validatedTopology.createIndependentAsyncRunnerFromValidatedTopology(
+      {
+        acceptedCompletedWorkVertexIds: new Set([undefined]),
+      },
+    );
   const events: unknown[] = [];
-  for await (const event of runner.iterateEvents())
-    events.push([event.vertexId, event.kind]);
+  for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+    events.push([event.vertexId, event.eventKind]);
   expect(events).toEqual([
-    [null, 'workCompleted'],
-    [id, 'workCompleted'],
-    [id, 'subgraphCompleted'],
-    [null, 'subgraphCompleted'],
+    [null, 'workCompletionCommitted'],
+    [id, 'workCompletionCommitted'],
+    [id, 'subgraphCompletionCommitted'],
+    [null, 'subgraphCompletionCommitted'],
   ]);
-  expect(runner.summary().unusedCompletedWorkIds).toEqual([]);
+  expect(
+    runner.captureProgressSnapshot().unmatchedCompletedWorkSeedVertexIds,
+  ).toEqual([]);
 });
 
 test('forest omissions cannot masquerade as live or unknown identities', () => {
   expect(
-    prepareDagDefinition({
-      vertices: [],
-      omittedIds: ['unused'],
+    validateAndPrepareDagDefinition({
+      vertexDeclarations: [],
+      omittedVertexIds: ['unused'],
       entry: {
         kind: 'roots',
-        slots: [
-          { kind: 'omitted', identity: { vertexId: 'unknown' } },
-          { kind: 'omitted', identity: { vertexId: 'unknown' } },
+        entryDiscoverySlots: [
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: 'unknown' } },
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: 'unknown' } },
         ],
       },
     }),
   ).toEqual({
     kind: 'invalid',
     issues: [
-      { kind: 'invalidOmission', vertexIds: ['unknown'] },
-      { kind: 'unreachable', vertexIds: ['unused'] },
+      { kind: 'omissionIdentityNotDeclared', vertexIds: ['unknown'] },
+      { kind: 'outsideEntryDiscoveryClosure', vertexIds: ['unused'] },
     ],
   });
 });
 
 test('structural SCCs retain declaration order and stay separate before milestone validation', () => {
   expect(
-    prepareDagDefinition({
-      vertices: [
+    validateAndPrepareDagDefinition({
+      vertexDeclarations: [
         vertex('a', {
-          slots: [{ kind: 'vertex', vertexId: 'b' }],
-          dependsOnWork: ['missing'],
+          childDiscoverySlots: [{ kind: 'vertex', vertexId: 'b' }],
+          workWaitsForWorkOf: ['missing'],
         }),
-        vertex('b', { slots: [{ kind: 'vertex', vertexId: 'a' }] }),
-        vertex('c', { slots: [{ kind: 'vertex', vertexId: 'c' }] }),
+        vertex('b', {
+          childDiscoverySlots: [{ kind: 'vertex', vertexId: 'a' }],
+        }),
+        vertex('c', {
+          childDiscoverySlots: [{ kind: 'vertex', vertexId: 'c' }],
+        }),
       ],
-      omittedIds: [],
+      omittedVertexIds: [],
       entry: {
         kind: 'roots',
-        slots: [
+        entryDiscoverySlots: [
           { kind: 'vertex', vertexId: 'a' },
           { kind: 'vertex', vertexId: 'c' },
         ],
@@ -360,35 +405,36 @@ test('structural SCCs retain declaration order and stay separate before mileston
   ).toEqual({
     kind: 'invalid',
     issues: [
-      { kind: 'structuralCycle', componentVertexIds: ['a', 'b'] },
-      { kind: 'structuralCycle', componentVertexIds: ['c'] },
+      { kind: 'structuralChildCycleComponent', componentVertexIds: ['a', 'b'] },
+      { kind: 'structuralChildCycleComponent', componentVertexIds: ['c'] },
     ],
   });
 });
 
 test('undefined is a live root identity rather than an absent record', () => {
-  const result = prepareDagDefinition({
-    vertices: [
+  const result = validateAndPrepareDagDefinition({
+    vertexDeclarations: [
       {
         vertexId: undefined,
         data: 'live',
-        slots: [],
-        dependsOnWork: [],
-        dependsOnSubgraphCompletion: [],
+        childDiscoverySlots: [],
+        workWaitsForWorkOf: [],
+        workWaitsForSubgraphCompletionOf: [],
       },
     ],
-    omittedIds: [],
+    omittedVertexIds: [],
     entry: { kind: 'root', vertexId: undefined },
   });
   if (result.kind !== 'valid') throw new Error('Expected valid');
   expect(
-    [...result.dag.createRunner().iterateEvents()].map((event) => [
-      event.vertexId,
-      event.kind,
-    ]),
+    [
+      ...result.validatedTopology
+        .createIndependentRunnerFromValidatedTopology()
+        .runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+    ].map((event) => [event.vertexId, event.eventKind]),
   ).toEqual([
-    [undefined, 'workCompleted'],
-    [undefined, 'subgraphCompleted'],
+    [undefined, 'workCompletionCommitted'],
+    [undefined, 'subgraphCompletionCommitted'],
   ]);
 });
 
@@ -396,22 +442,25 @@ test('membership and SCC validation handle deep unreachable structures without r
   const vertices = Array.from({ length: 12000 }, (_, vertexId) => ({
     vertexId,
     data: vertexId,
-    slots:
+    childDiscoverySlots:
       vertexId === 11999
         ? []
         : [{ kind: 'vertex' as const, vertexId: vertexId + 1 }],
-    dependsOnWork: [],
-    dependsOnSubgraphCompletion: [],
+    workWaitsForWorkOf: [],
+    workWaitsForSubgraphCompletionOf: [],
   }));
-  const result = prepareDagDefinition({
-    vertices,
-    omittedIds: [],
-    entry: { kind: 'roots', slots: [] },
+  const result = validateAndPrepareDagDefinition({
+    vertexDeclarations: vertices,
+    omittedVertexIds: [],
+    entry: { kind: 'roots', entryDiscoverySlots: [] },
   });
   expect(result).toEqual({
     kind: 'invalid',
     issues: [
-      { kind: 'unreachable', vertexIds: vertices.map((v) => v.vertexId) },
+      {
+        kind: 'outsideEntryDiscoveryClosure',
+        vertexIds: vertices.map((v) => v.vertexId),
+      },
     ],
   });
 });

@@ -1,114 +1,143 @@
 import { orderVisitorRecords } from './visitors/normalizeVisitorDefinitions';
 import { normalizeVisitorOptions } from './visitors/normalizeVisitorOptions';
-import type { MutableRef } from './CTTRef';
+import type { MutableValueReference } from './CTTRef';
 import type { Vertex } from './Vertex';
-import type { VertexTypes } from './TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from './TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
   TraversalVisitorCommandName,
   TreeVisitorContext,
-  TreeVisitorRecord,
+  TreePhaseVisitorRegistrationRecord,
 } from './TraversalVisitor';
 import { VisitorChain } from './visitors/VisitorChain';
 import type { VisitorChainPoll } from './visitors/types';
 
 type SynchronousVisitorChainAction<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
-> = Exclude<VisitorChainPoll<TTP, RW_TTP>, { kind: 'WAIT' | 'PAUSED' }>;
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+> = Exclude<
+  VisitorChainPoll<InputVertexTypes, RewrittenVertexTypes>,
+  { kind: 'WAIT' | 'PAUSED' }
+>;
 
-export type VisitorExecutionState<TTP extends VertexTypes> = {
-  phaseVisitIndex: number;
-  visitorIndex: number;
-  previousPhaseVertexRef: MutableRef<Vertex<TTP>> | null;
+export type VisitorExecutionState<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  phaseVisitorChainIndex: number;
+  visitorCallbackIndexInPhaseChain: number;
+  previousCommittedVisitVertexHandleForSamePhase: MutableValueReference<
+    Vertex<InputVertexTypes>
+  > | null;
 };
 
-export type VisitorCommandResult = { visitorChainState?: unknown };
+export type VisitorCommandResult = { currentVertexPhaseChainState?: unknown };
 
-/** A yielded value is a halt boundary, retaining the rest of the visitor chain. */
+/** A yielded replacementData is a halt boundary, retaining the rest of the visitor chain. */
 export function* executeVisitors<
-  ORDER extends string,
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  VisitorPhase extends string,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 >(input: {
-  vertexRef: MutableRef<Vertex<TTP | RW_TTP>>;
-  records: TreeVisitorRecord<ORDER, TTP, RW_TTP>[];
-  state: VisitorExecutionState<TTP | RW_TTP>;
+  vertexHandle: MutableValueReference<
+    Vertex<InputVertexTypes | RewrittenVertexTypes>
+  >;
+  records: TreePhaseVisitorRegistrationRecord<
+    VisitorPhase,
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >[];
+  state: VisitorExecutionState<InputVertexTypes | RewrittenVertexTypes>;
   getOptions: (
-    record: TreeVisitorRecord<ORDER, TTP, RW_TTP>,
+    record: TreePhaseVisitorRegistrationRecord<
+      VisitorPhase,
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
     chainState: unknown,
-  ) => TreeVisitorContext<ORDER, TTP, RW_TTP>;
+  ) => TreeVisitorContext<VisitorPhase, InputVertexTypes, RewrittenVertexTypes>;
   executeCommands: (
     commands: TraversalVisitorCommand<
-      RW_TTP,
+      RewrittenVertexTypes,
       TraversalVisitorCommandName,
-      TTP['VertexHint']
+      InputVertexTypes['ChildHint']
     >[],
   ) => VisitorCommandResult;
-  isHalted: () => boolean;
+  isSuspended: () => boolean;
   isDeleted: () => boolean;
 }): Generator<void> {
-  const { vertexRef, state } = input;
+  const { vertexHandle, state } = input;
   const records = input.records.map((record) => ({
     ...record,
     ...normalizeVisitorOptions(record),
   }));
-  const chain = new VisitorChain<TTP, RW_TTP>({
-    ref: vertexRef,
+  const chain = new VisitorChain<InputVertexTypes, RewrittenVertexTypes>({
+    ref: vertexHandle,
     records: records.map(
       ({
-        addedIndex,
-        priority,
+        phaseRegistrationInsertionIndex,
+        descendingExecutionPriorityWithinGroup:
+          descendingExecutionPriorityWithinGroup,
 
-        commandCommitMode,
+        visitorCommandCommitTiming,
         visitorGroup,
       }) => ({
-        addedIndex,
-        priority,
+        phaseRegistrationInsertionIndex,
+        descendingExecutionPriorityWithinGroup,
 
-        commandCommitMode,
+        visitorCommandCommitTiming,
         visitorGroup,
       }),
     ),
     metadata: {
       ...state,
-      visitorChainState: null,
+      currentVertexPhaseChainState: null,
     },
     family: 'tree',
   });
-  state.visitorIndex = 0;
+  state.visitorCallbackIndexInPhaseChain = 0;
 
   while (true) {
-    const action = chain.poll() as SynchronousVisitorChainAction<TTP, RW_TTP>;
+    const action = chain.poll() as SynchronousVisitorChainAction<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >;
     switch (action.kind) {
       case 'VISIT': {
         const record = records[action.recordIndex]!;
-        state.visitorIndex = action.metadata.visitorIndex;
+        state.visitorCallbackIndexInPhaseChain =
+          action.metadata.visitorCallbackIndexInPhaseChain;
         const result = record.visitor(
-          action.ref.getValue(),
-          input.getOptions(record, action.metadata.visitorChainState),
+          action.ref.getReferencedValue(),
+          input.getOptions(
+            record,
+            action.metadata.currentVertexPhaseChainState,
+          ),
         );
         chain.submit({
           ok: true,
-          value: result as import('./graph/types').VisitResult<
-            RW_TTP,
+          value: result as import('./graph/types').VisitorCallbackReturnValue<
+            RewrittenVertexTypes,
             never,
             'tree' | 'dag',
-            TTP['VertexHint']
+            InputVertexTypes['ChildHint']
           >,
         });
-        state.visitorIndex++;
+        state.visitorCallbackIndexInPhaseChain++;
         break;
       }
       case 'COMMANDS': {
         const result = input.executeCommands(action.commands);
-        const halted = input.isHalted();
+        const halted = input.isSuspended();
         chain.commitBatch({
           halt: halted,
           deleted: input.isDeleted(),
-          ...(Object.prototype.hasOwnProperty.call(result, 'visitorChainState')
+          ...(Object.prototype.hasOwnProperty.call(
+            result,
+            'currentVertexPhaseChainState',
+          )
             ? {
-                visitorChainState: result.visitorChainState,
+                currentVertexPhaseChainState:
+                  result.currentVertexPhaseChainState,
               }
             : {}),
         });
@@ -119,25 +148,39 @@ export function* executeVisitors<
         break;
       }
       case 'DONE':
-        state.previousPhaseVertexRef = vertexRef;
-        state.phaseVisitIndex++;
+        state.previousCommittedVisitVertexHandleForSamePhase = vertexHandle;
+        state.phaseVisitorChainIndex++;
         return;
     }
   }
 }
 
 export function sortVisitorRecords<
-  ORDER extends string,
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  VisitorPhase extends string,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 >(
-  records: TreeVisitorRecord<ORDER, TTP, RW_TTP>[],
-): TreeVisitorRecord<ORDER, TTP, RW_TTP>[];
+  records: TreePhaseVisitorRegistrationRecord<
+    VisitorPhase,
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >[],
+): TreePhaseVisitorRegistrationRecord<
+  VisitorPhase,
+  InputVertexTypes,
+  RewrittenVertexTypes
+>[];
 export function sortVisitorRecords<
-  R extends readonly { addedIndex: number; priority: number }[],
+  R extends readonly {
+    phaseRegistrationInsertionIndex: number;
+    descendingExecutionPriorityWithinGroup: number;
+  }[],
 >(records: R): R[number][];
 export function sortVisitorRecords<
-  R extends readonly { addedIndex: number; priority: number }[],
+  R extends readonly {
+    phaseRegistrationInsertionIndex: number;
+    descendingExecutionPriorityWithinGroup: number;
+  }[],
 >(records: R): R[number][] {
   return orderVisitorRecords(
     records.map((record) => ({

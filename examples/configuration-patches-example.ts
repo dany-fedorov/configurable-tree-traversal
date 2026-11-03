@@ -1,24 +1,30 @@
 import {
-  DepthFirstTreeTraversal,
-  ObjectTreeSource,
-  DepthFirstPhase,
+  DepthFirstTreeTraversalBuilder,
+  ObjectPropertyTreeSource,
+  DepthFirstTreeVisitPhase,
 } from '../src';
 
-const traversal = new DepthFirstTreeTraversal({
-  traversableTree: new ObjectTreeSource(['a', 'b', 'c', 'd']),
-  inOrder: { afterChildIndices: { indices: [0, 2] } },
+const traversal = new DepthFirstTreeTraversalBuilder({
+  treeDiscoverySource: new ObjectPropertyTreeSource(['a', 'b', 'c', 'd']),
+  childBoundaryVisits: { visitAfterChildIndices: { indices: [0, 2] } },
 });
-traversal.configure({
-  traversableTree: undefined,
-  inOrder: {
-    afterChildIndices: undefined,
-    fallbackChildIndices: { indices: [-1] },
+traversal.patchOptionsForFutureRunners({
+  treeDiscoverySource: undefined,
+  childBoundaryVisits: {
+    visitAfterChildIndices: undefined,
+    visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [-1] },
   },
-  visitors: { IN_ORDER: undefined },
+  visitors: { AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES: undefined },
 });
 const boundaries = [
   ...traversal
-    .createRunner()
-    .iterateEvents({ emitEvents: [DepthFirstPhase.IN_ORDER] }),
+    .createIndependentRunnerFromCurrentOptions()
+    .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [
+        DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES,
+      ],
+    }),
 ];
-console.log(boundaries.map((event) => event.vertex.getData().key));
+console.log(
+  boundaries.map((event) => event.vertex.getVertexData().propertyKey),
+);

@@ -1,6 +1,10 @@
-import { vertexHandle, vertexView, internalRef } from '@core/observationFacets';
+import {
+  createVertexHandleFacet,
+  vertexView,
+  internalRef,
+} from '@core/observationFacets';
 import type { VertexHandle } from '@core/CTTRef';
-import type { TreeDagExecutionInspection } from '@core/CoreInspection';
+import type { TreeOrDagExecutionSnapshot } from '@core/CoreInspection';
 import {
   bindGraphSource,
   bindTreeSource,
@@ -12,22 +16,22 @@ import type { ResolvedGraphsContainerOptions } from '@core/graph/ResolvedGraphsC
 import { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
 import type {
-  OriginalGraphView,
-  ResolvedGraphView,
+  PreCommandDiscoveredGraphView,
+  LiveResolvedGraphView,
 } from '@core/ResolvedGraphView';
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
+import type { LiveResolvedTreeView } from '@core/ResolvedTreeView';
 import type {
-  SelectedTraversalEvent,
+  TraversalEventNarrowedToSelectedKinds,
   SyncTraversalExecution,
 } from '@core/TraversalExecution';
 import { TraversalKernel } from '@core/TraversalKernel';
 import type { TraversalStopReason } from '@core/TraversalRunner';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
 import type {
-  EmissionKind,
-  TraversalExecutionOptions,
+  TraversalEventKindForVisitorPhase,
+  TraversalExecutionSelectionPatch,
 } from '@core/TraversalRunnerIterableConfig';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import {
   DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   type DepthFirstTreeResolvedOptions,
@@ -35,13 +39,13 @@ import {
 import { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
 import { deepFreeze } from '@utils/deepFreeze';
 import { initDagVisitors } from '../init-helpers/initVisitors';
-import { inspectDagMilestones as captureDagInspection } from '../inspectDag';
+import { captureDagMilestoneSnapshot as captureDagInspection } from '../inspectDag';
 import type { DagMilestoneSnapshot } from './DagInspection';
 import { DagPolicy } from './DagPolicy';
 import type {
-  DagSettlementGeneration,
+  DagWorkSettlementToken,
   DagSettlementOutcome,
-  DagSummary,
+  DagProgressSnapshot,
 } from './DagProgress';
 import { dagRunnerCapabilities } from './dagRunnerCapabilities';
 import type { DagResolvedOptions } from './DagTraversalInstanceConfig';
@@ -51,79 +55,130 @@ import {
   type DagTraversalRunnerIterableConfig,
 } from './DagTraversalRunnerIterableConfig';
 import { DagTraversalRunnerState } from './DagTraversalRunnerState';
-import type { DagEvent } from './DagTraversalVisitor';
+import type { DagCommittedMilestoneEvent } from './DagTraversalVisitor';
 
 import {
   captureDagTerminalObservation,
   getDagTerminalObservation,
 } from './DagTerminalObservation';
 
-type Event<T extends VertexTypes, R extends VertexTypes, ID> = DagEvent<
-  T | R,
-  ID
+type Event<
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId,
+> = DagCommittedMilestoneEvent<
+  SourceVertexTypes | RewrittenVertexTypes,
+  VertexId
 >;
 
 export interface DagTraversalRunner<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > extends SyncTraversalExecution<
     DagVisitorPhase,
-    DagEvent<T | R, ID>,
-    TreeDagExecutionInspection<DagVisitorPhase>,
-    'workCompleted' | 'subgraphCompleted'
+    DagCommittedMilestoneEvent<
+      SourceVertexTypes | RewrittenVertexTypes,
+      VertexId
+    >,
+    TreeOrDagExecutionSnapshot<DagVisitorPhase>,
+    'workCompletionCommitted' | 'subgraphCompletionCommitted'
   > {
-  readonly originalGraphView: OriginalGraphView<T, ID> | null;
-  prepare(): this;
-  inspectMilestones(): DagMilestoneSnapshot<ID>;
-  summary(): DagSummary<ID>;
-  settle(
-    id: ID,
+  readonly preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+    SourceVertexTypes,
+    VertexId
+  > | null;
+  discoverValidateAndFreezeTopology(): this;
+  captureMilestoneSnapshot(): DagMilestoneSnapshot<VertexId>;
+  captureProgressSnapshot(): DagProgressSnapshot<VertexId>;
+  settleDeferredWork(
+    vertexId: VertexId,
     outcome: DagSettlementOutcome,
-    expectedGeneration: DagSettlementGeneration,
+    expectedSettlementToken: DagWorkSettlementToken,
   ): boolean;
-  getResolvedTreeView(): ResolvedTreeView<T | R> | null;
-  getResolvedGraphView(): ResolvedGraphView<T | R, ID>;
-  isGraphRootVertex(ref: VertexHandle<T | R>): boolean;
+  getLiveResolvedTreeView(): LiveResolvedTreeView<
+    SourceVertexTypes | RewrittenVertexTypes
+  > | null;
+  getLiveResolvedGraphView(): LiveResolvedGraphView<
+    SourceVertexTypes | RewrittenVertexTypes,
+    VertexId
+  >;
+  isVisibleSourceRootVertex(
+    vertexHandle: VertexHandle<SourceVertexTypes | RewrittenVertexTypes>,
+  ): boolean;
 }
 
 export class InternalDagTraversalRunner<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > {
   private readonly terminalObservation: ReturnType<
     typeof getDagTerminalObservation
   >;
-  private readonly icfg: DagResolvedOptions<T, R, ID>;
-  private readonly state: DagTraversalRunnerState<T, R>;
-  private readonly resolvedGraphsContainer: ResolvedGraphsContainer<T, R, ID>;
-  readonly originalGraphView: OriginalGraphView<T, ID> | null;
+  private readonly icfg: DagResolvedOptions<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
+  private readonly state: DagTraversalRunnerState<
+    SourceVertexTypes,
+    RewrittenVertexTypes
+  >;
+  private readonly resolvedGraphsContainer: ResolvedGraphsContainer<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
+  readonly preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+    SourceVertexTypes,
+    VertexId
+  > | null;
   private iterableConfig: DagTraversalRunnerIterableConfig =
     makeEffectiveDagTraversalRunnerIterableConfig();
   private activeIterator = false;
   private failure: { error: unknown } | null = null;
-  private curGenerator: Generator<Event<T, R, ID> | null> | null = null;
-  private readonly runtimeState: SyncDriverState = { inFlightCallbackCount: 0 };
-  private readonly policy: DagPolicy<T, R>;
-  private readonly kernel: TraversalKernel<T, R>;
-  private readonly bindings: CallbackBindings<T, R>;
+  private curGenerator: Generator<Event<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  > | null> | null = null;
+  private readonly runtimeState: SyncDriverState = {
+    inFlightInvocationCount: 0,
+  };
+  private readonly policy: DagPolicy<SourceVertexTypes, RewrittenVertexTypes>;
+  private readonly kernel: TraversalKernel<
+    SourceVertexTypes,
+    RewrittenVertexTypes
+  >;
+  private readonly bindings: CallbackBindings<
+    SourceVertexTypes,
+    RewrittenVertexTypes
+  >;
 
-  constructor(input: DagResolvedOptions<T, R, ID>) {
+  constructor(
+    input: DagResolvedOptions<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      VertexId
+    >,
+  ) {
     this.icfg = { ...input, visitors: initDagVisitors(input) };
     const injectedState = input.traversalRunnerInternalObjects.state;
-    this.state = injectedState ?? new DagTraversalRunnerState<T, R>();
-    const graphSource = input.traversableGraph;
-    const treeSource = input.traversableTree;
+    this.state =
+      injectedState ??
+      new DagTraversalRunnerState<SourceVertexTypes, RewrittenVertexTypes>();
+    const graphSource = input.dagDiscoverySource;
+    const treeSource = input.treeDiscoverySource;
     const sourceMode = graphSource !== undefined ? 'graph' : 'tree';
-    const completedWork =
-      input.completedWork === undefined
+    const acceptedCompletedWorkVertexIds =
+      input.acceptedCompletedWorkVertexIds === undefined
         ? undefined
-        : new Set(input.completedWork);
+        : new Set(input.acceptedCompletedWorkVertexIds);
     if (
-      (completedWork !== undefined ||
-        input.discovery === 'eager' ||
-        input.syntheticRoot === true) &&
+      (acceptedCompletedWorkVertexIds !== undefined ||
+        input.discoveryTiming === 'completeBeforeAnyVisitor' ||
+        input.sourceRootIsHiddenEntryHolder === true) &&
       (sourceMode !== 'graph' ||
         input.traversalRunnerInternalObjects.state !== null ||
         input.traversalRunnerInternalObjects.resolvedGraphsContainer !== null)
@@ -141,8 +196,8 @@ export class InternalDagTraversalRunner<
         );
       }
       if (
-        (injectedContainer.originalGraphView !== null) !==
-        input.retainOriginalGraphStructure
+        (injectedContainer.preCommandDiscoveredGraphView !== null) !==
+        input.retainDiscoveredGraphBeforeVisitorCommands
       ) {
         throw new TypeError(
           'Injected graph container snapshot mode does not match',
@@ -150,29 +205,40 @@ export class InternalDagTraversalRunner<
       }
       this.resolvedGraphsContainer = injectedContainer;
     } else if (sourceMode === 'graph') {
-      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R, ID>({
+      this.resolvedGraphsContainer = new ResolvedGraphsContainer<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        VertexId
+      >({
         sourceMode: 'graph',
-        syntheticRoot: input.syntheticRoot === true,
-        saveOriginal: input.retainOriginalGraphStructure,
+        syntheticRoot: input.sourceRootIsHiddenEntryHolder === true,
+        saveOriginal: input.retainDiscoveredGraphBeforeVisitorCommands,
       });
     } else {
       const treeContainer = new DepthFirstTraversalResolvedTreesContainer({
         ...DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
-        traversableTree: treeSource!,
-        retainOriginalTreeStructure: input.retainOriginalGraphStructure,
-      } as unknown as DepthFirstTreeResolvedOptions<T, R>);
+        treeDiscoverySource: treeSource!,
+        retainDiscoveredTreeBeforeVisitorCommands:
+          input.retainDiscoveredGraphBeforeVisitorCommands,
+      } as unknown as DepthFirstTreeResolvedOptions<SourceVertexTypes, RewrittenVertexTypes>);
       // Tree-source inputs are accepted only when ID is unknown.
-      this.resolvedGraphsContainer = new ResolvedGraphsContainer<T, R, ID>({
+      this.resolvedGraphsContainer = new ResolvedGraphsContainer<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        VertexId
+      >({
         sourceMode: 'tree',
-        saveOriginal: input.retainOriginalGraphStructure,
+        saveOriginal: input.retainDiscoveredGraphBeforeVisitorCommands,
         treeContainer,
-      } as ResolvedGraphsContainerOptions<T, R, ID>);
+      } as ResolvedGraphsContainerOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId>);
     }
     this.terminalObservation = getDagTerminalObservation(
       this.state,
-      this.resolvedGraphsContainer.resolvedGraphView.getVertexRefs().length > 0,
+      this.resolvedGraphsContainer.liveResolvedGraphView.getVertexRefs()
+        .length > 0,
     );
-    this.originalGraphView = this.resolvedGraphsContainer.originalGraphView;
+    this.preCommandDiscoveredGraphView =
+      this.resolvedGraphsContainer.preCommandDiscoveredGraphView;
     this.policy = new DagPolicy(this.state, this.resolvedGraphsContainer);
     if (this.state.status === TraversalRunnerStatus.FAILED) {
       this.failure = this.state.failure;
@@ -185,20 +251,25 @@ export class InternalDagTraversalRunner<
             this.resolvedGraphsContainer,
             'DagTraversalRunner',
           );
-    this.bindings = createCallbackBindings<T, R>({
+    this.bindings = createCallbackBindings<
+      SourceVertexTypes,
+      RewrittenVertexTypes
+    >({
       source,
-      ...(input.transformChildHints === null
+      ...(input.transformChildHintsBeforeResolution === null
         ? {}
         : {
-            sortHints: (hints: (T | R)['VertexHint'][]) =>
-              input.transformChildHints!(hints as T['VertexHint'][]) as (
-                | T
-                | R
-              )['VertexHint'][],
+            sortHints: (
+              hints: (SourceVertexTypes | RewrittenVertexTypes)['ChildHint'][],
+            ) =>
+              input.transformChildHintsBeforeResolution!(
+                hints as SourceVertexTypes['ChildHint'][],
+              ) as (SourceVertexTypes | RewrittenVertexTypes)['ChildHint'][],
           }),
       visit: {
         [DagVisitorPhase.ON_WORK_READY]: (call) => this.visit(call),
-        [DagVisitorPhase.ON_SUBGRAPH_READY]: (call) => this.visit(call),
+        [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]: (call) =>
+          this.visit(call),
       },
     });
     this.kernel = new TraversalKernel({
@@ -206,45 +277,52 @@ export class InternalDagTraversalRunner<
       canPrepare:
         input.traversalRunnerInternalObjects.state === null &&
         input.traversalRunnerInternalObjects.resolvedGraphsContainer === null,
-      discovery: input.discovery ?? 'lazy',
-      workCompletion:
-        this.icfg.workCompletion === undefined
-          ? 'afterWorkReadyChain'
-          : this.icfg.workCompletion,
-      ...(input.rootWorkDependencies === undefined
+      discoveryTiming: input.discoveryTiming ?? 'incrementalDuringTraversal',
+      workCompletionPolicy:
+        this.icfg.workCompletionPolicy === undefined
+          ? 'afterWorkReadyVisitorChain'
+          : this.icfg.workCompletionPolicy,
+      ...(input.rootWorkPrerequisitePolicy === undefined
         ? {}
-        : { rootWorkDependencies: input.rootWorkDependencies }),
-      ...(input.dependsOnWorkDefault === undefined
+        : { rootWorkPrerequisitePolicy: input.rootWorkPrerequisitePolicy }),
+      ...(input.undeclaredWorkPrerequisitePolicy === undefined
         ? {}
-        : { dependsOnWorkDefault: input.dependsOnWorkDefault }),
-      ...(completedWork === undefined ? {} : { completedWork }),
+        : {
+            undeclaredWorkPrerequisitePolicy:
+              input.undeclaredWorkPrerequisitePolicy,
+          }),
+      ...(acceptedCompletedWorkVertexIds === undefined
+        ? {}
+        : { acceptedCompletedWorkVertexIds }),
       execution: 'sync',
       sourceMode,
       container: this.resolvedGraphsContainer,
       stateBridge: this.state,
       visitorMetadata: {
         [DagVisitorPhase.ON_WORK_READY]: this.metadataFor(Order.ON_WORK_READY),
-        [DagVisitorPhase.ON_SUBGRAPH_READY]: this.metadataFor(
-          Order.ON_SUBGRAPH_READY,
+        [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]: this.metadataFor(
+          Order.ON_SUBGRAPH_COMPLETION_READY,
         ),
       },
       iterableConfig: this.iterableConfig,
       inOrderConfig: null,
-      hasHintTransformer: input.transformChildHints !== null,
+      hasChildHintsListTransformer:
+        input.transformChildHintsBeforeResolution !== null,
       hasPrerequisiteResolver: source.resolvePrerequisite !== undefined,
-      hasHintIds:
+      hasChildHintVertexIdResolver:
         sourceMode === 'graph' &&
-        graphSource!.getVertexIdFromHint !== undefined,
-      concurrency: 1,
-      ...(this.state.status === TraversalRunnerStatus.HALTED
+        graphSource!.tryGetVertexIdentityFromHint !== undefined,
+      maxConcurrentCallbackInvocations: 1,
+      ...(this.state.status === TraversalRunnerStatus.SUSPENDED
         ? {
             dagSeed: {
-              readyVisits: this.state.readyVisits.map(
-                ({ vertexRef, order }) => ({
-                  ref: vertexRef,
-                  order,
-                }),
-              ),
+              dependencyEligiblePhaseVisits:
+                this.state.dependencyEligiblePhaseVisits.map(
+                  ({ vertexHandle, order }) => ({
+                    ref: vertexHandle,
+                    order,
+                  }),
+                ),
               expansionQueue: this.state.expansionQueue,
             },
           }
@@ -255,13 +333,13 @@ export class InternalDagTraversalRunner<
         this.terminalObservation === undefined
           ? this.kernel.inspectDagState()
           : this.terminalObservation.inspectDagState(),
-      workCompletion: this.icfg.workCompletion,
+      workCompletionPolicy: this.icfg.workCompletionPolicy,
       container: this
-        .resolvedGraphsContainer as unknown as ResolvedGraphsContainer<VertexTypes>,
+        .resolvedGraphsContainer as unknown as ResolvedGraphsContainer<VertexDataAndChildHintTypes>,
     });
   }
 
-  prepare(): this {
+  discoverValidateAndFreezeTopology(): this {
     if (this.failure !== null) throw this.failure.error;
     if (this.activeIterator) {
       throw new Error('A traversal runner can only have one active iterator');
@@ -287,39 +365,43 @@ export class InternalDagTraversalRunner<
   }
 
   /** Capture synchronously without advancing discovery or acquiring iterator ownership. */
-  inspectMilestones(): DagMilestoneSnapshot<ID> {
+  captureMilestoneSnapshot(): DagMilestoneSnapshot<VertexId> {
     return captureDagInspection(this);
   }
 
-  summary(): DagSummary<ID> {
+  captureProgressSnapshot(): DagProgressSnapshot<VertexId> {
     // The kernel only receives identities from this runner's typed source/config.
     return (
       this.terminalObservation === undefined
-        ? this.kernel.summary()
-        : this.terminalObservation.summary()
-    ) as DagSummary<ID>;
+        ? this.kernel.captureProgressSnapshot()
+        : this.terminalObservation.captureProgressSnapshot()
+    ) as DagProgressSnapshot<VertexId>;
   }
 
-  settle(
-    id: ID,
+  settleDeferredWork(
+    vertexId: VertexId,
     outcome: DagSettlementOutcome,
-    expectedGeneration: DagSettlementGeneration,
+    expectedSettlementToken: DagWorkSettlementToken,
   ): boolean {
-    const accepted = this.kernel.settle(id, outcome, expectedGeneration);
+    const accepted = this.kernel.settle(
+      vertexId,
+      outcome,
+      expectedSettlementToken,
+    );
     return accepted;
   }
 
-  getStatus(): TraversalRunnerStatus {
+  getTraversalLifecycleStatus(): TraversalRunnerStatus {
     return this.state.status;
   }
 
-  getStopReason(): TraversalStopReason | null {
-    return this.kernel.getStopReason();
+  getTraversalStopReason(): TraversalStopReason | null {
+    return this.kernel.getTraversalStopReason();
   }
 
-  requestPause(): boolean {
+  requestPauseAfterAdmittedCallbacksDrain(): boolean {
     if (
-      this.getStatus() !== TraversalRunnerStatus.RUNNING ||
+      this.getTraversalLifecycleStatus() !== TraversalRunnerStatus.RUNNING ||
       this.kernel.isHaltRequested()
     )
       return false;
@@ -327,52 +409,84 @@ export class InternalDagTraversalRunner<
     return true;
   }
 
-  isHalted(): boolean {
-    return this.getStatus() === TraversalRunnerStatus.HALTED;
+  isSuspended(): boolean {
+    return (
+      this.getTraversalLifecycleStatus() === TraversalRunnerStatus.SUSPENDED
+    );
   }
 
-  getResolvedTreeView(): ResolvedTreeView<T | R> | null {
+  getLiveResolvedTreeView(): LiveResolvedTreeView<
+    SourceVertexTypes | RewrittenVertexTypes
+  > | null {
     return (
-      this.resolvedGraphsContainer.treeContainer?.resolvedTree.asReadOnly() ??
+      this.resolvedGraphsContainer.treeContainer?.resolvedTree.getLiveReadOnlyTreeView() ??
       null
     );
   }
 
-  getResolvedGraphView(): ResolvedGraphView<T | R, ID> {
+  getLiveResolvedGraphView(): LiveResolvedGraphView<
+    SourceVertexTypes | RewrittenVertexTypes,
+    VertexId
+  > {
     return this.resolvedGraphsContainer.publicResolvedGraph;
   }
 
-  isGraphRootVertex(ref: VertexHandle<T | R>): boolean {
+  isVisibleSourceRootVertex(
+    vertexHandle: VertexHandle<SourceVertexTypes | RewrittenVertexTypes>,
+  ): boolean {
     return (
-      vertexHandle(internalRef(ref)) === this.getResolvedGraphView().getRoot()
+      createVertexHandleFacet(internalRef(vertexHandle)) ===
+      this.getLiveResolvedGraphView().getDesignatedRootHandleOrNull()
     );
   }
 
-  inspect(): TreeDagExecutionInspection<DagVisitorPhase> {
+  captureExecutionSnapshot(): TreeOrDagExecutionSnapshot<DagVisitorPhase> {
     return deepFreeze({
-      ...this.kernel.inspect(),
-      inFlightCallbackCount: this.runtimeState.inFlightCallbackCount,
-      bufferedEventCount: 0,
-    }) as TreeDagExecutionInspection<DagVisitorPhase>;
+      ...this.kernel.captureExecutionSnapshot(),
+      inFlightInvocationCount: this.runtimeState.inFlightInvocationCount,
+      bufferedDeliveryEventCount: 0,
+    }) as TreeOrDagExecutionSnapshot<DagVisitorPhase>;
   }
 
-  iterateEvents(): Generator<Event<T, R, ID>, void, unknown>;
-  iterateEvents<Kind extends EmissionKind<DagVisitorPhase>>(
-    config: TraversalExecutionOptions<DagVisitorPhase, Kind> & {
-      emitEvents: readonly Kind[];
+  runAndIterateObservationEventsUntilSuspendedOrTerminal(): Generator<
+    Event<SourceVertexTypes, RewrittenVertexTypes, VertexId>,
+    void,
+    unknown
+  >;
+  runAndIterateObservationEventsUntilSuspendedOrTerminal<
+    Kind extends TraversalEventKindForVisitorPhase<DagVisitorPhase>,
+  >(
+    config: TraversalExecutionSelectionPatch<DagVisitorPhase, Kind> & {
+      deliveredEventKinds: readonly Kind[];
     },
-  ): Generator<SelectedTraversalEvent<Event<T, R, ID>, Kind>, void, unknown>;
-  iterateEvents(
-    config?: TraversalExecutionOptions<DagVisitorPhase>,
-  ): Generator<Event<T, R, ID>, void, unknown>;
-  *iterateEvents(
-    config?: TraversalExecutionOptions<DagVisitorPhase>,
-  ): Generator<Event<T, R, ID>, void, unknown> {
+  ): Generator<
+    TraversalEventNarrowedToSelectedKinds<
+      Event<SourceVertexTypes, RewrittenVertexTypes, VertexId>,
+      Kind
+    >,
+    void,
+    unknown
+  >;
+  runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    config?: TraversalExecutionSelectionPatch<DagVisitorPhase>,
+  ): Generator<
+    Event<SourceVertexTypes, RewrittenVertexTypes, VertexId>,
+    void,
+    unknown
+  >;
+  *runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    config?: TraversalExecutionSelectionPatch<DagVisitorPhase>,
+  ): Generator<
+    Event<SourceVertexTypes, RewrittenVertexTypes, VertexId>,
+    void,
+    unknown
+  > {
     if (this.failure !== null) throw this.failure.error;
     if (this.activeIterator) {
       throw new Error('A traversal runner can only have one active iterator');
     }
-    if (this.getStatus() === TraversalRunnerStatus.FINISHED) return;
+    if (this.getTraversalLifecycleStatus() === TraversalRunnerStatus.FINISHED)
+      return;
     const patch =
       config === undefined
         ? undefined
@@ -387,7 +501,11 @@ export class InternalDagTraversalRunner<
     this.state.status = TraversalRunnerStatus.RUNNING;
     try {
       while (true) {
-        let next: IteratorResult<Event<T, R, ID> | null>;
+        let next: IteratorResult<Event<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
+        > | null>;
         try {
           next = this.curGenerator.next();
         } catch (error) {
@@ -400,28 +518,38 @@ export class InternalDagTraversalRunner<
           this.state.status = TraversalRunnerStatus.FINISHED;
           return;
         }
-        if (this.isHalted() || next.value === null) return;
+        if (this.isSuspended() || next.value === null) return;
         yield next.value;
       }
     } finally {
       this.activeIterator = false;
-      if (this.getStatus() === TraversalRunnerStatus.RUNNING) {
+      if (
+        this.getTraversalLifecycleStatus() === TraversalRunnerStatus.RUNNING
+      ) {
         this.kernel.requestHalt();
-        this.state.status = TraversalRunnerStatus.HALTED;
+        this.state.status = TraversalRunnerStatus.SUSPENDED;
       }
       captureDagTerminalObservation(this.state, this.kernel);
       this.policy.releaseIfTerminal();
     }
   }
 
-  run(config?: TraversalExecutionOptions<DagVisitorPhase>): this {
-    for (const _event of this.iterateEvents(config)) {
+  runUntilSuspendedOrTerminal(
+    config?: TraversalExecutionSelectionPatch<DagVisitorPhase>,
+  ): this {
+    for (const _event of this.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+      config,
+    )) {
       /* Drain traversal events. */
     }
     return this;
   }
 
-  private *getInternalGenerator(): Generator<Event<T, R, ID> | null> {
+  private *getInternalGenerator(): Generator<Event<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  > | null> {
     for (const event of runSync(
       this.kernel,
       this.bindings,
@@ -432,38 +560,48 @@ export class InternalDagTraversalRunner<
       else {
         yield {
           vertex: vertexView(event.vertex),
-          vertexRef: vertexHandle(event.vertexRef),
-          vertexId: this.getResolvedGraphView().requireVertexId(
-            event.vertexRef,
+          vertexHandle: createVertexHandleFacet(event.vertexHandle),
+          vertexId: this.getLiveResolvedGraphView().requireVertexId(
+            createVertexHandleFacet(event.vertexHandle),
           ),
           ...(event.order === DagVisitorPhase.ON_WORK_READY
             ? ({
-                kind: 'workCompleted',
+                eventKind: 'workCompletionCommitted',
               } as const)
             : ({
-                kind: 'subgraphCompleted',
+                eventKind: 'subgraphCompletionCommitted',
               } as const)),
-          isGraphRoot: event.isRoot,
+          isVisibleSourceRoot: event.isRoot,
         };
       }
     }
   }
 
-  private visit(call: Extract<CallSpec<T, R>, { kind: 'VISIT' }>) {
+  private visit(
+    call: Extract<
+      CallSpec<SourceVertexTypes, RewrittenVertexTypes>,
+      { kind: 'VISIT' }
+    >,
+  ) {
     const order = call.order as DagVisitorPhase;
     const registration = this.icfg.visitors[order][call.recordIndex]!;
-    return registration.visitor(vertexView(call.ref.getValue()), {
-      ...call.metadata,
-      previousPhaseVertexRef: vertexHandle(
-        call.metadata.previousPhaseVertexRef,
+    return registration.visitor(vertexView(call.ref.getReferencedValue()), {
+      phaseVisitorChainAdmissionIndex: call.metadata.phaseVisitorChainIndex,
+      visitorCallbackIndexInPhaseChain:
+        call.metadata.visitorCallbackIndexInPhaseChain,
+      currentVertexPhaseChainState: call.metadata.currentVertexPhaseChainState,
+      previousCommittedVisitVertexHandleForSamePhase: createVertexHandleFacet(
+        call.metadata.previousCommittedVisitVertexHandleForSamePhase,
       ),
-      resolvedGraphView: this.getResolvedGraphView(),
-      originalGraphView: this.originalGraphView,
-      vertexRef: vertexHandle(call.ref),
-      phase: order,
-      isGraphRoot: this.isGraphRootVertex(call.ref),
+      liveResolvedGraphView: this.getLiveResolvedGraphView(),
+      preCommandDiscoveredGraphView: this.preCommandDiscoveredGraphView,
+      vertexHandle: createVertexHandleFacet(call.ref),
+      visitorPhase: order,
+      isVisibleSourceRoot: this.isVisibleSourceRootVertex(
+        createVertexHandleFacet(call.ref),
+      ),
 
-      registration,
+      visitorRegistrationMetadata: registration,
       // The record and options share the same phase selected above.
     } as never);
   }
@@ -471,16 +609,16 @@ export class InternalDagTraversalRunner<
   private metadataFor(order: DagVisitorPhase) {
     return this.icfg.visitors[order].map(
       ({
-        addedIndex,
-        priority,
+        phaseRegistrationInsertionIndex,
+        descendingExecutionPriorityWithinGroup,
 
-        commandCommitMode,
+        visitorCommandCommitTiming,
         visitorGroup,
       }) => ({
-        addedIndex,
-        priority,
+        phaseRegistrationInsertionIndex,
+        descendingExecutionPriorityWithinGroup,
 
-        commandCommitMode,
+        visitorCommandCommitTiming,
         visitorGroup,
       }),
     );

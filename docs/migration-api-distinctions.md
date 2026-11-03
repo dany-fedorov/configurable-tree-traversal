@@ -1,5 +1,7 @@
 # Client API distinctions migration
 
+> Historical release guide: the tables and examples below describe the released 0.12 API and its earlier migration. They are not the API of this unreleased checkout. Start with the [explicit API migration](migration-explicit-api.md) to move from released 0.12 to this checkout; use the [current reference](reference.md) for the implemented contracts.
+
 [Documentation index](index.md) · [API reference](reference.md) · [Agent workflows](agent-workflows.md)
 
 This is the upgrade entry point from 0.11.0 to 0.12.0. Apply the final contracts below directly; earlier guides retain detailed tables and examples, not intermediate steps you must apply in order. This guide includes the twenty API distinctions from the 2026-10-31 review. Old spellings and ambiguous scalar rewrite outputs are removed. Keep host task meaning, retries, claims and durable acceptance outside CTT.
@@ -74,7 +76,7 @@ Only prerequisite lookup accepts `{ kind: 'missing' }`. All source resolutions u
 
 ## Tagged output example
 
-<!-- standalone -->
+<!-- historical 0.12 example; not a current standalone program -->
 
 ```ts
 import { rewriteObject } from 'configurable-tree-traversal';

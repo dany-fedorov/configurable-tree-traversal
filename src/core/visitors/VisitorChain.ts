@@ -1,7 +1,7 @@
 import { getVisitorBatchEnds } from './getVisitorBatchEnds';
 import { normalizeVisitorOptions } from './normalizeVisitorOptions';
 import { TraversalVisitorCommandName } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { TraversalVisitorCommand } from '@core/TraversalVisitor';
 import type {
   VisitorBatchCommit,
@@ -11,35 +11,49 @@ import type {
   VisitorOutcome,
 } from '@core/visitors/types';
 
-export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
+export class VisitorChain<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> {
   private readonly canDeferReady: boolean;
-  private readonly ref: VisitorChainInput<T, R>['ref'];
+  private readonly ref: VisitorChainInput<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >['ref'];
   private readonly batchEnds: boolean[];
-  private readonly metadata: VisitorChainMetadata<T | R>;
+  private readonly metadata: VisitorChainMetadata<
+    InputVertexTypes | RewrittenVertexTypes
+  >;
   private position = 0;
   private awaitingOutcome = false;
   private pendingCommands:
-    | TraversalVisitorCommand<R, TraversalVisitorCommandName, T['VertexHint']>[]
+    | TraversalVisitorCommand<
+        RewrittenVertexTypes,
+        TraversalVisitorCommandName,
+        InputVertexTypes['ChildHint']
+      >[]
     | null = null;
   private commandsEmitted = false;
   private readonly bufferedCommands: TraversalVisitorCommand<
-    R,
+    RewrittenVertexTypes,
     TraversalVisitorCommandName,
-    T['VertexHint']
+    InputVertexTypes['ChildHint']
   >[] = [];
   private paused = false;
   private deleted = false;
   private done = false;
   private valid = true;
 
-  constructor(input: VisitorChainInput<T, R>) {
+  constructor(
+    input: VisitorChainInput<InputVertexTypes, RewrittenVertexTypes>,
+  ) {
     this.ref = input.ref;
     this.canDeferReady =
       input.family === 'dag' && input.order === 'ON_WORK_READY';
     this.metadata = {
       ...input.metadata,
-      visitorIndex: 0,
-      visitorChainState: null,
+      visitorCallbackIndexInPhaseChain: 0,
+      currentVertexPhaseChainState: null,
     };
 
     const records = input.records.map((record) => ({
@@ -49,7 +63,7 @@ export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
     this.batchEnds = getVisitorBatchEnds(records);
   }
 
-  poll(): VisitorChainPoll<T, R> {
+  poll(): VisitorChainPoll<InputVertexTypes, RewrittenVertexTypes> {
     if (!this.valid || this.done) return { kind: 'DONE' };
     if (this.paused) return { kind: 'PAUSED' };
     if (this.awaitingOutcome || this.commandsEmitted) return { kind: 'WAIT' };
@@ -63,14 +77,22 @@ export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
     }
 
     if (this.position < this.batchEnds.length) {
-      return this.emitVisit(this.position, this.metadata.visitorChainState);
+      return this.emitVisit(
+        this.position,
+        this.metadata.currentVertexPhaseChainState,
+      );
     }
 
     this.done = true;
     return { kind: 'DONE' };
   }
 
-  submit(outcome: VisitorOutcome<R, T['VertexHint']>): void {
+  submit(
+    outcome: VisitorOutcome<
+      RewrittenVertexTypes,
+      InputVertexTypes['ChildHint']
+    >,
+  ): void {
     if (!this.valid || !this.awaitingOutcome) {
       throw new Error('Visitor chain is not waiting for an outcome');
     }
@@ -80,7 +102,7 @@ export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
     }
 
     this.awaitingOutcome = false;
-    this.metadata.visitorIndex++;
+    this.metadata.visitorCallbackIndexInPhaseChain++;
     const value = outcome.value;
     if (typeof value === 'symbol') {
       throw new TypeError('Invalid visitor result; use canonical commands');
@@ -90,7 +112,7 @@ export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
       commands.some(
         (command) =>
           command.commandName ===
-          TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+          TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION,
       )
     ) {
       if (commands.length !== 1)
@@ -116,10 +138,17 @@ export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
 
     const ownHalt = this.pendingCommands.some(
       (command) =>
-        command.commandName === TraversalVisitorCommandName.PAUSE_TRAVERSAL,
+        command.commandName ===
+        TraversalVisitorCommandName.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY,
     );
-    if (Object.prototype.hasOwnProperty.call(result, 'visitorChainState')) {
-      this.metadata.visitorChainState = result.visitorChainState;
+    if (
+      Object.prototype.hasOwnProperty.call(
+        result,
+        'currentVertexPhaseChainState',
+      )
+    ) {
+      this.metadata.currentVertexPhaseChainState =
+        result.currentVertexPhaseChainState;
     }
     this.pendingCommands = null;
     this.commandsEmitted = false;
@@ -142,7 +171,7 @@ export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
   private emitVisit(
     recordIndex: number,
     chainState: unknown,
-  ): VisitorChainPoll<T, R> {
+  ): VisitorChainPoll<InputVertexTypes, RewrittenVertexTypes> {
     this.awaitingOutcome = true;
     return {
       kind: 'VISIT',
@@ -150,7 +179,7 @@ export class VisitorChain<T extends VertexTypes, R extends VertexTypes = T> {
       recordIndex,
       metadata: {
         ...this.metadata,
-        visitorChainState: chainState,
+        currentVertexPhaseChainState: chainState,
       },
     };
   }

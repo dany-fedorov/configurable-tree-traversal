@@ -1,19 +1,19 @@
 import {
-  AsyncDepthFirstTreeTraversal,
-  AsyncGraphWalk,
-  DagTraversal,
-  DepthFirstPhase,
-  DepthFirstTreeTraversal,
-  GraphWalk,
-  ObjectTreeSource,
-  defineDagFragment,
+  AsyncDepthFirstTreeTraversalBuilder,
+  AsyncGraphWalkBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeVisitPhase,
+  DepthFirstTreeTraversalBuilder,
+  GraphWalkBuilder,
+  ObjectPropertyTreeSource,
+  validateAndCreateDagFragment,
   mapDagFragmentIds,
-  materializeDagInputFromRecords,
-  materializeDagInputFromRecordsAsync,
-  materializeDagInputFromRoots,
-  materializeDagInputFromRootsAsync,
-  materializeWalkSourceFromRecords,
-  materializeWalkSourceFromRecordsAsync,
+  materializeMultiEntryDagInputFromRecordCatalog,
+  materializeMultiEntryDagInputFromRecordCatalogAsync,
+  materializeDagInputFromRootRecords,
+  materializeDagInputFromRootRecordsAsync,
+  materializeGraphWalkSourceFromVertexRecords,
+  materializeSynchronousGraphWalkSourceFromAsyncRecords,
   type DagRecordSelectors,
 } from '../src';
 
@@ -21,45 +21,59 @@ function fields<T extends object>(input: T, inherited: boolean): T {
   return inherited ? Object.create(input) : input;
 }
 
+type DagMaterializerSelectors = DagRecordSelectors<number, number> &
+  import('../src').DagRootRecordSelectors<number, number>;
 const dagFactories = [
-  (selectors: DagRecordSelectors<number, number>) =>
-    materializeDagInputFromRecords([1, 2], selectors),
-  (selectors: DagRecordSelectors<number, number>) =>
-    materializeDagInputFromRecordsAsync([1, 2], selectors),
-  (selectors: DagRecordSelectors<number, number>) =>
-    materializeDagInputFromRoots([1], selectors),
-  (selectors: DagRecordSelectors<number, number>) =>
-    materializeDagInputFromRootsAsync([1], selectors),
-];
-for (const materialize of dagFactories)
+  [
+    (selectors: DagMaterializerSelectors) =>
+      materializeMultiEntryDagInputFromRecordCatalog([1, 2], selectors),
+    'selectStructuralChildVertexIds',
+  ],
+  [
+    (selectors: DagMaterializerSelectors) =>
+      materializeMultiEntryDagInputFromRecordCatalogAsync([1, 2], selectors),
+    'selectStructuralChildVertexIds',
+  ],
+  [
+    (selectors: DagMaterializerSelectors) =>
+      materializeDagInputFromRootRecords([1], selectors),
+    'selectStructuralChildRecords',
+  ],
+  [
+    (selectors: DagMaterializerSelectors) =>
+      materializeDagInputFromRootRecordsAsync([1], selectors),
+    'selectStructuralChildRecords',
+  ],
+] as const;
+for (const [materialize, childSelector] of dagFactories)
   test.each([false, true])(
     'DAG materializers capture selector fields once and preserve receiver (inherited=%s)',
     async (inherited) => {
       const reads = { id: 0, children: 0, work: 0, completion: 0 };
-      const selectors: DagRecordSelectors<number, number> = fields(
+      const selectors: DagMaterializerSelectors = fields(
         {
-          get id() {
+          get selectVertexId() {
             if (++reads.id > 1) throw new Error('id reread');
             return function (this: unknown, item: number) {
               expect(this).toBe(selectors);
               return item;
             };
           },
-          get children() {
+          get [childSelector]() {
             if (++reads.children > 1) throw new Error('children reread');
             return function (this: unknown, item: number) {
               expect(this).toBe(selectors);
               return item === 1 ? [2] : [];
             };
           },
-          get dependsOnWork() {
+          get selectWorkPrerequisiteVertexIds() {
             if (++reads.work > 1) throw new Error('work reread');
             return function (this: unknown) {
               expect(this).toBe(selectors);
               return [];
             };
           },
-          get dependsOnSubgraphCompletion() {
+          get selectSubgraphCompletionPrerequisiteVertexIds() {
             if (++reads.completion > 1) throw new Error('completion reread');
             return function (this: unknown) {
               expect(this).toBe(selectors);
@@ -70,9 +84,15 @@ for (const materialize of dagFactories)
         inherited,
       );
       const input = await materialize(selectors);
-      const runner = new DagTraversal(input).createRunner().run();
+      const runner = new DagTraversalBuilder(input)
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal();
       expect(
-        runner.getResolvedGraphView().getVertexRefById(2)!.getValue().getData(),
+        runner
+          .getLiveResolvedGraphView()
+          .getVertexHandleByIdOrNull(2)!
+          .getCurrentVertexView()
+          .getVertexData(),
       ).toBe(2);
       expect(reads).toEqual({ id: 1, children: 1, work: 1, completion: 1 });
     },
@@ -85,21 +105,21 @@ for (const asyncMode of [false, true])
       const reads = { id: 0, outgoing: 0, roots: 0 };
       const options = fields(
         {
-          get id() {
+          get getVertexId() {
             if (++reads.id > 1) throw new Error('id reread');
             return function (this: unknown, item: number) {
               expect(this).toBe(options);
               return item;
             };
           },
-          get outgoing() {
+          get enumerateOutgoingLinks() {
             if (++reads.outgoing > 1) throw new Error('outgoing reread');
             return function (this: unknown, item: number) {
               expect(this).toBe(options);
-              return item === 1 ? [{ to: 2, data: 'edge' }] : [];
+              return item === 1 ? [{ toVertexId: 2, edgeData: 'edge' }] : [];
             };
           },
-          get roots() {
+          get rootVertexIds() {
             if (++reads.roots > 1) throw new Error('roots reread');
             return [1];
           },
@@ -107,14 +127,18 @@ for (const asyncMode of [false, true])
         inherited,
       );
       const source = await (asyncMode
-        ? materializeWalkSourceFromRecordsAsync([1, 2], options)
-        : materializeWalkSourceFromRecords([1, 2], options));
+        ? materializeSynchronousGraphWalkSourceFromAsyncRecords([1, 2], options)
+        : materializeGraphWalkSourceFromVertexRecords([1, 2], options));
       const events = [
-        ...new GraphWalk({ source }).createRunner().iterateEvents(),
+        ...new GraphWalkBuilder({ graphWalkDiscoverySource: source })
+          .createIndependentRunnerFromCurrentOptions()
+          .runAndIterateObservationEventsUntilSuspendedOrTerminal(),
       ];
       expect(
         events.map((event) =>
-          event.kind === 'vertex' ? event.vertex.data : null,
+          event.eventKind === 'vertexOccurrence'
+            ? event.vertex.vertexData
+            : null,
         ),
       ).toEqual([1, 2]);
       expect(reads).toEqual({ id: 1, outgoing: 1, roots: 1 });
@@ -124,19 +148,19 @@ for (const asyncMode of [false, true])
 test.each([false, true])(
   'fragment mapId capture preserves its original receiver (inherited=%s)',
   (inherited) => {
-    const fragment = defineDagFragment(
+    const fragment = validateAndCreateDagFragment(
       {
-        vertices: [1, 2].map((vertexId) => ({
+        vertexDeclarations: [1, 2].map((vertexId) => ({
           vertexId,
           data: vertexId,
-          slots: [],
-          dependsOnWork: [],
-          dependsOnSubgraphCompletion: [],
+          childDiscoverySlots: [],
+          workWaitsForWorkOf: [],
+          workWaitsForSubgraphCompletionOf: [],
         })),
-        omittedIds: [],
+        omittedVertexIds: [],
         entry: {
           kind: 'roots',
-          slots: [1, 2].map((vertexId) => ({
+          entryDiscoverySlots: [1, 2].map((vertexId) => ({
             kind: 'vertex' as const,
             vertexId,
           })),
@@ -158,7 +182,10 @@ test.each([false, true])(
       inherited,
     );
     const instance = mapDagFragmentIds(fragment, options);
-    expect(instance.ports).toEqual({ first: 'mapped:1', second: 'mapped:2' });
+    expect(instance.vertexIdsByPortName).toEqual({
+      first: 'mapped:1',
+      second: 'mapped:2',
+    });
     expect(reads).toBe(1);
   },
 );
@@ -184,7 +211,7 @@ for (const asyncMode of [false, true])
                 calls++;
               };
             },
-            get priority() {
+            get descendingExecutionPriorityWithinGroup() {
               if (++reads.priority > 1) throw new Error('priority reread');
               return 200;
             },
@@ -197,19 +224,19 @@ for (const asyncMode of [false, true])
               if (++reads.visitors > 1) throw new Error('visitors reread');
               return [member];
             },
-            get commandCommitMode() {
+            get visitorCommandCommitTiming() {
               if (++reads.mode > 1) throw new Error('mode reread');
-              return 'afterGroup' as const;
+              return 'afterContiguousVisitorBatch' as const;
             },
           },
           inherited,
         );
         const traversal = asyncMode
-          ? new AsyncDepthFirstTreeTraversal({
-              traversableTree: new ObjectTreeSource(1),
+          ? new AsyncDepthFirstTreeTraversalBuilder({
+              treeDiscoverySource: new ObjectPropertyTreeSource(1),
             })
-          : new DepthFirstTreeTraversal({
-              traversableTree: new ObjectTreeSource(1),
+          : new DepthFirstTreeTraversalBuilder({
+              treeDiscoverySource: new ObjectPropertyTreeSource(1),
             });
         if (grouped) {
           const wrapper = fields(
@@ -221,27 +248,46 @@ for (const asyncMode of [false, true])
             },
             inherited,
           );
-          traversal.setVisitorsFor(DepthFirstPhase.PRE_ORDER, wrapper);
-        } else traversal.addVisitorGroupFor(DepthFirstPhase.PRE_ORDER, group);
-        const records = traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER);
+          traversal.replaceVisitorDefinitionsForPhase(
+            DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+            wrapper,
+          );
+        } else
+          traversal.appendVisitorGroupForPhase(
+            DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+            group,
+          );
+        const records = traversal.getDetachedVisitorRegistrationRecordsForPhase(
+          DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+        );
         const metadata = records[0]!.visitorGroup;
-        if (traversal instanceof AsyncDepthFirstTreeTraversal)
-          traversal.setVisitorsFor(
-            DepthFirstPhase.PRE_ORDER,
-            traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER),
+        if (traversal instanceof AsyncDepthFirstTreeTraversalBuilder)
+          traversal.replaceVisitorDefinitionsForPhase(
+            DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+            traversal.getDetachedVisitorRegistrationRecordsForPhase(
+              DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+            ),
           );
         else
-          traversal.setVisitorsFor(
-            DepthFirstPhase.PRE_ORDER,
-            traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER),
+          traversal.replaceVisitorDefinitionsForPhase(
+            DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+            traversal.getDetachedVisitorRegistrationRecordsForPhase(
+              DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+            ),
           );
         expect(
-          traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER)[0]!.visitorGroup,
+          traversal.getDetachedVisitorRegistrationRecordsForPhase(
+            DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+          )[0]!.visitorGroup,
         ).toBe(metadata);
         expect(
-          traversal.listVisitorsFor(DepthFirstPhase.PRE_ORDER)[0]!.addedIndex,
+          traversal.getDetachedVisitorRegistrationRecordsForPhase(
+            DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+          )[0]!.phaseRegistrationInsertionIndex,
         ).toBe(0);
-        await traversal.createRunner().run();
+        await traversal
+          .createIndependentRunnerFromCurrentOptions()
+          .runUntilSuspendedOrTerminal();
         expect(calls).toBe(1);
         expect(reads).toEqual({
           groups: grouped ? 1 : 0,
@@ -258,19 +304,19 @@ test.each([false, true])(
   async (asyncMode) => {
     const calls: string[] = [];
     class Source extends Function {
-      readonly hydration = 'resolver';
+      readonly vertexResolutionMode = 'resolverWithOptionalInlineResolution';
       state = { data: 42 };
-      roots() {
+      enumerateRootTargets() {
         expect(this).toBe(source);
         calls.push('roots');
         return [{ vertexId: 'root' }];
       }
-      resolveVertex() {
+      resolveVertexDataById() {
         expect(this).toBe(source);
         calls.push('resolve');
-        return { kind: 'found' as const, data: this.state.data };
+        return { kind: 'found' as const, vertexData: this.state.data };
       }
-      outgoing() {
+      enumerateOutgoingLinks() {
         expect(this).toBe(source);
         calls.push('outgoing');
         return [];
@@ -278,10 +324,14 @@ test.each([false, true])(
     }
     const source = new Source();
     const runner = asyncMode
-      ? new AsyncGraphWalk({ source }).createRunner()
-      : new GraphWalk({ source }).createRunner();
+      ? new AsyncGraphWalkBuilder({
+          graphWalkDiscoverySource: source,
+        }).createIndependentRunnerFromCurrentOptions()
+      : new GraphWalkBuilder({
+          graphWalkDiscoverySource: source,
+        }).createIndependentRunnerFromCurrentOptions();
     expect(typeof source).toBe('function');
-    await runner.run();
+    await runner.runUntilSuspendedOrTerminal();
     expect(calls).toEqual(['roots', 'resolve', 'outgoing']);
     expect(source.state.data).toBe(42);
   },

@@ -1,9 +1,15 @@
-import { AsyncGraphWalk } from './AsyncGraphWalk';
-import type { AsyncGraphWalkOptions } from './GraphWalkOptions';
+import { AsyncGraphWalkBuilder } from './AsyncGraphWalk';
+import type { AsyncGraphWalkBuilderOptions } from './GraphWalkOptions';
 import type { AsyncGraphWalkRunner } from './AsyncGraphWalkRunner';
 
-export async function walkGraphAsync<Data, Edge, ID>(
-  options: AsyncGraphWalkOptions<Data, Edge, ID>,
-): Promise<AsyncGraphWalkRunner<Data, Edge, ID>> {
-  return new AsyncGraphWalk(options).createRunner().run();
+export async function createAndRunGraphWalkUntilSuspendedOrTerminalAsync<
+  VertexData,
+  EdgeData,
+  VertexId,
+>(
+  options: AsyncGraphWalkBuilderOptions<VertexData, EdgeData, VertexId>,
+): Promise<AsyncGraphWalkRunner<VertexData, EdgeData, VertexId>> {
+  return new AsyncGraphWalkBuilder(options)
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
 }

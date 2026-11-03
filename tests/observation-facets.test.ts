@@ -1,218 +1,272 @@
 import {
-  AsyncBreadthFirstTreeTraversal,
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstTreeTraversal,
-  type VertexTypes,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 
-type T = VertexTypes<{ label: string }, { label: string }>;
+type T = VertexDataAndChildHintTypes<{ label: string }, { label: string }>;
 for (const Builder of [
-  DepthFirstTreeTraversal<T>,
-  BreadthFirstTreeTraversal<T>,
-  AsyncDepthFirstTreeTraversal<T>,
-  AsyncBreadthFirstTreeTraversal<T>,
-  DagTraversal<T>,
-  AsyncDagTraversal<T>,
+  DepthFirstTreeTraversalBuilder<T>,
+  BreadthFirstTreeTraversalBuilder<T>,
+  AsyncDepthFirstTreeTraversalBuilder<T>,
+  AsyncBreadthFirstTreeTraversalBuilder<T>,
+  DagTraversalBuilder<T>,
+  AsyncDagTraversalBuilder<T>,
 ]) {
   test(`${Builder.name} restricts observation handles and vertices at runtime`, async () => {
     const data = { label: 'root' };
     const hint = { label: 'child' };
     const runner = new Builder({
-      traversableTree: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: { vertexContent: { $data: data, $childHints: [hint] } },
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: data,
+              $childDiscoveryHints: [hint],
+            },
+          },
         }),
-        resolveChild: () => ({
-          kind: 'found',
-          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
+          },
         }),
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     const events = [];
-    for await (const event of runner.iterateEvents()) events.push(event);
-    const view = runner.getResolvedTreeView()!;
-    const root = view.getRoot()!;
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      events.push(event);
+    const view = runner.getLiveResolvedTreeView()!;
+    const root = view.getRootVertexHandleOrNull()!;
     expect('setValue' in root).toBe(false);
     expect(Object.isFrozen(root)).toBe(true);
-    expect(Object.isFrozen(root.getValue())).toBe(true);
-    expect(Object.isFrozen(root.getValue().getChildHints())).toBe(true);
-    expect(root.getValue().getData()).toBe(data);
-    expect(root.getValue().getChildHints()[0]).toBe(hint);
+    expect(Object.isFrozen(root.getCurrentVertexView())).toBe(true);
+    expect(
+      Object.isFrozen(
+        root.getCurrentVertexView().getDetachedChildDiscoveryHints(),
+      ),
+    ).toBe(true);
+    expect(root.getCurrentVertexView().getVertexData()).toBe(data);
+    expect(
+      root.getCurrentVertexView().getDetachedChildDiscoveryHints()[0],
+    ).toBe(hint);
     expect(Object.isFrozen(data)).toBe(false);
     expect(Object.isFrozen(hint)).toBe(false);
-    const child = view.getChildrenOf(root)![0]!;
-    const context = view.getResolutionContextOf(child)!;
-    expect(context.parentVertexRef).toBe(root);
-    expect(context.parentVertex).toBe(root.getValue());
+    const child = view.getChildVertexHandlesOrNull(root)![0]!;
+    const context = view.getChildDiscoveryContextOrNull(child)!;
+    expect(context.parentVertexHandle).toBe(root);
+    expect(context.parentVertexAtChildResolution).toBe(
+      root.getCurrentVertexView(),
+    );
     expect(Object.isFrozen(context)).toBe(true);
-    expect(events[0]!.vertexRef).toBe(root);
+    expect(events[0]!.vertexHandle).toBe(root);
     expect('isTraversalRoot' in events[0]!).toBe(false);
     expect('isTraversalRootVertex' in runner).toBe(false);
   });
 }
 
 import {
-  DepthFirstPhase,
+  DepthFirstTreeVisitPhase,
   DagVisitorPhase,
   TraversalVisitorCommandName as Command,
   type VertexHandle,
   type VertexView,
   type TreeVisitorContext,
   type DagVisitorContext,
-  type TreeChildResolutionContext,
-  type VertexResolutionContext,
+  type TreeChildResolverContext,
+  type ChildDiscoveryContext,
 } from '../src';
 
 function assertVertex(vertex: VertexView<T>) {
   expect(Object.isFrozen(vertex)).toBe(true);
   expect('setData' in vertex).toBe(false);
-  expect(Object.isFrozen(vertex.getChildHints())).toBe(true);
-  expect(() => Object.assign(vertex, { $data: { label: 'forged' } })).toThrow(
-    TypeError,
+  expect(Object.isFrozen(vertex.getDetachedChildDiscoveryHints())).toBe(true);
+  expect(() =>
+    Object.assign(vertex, { $vertexData: { label: 'forged' } }),
+  ).toThrow(TypeError);
+  const clone = vertex.createEditableShallowCloneWithContentOverrides();
+  expect(clone.getVertexData()).toBe(vertex.getVertexData());
+  expect(clone.getMutableChildDiscoveryHints()).not.toBe(
+    vertex.getDetachedChildDiscoveryHints(),
   );
-  const clone = vertex.clone();
-  expect(clone.getData()).toBe(vertex.getData());
-  expect(clone.getChildHints()).not.toBe(vertex.getChildHints());
-  clone.getChildHints().length = 0;
+  clone.getMutableChildDiscoveryHints().length = 0;
 }
 function assertHandle(handle: VertexHandle<T>) {
   expect('setValue' in handle).toBe(false);
   expect(Object.isFrozen(handle)).toBe(true);
-  assertVertex(handle.getValue());
+  assertVertex(handle.getCurrentVertexView());
 }
 
 for (const [Builder, phase] of [
-  [DepthFirstTreeTraversal<T>, 'PRE_ORDER'],
-  [BreadthFirstTreeTraversal<T>, 'LEVEL_ORDER'],
-  [AsyncDepthFirstTreeTraversal<T>, 'PRE_ORDER'],
-  [AsyncBreadthFirstTreeTraversal<T>, 'LEVEL_ORDER'],
-  [DagTraversal<T>, 'ON_WORK_READY'],
-  [AsyncDagTraversal<T>, 'ON_WORK_READY'],
+  [DepthFirstTreeTraversalBuilder<T>, 'BEFORE_CHILD_EXPANSION'],
+  [BreadthFirstTreeTraversalBuilder<T>, 'AT_LEVEL_ORDER_VERTEX'],
+  [AsyncDepthFirstTreeTraversalBuilder<T>, 'BEFORE_CHILD_EXPANSION'],
+  [AsyncBreadthFirstTreeTraversalBuilder<T>, 'AT_LEVEL_ORDER_VERTEX'],
+  [DagTraversalBuilder<T>, 'ON_WORK_READY'],
+  [AsyncDagTraversalBuilder<T>, 'ON_WORK_READY'],
 ] as const) {
   test(`${Builder.name} restricts callbacks, source contexts, originals and graph records`, async () => {
-    const accepted: VertexResolutionContext<T>[] = [];
+    const accepted: ChildDiscoveryContext<T>[] = [];
     const handles: VertexHandle<T>[] = [];
     const data = { label: 'root' };
     const childHint = { label: 'child' };
-    let sourceContext: TreeChildResolutionContext<T, T> | undefined;
+    let sourceContext: TreeChildResolverContext<T, T> | undefined;
     const visitor = (
       vertex: VertexView<T>,
       context: TreeVisitorContext<string, T, T> | DagVisitorContext<T>,
     ) => {
       assertVertex(vertex);
-      assertHandle(context.vertexRef);
-      expect(context.vertexRef.getValue()).toBe(vertex);
+      assertHandle(context.vertexHandle);
+      expect(context.vertexHandle.getCurrentVertexView()).toBe(vertex);
       expect('resolvedTree' in context).toBe(false);
       expect('resolvedGraph' in context).toBe(false);
       expect('isTraversalRoot' in context).toBe(false);
-      if (context.previousPhaseVertexRef !== null)
-        expect(context.previousPhaseVertexRef).toBe(
+      if (context.previousCommittedVisitVertexHandleForSamePhase !== null)
+        expect(context.previousCommittedVisitVertexHandleForSamePhase).toBe(
           handles[handles.length - 1],
         );
-      handles.push(context.vertexRef);
-      if ('resolvedTreeView' in context) {
-        expect('set' in context.resolvedTreeView).toBe(false);
-        expect(context.resolvedTreeView.has(context.vertexRef)).toBe(true);
-        const saved = context.originalTreeView?.getRoot();
+      handles.push(context.vertexHandle);
+      if ('liveResolvedTreeView' in context) {
+        expect('set' in context.liveResolvedTreeView).toBe(false);
+        expect(
+          context.liveResolvedTreeView.containsVertexHandle(
+            context.vertexHandle,
+          ),
+        ).toBe(true);
+        const saved =
+          context.preCommandDiscoveredTreeView?.getRootVertexHandleOrNull();
         if (saved != null) {
           assertHandle(saved);
-          expect(saved.getValue().getData()).toBe(data);
+          expect(saved.getCurrentVertexView().getVertexData()).toBe(data);
         }
       } else {
         expect(
-          context.resolvedGraphView.get(context.vertexRef)!.vertexRef,
-        ).toBe(context.vertexRef);
-        const saved = context.originalGraphView?.getRoot();
+          context.liveResolvedGraphView.getVertexSnapshotOrNull(
+            context.vertexHandle,
+          )!.vertexHandle,
+        ).toBe(context.vertexHandle);
+        const saved =
+          context.preCommandDiscoveredGraphView?.getDesignatedRootHandleOrNull();
         if (saved != null) {
           assertHandle(saved);
-          expect(saved.getValue().getData()).toBe(data);
+          expect(saved.getCurrentVertexView().getVertexData()).toBe(data);
         }
       }
-      if (vertex.getData() === data)
+      if (vertex.getVertexData() === data)
         return {
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: { label: 'rewritten' } },
+              commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: {
+                replacementVertexData: { label: 'rewritten' },
+              },
             },
           ],
         };
       return undefined;
     };
     const runner = new Builder({
-      traversableTree: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: { vertexContent: { $data: data, $childHints: [childHint] } },
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: data,
+              $childDiscoveryHints: [childHint],
+            },
+          },
         }),
-        resolveChild: (_hint, context) => {
+        resolveChildVertexFromHint: (_hint, context) => {
           sourceContext = context;
           expect('resolvedTree' in context).toBe(false);
-          expect('set' in context.resolvedTreeView).toBe(false);
-          expect(Object.isFrozen(context.resolutionContext)).toBe(true);
-          assertHandle(context.resolutionContext.parentVertexRef);
-          assertVertex(context.resolutionContext.parentVertex);
-          expect(context.resolutionContext.parentVertexRef).toBe(handles[0]);
-          expect(context.resolutionContext.vertexHint).toBe(childHint);
-          accepted.push(context.resolutionContext);
+          expect('set' in context.liveResolvedTreeView).toBe(false);
+          expect(Object.isFrozen(context.childDiscoveryContext)).toBe(true);
+          assertHandle(context.childDiscoveryContext.parentVertexHandle);
+          assertVertex(
+            context.childDiscoveryContext.parentVertexAtChildResolution,
+          );
+          expect(context.childDiscoveryContext.parentVertexHandle).toBe(
+            handles[0],
+          );
+          expect(context.childDiscoveryContext.childDiscoveryHint).toBe(
+            childHint,
+          );
+          accepted.push(context.childDiscoveryContext);
           return {
-            kind: 'found',
-            vertex: { vertexContent: { $data: childHint, $childHints: [] } },
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
+              vertexContentInput: {
+                $vertexData: childHint,
+                $childDiscoveryHints: [],
+              },
+            },
           };
         },
       },
       [phase === 'ON_WORK_READY'
-        ? 'retainOriginalGraphStructure'
-        : 'retainOriginalTreeStructure']: true,
+        ? 'retainDiscoveredGraphBeforeVisitorCommands'
+        : 'retainDiscoveredTreeBeforeVisitorCommands']: true,
       visitors: { [phase]: visitor },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     const events = [];
-    for await (const event of runner.iterateEvents()) {
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
       assertVertex(event.vertex);
-      assertHandle(event.vertexRef);
+      assertHandle(event.vertexHandle);
       events.push(event);
     }
     expect('getResolvedTreeStore' in runner).toBe(false);
     expect('getResolvedGraph' in runner).toBe(false);
-    const view = runner.getResolvedTreeView()!;
-    const root = view.getRoot()!;
-    const child = view.getChildrenOf(root)![0]!;
-    expect(view.getResolutionContextOf(child)).toBe(accepted[0]);
-    expect(sourceContext!.resolvedTreeView).toBe(view);
+    const view = runner.getLiveResolvedTreeView()!;
+    const root = view.getRootVertexHandleOrNull()!;
+    const child = view.getChildVertexHandlesOrNull(root)![0]!;
+    expect(view.getChildDiscoveryContextOrNull(child)).toBe(accepted[0]);
+    expect(sourceContext!.liveResolvedTreeView).toBe(view);
     expect(root).toBe(handles[0]);
-    expect(root.getValue().getData().label).toBe('rewritten');
-    expect(events.find((event) => event.vertexRef === root)).toBeDefined();
-    const graph = runner.getResolvedGraphView();
-    expect(graph.getRoot()).toBe(root);
-    expect(graph.getVertexRefById(graph.requireVertexId(child))).toBe(child);
-    expect(graph.get(child)!.incoming[0]!.parentRef).toBe(root);
-    expect(graph.get(root)!.slots[0]).toMatchObject({ childRef: child });
-    for (const handle of graph.requirePathsTo(child)[0]!) assertHandle(handle);
-    expect(Object.isFrozen(graph.getVertexRefs())).toBe(true);
-    const forged = {
-      getRefId: () => root.getRefId(),
-      getValue: () => root.getValue(),
-    };
-    expect(view.has(forged)).toBe(false);
-    expect(graph.has(forged)).toBe(false);
-    expect(graph.get(forged)).toBeNull();
-    expect(graph.getParentsOf(forged)).toBeNull();
-    expect(graph.getChildrenOf(forged)).toBeNull();
-    expect(graph.getVisitStageOf(forged)).toBeNull();
-    expect(() => graph.requireVertexId(forged)).toThrow();
-    expect(() => graph.requirePathsTo(child, { extra: true } as never)).toThrow(
-      TypeError,
+    expect(root.getCurrentVertexView().getVertexData().label).toBe('rewritten');
+    expect(events.find((event) => event.vertexHandle === root)).toBeDefined();
+    const graph = runner.getLiveResolvedGraphView();
+    expect(graph.getDesignatedRootHandleOrNull()).toBe(root);
+    expect(graph.getVertexHandleByIdOrNull(graph.requireVertexId(child))).toBe(
+      child,
     );
+    expect(
+      graph.getVertexSnapshotOrNull(child)!.incomingStructuralChildEdges[0]!
+        .parentVertexHandle,
+    ).toBe(root);
+    expect(
+      graph.getVertexSnapshotOrNull(root)!.orderedChildDiscoverySlots[0],
+    ).toMatchObject({ childVertexHandle: child });
+    for (const handle of graph.requireAllStructuralAncestorPathsTo(child)[0]!)
+      assertHandle(handle);
+    expect(Object.isFrozen(graph.getVertexHandles())).toBe(true);
+    const forged = {
+      getReferenceIdentity: () => root.getReferenceIdentity(),
+      getCurrentVertexView: () => root.getCurrentVertexView(),
+    };
+    expect(view.containsVertexHandle(forged)).toBe(false);
+    expect(graph.containsVertexHandle(forged)).toBe(false);
+    expect(graph.getVertexSnapshotOrNull(forged)).toBeNull();
+    expect(graph.getDistinctStructuralParentHandlesOrNull(forged)).toBeNull();
+    expect(graph.getStructuralChildHandlesInSlotOrderOrNull(forged)).toBeNull();
+    expect(graph.getVertexVisitSchedulingStageOrNull(forged)).toBeNull();
+    expect(() => graph.requireVertexId(forged)).toThrow();
+    expect(() =>
+      graph.requireAllStructuralAncestorPathsTo(child, {
+        extra: true,
+      } as never),
+    ).toThrow(TypeError);
   });
 }
 
 for (const Builder of [
-  DagTraversal<T, T, unknown>,
-  AsyncDagTraversal<T, T, unknown>,
+  DagTraversalBuilder<T, T, unknown>,
+  AsyncDagTraversalBuilder<T, T, unknown>,
 ]) {
   test.each([undefined, NaN, {}, Symbol('root')])(
     `${Builder.name} preserves arbitrary IDs in graph source contexts`,
@@ -220,169 +274,201 @@ for (const Builder of [
       const childId = {};
       let observedParent: VertexHandle<T> | undefined;
       const runner = new Builder({
-        traversableGraph: {
-          resolveRoot: () => ({
-            kind: 'found',
-            vertex: {
+        dagDiscoverySource: {
+          resolveRootVertex: () => ({
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
               vertexId: id,
-              vertexContent: {
-                $data: { label: 'root' },
-                $childHints: [{ label: 'child' }],
+              vertexContentInput: {
+                $vertexData: { label: 'root' },
+                $childDiscoveryHints: [{ label: 'child' }],
               },
             },
           }),
-          resolveChild: (_hint, context) => {
+          resolveChildHint: (_hint, context) => {
             expect('resolvedGraph' in context).toBe(false);
-            observedParent = context.resolutionContext.parentVertexRef!;
+            observedParent =
+              context.structuralChildResolution.parentVertexHandle!;
             assertHandle(observedParent);
             expect(
-              context.resolvedGraphView.requireVertexId(observedParent),
+              context.liveResolvedGraphView.requireVertexId(observedParent),
             ).toBe(id);
             return {
-              kind: 'found',
-              vertex: {
+              kind: 'vertexResolved',
+              resolvedVertexInput: {
                 vertexId: childId,
-                vertexContent: { $data: { label: 'child' }, $childHints: [] },
+                vertexContentInput: {
+                  $vertexData: { label: 'child' },
+                  $childDiscoveryHints: [],
+                },
               },
             };
           },
         },
-        retainOriginalGraphStructure: true,
-      }).createRunner();
-      await runner.run();
-      expect(runner.getResolvedGraphView().getRoot()).toBe(observedParent);
-      expect(runner.getResolvedGraphView().getVertexRefById(id)).toBe(
-        observedParent,
-      );
-      const saved = runner.originalGraphView!;
-      const savedRoot = saved.getRoot()!;
+        retainDiscoveredGraphBeforeVisitorCommands: true,
+      }).createIndependentRunnerFromCurrentOptions();
+      await runner.runUntilSuspendedOrTerminal();
+      expect(
+        runner.getLiveResolvedGraphView().getDesignatedRootHandleOrNull(),
+      ).toBe(observedParent);
+      expect(
+        runner.getLiveResolvedGraphView().getVertexHandleByIdOrNull(id),
+      ).toBe(observedParent);
+      const saved = runner.preCommandDiscoveredGraphView!;
+      const savedRoot = saved.getDesignatedRootHandleOrNull()!;
       assertHandle(savedRoot);
       expect(saved.requireVertexId(savedRoot)).toBe(id);
       expect(
-        saved.requirePathsTo(saved.getVertexRefById(childId)!)[0]![0],
+        saved.requireAllStructuralAncestorPathsTo(
+          saved.getVertexHandleByIdOrNull(childId)!,
+        )[0]![0],
       ).toBe(savedRoot);
     },
   );
 }
 
 for (const Builder of [
-  DepthFirstTreeTraversal<T>,
-  AsyncDepthFirstTreeTraversal<T>,
+  DepthFirstTreeTraversalBuilder<T>,
+  AsyncDepthFirstTreeTraversalBuilder<T>,
 ]) {
   test(`${Builder.name} keeps recorded event values separate from live handles`, async () => {
     const runner = new Builder({
-      traversableTree: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: {
-            vertexContent: { $data: { label: 'before' }, $childHints: [] },
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: { label: 'before' },
+              $childDiscoveryHints: [],
+            },
           },
         }),
-        resolveChild: () => ({ kind: 'omitted' }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted',
+        }),
       },
       visitors: {
-        [DepthFirstPhase.POST_ORDER]: () => ({
+        [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES]: () => ({
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: { label: 'after' } },
+              commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: { replacementVertexData: { label: 'after' } },
             },
           ],
         }),
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     const events = [];
-    for await (const event of runner.iterateEvents()) events.push(event);
-    expect(events[0]!.vertex.getData().label).toBe('before');
-    expect(events[0]!.vertexRef.getValue().getData().label).toBe('after');
-    expect(events[0]!.vertex).not.toBe(events[0]!.vertexRef.getValue());
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      events.push(event);
+    expect(events[0]!.vertex.getVertexData().label).toBe('before');
+    expect(
+      events[0]!.vertexHandle.getCurrentVertexView().getVertexData().label,
+    ).toBe('after');
+    expect(events[0]!.vertex).not.toBe(
+      events[0]!.vertexHandle.getCurrentVertexView(),
+    );
   });
 }
-for (const Builder of [DagTraversal<T>, AsyncDagTraversal<T>]) {
+for (const Builder of [DagTraversalBuilder<T>, AsyncDagTraversalBuilder<T>]) {
   test(`${Builder.name} keeps committed milestone values separate from live handles`, async () => {
     const runner = new Builder({
-      traversableTree: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: {
-            vertexContent: { $data: { label: 'before' }, $childHints: [] },
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: { label: 'before' },
+              $childDiscoveryHints: [],
+            },
           },
         }),
-        resolveChild: () => ({ kind: 'omitted' }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted',
+        }),
       },
       visitors: {
-        [DagVisitorPhase.ON_SUBGRAPH_READY]: () => ({
+        [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]: () => ({
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: { label: 'after' } },
+              commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: { replacementVertexData: { label: 'after' } },
             },
           ],
         }),
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     const events = [];
-    for await (const event of runner.iterateEvents()) events.push(event);
-    expect(events[0]!.vertex.getData().label).toBe('before');
-    expect(events[0]!.vertexRef.getValue().getData().label).toBe('after');
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+      events.push(event);
+    expect(events[0]!.vertex.getVertexData().label).toBe('before');
+    expect(
+      events[0]!.vertexHandle.getCurrentVertexView().getVertexData().label,
+    ).toBe('after');
   });
 }
 
-for (const Builder of [DagTraversal<T>, AsyncDagTraversal<T>]) {
+for (const Builder of [DagTraversalBuilder<T>, AsyncDagTraversalBuilder<T>]) {
   test(`${Builder.name} hides synthetic entry parents from source contexts`, async () => {
     const contexts: unknown[] = [];
     const runner = new Builder({
-      syntheticRoot: true,
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found',
-          vertex: {
-            vertexContent: {
-              $data: { label: 'private holder' },
-              $childHints: [{ label: 'entry' }],
+      sourceRootIsHiddenEntryHolder: true,
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: { label: 'private holder' },
+              $childDiscoveryHints: [{ label: 'entry' }],
             },
           },
         }),
-        resolveChild: (hint, context) => {
-          contexts.push(context.resolutionContext);
+        resolveChildHint: (hint, context) => {
+          contexts.push(context.structuralChildResolution);
           if (hint.label === 'entry') {
-            expect(context.resolutionContext.parentVertex).toBeNull();
-            expect(context.resolutionContext.parentVertexRef).toBeNull();
-            expect(context.resolutionContext).toMatchObject({
-              depth: 1,
-              hintIndex: 0,
-              vertexHint: hint,
+            expect(
+              context.structuralChildResolution.parentVertexAtChildResolution,
+            ).toBeNull();
+            expect(
+              context.structuralChildResolution.parentVertexHandle,
+            ).toBeNull();
+            expect(context.structuralChildResolution).toMatchObject({
+              discoveryDepthInEdges: 1,
+              parentChildHintIndex: 0,
+              childDiscoveryHint: hint,
             });
           } else {
             expect(
-              context.resolutionContext.parentVertex!.getData().label,
+              context.structuralChildResolution.parentVertexAtChildResolution!.getVertexData()
+                .label,
             ).toBe('entry');
             expect(
-              context.resolvedGraphView.has(
-                context.resolutionContext.parentVertexRef!,
+              context.liveResolvedGraphView.containsVertexHandle(
+                context.structuralChildResolution.parentVertexHandle!,
               ),
             ).toBe(true);
           }
           return {
-            kind: 'found',
-            vertex: {
+            kind: 'vertexResolved',
+            resolvedVertexInput: {
               vertexId: hint.label,
-              vertexContent: {
-                $data: hint,
-                $childHints: hint.label === 'entry' ? [{ label: 'child' }] : [],
+              vertexContentInput: {
+                $vertexData: hint,
+                $childDiscoveryHints:
+                  hint.label === 'entry' ? [{ label: 'child' }] : [],
               },
             },
           };
         },
       },
-    }).createRunner();
-    await runner.run();
+    }).createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expect(contexts).toHaveLength(2);
     expect(
       runner
-        .getResolvedGraphView()
-        .getVertexRefs()
-        .map((ref) => ref.getValue().getData().label),
+        .getLiveResolvedGraphView()
+        .getVertexHandles()
+        .map((ref) => ref.getCurrentVertexView().getVertexData().label),
     ).toEqual(['entry', 'child']);
   });
 }

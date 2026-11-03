@@ -1,19 +1,26 @@
 import type { AsyncDagDiscoverySource } from '@core/TraversableGraph';
 import type {
   MakeVertexResult,
-  DagVertexResolution,
-  DagPrerequisiteResolution,
+  DagSourceVertexResolution,
+  DagPrerequisiteLookupResult,
 } from '@core/TraversableTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { normalizeSourceResult } from '@core/drivers/normalizeSourceResult';
 import type { MaybePromise } from '@core/graph/types';
 
 /** Capture omission candidates while preserving source receiver and error behavior. */
-export function capturePreparedSource<T extends VertexTypes, ID>(
-  source: AsyncDagDiscoverySource<T, T, ID>,
+export function capturePreparedSource<
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId,
+>(
+  source: AsyncDagDiscoverySource<
+    SourceVertexTypes,
+    SourceVertexTypes,
+    VertexId
+  >,
   asynchronous: boolean,
 ) {
-  const candidates = new Set<ID>();
+  const candidates = new Set<VertexId>();
 
   function syncCall<I, O>(invoke: () => I, receive: (value: I) => O): O {
     return receive(invoke());
@@ -33,24 +40,31 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
       : syncCall(invoke as () => I, receive);
 
   const record = (
-    value: DagPrerequisiteResolution<T, ID>,
+    value: DagPrerequisiteLookupResult<SourceVertexTypes, VertexId>,
     prerequisite: boolean,
   ) => {
-    const normalized = normalizeSourceResult<T, ID>(value, prerequisite);
+    const normalized = normalizeSourceResult<SourceVertexTypes, VertexId>(
+      value,
+      prerequisite,
+    );
     if (normalized === undefined) return { kind: 'missing' as const };
     // These fields use ordinary property access in the engine, so inherited and
     // non-enumerable source properties must survive capture too.
-    const copied: MakeVertexResult<T> & { priority?: unknown } = {
-      vertexContent: normalized.vertexContent,
-    };
-    const dependsOnWork = normalized.dependsOnWork;
-    const dependsOnSubgraphCompletion = normalized.dependsOnSubgraphCompletion;
-    if (dependsOnWork !== undefined) copied.dependsOnWork = dependsOnWork;
-    if (dependsOnSubgraphCompletion !== undefined)
-      copied.dependsOnSubgraphCompletion = dependsOnSubgraphCompletion;
+    const copied: MakeVertexResult<SourceVertexTypes> & { priority?: unknown } =
+      {
+        vertexContent: normalized.vertexContent,
+      };
+    const workWaitsForWorkOf = normalized.workWaitsForWorkOf;
+    const workWaitsForSubgraphCompletionOf =
+      normalized.workWaitsForSubgraphCompletionOf;
+    if (workWaitsForWorkOf !== undefined)
+      copied.workWaitsForWorkOf = workWaitsForWorkOf;
+    if (workWaitsForSubgraphCompletionOf !== undefined)
+      copied.workWaitsForSubgraphCompletionOf =
+        workWaitsForSubgraphCompletionOf;
     if (Object.prototype.hasOwnProperty.call(normalized, 'vertexId')) {
       copied.vertexId = normalized.vertexId;
-      candidates.add(copied.vertexId as ID);
+      candidates.add(copied.vertexId as VertexId);
     }
     // The engine rejects own priority metadata by presence without reading it.
     if (Object.prototype.hasOwnProperty.call(normalized, 'priority'))
@@ -58,40 +72,55 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
     if (copied.vertexContent === null) {
       return Object.prototype.hasOwnProperty.call(copied, 'vertexId')
         ? {
-            kind: 'omitted' as const,
-            satisfiesDependencies: true as const,
-            identity: { vertexId: copied.vertexId as ID },
+            kind: 'vertexIntentionallyOmitted' as const,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+            omittedVertexIdentity: { vertexId: copied.vertexId as VertexId },
           }
         : {
-            kind: 'omitted' as const,
-            identity: null,
-            satisfiesDependencies: true as const,
+            kind: 'vertexIntentionallyOmitted' as const,
+            omittedVertexIdentity: null,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
           };
     }
-    return { kind: 'found' as const, vertex: copied } as DagVertexResolution<
-      T,
-      ID
-    >;
+    const { vertexContent, ...sourceFields } = copied;
+    return {
+      kind: 'vertexResolved' as const,
+      resolvedVertexInput: {
+        ...sourceFields,
+        vertexContentInput: vertexContent,
+      },
+    } as DagSourceVertexResolution<SourceVertexTypes, VertexId>;
   };
 
-  const adapter: AsyncDagDiscoverySource<T, T, ID> = {
-    resolveRoot: () =>
+  const adapter: AsyncDagDiscoverySource<
+    SourceVertexTypes,
+    SourceVertexTypes,
+    VertexId
+  > = {
+    resolveRootVertex: () =>
       call(
-        () => source.resolveRoot(),
+        () => source.resolveRootVertex(),
         (value) => {
-          return record(value, false)! as DagVertexResolution<T, ID>;
+          return record(value, false)! as DagSourceVertexResolution<
+            SourceVertexTypes,
+            VertexId
+          >;
         },
       ),
-    resolveChild: (hint, options) =>
+    resolveChildHint: (hint, options) =>
       call(
-        () => source.resolveChild(hint, options),
-        (value) => record(value, false)! as DagVertexResolution<T, ID>,
+        () => source.resolveChildHint(hint, options),
+        (value) =>
+          record(value, false)! as DagSourceVertexResolution<
+            SourceVertexTypes,
+            VertexId
+          >,
       ),
   };
-  if (source.getVertexIdFromHint !== undefined) {
-    adapter.getVertexIdFromHint = (hint) =>
+  if (source.tryGetVertexIdentityFromHint !== undefined) {
+    adapter.tryGetVertexIdentityFromHint = (hint) =>
       call(
-        () => source.getVertexIdFromHint!(hint),
+        () => source.tryGetVertexIdentityFromHint!(hint),
         (value) => {
           if (
             value === undefined ||
@@ -104,12 +133,16 @@ export function capturePreparedSource<T extends VertexTypes, ID>(
         },
       );
   }
-  if (source.resolvePrerequisite !== undefined) {
-    adapter.resolvePrerequisite = (id) => {
+  if (source.resolvePrerequisiteByVertexId !== undefined) {
+    adapter.resolvePrerequisiteByVertexId = (id) => {
       candidates.add(id);
       return call(
-        () => source.resolvePrerequisite!(id),
-        (value) => record(value, true) as DagPrerequisiteResolution<T, ID>,
+        () => source.resolvePrerequisiteByVertexId!(id),
+        (value) =>
+          record(value, true) as DagPrerequisiteLookupResult<
+            SourceVertexTypes,
+            VertexId
+          >,
       );
     };
   }

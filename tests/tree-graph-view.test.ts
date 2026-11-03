@@ -1,119 +1,137 @@
-import { vertexHandle } from '../src/core/observationFacets';
+import { createVertexHandleFacet } from '../src/core/observationFacets';
 import { getTreeGraphStore } from '../src/core/graph/treeStoreCapabilities';
 import {
-  DepthFirstTreeTraversal,
-  MutableRef,
-  ResolvedTreeStore,
-  TreeVertexRecord,
+  DepthFirstTreeTraversalBuilder,
+  MutableValueReference,
+  MutableResolvedTreeStore,
+  MutableTreeVertexTopologyRecord,
   Vertex,
-  type VertexTypes,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 import {
   createInternalDepthFirstTreeTraversal,
   runnerInternals,
 } from './internal-runner-fixtures';
 
-type TestGraph = VertexTypes<string, string>;
+type TestGraph = VertexDataAndChildHintTypes<string, string>;
 
 test('the advanced tree API retains supplied mutable records with detached child queries', () => {
-  const tree = new ResolvedTreeStore<TestGraph>();
-  const ref = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'root', $childHints: [] }),
+  const tree = new MutableResolvedTreeStore<TestGraph>();
+  const ref = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'root', $childDiscoveryHints: [] }),
   );
-  const record = new TreeVertexRecord<TestGraph>({
-    metadata: { resolutionContext: null },
-    children: [],
+  const record = new MutableTreeVertexTopologyRecord<TestGraph>({
+    metadata: { childDiscoveryContext: null },
+    childReferences: [],
   });
-  tree.set(ref, record);
-  expect(tree.get(ref)).toBe(record);
-  expect(tree.getChildrenOf(ref)).toEqual(record.getChildren());
-  expect(tree.getChildrenOf(ref)).not.toBe(record.getChildren());
-  const child = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
+  tree.setVertexRecord(ref, record);
+  expect(tree.getMutableVertexRecordOrNull(ref)).toBe(record);
+  expect(tree.getDetachedChildReferenceListOrNull(ref)).toEqual(
+    record.getMutableChildReferenceList(),
   );
-  record.getChildren().push(child);
-  expect(tree.getChildrenOf(ref)).toEqual([child]);
-  expect(tree.getResolvedGraphView().getVertexRefById(ref.getRefId())).toBe(
-    vertexHandle(ref),
+  expect(tree.getDetachedChildReferenceListOrNull(ref)).not.toBe(
+    record.getMutableChildReferenceList(),
   );
+  const child = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'child', $childDiscoveryHints: [] }),
+  );
+  record.getMutableChildReferenceList().push(child);
+  expect(tree.getDetachedChildReferenceListOrNull(ref)).toEqual([child]);
+  expect(
+    tree
+      .getLiveResolvedGraphView()
+      .getVertexHandleByIdOrNull(ref.getReferenceIdentity()),
+  ).toBe(createVertexHandleFacet(ref));
 });
 
 test('deleting an unresolved root clears the legacy root', () => {
-  const tree = new ResolvedTreeStore<TestGraph>();
-  const ref = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'root', $childHints: [] }),
+  const tree = new MutableResolvedTreeStore<TestGraph>();
+  const ref = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'root', $childDiscoveryHints: [] }),
   );
-  tree.setRoot(ref);
+  tree.setRootVertexReference(ref);
 
   tree.deleteSubtree(ref);
 
-  expect(tree.getRoot()).toBeNull();
+  expect(tree.getRootVertexReferenceOrNull()).toBeNull();
 });
 
 test('legacy deletion detaches by clone and permits manually re-setting a ref', () => {
-  const tree = new ResolvedTreeStore<TestGraph>();
-  const rootRef = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'root', $childHints: ['child', 'child'] }),
+  const tree = new MutableResolvedTreeStore<TestGraph>();
+  const rootRef = new MutableValueReference(
+    new Vertex<TestGraph>({
+      $vertexData: 'root',
+      $childDiscoveryHints: ['child', 'child'],
+    }),
   );
-  const childRef = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'child', $childHints: [] }),
+  const childRef = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'child', $childDiscoveryHints: [] }),
   );
-  const rootRecord = new TreeVertexRecord<TestGraph>({
-    metadata: { resolutionContext: null },
-    children: [childRef, childRef],
+  const rootRecord = new MutableTreeVertexTopologyRecord<TestGraph>({
+    metadata: { childDiscoveryContext: null },
+    childReferences: [childRef, childRef],
   });
-  const childRecord = new TreeVertexRecord<TestGraph>({
+  const childRecord = new MutableTreeVertexTopologyRecord<TestGraph>({
     metadata: {
-      resolutionContext: {
-        depth: 1,
-        parentVertex: rootRef.getValue(),
-        parentVertexRef: rootRef,
-        hintIndex: 0,
-        vertexHint: 'child',
+      childDiscoveryContext: {
+        discoveryDepthInEdges: 1,
+        parentVertexAtChildResolution: rootRef.getReferencedValue(),
+        parentVertexHandle: rootRef,
+        parentChildHintIndex: 0,
+        childDiscoveryHint: 'child',
       },
     },
-    children: [],
+    childReferences: [],
   });
-  tree.setRoot(rootRef);
-  tree.set(rootRef, rootRecord);
-  tree.set(childRef, childRecord);
+  tree.setRootVertexReference(rootRef);
+  tree.setVertexRecord(rootRef, rootRecord);
+  tree.setVertexRecord(childRef, childRecord);
 
   tree.deleteSubtree(childRef);
 
-  expect(tree.get(rootRef)).not.toBe(rootRecord);
-  expect(tree.getChildrenOf(rootRef)).toEqual([]);
-  expect(rootRecord.getChildren()).toEqual([childRef, childRef]);
+  expect(tree.getMutableVertexRecordOrNull(rootRef)).not.toBe(rootRecord);
+  expect(tree.getDetachedChildReferenceListOrNull(rootRef)).toEqual([]);
+  expect(rootRecord.getMutableChildReferenceList()).toEqual([
+    childRef,
+    childRef,
+  ]);
   expect(
-    tree.getResolvedGraphView().getVertexRefById(childRef.getRefId()),
+    tree
+      .getLiveResolvedGraphView()
+      .getVertexHandleByIdOrNull(childRef.getReferenceIdentity()),
   ).toBeNull();
 
-  tree.set(childRef, childRecord);
-  expect(tree.get(childRef)).toBe(childRecord);
+  tree.setVertexRecord(childRef, childRecord);
+  expect(tree.getMutableVertexRecordOrNull(childRef)).toBe(childRecord);
   expect(
-    tree.getResolvedGraphView().getVertexRefById(childRef.getRefId()),
-  ).toBe(vertexHandle(childRef));
+    tree
+      .getLiveResolvedGraphView()
+      .getVertexHandleByIdOrNull(childRef.getReferenceIdentity()),
+  ).toBe(createVertexHandleFacet(childRef));
 });
 
 test('an injected tree container retains its graph facade and store', () => {
-  const traversableTree = {
-    resolveRoot: () => ({ kind: 'omitted' as const }),
-    resolveChild: () => ({ kind: 'omitted' as const }),
+  const treeDiscoverySource = {
+    resolveRootVertex: () => ({ kind: 'vertexIntentionallyOmitted' as const }),
+    resolveChildVertexFromHint: () => ({
+      kind: 'vertexIntentionallyOmitted' as const,
+    }),
   };
   const source = runnerInternals(
-    new DepthFirstTreeTraversal<TestGraph>({
-      traversableTree,
-    }).createRunner(),
+    new DepthFirstTreeTraversalBuilder<TestGraph>({
+      treeDiscoverySource,
+    }).createIndependentRunnerFromCurrentOptions(),
   ).resolvedTreesContainer;
   const injected = runnerInternals(
     createInternalDepthFirstTreeTraversal<TestGraph>({
-      traversableTree,
+      treeDiscoverySource,
       traversalRunnerInternalObjects: { resolvedTreesContainer: source },
-    }).createRunner(),
+    }).createIndependentRunnerFromCurrentOptions(),
   ).resolvedTreesContainer;
 
   expect(injected.resolvedTree).toBe(source.resolvedTree);
-  expect(injected.resolvedTree.getResolvedGraphView()).toBe(
-    source.resolvedTree.getResolvedGraphView(),
+  expect(injected.resolvedTree.getLiveResolvedGraphView()).toBe(
+    source.resolvedTree.getLiveResolvedGraphView(),
   );
   expect(getTreeGraphStore(injected.resolvedTree)).toBe(
     getTreeGraphStore(source.resolvedTree),
@@ -121,6 +139,6 @@ test('an injected tree container retains its graph facade and store', () => {
 });
 
 test('the public tree store does not expose its graph engine capability', () => {
-  const tree = new ResolvedTreeStore<TestGraph>();
+  const tree = new MutableResolvedTreeStore<TestGraph>();
   expect('getGraphStore' in tree).toBe(false);
 });

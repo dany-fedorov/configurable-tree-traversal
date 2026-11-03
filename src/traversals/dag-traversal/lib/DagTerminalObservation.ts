@@ -1,10 +1,10 @@
 import type { DagInspectionState } from '@core/graph/types';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { DagSummary } from './DagProgress';
+import type { DagProgressSnapshot } from './DagProgress';
 
 type ObservationSource = {
   inspectDagState(): DagInspectionState;
-  summary(): DagSummary;
+  captureProgressSnapshot(): DagProgressSnapshot;
 };
 
 // An enumerable private symbol preserves ordinary structural state copies while
@@ -56,7 +56,7 @@ function unavailableObservation(): never {
 }
 const unavailable: ObservationSource = {
   inspectDagState: unavailableObservation,
-  summary: unavailableObservation,
+  captureProgressSnapshot: unavailableObservation,
 };
 
 export function getDagTerminalObservation(
@@ -86,11 +86,11 @@ export function captureDagTerminalObservation(
 
 class DagTerminalObservation implements ObservationSource {
   private readonly state: DagInspectionState;
-  private readonly progress: DagSummary;
+  private readonly progress: DagProgressSnapshot;
 
   constructor(source: ObservationSource) {
     this.state = source.inspectDagState();
-    this.progress = source.summary();
+    this.progress = source.captureProgressSnapshot();
   }
 
   inspectDagState(): DagInspectionState {
@@ -103,55 +103,76 @@ class DagTerminalObservation implements ObservationSource {
     };
   }
 
-  summary(): DagSummary {
-    const summary = this.progress;
-    const diagnostics = summary.diagnostics;
+  captureProgressSnapshot(): DagProgressSnapshot {
+    const captureProgressSnapshot = this.progress;
+    const invalidDependencyTopologyDiagnostics =
+      captureProgressSnapshot.invalidDependencyTopologyDiagnostics;
     return {
-      discovery: { ...summary.discovery },
-      counts: { ...summary.counts },
-      vertices: new Map(
-        Array.from(summary.vertices, ([id, progress]) => [
-          id,
-          {
-            ...progress,
-            unmetPrerequisiteIds: progress.unmetPrerequisiteIds.slice(),
-            unmetWorkPrerequisiteIds: progress.unmetWorkPrerequisiteIds.slice(),
-            unmetSubgraphPrerequisiteIds:
-              progress.unmetSubgraphPrerequisiteIds.slice(),
-          },
-        ]),
+      discovery: { ...captureProgressSnapshot.discovery },
+      counts: { ...captureProgressSnapshot.counts },
+      progressByVertexId: new Map(
+        Array.from(
+          captureProgressSnapshot.progressByVertexId,
+          ([id, progress]) => [
+            id,
+            {
+              ...progress,
+              unmetPrerequisiteVertexIds:
+                progress.unmetPrerequisiteVertexIds.slice(),
+              unmetWorkMilestoneVertexIds:
+                progress.unmetWorkMilestoneVertexIds.slice(),
+              unmetSubgraphCompletionMilestoneVertexIds:
+                progress.unmetSubgraphCompletionMilestoneVertexIds.slice(),
+            },
+          ],
+        ),
       ),
-      readyOrDeferredIds: summary.readyOrDeferredIds.slice(),
-      deferredWorkIds: summary.deferredWorkIds.slice(),
-      awaitingSettlement: summary.awaitingSettlement.map((item) => ({
-        ...item,
-      })),
-      activeVisitorVertexIds: summary.activeVisitorVertexIds.slice(),
-      completedWorkIds: summary.completedWorkIds.slice(),
-      completedSubgraphIds: summary.completedSubgraphIds.slice(),
-      unusedCompletedWorkIds: summary.unusedCompletedWorkIds.slice(),
-      diagnostics:
-        diagnostics === null
+      workVisitorReadyOrWorkCompletionDeferredVertexIds:
+        captureProgressSnapshot.workVisitorReadyOrWorkCompletionDeferredVertexIds.slice(),
+      workCompletionDeferredVertexIds:
+        captureProgressSnapshot.workCompletionDeferredVertexIds.slice(),
+      workAwaitingSettlement:
+        captureProgressSnapshot.workAwaitingSettlement.map((item) => ({
+          ...item,
+        })),
+      admittedVisitorChainVertexIds:
+        captureProgressSnapshot.admittedVisitorChainVertexIds.slice(),
+      workCompletionCommittedVertexIds:
+        captureProgressSnapshot.workCompletionCommittedVertexIds.slice(),
+      subgraphCompletionCommittedVertexIds:
+        captureProgressSnapshot.subgraphCompletionCommittedVertexIds.slice(),
+      unmatchedCompletedWorkSeedVertexIds:
+        captureProgressSnapshot.unmatchedCompletedWorkSeedVertexIds.slice(),
+      invalidDependencyTopologyDiagnostics:
+        invalidDependencyTopologyDiagnostics === null
           ? null
           : {
-              dependencies: diagnostics.dependencies.map(
-                ({ vertexId, unmetPrerequisiteIds }) => ({
-                  vertexId,
-                  unmetPrerequisiteIds: unmetPrerequisiteIds.slice(),
-                }),
-              ),
-              unknownPrerequisiteIds:
-                diagnostics.unknownPrerequisiteIds.slice(),
-              dependencyCycleComponents:
-                diagnostics.dependencyCycleComponents.map((ids) => ids.slice()),
-              dependencyEdges: diagnostics.dependencyEdges.map((edge) => ({
-                waiter: { ...edge.waiter },
-                prerequisite: { ...edge.prerequisite },
-                reason: edge.reason,
-              })),
-              dependencyBlockedIds: diagnostics.dependencyBlockedIds.slice(),
-              structurallyIncompleteIds:
-                diagnostics.structurallyIncompleteIds.slice(),
+              blockedVertexPrerequisiteReports:
+                invalidDependencyTopologyDiagnostics.blockedVertexPrerequisiteReports.map(
+                  ({ vertexId, prerequisiteVertexIdsInReport }) => ({
+                    vertexId,
+                    prerequisiteVertexIdsInReport:
+                      prerequisiteVertexIdsInReport.slice(),
+                  }),
+                ),
+              unresolvedPrerequisiteVertexIds:
+                invalidDependencyTopologyDiagnostics.unresolvedPrerequisiteVertexIds.slice(),
+              milestoneCycleVertexIdComponents:
+                invalidDependencyTopologyDiagnostics.milestoneCycleVertexIdComponents.map(
+                  (ids) => ids.slice(),
+                ),
+              originalMilestoneConstraints:
+                invalidDependencyTopologyDiagnostics.originalMilestoneConstraints.map(
+                  (edge) => ({
+                    waitingMilestone: { ...edge.waitingMilestone },
+                    prerequisiteMilestone: { ...edge.prerequisiteMilestone },
+                    reason: edge.reason,
+                  }),
+                ),
+              nonCyclePrerequisiteBlockedVertexIds:
+                invalidDependencyTopologyDiagnostics.nonCyclePrerequisiteBlockedVertexIds.slice(),
+              incompleteVertexIdsWithoutUnmetPrerequisites:
+                invalidDependencyTopologyDiagnostics.incompleteVertexIdsWithoutUnmetPrerequisites.slice(),
             },
     };
   }

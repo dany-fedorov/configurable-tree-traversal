@@ -3,17 +3,17 @@ import {
   assertPublicOptions,
   DAG_OPTION_KEYS,
 } from '@core/assertPublicOptions';
-import type { AsyncTreeSource } from '@core/AsyncTraversableTree';
+import type { AsyncTreeDiscoverySource } from '@core/AsyncTraversableTree';
 import { sortVisitorRecords } from '@core/executeVisitors';
 import type { VisitorRecord } from '@core/graph/types';
 import type { DagDiscoverySource } from '@core/TraversableGraph';
 import type {
-  NoInferPhase,
-  TraversalVisitorFunctionOptions,
+  PreventVisitorReturnFromWideningPhase,
+  VisitorRegistrationOptions,
   VisitorGroupDefinition,
-  VisitorPhaseInput,
+  VisitorDefinitionsForPhase,
 } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import {
   appendVisitorDefinition,
   appendVisitorGroup,
@@ -23,8 +23,8 @@ import {
 import {
   ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG,
   mergeAsyncDagTraversalInstanceConfigs,
-  type AsyncDagOptions,
-  type AsyncDagOptionsPatch,
+  type AsyncDagTraversalBuilderOptions,
+  type AsyncDagTraversalBuilderOptionsPatch,
   type AsyncDagResolvedOptions,
   type AsyncDagTraversalVisitors,
 } from './lib/AsyncDagTraversalInstanceConfig';
@@ -39,48 +39,88 @@ import {
 import type { DagVisitorPhase } from './lib/DagTraversalOrder';
 import type { AsyncDagVisitor } from './lib/DagTraversalVisitor';
 
-export class AsyncDagTraversal<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+export class AsyncDagTraversalBuilder<
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+  VertexId = unknown,
 > {
-  private icfg: AsyncDagResolvedOptions<T, R, ID>;
-  private visitors: AsyncDagTraversalVisitors<T, R, ID>;
+  private icfg: AsyncDagResolvedOptions<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
+  private visitors: AsyncDagTraversalVisitors<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
   private readonly sourceMode: 'tree' | 'graph';
 
   // Infer sync graph identities directly instead of through MaybePromise results.
   constructor(
     input: Omit<
-      AsyncDagOptions<T, R, ID>,
-      'traversableGraph' | 'traversableTree'
+      AsyncDagTraversalBuilderOptions<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        VertexId
+      >,
+      'dagDiscoverySource' | 'treeDiscoverySource'
     > &
       (
         | {
-            traversableGraph: DagDiscoverySource<T, R, ID>;
-            traversableTree?: undefined;
+            dagDiscoverySource: DagDiscoverySource<
+              SourceVertexTypes,
+              RewrittenVertexTypes,
+              VertexId
+            >;
+            treeDiscoverySource?: undefined;
           }
         | {
-            rootWorkDependencies?: never;
-            dependsOnWorkDefault?: never;
-            traversableTree: unknown extends ID ? AsyncTreeSource<T, R> : never;
-            traversableGraph?: undefined;
+            rootWorkPrerequisitePolicy?: never;
+            undeclaredWorkPrerequisitePolicy?: never;
+            treeDiscoverySource: unknown extends VertexId
+              ? AsyncTreeDiscoverySource<
+                  SourceVertexTypes,
+                  RewrittenVertexTypes
+                >
+              : never;
+            dagDiscoverySource?: undefined;
           }
       ),
   );
-  constructor(input: AsyncDagOptions<T, R, ID>);
-  constructor(input: AsyncDagOptions<T, R, ID>) {
-    assertPublicOptions(input, [...DAG_OPTION_KEYS, 'concurrency']);
+  constructor(
+    input: AsyncDagTraversalBuilderOptions<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      VertexId
+    >,
+  );
+  constructor(
+    input: AsyncDagTraversalBuilderOptions<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      VertexId
+    >,
+  ) {
+    assertPublicOptions(input, [
+      ...DAG_OPTION_KEYS,
+      'maxConcurrentCallbackInvocations',
+    ]);
     const sources = captureDagSourcePatch(input);
     this.sourceMode = assertExactlyOneDagSource(sources);
     this.icfg = mergeAsyncDagTraversalInstanceConfigs(
       {
         ...(ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG as unknown as AsyncDagResolvedOptions<
-          T,
-          R,
-          ID
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          VertexId
         >),
         ...sources,
-      } as AsyncDagResolvedOptions<T, R, ID>,
+      } as AsyncDagResolvedOptions<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        VertexId
+      >,
       input,
       sources,
     );
@@ -91,12 +131,22 @@ export class AsyncDagTraversal<
    * Configure future runners. Own defined same-family sources replace; inherited
    * and own undefined sources retain the active source. Mode changes reject atomically.
    */
-  configure(input: AsyncDagOptionsPatch<T, R, ID>): this {
-    assertPublicOptions(input, [...DAG_OPTION_KEYS, 'concurrency']);
+  patchOptionsForFutureRunners(
+    input: AsyncDagTraversalBuilderOptionsPatch<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      VertexId
+    >,
+  ): this {
+    assertPublicOptions(input, [
+      ...DAG_OPTION_KEYS,
+      'maxConcurrentCallbackInvocations',
+    ]);
     const sources = captureDagSourcePatch(input);
     if (
-      (this.sourceMode === 'graph' && sources.traversableTree !== undefined) ||
-      (this.sourceMode === 'tree' && sources.traversableGraph !== undefined)
+      (this.sourceMode === 'graph' &&
+        sources.treeDiscoverySource !== undefined) ||
+      (this.sourceMode === 'tree' && sources.dagDiscoverySource !== undefined)
     ) {
       throw new TypeError('DAG source mode cannot change after construction');
     }
@@ -109,63 +159,134 @@ export class AsyncDagTraversal<
     return this;
   }
 
-  addVisitorFor<ORDER extends DagVisitorPhase>(
-    order: ORDER,
-    visitor: AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>,
-    options: Partial<TraversalVisitorFunctionOptions> = {},
+  registerVisitorCallbackForPhase<Phase extends DagVisitorPhase>(
+    order: Phase,
+    visitor: AsyncDagVisitor<
+      SourceVertexTypes,
+      RewrittenVertexTypes,
+      PreventVisitorReturnFromWideningPhase<Phase>,
+      VertexId
+    >,
+    options: Partial<VisitorRegistrationOptions> = {},
   ): this {
-    assertOwnKeys(options, ['priority', 'commandCommitMode']);
+    assertOwnKeys(options, ['descendingExecutionPriorityWithinGroup', 'visitorCommandCommitTiming']);
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[]
+        Phase,
+        VisitorRecord<
+          AsyncDagVisitor<
+            SourceVertexTypes,
+            RewrittenVertexTypes,
+            Phase,
+            VertexId
+          >
+        >[]
       >
-    )[order] = appendVisitorDefinition<AsyncDagVisitor<T, R, ORDER, ID>>(
-      this.visitors[order] as VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[],
+    )[order] = appendVisitorDefinition<
+      AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+    >(
+      this.visitors[order] as VisitorRecord<
+        AsyncDagVisitor<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          Phase,
+          VertexId
+        >
+      >[],
       { visitor, ...definedOptions(options) },
     );
     return this;
   }
 
-  addVisitorGroupFor<ORDER extends DagVisitorPhase>(
-    order: ORDER,
+  appendVisitorGroupForPhase<Phase extends DagVisitorPhase>(
+    order: Phase,
     group: VisitorGroupDefinition<
-      AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>
+      AsyncDagVisitor<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        PreventVisitorReturnFromWideningPhase<Phase>,
+        VertexId
+      >
     >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[]
+        Phase,
+        VisitorRecord<
+          AsyncDagVisitor<
+            SourceVertexTypes,
+            RewrittenVertexTypes,
+            Phase,
+            VertexId
+          >
+        >[]
       >
-    )[order] = appendVisitorGroup<AsyncDagVisitor<T, R, ORDER, ID>>(
-      this.visitors[order] as VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[],
+    )[order] = appendVisitorGroup<
+      AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+    >(
+      this.visitors[order] as VisitorRecord<
+        AsyncDagVisitor<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          Phase,
+          VertexId
+        >
+      >[],
       group,
     );
     return this;
   }
 
-  listVisitorsFor<ORDER extends DagVisitorPhase>(
-    order: ORDER,
-  ): AsyncDagTraversalVisitors<T, R, ID>[ORDER] {
+  getDetachedVisitorRegistrationRecordsForPhase<Phase extends DagVisitorPhase>(
+    order: Phase,
+  ): AsyncDagTraversalVisitors<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >[Phase] {
     return copyVisitorRecords(this.visitors[order]);
   }
 
-  setVisitorsFor<ORDER extends DagVisitorPhase>(
-    order: ORDER,
-    input: VisitorPhaseInput<AsyncDagVisitor<T, R, NoInferPhase<ORDER>, ID>>,
+  replaceVisitorDefinitionsForPhase<Phase extends DagVisitorPhase>(
+    order: Phase,
+    input: VisitorDefinitionsForPhase<
+      AsyncDagVisitor<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        PreventVisitorReturnFromWideningPhase<Phase>,
+        VertexId
+      >
+    >,
   ): this {
     (
       this.visitors as Record<
-        ORDER,
-        VisitorRecord<AsyncDagVisitor<T, R, ORDER, ID>>[]
+        Phase,
+        VisitorRecord<
+          AsyncDagVisitor<
+            SourceVertexTypes,
+            RewrittenVertexTypes,
+            Phase,
+            VertexId
+          >
+        >[]
       >
     )[order] =
-      normalizeVisitorDefinitions<AsyncDagVisitor<T, R, ORDER, ID>>(input);
+      normalizeVisitorDefinitions<
+        AsyncDagVisitor<
+          SourceVertexTypes,
+          RewrittenVertexTypes,
+          Phase,
+          VertexId
+        >
+      >(input);
     return this;
   }
 
-  createRunner(): AsyncDagTraversalRunner<T, R, ID> {
+  createIndependentRunnerFromCurrentOptions(): AsyncDagTraversalRunner<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  > {
     return new InternalAsyncDagTraversalRunner({
       ...this.icfg,
       visitors: this.visitors,
@@ -174,16 +295,28 @@ export class AsyncDagTraversal<
 }
 
 function initVisitors<
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 >(
-  visitors: AsyncDagTraversalVisitors<T, R, ID>,
-): AsyncDagTraversalVisitors<T, R, ID> {
+  visitors: AsyncDagTraversalVisitors<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >,
+): AsyncDagTraversalVisitors<
+  SourceVertexTypes,
+  RewrittenVertexTypes,
+  VertexId
+> {
   return Object.fromEntries(
     Object.entries(visitors).map(([order, records]) => [
       order,
       sortVisitorRecords(records),
     ]),
-  ) as AsyncDagTraversalVisitors<T, R, ID>;
+  ) as AsyncDagTraversalVisitors<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    VertexId
+  >;
 }

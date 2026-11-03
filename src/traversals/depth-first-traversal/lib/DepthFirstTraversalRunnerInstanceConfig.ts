@@ -1,24 +1,35 @@
 import type { DepthFirstTraversalRunnerState } from '@depth-first-traversal/lib/DepthFirstTraversalRunnerState';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { DepthFirstTraversalResolvedTreesContainer } from '@depth-first-traversal/lib/DepthFirstTraversalResolvedTreesContainer';
-import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
+import type { DepthFirstTreeVisitorRegistrationsByPhase } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
 
 export type DepthFirstTraversalRunnerInstanceConfig<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  retainOriginalTreeStructure: boolean;
-  visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
+  retainDiscoveredTreeBeforeVisitorCommands: boolean;
+  visitors: DepthFirstTreeVisitorRegistrationsByPhase<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
   internalObjects: {
-    state: DepthFirstTraversalRunnerState<TTP, RW_TTP>;
+    state: DepthFirstTraversalRunnerState<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >;
     resolvedTreesContainer: DepthFirstTraversalResolvedTreesContainer<
-      TTP,
-      RW_TTP
+      InputVertexTypes,
+      RewrittenVertexTypes
     >;
   };
 };
 
 export type DepthFirstTraversalRunnerInstanceConfigInput<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
-> = Partial<DepthFirstTraversalRunnerInstanceConfig<TTP, RW_TTP>>;
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+> = Partial<
+  DepthFirstTraversalRunnerInstanceConfig<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >
+>;

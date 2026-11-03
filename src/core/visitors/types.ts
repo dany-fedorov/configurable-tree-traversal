@@ -1,40 +1,46 @@
-import type { MutableRef } from '@core/CTTRef';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { MutableValueReference } from '@core/CTTRef';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
   TraversalVisitorCommandName,
   VisitorRegistrationMetadata,
 } from '@core/TraversalVisitor';
 import type { Vertex } from '@core/Vertex';
-import type { VisitResult } from '@core/graph/types';
+import type { VisitorCallbackReturnValue } from '@core/graph/types';
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
 
 export type RegistrationMetadata = VisitorRegistrationMetadata;
 
-export type VisitorChainMetadata<T extends VertexTypes> = {
-  phaseVisitIndex: number;
-  visitorIndex: number;
-  previousPhaseVertexRef: MutableRef<Vertex<T>> | null;
-  visitorChainState: unknown;
+export type VisitorChainMetadata<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  phaseVisitorChainIndex: number;
+  visitorCallbackIndexInPhaseChain: number;
+  previousCommittedVisitVertexHandleForSamePhase: MutableValueReference<
+    Vertex<InputVertexTypes>
+  > | null;
+  currentVertexPhaseChainState: unknown;
 };
 
 export type VisitorChainPoll<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > =
   | {
       kind: 'VISIT';
-      ref: MutableRef<Vertex<T | R>>;
+      ref: MutableValueReference<
+        Vertex<InputVertexTypes | RewrittenVertexTypes>
+      >;
       recordIndex: number;
-      metadata: VisitorChainMetadata<T | R>;
+      metadata: VisitorChainMetadata<InputVertexTypes | RewrittenVertexTypes>;
     }
   | {
       kind: 'COMMANDS';
       commands: TraversalVisitorCommand<
-        R,
+        RewrittenVertexTypes,
         TraversalVisitorCommandName,
-        T['VertexHint']
+        InputVertexTypes['ChildHint']
       >[];
     }
   | { kind: 'WAIT' | 'PAUSED' | 'DONE' };
@@ -43,21 +49,28 @@ export type VisitorBatchCommit = {
   deferred?: boolean;
   halt: boolean;
   deleted: boolean;
-  visitorChainState?: unknown;
+  currentVertexPhaseChainState?: unknown;
 };
 
 export type VisitorChainInput<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > = {
-  ref: MutableRef<Vertex<T | R>>;
+  ref: MutableValueReference<Vertex<InputVertexTypes | RewrittenVertexTypes>>;
   records: readonly RegistrationMetadata[];
-  metadata: VisitorChainMetadata<T | R>;
+  metadata: VisitorChainMetadata<InputVertexTypes | RewrittenVertexTypes>;
   family: 'tree' | 'dag';
   order?: string;
 };
 
 export type VisitorOutcome<
-  R extends VertexTypes,
-  SourceHint = R['VertexHint'],
-> = Outcome<VisitResult<R, never, 'tree' | 'dag', SourceHint>>;
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  SourceHint = RewrittenVertexTypes['ChildHint'],
+> = Outcome<
+  VisitorCallbackReturnValue<
+    RewrittenVertexTypes,
+    never,
+    'tree' | 'dag',
+    SourceHint
+  >
+>;

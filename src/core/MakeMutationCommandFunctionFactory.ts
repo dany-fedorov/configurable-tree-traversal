@@ -1,61 +1,78 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type {
-  DeletionCommandName,
-  TreeVisitor,
+  TreeOrDagDeletionCommandName,
+  TreeVertexPhaseVisitorCallback,
   TraversalVisitorCommand,
 } from '@core/TraversalVisitor';
 import type { TraversalVisitorCommandName } from '@core/TraversalVisitor';
 
-export type MutationRequest<RW_V> =
-  | { kind: 'rewrite'; value: RW_V; patch?: never }
-  | { kind: 'delete'; value?: never; patch?: never }
-  | { kind: 'keep'; value?: never; patch?: never };
+export type VertexDataReplacementOrDeletionRequest<ReplacementDataInput> =
+  | {
+      kind: 'replaceData';
+      replacementData: ReplacementDataInput;
+      patch?: never;
+    }
+  | { kind: 'delete'; replacementData?: never; patch?: never }
+  | { kind: 'keep'; replacementData?: never; patch?: never };
 
-export type MutationCommand<
-  TTP extends VertexTypes,
-  Delete extends DeletionCommandName = DeletionCommandName,
+export type VertexDataReplacementOrDeletionCommand<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  Delete extends TreeOrDagDeletionCommandName = TreeOrDagDeletionCommandName,
 > = TraversalVisitorCommand<
-  TTP,
+  InputVertexTypes,
   | Delete
-  | TraversalVisitorCommandName.REWRITE_VERTEX_DATA
-  | TraversalVisitorCommandName.NOOP
+  | TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA
+  | TraversalVisitorCommandName.NO_OPERATION
 >;
 
-export type MutationCommands<
-  OUT_TTP extends VertexTypes,
-  RewriteInput = OUT_TTP['VertexData'],
-  Delete extends DeletionCommandName = DeletionCommandName,
+export type VertexDataMutationCommandTools<
+  OutputVertexTypes extends VertexDataAndChildHintTypes,
+  ReplacementDataInput = OutputVertexTypes['VertexData'],
+  Delete extends TreeOrDagDeletionCommandName = TreeOrDagDeletionCommandName,
 > = {
-  makeMutationCommand: MutationCommandBuilder<OUT_TTP, RewriteInput, Delete>;
+  makeVertexDataMutationCommand: VertexDataMutationCommandBuilder<
+    OutputVertexTypes,
+    ReplacementDataInput,
+    Delete
+  >;
 };
 
 /** Generic builders replace complete output data; adapters can name another input. */
-export type MutationCommandBuilder<
-  OUT_TTP extends VertexTypes,
-  RewriteInput = OUT_TTP['VertexData'],
-  Delete extends DeletionCommandName = DeletionCommandName,
+export type VertexDataMutationCommandBuilder<
+  OutputVertexTypes extends VertexDataAndChildHintTypes,
+  ReplacementDataInput = OutputVertexTypes['VertexData'],
+  Delete extends TreeOrDagDeletionCommandName = TreeOrDagDeletionCommandName,
 > = (
-  request?: MutationRequest<RewriteInput>,
-) => MutationCommand<OUT_TTP, Delete>;
+  request?: VertexDataReplacementOrDeletionRequest<ReplacementDataInput>,
+) => VertexDataReplacementOrDeletionCommand<OutputVertexTypes, Delete>;
 
-export type TreeMutationCommandBinder<
+export type TreeVisitorVertexDataMutationToolsBinder<
   Phase extends string,
-  IN_TTP extends VertexTypes,
-  OUT_TTP extends VertexTypes,
-  RewriteInput = OUT_TTP['VertexData'],
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  OutputVertexTypes extends VertexDataAndChildHintTypes,
+  ReplacementDataInput = OutputVertexTypes['VertexData'],
 > = (
-  ...visitorArguments: Parameters<TreeVisitor<Phase, IN_TTP, OUT_TTP>>
-) => MutationCommands<
-  OUT_TTP,
-  RewriteInput,
-  TraversalVisitorCommandName.DELETE_TREE_SUBTREE
+  ...visitorArguments: Parameters<
+    TreeVertexPhaseVisitorCallback<InputVertexTypes, OutputVertexTypes, Phase>
+  >
+) => VertexDataMutationCommandTools<
+  OutputVertexTypes,
+  ReplacementDataInput,
+  TraversalVisitorCommandName.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS
 >;
 
-export type TreeMutationCommandBinderFactory<Configuration = unknown> = <
+export type TreeVisitorVertexDataMutationToolsBinderFactory<
+  BinderOptions = unknown,
+> = <
   Phase extends string,
-  IN_TTP extends VertexTypes,
-  OUT_TTP extends VertexTypes,
-  RewriteInput = OUT_TTP['VertexData'],
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  OutputVertexTypes extends VertexDataAndChildHintTypes,
+  ReplacementDataInput = OutputVertexTypes['VertexData'],
 >(
-  options?: Configuration,
-) => TreeMutationCommandBinder<Phase, IN_TTP, OUT_TTP, RewriteInput>;
+  options?: BinderOptions,
+) => TreeVisitorVertexDataMutationToolsBinder<
+  Phase,
+  InputVertexTypes,
+  OutputVertexTypes,
+  ReplacementDataInput
+>;

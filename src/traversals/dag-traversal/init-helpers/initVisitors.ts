@@ -1,5 +1,5 @@
 import { sortVisitorRecords } from '@core/executeVisitors';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type {
   DagResolvedOptions,
   DagTraversalVisitors,
@@ -7,18 +7,21 @@ import type {
 import { DagVisitorPhase } from '../lib/DagTraversalOrder';
 
 export function initDagVisitors<
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ID = unknown,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
 >(
-  config: Pick<DagResolvedOptions<T, R, ID>, 'visitors'>,
-): DagTraversalVisitors<T, R, ID> {
+  config: Pick<
+    DagResolvedOptions<SourceVertexTypes, RewrittenVertexTypes, VertexId>,
+    'visitors'
+  >,
+): DagTraversalVisitors<SourceVertexTypes, RewrittenVertexTypes, VertexId> {
   return {
     [DagVisitorPhase.ON_WORK_READY]: sortVisitorRecords(
       config.visitors[DagVisitorPhase.ON_WORK_READY],
     ),
-    [DagVisitorPhase.ON_SUBGRAPH_READY]: sortVisitorRecords(
-      config.visitors[DagVisitorPhase.ON_SUBGRAPH_READY],
+    [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]: sortVisitorRecords(
+      config.visitors[DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY],
     ),
   };
 }

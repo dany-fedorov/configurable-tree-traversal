@@ -1,27 +1,31 @@
 import {
-  BreadthFirstPhase,
-  BreadthFirstTreeTraversal,
-  DepthFirstPhase,
-  DepthFirstTreeTraversal,
+  BreadthFirstTreeVisitPhase,
+  BreadthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase,
+  DepthFirstTreeTraversalBuilder,
   TraversalRunnerStatus as Status,
   TraversalVisitorCommandName as Command,
-  type CommandCommitMode,
-  type TreeVisitor,
-  type VertexTypes,
+  type VisitorCommandCommitTiming,
+  type TreeVertexPhaseVisitorCallback,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 
-type Node = { $data: string; $childHints: Node[] };
-type Tree = VertexTypes<string, Node>;
-type Visitor = TreeVisitor<DepthFirstPhase | BreadthFirstPhase, Tree, Tree>;
-const root: Node = { $data: 'root', $childHints: [] };
+type Node = { $vertexData: string; $childDiscoveryHints: Node[] };
+type Tree = VertexDataAndChildHintTypes<string, Node>;
+type Visitor = TreeVertexPhaseVisitorCallback<
+  Tree,
+  Tree,
+  DepthFirstTreeVisitPhase | BreadthFirstTreeVisitPhase
+>;
+const root: Node = { $vertexData: 'root', $childDiscoveryHints: [] };
 const adapter = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: root },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: { vertexContentInput: root },
   }),
-  resolveChild: (hint: Node) => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: hint },
+  resolveChildVertexFromHint: (hint: Node) => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: { vertexContentInput: hint },
   }),
 };
 
@@ -31,17 +35,32 @@ describe.each(['depth-first', 'breadth-first'] as const)(
     function makeTraversal() {
       const traversal =
         strategy === 'depth-first'
-          ? new DepthFirstTreeTraversal<Tree>({ traversableTree: adapter })
-          : new BreadthFirstTreeTraversal<Tree>({ traversableTree: adapter });
-      const add = (visitor: Visitor, commandCommitMode: CommandCommitMode) => {
-        if (traversal instanceof DepthFirstTreeTraversal) {
-          traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, visitor, {
-            commandCommitMode,
-          });
+          ? new DepthFirstTreeTraversalBuilder<Tree>({
+              treeDiscoverySource: adapter,
+            })
+          : new BreadthFirstTreeTraversalBuilder<Tree>({
+              treeDiscoverySource: adapter,
+            });
+      const add = (
+        visitor: Visitor,
+        visitorCommandCommitTiming: VisitorCommandCommitTiming,
+      ) => {
+        if (traversal instanceof DepthFirstTreeTraversalBuilder) {
+          traversal.registerVisitorCallbackForPhase(
+            DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+            visitor,
+            {
+              visitorCommandCommitTiming,
+            },
+          );
         } else {
-          traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, visitor, {
-            commandCommitMode,
-          });
+          traversal.registerVisitorCallbackForPhase(
+            BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
+            visitor,
+            {
+              visitorCommandCommitTiming,
+            },
+          );
         }
       };
       return { traversal, add };
@@ -53,7 +72,7 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       expect(() =>
         add(() => {
           calls.push('invalid');
-        }, 'ASYNC' as CommandCommitMode),
+        }, 'ASYNC' as VisitorCommandCommitTiming),
       ).toThrow(/unknown visitor command commit mode/i);
       expect(calls).toEqual([]);
     });
@@ -62,41 +81,55 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       const { traversal, add } = makeTraversal();
       const calls: unknown[] = [];
       add((vertex) => {
-        calls.push(['halt', vertex.getData()]);
-        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
-      }, 'afterGroup');
+        calls.push(['halt', vertex.getVertexData()]);
+        return {
+          commands: [
+            { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+          ],
+        };
+      }, 'afterContiguousVisitorBatch');
       add((vertex) => {
-        calls.push(['rewrite', vertex.getData()]);
+        calls.push(['rewrite', vertex.getVertexData()]);
         return {
           commands: [
             {
-              commandName: Command.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: 'rewritten' },
+              commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+              commandArguments: { replacementVertexData: 'rewritten' },
             },
             {
-              commandName: Command.SET_VISITOR_CHAIN_STATE,
-              commandArguments: { state: 'group finished' },
+              commandName: Command.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE,
+              commandArguments: { phaseChainState: 'group finished' },
             },
           ],
         };
-      }, 'afterGroup');
+      }, 'afterContiguousVisitorBatch');
       add((vertex, options) => {
-        calls.push(['sequential', vertex.getData(), options.visitorChainState]);
-      }, 'afterEachVisitor');
-      const runner = traversal.createRunner().run();
+        calls.push([
+          'sequential',
+          vertex.getVertexData(),
+          options.currentVertexPhaseChainState,
+        ]);
+      }, 'afterEachVisitorCallback');
+      const runner = traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal();
 
-      expect(runner.getStatus()).toBe(Status.HALTED);
+      expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
       expect(calls).toEqual([
         ['halt', 'root'],
         ['rewrite', 'root'],
       ]);
-      expect(runner.getResolvedTreeView().getRoot()?.getValue().getData()).toBe(
-        'rewritten',
-      );
+      expect(
+        runner
+          .getLiveResolvedTreeView()
+          .getRootVertexHandleOrNull()
+          ?.getCurrentVertexView()
+          .getVertexData(),
+      ).toBe('rewritten');
 
-      runner.run();
+      runner.runUntilSuspendedOrTerminal();
 
-      expect(runner.getStatus()).toBe(Status.FINISHED);
+      expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
       expect(calls).toEqual([
         ['halt', 'root'],
         ['rewrite', 'root'],
@@ -109,20 +142,31 @@ describe.each(['depth-first', 'breadth-first'] as const)(
       const calls: string[] = [];
       add(() => {
         calls.push('delete');
-        return { commands: [{ commandName: Command.DELETE_TREE_SUBTREE }] };
-      }, 'afterGroup');
+        return {
+          commands: [
+            {
+              commandName:
+                Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
+            },
+          ],
+        };
+      }, 'afterContiguousVisitorBatch');
       add((vertex) => {
-        calls.push(vertex.getData());
-      }, 'afterGroup');
+        calls.push(vertex.getVertexData());
+      }, 'afterContiguousVisitorBatch');
       add(() => {
         calls.push('must not run');
-      }, 'afterEachVisitor');
-      const runner = traversal.createRunner();
+      }, 'afterEachVisitorCallback');
+      const runner = traversal.createIndependentRunnerFromCurrentOptions();
 
-      expect([...runner.iterateEvents()]).toEqual([]);
+      expect([
+        ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(),
+      ]).toEqual([]);
       expect(calls).toEqual(['delete', 'root']);
-      expect(runner.getResolvedTreeView().getRoot()).toBeNull();
-      expect(runner.getStatus()).toBe(Status.FINISHED);
+      expect(
+        runner.getLiveResolvedTreeView().getRootVertexHandleOrNull(),
+      ).toBeNull();
+      expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
     });
   },
 );

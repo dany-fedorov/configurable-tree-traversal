@@ -1,6 +1,6 @@
-import type { TraversableObjectPropKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
+import type { ObjectPropertyKey } from '@traversable-object-tree/lib/TraversableObjectPropKey';
 
-export type TraversableObjectProp<K extends TraversableObjectPropKey, V> = {
-  key: K;
-  value: V;
+export type ObjectPropertyRecord<K extends ObjectPropertyKey, V> = {
+  propertyKey: K;
+  propertyValue: V;
 };

@@ -1,9 +1,9 @@
-import { MutableRef } from '../src/core/CTTRef';
+import { MutableValueReference } from '../src/core/CTTRef';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
 import { Vertex } from '../src/core/Vertex';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import { AsyncDagTraversalBuilder } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalInstanceConfig';
 import { DagVisitorPhase as Order } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 import { DagTraversalRunnerState } from '../src/traversals/dag-traversal/lib/DagTraversalRunnerState';
@@ -31,25 +31,30 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
   const aVisit = deferred<void>();
   const bVisit = deferred<void>();
   const visited: string[] = [];
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: graphAdapter(diamond),
-    concurrency: 3,
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter(diamond),
+    maxConcurrentCallbackInvocations: 3,
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex, options) => {
-    const data = vertex.getData();
-    visited.push(data);
-    expect(options.isGraphRoot).toBe(data === 'root');
-    expect(options.isGraphRoot).toBe(data === 'root');
-    if (data === 'A') await aVisit.promise;
-    if (data === 'B') await bVisit.promise;
-  });
-  const iterator = traversal.createRunner().iterateEvents({
-    emitEvents: ['workCompleted'],
-  });
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex, options) => {
+      const data = vertex.getVertexData();
+      visited.push(data);
+      expect(options.isVisibleSourceRoot).toBe(data === 'root');
+      expect(options.isVisibleSourceRoot).toBe(data === 'root');
+      if (data === 'A') await aVisit.promise;
+      if (data === 'B') await bVisit.promise;
+    },
+  );
+  const iterator = traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: ['workCompletionCommitted'],
+    });
 
   await expect(iterator.next()).resolves.toMatchObject({
     done: false,
-    value: { kind: 'workCompleted', isGraphRoot: true },
+    value: { eventKind: 'workCompletionCommitted', isVisibleSourceRoot: true },
   });
   const aEvent = iterator.next();
   await eventLoopTurn();
@@ -58,7 +63,7 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
   aVisit.resolve();
   await expect(aEvent).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'A' } },
+    value: { vertex: { $vertexData: 'A' } },
   });
   const bEvent = iterator.next();
   await eventLoopTurn();
@@ -67,11 +72,11 @@ test('visits a shared join once after all deferred prerequisites complete', asyn
   bVisit.resolve();
   await expect(bEvent).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'B' } },
+    value: { vertex: { $vertexData: 'B' } },
   });
   await expect(iterator.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'join' } },
+    value: { vertex: { $vertexData: 'join' } },
   });
   await expect(iterator.next()).resolves.toEqual({
     done: true,
@@ -94,33 +99,39 @@ test('fails a hostile object-id stall without coercion, rejection, or hanging', 
   };
   process.on('unhandledRejection', listener);
   try {
-    const runner = new AsyncDagTraversal<TestGraph>({
-      traversableGraph: {
-        resolveRoot: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'root', $childHints: ['blocked'] },
+    const runner = new AsyncDagTraversalBuilder<TestGraph>({
+      dagDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'root',
+              $childDiscoveryHints: ['blocked'],
+            },
             vertexId: 'root',
           },
         }),
-        resolveChild: () => ({
-          kind: 'found' as const,
-          vertex: {
-            vertexContent: { $data: 'blocked', $childHints: [] },
+        resolveChildHint: () => ({
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'blocked',
+              $childDiscoveryHints: [],
+            },
             vertexId: 'blocked',
-            dependsOnWork: [hostileId],
+            workWaitsForWorkOf: [hostileId],
           },
         }),
       },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
 
     await expect(
-      Promise.race([runner.run(), rejectAfter(100)]),
+      Promise.race([runner.runUntilSuspendedOrTerminal(), rejectAfter(100)]),
     ).rejects.toThrow(/DAG traversal stalled: "blocked", reference#1/);
     await eventLoopTurn();
     expect(coercions).toBe(0);
     expect(unhandled).toEqual([]);
-    expect(runner.getStatus()).toBe(Status.FAILED);
+    expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
   } finally {
     process.off('unhandledRejection', listener);
   }
@@ -128,135 +139,172 @@ test('fails a hostile object-id stall without coercion, rejection, or hanging', 
 
 test('supports promised graph callbacks, sorting, hint identity, and snapshots', async () => {
   const originalHints = ['b', 'a'];
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: {
-      resolveRoot: async () => ({
-        kind: 'found' as const,
-        vertex: {
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: {
+      resolveRootVertex: async () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: 'root',
-          vertexContent: { $data: 'root', $childHints: originalHints },
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: originalHints,
+          },
         },
       }),
-      resolveChild: async (hint, options) => {
-        expect(options.resolvedGraphView.getRoot()).not.toBeNull();
-        expect(options.originalGraphView).not.toBeNull();
+      resolveChildHint: async (hint, options) => {
+        expect(
+          options.liveResolvedGraphView.getDesignatedRootHandleOrNull(),
+        ).not.toBeNull();
+        expect(options.preCommandDiscoveredGraphView).not.toBeNull();
         return {
-          kind: 'found' as const,
-          vertex: {
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
             vertexId: hint,
-            dependsOnWork: ['root'],
-            vertexContent: { $data: hint, $childHints: [] },
+            workWaitsForWorkOf: ['root'],
+            vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
           },
         };
       },
-      getVertexIdFromHint: async (hint) => ({ vertexId: hint }),
+      tryGetVertexIdentityFromHint: async (hint) => ({ vertexId: hint }),
     },
-    transformChildHints: async (hints) => hints.reverse(),
-    retainOriginalGraphStructure: true,
-    concurrency: 2,
+    transformChildHintsBeforeResolution: async (hints) => hints.reverse(),
+    retainDiscoveredGraphBeforeVisitorCommands: true,
+    maxConcurrentCallbackInvocations: 2,
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex) =>
-    vertex.getData() === 'a'
-      ? {
-          commands: [
-            {
-              commandName: Command.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: 'changed' },
-            },
-          ],
-        }
-      : undefined,
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex) =>
+      vertex.getVertexData() === 'a'
+        ? {
+            commands: [
+              {
+                commandName: Command.REPLACE_CURRENT_VERTEX_DATA,
+                commandArguments: { replacementVertexData: 'changed' },
+              },
+            ],
+          }
+        : undefined,
   );
-  const runner = traversal.createRunner();
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
   const values: string[] = [];
-  for await (const event of runner.iterateEvents({
-    emitEvents: ['workCompleted'],
-  })) {
-    values.push(event.vertex.getData());
-    expect(event.isGraphRoot).toBe(
-      event.vertexRef === runner.getResolvedGraphView().getRoot(),
+  for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    {
+      deliveredEventKinds: ['workCompletionCommitted'],
+    },
+  )) {
+    values.push(event.vertex.getVertexData());
+    expect(event.isVisibleSourceRoot).toBe(
+      event.vertexHandle ===
+        runner.getLiveResolvedGraphView().getDesignatedRootHandleOrNull(),
     );
   }
 
   expect(values).toEqual(['root', 'changed', 'b']);
   expect(originalHints).toEqual(['b', 'a']);
   expect(
-    runner.originalGraphView?.getVertexRefById('a')?.getValue().getData(),
+    runner.preCommandDiscoveredGraphView
+      ?.getVertexHandleByIdOrNull('a')
+      ?.getCurrentVertexView()
+      .getVertexData(),
   ).toBe('a');
   expect(
-    runner.getResolvedGraphView().getVertexRefById('a')?.getValue().getData(),
+    runner
+      .getLiveResolvedGraphView()
+      .getVertexHandleByIdOrNull('a')
+      ?.getCurrentVertexView()
+      .getVertexData(),
   ).toBe('changed');
 });
 
 test('supports an asynchronous tree source through the graph visitor facade', async () => {
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableTree: {
-      resolveRoot: async () => ({
-        kind: 'found' as const,
-        vertex: {
-          vertexContent: { $data: 'root', $childHints: ['child'] },
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    treeDiscoverySource: {
+      resolveRootVertex: async () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: 'root',
+            $childDiscoveryHints: ['child'],
+          },
         },
       }),
-      resolveChild: async (hint, options) => {
-        expect(options.resolvedTreeView.getRoot()).not.toBeNull();
+      resolveChildVertexFromHint: async (hint, options) => {
+        expect(
+          options.liveResolvedTreeView.getRootVertexHandleOrNull(),
+        ).not.toBeNull();
         return {
-          kind: 'found' as const,
-          vertex: { vertexContent: { $data: hint, $childHints: [] } },
+          kind: 'vertexResolved' as const,
+          resolvedVertexInput: {
+            vertexContentInput: { $vertexData: hint, $childDiscoveryHints: [] },
+          },
         };
       },
     },
   });
   const optionsSeen: string[] = [];
-  traversal.addVisitorFor(Order.ON_WORK_READY, async (vertex, options) => {
-    optionsSeen.push(vertex.getData());
-    expect(options.resolvedGraphView).toBeDefined();
-    expect(options).not.toHaveProperty('resolvedTree');
-  });
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    async (vertex, options) => {
+      optionsSeen.push(vertex.getVertexData());
+      expect(options.liveResolvedGraphView).toBeDefined();
+      expect(options).not.toHaveProperty('resolvedTree');
+    },
+  );
 
-  await expect(traversal.createRunner().run()).resolves.toBeDefined();
+  await expect(
+    traversal
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal(),
+  ).resolves.toBeDefined();
   expect(optionsSeen).toEqual(['root', 'child']);
 });
 
 test('requires one fixed source mode and validates concurrency', () => {
   expect(
     () =>
-      new AsyncDagTraversal(
-        {} as ConstructorParameters<typeof AsyncDagTraversal>[0],
+      new AsyncDagTraversalBuilder(
+        {} as ConstructorParameters<typeof AsyncDagTraversalBuilder>[0],
       ),
   ).toThrow(/exactly one/i);
   expect(
     () =>
-      new AsyncDagTraversal({
-        traversableGraph: graphAdapter(),
-        traversableTree: graphAdapter(),
-      } as unknown as ConstructorParameters<typeof AsyncDagTraversal>[0]),
+      new AsyncDagTraversalBuilder({
+        dagDiscoverySource: graphAdapter(),
+        treeDiscoverySource: graphAdapter(),
+      } as unknown as ConstructorParameters<typeof AsyncDagTraversalBuilder>[0]),
   ).toThrow(/exactly one/i);
   expect(
     () =>
-      new AsyncDagTraversal<TestGraph>({
-        traversableGraph: graphAdapter(),
-        concurrency: 0,
+      new AsyncDagTraversalBuilder<TestGraph>({
+        dagDiscoverySource: graphAdapter(),
+        maxConcurrentCallbackInvocations: 0,
       }),
   ).toThrow(TypeError);
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: graphAdapter(),
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter(),
   });
-  expect(traversal.configure({ traversableGraph: graphAdapter() })).toBe(
-    traversal,
-  );
+  expect(
+    traversal.patchOptionsForFutureRunners({
+      dagDiscoverySource: graphAdapter(),
+    }),
+  ).toBe(traversal);
   expect(() =>
-    traversal.configure({
-      traversableTree: graphAdapter(),
-    } as unknown as Parameters<typeof traversal.configure>[0]),
+    traversal.patchOptionsForFutureRunners({
+      treeDiscoverySource: graphAdapter(),
+    } as unknown as Parameters<typeof traversal.patchOptionsForFutureRunners>[0]),
   ).toThrow(/source mode/i);
-  expect(traversal.createRunner().inspect()).toMatchObject({
-    execution: 'async',
-    kind: 'dag',
-    sourceMode: 'graph',
-    concurrency: Infinity,
-    inFlightCallbackCount: 0,
-    bufferedEventCount: 0,
-    status: Status.INITIAL,
+  expect(
+    traversal
+      .createIndependentRunnerFromCurrentOptions()
+      .captureExecutionSnapshot(),
+  ).toMatchObject({
+    callbackExecutionMode: 'async',
+    traversalAlgorithm: 'dag',
+    sourceTopologyKind: 'graph',
+    maxConcurrentCallbackInvocations: Infinity,
+    inFlightInvocationCount: 0,
+    bufferedDeliveryEventCount: 0,
+    traversalLifecycleStatus: Status.NOT_STARTED,
   });
   expect(Object.isFrozen(ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG)).toBe(
     true,
@@ -265,65 +313,77 @@ test('requires one fixed source mode and validates concurrency', () => {
     Object.isFrozen(ASYNC_DAG_TRAVERSAL_DEFAULT_INSTANCE_CONFIG.visitors),
   ).toBe(true);
 
-  const treeTraversal = new AsyncDagTraversal<TestGraph>({
-    traversableTree: {
-      resolveRoot: () => ({ kind: 'omitted' as const }),
-      resolveChild: () => ({ kind: 'omitted' as const }),
+  const treeTraversal = new AsyncDagTraversalBuilder<TestGraph>({
+    treeDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexIntentionallyOmitted' as const,
+      }),
+      resolveChildVertexFromHint: () => ({
+        kind: 'vertexIntentionallyOmitted' as const,
+      }),
     },
   });
   expect(
-    treeTraversal.configure({
-      traversableTree: {
-        resolveRoot: () => ({ kind: 'omitted' as const }),
-        resolveChild: () => ({ kind: 'omitted' as const }),
+    treeTraversal.patchOptionsForFutureRunners({
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
       },
     }),
   ).toBe(treeTraversal);
   expect(() =>
-    treeTraversal.configure({
-      traversableGraph: graphAdapter(),
-    } as unknown as Parameters<typeof treeTraversal.configure>[0]),
+    treeTraversal.patchOptionsForFutureRunners({
+      dagDiscoverySource: graphAdapter(),
+    } as unknown as Parameters<typeof treeTraversal.patchOptionsForFutureRunners>[0]),
   ).toThrow(/source mode/i);
 });
 
 test('isolates visitor configuration when making a runner', async () => {
   const seen: string[] = [];
-  const traversal = new AsyncDagTraversal<TestGraph>({
-    traversableGraph: graphAdapter({
+  const traversal = new AsyncDagTraversalBuilder<TestGraph>({
+    dagDiscoverySource: graphAdapter({
       root: { children: [], dependencies: [] },
     }),
   });
-  traversal.setVisitorsFor(Order.ON_WORK_READY, [
+  traversal.replaceVisitorDefinitionsForPhase(Order.ON_WORK_READY, [
     {
-      priority: 2,
-      commandCommitMode: 'afterEachVisitor' as const,
+      descendingExecutionPriorityWithinGroup: 2,
+      visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       visitor: async () => void seen.push('first'),
     },
   ]);
-  traversal.addVisitorFor(
+  traversal.registerVisitorCallbackForPhase(
     Order.ON_WORK_READY,
     async () => void seen.push('second'),
     {
-      priority: 1,
+      descendingExecutionPriorityWithinGroup: 1,
     },
   );
-  expect(traversal.listVisitorsFor(Order.ON_WORK_READY)).toHaveLength(2);
-  const runner = traversal.createRunner();
-  traversal.setVisitorsFor(Order.ON_WORK_READY, []);
+  expect(
+    traversal.getDetachedVisitorRegistrationRecordsForPhase(
+      Order.ON_WORK_READY,
+    ),
+  ).toHaveLength(2);
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  traversal.replaceVisitorDefinitionsForPhase(Order.ON_WORK_READY, []);
 
-  await runner.run({ emitEvents: [] });
+  await runner.runUntilSuspendedOrTerminal({ deliveredEventKinds: [] });
   expect(seen).toEqual(['first', 'second']);
 });
 
 test('accepts initial and empty quiescent state but rejects active injection', async () => {
-  for (const status of [Status.INITIAL, Status.HALTED]) {
+  for (const status of [Status.NOT_STARTED, Status.SUSPENDED]) {
     const state = new DagTraversalRunnerState<TestGraph>({ status });
     const container = new ResolvedGraphsContainer<TestGraph>({
       sourceMode: 'graph',
       saveOriginal: false,
     });
     const runner = createInternalAsyncDagTraversalRunner<TestGraph>({
-      traversableGraph: graphAdapter({
+      dagDiscoverySource: graphAdapter({
         root: { children: [], dependencies: [] },
       }),
       traversalRunnerInternalObjects: {
@@ -333,19 +393,19 @@ test('accepts initial and empty quiescent state but rejects active injection', a
     });
     expect(runnerInternals(runner).state).toBe(state);
     expect(runnerInternals(runner).resolvedGraphsContainer).toBe(container);
-    await runner.run();
-    expect(runner.getStatus()).toBe(Status.FINISHED);
+    await runner.runUntilSuspendedOrTerminal();
+    expect(runner.getTraversalLifecycleStatus()).toBe(Status.FINISHED);
   }
 
   const active = new DagTraversalRunnerState<TestGraph>({
     status: Status.RUNNING,
-    traversalRootVertexRef: new MutableRef(
-      new Vertex<TestGraph>({ $data: 'stale', $childHints: [] }),
+    traversalRootVertexRef: new MutableValueReference(
+      new Vertex<TestGraph>({ $vertexData: 'stale', $childDiscoveryHints: [] }),
     ),
   });
   expect(() =>
     createInternalAsyncDagTraversalRunner<TestGraph>({
-      traversableGraph: graphAdapter(),
+      dagDiscoverySource: graphAdapter(),
       traversalRunnerInternalObjects: { state: active },
     }),
   ).toThrow(/quiescent|running/i);
@@ -358,9 +418,13 @@ test('validates injected container mode and snapshot compatibility', () => {
   });
   expect(() =>
     createInternalAsyncDagTraversalRunner<TestGraph>({
-      traversableTree: {
-        resolveRoot: () => ({ kind: 'omitted' as const }),
-        resolveChild: () => ({ kind: 'omitted' as const }),
+      treeDiscoverySource: {
+        resolveRootVertex: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
+        resolveChildVertexFromHint: () => ({
+          kind: 'vertexIntentionallyOmitted' as const,
+        }),
       },
       traversalRunnerInternalObjects: {
         resolvedGraphsContainer: graphContainer,
@@ -374,7 +438,7 @@ test('validates injected container mode and snapshot compatibility', () => {
   });
   expect(() =>
     createInternalAsyncDagTraversalRunner<TestGraph>({
-      traversableGraph: graphAdapter(),
+      dagDiscoverySource: graphAdapter(),
       traversalRunnerInternalObjects: {
         resolvedGraphsContainer: snapshotContainer,
       },
@@ -387,31 +451,33 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
     sourceMode: 'graph',
     saveOriginal: false,
   });
-  const root = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'root', $childHints: [] }),
+  const root = new MutableValueReference(
+    new Vertex<TestGraph>({ $vertexData: 'root', $childDiscoveryHints: [] }),
   );
   container.acceptRoot(root, 'root');
   container.store.setVisitStage(root, 'INITIAL_VISIT_ELIGIBLE');
   const state = new DagTraversalRunnerState<TestGraph>({
-    status: Status.HALTED,
+    status: Status.SUSPENDED,
     traversalRootVertexRef: root,
-    readyVisits: [{ vertexRef: root, order: Order.ON_WORK_READY }],
+    dependencyEligiblePhaseVisits: [
+      { vertexHandle: root, order: Order.ON_WORK_READY },
+    ],
   });
   let sourceCalls = 0;
   const runner = createInternalAsyncDagTraversalRunner<TestGraph>({
-    traversableGraph: {
-      resolveRoot: () => {
+    dagDiscoverySource: {
+      resolveRootVertex: () => {
         sourceCalls++;
         return {
-          identity: null,
-          satisfiesDependencies: true as const,
-          kind: 'omitted' as const,
+          omittedVertexIdentity: null,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+          kind: 'vertexIntentionallyOmitted' as const,
         };
       },
-      resolveChild: () => ({
-        identity: null,
-        satisfiesDependencies: true as const,
-        kind: 'omitted' as const,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+        kind: 'vertexIntentionallyOmitted' as const,
       }),
     },
     traversalRunnerInternalObjects: {
@@ -420,10 +486,15 @@ test('accepts a non-empty quiescent ready seed without scheduling during constru
     },
   });
 
-  expect(runner.isHalted()).toBe(true);
+  expect(runner.isSuspended()).toBe(true);
   expect(sourceCalls).toBe(0);
-  expect(runner.inspect().readyVisits).toEqual([
-    { vertexRefId: root.getRefId(), phase: Order.ON_WORK_READY },
+  expect(
+    runner.captureExecutionSnapshot().dependencyEligiblePhaseVisits,
+  ).toEqual([
+    {
+      vertexReferenceIdentity: root.getReferenceIdentity(),
+      visitorPhase: Order.ON_WORK_READY,
+    },
   ]);
 });
 
@@ -436,27 +507,28 @@ test.each([new Error('injected failure'), undefined])(
     });
     let sourceCalls = 0;
     const runner = createInternalAsyncDagTraversalRunner<TestGraph>({
-      traversableGraph: {
-        resolveRoot: () => {
+      dagDiscoverySource: {
+        resolveRootVertex: () => {
           sourceCalls++;
           return {
-            identity: null,
-            satisfiesDependencies: true as const,
-            kind: 'omitted' as const,
+            omittedVertexIdentity: null,
+            satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+            kind: 'vertexIntentionallyOmitted' as const,
           };
         },
-        resolveChild: () => ({
-          identity: null,
-          satisfiesDependencies: true as const,
-          kind: 'omitted' as const,
+        resolveChildHint: () => ({
+          omittedVertexIdentity: null,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+          kind: 'vertexIntentionallyOmitted' as const,
         }),
       },
       traversalRunnerInternalObjects: { state },
     });
 
     for (const attempt of [
-      () => runner.run(),
-      () => runner.iterateEvents().next(),
+      () => runner.runUntilSuspendedOrTerminal(),
+      () =>
+        runner.runAndIterateObservationEventsUntilSuspendedOrTerminal().next(),
     ]) {
       let caught = false;
       try {
@@ -467,7 +539,7 @@ test.each([new Error('injected failure'), undefined])(
       }
       expect(caught).toBe(true);
     }
-    expect(runner.getStatus()).toBe(Status.FAILED);
+    expect(runner.getTraversalLifecycleStatus()).toBe(Status.FAILED);
     expect(state.failure).toEqual({ error: failure });
     expect(sourceCalls).toBe(0);
   },
@@ -477,9 +549,9 @@ test.each([new Error('live failure'), undefined])(
   'stores a live failure for exact terminal reconstruction %#',
   async (failure) => {
     const root = deferred<{
-      kind: 'omitted';
-      identity: null;
-      satisfiesDependencies: true;
+      kind: 'vertexIntentionallyOmitted';
+      omittedVertexIdentity: null;
+      satisfiesWorkAndSubgraphCompletionPrerequisites: true;
     }>();
     const state = new DagTraversalRunnerState<TestGraph>();
     const container = new ResolvedGraphsContainer<TestGraph>({
@@ -487,21 +559,21 @@ test.each([new Error('live failure'), undefined])(
       saveOriginal: false,
     });
     const source = {
-      resolveRoot: () => root.promise,
-      resolveChild: () => ({
-        identity: null,
-        kind: 'omitted' as const,
-        satisfiesDependencies: true as const,
+      resolveRootVertex: () => root.promise,
+      resolveChildHint: () => ({
+        omittedVertexIdentity: null,
+        kind: 'vertexIntentionallyOmitted' as const,
+        satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
       }),
     };
     const runner = createInternalAsyncDagTraversalRunner<TestGraph>({
-      traversableGraph: source,
+      dagDiscoverySource: source,
       traversalRunnerInternalObjects: {
         state,
         resolvedGraphsContainer: container,
       },
     });
-    const running = runner.run();
+    const running = runner.runUntilSuspendedOrTerminal();
     await eventLoopTurn();
     root.reject(failure);
     let caught = false;
@@ -515,14 +587,14 @@ test.each([new Error('live failure'), undefined])(
     expect(state.failure).toEqual({ error: failure });
 
     const reconstructed = createInternalAsyncDagTraversalRunner<TestGraph>({
-      traversableGraph: {
-        resolveRoot: () => {
+      dagDiscoverySource: {
+        resolveRootVertex: () => {
           throw new Error('terminal reconstruction must not resolve source');
         },
-        resolveChild: () => ({
-          identity: null,
-          satisfiesDependencies: true as const,
-          kind: 'omitted' as const,
+        resolveChildHint: () => ({
+          omittedVertexIdentity: null,
+          satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
+          kind: 'vertexIntentionallyOmitted' as const,
         }),
       },
       traversalRunnerInternalObjects: {
@@ -532,12 +604,12 @@ test.each([new Error('live failure'), undefined])(
     });
     caught = false;
     try {
-      await reconstructed.run();
+      await reconstructed.runUntilSuspendedOrTerminal();
     } catch (error) {
       caught = true;
       expect(error).toBe(failure);
     }
     expect(caught).toBe(true);
-    expect(reconstructed.getStatus()).toBe(Status.FAILED);
+    expect(reconstructed.getTraversalLifecycleStatus()).toBe(Status.FAILED);
   },
 );

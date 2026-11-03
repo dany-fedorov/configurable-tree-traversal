@@ -1,24 +1,33 @@
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { DagTraversalRunnerState } from './DagTraversalRunnerState';
 
 const runtimeOwners = new WeakMap<object, object>();
 
 /** Validates and tracks the public data-only DAG continuation boundary. */
-export class DagPolicy<T extends VertexTypes, R extends VertexTypes = T> {
+export class DagPolicy<
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
+> {
   private readonly owner = {};
 
   static allowsChainAdmission(
     activeChainCount: number,
-    concurrency: number,
+    maxConcurrentCallbackInvocations: number,
   ): boolean {
-    return activeChainCount < concurrency;
+    return activeChainCount < maxConcurrentCallbackInvocations;
   }
 
   constructor(
-    private readonly state: DagTraversalRunnerState<T, R>,
-    private readonly container: ResolvedGraphsContainer<T, R>,
+    private readonly state: DagTraversalRunnerState<
+      SourceVertexTypes,
+      RewrittenVertexTypes
+    >,
+    private readonly container: ResolvedGraphsContainer<
+      SourceVertexTypes,
+      RewrittenVertexTypes
+    >,
   ) {
     if (state.status === TraversalRunnerStatus.RUNNING) {
       throw new Error('Injected DAG state must be quiescent, not RUNNING');

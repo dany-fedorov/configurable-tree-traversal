@@ -1,21 +1,31 @@
+import { createVertexHandleFacet } from '../src/core/observationFacets';
 import { capturedOutputValue } from './helpers/rewriteOutput';
 import {
-  DepthFirstPhase,
-  DepthFirstTreeTraversal,
-  MutableRef,
+  DepthFirstTreeVisitPhase,
+  DepthFirstTreeTraversalBuilder,
+  MutableValueReference,
   objectRewrite as rewriteObjectApi,
-  ObjectTreeSource,
-  ResolvedTreeStore,
+  ObjectPropertyTreeSource,
+  MutableResolvedTreeStore,
   TraversalVisitorCommandName,
-  TreeVertexRecord,
+  MutableTreeVertexTopologyRecord,
   Vertex,
-  type ObjectTreeVertexTypes,
+  type ObjectPropertyTreeVertexTypes,
   type TreeVisitorContext,
 } from '../src';
 
 const { rewriteObject } = rewriteObjectApi;
 
-type ObjectTree = ObjectTreeVertexTypes<PropertyKey, unknown>;
+function assemblyCacheForMap<Key>(values: Map<Key, unknown>) {
+  return {
+    hasAssembledValueForVertex: (vertexHandle: Key) => values.has(vertexHandle),
+    getAssembledValueForVertex: (vertexHandle: Key) => values.get(vertexHandle),
+    setAssembledValueForVertex: (vertexHandle: Key, assembledValue: unknown) =>
+      values.set(vertexHandle, assembledValue),
+  };
+}
+
+type ObjectTree = ObjectPropertyTreeVertexTypes<PropertyKey, unknown>;
 
 describe('rewrite object option integration', () => {
   test('stores assembled composites and exposes the rewritten leaf path', () => {
@@ -26,12 +36,22 @@ describe('rewrite object option integration', () => {
       rewriteObject(
         { nested: [1] },
         {
-          assembledMap: assembled,
-          assembleCompositesBeforeRewrite: true,
-          rewrite: ({ value }, { getKeyPath }) => {
-            if (value === 1) {
-              leafPaths.push(getKeyPath({ noRoot: true }));
-              return { kind: 'rewrite', patch: { value: 2 } };
+          assemblyCache: assemblyCacheForMap(assembled),
+          includeAssembledValueInRewriteInput: true,
+          rewritePropertyAfterChildTraversal: (
+            { propertyValue: propertyValue },
+            { requirePropertyKeyPathFromRoot },
+          ) => {
+            if (propertyValue === 1) {
+              leafPaths.push(
+                requirePropertyKeyPathFromRoot({
+                  includeDesignatedRoot: false,
+                }),
+              );
+              return {
+                kind: 'patchPropertyKeyOrValue',
+                propertyPatch: { propertyValue: 2 },
+              };
             }
             return undefined;
           },
@@ -49,7 +69,8 @@ describe('rewrite object option integration', () => {
 
     const outputAtReturn = capturedOutputValue(
       rewriteObject(input, {
-        isArray: ({ value }) => value === input,
+        matchesArrayAssemblyPredicate: ({ propertyValue: propertyValue }) =>
+          propertyValue === input,
       }),
     );
 
@@ -64,14 +85,16 @@ describe('rewrite object option integration', () => {
     rewriteObject(
       { a: 1, b: 2, c: 3 },
       {
-        inOrder: { afterChildIndices: { indices: [2] } },
+        childBoundaryVisits: { visitAfterChildIndices: { indices: [2] } },
         visitors: {
-          [DepthFirstPhase.IN_ORDER]: [
+          [DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: [
             {
-              priority: 100,
-              commandCommitMode: 'afterEachVisitor' as const,
+              descendingExecutionPriorityWithinGroup: 100,
+              visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
               visitor: (vertex, { isTreeRoot }) => {
-                inOrder.push(isTreeRoot ? 'root' : vertex.getData().key);
+                inOrder.push(
+                  isTreeRoot ? 'root' : vertex.getVertexData().propertyKey,
+                );
               },
             },
           ],
@@ -85,10 +108,13 @@ describe('rewrite object option integration', () => {
   test('starts rewrite visitor coordinates in its own fresh runner state', () => {
     const seenIndices: number[] = [];
     rewriteObject(
-      { value: 1 },
+      { propertyValue: 1 },
       {
-        rewrite: (_property, { phaseVisitIndex }) => {
-          seenIndices.push(phaseVisitIndex);
+        rewritePropertyAfterChildTraversal: (
+          _property,
+          { phaseVisitorChainIndex },
+        ) => {
+          seenIndices.push(phaseVisitorChainIndex);
           return undefined;
         },
       },
@@ -98,27 +124,31 @@ describe('rewrite object option integration', () => {
 });
 
 describe('object identity bookkeeping', () => {
-  const makeObjectVertex = (key: PropertyKey, value: unknown) =>
-    new Vertex<ObjectTree>({ $data: { key, value }, $childHints: [] });
+  const makeObjectVertex = (propertyKey: PropertyKey, propertyValue: unknown) =>
+    new Vertex<ObjectTree>({
+      $vertexData: { propertyKey: propertyKey, propertyValue: propertyValue },
+      $childDiscoveryHints: [],
+    });
 
   test('keeps the original non-root identity after pre-order data rewriting', () => {
     const branch: { self?: unknown } = {};
     branch.self = branch;
-    const traversal = new DepthFirstTreeTraversal({
-      traversableTree: new ObjectTreeSource({ branch }),
+    const traversal = new DepthFirstTreeTraversalBuilder({
+      treeDiscoverySource: new ObjectPropertyTreeSource({ branch }),
     });
-    traversal.addVisitorFor(
-      DepthFirstPhase.PRE_ORDER,
+    traversal.registerVisitorCallbackForPhase(
+      DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       (vertex, { isTreeRoot }) => {
-        if (!isTreeRoot && vertex.getData().key === 'branch') {
+        if (!isTreeRoot && vertex.getVertexData().propertyKey === 'branch') {
           return {
             commands: [
               {
-                commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+                commandName:
+                  TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
                 commandArguments: {
-                  newData: {
-                    key: 'branch',
-                    value: { replacement: true },
+                  replacementVertexData: {
+                    propertyKey: 'branch',
+                    propertyValue: { replacement: true },
                   },
                 },
               },
@@ -129,113 +159,145 @@ describe('object identity bookkeeping', () => {
       },
     );
 
-    expect(() => traversal.createRunner().run()).toThrow(
-      /cycle.*\$\.branch\.self.*ancestor at \$\.branch/i,
-    );
+    expect(() =>
+      traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
+    ).toThrow(/cycle.*\$\.branch\.self.*ancestor at \$\.branch/i);
   });
 
   test('retains hook-substituted ancestor identity after data rewriting', () => {
     const branch: { self?: unknown } = {};
     branch.self = branch;
-    const traversal = new DepthFirstTreeTraversal({
-      traversableTree: new ObjectTreeSource<{ branch: number }>(
+    const traversal = new DepthFirstTreeTraversalBuilder({
+      treeDiscoverySource: new ObjectPropertyTreeSource<{ branch: number }>(
         { branch: 0 },
         {
-          resolveChildHook: (hint) =>
-            hint.key === 'branch'
+          resolveChildPropertyOrUseDefault: (hint) =>
+            hint.propertyKey === 'branch'
               ? {
-                  kind: 'found',
-                  vertex: {
-                    vertexContent: {
-                      $data: { key: 'branch', value: branch },
-                      $childHints: [{ key: 'self', value: branch }],
+                  kind: 'vertexResolved',
+                  resolvedVertexInput: {
+                    vertexContentInput: {
+                      $vertexData: {
+                        propertyKey: 'branch',
+                        propertyValue: branch,
+                      },
+                      $childDiscoveryHints: [
+                        { propertyKey: 'self', propertyValue: branch },
+                      ],
                     },
                   },
                 }
-              : { kind: 'useDefault' },
+              : { kind: 'useDefaultChildPropertyResolution' },
         },
       ),
     });
-    traversal.addVisitorFor(DepthFirstPhase.PRE_ORDER, (vertex) => {
-      if (vertex.getData().key === 'branch') {
-        return {
-          commands: [
-            {
-              commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
-              commandArguments: { newData: { key: 'branch', value: {} } },
-            },
-          ],
-        };
-      }
-      return undefined;
-    });
-    expect(() => traversal.createRunner().run()).toThrow(
+    traversal.registerVisitorCallbackForPhase(
+      DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
+      (vertex) => {
+        if (vertex.getVertexData().propertyKey === 'branch') {
+          return {
+            commands: [
+              {
+                commandName:
+                  TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
+                commandArguments: {
+                  replacementVertexData: {
+                    propertyKey: 'branch',
+                    propertyValue: {},
+                  },
+                },
+              },
+            ],
+          };
+        }
+        return undefined;
+      },
+    );
+    expect(() =>
+      traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
+    ).toThrow(
       'Object identity cycle detected at $.branch.self; value repeats ancestor at $.branch',
     );
   });
 
   test('a rewritten root keeps its original child hints after data rewriting', () => {
     const visited: PropertyKey[] = [];
-    const traversal = new DepthFirstTreeTraversal({
-      traversableTree: new ObjectTreeSource({ child: 1 }),
+    const traversal = new DepthFirstTreeTraversalBuilder({
+      treeDiscoverySource: new ObjectPropertyTreeSource({ child: 1 }),
     });
-    traversal.addVisitorFor(
-      DepthFirstPhase.PRE_ORDER,
+    traversal.registerVisitorCallbackForPhase(
+      DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       (vertex, { isTreeRoot }) => {
         if (isTreeRoot) {
           return {
             commands: [
               {
-                commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+                commandName:
+                  TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
                 commandArguments: {
-                  newData: { key: 'root', value: { replacement: true } },
+                  replacementVertexData: {
+                    propertyKey: 'root',
+                    propertyValue: { replacement: true },
+                  },
                 },
               },
             ],
           };
         }
-        visited.push(vertex.getData().key);
+        visited.push(vertex.getVertexData().propertyKey);
         return undefined;
       },
     );
 
-    traversal.createRunner().run();
+    traversal
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
 
     expect(visited).toEqual(['child']);
   });
 
   test('hook-supplied primitive parents with explicit children do not create false cycles', () => {
     const visited: PropertyKey[] = [];
-    const traversal = new DepthFirstTreeTraversal({
-      traversableTree: new ObjectTreeSource<{ custom: { ignored: boolean } }>(
+    const traversal = new DepthFirstTreeTraversalBuilder({
+      treeDiscoverySource: new ObjectPropertyTreeSource<{
+        custom: { ignored: boolean };
+      }>(
         { custom: { ignored: true } },
         {
-          resolveChildHook: (hint) =>
-            hint.key === 'custom'
+          resolveChildPropertyOrUseDefault: (hint) =>
+            hint.propertyKey === 'custom'
               ? {
-                  kind: 'found',
-                  vertex: {
-                    vertexContent: {
-                      $data: { key: 'custom', value: 0 },
-                      $childHints: [
-                        { key: 'first', value: 1 },
-                        { key: 'second', value: 2 },
+                  kind: 'vertexResolved',
+                  resolvedVertexInput: {
+                    vertexContentInput: {
+                      $vertexData: { propertyKey: 'custom', propertyValue: 0 },
+                      $childDiscoveryHints: [
+                        { propertyKey: 'first', propertyValue: 1 },
+                        { propertyKey: 'second', propertyValue: 2 },
                       ],
                     },
                   },
                 }
-              : { kind: 'useDefault' },
+              : { kind: 'useDefaultChildPropertyResolution' },
         },
       ),
     });
-    traversal.addVisitorFor(
-      DepthFirstPhase.PRE_ORDER,
+    traversal.registerVisitorCallbackForPhase(
+      DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION,
       (vertex, { isTreeRoot }) => {
-        if (!isTreeRoot) visited.push(vertex.getData().key);
+        if (!isTreeRoot) visited.push(vertex.getVertexData().propertyKey);
       },
     );
 
-    expect(() => traversal.createRunner().run()).not.toThrow();
+    expect(() =>
+      traversal
+        .createIndependentRunnerFromCurrentOptions()
+        .runUntilSuspendedOrTerminal(),
+    ).not.toThrow();
     expect(visited).toEqual(['custom', 'first', 'second']);
   });
 
@@ -243,49 +305,52 @@ describe('object identity bookkeeping', () => {
     const originalBranch: Record<string, unknown> = {};
     originalBranch['self'] = originalBranch;
     const rootVertex = makeObjectVertex('global', { branch: originalBranch });
-    const rootRef = new MutableRef(rootVertex);
+    const rootRef = new MutableValueReference(rootVertex);
     const parentVertex = makeObjectVertex('branch', { replacement: true });
-    const parentRef = new MutableRef(parentVertex);
-    const resolvedTree = new ResolvedTreeStore<ObjectTree>();
-    resolvedTree.setRoot(rootRef);
-    resolvedTree.set(
+    const parentRef = new MutableValueReference(parentVertex);
+    const resolvedTree = new MutableResolvedTreeStore<ObjectTree>();
+    resolvedTree.setRootVertexReference(rootRef);
+    resolvedTree.setVertexRecord(
       rootRef,
-      new TreeVertexRecord({
-        metadata: { resolutionContext: null },
-        children: [parentRef],
+      new MutableTreeVertexTopologyRecord({
+        metadata: { childDiscoveryContext: null },
+        childReferences: [parentRef],
       }),
     );
     const parentContext = {
-      depth: 1,
-      hintIndex: 0,
-      parentVertex: rootVertex,
-      parentVertexRef: rootRef,
-      vertexHint: { key: 'branch', value: originalBranch },
+      discoveryDepthInEdges: 1,
+      parentChildHintIndex: 0,
+      parentVertexAtChildResolution: rootVertex,
+      parentVertexHandle: rootRef,
+      childDiscoveryHint: {
+        propertyKey: 'branch',
+        propertyValue: originalBranch,
+      },
     };
-    resolvedTree.set(
+    resolvedTree.setVertexRecord(
       parentRef,
-      new TreeVertexRecord({
-        metadata: { resolutionContext: parentContext },
-        children: [],
+      new MutableTreeVertexTopologyRecord({
+        metadata: { childDiscoveryContext: parentContext },
+        childReferences: [],
       }),
     );
-    const childHint = { key: 'self', value: originalBranch };
-    const adapter = new ObjectTreeSource<
+    const childHint = { propertyKey: 'self', propertyValue: originalBranch };
+    const adapter = new ObjectPropertyTreeSource<
       Record<PropertyKey, unknown>,
       PropertyKey,
       unknown
     >({});
 
     expect(() =>
-      adapter.resolveChild(childHint, {
-        resolvedTreeView: resolvedTree.asReadOnly(),
-        originalTreeView: null,
-        resolutionContext: {
-          depth: 2,
-          hintIndex: 0,
-          parentVertex,
-          parentVertexRef: parentRef,
-          vertexHint: childHint,
+      adapter.resolveChildVertexFromHint(childHint, {
+        liveResolvedTreeView: resolvedTree.getLiveReadOnlyTreeView(),
+        preCommandDiscoveredTreeView: null,
+        childDiscoveryContext: {
+          discoveryDepthInEdges: 2,
+          parentChildHintIndex: 0,
+          parentVertexAtChildResolution: parentVertex,
+          parentVertexHandle: createVertexHandleFacet(parentRef),
+          childDiscoveryHint: childHint,
         },
       }),
     ).toThrow(/cycle.*\$\.branch\.self.*ancestor at \$\.branch/i);
@@ -293,43 +358,43 @@ describe('object identity bookkeeping', () => {
 
   test('formats a detached null-context traversal root from its vertex data', () => {
     const globalRoot = makeObjectVertex('global', {});
-    const globalRootRef = new MutableRef(globalRoot);
+    const globalRootRef = new MutableValueReference(globalRoot);
     const detachedValue = {};
     const detachedVertex = makeObjectVertex('detached', detachedValue);
-    const detachedRef = new MutableRef(detachedVertex);
-    const resolvedTree = new ResolvedTreeStore<ObjectTree>();
-    resolvedTree.setRoot(globalRootRef);
-    resolvedTree.set(
+    const detachedRef = new MutableValueReference(detachedVertex);
+    const resolvedTree = new MutableResolvedTreeStore<ObjectTree>();
+    resolvedTree.setRootVertexReference(globalRootRef);
+    resolvedTree.setVertexRecord(
       globalRootRef,
-      new TreeVertexRecord({
-        metadata: { resolutionContext: null },
-        children: [],
+      new MutableTreeVertexTopologyRecord({
+        metadata: { childDiscoveryContext: null },
+        childReferences: [],
       }),
     );
-    resolvedTree.set(
+    resolvedTree.setVertexRecord(
       detachedRef,
-      new TreeVertexRecord({
-        metadata: { resolutionContext: null },
-        children: [],
+      new MutableTreeVertexTopologyRecord({
+        metadata: { childDiscoveryContext: null },
+        childReferences: [],
       }),
     );
-    const childHint = { key: 'child', value: detachedValue };
-    const adapter = new ObjectTreeSource<
+    const childHint = { propertyKey: 'child', propertyValue: detachedValue };
+    const adapter = new ObjectPropertyTreeSource<
       Record<PropertyKey, unknown>,
       PropertyKey,
       unknown
     >({});
 
     expect(() =>
-      adapter.resolveChild(childHint, {
-        resolvedTreeView: resolvedTree.asReadOnly(),
-        originalTreeView: null,
-        resolutionContext: {
-          depth: 1,
-          hintIndex: 0,
-          parentVertex: detachedVertex,
-          parentVertexRef: detachedRef,
-          vertexHint: childHint,
+      adapter.resolveChildVertexFromHint(childHint, {
+        liveResolvedTreeView: resolvedTree.getLiveReadOnlyTreeView(),
+        preCommandDiscoveredTreeView: null,
+        childDiscoveryContext: {
+          discoveryDepthInEdges: 1,
+          parentChildHintIndex: 0,
+          parentVertexAtChildResolution: detachedVertex,
+          parentVertexHandle: createVertexHandleFacet(detachedRef),
+          childDiscoveryHint: childHint,
         },
       }),
     ).toThrow(/cycle.*\$\.detached\.child.*ancestor at \$\.detached/i);
@@ -339,28 +404,28 @@ describe('object identity bookkeeping', () => {
     [
       'numeric array-index',
       () => {
-        const value: unknown[] = [];
-        value.push(value);
-        return value;
+        const propertyValue: unknown[] = [];
+        propertyValue.push(propertyValue);
+        return propertyValue;
       },
       /\$\[0\]/,
     ],
     [
       'symbol',
       () => {
-        const key = Symbol('loop');
-        const value: Record<PropertyKey, unknown> = {};
-        value[key] = value;
-        return value;
+        const propertyKey = Symbol('loop');
+        const propertyValue: Record<PropertyKey, unknown> = {};
+        propertyValue[propertyKey] = propertyValue;
+        return propertyValue;
       },
       /\$\[Symbol\(loop\)\]/,
     ],
     [
       'non-identifier string',
       () => {
-        const value: Record<string, unknown> = {};
-        value['not valid'] = value;
-        return value;
+        const propertyValue: Record<string, unknown> = {};
+        propertyValue['not valid'] = propertyValue;
+        return propertyValue;
       },
       /\$\["not valid"\]/,
     ],
@@ -373,64 +438,72 @@ describe('object identity bookkeeping', () => {
 });
 
 describe('public mutation command factory', () => {
-  const makeArguments = (value: unknown) => {
+  const makeArguments = (propertyValue: unknown) => {
     const vertex = new Vertex<ObjectTree>({
-      $data: { key: 'root', value },
-      $childHints: [],
+      $vertexData: { propertyKey: 'root', propertyValue: propertyValue },
+      $childDiscoveryHints: [],
     });
-    const vertexRef = new MutableRef(vertex);
-    const resolvedTree = new ResolvedTreeStore<ObjectTree>();
+    const vertexHandle = new MutableValueReference(vertex);
+    const resolvedTree = new MutableResolvedTreeStore<ObjectTree>();
     const registration = {
-      addedIndex: 0,
-      priority: 100,
-      commandCommitMode: 'afterEachVisitor' as const,
+      phaseRegistrationInsertionIndex: 0,
+      descendingExecutionPriorityWithinGroup: 100,
+      visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       visitor: () => undefined,
     };
-    const options: TreeVisitorContext<DepthFirstPhase, ObjectTree, ObjectTree> =
-      {
-        resolvedTreeView: resolvedTree.asReadOnly(),
-        originalTreeView: null,
-        phaseVisitIndex: 0,
-        visitorIndex: 0,
-        previousPhaseVertexRef: null,
-        isTreeRoot: true,
+    const options: TreeVisitorContext<
+      DepthFirstTreeVisitPhase,
+      ObjectTree,
+      ObjectTree
+    > = {
+      liveResolvedTreeView: resolvedTree.getLiveReadOnlyTreeView(),
+      preCommandDiscoveredTreeView: null,
+      phaseVisitorChainIndex: 0,
+      visitorCallbackIndexInPhaseChain: 0,
+      previousCommittedVisitVertexHandleForSamePhase: null,
+      isTreeRoot: true,
 
-        vertexRef,
-        visitorChainState: null,
-        registration,
-        phase: DepthFirstPhase.POST_ORDER,
-      };
+      vertexHandle: createVertexHandleFacet(vertexHandle),
+      currentVertexPhaseChainState: null,
+      visitorRegistrationMetadata: registration,
+      visitorPhase: DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
+    };
     return { vertex, options };
   };
 
   test.each([null, undefined, 3, 'invalid', true, Symbol('patch')])(
     'rejects malformed rewrite patch %p before assembly or mutation',
-    (rewrite) => {
+    (rewritePropertyAfterChildTraversal) => {
       const { vertex, options } = makeArguments({ child: 1 });
-      const assembledMap = new Map();
+      const assemblyCache = new Map();
       let assemblyCount = 0;
-      const mutation = ObjectTreeSource.createObjectMutationBinder<
-        ObjectTree,
-        ObjectTree
-      >({
-        assembledMap,
-        assembleObject: () => {
-          assemblyCount += 1;
-          return {};
-        },
-      })(vertex, options);
-      const before = vertex.getData();
+      const mutation =
+        ObjectPropertyTreeSource.createObjectPropertyMutationHelperBinder<
+          ObjectTree,
+          ObjectTree
+        >({
+          assemblyCache: assemblyCacheForMap(assemblyCache),
+          assembleObjectValueFromChildProperties: () => {
+            assemblyCount += 1;
+            return {};
+          },
+        })(vertex, options);
+      const before = vertex.getVertexData();
       const input = {
-        kind: 'rewrite',
-        patch: rewrite,
-      } as unknown as Parameters<typeof mutation.makeMutationCommand>[0];
+        kind: 'patchPropertyKeyOrValue',
+        propertyPatch: rewritePropertyAfterChildTraversal,
+      } as unknown as Parameters<
+        typeof mutation.createObjectPropertyMutationCommand
+      >[0];
 
-      expect(() => mutation.makeMutationCommand(input)).toThrow(TypeError);
-      expect(() => mutation.makeMutationCommand(input)).toThrow(
+      expect(() => mutation.createObjectPropertyMutationCommand(input)).toThrow(
+        TypeError,
+      );
+      expect(() => mutation.createObjectPropertyMutationCommand(input)).toThrow(
         /rewrite.*non-null object.*patch/i,
       );
-      expect(vertex.getData()).toBe(before);
-      expect(assembledMap.size).toBe(0);
+      expect(vertex.getVertexData()).toBe(before);
+      expect(assemblyCache.size).toBe(0);
       expect(assemblyCount).toBe(0);
     },
   );
@@ -439,87 +512,101 @@ describe('public mutation command factory', () => {
     'rejects an invalid first accessor patch %p without consuming later values',
     (firstPatch) => {
       const { vertex, options } = makeArguments({ child: 1 });
-      const before = vertex.getData();
-      const assembledMap = new Map();
+      const before = vertex.getVertexData();
+      const assemblyCache = new Map();
       let assemblyCount = 0;
       let reads = 0;
-      const { makeMutationCommand } =
-        ObjectTreeSource.createObjectMutationBinder<ObjectTree, ObjectTree>({
-          assembledMap,
-          assembleObject: () => {
-            assemblyCount += 1;
-            return {};
-          },
-        })(vertex, options);
+      const {
+        createObjectPropertyMutationCommand: makeVertexDataMutationCommand,
+      } = ObjectPropertyTreeSource.createObjectPropertyMutationHelperBinder<
+        ObjectTree,
+        ObjectTree
+      >({
+        assemblyCache: assemblyCacheForMap(assemblyCache),
+        assembleObjectValueFromChildProperties: () => {
+          assemblyCount += 1;
+          return {};
+        },
+      })(vertex, options);
       const input = {
-        kind: 'rewrite',
-        get patch() {
+        kind: 'patchPropertyKeyOrValue',
+        get propertyPatch() {
           return ++reads === 1 ? firstPatch : {};
         },
-      } as unknown as Parameters<typeof makeMutationCommand>[0];
+      } as unknown as Parameters<typeof makeVertexDataMutationCommand>[0];
 
-      expect(() => makeMutationCommand(input)).toThrow(
+      expect(() => makeVertexDataMutationCommand(input)).toThrow(
         /rewrite.*non-null object.*patch/i,
       );
       expect(reads).toBe(1);
       expect(assemblyCount).toBe(0);
-      expect(assembledMap.size).toBe(0);
-      expect(vertex.getData()).toBe(before);
+      expect(assemblyCache.size).toBe(0);
+      expect(vertex.getVertexData()).toBe(before);
     },
   );
 
   test.each([
     {
-      patch: {},
-      newData: { key: 'root', value: { assembled: true } },
+      propertyPatch: {},
+      replacementVertexData: {
+        propertyKey: 'root',
+        propertyValue: { assembled: true },
+      },
       assemblies: 1,
     },
     {
-      patch: { key: 'captured' },
-      newData: { key: 'captured', value: { assembled: true } },
+      propertyPatch: { propertyKey: 'captured' },
+      replacementVertexData: {
+        propertyKey: 'captured',
+        propertyValue: { assembled: true },
+      },
       assemblies: 1,
     },
     {
-      patch: { value: undefined },
-      newData: { key: 'root', value: undefined },
+      propertyPatch: { propertyValue: undefined },
+      replacementVertexData: { propertyKey: 'root', propertyValue: undefined },
       assemblies: 0,
     },
     {
-      patch: { key: 'captured', value: 4 },
-      newData: { key: 'captured', value: 4 },
+      propertyPatch: { propertyKey: 'captured', propertyValue: 4 },
+      replacementVertexData: { propertyKey: 'captured', propertyValue: 4 },
       assemblies: 0,
     },
   ])(
     'reads a valid accessor patch once and consumes only $patch',
-    ({ patch, newData, assemblies }) => {
+    ({ propertyPatch, replacementVertexData, assemblies }) => {
       const { vertex, options } = makeArguments({ child: 1 });
-      const before = vertex.getData();
-      const assembledMap = new Map();
+      const before = vertex.getVertexData();
+      const assemblyCache = new Map();
       let assemblyCount = 0;
       let reads = 0;
-      const { makeMutationCommand } =
-        ObjectTreeSource.createObjectMutationBinder<ObjectTree, ObjectTree>({
-          assembledMap,
-          assembleObject: () => {
-            assemblyCount += 1;
-            return { assembled: true };
-          },
-        })(vertex, options);
-      const input = {
-        kind: 'rewrite',
-        get patch() {
-          return ++reads <= 2 ? patch : 3;
+      const {
+        createObjectPropertyMutationCommand: makeVertexDataMutationCommand,
+      } = ObjectPropertyTreeSource.createObjectPropertyMutationHelperBinder<
+        ObjectTree,
+        ObjectTree
+      >({
+        assemblyCache: assemblyCacheForMap(assemblyCache),
+        assembleObjectValueFromChildProperties: () => {
+          assemblyCount += 1;
+          return { assembled: true };
         },
-      } as unknown as Parameters<typeof makeMutationCommand>[0];
+      })(vertex, options);
+      const input = {
+        kind: 'patchPropertyKeyOrValue',
+        get propertyPatch() {
+          return ++reads <= 2 ? propertyPatch : 3;
+        },
+      } as unknown as Parameters<typeof makeVertexDataMutationCommand>[0];
 
-      expect(makeMutationCommand(input)).toEqual({
-        commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
-        commandArguments: { newData },
+      expect(makeVertexDataMutationCommand(input)).toEqual({
+        commandName: TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
+        commandArguments: { replacementVertexData },
       });
       expect(reads).toBe(1);
       expect(assemblyCount).toBe(assemblies);
-      expect(assembledMap.size).toBe(0);
-      expect(vertex.getData()).toBe(before);
+      expect(assemblyCache.size).toBe(0);
+      expect(vertex.getVertexData()).toBe(before);
     },
   );
 
@@ -527,23 +614,27 @@ describe('public mutation command factory', () => {
     'preserves exact accessor error %p before assembly or mutation',
     (error) => {
       const { vertex, options } = makeArguments({ child: 1 });
-      const before = vertex.getData();
-      const assembledMap = new Map();
+      const before = vertex.getVertexData();
+      const assemblyCache = new Map();
       let assemblyCount = 0;
       let reads = 0;
-      const { makeMutationCommand } =
-        ObjectTreeSource.createObjectMutationBinder<ObjectTree, ObjectTree>({
-          assembledMap,
-          assembleObject: () => {
-            assemblyCount += 1;
-            return {};
-          },
-        })(vertex, options);
+      const {
+        createObjectPropertyMutationCommand: makeVertexDataMutationCommand,
+      } = ObjectPropertyTreeSource.createObjectPropertyMutationHelperBinder<
+        ObjectTree,
+        ObjectTree
+      >({
+        assemblyCache: assemblyCacheForMap(assemblyCache),
+        assembleObjectValueFromChildProperties: () => {
+          assemblyCount += 1;
+          return {};
+        },
+      })(vertex, options);
       let didThrow = false;
       try {
-        makeMutationCommand({
-          kind: 'rewrite',
-          get patch(): never {
+        makeVertexDataMutationCommand({
+          kind: 'patchPropertyKeyOrValue',
+          get propertyPatch(): never {
             reads += 1;
             throw error;
           },
@@ -555,50 +646,75 @@ describe('public mutation command factory', () => {
       expect(didThrow).toBe(true);
       expect(reads).toBe(1);
       expect(assemblyCount).toBe(0);
-      expect(assembledMap.size).toBe(0);
-      expect(vertex.getData()).toBe(before);
+      expect(assemblyCache.size).toBe(0);
+      expect(vertex.getVertexData()).toBe(before);
     },
   );
 
   test('honors own undefined values and key-only patches on primitives', () => {
     const { vertex, options } = makeArguments(1);
-    const { makeMutationCommand } = ObjectTreeSource.createObjectMutationBinder<
+    const {
+      createObjectPropertyMutationCommand: makeVertexDataMutationCommand,
+    } = ObjectPropertyTreeSource.createObjectPropertyMutationHelperBinder<
       ObjectTree,
       ObjectTree
     >()(vertex, options);
     expect(
-      makeMutationCommand({ kind: 'rewrite', patch: { value: undefined } }),
+      makeVertexDataMutationCommand({
+        kind: 'patchPropertyKeyOrValue',
+        propertyPatch: { propertyValue: undefined },
+      }),
     ).toEqual({
-      commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
-      commandArguments: { newData: { key: 'root', value: undefined } },
+      commandName: TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
+      commandArguments: {
+        replacementVertexData: {
+          propertyKey: 'root',
+          propertyValue: undefined,
+        },
+      },
     });
     expect(
-      makeMutationCommand({ kind: 'rewrite', patch: { key: 'renamed' } }),
+      makeVertexDataMutationCommand({
+        kind: 'patchPropertyKeyOrValue',
+        propertyPatch: { propertyKey: 'renamed' },
+      }),
     ).toEqual({
-      commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
-      commandArguments: { newData: { key: 'renamed', value: 1 } },
+      commandName: TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
+      commandArguments: {
+        replacementVertexData: { propertyKey: 'renamed', propertyValue: 1 },
+      },
     });
-    expect(makeMutationCommand({ kind: 'delete' })).toEqual({
-      commandName: TraversalVisitorCommandName.DELETE_TREE_SUBTREE,
+    expect(
+      makeVertexDataMutationCommand({ kind: 'deletePropertySubtree' }),
+    ).toEqual({
+      commandName:
+        TraversalVisitorCommandName.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
     });
-    expect(vertex.getData()).toEqual({ key: 'root', value: 1 });
+    expect(vertex.getVertexData()).toEqual({
+      propertyKey: 'root',
+      propertyValue: 1,
+    });
   });
 
   test.each([[], {}])(
     'preserves exact user assembler errors for %p',
-    (value) => {
+    (propertyValue) => {
       const error = { assemblerFailure: true };
-      const { vertex, options } = makeArguments(value);
+      const { vertex, options } = makeArguments(propertyValue);
       const failAssembly = (): never => {
         throw error;
       };
-      const { makeMutationCommand } =
-        ObjectTreeSource.createObjectMutationBinder<ObjectTree, ObjectTree>({
-          assembleArray: failAssembly,
-          assembleObject: failAssembly,
-        })(vertex, options);
+      const {
+        createObjectPropertyMutationCommand: makeVertexDataMutationCommand,
+      } = ObjectPropertyTreeSource.createObjectPropertyMutationHelperBinder<
+        ObjectTree,
+        ObjectTree
+      >({
+        assembleArrayValueFromChildProperties: failAssembly,
+        assembleObjectValueFromChildProperties: failAssembly,
+      })(vertex, options);
       try {
-        makeMutationCommand();
+        makeVertexDataMutationCommand();
         throw new Error('Expected assembler to throw');
       } catch (thrown) {
         expect(thrown).toBe(error);
@@ -607,36 +723,38 @@ describe('public mutation command factory', () => {
   );
 
   test('default array assembly handles a ref with no resolved child entry', () => {
-    const makeMutationCommand = ObjectTreeSource.createObjectMutationBinder<
-      ObjectTree,
-      ObjectTree
-    >();
+    const makeVertexDataMutationCommand =
+      ObjectPropertyTreeSource.createObjectPropertyMutationHelperBinder<
+        ObjectTree,
+        ObjectTree
+      >();
     const { vertex, options } = makeArguments([]);
-    const mutation = makeMutationCommand(vertex, options);
+    const mutation = makeVertexDataMutationCommand(vertex, options);
 
-    expect(mutation.assembleComposite()).toEqual([]);
-    expect(mutation.makeMutationCommand()).toEqual({
-      commandName: TraversalVisitorCommandName.REWRITE_VERTEX_DATA,
+    expect(mutation.assembleCompositeFromCurrentChildren()).toEqual([]);
+    expect(mutation.createObjectPropertyMutationCommand()).toEqual({
+      commandName: TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA,
       commandArguments: {
-        newData: { key: 'root', value: [] },
+        replacementVertexData: { propertyKey: 'root', propertyValue: [] },
       },
     });
   });
 
   test('assembling a primitive reports that it is not a composite', () => {
-    const makeMutationCommand = ObjectTreeSource.createObjectMutationBinder<
-      ObjectTree,
-      ObjectTree
-    >();
+    const makeVertexDataMutationCommand =
+      ObjectPropertyTreeSource.createObjectPropertyMutationHelperBinder<
+        ObjectTree,
+        ObjectTree
+      >();
     const { vertex, options } = makeArguments(1);
-    const mutation = makeMutationCommand(vertex, options);
+    const mutation = makeVertexDataMutationCommand(vertex, options);
 
     expect(mutation).toMatchObject({
-      isArray: false,
-      isObject: false,
-      isComposite: false,
+      matchesArrayAssemblyPredicate: false,
+      matchesObjectAssemblyPredicate: false,
+      matchesAnyCompositeAssemblyPredicate: false,
     });
-    expect(() => mutation.assembleComposite()).toThrow(
+    expect(() => mutation.assembleCompositeFromCurrentChildren()).toThrow(
       /not recognized by isArray or by isObject/,
     );
   });

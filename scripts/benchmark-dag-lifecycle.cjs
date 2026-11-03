@@ -56,30 +56,40 @@ function createLifecycleInspection(library, fixture, completed, options) {
   const counters = { root: 0, vertex: 0, ready: 0 };
   const indexes = new Map(fixture.ids.map((id, i) => [id, i]));
   const TreeTraversal =
-    options.mode === 'async' ? library.AsyncDagTraversal : library.DagTraversal;
+    options.mode === 'async'
+      ? library.AsyncDagTraversalBuilder
+      : library.DagTraversalBuilder;
   const traversal = new TreeTraversal({
-    discovery: options.discovery,
-    syntheticRoot: true,
-    completedWork: new Set(completed),
-    ...(options.mode === 'async' ? { concurrency: options.concurrency } : {}),
-    traversableGraph: {
-      resolveRoot: () => {
+    discoveryTiming:
+      options.discovery === 'eager'
+        ? 'completeBeforeAnyVisitor'
+        : 'incrementalDuringTraversal',
+    sourceRootIsHiddenEntryHolder: true,
+    acceptedCompletedWorkVertexIds: new Set(completed),
+    ...(options.mode === 'async'
+      ? { maxConcurrentCallbackInvocations: options.concurrency }
+      : {}),
+    dagDiscoverySource: {
+      resolveRootVertex: () => {
         counters.root++;
         return {
-          kind: 'found',
-          vertex: {
-            vertexContent: { $data: 'catalog', $childHints: fixture.ids },
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'catalog',
+              $childDiscoveryHints: fixture.ids,
+            },
           },
         };
       },
-      resolveChild: (id) => {
+      resolveChildHint: (id) => {
         counters.vertex++;
         return {
-          kind: 'found',
-          vertex: {
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
             vertexId: id,
-            dependsOnWork: fixture.prerequisites[indexes.get(id)],
-            vertexContent: { $data: id, $childHints: [] },
+            workWaitsForWorkOf: fixture.prerequisites[indexes.get(id)],
+            vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
           },
         };
       },
@@ -91,12 +101,13 @@ function createLifecycleInspection(library, fixture, completed, options) {
       commands: [
         {
           commandName:
-            library.TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+            library.TraversalVisitorCommandName
+              .END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION,
         },
       ],
     };
   };
-  traversal.addVisitorFor(
+  traversal.registerVisitorCallbackForPhase(
     library.DagVisitorPhase.ON_WORK_READY,
     options.mode === 'async'
       ? async () => {
@@ -105,13 +116,16 @@ function createLifecycleInspection(library, fixture, completed, options) {
         }
       : visit,
   );
-  return { runner: traversal.createRunner(), counters };
+  return {
+    runner: traversal.createIndependentRunnerFromCurrentOptions(),
+    counters,
+  };
 }
 
 async function timeRun(inspection, mode) {
   const start = performance.now();
-  if (mode === 'async') await inspection.runner.run();
-  else inspection.runner.run();
+  if (mode === 'async') await inspection.runner.runUntilSuspendedOrTerminal();
+  else inspection.runner.runUntilSuspendedOrTerminal();
   return performance.now() - start;
 }
 
@@ -121,10 +135,13 @@ function copySnapshot(snapshot) {
     ...snapshot,
     discovery: { ...snapshot.discovery },
     counts: { ...snapshot.counts },
-    vertices: new Map(
-      [...snapshot.vertices].map(([id, vertex]) => [
+    progressByVertexId: new Map(
+      [...snapshot.progressByVertexId].map(([id, vertex]) => [
         id,
-        { ...vertex, unmetPrerequisiteIds: [...vertex.unmetPrerequisiteIds] },
+        {
+          ...vertex,
+          unmetPrerequisiteVertexIds: [...vertex.unmetPrerequisiteVertexIds],
+        },
       ]),
     ),
     ...Object.fromEntries(
@@ -137,22 +154,22 @@ function copySnapshot(snapshot) {
 
 function measureSummaries(inspection, iterations) {
   const { runner, counters } = inspection;
-  const before = runner.summary();
+  const before = runner.captureProgressSnapshot();
   const calls = { ...counters };
-  const status = runner.getStatus();
+  const status = runner.getTraversalLifecycleStatus();
   let last;
   let consumed = 0;
   const start = performance.now();
   for (let i = 0; i < iterations; i++) {
-    last = runner.summary();
-    consumed += last.vertices.size;
+    last = runner.captureProgressSnapshot();
+    consumed += last.progressByVertexId.size;
   }
   const summaryBatchMs = performance.now() - start;
-  assert.equal(consumed, before.vertices.size * iterations);
+  assert.equal(consumed, before.progressByVertexId.size * iterations);
   assert.deepEqual(last, before);
-  assert.deepEqual(runner.summary(), before);
+  assert.deepEqual(runner.captureProgressSnapshot(), before);
   assert.deepEqual(counters, calls);
-  assert.equal(runner.getStatus(), status);
+  assert.equal(runner.getTraversalLifecycleStatus(), status);
   return {
     snapshot: last,
     timings: { summaryBatchMs, summaryPerCallMs: summaryBatchMs / iterations },
@@ -162,18 +179,27 @@ function measureSummaries(inspection, iterations) {
 function assertBoundary(inspection, snapshot, fixture, completed) {
   // Keep every prerequisite in the full oracle; project only its ready IDs onto visibility.
   // The flat catalog resolves all declarations even while lazy expansion remains open.
-  assert.equal(snapshot.counts.discovered, fixture.ids.length);
-  assert.equal(snapshot.diagnostics, null);
-  assert.equal(snapshot.counts.activeVisitorVertices, 0);
-  assert.equal(snapshot.counts.workCompleted, completed.size);
-  assert.deepEqual(new Set(snapshot.completedWorkIds), completed);
-  assert.deepEqual(snapshot.unusedCompletedWorkIds, []);
-  const ready = kahnFrontier(fixture, completed).readyIds.filter((id) =>
-    snapshot.vertices.has(id),
+  assert.equal(snapshot.counts.retainedLiveVertices, fixture.ids.length);
+  assert.equal(snapshot.invalidDependencyTopologyDiagnostics, null);
+  assert.equal(snapshot.counts.verticesWithAdmittedVisitorChains, 0);
+  assert.equal(snapshot.counts.workCompletionCommittedVertices, completed.size);
+  assert.deepEqual(
+    new Set(snapshot.workCompletionCommittedVertexIds),
+    completed,
   );
-  assert.deepEqual(new Set(snapshot.readyOrDeferredIds), new Set(ready));
-  assert.deepEqual(new Set(snapshot.deferredWorkIds), new Set(ready));
-  assert.equal(snapshot.counts.deferredWork, ready.length);
+  assert.deepEqual(snapshot.unmatchedCompletedWorkSeedVertexIds, []);
+  const ready = kahnFrontier(fixture, completed).readyIds.filter((id) =>
+    snapshot.progressByVertexId.has(id),
+  );
+  assert.deepEqual(
+    new Set(snapshot.workVisitorReadyOrWorkCompletionDeferredVertexIds),
+    new Set(ready),
+  );
+  assert.deepEqual(
+    new Set(snapshot.workCompletionDeferredVertexIds),
+    new Set(ready),
+  );
+  assert.equal(snapshot.counts.workCompletionDeferredVertices, ready.length);
   assert.equal(inspection.counters.root, 1);
   assert.equal(inspection.counters.vertex, fixture.ids.length);
   return ready; // Fixture order supplies a deterministic rank outside timing.
@@ -182,22 +208,25 @@ function assertBoundary(inspection, snapshot, fixture, completed) {
 function assertReconstructed(retained, reconstructed) {
   assert.deepEqual(reconstructed.counts, retained.counts);
   for (const key of [
-    'readyOrDeferredIds',
-    'deferredWorkIds',
-    'completedWorkIds',
-    'completedSubgraphIds',
+    'workVisitorReadyOrWorkCompletionDeferredVertexIds',
+    'workCompletionDeferredVertexIds',
+    'workCompletionCommittedVertexIds',
+    'subgraphCompletionCommittedVertexIds',
   ])
     assert.deepEqual(new Set(reconstructed[key]), new Set(retained[key]));
-  for (const [id, progress] of retained.vertices) {
-    const rebuilt = reconstructed.vertices.get(id);
-    assert.equal(rebuilt.work, progress.work);
-    assert.equal(rebuilt.subgraphComplete, progress.subgraphComplete);
-    assert.deepEqual(
-      rebuilt.unmetPrerequisiteIds,
-      progress.unmetPrerequisiteIds,
+  for (const [id, progress] of retained.progressByVertexId) {
+    const rebuilt = reconstructed.progressByVertexId.get(id);
+    assert.equal(rebuilt.workState, progress.workState);
+    assert.equal(
+      rebuilt.subgraphCompletionCommitted,
+      progress.subgraphCompletionCommitted,
     );
-    if (progress.generation !== undefined)
-      assert.notEqual(rebuilt.generation, progress.generation);
+    assert.deepEqual(
+      rebuilt.unmetPrerequisiteVertexIds,
+      progress.unmetPrerequisiteVertexIds,
+    );
+    if (progress.settlementToken !== undefined)
+      assert.notEqual(rebuilt.settlementToken, progress.settlementToken);
   }
 }
 
@@ -211,7 +240,7 @@ async function runLifecycleSample(library, fixture, seeds, options) {
     options,
   );
   const runnerConstructionMs = performance.now() - start;
-  const beforeDiscovery = retained.runner.summary();
+  const beforeDiscovery = retained.runner.captureProgressSnapshot();
   assert.equal(beforeDiscovery.discovery.complete, false);
   assert.deepEqual(retained.counters, { root: 0, vertex: 0, ready: 0 });
   const initialRunMs = await timeRun(retained, options.mode);
@@ -248,13 +277,17 @@ async function runLifecycleSample(library, fixture, seeds, options) {
     // Ranking, token lookup, fact updates and assertions are excluded from settlement timing.
     const settlements = acceptedIds.map((id) => [
       id,
-      snapshot.vertices.get(id).generation,
+      snapshot.progressByVertexId.get(id).settlementToken,
     ]);
     const accepted = [];
     start = performance.now();
     for (const [id, generation] of settlements)
       accepted.push(
-        retained.runner.settle(id, { kind: 'workCompleted' }, generation),
+        retained.runner.settleDeferredWork(
+          id,
+          { kind: 'workCompleted' },
+          generation,
+        ),
       );
     const settlementBatchMs = performance.now() - start;
     assert.ok(accepted.every((value) => value === true));
@@ -461,7 +494,7 @@ async function main(args) {
       reconstructionTotalMs:
         'sum of reconstructionSetupMs and reconstructionRunMs; overlaps both, excludes summaries/assertions and the timer gap',
       summaryBatchMs:
-        'repeated retained summary() plus consuming vertices.size, including allocation/possible GC; assertions excluded; sampled initially and after each tick',
+        'repeated retained captureProgressSnapshot() plus consuming progressByVertexId.size, including allocation/possible GC; assertions excluded; sampled initially and after each tick',
       summaryPerCallMs:
         'summaryBatchMs / summaryIterations; overlaps summaryBatchMs',
       reconstructionSummaryBatchMs:

@@ -1,12 +1,12 @@
 import {
-  AsyncDagTraversal,
+  AsyncDagTraversalBuilder,
   DagVisitorPhase as Order,
-  type DagVertexFound,
-  type VertexTypes,
+  type FoundDagSourceVertex,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 import assert from 'node:assert/strict';
 
-type ModuleGraph = VertexTypes<string, string>;
+type ModuleGraph = VertexDataAndChildHintTypes<string, string>;
 const modules = new Map([
   [
     'module:parser',
@@ -19,64 +19,69 @@ const moduleRegistry = {
     return modules.get(id);
   },
 };
-const generatedStep = (id: string): DagVertexFound<ModuleGraph> => ({
-  kind: 'found' as const,
-  vertex: {
+const generatedStep = (id: string): FoundDagSourceVertex<ModuleGraph> => ({
+  kind: 'vertexResolved' as const,
+  resolvedVertexInput: {
     vertexId: id,
-    dependsOnWork: ['module:parser'],
-    vertexContent: { $data: id, $childHints: [] },
+    workWaitsForWorkOf: ['module:parser'],
+    vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
   },
 });
 
 async function main() {
   const events: string[] = [];
-  const traversal = new AsyncDagTraversal<ModuleGraph>({
-    traversableGraph: {
-      resolveRoot: () => ({
-        kind: 'found' as const,
-        vertex: {
+  const traversal = new AsyncDagTraversalBuilder<ModuleGraph>({
+    dagDiscoverySource: {
+      resolveRootVertex: () => ({
+        kind: 'vertexResolved' as const,
+        resolvedVertexInput: {
           vertexId: 'app',
           // C includes parser's generated child step. Use dependsOnWork for W alone.
-          dependsOnSubgraphCompletion: ['module:parser'],
-          vertexContent: { $data: 'app', $childHints: [] },
+          workWaitsForSubgraphCompletionOf: ['module:parser'],
+          vertexContentInput: { $vertexData: 'app', $childDiscoveryHints: [] },
         },
       }),
-      resolveChild: generatedStep,
-      resolvePrerequisite: async (id) => {
+      resolveChildHint: generatedStep,
+      resolvePrerequisiteByVertexId: async (id) => {
         if (typeof id !== 'string') return { kind: 'missing' };
         const definition = await moduleRegistry.find(id);
         return definition === undefined
           ? { kind: 'missing' }
           : {
-              kind: 'found' as const,
-              vertex: {
+              kind: 'vertexResolved' as const,
+              resolvedVertexInput: {
                 vertexId: id,
-                dependsOnWork: definition.imports,
-                vertexContent: {
-                  $data: id,
-                  $childHints: definition.generatedSteps,
+                workWaitsForWorkOf: definition.imports,
+                vertexContentInput: {
+                  $vertexData: id,
+                  $childDiscoveryHints: definition.generatedSteps,
                 },
               },
             };
       },
     },
   });
-  traversal.addVisitorFor(Order.ON_WORK_READY, (vertex) => {
-    events.push(vertex.getData());
+  traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, (vertex) => {
+    events.push(vertex.getVertexData());
   });
-  const runner = traversal.createRunner();
-  await runner.run();
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  await runner.runUntilSuspendedOrTerminal();
   assert.deepEqual(events, [
     'module:lexer',
     'module:parser',
     'generate-parser',
     'app',
   ]);
-  const graph = runner.getResolvedGraphView();
-  const parser = graph.getVertexRefById('module:parser')!;
-  assert.deepEqual(graph.getParentsOf(parser), []);
-  assert.deepEqual(graph.requirePathsTo(parser), [[parser]]);
-  assert.equal(runner.summary().counts.subgraphCompleted, 4);
+  const graph = runner.getLiveResolvedGraphView();
+  const parser = graph.getVertexHandleByIdOrNull('module:parser')!;
+  assert.deepEqual(graph.getDistinctStructuralParentHandlesOrNull(parser), []);
+  assert.deepEqual(graph.requireAllStructuralAncestorPathsTo(parser), [
+    [parser],
+  ]);
+  assert.equal(
+    runner.captureProgressSnapshot().counts.subgraphCompletionCommittedVertices,
+    4,
+  );
   console.log(events.join('\n'));
 }
 void main();

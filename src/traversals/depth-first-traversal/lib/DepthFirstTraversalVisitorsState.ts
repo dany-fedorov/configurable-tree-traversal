@@ -1,17 +1,23 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import type { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import type { DepthFirstTreeVisitPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { TreeVisitorContext } from '@core/TraversalVisitor';
 
 export type DepthFirstTraversalVisitorsState<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  [K in DepthFirstPhase]: Pick<
-    TreeVisitorContext<DepthFirstPhase, TTP, RW_TTP>,
-    'phaseVisitIndex' | 'visitorIndex'
+  [K in DepthFirstTreeVisitPhase]: Pick<
+    TreeVisitorContext<
+      DepthFirstTreeVisitPhase,
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >,
+    'phaseVisitorChainIndex' | 'visitorCallbackIndexInPhaseChain'
   > & {
-    previousPhaseVertexRef:
-      | import('@core/graph/types').InternalVertexRef<TTP | RW_TTP>
+    previousCommittedVisitVertexHandleForSamePhase:
+      | import('@core/graph/types').InternalVertexRef<
+          InputVertexTypes | RewrittenVertexTypes
+        >
       | null;
   };
 };

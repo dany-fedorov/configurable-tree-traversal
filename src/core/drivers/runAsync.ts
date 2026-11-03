@@ -1,5 +1,5 @@
-import type { DriverInspection } from '@core/CoreInspection';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { TreeOrDagCallbackDriverSnapshot } from '@core/CoreInspection';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type {
   CallbackBindings,
   CallbackReply,
@@ -13,23 +13,31 @@ import type { AsyncSessionControl, SessionProgress } from '@core/kernelTypes';
 import { CallbackScheduler } from '@core/drivers/CallbackScheduler';
 import { Wakeup } from '@core/drivers/Wakeup';
 
-export type AsyncDriverControl<T extends VertexTypes> = AsyncSessionControl<
-  KernelEvent<T>
-> & { notifyProgress(): void };
+export type AsyncDriverControl<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+> = AsyncSessionControl<KernelEvent<InputVertexTypes>> & {
+  notifyProgress(): void;
+};
 
 export function createAsyncDriver<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 >(
-  kernel: KernelPort<T, R>,
-  bindings: CallbackBindings<T, R>,
-  concurrency: number,
-): AsyncDriverControl<T | R> {
+  kernel: KernelPort<InputVertexTypes, RewrittenVertexTypes>,
+  bindings: CallbackBindings<InputVertexTypes, RewrittenVertexTypes>,
+  maxConcurrentCallbackInvocations: number,
+): AsyncDriverControl<InputVertexTypes | RewrittenVertexTypes> {
   const wakeup = new Wakeup();
   const scheduler = new CallbackScheduler<
-    CallbackValues<T, R>[keyof CallbackValues<T, R>]
-  >(concurrency, () => wakeup.notify());
-  const calls = new Map<number, CallSpec<T, R>>();
+    CallbackValues<InputVertexTypes, RewrittenVertexTypes>[keyof CallbackValues<
+      InputVertexTypes,
+      RewrittenVertexTypes
+    >]
+  >(maxConcurrentCallbackInvocations, () => wakeup.notify());
+  const calls = new Map<
+    number,
+    CallSpec<InputVertexTypes, RewrittenVertexTypes>
+  >();
   const closeAcknowledgedBoundaries = new Set<number>();
   let emittedBoundaryId: number | null = null;
   let closing = false;
@@ -59,11 +67,13 @@ export function createAsyncDriver<
         requestId: call.requestId,
         kind: call.kind,
         outcome: settled.outcome,
-      } as CallbackReply<T, R>);
+      } as CallbackReply<InputVertexTypes, RewrittenVertexTypes>);
     }
   }
 
-  function enqueue(call: CallSpec<T, R>): void {
+  function enqueue(
+    call: CallSpec<InputVertexTypes, RewrittenVertexTypes>,
+  ): void {
     calls.set(call.requestId, call);
     scheduler.enqueue(call.requestId, () => {
       const raw = bindings.invoke(call);
@@ -77,7 +87,9 @@ export function createAsyncDriver<
   }
 
   return {
-    advance(mode: PumpMode): SessionProgress<KernelEvent<T | R>> {
+    advance(
+      mode: PumpMode,
+    ): SessionProgress<KernelEvent<InputVertexTypes | RewrittenVertexTypes>> {
       if (closing && emittedBoundaryId !== null) {
         kernel.acknowledgeEvent(emittedBoundaryId);
         closeAcknowledgedBoundaries.add(emittedBoundaryId);
@@ -126,13 +138,13 @@ export function createAsyncDriver<
       closing = false;
       kernel.resume(config, preparation);
     },
-    getStatus: () => kernel.getStatus(),
-    getStopReason: () => kernel.getStopReason(),
+    getTraversalLifecycleStatus: () => kernel.getTraversalLifecycleStatus(),
+    getTraversalStopReason: () => kernel.getTraversalStopReason(),
     getFailure: () => kernel.getFailure(),
-    inspect(): DriverInspection {
+    captureExecutionSnapshot(): TreeOrDagCallbackDriverSnapshot {
       return Object.freeze({
-        ...kernel.inspect(),
-        inFlightCallbackCount: scheduler.inFlight,
+        ...kernel.captureExecutionSnapshot(),
+        inFlightInvocationCount: scheduler.inFlight,
       });
     },
     waitForProgress: () => wakeup.wait(),

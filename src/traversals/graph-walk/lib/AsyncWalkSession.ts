@@ -1,5 +1,5 @@
 import type { GraphWalkEvent } from '../GraphWalkEvent';
-import { GraphWalkPhase } from '../GraphWalkPhase';
+import { GraphWalkObservationKind } from '../GraphWalkPhase';
 import type { TraversalIterableConfigInput } from '@core/TraversalRunnerIterableConfig';
 import { detachTraversalExecutionOptions } from '@core/normalizeTraversalExecutionOptions';
 import { captureOutcome } from '@core/drivers/captureOutcome';
@@ -12,19 +12,22 @@ type Waiter<Event> = {
 };
 type Lease<Event> = {
   phase: 'unopened' | 'active' | 'closing' | 'closed';
-  config: TraversalIterableConfigInput<GraphWalkPhase> | undefined;
+  config: TraversalIterableConfigInput<GraphWalkObservationKind> | undefined;
   demand: Waiter<Event>[];
   closes: (Waiter<never> & { consumerError: { error: unknown } | null })[];
 };
 const done = Object.freeze({ done: true as const, value: undefined });
 
 /** Executes one kernel request at a time; demand never drives past a delivery. */
-export class AsyncWalkSession<Data, Edge, ID> {
-  private owner: Lease<GraphWalkEvent<Data, Edge, ID>> | null = null;
+export class AsyncWalkSession<VertexData, EdgeData, VertexId> {
+  private owner: Lease<GraphWalkEvent<VertexData, EdgeData, VertexId>> | null =
+    null;
   private readonly wakeup = new Wakeup();
   private pauseRequested = false;
   private terminalClose: Promise<void> | null = null;
-  constructor(private readonly kernel: WalkKernel<Data, Edge, ID>) {}
+  constructor(
+    private readonly kernel: WalkKernel<VertexData, EdgeData, VertexId>,
+  ) {}
 
   closeTerminal(): Promise<void> {
     if (this.terminalClose !== null) return this.terminalClose;
@@ -33,29 +36,38 @@ export class AsyncWalkSession<Data, Edge, ID> {
         new Error('Graph walk already has an execution owner'),
       );
     this.kernel.beginClose();
-    this.terminalClose = this.iterateEvents()
-      .next()
-      .then(() => undefined);
+    this.terminalClose =
+      this.runAndIterateObservationEventsUntilSuspendedOrTerminal()
+        .next()
+        .then(() => undefined);
     return this.terminalClose;
   }
-  requestPause(): boolean {
-    const requested = this.kernel.requestPause();
+  requestPauseAfterAdmittedCallbacksDrain(): boolean {
+    const requested = this.kernel.requestPauseAfterAdmittedCallbacksDrain();
     if (requested) {
       this.pauseRequested = true;
       this.wakeup.notify();
     }
     return requested;
   }
-  iterateEvents(
-    config?: TraversalIterableConfigInput<GraphWalkPhase>,
-  ): AsyncGenerator<GraphWalkEvent<Data, Edge, ID>, void, unknown> {
-    const lease: Lease<GraphWalkEvent<Data, Edge, ID>> = {
+  runAndIterateObservationEventsUntilSuspendedOrTerminal(
+    config?: TraversalIterableConfigInput<GraphWalkObservationKind>,
+  ): AsyncGenerator<
+    GraphWalkEvent<VertexData, EdgeData, VertexId>,
+    void,
+    unknown
+  > {
+    const lease: Lease<GraphWalkEvent<VertexData, EdgeData, VertexId>> = {
       phase: 'unopened',
       config:
         config === undefined
           ? undefined
           : detachTraversalExecutionOptions(
-              [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE, GraphWalkPhase.PATH],
+              [
+                GraphWalkObservationKind.VERTEX_OCCURRENCE,
+                GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE,
+                GraphWalkObservationKind.ROUTE_PREFIX,
+              ],
               config,
             ),
       demand: [],
@@ -71,8 +83,10 @@ export class AsyncWalkSession<Data, Edge, ID> {
     };
   }
   private async next(
-    lease: Lease<GraphWalkEvent<Data, Edge, ID>>,
-  ): Promise<IteratorResult<GraphWalkEvent<Data, Edge, ID>, void>> {
+    lease: Lease<GraphWalkEvent<VertexData, EdgeData, VertexId>>,
+  ): Promise<
+    IteratorResult<GraphWalkEvent<VertexData, EdgeData, VertexId>, void>
+  > {
     if (lease.phase === 'closed') return Promise.resolve(done);
     if (lease.phase === 'unopened') {
       if (this.owner !== null) {
@@ -89,7 +103,7 @@ export class AsyncWalkSession<Data, Edge, ID> {
       void this.pump(lease);
     }
     const promise = new Promise<
-      IteratorResult<GraphWalkEvent<Data, Edge, ID>, void>
+      IteratorResult<GraphWalkEvent<VertexData, EdgeData, VertexId>, void>
     >((resolve, reject) => {
       lease.demand.push({ resolve, reject });
     });
@@ -97,7 +111,7 @@ export class AsyncWalkSession<Data, Edge, ID> {
     return promise;
   }
   private close(
-    lease: Lease<GraphWalkEvent<Data, Edge, ID>>,
+    lease: Lease<GraphWalkEvent<VertexData, EdgeData, VertexId>>,
     consumerError: { error: unknown } | null,
   ): Promise<IteratorResult<never, void>> {
     if (lease.phase === 'unopened' || lease.phase === 'closed') {
@@ -112,12 +126,12 @@ export class AsyncWalkSession<Data, Edge, ID> {
       },
     );
     lease.phase = 'closing';
-    this.requestPause();
+    this.requestPauseAfterAdmittedCallbacksDrain();
     this.wakeup.notify();
     return promise;
   }
   private async pump(
-    lease: Lease<GraphWalkEvent<Data, Edge, ID>>,
+    lease: Lease<GraphWalkEvent<VertexData, EdgeData, VertexId>>,
   ): Promise<void> {
     for (;;) {
       if (
@@ -131,14 +145,17 @@ export class AsyncWalkSession<Data, Edge, ID> {
       const action = this.kernel.poll(lease.phase === 'closing');
       if (action.kind === 'CALL') {
         // captureOutcome observes rejection as soon as caller code is admitted.
-        void captureOutcome(action.invoke).then((outcome) => {
-          this.kernel.submit(action.requestId, outcome);
+        void captureOutcome(action.invoke).then((terminalOutcome) => {
+          this.kernel.submit(
+            action.runnerLocalInvocationRequestId,
+            terminalOutcome,
+          );
           this.wakeup.notify();
         });
       } else if (action.kind === 'WAIT') {
         await this.wakeup.wait();
       } else if (action.kind === 'OBSERVATION') {
-        const event = this.kernel.shouldEmit(action.phase)
+        const event = this.kernel.shouldEmit(action.observationKind)
           ? action.event()
           : null;
         this.kernel.acknowledgeObservation(action.boundaryId);

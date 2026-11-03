@@ -1,35 +1,42 @@
+import { createVertexHandleFacet } from '../src/core/observationFacets';
 import {
-  AsyncDagTraversal,
-  AsyncDepthFirstTreeTraversal,
-  DagTraversal,
-  DepthFirstTreeTraversal,
-  DepthFirstPhase,
-  MutableRef,
-  ObjectTreeSource,
-  ResolvedTreeStore,
-  TreeVertexRecord,
+  AsyncDagTraversalBuilder,
+  AsyncDepthFirstTreeTraversalBuilder,
+  DagTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
+  DepthFirstTreeVisitPhase,
+  MutableValueReference,
+  ObjectPropertyTreeSource,
+  MutableResolvedTreeStore,
+  MutableTreeVertexTopologyRecord,
   Vertex,
-  type GetPathToOptions,
-  type VertexTypes,
+  type StructuralAncestorPathOptions,
+  type VertexDataAndChildHintTypes,
 } from '../src';
 
-type Query = (options?: GetPathToOptions) => unknown;
+type Query = (options?: StructuralAncestorPathOptions) => unknown;
 function verifyQuery(query: Query) {
   const defaultPath = query();
   expect(query({})).toEqual(defaultPath);
-  expect(query({ noRoot: undefined, noSelf: undefined })).toEqual(defaultPath);
-  for (const key of ['noRot', Symbol('noSelf')]) {
+  expect(
+    query({ includeDesignatedRoot: undefined, includeTargetVertex: undefined }),
+  ).toEqual(defaultPath);
+  for (const key of ['noRot', Symbol('includeTargetVertex')]) {
     expect(() =>
       query(Object.defineProperty({}, key, { value: true }) as never),
     ).toThrow(TypeError);
   }
   for (const value of [null, 1, 'yes'])
-    expect(() => query({ noRoot: value } as never)).toThrow(TypeError);
-  expect(() => query({ noSelf: null } as never)).toThrow(TypeError);
+    expect(() => query({ includeDesignatedRoot: value } as never)).toThrow(
+      TypeError,
+    );
+  expect(() => query({ includeTargetVertex: null } as never)).toThrow(
+    TypeError,
+  );
   expect(() => query(null as never)).toThrow(TypeError);
   let reads = 0;
   query({
-    get noRoot() {
+    get includeDesignatedRoot() {
       reads++;
       return true;
     },
@@ -39,93 +46,123 @@ function verifyQuery(query: Query) {
 
 for (const create of [
   () =>
-    new DepthFirstTreeTraversal({
-      traversableTree: new ObjectTreeSource({ a: 1 }),
-      retainOriginalTreeStructure: true,
+    new DepthFirstTreeTraversalBuilder({
+      treeDiscoverySource: new ObjectPropertyTreeSource({ a: 1 }),
+      retainDiscoveredTreeBeforeVisitorCommands: true,
     }),
   () =>
-    new AsyncDepthFirstTreeTraversal({
-      traversableTree: new ObjectTreeSource({ a: 1 }),
-      retainOriginalTreeStructure: true,
+    new AsyncDepthFirstTreeTraversalBuilder({
+      treeDiscoverySource: new ObjectPropertyTreeSource({ a: 1 }),
+      retainDiscoveredTreeBeforeVisitorCommands: true,
     }),
 ])
   test('tree live and original path option bags are strict and detached', async () => {
     const traversal = create();
-    traversal.addVisitorFor(DepthFirstPhase.POST_ORDER, (_vertex, context) => {
-      const view = context.originalTreeView!;
-      verifyQuery((options) => view.requirePathTo(view.getRoot()!, options));
-    });
-    const runner = traversal.createRunner();
-    await runner.run();
-    for (const view of [runner.getResolvedTreeView()]) {
-      const root = view.getRoot()!;
-      verifyQuery((options) => view.requirePathTo(root, options));
-      expect(view.requirePathTo(root, { noRoot: true, noSelf: true })).toEqual(
-        [],
+    traversal.registerVisitorCallbackForPhase(
+      DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES,
+      (_vertex, context) => {
+        const view = context.preCommandDiscoveredTreeView!;
+        verifyQuery((options) =>
+          view.requireStructuralAncestorPathTo(
+            view.getRootVertexHandleOrNull()!,
+            options,
+          ),
+        );
+      },
+    );
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    for (const view of [runner.getLiveResolvedTreeView()]) {
+      const root = view.getRootVertexHandleOrNull()!;
+      verifyQuery((options) =>
+        view.requireStructuralAncestorPathTo(root, options),
       );
+      expect(
+        view.requireStructuralAncestorPathTo(root, {
+          includeDesignatedRoot: false,
+          includeTargetVertex: false,
+        }),
+      ).toEqual([]);
     }
   });
 
 const id = { opaque: true };
 const graph = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { vertexId: id, vertexContent: { $data: id, $childHints: [] } },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexId: id,
+      vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
+    },
   }),
-  resolveChild: () => ({
-    identity: null,
-    kind: 'omitted' as const,
-    satisfiesDependencies: true as const,
+  resolveChildHint: () => ({
+    omittedVertexIdentity: null,
+    kind: 'vertexIntentionallyOmitted' as const,
+    satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
   }),
 };
 for (const create of [
   () =>
-    new DagTraversal({
-      traversableGraph: graph,
-      retainOriginalGraphStructure: true,
-    }).createRunner(),
+    new DagTraversalBuilder({
+      dagDiscoverySource: graph,
+      retainDiscoveredGraphBeforeVisitorCommands: true,
+    }).createIndependentRunnerFromCurrentOptions(),
   () =>
-    new AsyncDagTraversal({
-      traversableGraph: graph,
-      retainOriginalGraphStructure: true,
-    }).createRunner(),
+    new AsyncDagTraversalBuilder({
+      dagDiscoverySource: graph,
+      retainDiscoveredGraphBeforeVisitorCommands: true,
+    }).createIndependentRunnerFromCurrentOptions(),
 ])
   test('graph live and original path options reject unknown fields and retain opaque IDs', async () => {
     const runner = create();
-    await runner.run();
+    await runner.runUntilSuspendedOrTerminal();
     for (const view of [
-      runner.getResolvedGraphView(),
-      runner.originalGraphView!,
+      runner.getLiveResolvedGraphView(),
+      runner.preCommandDiscoveredGraphView!,
     ]) {
-      const root = view.getRoot()!;
-      verifyQuery((options) => view.requirePathsTo(root, options));
-      expect(view.requireVertexId(root)).toBe(id);
-      expect(view.requirePathsTo(root, { noRoot: true, noSelf: true })).toEqual(
-        [[]],
+      const root = view.getDesignatedRootHandleOrNull()!;
+      verifyQuery((options) =>
+        view.requireAllStructuralAncestorPathsTo(root, options),
       );
+      expect(view.requireVertexId(root)).toBe(id);
+      expect(
+        view.requireAllStructuralAncestorPathsTo(root, {
+          includeDesignatedRoot: false,
+          includeTargetVertex: false,
+        }),
+      ).toEqual([[]]);
     }
   });
 
 test('explicit tree store and its graph route share strict path option semantics', () => {
-  type T = VertexTypes<number, never>;
-  const root = new MutableRef(new Vertex<T>({ $data: 1, $childHints: [] }));
-  const store = new ResolvedTreeStore<T>();
-  store.set(
+  type T = VertexDataAndChildHintTypes<number, never>;
+  const root = new MutableValueReference(
+    new Vertex<T>({ $vertexData: 1, $childDiscoveryHints: [] }),
+  );
+  const store = new MutableResolvedTreeStore<T>();
+  store.setVertexRecord(
     root,
-    new TreeVertexRecord<T>({
-      metadata: { resolutionContext: null },
-      children: [],
+    new MutableTreeVertexTopologyRecord<T>({
+      metadata: { childDiscoveryContext: null },
+      childReferences: [],
     }),
   );
-  store.setRoot(root);
-  verifyQuery((options) => store.requirePathTo(root, options));
+  store.setRootVertexReference(root);
   verifyQuery((options) =>
-    store.getResolvedGraphView().requirePathsTo(root, options),
+    store.requireStructuralAncestorPathTo(root, options),
+  );
+  verifyQuery((options) =>
+    store
+      .getLiveResolvedGraphView()
+      .requireAllStructuralAncestorPathsTo(
+        createVertexHandleFacet(root),
+        options,
+      ),
   );
 });
 
 test('graph query controls read accessors once across multiple paths', () => {
-  type T = VertexTypes<string, string>;
+  type T = VertexDataAndChildHintTypes<string, string>;
   const data: Record<string, string[]> = {
     root: ['left', 'right'],
     left: ['leaf'],
@@ -133,37 +170,40 @@ test('graph query controls read accessors once across multiple paths', () => {
     leaf: [],
   };
   const found = (vertexId: string) => ({
-    kind: 'found' as const,
-    vertex: {
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId,
-      vertexContent: { $data: vertexId, $childHints: data[vertexId]! },
+      vertexContentInput: {
+        $vertexData: vertexId,
+        $childDiscoveryHints: data[vertexId]!,
+      },
     },
   });
-  const runner = new DagTraversal<T, T, string>({
-    retainOriginalGraphStructure: true,
-    traversableGraph: {
-      resolveRoot: () => found('root'),
-      resolveChild: (hint) => found(hint),
-      getVertexIdFromHint: (vertexId) => ({ vertexId }),
+  const runner = new DagTraversalBuilder<T, T, string>({
+    retainDiscoveredGraphBeforeVisitorCommands: true,
+    dagDiscoverySource: {
+      resolveRootVertex: () => found('root'),
+      resolveChildHint: (hint) => found(hint),
+      tryGetVertexIdentityFromHint: (vertexId) => ({ vertexId }),
     },
   })
-    .createRunner()
-    .run();
+    .createIndependentRunnerFromCurrentOptions()
+    .runUntilSuspendedOrTerminal();
   for (const view of [
-    runner.getResolvedGraphView(),
-    runner.originalGraphView!,
+    runner.getLiveResolvedGraphView(),
+    runner.preCommandDiscoveredGraphView!,
   ]) {
-    const leaf = view.getVertexRefById('leaf')!;
+    const leaf = view.getVertexHandleByIdOrNull('leaf')!;
     let rootReads = 0;
     let selfReads = 0;
-    const paths = view.requirePathsTo(leaf, {
-      get noRoot() {
+    const paths = view.requireAllStructuralAncestorPathsTo(leaf, {
+      get includeDesignatedRoot() {
         rootReads++;
-        return true;
+        return false;
       },
-      get noSelf() {
+      get includeTargetVertex() {
         selfReads++;
-        return true;
+        return false;
       },
     });
     expect(

@@ -1,146 +1,154 @@
 import {
-  materializeDagInputFromRecords,
-  materializeDagInputFromRoots,
-  materializeDagInputFromRecordsAsync,
-  materializeDagInputFromRootsAsync,
+  materializeMultiEntryDagInputFromRecordCatalog,
+  materializeDagInputFromRootRecords,
+  materializeMultiEntryDagInputFromRecordCatalogAsync,
+  materializeDagInputFromRootRecordsAsync,
 } from '../src/sources';
-import type { MaterializedDagInput } from '../src/sources';
-import { DagTraversal } from '../src/traversals/dag-traversal/DagTraversal';
-import { AsyncDagTraversal } from '../src/traversals/dag-traversal/AsyncDagTraversal';
+import type { MaterializedDagTraversalInput } from '../src/sources';
+import { DagTraversalBuilder } from '../src/traversals/dag-traversal/DagTraversal';
+import { AsyncDagTraversalBuilder } from '../src/traversals/dag-traversal/AsyncDagTraversal';
 import { DagVisitorPhase } from '../src/traversals/dag-traversal/lib/DagTraversalOrder';
 
 type Item = { id: number; children: Item[]; dependencies: number[] };
 const items: Item[] = [];
-const source = materializeDagInputFromRecords(items, {
-  id: (item) => item.id,
-  dependsOnWork: (item) => item.dependencies,
-  children: (item) => item.children.map((child) => child.id),
+const source = materializeMultiEntryDagInputFromRecordCatalog(items, {
+  selectVertexId: (item) => item.id,
+  selectWorkPrerequisiteVertexIds: (item) => item.dependencies,
+  selectStructuralChildVertexIds: (item) =>
+    item.children.map((child) => child.id),
 });
-const typedSource: MaterializedDagInput<Item, number> = source;
-const forest: MaterializedDagInput<Item, number> = materializeDagInputFromRoots(
-  items,
-  {
-    id: (item) => item.id,
-    children: (item) => item.children,
-  },
-);
-const asyncSource: Promise<MaterializedDagInput<Item, number>> =
-  materializeDagInputFromRecordsAsync(items, { id: async (item) => item.id });
-const asyncForest: Promise<MaterializedDagInput<Item, number>> =
-  materializeDagInputFromRootsAsync(items, {
-    id: async (item) => item.id,
-    children: async (item) => item.children,
+const typedSource: MaterializedDagTraversalInput<Item, number> = source;
+const forest: MaterializedDagTraversalInput<Item, number> =
+  materializeDagInputFromRootRecords(items, {
+    selectVertexId: (item) => item.id,
+    selectStructuralChildRecords: (item) => item.children,
+  });
+const asyncSource: Promise<MaterializedDagTraversalInput<Item, number>> =
+  materializeMultiEntryDagInputFromRecordCatalogAsync(items, {
+    selectVertexId: async (item) => item.id,
+  });
+const asyncForest: Promise<MaterializedDagTraversalInput<Item, number>> =
+  materializeDagInputFromRootRecordsAsync(items, {
+    selectVertexId: async (item) => item.id,
+    selectStructuralChildRecords: async (item) => item.children,
   });
 for (const traversal of [
-  new DagTraversal(source),
-  new AsyncDagTraversal(source),
+  new DagTraversalBuilder(source),
+  new AsyncDagTraversalBuilder(source),
 ]) {
-  traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, (vertex, options) => {
-    const item: Item = vertex.getData();
-    const id: number = options.resolvedGraphView.requireVertexId(
-      options.vertexRef,
-    );
-    void [item, id];
-  });
-  // @ts-expect-error The inferred ID domain is numeric.
-  traversal.createRunner().getResolvedGraphView().getVertexRefById('wrong');
+  traversal.registerVisitorCallbackForPhase(
+    DagVisitorPhase.ON_WORK_READY,
+    (vertex, options) => {
+      const item: Item = vertex.getVertexData();
+      const id: number = options.liveResolvedGraphView.requireVertexId(
+        options.vertexHandle,
+      );
+      void [item, id];
+    },
+  );
+  traversal
+    .createIndependentRunnerFromCurrentOptions()
+    .getLiveResolvedGraphView()
+    // @ts-expect-error The inferred ID domain is numeric.
+    .getVertexHandleByIdOrNull('wrong');
 }
-const asyncTraversal = new AsyncDagTraversal({
+const asyncTraversal = new AsyncDagTraversalBuilder({
   ...source,
   visitors: {
     [DagVisitorPhase.ON_WORK_READY]: async (vertex, options) => {
-      const item: Item = vertex.getData();
-      const id: number = options.resolvedGraphView.requireVertexId(
-        options.vertexRef,
+      const item: Item = vertex.getVertexData();
+      const id: number = options.liveResolvedGraphView.requireVertexId(
+        options.vertexHandle,
       );
       await Promise.resolve();
       void [item, id];
     },
   },
 });
-const asyncRunner = asyncTraversal.createRunner();
+const asyncRunner = asyncTraversal.createIndependentRunnerFromCurrentOptions();
 // @ts-expect-error Undefined must not be added to the inferred numeric ID domain.
-asyncRunner.getResolvedGraphView().getVertexRefById(undefined);
+asyncRunner.getLiveResolvedGraphView().getVertexHandleByIdOrNull(undefined);
 async function exactAsyncEvents() {
-  for await (const event of asyncRunner.iterateEvents()) {
+  for await (const event of asyncRunner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
     const id: number = event.vertexId;
     void id;
   }
 }
 void exactAsyncEvents;
-materializeDagInputFromRecords(items, {
-  id: (item) => item.id,
+materializeMultiEntryDagInputFromRecordCatalog(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Synchronous selectors cannot return promises.
-  dependsOnWork: async (item) => item.dependencies,
+  selectWorkPrerequisiteVertexIds: async (item) => item.dependencies,
 });
-materializeDagInputFromRecords(items, {
-  id: (item) => item.id,
+materializeMultiEntryDagInputFromRecordCatalog(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Graph children are IDs, not records.
-  children: (item) => item.children,
+  selectStructuralChildVertexIds: (item) => item.children,
 });
-materializeDagInputFromRoots(items, {
-  id: (item) => item.id,
+materializeDagInputFromRootRecords(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Forest children are records, not IDs.
-  children: (item) => item.dependencies,
+  selectStructuralChildRecords: (item) => item.dependencies,
 });
-materializeDagInputFromRecords(items, {
+materializeMultiEntryDagInputFromRecordCatalog(items, {
   // @ts-expect-error IDs and prerequisites must agree.
-  id: (item) => item.id,
-  dependsOnWork: () => ['bad'],
+  selectVertexId: (item) => item.id,
+  selectWorkPrerequisiteVertexIds: () => ['bad'],
 });
-materializeDagInputFromRecordsAsync(items, {
+materializeMultiEntryDagInputFromRecordCatalogAsync(items, {
   // @ts-expect-error Async IDs and prerequisites must agree.
-  id: async (item) => item.id,
-  dependsOnWork: async () => ['bad'],
+  selectVertexId: async (item) => item.id,
+  selectWorkPrerequisiteVertexIds: async () => ['bad'],
 });
 void [typedSource, forest, asyncSource, asyncForest];
 
 const canonicalSelectors = {
-  id: (item: Item) => item.id,
-  dependsOnWork: (item: Item) => item.dependencies,
-  dependsOnSubgraphCompletion: (item: Item) => item.dependencies,
+  selectVertexId: (item: Item) => item.id,
+  selectWorkPrerequisiteVertexIds: (item: Item) => item.dependencies,
+  selectSubgraphCompletionPrerequisiteVertexIds: (item: Item) =>
+    item.dependencies,
 };
-materializeDagInputFromRecords(items, canonicalSelectors);
-materializeDagInputFromRoots(items, canonicalSelectors);
-materializeDagInputFromRecordsAsync(items, canonicalSelectors);
-materializeDagInputFromRootsAsync(items, canonicalSelectors);
-materializeDagInputFromRecords(items, {
-  id: (item) => item.id,
+materializeMultiEntryDagInputFromRecordCatalog(items, canonicalSelectors);
+materializeDagInputFromRootRecords(items, canonicalSelectors);
+materializeMultiEntryDagInputFromRecordCatalogAsync(items, canonicalSelectors);
+materializeDagInputFromRootRecordsAsync(items, canonicalSelectors);
+materializeMultiEntryDagInputFromRecordCatalog(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   dependencies: undefined,
 });
-materializeDagInputFromRecords(items, {
-  id: (item) => item.id,
+materializeMultiEntryDagInputFromRecordCatalog(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   completionDependencies: undefined,
 });
-materializeDagInputFromRoots(items, {
-  id: (item) => item.id,
+materializeDagInputFromRootRecords(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   dependencies: undefined,
 });
-materializeDagInputFromRoots(items, {
-  id: (item) => item.id,
+materializeDagInputFromRootRecords(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   completionDependencies: undefined,
 });
-materializeDagInputFromRecordsAsync(items, {
-  id: (item) => item.id,
+materializeMultiEntryDagInputFromRecordCatalogAsync(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   dependencies: undefined,
 });
-materializeDagInputFromRecordsAsync(items, {
-  id: (item) => item.id,
+materializeMultiEntryDagInputFromRecordCatalogAsync(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   completionDependencies: undefined,
 });
-materializeDagInputFromRootsAsync(items, {
-  id: (item) => item.id,
+materializeDagInputFromRootRecordsAsync(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   dependencies: undefined,
 });
-materializeDagInputFromRootsAsync(items, {
-  id: (item) => item.id,
+materializeDagInputFromRootRecordsAsync(items, {
+  selectVertexId: (item) => item.id,
   // @ts-expect-error Retired selector names cannot silently drop prerequisite edges.
   completionDependencies: undefined,
 });

@@ -90,6 +90,7 @@
     "docs/migration-idiomatic-api.md",
     "docs/migration-client-api.md",
     "docs/migration-api-distinctions.md",
+    "docs/migration-explicit-api.md",
     "docs/api-index.md"
   ],
   "sideEffects": false,
@@ -183,7 +184,7 @@
       },
       "default": "./dist/tools/rewrite-object/index.js"
     },
-    "./sources": {
+    "./dag-input-materialization": {
       "import": {
         "types": "./dist/sources/index.d.mts",
         "default": "./dist/sources/index.mjs"
@@ -221,11 +222,11 @@
       "tools/rewrite-object": [
         "dist/tools/rewrite-object/index.d.ts"
       ],
-      "sources": [
-        "dist/sources/index.d.ts"
-      ],
       "*": [
         "__private_denied__/*"
+      ],
+      "dag-input-materialization": [
+        "dist/sources/index.d.ts"
       ]
     }
   },

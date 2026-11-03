@@ -1,4 +1,4 @@
-import { MutableRef } from '../src/core/CTTRef';
+import { MutableValueReference } from '../src/core/CTTRef';
 import {
   createVertexIdLabeler,
   hasVertexId,
@@ -21,10 +21,10 @@ test('distinguishes an absent vertex id from an explicit undefined id', () => {
 });
 
 test('new references generate independent UUID ids', () => {
-  const first = new MutableRef({});
-  const second = new MutableRef({});
+  const first = new MutableValueReference({});
+  const second = new MutableValueReference({});
 
-  expect(first.getRefId()).not.toBe(second.getRefId());
+  expect(first.getReferenceIdentity()).not.toBe(second.getReferenceIdentity());
 });
 
 test('diagnostic labels are literal for primitives and stable for references', () => {

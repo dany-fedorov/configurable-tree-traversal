@@ -1,18 +1,22 @@
 import { assertOwnKeys, definedOptions } from '@core/assertPublicOptions';
-import type { ChildIndexSelection } from '@depth-first-traversal/in-order-helpers/IndexRange';
+import type { ZeroBasedOrEndRelativeChildIndexSelection } from '@depth-first-traversal/in-order-helpers/IndexRange';
 
-export type InOrderOptions = {
-  afterChildIndices: ChildIndexSelection;
-  fallbackChildIndices: ChildIndexSelection;
-  visitSingleChildParent: boolean;
-  visitAfterOmittedChildren: boolean;
+export type DepthFirstChildBoundaryVisitOptions = {
+  visitAfterChildIndices: ZeroBasedOrEndRelativeChildIndexSelection;
+  visitAfterChildIndicesWhenPrimarySelectionIsEmpty: ZeroBasedOrEndRelativeChildIndexSelection;
+  alsoVisitAfterOnlyChild: boolean;
+  allowBoundaryVisitsAfterOmittedChildSlots: boolean;
 };
 
-export type InOrderOptionsPatch = {
-  [K in keyof InOrderOptions]?: InOrderOptions[K] | undefined;
+export type DepthFirstChildBoundaryVisitOptionsPatch = {
+  [K in keyof DepthFirstChildBoundaryVisitOptions]?:
+    | DepthFirstChildBoundaryVisitOptions[K]
+    | undefined;
 };
 
-function clonePositions(value: ChildIndexSelection): ChildIndexSelection {
+function clonePositions(
+  value: ZeroBasedOrEndRelativeChildIndexSelection,
+): ZeroBasedOrEndRelativeChildIndexSelection {
   assertOwnKeys(value, ['indices', 'ranges']);
   const indices = Object.prototype.hasOwnProperty.call(value, 'indices');
   const ranges = Object.prototype.hasOwnProperty.call(value, 'ranges');
@@ -35,9 +39,9 @@ function clonePositions(value: ChildIndexSelection): ChildIndexSelection {
     throw new TypeError('Child ranges must be an array');
   return {
     ranges: Array.from(captured.ranges, (range) => {
-      assertOwnKeys(range, ['from', 'through']);
-      const from: unknown = Reflect.get(range, 'from');
-      const through: unknown = Reflect.get(range, 'through');
+      assertOwnKeys(range, ['fromInclusive', 'throughInclusive']);
+      const from: unknown = Reflect.get(range, 'fromInclusive');
+      const through: unknown = Reflect.get(range, 'throughInclusive');
       if (
         typeof from !== 'number' ||
         typeof through !== 'number' ||
@@ -45,31 +49,33 @@ function clonePositions(value: ChildIndexSelection): ChildIndexSelection {
         !integer(through)
       )
         throw new TypeError('Child range endpoints must be safe integers');
-      return { from, through };
+      return { fromInclusive: from, throughInclusive: through };
     }),
   };
 }
 
 export function mergeInOrderOptions(
-  base: InOrderOptions,
-  input?: InOrderOptionsPatch,
-): InOrderOptions {
+  base: DepthFirstChildBoundaryVisitOptions,
+  input?: DepthFirstChildBoundaryVisitOptionsPatch,
+): DepthFirstChildBoundaryVisitOptions {
   if (input !== undefined)
     assertOwnKeys(input, [
-      'afterChildIndices',
-      'fallbackChildIndices',
-      'visitSingleChildParent',
-      'visitAfterOmittedChildren',
+      'visitAfterChildIndices',
+      'visitAfterChildIndicesWhenPrimarySelectionIsEmpty',
+      'alsoVisitAfterOnlyChild',
+      'allowBoundaryVisitsAfterOmittedChildSlots',
     ]);
   const merged = { ...base, ...definedOptions(input ?? {}) };
   if (
-    typeof merged.visitSingleChildParent !== 'boolean' ||
-    typeof merged.visitAfterOmittedChildren !== 'boolean'
+    typeof merged.alsoVisitAfterOnlyChild !== 'boolean' ||
+    typeof merged.allowBoundaryVisitsAfterOmittedChildSlots !== 'boolean'
   )
     throw new TypeError('In-order visit policies must be boolean');
   return {
     ...merged,
-    afterChildIndices: clonePositions(merged.afterChildIndices),
-    fallbackChildIndices: clonePositions(merged.fallbackChildIndices),
+    visitAfterChildIndices: clonePositions(merged.visitAfterChildIndices),
+    visitAfterChildIndicesWhenPrimarySelectionIsEmpty: clonePositions(
+      merged.visitAfterChildIndicesWhenPrimarySelectionIsEmpty,
+    ),
   };
 }

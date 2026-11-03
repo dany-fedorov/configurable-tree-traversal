@@ -1,21 +1,21 @@
 import type {
-  CommandCommitMode,
+  VisitorCommandCommitTiming,
   VisitorGroupMetadata,
 } from '@core/TraversalVisitor';
 
 /** Command commit boundaries are independent of callback ordering. */
 export function getVisitorBatchEnds(
   records: readonly {
-    commandCommitMode?: CommandCommitMode | undefined;
+    visitorCommandCommitTiming?: VisitorCommandCommitTiming | undefined;
     visitorGroup?: VisitorGroupMetadata | undefined;
   }[],
 ): boolean[] {
   return records.map((record, index) => {
     const next = records[index + 1];
     return (
-      record.commandCommitMode === 'afterEachVisitor' ||
+      record.visitorCommandCommitTiming === 'afterEachVisitorCallback' ||
       next === undefined ||
-      next.commandCommitMode !== 'afterGroup' ||
+      next.visitorCommandCommitTiming !== 'afterContiguousVisitorBatch' ||
       next.visitorGroup !== record.visitorGroup
     );
   });

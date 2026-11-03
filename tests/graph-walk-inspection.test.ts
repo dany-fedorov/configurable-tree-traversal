@@ -1,7 +1,7 @@
 import {
-  AsyncGraphWalk,
-  GraphWalk,
-  GraphWalkPhase as Phase,
+  AsyncGraphWalkBuilder,
+  GraphWalkBuilder,
+  GraphWalkObservationKind as Phase,
   TraversalRunnerStatus as Status,
 } from '../src';
 
@@ -17,48 +17,59 @@ it('captures passive frozen detached mechanical state while a visitor is pending
     entered = resolve;
   });
   let calls = 0;
-  const runner = new AsyncGraphWalk({
-    source: {
-      hydration: 'inlineOrCached' as const,
-      roots: () => [
+  const runner = new AsyncGraphWalkBuilder({
+    graphWalkDiscoverySource: {
+      vertexResolutionMode:
+        'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+      enumerateRootTargets: () => [
         {
-          kind: 'inline' as const,
+          kind: 'inlineResolution' as const,
           vertexId: id,
-          resolution: { kind: 'found', data },
+          resolutionIfNotPreviouslyAdmitted: {
+            kind: 'found',
+            vertexData: data,
+          },
         },
       ],
-      outgoing: () => {
+      enumerateOutgoingLinks: () => {
         calls++;
         return [];
       },
     },
-    visitors: {
-      [Phase.VERTEX]: async () => {
+    visitorsByObservationKind: {
+      [Phase.VERTEX_OCCURRENCE]: async () => {
         entered();
         await pending;
       },
     },
-  }).createRunner();
-  const running = runner.run();
+  }).createIndependentRunnerFromCurrentOptions();
+  const running = runner.runUntilSuspendedOrTerminal();
   await started;
-  const snapshot = runner.inspect();
+  const snapshot = runner.captureExecutionSnapshot();
   expect(snapshot).toMatchObject({
-    kind: 'graph-walk',
+    traversalAlgorithm: 'graph-walk',
     sourceMode: 'graph',
     concurrency: 1,
-    status: Status.RUNNING,
-    execution: 'async',
-    inFlightCallbackCount: 1,
-    bufferedEventCount: 2,
-    frontierSize: 0,
+    traversalLifecycleStatus: Status.RUNNING,
+    callbackExecutionMode: 'async',
+    inFlightInvocationCount: 1,
+    bufferedDeliveryEventCount: 2,
+    pendingRouteExpansionFrameCount: 0,
     openSourceIteratorCount: 1,
-    pendingObservationKinds: [Phase.VERTEX, Phase.PATH],
-    activeVisitor: { phase: Phase.VERTEX, visitorIndex: 0 },
-    pendingRequests: [{ operation: 'visit' }],
+    pendingObservationKinds: [Phase.VERTEX_OCCURRENCE, Phase.ROUTE_PREFIX],
+    visitorChainPosition: {
+      observationKind: Phase.VERTEX_OCCURRENCE,
+      visitorIndexInObservationChain: 0,
+    },
+    pendingInvocationRequests: [{ operation: 'invokeVisitorCallback' }],
   });
-  const token = snapshot.pendingRequests[0]!.vertexToken;
+  const token =
+    snapshot.pendingInvocationRequests[0]!.runnerLocalVertexIdentityToken;
   expect(typeof token).toBe('symbol');
-  expect(runner.inspect().pendingRequests[0]!.vertexToken).toBe(token);
+  expect(
+    runner.captureExecutionSnapshot().pendingInvocationRequests[0]!
+      .runnerLocalVertexIdentityToken,
+  ).toBe(token);
   function check(value: unknown) {
     expect(value).not.toBe(id);
     expect(value).not.toBe(data);
@@ -71,55 +82,62 @@ it('captures passive frozen detached mechanical state while a visitor is pending
   }
   check(snapshot);
   expect(() =>
-    Object.assign(snapshot.counts, { candidateReadAttempts: 900 }),
+    Object.assign(snapshot.counts, {
+      rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 900,
+    }),
   ).toThrow();
-  expect(runner.inspect()).toEqual(snapshot);
-  expect(runner.inspect()).not.toBe(snapshot);
+  expect(runner.captureExecutionSnapshot()).toEqual(snapshot);
+  expect(runner.captureExecutionSnapshot()).not.toBe(snapshot);
   expect(calls).toBe(0);
   expect(Object.isFrozen(id)).toBe(false);
   expect(Object.isFrozen(data)).toBe(false);
-  expect(runner.requestPause()).toBe(true);
-  expect(runner.requestPause()).toBe(false);
+  expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(true);
+  expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
   release();
   await running;
-  expect(runner.getStatus()).toBe(Status.HALTED);
-  expect(runner.inspect().inFlightCallbackCount).toBe(0);
-  expect(runner.inspect().bufferedEventCount).toBe(1);
-  await runner.close();
-  expect(runner.inspect()).toMatchObject({
-    status: Status.FINISHED,
-    bufferedEventCount: 0,
-    frontierSize: 0,
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.SUSPENDED);
+  expect(runner.captureExecutionSnapshot().inFlightInvocationCount).toBe(0);
+  expect(runner.captureExecutionSnapshot().bufferedDeliveryEventCount).toBe(1);
+  await runner.closePermanentlyAndDisposeSourceIterators();
+  expect(runner.captureExecutionSnapshot()).toMatchObject({
+    traversalLifecycleStatus: Status.FINISHED,
+    bufferedDeliveryEventCount: 0,
+    pendingRouteExpansionFrameCount: 0,
     openSourceIteratorCount: 0,
-    activeVisitor: null,
-    pendingRequests: [],
+    visitorChainPosition: null,
+    pendingInvocationRequests: [],
   });
 });
 
 it('freezes owned summary records without freezing arbitrary failure objects', () => {
   const error = { reason: 'caller error' };
-  const runner = new GraphWalk({
-    source: {
-      hydration: 'inlineOrCached' as const,
-      roots() {
+  const runner = new GraphWalkBuilder({
+    graphWalkDiscoverySource: {
+      vertexResolutionMode:
+        'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+      enumerateRootTargets() {
         throw error;
       },
-      outgoing: () => [],
+      enumerateOutgoingLinks: () => [],
     },
-  }).createRunner();
+  }).createIndependentRunnerFromCurrentOptions();
   try {
-    runner.run();
+    runner.runUntilSuspendedOrTerminal();
   } catch (observed) {
     expect(observed).toBe(error);
   }
-  const summary = runner.summary();
-  expect(Object.isFrozen(summary)).toBe(true);
-  expect(Object.isFrozen(summary.counts)).toBe(true);
-  expect(Object.isFrozen(summary.counts.processedObservations)).toBe(true);
-  expect(Object.isFrozen(summary.outcome)).toBe(true);
+  const captureProgressSnapshot = runner.captureProgressSnapshot();
+  expect(Object.isFrozen(captureProgressSnapshot)).toBe(true);
+  expect(Object.isFrozen(captureProgressSnapshot.counts)).toBe(true);
+  expect(
+    Object.isFrozen(
+      captureProgressSnapshot.counts.acknowledgedObservationCountsByKind,
+    ),
+  ).toBe(true);
+  expect(Object.isFrozen(captureProgressSnapshot.terminalOutcome)).toBe(true);
   expect(Object.isFrozen(error)).toBe(false);
-  expect(runner.summary()).not.toBe(summary);
-  expect(runner.requestPause()).toBe(false);
+  expect(runner.captureProgressSnapshot()).not.toBe(captureProgressSnapshot);
+  expect(runner.requestPauseAfterAdmittedCallbacksDrain()).toBe(false);
 });
 
 it('uses consistent private tokens across source, predicate, observation, and cleanup requests', () => {
@@ -131,22 +149,24 @@ it('uses consistent private tokens across source, predicate, observation, and cl
     },
   };
   function snapshot() {
-    const inspection = runner.inspect();
-    expect(inspection.inFlightCallbackCount).toBe(1);
-    operations.push(inspection.pendingRequests[0]!.operation);
-    tokens.push(inspection.pendingRequests[0]!.vertexToken);
+    const inspection = runner.captureExecutionSnapshot();
+    expect(inspection.inFlightInvocationCount).toBe(1);
+    operations.push(inspection.pendingInvocationRequests[0]!.operation);
+    tokens.push(
+      inspection.pendingInvocationRequests[0]!.runnerLocalVertexIdentityToken,
+    );
   }
-  const runner = new GraphWalk({
-    strategy: 'depthFirst',
-    limits: { maxAdmittedTargets: 2 },
-    source: {
-      hydration: 'resolver' as const,
-      roots: () => [{ vertexId: id }],
-      resolveVertex: () => {
+  const runner = new GraphWalkBuilder({
+    expansionOrder: 'depthFirst',
+    limits: { maxAdmittedRootOrLinkTargetOccurrences: 2 },
+    graphWalkDiscoverySource: {
+      vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+      enumerateRootTargets: () => [{ vertexId: id }],
+      resolveVertexDataById: () => {
         snapshot();
-        return { kind: 'found', data: id };
+        return { kind: 'found', vertexData: id };
       },
-      outgoing: () => {
+      enumerateOutgoingLinks: () => {
         snapshot();
         return {
           [Symbol.iterator]() {
@@ -155,7 +175,10 @@ it('uses consistent private tokens across source, predicate, observation, and cl
                 snapshot();
                 return {
                   done: false,
-                  value: { target: { vertexId: id }, data: id },
+                  value: {
+                    targetToResolveOnAdmission: { vertexId: id },
+                    edgeData: id,
+                  },
                 };
               },
               return() {
@@ -167,26 +190,29 @@ it('uses consistent private tokens across source, predicate, observation, and cl
         };
       },
     },
-    shouldFollowEdge: () => {
+    shouldAdmitOutgoingLinkTarget: () => {
       snapshot();
       return true;
     },
-    shouldExpandVertex: () => {
+    shouldExpandVertexOccurrence: () => {
       snapshot();
       return true;
     },
-    visitors: { [Phase.VERTEX]: snapshot, [Phase.EDGE]: snapshot },
-  }).createRunner();
-  runner.run();
+    visitorsByObservationKind: {
+      [Phase.VERTEX_OCCURRENCE]: snapshot,
+      [Phase.ADMITTED_EDGE_OCCURRENCE]: snapshot,
+    },
+  }).createIndependentRunnerFromCurrentOptions();
+  runner.runUntilSuspendedOrTerminal();
   expect(operations).toEqual([
-    'resolveVertex',
-    'visit',
-    'shouldExpandVertex',
-    'outgoing',
-    'edgeNext',
-    'shouldFollowEdge',
-    'visit',
-    'iteratorReturn',
+    'resolveVertexDataById',
+    'invokeVisitorCallback',
+    'shouldExpandVertexOccurrence',
+    'enumerateOutgoingLinks',
+    'readNextOutgoingLinkOrCachedReplay',
+    'shouldAdmitOutgoingLinkTarget',
+    'invokeVisitorCallback',
+    'returnSourceIteratorForDisposal',
   ]);
   expect(typeof tokens[0]).toBe('symbol');
   expect(new Set(tokens).size).toBe(1);
@@ -204,10 +230,10 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
   });
   let resolutions = 0;
   let returns = 0;
-  const factory = new AsyncGraphWalk({
-    source: {
-      hydration: 'resolver' as const,
-      roots: () => ({
+  const factory = new AsyncGraphWalkBuilder({
+    graphWalkDiscoverySource: {
+      vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+      enumerateRootTargets: () => ({
         [Symbol.asyncIterator]() {
           return {
             next() {
@@ -221,26 +247,27 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
           };
         },
       }),
-      resolveVertex: () => {
+      resolveVertexDataById: () => {
         resolutions++;
-        return { kind: 'found', data: 1 };
+        return { kind: 'found', vertexData: 1 };
       },
-      outgoing: () => [],
+      enumerateOutgoingLinks: () => [],
     },
   });
-  const runner = factory.createRunner();
-  const iterator = runner.iterateEvents();
+  const runner = factory.createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const next = iterator.next();
   await started;
   const returned = iterator.return();
   release({ done: false, value: { vertexId: 1 } });
   await next;
   await returned;
-  const paused = runner.inspect();
+  const paused = runner.captureExecutionSnapshot();
   expect(paused).toMatchObject({
-    status: Status.HALTED,
-    inFlightCallbackCount: 0,
-    pendingRequests: [{ operation: 'resolveVertex' }],
+    traversalLifecycleStatus: Status.SUSPENDED,
+    inFlightInvocationCount: 0,
+    pendingInvocationRequests: [{ operation: 'resolveVertexDataById' }],
   });
   pending = new Promise<IteratorResult<{ vertexId: number }>>((resolve) => {
     release = resolve;
@@ -248,20 +275,26 @@ it('keeps tokens local to each runner, and terminal close discards an unissued r
   started = new Promise<void>((resolve) => {
     entered = resolve;
   });
-  const other = factory.createRunner();
-  const otherIterator = other.iterateEvents();
+  const other = factory.createIndependentRunnerFromCurrentOptions();
+  const otherIterator =
+    other.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const otherNext = otherIterator.next();
   await started;
   const otherReturn = otherIterator.return();
   release({ done: false, value: { vertexId: 1 } });
   await otherNext;
   await otherReturn;
-  expect(other.inspect().pendingRequests[0]!.vertexToken).not.toBe(
-    paused.pendingRequests[0]!.vertexToken,
+  expect(
+    other.captureExecutionSnapshot().pendingInvocationRequests[0]!
+      .runnerLocalVertexIdentityToken,
+  ).not.toBe(
+    paused.pendingInvocationRequests[0]!.runnerLocalVertexIdentityToken,
   );
-  await runner.close();
-  await other.close();
+  await runner.closePermanentlyAndDisposeSourceIterators();
+  await other.closePermanentlyAndDisposeSourceIterators();
   expect(resolutions).toBe(0);
   expect(returns).toBe(2);
-  expect(runner.inspect().pendingRequests).toEqual([]);
+  expect(runner.captureExecutionSnapshot().pendingInvocationRequests).toEqual(
+    [],
+  );
 });

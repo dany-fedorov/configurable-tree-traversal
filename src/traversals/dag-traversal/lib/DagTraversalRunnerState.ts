@@ -1,56 +1,74 @@
-import type { MutableRef } from '@core/CTTRef';
-import type { VisitPhase } from '@core/effects/types';
+import type { MutableValueReference } from '@core/CTTRef';
+import type { TreeOrDagVisitorPhase } from '@core/effects/types';
 import type { VisitorExecutionState } from '@core/executeVisitors';
 import type { InternalVertexRef } from '@core/graph/types';
 import { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import { copyDagTerminalObservation } from './DagTerminalObservation';
 import { DagVisitorPhase } from './DagTraversalOrder';
 
-export type DagTraversalVisitorsState<T extends VertexTypes> = {
-  [K in DagVisitorPhase]: VisitorExecutionState<T>;
+export type DagTraversalVisitorsState<
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+> = {
+  [K in DagVisitorPhase]: VisitorExecutionState<SourceVertexTypes>;
 };
 
 function initVisitorsState<
-  T extends VertexTypes,
->(): DagTraversalVisitorsState<T> {
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+>(): DagTraversalVisitorsState<SourceVertexTypes> {
   return {
     [DagVisitorPhase.ON_WORK_READY]: {
-      phaseVisitIndex: 0,
-      visitorIndex: 0,
-      previousPhaseVertexRef: null,
+      phaseVisitorChainIndex: 0,
+      visitorCallbackIndexInPhaseChain: 0,
+      previousCommittedVisitVertexHandleForSamePhase: null,
     },
-    [DagVisitorPhase.ON_SUBGRAPH_READY]: {
-      phaseVisitIndex: 0,
-      visitorIndex: 0,
-      previousPhaseVertexRef: null,
+    [DagVisitorPhase.ON_SUBGRAPH_COMPLETION_READY]: {
+      phaseVisitorChainIndex: 0,
+      visitorCallbackIndexInPhaseChain: 0,
+      previousCommittedVisitVertexHandleForSamePhase: null,
     },
   };
 }
 
 export class DagTraversalRunnerState<
-  T extends VertexTypes = VertexTypes,
-  R extends VertexTypes = T,
+  SourceVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = SourceVertexTypes,
 > {
   status: TraversalRunnerStatus;
-  traversalRootVertexRef: MutableRef<Vertex<T | R>> | null;
-  subtreeTraversalDisabledRefs: Set<MutableRef<Vertex<T | R>>>;
-  visitorsState: Partial<Record<VisitPhase, VisitorExecutionState<T | R>>>;
-  readyVisits: Array<{
-    vertexRef: InternalVertexRef<T | R>;
+  traversalRootVertexRef: MutableValueReference<
+    Vertex<SourceVertexTypes | RewrittenVertexTypes>
+  > | null;
+  subtreeTraversalDisabledRefs: Set<
+    MutableValueReference<Vertex<SourceVertexTypes | RewrittenVertexTypes>>
+  >;
+  visitorsState: Partial<
+    Record<
+      TreeOrDagVisitorPhase,
+      VisitorExecutionState<SourceVertexTypes | RewrittenVertexTypes>
+    >
+  >;
+  dependencyEligiblePhaseVisits: Array<{
+    vertexHandle: InternalVertexRef<SourceVertexTypes | RewrittenVertexTypes>;
     order: DagVisitorPhase;
   }>;
-  expansionQueue: InternalVertexRef<T | R>[];
+  expansionQueue: InternalVertexRef<SourceVertexTypes | RewrittenVertexTypes>[];
   failure: { error: unknown } | null;
 
-  constructor(from?: Partial<DagTraversalRunnerState<T, R>> | null) {
-    this.status = from?.status ?? TraversalRunnerStatus.INITIAL;
+  constructor(
+    from?: Partial<
+      DagTraversalRunnerState<SourceVertexTypes, RewrittenVertexTypes>
+    > | null,
+  ) {
+    this.status = from?.status ?? TraversalRunnerStatus.NOT_STARTED;
     this.traversalRootVertexRef = from?.traversalRootVertexRef ?? null;
     this.subtreeTraversalDisabledRefs =
       from?.subtreeTraversalDisabledRefs ?? new Set();
-    this.visitorsState = from?.visitorsState ?? initVisitorsState<T | R>();
-    this.readyVisits = from?.readyVisits ?? [];
+    this.visitorsState =
+      from?.visitorsState ??
+      initVisitorsState<SourceVertexTypes | RewrittenVertexTypes>();
+    this.dependencyEligiblePhaseVisits =
+      from?.dependencyEligiblePhaseVisits ?? [];
     this.expansionQueue = from?.expansionQueue ?? [];
     this.failure = from?.failure ?? null;
     copyDagTerminalObservation(from, this);

@@ -1,7 +1,7 @@
 import {
-  ObjectTreeSource,
-  BreadthFirstTreeTraversal,
-  BreadthFirstPhase,
+  ObjectPropertyTreeSource,
+  BreadthFirstTreeTraversalBuilder,
+  BreadthFirstTreeVisitPhase,
 } from '../src';
 
 const input = {
@@ -9,12 +9,15 @@ const input = {
   second: { secondChild: 2 },
 };
 
-const traversal = new BreadthFirstTreeTraversal({
-  traversableTree: new ObjectTreeSource(input),
+const traversal = new BreadthFirstTreeTraversalBuilder({
+  treeDiscoverySource: new ObjectPropertyTreeSource(input),
 });
 
-traversal.addVisitorFor(BreadthFirstPhase.LEVEL_ORDER, (vertex) =>
-  console.log(vertex.getData()),
+traversal.registerVisitorCallbackForPhase(
+  BreadthFirstTreeVisitPhase.AT_LEVEL_ORDER_VERTEX,
+  (vertex) => console.log(vertex.getVertexData()),
 );
 
-traversal.createRunner().run();
+traversal
+  .createIndependentRunnerFromCurrentOptions()
+  .runUntilSuspendedOrTerminal();

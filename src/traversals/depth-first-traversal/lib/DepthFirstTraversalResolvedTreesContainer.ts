@@ -1,36 +1,44 @@
-import { MutableRef } from '@core/CTTRef';
+import { MutableValueReference } from '@core/CTTRef';
 import {
-  ResolvedTreeStore,
-  TreeVertexRecord,
-  InternalVertexResolutionContext,
+  MutableResolvedTreeStore,
+  MutableTreeVertexTopologyRecord,
+  InternalChildDiscoveryContext,
 } from '@core/ResolvedTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { Vertex } from '@core/Vertex';
 import type { DepthFirstTreeResolvedOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInstanceConfig';
 import { jsonStringifySafe } from '@utils/jsonStringifySafe';
 
 export type OriginalTreeRefsMap<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
-> = Map<MutableRef<Vertex<TTP | RW_TTP>>, MutableRef<Vertex<TTP>>>;
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+> = Map<
+  MutableValueReference<Vertex<InputVertexTypes | RewrittenVertexTypes>>,
+  MutableValueReference<Vertex<InputVertexTypes>>
+>;
 
 export class DepthFirstTraversalResolvedTreesContainer<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > {
-  resolvedTree: ResolvedTreeStore<TTP | RW_TTP>;
-  originalTreeView: ResolvedTreeStore<TTP> | null;
-  originalTreeRefsMap: OriginalTreeRefsMap<TTP, RW_TTP> | null;
+  resolvedTree: MutableResolvedTreeStore<
+    InputVertexTypes | RewrittenVertexTypes
+  >;
+  preCommandDiscoveredTreeView: MutableResolvedTreeStore<InputVertexTypes> | null;
+  originalTreeRefsMap: OriginalTreeRefsMap<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  > | null;
 
   constructor(
     cfg: Pick<
-      DepthFirstTreeResolvedOptions<TTP, RW_TTP>,
-      'retainOriginalTreeStructure'
+      DepthFirstTreeResolvedOptions<InputVertexTypes, RewrittenVertexTypes>,
+      'retainDiscoveredTreeBeforeVisitorCommands'
     > & {
       traversalRunnerInternalObjects: Pick<
         DepthFirstTreeResolvedOptions<
-          TTP,
-          RW_TTP
+          InputVertexTypes,
+          RewrittenVertexTypes
         >['traversalRunnerInternalObjects'],
         'resolvedTreesContainer'
       >;
@@ -41,125 +49,162 @@ export class DepthFirstTraversalResolvedTreesContainer<
         ?.resolvedTree != null
         ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
             .resolvedTree
-        : new ResolvedTreeStore<TTP | RW_TTP>();
-    this.originalTreeView =
+        : new MutableResolvedTreeStore<
+            InputVertexTypes | RewrittenVertexTypes
+          >();
+    this.preCommandDiscoveredTreeView =
       cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
-        ?.originalTreeView != null
+        ?.preCommandDiscoveredTreeView != null
         ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
-            .originalTreeView
-        : cfg.retainOriginalTreeStructure
-        ? new ResolvedTreeStore<TTP>()
+            .preCommandDiscoveredTreeView
+        : cfg.retainDiscoveredTreeBeforeVisitorCommands
+        ? new MutableResolvedTreeStore<InputVertexTypes>()
         : null;
     this.originalTreeRefsMap =
       cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
         ?.originalTreeRefsMap != null
         ? cfg?.traversalRunnerInternalObjects?.resolvedTreesContainer
             .originalTreeRefsMap
-        : cfg.retainOriginalTreeStructure
+        : cfg.retainDiscoveredTreeBeforeVisitorCommands
         ? new Map()
         : null;
   }
 
   set(
-    vertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
-    vertexResolved: TreeVertexRecord<TTP | RW_TTP>,
+    vertexHandle: MutableValueReference<
+      Vertex<InputVertexTypes | RewrittenVertexTypes>
+    >,
+    vertexResolved: MutableTreeVertexTopologyRecord<
+      InputVertexTypes | RewrittenVertexTypes
+    >,
   ): void {
-    const resolutionContext = vertexResolved.getResolutionContext();
-    this.validateSavedResolutionContext(resolutionContext);
-    if (this.originalTreeView && this.originalTreeRefsMap) {
-      const vertex = (vertexRef as MutableRef<Vertex<TTP>>).getValue();
+    const childDiscoveryContext =
+      vertexResolved.getMutableChildDiscoveryContextOrNull();
+    this.validateSavedResolutionContext(childDiscoveryContext);
+    if (this.preCommandDiscoveredTreeView && this.originalTreeRefsMap) {
+      const vertex = (
+        vertexHandle as MutableValueReference<Vertex<InputVertexTypes>>
+      ).getReferencedValue();
       const notMutatedRef =
-        this.originalTreeRefsMap.get(vertexRef) ??
-        new MutableRef<Vertex<TTP>>(
-          vertex.clone({ $childHints: vertex.getChildHints().slice() }),
+        this.originalTreeRefsMap.get(vertexHandle) ??
+        new MutableValueReference<Vertex<InputVertexTypes>>(
+          vertex.createEditableShallowCloneWithContentOverrides({
+            $childDiscoveryHints: vertex
+              .getMutableChildDiscoveryHints()
+              .slice(),
+          }),
         );
-      const notMutatedChildren = vertexResolved.getChildren().map((child) => {
-        const notMutatedChild = this.originalTreeRefsMap?.get(child);
-        if (notMutatedChild === undefined) {
-          throw new Error(
-            `Could not find not mutated child ref - ${jsonStringifySafe(
-              child,
-            )}`,
-          );
-        }
-        return notMutatedChild;
-      });
-      const notMutatedVertexResolved = vertexResolved.clone({
-        children: notMutatedChildren,
-      });
-      if (resolutionContext === null) {
-        notMutatedVertexResolved.setResolutionContext(null);
+      const notMutatedChildren = vertexResolved
+        .getMutableChildReferenceList()
+        .map((child) => {
+          const notMutatedChild = this.originalTreeRefsMap?.get(child);
+          if (notMutatedChild === undefined) {
+            throw new Error(
+              `Could not find not mutated child ref - ${jsonStringifySafe(
+                child,
+              )}`,
+            );
+          }
+          return notMutatedChild;
+        });
+      const notMutatedVertexResolved =
+        vertexResolved.shallowCloneWithRecordOverrides({
+          childReferences: notMutatedChildren,
+        });
+      if (childDiscoveryContext === null) {
+        notMutatedVertexResolved.replaceChildDiscoveryContext(null);
       } else {
         const notMutatedVertexParentRef = this.originalTreeRefsMap.get(
-          resolutionContext.parentVertexRef,
+          childDiscoveryContext.parentVertexHandle,
         )!;
-        notMutatedVertexResolved.setResolutionContext({
-          ...resolutionContext,
-          parentVertexRef: notMutatedVertexParentRef,
-          parentVertex: notMutatedVertexParentRef.getValue(),
+        notMutatedVertexResolved.replaceChildDiscoveryContext({
+          ...childDiscoveryContext,
+          parentVertexHandle: notMutatedVertexParentRef,
+          parentVertexAtChildResolution:
+            notMutatedVertexParentRef.getReferencedValue(),
         });
       }
-      this.resolvedTree.set(vertexRef, vertexResolved);
-      this.originalTreeRefsMap.set(vertexRef, notMutatedRef);
-      this.originalTreeView.set(
+      this.resolvedTree.setVertexRecord(vertexHandle, vertexResolved);
+      this.originalTreeRefsMap.set(vertexHandle, notMutatedRef);
+      this.preCommandDiscoveredTreeView.setVertexRecord(
         notMutatedRef,
-        notMutatedVertexResolved as TreeVertexRecord<TTP>,
+        notMutatedVertexResolved as MutableTreeVertexTopologyRecord<InputVertexTypes>,
       );
       return;
     }
-    this.resolvedTree.set(vertexRef, vertexResolved);
+    this.resolvedTree.setVertexRecord(vertexHandle, vertexResolved);
   }
 
   validateSavedResolutionContext(
-    resolutionContext: InternalVertexResolutionContext<TTP | RW_TTP> | null,
+    childDiscoveryContext: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
+    > | null,
   ): void {
     if (
-      this.originalTreeView !== null &&
+      this.preCommandDiscoveredTreeView !== null &&
       this.originalTreeRefsMap !== null &&
-      resolutionContext !== null &&
-      !this.originalTreeRefsMap.has(resolutionContext.parentVertexRef)
+      childDiscoveryContext !== null &&
+      !this.originalTreeRefsMap.has(childDiscoveryContext.parentVertexHandle)
     ) {
       throw new Error(
         `Could not find not mutated parent ref - ${jsonStringifySafe(
-          resolutionContext.parentVertexRef,
+          childDiscoveryContext.parentVertexHandle,
         )}`,
       );
     }
   }
 
   setWithResolutionContext(
-    vertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
-    vertexResolutionContext: InternalVertexResolutionContext<
-      TTP | RW_TTP
+    vertexHandle: MutableValueReference<
+      Vertex<InputVertexTypes | RewrittenVertexTypes>
+    >,
+    vertexResolutionContext: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
     > | null,
   ): void {
     this.set(
-      vertexRef,
-      new TreeVertexRecord<TTP | RW_TTP>({
-        metadata: { resolutionContext: vertexResolutionContext },
-        children: [],
+      vertexHandle,
+      new MutableTreeVertexTopologyRecord<
+        InputVertexTypes | RewrittenVertexTypes
+      >({
+        metadata: { childDiscoveryContext: vertexResolutionContext },
+        childReferences: [],
       }),
     );
   }
 
-  setRoot(vertexRef: MutableRef<Vertex<TTP | RW_TTP>>): void {
-    this.resolvedTree.setRoot(vertexRef);
-    this.setWithResolutionContext(vertexRef, null);
-    const notMutatedRootRef = this.originalTreeRefsMap?.get(vertexRef);
-    if (this.originalTreeView && notMutatedRootRef) {
-      this.originalTreeView.setRoot(notMutatedRootRef);
+  setRoot(
+    vertexHandle: MutableValueReference<
+      Vertex<InputVertexTypes | RewrittenVertexTypes>
+    >,
+  ): void {
+    this.resolvedTree.setRootVertexReference(vertexHandle);
+    this.setWithResolutionContext(vertexHandle, null);
+    const notMutatedRootRef = this.originalTreeRefsMap?.get(vertexHandle);
+    if (this.preCommandDiscoveredTreeView && notMutatedRootRef) {
+      this.preCommandDiscoveredTreeView.setRootVertexReference(
+        notMutatedRootRef,
+      );
     }
   }
 
-  delete(vertexRef: MutableRef<Vertex<TTP | RW_TTP>>): void {
-    this.resolvedTree.deleteSubtree(vertexRef);
+  delete(
+    vertexHandle: MutableValueReference<
+      Vertex<InputVertexTypes | RewrittenVertexTypes>
+    >,
+  ): void {
+    this.resolvedTree.deleteSubtree(vertexHandle);
   }
 
   pushChildrenTo(
-    parentVertexRef: MutableRef<Vertex<TTP | RW_TTP>>,
-    childrenVertexRefs: MutableRef<Vertex<TTP | RW_TTP>>[],
+    parentVertexRef: MutableValueReference<
+      Vertex<InputVertexTypes | RewrittenVertexTypes>
+    >,
+    childrenVertexRefs: MutableValueReference<
+      Vertex<InputVertexTypes | RewrittenVertexTypes>
+    >[],
   ): void {
-    if (this.originalTreeView && this.originalTreeRefsMap) {
+    if (this.preCommandDiscoveredTreeView && this.originalTreeRefsMap) {
       const nmParentVertexRef = this.originalTreeRefsMap?.get(parentVertexRef);
       if (nmParentVertexRef == null) {
         throw new Error(
@@ -169,7 +214,9 @@ export class DepthFirstTraversalResolvedTreesContainer<
         );
       }
       const nmParentVertexResolved =
-        this.originalTreeView.get(nmParentVertexRef);
+        this.preCommandDiscoveredTreeView.getMutableVertexRecordOrNull(
+          nmParentVertexRef,
+        );
       if (nmParentVertexResolved == null) {
         throw new Error(
           `Could not find not mutated ref - ${jsonStringifySafe(
@@ -186,10 +233,16 @@ export class DepthFirstTraversalResolvedTreesContainer<
         }
         return nmCh;
       });
-      this.resolvedTree.pushChildrenTo(parentVertexRef, childrenVertexRefs);
-      nmParentVertexResolved.pushChildren(nmChildrenVertexRefs);
+      this.resolvedTree.appendChildReferencesTo(
+        parentVertexRef,
+        childrenVertexRefs,
+      );
+      nmParentVertexResolved.appendChildReferences(nmChildrenVertexRefs);
       return;
     }
-    this.resolvedTree.pushChildrenTo(parentVertexRef, childrenVertexRefs);
+    this.resolvedTree.appendChildReferencesTo(
+      parentVertexRef,
+      childrenVertexRefs,
+    );
   }
 }

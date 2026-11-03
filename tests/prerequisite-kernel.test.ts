@@ -13,11 +13,11 @@ function makeKernel() {
   const kernel = new TraversalKernel<G>({
     kind: 'dag',
     execution: 'async',
-    discovery: 'eager',
+    discoveryTiming: "completeBeforeAnyVisitor",
     sourceMode: 'graph',
     container,
     stateBridge: {
-      status: TraversalRunnerStatus.INITIAL,
+      status: TraversalRunnerStatus.NOT_STARTED,
       traversalRootVertexRef: null,
       subtreeTraversalDisabledRefs: new Set(),
       visitorsState: {},
@@ -29,10 +29,10 @@ function makeKernel() {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasHintTransformer: false,
-    hasHintIds: false,
+    hasChildHintsListTransformer: false,
+    hasChildHintVertexIdResolver: false,
     hasPrerequisiteResolver: true,
-    concurrency: 2,
+    maxConcurrentCallbackInvocations: 2,
   });
   return { kernel, container };
 }
@@ -53,8 +53,8 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
       ok: true,
       value: {
         vertexId: 'root',
-        dependsOnWork: ['loader', 'shared'],
-        vertexContent: { $data: 'root', $childHints: [] },
+        workWaitsForWorkOf: ['loader', 'shared'],
+        vertexContent: { $vertexData: 'root', $childDiscoveryHints: [] },
       },
     },
   });
@@ -68,7 +68,7 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
     kind: 'RESOLVE_PREREQUISITE',
     outcome: {
       ok: true,
-      value: { vertexContent: { $data: 'loader', $childHints: ['shared'] } },
+      value: { vertexContent: { $vertexData: 'loader', $childDiscoveryHints: ['shared'] } },
     },
   });
   const natural = call(kernel);
@@ -80,8 +80,8 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
       ok: true,
       value: {
         vertexId: 'shared',
-        dependsOnWork: [],
-        vertexContent: { $data: 'natural', $childHints: [] },
+        workWaitsForWorkOf: [],
+        vertexContent: { $vertexData: 'natural', $childDiscoveryHints: [] },
       },
     },
   });
@@ -100,14 +100,14 @@ test('ordinary discovery invalidates a lookup queued behind transport capacity b
     observations.filter((order) => order === 'ON_WORK_READY'),
   ).toHaveLength(3);
   expect(
-    observations.filter((order) => order === 'ON_SUBGRAPH_READY'),
+    observations.filter((order) => order === 'ON_SUBGRAPH_COMPLETION_READY'),
   ).toHaveLength(3);
   expect(action.kind).toBe('FINISHED');
   expect(
-    container.resolvedGraphView
+    container.liveResolvedGraphView
       .getVertexRefById('shared')!
-      .getValue()
-      .getData(),
+      .getReferencedValue()
+      .getVertexData(),
   ).toBe('natural');
 });
 
@@ -121,8 +121,8 @@ test('lookup reply validation rejects malformed and duplicate transport replies'
       ok: true,
       value: {
         vertexId: 'root',
-        dependsOnWork: ['external'],
-        vertexContent: { $data: 'root', $childHints: [] },
+        workWaitsForWorkOf: ['external'],
+        vertexContent: { $vertexData: 'root', $childDiscoveryHints: [] },
       },
     },
   });
@@ -157,7 +157,7 @@ test('a missing optional lookup binding returns not-found through transport', ()
     bindings.invoke({
       requestId: 1,
       kind: 'RESOLVE_PREREQUISITE',
-      owner: { kind: 'prerequisite', id: 1, epoch: 0 },
+      owner: { ownerKind: "prerequisiteResolution", runnerLocalOwnerId: 1, validityGeneration: 0 },
       vertexId: undefined,
     }),
   ).toEqual({ kind: 'RESOLVE_PREREQUISITE', value: undefined });

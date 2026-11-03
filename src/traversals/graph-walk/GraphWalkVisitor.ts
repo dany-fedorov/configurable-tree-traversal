@@ -1,40 +1,57 @@
 import type { MaybePromise } from '@core/graph/types';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type {
   TraversalVisitorCommand,
   TraversalVisitorCommandName,
   VisitorRegistrationMetadata,
 } from '@core/TraversalVisitor';
-import type { GraphWalkPhase } from './GraphWalkPhase';
-import type { GraphWalkEventFor } from './GraphWalkEvent';
+import type { GraphWalkObservationKind } from './GraphWalkPhase';
+import type { GraphWalkEventForObservationKind } from './GraphWalkEvent';
 
 export type GraphWalkVisitorResult = void | {
   commands?: readonly TraversalVisitorCommand<
-    VertexTypes,
-    | TraversalVisitorCommandName.PAUSE_TRAVERSAL
-    | TraversalVisitorCommandName.NOOP
+    VertexDataAndChildHintTypes,
+    | TraversalVisitorCommandName.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY
+    | TraversalVisitorCommandName.NO_OPERATION
   >[];
 };
 
-export type GraphWalkVisitorContext<Phase extends GraphWalkPhase> = Readonly<{
-  phase: Phase;
-  admissionIndex: number;
-  phaseObservationIndex: number;
-  visitorIndex: number;
-  registration: VisitorRegistrationMetadata;
+export type GraphWalkVisitorContext<
+  ObservationKind extends GraphWalkObservationKind,
+> = Readonly<{
+  observationKind: ObservationKind;
+  admittedTargetOccurrenceIndex: number;
+  observationIndexWithinKind: number;
+  visitorIndexInObservationChain: number;
+  visitorRegistrationMetadata: VisitorRegistrationMetadata;
 }>;
 
-export type GraphWalkVisitor<Data, Edge, Phase extends GraphWalkPhase, ID> = (
-  event: GraphWalkEventFor<Data, Edge, Phase, ID>,
-  options: GraphWalkVisitorContext<Phase>,
+export type GraphWalkVisitor<
+  VertexData,
+  EdgeData,
+  ObservationKind extends GraphWalkObservationKind,
+  VertexId,
+> = (
+  event: GraphWalkEventForObservationKind<
+    VertexData,
+    EdgeData,
+    ObservationKind,
+    VertexId
+  >,
+  context: GraphWalkVisitorContext<ObservationKind>,
 ) => GraphWalkVisitorResult;
 
 export type AsyncGraphWalkVisitor<
-  Data,
-  Edge,
-  Phase extends GraphWalkPhase,
-  ID,
+  VertexData,
+  EdgeData,
+  ObservationKind extends GraphWalkObservationKind,
+  VertexId,
 > = (
-  event: GraphWalkEventFor<Data, Edge, Phase, ID>,
-  options: GraphWalkVisitorContext<Phase>,
+  event: GraphWalkEventForObservationKind<
+    VertexData,
+    EdgeData,
+    ObservationKind,
+    VertexId
+  >,
+  context: GraphWalkVisitorContext<ObservationKind>,
 ) => MaybePromise<GraphWalkVisitorResult>;

@@ -1,35 +1,52 @@
 import { preparationIssue } from './preparationIssue';
 import type { ResolvedGraphsContainer } from '@core/graph/ResolvedGraphsContainer';
 import type { DagDiscoverySource } from '@core/TraversableGraph';
-import type { VertexTypes } from '@core/TreeTypeParameters';
-import { DagTraversal } from '../DagTraversal';
-import type { PrepareDagInput } from '../prepareDag';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
+import { DagTraversalBuilder } from '../DagTraversal';
+import type { DagTopologyDiscoveryInput } from '../prepareDag';
 import { capturePreparedSource } from './capturePreparedSource';
-import type { DagDefinition, PrepareDagResult } from './DagDefinition';
+import type {
+  DagDefinition,
+  DagTopologyValidationResult,
+} from './DagDefinition';
 import { dagRunnerCapabilities } from './dagRunnerCapabilities';
 import { assertPreparedOptions, makePreparedDag } from './makePreparedDag';
 
 /** Shared source preparation keeps caller-error and W/C validation semantics. */
-export function prepareDagSource<T extends VertexTypes, ID>(
-  input: PrepareDagInput<T, ID>,
-  authoredDefinition?: DagDefinition<T['VertexData'], ID>,
-): PrepareDagResult<T['VertexData'], ID> {
+export function prepareDagSource<
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId,
+>(
+  input: DagTopologyDiscoveryInput<SourceVertexTypes, VertexId>,
+  authoredDefinition?: DagDefinition<SourceVertexTypes['VertexData'], VertexId>,
+): DagTopologyValidationResult<SourceVertexTypes['VertexData'], VertexId> {
   assertPreparedOptions(input, [
-    'traversableGraph',
-    'syntheticRoot',
-    'rootWorkDependencies',
-    'dependsOnWorkDefault',
+    'dagDiscoverySource',
+    'sourceRootIsHiddenEntryHolder',
+    'rootWorkPrerequisitePolicy',
+    'undeclaredWorkPrerequisitePolicy',
   ]);
-  const captured = capturePreparedSource<T, ID>(input.traversableGraph, false);
-  const runner = new DagTraversal<T, T, ID>({
+  const captured = capturePreparedSource<SourceVertexTypes, VertexId>(
+    input.dagDiscoverySource,
+    false,
+  );
+  const runner = new DagTraversalBuilder<
+    SourceVertexTypes,
+    SourceVertexTypes,
+    VertexId
+  >({
     ...input,
     // This capture path invokes only the synchronous source callbacks above.
-    traversableGraph: captured.adapter as DagDiscoverySource<T, T, ID>,
-  }).createRunner();
+    dagDiscoverySource: captured.adapter as DagDiscoverySource<
+      SourceVertexTypes,
+      SourceVertexTypes,
+      VertexId
+    >,
+  }).createIndependentRunnerFromCurrentOptions();
   try {
-    runner.prepare();
+    runner.discoverValidateAndFreezeTopology();
   } catch (error) {
-    const issue = preparationIssue<ID>(
+    const issue = preparationIssue<VertexId>(
       dagRunnerCapabilities.get(runner)!.container.store,
       error,
     );
@@ -38,11 +55,15 @@ export function prepareDagSource<T extends VertexTypes, ID>(
   }
   return {
     kind: 'valid',
-    dag: makePreparedDag(
+    validatedTopology: makePreparedDag(
       dagRunnerCapabilities.get(runner)!
-        .container as unknown as ResolvedGraphsContainer<T, T, ID>,
+        .container as unknown as ResolvedGraphsContainer<
+        SourceVertexTypes,
+        SourceVertexTypes,
+        VertexId
+      >,
       captured.candidates,
-      input.rootWorkDependencies ?? 'honor',
+      input.rootWorkPrerequisitePolicy ?? 'honor',
       authoredDefinition,
     ),
   };

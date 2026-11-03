@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const cjs = require('configurable-tree-traversal');
 const cjsWalking = require('configurable-tree-traversal/traversals/graph-walk');
 const entries = [root, cjs, walking, cjsWalking, root.graphWalk, cjs.graphWalk];
-const Phase = root.GraphWalkPhase;
+const Phase = root.GraphWalkObservationKind;
 const Command = root.TraversalVisitorCommandName;
 assert.equal(Command, cjs.TraversalVisitorCommandName);
 assert.equal('DEFER_READY' in root, false);
@@ -22,14 +22,14 @@ for (const entry of entries) {
     assert.equal(name in entry, false);
 
   for (const name of [
-    'GraphWalk',
-    'AsyncGraphWalk',
-    'GraphWalkPhase',
-    'walkGraph',
-    'walkGraphAsync',
-    'materializeWalkSourceFromRecords',
-    'materializeWalkSourceFromRecordsAsync',
-    'materializeWalkSourceFromDagDefinition',
+    'GraphWalkBuilder',
+    'AsyncGraphWalkBuilder',
+    'GraphWalkObservationKind',
+    'createAndRunGraphWalkUntilSuspendedOrTerminal',
+    'createAndRunGraphWalkUntilSuspendedOrTerminalAsync',
+    'materializeGraphWalkSourceFromVertexRecords',
+    'materializeSynchronousGraphWalkSourceFromAsyncRecords',
+    'materializeGraphWalkSourceFromDagDeclarationRelations',
   ])
     assert.equal(entry[name], root[name]);
 }
@@ -39,145 +39,213 @@ const symbolId = Symbol('symbol');
 const ids = [objectId, symbolId, undefined, null, NaN, -0];
 const relation = { kind: 'reference' };
 const items = ids.map((id, index) => ({ id, index }));
-const catalog = walking.materializeWalkSourceFromRecords(items, {
-  id: (item) => item.id,
-  outgoing: (item) =>
+const catalog = walking.materializeGraphWalkSourceFromVertexRecords(items, {
+  getVertexId: (item) => item.id,
+  enumerateOutgoingLinks: (item) =>
     Array.from({ length: item.index === 0 ? 2 : 1 }, () => ({
-      to: ids[(item.index + 1) % ids.length],
-      data: relation,
+      toVertexId: ids[(item.index + 1) % ids.length],
+      edgeData: relation,
     })),
-  roots: [objectId],
+  rootVertexIds: [objectId],
 });
 const mixed = [
-  ...new root.GraphWalk({ source: catalog }).createRunner().iterateEvents({
-    emitEvents: [Phase.VERTEX, Phase.EDGE],
-  }),
+  ...new root.GraphWalkBuilder({ graphWalkDiscoverySource: catalog })
+    .createIndependentRunnerFromCurrentOptions()
+    .runAndIterateObservationEventsUntilSuspendedOrTerminal({
+      deliveredEventKinds: [
+        Phase.VERTEX_OCCURRENCE,
+        Phase.ADMITTED_EDGE_OCCURRENCE,
+      ],
+    }),
 ];
 assert.deepEqual(
   mixed
-    .filter((event) => event.kind === 'vertex')
+    .filter((event) => event.eventKind === 'vertexOccurrence')
     .map((event) => event.vertex.vertexId),
   ids,
 );
-assert.equal(mixed.filter((event) => event.kind === 'edge').length, 7);
+assert.equal(
+  mixed.filter((event) => event.eventKind === 'admittedEdgeOccurrence').length,
+  7,
+);
 assert(
   mixed
-    .filter((event) => event.kind === 'edge')
-    .every((event) => event.edge.data === relation),
+    .filter((event) => event.eventKind === 'admittedEdgeOccurrence')
+    .every((event) => event.edge.edgeData === relation),
 );
 assert.deepEqual(
-  mixed.slice(0, 5).map((event) => event.kind),
-  ['vertex', 'edge', 'vertex', 'edge', 'edge'],
+  mixed.slice(0, 5).map((event) => event.eventKind),
+  [
+    'vertexOccurrence',
+    'admittedEdgeOccurrence',
+    'vertexOccurrence',
+    'admittedEdgeOccurrence',
+    'admittedEdgeOccurrence',
+  ],
 );
-const sync = cjsWalking.walkGraph({ source: catalog });
+const sync = cjsWalking.createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: catalog,
+});
 for (const entry of entries)
   assert.equal(
     Object.getPrototypeOf(sync),
     Object.getPrototypeOf(
-      new entry.GraphWalk({ source: catalog }).createRunner(),
+      new entry.GraphWalkBuilder({
+        graphWalkDiscoverySource: catalog,
+      }).createIndependentRunnerFromCurrentOptions(),
     ),
   );
-assert.equal(sync.summary().outcome.kind, 'exhausted');
-assert.equal(sync.summary().counts.uniqueFoundVertices, 6);
 assert.equal(
-  (await root.walkGraphAsync({ source: catalog })).summary().counts
-    .uniqueFoundVertices,
+  sync.captureProgressSnapshot().terminalOutcome.kind,
+  'sourceRoutesExhausted',
+);
+assert.equal(
+  sync.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+  6,
+);
+assert.equal(
+  (
+    await root.createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+      graphWalkDiscoverySource: catalog,
+    })
+  ).captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
   6,
 );
 
-for (const Factory of [cjsWalking.GraphWalk, walking.AsyncGraphWalk]) {
-  for (const predicate of ['shouldFollowEdge', 'shouldExpandVertex']) {
-    const walk = new Factory({ source: catalog, [predicate]: () => false });
-    const filtered = walk.createRunner();
-    await filtered.run();
-    assert.equal(filtered.summary().counts.uniqueFoundVertices, 1);
-    walk.configure({ [predicate]: undefined });
-    const retained = walk.createRunner();
-    await retained.run();
-    assert.equal(retained.summary().counts.uniqueFoundVertices, 1);
-    walk.configure({ [predicate]: null });
-    const reset = walk.createRunner();
-    await reset.run();
-    assert.equal(reset.summary().counts.uniqueFoundVertices, 6);
+for (const Factory of [
+  cjsWalking.GraphWalkBuilder,
+  walking.AsyncGraphWalkBuilder,
+]) {
+  for (const predicate of [
+    'shouldAdmitOutgoingLinkTarget',
+    'shouldExpandVertexOccurrence',
+  ]) {
+    const walk = new Factory({
+      graphWalkDiscoverySource: catalog,
+      [predicate]: () => false,
+    });
+    const filtered = walk.createIndependentRunnerFromCurrentOptions();
+    await filtered.runUntilSuspendedOrTerminal();
+    assert.equal(
+      filtered.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+      1,
+    );
+    walk.patchOptionsForFutureRunners({ [predicate]: undefined });
+    const retained = walk.createIndependentRunnerFromCurrentOptions();
+    await retained.runUntilSuspendedOrTerminal();
+    assert.equal(
+      retained.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+      1,
+    );
+    walk.patchOptionsForFutureRunners({ [predicate]: null });
+    const reset = walk.createIndependentRunnerFromCurrentOptions();
+    await reset.runUntilSuspendedOrTerminal();
+    assert.equal(
+      reset.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+      6,
+    );
   }
 }
 
-const stream = new walking.AsyncGraphWalk({
-  source: {
-    hydration: 'inlineOrCached',
-    async *roots() {
+const stream = new walking.AsyncGraphWalkBuilder({
+  graphWalkDiscoverySource: {
+    vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+    async *enumerateRootTargets() {
       yield {
-        kind: 'inline',
+        kind: 'inlineResolution',
         vertexId: objectId,
-        resolution: { kind: 'found', data: 'A' },
+        resolutionIfNotPreviouslyAdmitted: { kind: 'found', vertexData: 'A' },
       };
     },
-    async *outgoing(vertex) {
+    async *enumerateOutgoingLinks(vertex) {
       if (vertex.vertexId === objectId) {
         yield {
-          target: {
-            kind: 'inline',
+          targetToResolveOnAdmission: {
+            kind: 'inlineResolution',
             vertexId: symbolId,
-            resolution: { kind: 'found', data: 'B' },
+            resolutionIfNotPreviouslyAdmitted: {
+              kind: 'found',
+              vertexData: 'B',
+            },
           },
-          data: relation,
+          edgeData: relation,
         };
         yield {
-          target: {
-            kind: 'inline',
+          targetToResolveOnAdmission: {
+            kind: 'inlineResolution',
             vertexId: undefined,
-            resolution: { kind: 'omitted' },
+            resolutionIfNotPreviouslyAdmitted: { kind: 'omitted' },
           },
-          data: relation,
+          edgeData: relation,
         };
       } else {
         yield {
-          target: { kind: 'cached', vertexId: objectId },
-          data: relation,
+          targetToResolveOnAdmission: {
+            kind: 'previouslyAdmittedVertex',
+            vertexId: objectId,
+          },
+          edgeData: relation,
         };
       }
     },
   },
-}).createRunner();
+}).createIndependentRunnerFromCurrentOptions();
 const streamed = [];
-for await (const event of stream.iterateEvents({
-  emitEvents: [Phase.VERTEX, Phase.EDGE],
-}))
+for await (const event of stream.runAndIterateObservationEventsUntilSuspendedOrTerminal(
+  {
+    deliveredEventKinds: [
+      Phase.VERTEX_OCCURRENCE,
+      Phase.ADMITTED_EDGE_OCCURRENCE,
+    ],
+  },
+))
   streamed.push(event);
 for (const entry of entries)
   assert.equal(
     Object.getPrototypeOf(stream),
     Object.getPrototypeOf(
-      new entry.AsyncGraphWalk({ source: catalog }).createRunner(),
+      new entry.AsyncGraphWalkBuilder({
+        graphWalkDiscoverySource: catalog,
+      }).createIndependentRunnerFromCurrentOptions(),
     ),
   );
 assert.deepEqual(
   streamed
-    .filter((event) => event.kind === 'vertex')
-    .map((event) => event.vertex.data),
+    .filter((event) => event.eventKind === 'vertexOccurrence')
+    .map((event) => event.vertex.vertexData),
   ['A', 'B'],
 );
 assert.deepEqual(
   streamed
-    .filter((event) => event.kind === 'edge')
-    .map((event) => event.target.kind),
+    .filter((event) => event.eventKind === 'admittedEdgeOccurrence')
+    .map((event) => event.targetResolution.kind),
   ['found', 'omitted', 'found'],
 );
-assert.equal(stream.summary().counts.uniqueOmittedVertices, 1);
+assert.equal(
+  stream.captureProgressSnapshot().counts.resolvedOmittedVertexIdCount,
+  1,
+);
 
 const routes = [];
-const self = walking.materializeWalkSourceFromRecords([{ id: symbolId }], {
-  id: (item) => item.id,
-  outgoing: (item) => [{ to: item.id, data: relation }],
-  roots: [symbolId],
-});
-const bounded = walking.walkGraph({
-  source: self,
-  revisit: 'walks',
-  limits: { maxDepth: 2 },
-  visitors: {
-    [Phase.PATH]: (event) => {
-      routes.push(event.vertices.map((vertex) => vertex.vertexId));
+const self = walking.materializeGraphWalkSourceFromVertexRecords(
+  [{ id: symbolId }],
+  {
+    getVertexId: (item) => item.id,
+    enumerateOutgoingLinks: (item) => [
+      { toVertexId: item.id, edgeData: relation },
+    ],
+    rootVertexIds: [symbolId],
+  },
+);
+const bounded = walking.createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: self,
+  routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices',
+  limits: { maxRouteHopDepth: 2 },
+  visitorsByObservationKind: {
+    [Phase.ROUTE_PREFIX]: (event) => {
+      routes.push(
+        event.verticesInRootToTargetOrder.map((vertex) => vertex.vertexId),
+      );
     },
   },
 });
@@ -186,56 +254,74 @@ assert.deepEqual(routes, [
   [symbolId, symbolId],
   [symbolId, symbolId, symbolId],
 ]);
-assert.deepEqual(bounded.summary().outcome, {
-  kind: 'limited',
-  reasons: ['maxDepth'],
+assert.deepEqual(bounded.captureProgressSnapshot().terminalOutcome, {
+  kind: 'traversalLimitsReached',
+  reachedLimits: ['maxRouteHopDepth'],
 });
 
 // Iterator return pauses; explicit close alone releases retained source cursors.
 for (const asynchronous of [false, true]) {
   const cleanup = [];
   const source = {
-    hydration: 'inlineOrCached',
-    *roots() {
+    vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+    *enumerateRootTargets() {
       try {
         yield {
-          kind: 'inline',
+          kind: 'inlineResolution',
           vertexId: objectId,
-          resolution: { kind: 'found', data: 'root' },
+          resolutionIfNotPreviouslyAdmitted: {
+            kind: 'found',
+            vertexData: 'root',
+          },
         };
         yield {
-          kind: 'inline',
+          kind: 'inlineResolution',
           vertexId: symbolId,
-          resolution: { kind: 'found', data: 'later' },
+          resolutionIfNotPreviouslyAdmitted: {
+            kind: 'found',
+            vertexData: 'later',
+          },
         };
       } finally {
         cleanup.push('roots');
       }
     },
-    outgoing: () => [],
+    enumerateOutgoingLinks: () => [],
   };
   const runner = asynchronous
-    ? new cjs.AsyncGraphWalk({ source }).createRunner()
-    : new walking.GraphWalk({ source }).createRunner();
-  const iterator = runner.iterateEvents();
-  assert.equal((await iterator.next()).value.kind, 'vertex');
+    ? new cjs.AsyncGraphWalkBuilder({
+        graphWalkDiscoverySource: source,
+      }).createIndependentRunnerFromCurrentOptions()
+    : new walking.GraphWalkBuilder({
+        graphWalkDiscoverySource: source,
+      }).createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
+  assert.equal((await iterator.next()).value.eventKind, 'vertexOccurrence');
   await iterator.return(undefined);
-  assert.equal(runner.getStopReason(), 'paused');
+  assert.equal(runner.getTraversalStopReason(), 'paused');
   assert.deepEqual(cleanup, []);
-  await runner.close();
-  await runner.close();
+  await runner.closePermanentlyAndDisposeSourceIterators();
+  await runner.closePermanentlyAndDisposeSourceIterators();
   assert.deepEqual(cleanup, ['roots']);
-  assert.equal(runner.summary().outcome.kind, 'closed');
+  assert.equal(
+    runner.captureProgressSnapshot().terminalOutcome.kind,
+    'permanentlyClosedByCaller',
+  );
 }
 
 const callbacks = [];
-const paused = await root.walkGraphAsync({
-  source: self,
-  visitors: {
-    [Phase.VERTEX]: [
+const paused = await root.createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+  graphWalkDiscoverySource: self,
+  visitorsByObservationKind: {
+    [Phase.VERTEX_OCCURRENCE]: [
       async () => {
         callbacks.push('halt');
-        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+        return {
+          commands: [
+            { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+          ],
+        };
       },
       async () => {
         callbacks.push('tail');
@@ -243,110 +329,166 @@ const paused = await root.walkGraphAsync({
     ],
   },
 });
-assert.equal(paused.getStopReason(), 'paused');
+assert.equal(paused.getTraversalStopReason(), 'paused');
 assert.deepEqual(callbacks, ['halt']);
-await paused.run();
+await paused.runUntilSuspendedOrTerminal();
 assert.deepEqual(callbacks, ['halt', 'tail']);
 
-const materialized = await walking.materializeWalkSourceFromRecordsAsync(
-  (async function* () {
-    yield items[0];
-  })(),
-  {
-    id: async (item) => item.id,
-    outgoing: async (item) => [{ to: item.id, data: relation }],
-    roots: [objectId],
-  },
-);
-const asyncHelper = await walking.walkGraphAsync({ source: materialized });
+const materialized =
+  await walking.materializeSynchronousGraphWalkSourceFromAsyncRecords(
+    (async function* () {
+      yield items[0];
+    })(),
+    {
+      getVertexId: async (item) => item.id,
+      enumerateOutgoingLinks: async (item) => [
+        { toVertexId: item.id, edgeData: relation },
+      ],
+      rootVertexIds: [objectId],
+    },
+  );
+const asyncHelper =
+  await walking.createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+    graphWalkDiscoverySource: materialized,
+  });
 assert.equal(
   Object.getPrototypeOf(asyncHelper),
   Object.getPrototypeOf(
-    new cjs.AsyncGraphWalk({ source: materialized }).createRunner(),
+    new cjs.AsyncGraphWalkBuilder({
+      graphWalkDiscoverySource: materialized,
+    }).createIndependentRunnerFromCurrentOptions(),
   ),
 );
 assert.equal(
-  walking.walkGraph({ source: materialized }).summary().counts
-    .uniqueFoundVertices,
+  walking
+    .createAndRunGraphWalkUntilSuspendedOrTerminal({
+      graphWalkDiscoverySource: materialized,
+    })
+    .captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
   1,
 );
 
-const projected = walking.materializeWalkSourceFromDagDefinition(
-  root.defineDag({
-    vertices: [
+const projected = walking.materializeGraphWalkSourceFromDagDeclarationRelations(
+  root.copyAndNormalizeDagDefinition({
+    vertexDeclarations: [
       {
         vertexId: objectId,
         data: 'task',
-        slots: [
+        childDiscoverySlots: [
           { kind: 'vertex', vertexId: objectId },
-          { kind: 'omitted', identity: { vertexId: symbolId } },
+          { kind: 'omitted', omittedVertexIdentity: { vertexId: symbolId } },
         ],
-        dependsOnWork: [objectId],
-        dependsOnSubgraphCompletion: [symbolId],
+        workWaitsForWorkOf: [objectId],
+        workWaitsForSubgraphCompletionOf: [symbolId],
       },
     ],
-    omittedIds: [symbolId],
+    omittedVertexIds: [symbolId],
     entry: { kind: 'root', vertexId: objectId },
   }),
   {
-    relations: [
-      'subgraphCompletionDependencies',
-      'children',
-      'workDependencies',
+    includeDeclarationRelations: [
+      'dependentToSubgraphCompletionPrerequisites',
+      'parentToChildSlots',
+      'dependentToWorkPrerequisites',
     ],
   },
 );
 const relations = [];
-const dagWalk = await walking.walkGraphAsync({
-  source: projected,
-  visitors: {
-    [Phase.EDGE]: (event) => {
-      relations.push([event.edge.data, event.target.kind]);
+const dagWalk =
+  await walking.createAndRunGraphWalkUntilSuspendedOrTerminalAsync({
+    graphWalkDiscoverySource: projected,
+    visitorsByObservationKind: {
+      [Phase.ADMITTED_EDGE_OCCURRENCE]: (event) => {
+        relations.push([event.edge.edgeData, event.targetResolution.kind]);
+      },
     },
-  },
-});
+  });
 assert.deepEqual(relations, [
-  [{ kind: 'child', slotIndex: 0 }, 'found'],
-  [{ kind: 'child', slotIndex: 1 }, 'omitted'],
-  [{ kind: 'workDependency' }, 'found'],
-  [{ kind: 'subgraphCompletionDependency' }, 'omitted'],
+  [{ kind: 'structuralChildSlot', childSlotIndex: 0 }, 'found'],
+  [{ kind: 'structuralChildSlot', childSlotIndex: 1 }, 'omitted'],
+  [{ kind: 'workPrerequisite' }, 'found'],
+  [{ kind: 'subgraphCompletionPrerequisite' }, 'omitted'],
 ]);
-assert.equal(dagWalk.summary().outcome.kind, 'exhausted');
-const syncDagWalk = cjsWalking.walkGraph({ source: projected });
-assert.equal(syncDagWalk.summary().counts.uniqueFoundVertices, 1);
-assert.equal(syncDagWalk.summary().counts.uniqueOmittedVertices, 1);
+assert.equal(
+  dagWalk.captureProgressSnapshot().terminalOutcome.kind,
+  'sourceRoutesExhausted',
+);
+const syncDagWalk = cjsWalking.createAndRunGraphWalkUntilSuspendedOrTerminal({
+  graphWalkDiscoverySource: projected,
+});
+assert.equal(
+  syncDagWalk.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+  1,
+);
+assert.equal(
+  syncDagWalk.captureProgressSnapshot().counts.resolvedOmittedVertexIdCount,
+  1,
+);
 console.log('Packed graph walking consumers passed');
 
-assert.equal(catalog.hydration, 'resolver');
-assert.equal(self.hydration, 'resolver');
-for (const Factory of [root.GraphWalk, cjsWalking.AsyncGraphWalk]) {
+assert.equal(
+  catalog.vertexResolutionMode,
+  'resolverWithOptionalInlineResolution',
+);
+assert.equal(self.vertexResolutionMode, 'resolverWithOptionalInlineResolution');
+for (const Factory of [
+  root.GraphWalkBuilder,
+  cjsWalking.AsyncGraphWalkBuilder,
+]) {
   assert.throws(
-    () => new Factory({ source: { roots: () => [], outgoing: () => [] } }),
+    () =>
+      new Factory({
+        graphWalkDiscoverySource: {
+          enumerateRootTargets: () => [],
+          enumerateOutgoingLinks: () => [],
+        },
+      }),
     TypeError,
   );
   assert.throws(
     () =>
       new Factory({
-        source: { hydration: 'resolver', roots: () => [], outgoing: () => [] },
+        graphWalkDiscoverySource: {
+          vertexResolutionMode: 'resolverWithOptionalInlineResolution',
+          enumerateRootTargets: () => [],
+          enumerateOutgoingLinks: () => [],
+        },
       }),
     TypeError,
   );
-  const cached = new Factory({
-    source: {
-      hydration: 'inlineOrCached',
-      roots: () => [
+  const previouslyAdmittedVertex = new Factory({
+    graphWalkDiscoverySource: {
+      vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+      enumerateRootTargets: () => [
         {
-          kind: 'inline',
+          kind: 'inlineResolution',
           vertexId: objectId,
-          resolution: { kind: 'found', data: 'root' },
+          resolutionIfNotPreviouslyAdmitted: {
+            kind: 'found',
+            vertexData: 'root',
+          },
         },
       ],
-      outgoing: () => [
-        { target: { kind: 'cached', vertexId: objectId }, data: relation },
+      enumerateOutgoingLinks: () => [
+        {
+          targetToResolveOnAdmission: {
+            kind: 'previouslyAdmittedVertex',
+            vertexId: objectId,
+          },
+          edgeData: relation,
+        },
       ],
     },
-  }).createRunner();
-  await cached.run();
-  assert.equal(cached.summary().counts.uniqueFoundVertices, 1);
-  assert.equal(cached.summary().counts.discoveredLinks, 1);
+  }).createIndependentRunnerFromCurrentOptions();
+  await previouslyAdmittedVertex.runUntilSuspendedOrTerminal();
+  assert.equal(
+    previouslyAdmittedVertex.captureProgressSnapshot().counts
+      .resolvedFoundVertexIdCount,
+    1,
+  );
+  assert.equal(
+    previouslyAdmittedVertex.captureProgressSnapshot().counts
+      .freshSourceOutgoingLinkCount,
+    1,
+  );
 }

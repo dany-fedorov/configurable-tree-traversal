@@ -1,8 +1,8 @@
 import {
-  GraphWalk,
-  GraphWalkPhase,
-  type GraphWalkSource,
-  type GraphWalkTarget,
+  GraphWalkBuilder,
+  GraphWalkObservationKind,
+  type GraphWalkDiscoverySource,
+  type GraphWalkVertexResolutionTarget,
 } from '../src';
 import assert from 'node:assert/strict';
 
@@ -31,42 +31,56 @@ const links = new Map<string, readonly [string, Relation['kind']][]>([
   ['D', [['A', 'cites']]],
   ['E', []], // An isolated root still contributes a vertex observation.
 ]);
-const hydrated = (vertexId: string): GraphWalkTarget<Context, string> => ({
+const hydrated = (
+  vertexId: string,
+): GraphWalkVertexResolutionTarget<Context, string> => ({
   vertexId,
-  resolution: { kind: 'found', data: data.get(vertexId)! },
+  resolutionIfNotPreviouslyAdmitted: {
+    kind: 'found',
+    vertexData: data.get(vertexId)!,
+  },
 });
 const resolved: string[] = [];
-const source: GraphWalkSource<Context, Relation, string> = {
-  hydration: 'resolver' as const,
-  roots: () => [hydrated('A'), hydrated('E')],
-  resolveVertex(vertexId) {
+const source: GraphWalkDiscoverySource<Context, Relation, string> = {
+  vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+  enumerateRootTargets: () => [hydrated('A'), hydrated('E')],
+  resolveVertexDataById(vertexId) {
     resolved.push(vertexId);
     if (!data.has(vertexId)) throw new TypeError('Unknown context ID');
-    return { kind: 'found', data: data.get(vertexId)! };
+    return { kind: 'found', vertexData: data.get(vertexId)! };
   },
-  outgoing(vertex) {
+  enumerateOutgoingLinks(vertex) {
     return links.get(vertex.vertexId)!.map(([to, kind]) => ({
-      target: to === 'B' ? hydrated(to) : { vertexId: to },
-      data: { kind },
+      targetToResolveOnAdmission: to === 'B' ? hydrated(to) : { vertexId: to },
+      edgeData: { kind },
     }));
   },
 };
 const vertices: string[] = [];
 const relationships: string[] = [];
-const runner = new GraphWalk({ source })
-  .addVisitorFor(GraphWalkPhase.VERTEX, ({ vertex }) => {
-    vertices.push(vertex.vertexId);
-  })
-  .addVisitorFor(GraphWalkPhase.EDGE, ({ edge, target }) => {
-    assert.equal(target.kind, 'found');
-    relationships.push(
-      `${edge.from}:${edge.outgoingIndex}:${edge.data.kind}:${edge.to}`,
-    );
-  })
-  .createRunner();
+const runner = new GraphWalkBuilder({ graphWalkDiscoverySource: source })
+  .addVisitorForObservationKind(
+    GraphWalkObservationKind.VERTEX_OCCURRENCE,
+    ({ vertex }) => {
+      vertices.push(vertex.vertexId);
+    },
+  )
+  .addVisitorForObservationKind(
+    GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE,
+    ({ edge, targetResolution: target }) => {
+      assert.equal(target.kind, 'found');
+      relationships.push(
+        `${edge.fromVertexId}:${edge.sourceOutgoingLinkIndexBeforeFiltering}:${edge.edgeData.kind}:${edge.toVertexId}`,
+      );
+    },
+  )
+  .createIndependentRunnerFromCurrentOptions();
 const observations = [
-  ...runner.iterateEvents({
-    emitEvents: [GraphWalkPhase.VERTEX, GraphWalkPhase.EDGE],
+  ...runner.runAndIterateObservationEventsUntilSuspendedOrTerminal({
+    deliveredEventKinds: [
+      GraphWalkObservationKind.VERTEX_OCCURRENCE,
+      GraphWalkObservationKind.ADMITTED_EDGE_OCCURRENCE,
+    ],
   }),
 ];
 assert.deepEqual(vertices, ['A', 'E', 'B', 'C', 'D']);
@@ -80,12 +94,14 @@ assert.deepEqual(relationships, [
 ]);
 assert.deepEqual(resolved, ['C', 'D']);
 assert.equal(observations.length, 11);
-assert.deepEqual(runner.summary().outcome, { kind: 'exhausted' });
+assert.deepEqual(runner.captureProgressSnapshot().terminalOutcome, {
+  kind: 'sourceRoutesExhausted',
+});
 console.log(
   'Context:',
   vertices.length,
   'vertex callbacks;',
   relationships.length,
   'relationship callbacks;',
-  runner.summary().outcome,
+  runner.captureProgressSnapshot().terminalOutcome,
 );

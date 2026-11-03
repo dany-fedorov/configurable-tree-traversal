@@ -6,29 +6,41 @@ import {
 } from './materialize';
 import type { MaterializedRecord } from './materialize';
 import type {
-  AsyncCollection,
+  SyncOrAsyncIterable,
   AsyncDagRecordSelectors,
-  MaterializedDagInput,
+  MaterializedDagTraversalInput,
   DagRecordSelectors,
 } from './types';
 
 /** Copy a finite catalog's topology while retaining each item and ID by identity. */
-export function materializeDagInputFromRecords<Item, ID>(
+export function materializeMultiEntryDagInputFromRecordCatalog<Item, VertexId>(
   items: Iterable<Item>,
-  selectors: DagRecordSelectors<Item, ID>,
-): MaterializedDagInput<Item, ID> {
-  const captured = captureCollectionSelectors(selectors);
-  const records = new Map<ID, MaterializedRecord<Item, ID>>();
+  selectors: DagRecordSelectors<Item, VertexId>,
+): MaterializedDagTraversalInput<Item, VertexId> {
+  const captured = captureCollectionSelectors(
+    selectors,
+    'selectStructuralChildVertexIds',
+  );
+  const records = new Map<VertexId, MaterializedRecord<Item, VertexId>>();
   for (const item of items) {
-    const id = captured.id.call(selectors, item);
+    const id = captured.selectVertexId.call(selectors, item);
     if (records.has(id)) throw new TypeError('Duplicate collection vertex ID');
     records.set(id, {
       item,
       id,
-      children: [...(captured.children?.call(selectors, item) ?? [])],
-      dependsOnWork: [...(captured.dependsOnWork?.call(selectors, item) ?? [])],
-      dependsOnSubgraphCompletion: [
-        ...(captured.dependsOnSubgraphCompletion?.call(selectors, item) ?? []),
+      children: [
+        ...(captured.selectStructuralChildVertexIds?.call(selectors, item) ??
+          []),
+      ],
+      workWaitsForWorkOf: [
+        ...(captured.selectWorkPrerequisiteVertexIds?.call(selectors, item) ??
+          []),
+      ],
+      workWaitsForSubgraphCompletionOf: [
+        ...(captured.selectSubgraphCompletionPrerequisiteVertexIds?.call(
+          selectors,
+          item,
+        ) ?? []),
       ],
     });
   }
@@ -37,24 +49,35 @@ export function materializeDagInputFromRecords<Item, ID>(
 }
 
 /** Await finite catalogs/selectors once, returning an input envelope with a synchronous source. */
-export async function materializeDagInputFromRecordsAsync<Item, ID>(
-  items: AsyncCollection<Item>,
-  selectors: AsyncDagRecordSelectors<Item, ID>,
-): Promise<MaterializedDagInput<Item, ID>> {
-  const captured = captureCollectionSelectors(selectors);
-  const records = new Map<ID, MaterializedRecord<Item, ID>>();
+export async function materializeMultiEntryDagInputFromRecordCatalogAsync<
+  Item,
+  VertexId,
+>(
+  items: SyncOrAsyncIterable<Item>,
+  selectors: AsyncDagRecordSelectors<Item, VertexId>,
+): Promise<MaterializedDagTraversalInput<Item, VertexId>> {
+  const captured = captureCollectionSelectors(
+    selectors,
+    'selectStructuralChildVertexIds',
+  );
+  const records = new Map<VertexId, MaterializedRecord<Item, VertexId>>();
   for await (const item of items) {
-    const id = await captured.id.call(selectors, item);
+    const id = await captured.selectVertexId.call(selectors, item);
     if (records.has(id)) throw new TypeError('Duplicate collection vertex ID');
     records.set(id, {
       item,
       id,
-      children: await collect(captured.children?.call(selectors, item) ?? []),
-      dependsOnWork: await collect(
-        captured.dependsOnWork?.call(selectors, item) ?? [],
+      children: await collect(
+        captured.selectStructuralChildVertexIds?.call(selectors, item) ?? [],
       ),
-      dependsOnSubgraphCompletion: await collect(
-        captured.dependsOnSubgraphCompletion?.call(selectors, item) ?? [],
+      workWaitsForWorkOf: await collect(
+        captured.selectWorkPrerequisiteVertexIds?.call(selectors, item) ?? [],
+      ),
+      workWaitsForSubgraphCompletionOf: await collect(
+        captured.selectSubgraphCompletionPrerequisiteVertexIds?.call(
+          selectors,
+          item,
+        ) ?? [],
       ),
     });
   }

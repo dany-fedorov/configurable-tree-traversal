@@ -1,8 +1,8 @@
 import {
-  materializeDagInputFromRecords,
-  prepareDag,
-  type DagWorkBoundary,
-  type DagWorkTicket,
+  materializeMultiEntryDagInputFromRecordCatalog,
+  discoverValidateAndCaptureDag,
+  type DagExternalWorkRunBoundary,
+  type DagWorkSettlementTicket,
 } from '../src';
 import assert from 'node:assert/strict';
 
@@ -16,89 +16,99 @@ const tasks: Task[] = [
 ];
 
 function work(
-  boundary: DagWorkBoundary<TaskId>,
-): readonly DagWorkTicket<TaskId>[] {
+  boundary: DagExternalWorkRunBoundary<TaskId>,
+): readonly DagWorkSettlementTicket<TaskId>[] {
   assert.equal(boundary.kind, 'awaitingSettlement');
   if (boundary.kind !== 'awaitingSettlement') throw new Error('Expected work');
-  return boundary.workTickets;
+  return boundary.workSettlementTickets;
 }
 
 async function main(): Promise<void> {
-  const source = materializeDagInputFromRecords(tasks, {
-    id: (task) => task.id,
-    dependsOnWork: (task) => task.requires,
+  const source = materializeMultiEntryDagInputFromRecordCatalog(tasks, {
+    selectVertexId: (task) => task.id,
+    selectWorkPrerequisiteVertexIds: (task) => task.requires,
   });
   let sourceCalls = 0;
-  const prepared = prepareDag({
+  const prepared = discoverValidateAndCaptureDag({
     ...source,
-    traversableGraph: {
-      ...source.traversableGraph,
-      resolveRoot: () => {
+    dagDiscoverySource: {
+      ...source.dagDiscoverySource,
+      resolveRootVertex: () => {
         sourceCalls++;
-        return source.traversableGraph.resolveRoot();
+        return source.dagDiscoverySource.resolveRootVertex();
       },
-      resolveChild: (hint, context) => {
+      resolveChildHint: (hint, context) => {
         sourceCalls++;
-        return source.traversableGraph.resolveChild(hint, context);
+        return source.dagDiscoverySource.resolveChildHint(hint, context);
       },
     },
   });
   if (prepared.kind === 'invalid') throw new Error('Invalid workflow');
-  const { dag } = prepared;
+  const { validatedTopology: dag } = prepared;
   // vertices is a live-child projection; definition carries ordered slots.
   assert.equal(dag.liveVertexSummaries.length, 4);
-  assert.equal(dag.definition.vertices.length, 4);
+  assert.equal(dag.definition.vertexDeclarations.length, 4);
   assert.equal(dag.definition.entry.kind, 'roots');
   const discoveryCalls = sourceCalls;
 
   // This set stands in for completion facts durably accepted by the host.
   const accepted = new Set<TaskId>(['research']);
-  const session = dag.createWorkSession({ completedWork: accepted });
-  const fresh = dag.createWorkSession();
-  assert.equal(session.getStopReason(), 'prepared');
+  const session = dag.createExternalWorkSession({
+    acceptedCompletedWorkVertexIds: accepted,
+  });
+  const fresh = dag.createExternalWorkSession();
+  assert.equal(session.getTraversalStopReason(), 'prepared');
   assert.equal(
     session
-      .inspectMilestones()
-      .explain({ vertexId: 'review', milestone: 'work' }).kind,
+      .captureMilestoneSnapshot()
+      .explainMilestone({ vertexId: 'review', milestone: 'workCompletion' })
+      .kind,
     'live',
   );
-  const candidates = work(session.advance());
+  const candidates = work(session.runUntilWorkBoundary());
   assert.deepEqual(
     candidates.map((ticket) => ticket.vertexId),
     ['implement', 'testPlan'],
   );
-  const research = work(fresh.advance())[0]!;
+  const research = work(fresh.runUntilWorkBoundary())[0]!;
   assert.equal(research.vertexId, 'research');
-  assert.throws(() => session.completeWork(research), TypeError);
+  assert.throws(() => session.acceptCompletedWork(research), TypeError);
 
   // Dispatch only these frontier tickets through host claims/capacity.
   // workCompleted observations follow successful settlement.
   // Validate results before reporting them to the session.
   for (const ticket of candidates) {
     accepted.add(ticket.vertexId); // Persist acceptance before completing locally.
-    assert.deepEqual(session.completeWork(ticket), { kind: 'accepted' });
-    assert.deepEqual(session.completeWork(ticket), { kind: 'alreadyAccepted' });
+    assert.deepEqual(session.acceptCompletedWork(ticket), { kind: 'accepted' });
+    assert.deepEqual(session.acceptCompletedWork(ticket), {
+      kind: 'alreadyAccepted',
+    });
   }
-  const review = work(session.advance())[0]!;
+  const review = work(session.runUntilWorkBoundary())[0]!;
   assert.equal(review.vertexId, 'review');
   accepted.add(review.vertexId);
-  session.completeWork(review);
-  assert.deepEqual(session.advance(), { kind: 'finished' });
+  session.acceptCompletedWork(review);
+  assert.deepEqual(session.runUntilWorkBoundary(), { kind: 'finished' });
 
   // Independent sessions own their progress and local ticket generations.
-  assert.deepEqual(fresh.summary().completedWorkIds, []);
-  fresh.completeWork(research);
   assert.deepEqual(
-    work(fresh.advance()).map((ticket) => ticket.vertexId),
+    fresh.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    [],
+  );
+  fresh.acceptCompletedWork(research);
+  assert.deepEqual(
+    work(fresh.runUntilWorkBoundary()).map((ticket) => ticket.vertexId),
     ['implement', 'testPlan'],
   );
 
   // Recovery uses accepted facts, never serialized tickets or runner state.
-  const recovered = await dag.createAsyncWorkSession({
-    completedWork: accepted,
-    concurrency: 2,
+  const recovered = await dag.createAsyncExternalWorkSession({
+    acceptedCompletedWorkVertexIds: accepted,
+    maxConcurrentCallbackInvocations: 2,
   });
-  assert.deepEqual(await recovered.advance(), { kind: 'finished' });
+  assert.deepEqual(await recovered.runUntilWorkBoundary(), {
+    kind: 'finished',
+  });
   assert.equal(sourceCalls, discoveryCalls);
   console.log(
     'Prepared one graph; coordinated independent sessions without source replay.',

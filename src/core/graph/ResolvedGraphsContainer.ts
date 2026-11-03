@@ -1,15 +1,18 @@
-import { resolvedGraphView, originalGraphView } from '../observationFacets';
-import type { ResolvedGraphView } from '../ResolvedGraphView';
+import {
+  liveResolvedGraphView,
+  preCommandDiscoveredGraphView,
+} from '../observationFacets';
+import type { LiveResolvedGraphView } from '../ResolvedGraphView';
 import { makeDagGraphView } from '../../traversals/dag-traversal/lib/DagGraphView';
 import type {
   InternalResolvedGraphView,
-  OriginalGraphView,
+  PreCommandDiscoveredGraphView,
 } from '@core/ResolvedGraphView';
 import type {
-  InternalVertexResolutionContext,
-  TreeVertexRecord,
+  InternalChildDiscoveryContext,
+  MutableTreeVertexTopologyRecord,
 } from '@core/ResolvedTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { GraphStore } from '@core/graph/GraphStore';
 import { getTreeGraphStore } from './treeStoreCapabilities';
 import {
@@ -25,48 +28,81 @@ type GraphContainerOptions = {
   saveOriginal: boolean;
 };
 
-type TreeContainerOptions<T extends VertexTypes, R extends VertexTypes> = {
+type TreeContainerOptions<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+> = {
   sourceMode: 'tree';
   saveOriginal: boolean;
-  treeContainer: DepthFirstTraversalResolvedTreesContainer<T, R>;
+  treeContainer: DepthFirstTraversalResolvedTreesContainer<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
 };
 
 export type ResolvedGraphsContainerOptions<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+  VertexId = unknown,
 > =
   | GraphContainerOptions
-  | (unknown extends ID ? TreeContainerOptions<T, R> : never);
+  | (unknown extends VertexId
+      ? TreeContainerOptions<InputVertexTypes, RewrittenVertexTypes>
+      : never);
 
 export class ResolvedGraphsContainer<
-  T extends VertexTypes,
-  R extends VertexTypes = T,
-  ID = unknown,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+  VertexId = unknown,
 > {
   readonly sourceMode: 'tree' | 'graph';
   readonly syntheticRoot: boolean;
   /** Stable private identity even when the holder is omitted or deleted. */
   readonly syntheticRootId: symbol | null;
-  syntheticRootRef: InternalVertexRef<T | R> | null = null;
-  readonly publicResolvedGraph: ResolvedGraphView<T | R, ID>;
+  syntheticRootRef: InternalVertexRef<
+    InputVertexTypes | RewrittenVertexTypes
+  > | null = null;
+  readonly publicResolvedGraph: LiveResolvedGraphView<
+    InputVertexTypes | RewrittenVertexTypes,
+    VertexId
+  >;
   /** Raw bookkeeping includes a private symbol when syntheticRoot is enabled. */
-  readonly store: GraphStoreContract<T | R, ID | symbol>;
+  readonly store: GraphStoreContract<
+    InputVertexTypes | RewrittenVertexTypes,
+    VertexId | symbol
+  >;
   /** Unlike publicResolvedGraph, this view includes the synthetic root. */
-  readonly resolvedGraphView: InternalResolvedGraphView<T | R, ID | symbol>;
-  readonly originalGraphView: OriginalGraphView<T, ID> | null;
+  readonly liveResolvedGraphView: InternalResolvedGraphView<
+    InputVertexTypes | RewrittenVertexTypes,
+    VertexId | symbol
+  >;
+  readonly preCommandDiscoveredGraphView: PreCommandDiscoveredGraphView<
+    InputVertexTypes,
+    VertexId
+  > | null;
   readonly originalGraphRefsMap: Map<
-    InternalVertexRef<T | R>,
-    InternalVertexRef<T>
+    InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    InternalVertexRef<InputVertexTypes>
   > | null;
   readonly treeContainer: DepthFirstTraversalResolvedTreesContainer<
-    T,
-    R
+    InputVertexTypes,
+    RewrittenVertexTypes
   > | null;
-  private readonly detachedAnchors = new Set<InternalVertexRef<T | R>>();
-  private readonly snapshot: StructuralGraphSnapshot<T, R> | null;
+  private readonly detachedAnchors = new Set<
+    InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>
+  >();
+  private readonly snapshot: StructuralGraphSnapshot<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  > | null;
 
-  constructor(options: ResolvedGraphsContainerOptions<T, R, ID>) {
+  constructor(
+    options: ResolvedGraphsContainerOptions<
+      InputVertexTypes,
+      RewrittenVertexTypes,
+      VertexId
+    >,
+  ) {
     this.sourceMode = options.sourceMode;
     this.syntheticRoot =
       options.sourceMode === 'graph' && options.syntheticRoot === true;
@@ -77,48 +113,59 @@ export class ResolvedGraphsContainer<
       // The erased store contains source IDs plus a private synthetic-root symbol.
       (
         this.treeContainer === null
-          ? new GraphStore<T | R>('dag')
+          ? new GraphStore<InputVertexTypes | RewrittenVertexTypes>('dag')
           : getTreeGraphStore(this.treeContainer.resolvedTree)
-      ) as GraphStoreContract<T | R, ID | symbol>;
-    this.resolvedGraphView = this.store.graph;
+      ) as GraphStoreContract<
+        InputVertexTypes | RewrittenVertexTypes,
+        VertexId | symbol
+      >;
+    this.liveResolvedGraphView = this.store.graph;
     // The public forest view excludes the synthetic identity; other IDs come from the source.
-    this.publicResolvedGraph = resolvedGraphView(
+    this.publicResolvedGraph = liveResolvedGraphView(
       this.syntheticRoot
-        ? makeDagGraphView(this.resolvedGraphView, () => this.syntheticRootRef)
-        : this.resolvedGraphView,
-    ) as ResolvedGraphView<T | R, ID>;
+        ? makeDagGraphView(
+            this.liveResolvedGraphView,
+            () => this.syntheticRootRef,
+          )
+        : this.liveResolvedGraphView,
+    ) as LiveResolvedGraphView<
+      InputVertexTypes | RewrittenVertexTypes,
+      VertexId
+    >;
     this.snapshot = options.saveOriginal
-      ? new StructuralGraphSnapshot<T, R>()
+      ? new StructuralGraphSnapshot<InputVertexTypes, RewrittenVertexTypes>()
       : null;
     // Snapshots preserve the exact identities accepted by this typed container.
-    this.originalGraphView = (
-      this.snapshot === null ? null : originalGraphView(this.snapshot.graph)
-    ) as OriginalGraphView<T, ID> | null;
+    this.preCommandDiscoveredGraphView = (
+      this.snapshot === null
+        ? null
+        : preCommandDiscoveredGraphView(this.snapshot.graph)
+    ) as PreCommandDiscoveredGraphView<InputVertexTypes, VertexId> | null;
     this.originalGraphRefsMap = this.snapshot?.refsMap ?? null;
   }
 
   acceptRoot(
-    ref: InternalVertexRef<T | R>,
-    id: ID,
-    dependsOnWork: readonly ID[] = [],
-    dependsOnSubgraphCompletion: readonly ID[] = [],
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    id: VertexId,
+    workWaitsForWorkOf: readonly VertexId[] = [],
+    workWaitsForSubgraphCompletionOf: readonly VertexId[] = [],
   ): void {
     if (this.syntheticRoot) {
       this.syntheticRootRef = ref;
-      this.store.insertVertex({ ref, id, dependsOnWork: [], depth: 0 });
+      this.store.insertVertex({ ref, id, workWaitsForWorkOf: [], depth: 0 });
       this.store.setRoot(ref);
       return;
     }
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
-      this.store.insertVertex({ ref, id, dependsOnWork: [], depth: 0 });
+      this.store.insertVertex({ ref, id, workWaitsForWorkOf: [], depth: 0 });
       this.treeContainer.setRoot(ref);
     } else {
       this.store.insertVertex({
         ref,
         id,
-        dependsOnWork,
-        dependsOnSubgraphCompletion,
+        workWaitsForWorkOf,
+        workWaitsForSubgraphCompletionOf,
         depth: 0,
       });
       this.store.setRoot(ref);
@@ -128,55 +175,64 @@ export class ResolvedGraphsContainer<
   }
 
   acceptVertex(
-    ref: InternalVertexRef<T | R>,
-    id: ID,
-    dependsOnWork: readonly ID[],
-    context: InternalVertexResolutionContext<T | R>,
-    dependsOnSubgraphCompletion: readonly ID[] = [],
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    id: VertexId,
+    workWaitsForWorkOf: readonly VertexId[],
+    context: InternalChildDiscoveryContext<
+      InputVertexTypes | RewrittenVertexTypes
+    >,
+    workWaitsForSubgraphCompletionOf: readonly VertexId[] = [],
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     if (this.treeContainer !== null) {
       this.treeContainer.validateSavedResolutionContext(context);
-      this.store.insertVertex({ ref, id, dependsOnWork, depth: context.depth });
+      this.store.insertVertex({
+        ref,
+        id,
+        workWaitsForWorkOf,
+        depth: context.discoveryDepthInEdges,
+      });
       this.treeContainer.setWithResolutionContext(ref, context);
     } else {
       this.store.insertVertex({
         ref,
         id,
-        dependsOnWork,
-        dependsOnSubgraphCompletion,
-        depth: context.depth,
+        workWaitsForWorkOf,
+        workWaitsForSubgraphCompletionOf,
+        depth: context.discoveryDepthInEdges,
       });
     }
     this.commitSnapshotVertex(staged);
   }
 
   acceptDetachedVertex(
-    ref: InternalVertexRef<T | R>,
-    id: ID,
-    dependsOnWork: readonly ID[],
-    dependsOnSubgraphCompletion: readonly ID[],
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+    id: VertexId,
+    workWaitsForWorkOf: readonly VertexId[],
+    workWaitsForSubgraphCompletionOf: readonly VertexId[],
   ): void {
     const staged = this.snapshot?.stageVertex(ref, id) ?? null;
     this.store.insertVertex({
       ref,
       id,
-      dependsOnWork,
-      dependsOnSubgraphCompletion,
+      workWaitsForWorkOf,
+      workWaitsForSubgraphCompletionOf,
       depth: this.syntheticRoot ? 1 : 0,
     });
     this.commitSnapshotVertex(staged);
     this.detachedAnchors.add(ref);
   }
 
-  isDetachedAnchor(ref: InternalVertexRef<T | R>): boolean {
+  isDetachedAnchor(
+    ref: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
+  ): boolean {
     return this.detachedAnchors.has(ref);
   }
 
   acceptEdge(
-    parent: InternalVertexRef<T | R>,
+    parent: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
     index: number,
-    child: InternalVertexRef<T | R>,
+    child: InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>,
     legacyTopologyAlreadyLinked = false,
   ): void {
     const staged =
@@ -187,13 +243,13 @@ export class ResolvedGraphsContainer<
     const isAcknowledgment =
       oldSlot?.kind === 'linked' && oldSlot.childRef === child;
     let savedEdge: {
-      parent: TreeVertexRecord<T>;
-      child: InternalVertexRef<T>;
+      parent: MutableTreeVertexTopologyRecord<InputVertexTypes>;
+      child: InternalVertexRef<InputVertexTypes>;
     } | null = null;
     const treeContainer = this.treeContainer;
     if (
       treeContainer !== null &&
-      treeContainer.originalTreeView !== null &&
+      treeContainer.preCommandDiscoveredTreeView !== null &&
       treeContainer.originalTreeRefsMap !== null &&
       !isAcknowledgment &&
       !legacyTopologyAlreadyLinked
@@ -207,30 +263,37 @@ export class ResolvedGraphsContainer<
       if (savedChildRef === undefined) {
         throw new Error('Could not find not mutated child ref');
       }
-      const savedParent = treeContainer.originalTreeView.get(savedParentRef);
+      const savedParent =
+        treeContainer.preCommandDiscoveredTreeView.getMutableVertexRecordOrNull(
+          savedParentRef,
+        );
       if (savedParent === null) {
         throw new Error('Could not find not mutated parent record');
       }
       savedEdge = { parent: savedParent, child: savedChildRef };
     }
     this.store.linkSlot(parent, index, child, legacyTopologyAlreadyLinked);
-    savedEdge?.parent.pushChildren([savedEdge.child]);
+    savedEdge?.parent.appendChildReferences([savedEdge.child]);
     if (staged !== null) this.snapshot!.commitEdge(staged);
   }
 
-  deleteVertices(refs: ReadonlySet<InternalVertexRef<T | R>>): void {
+  deleteVertices(
+    refs: ReadonlySet<
+      InternalVertexRef<InputVertexTypes | RewrittenVertexTypes>
+    >,
+  ): void {
     if (this.treeContainer === null) {
       for (const ref of refs) this.detachedAnchors.delete(ref);
       this.store.removeVertices(refs);
       return;
     }
     for (const ref of refs) {
-      if (this.resolvedGraphView.has(ref)) this.treeContainer.delete(ref);
+      if (this.liveResolvedGraphView.has(ref)) this.treeContainer.delete(ref);
     }
   }
 
   private commitSnapshotVertex(
-    staged: StagedSnapshotVertex<T, R> | null,
+    staged: StagedSnapshotVertex<InputVertexTypes, RewrittenVertexTypes> | null,
   ): void {
     if (staged !== null) this.snapshot!.commitVertex(staged);
   }

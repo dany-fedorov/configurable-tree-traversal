@@ -1,31 +1,33 @@
 import type { TraversalRunnerStatus } from '@core/TraversalRunner';
-import type { GraphWalkPhase } from '../GraphWalkPhase';
+import type { GraphWalkObservationKind } from '../GraphWalkPhase';
 
-export type GraphWalkCounts = Readonly<{
+export type GraphWalkProgressCounts = Readonly<{
   /** Attempted root/link reads, including done results and cached route replay. */
-  candidateReadAttempts: number;
+  rootOrLinkReadAttemptsIncludingDoneAndCacheReplay: number;
   /** Distinct roots and eligible followed links, including omissions and returns. */
-  admittedTargets: number;
-  uniqueFoundVertices: number;
-  uniqueOmittedVertices: number;
+  admittedRootOrLinkTargetOccurrences: number;
+  resolvedFoundVertexIdCount: number;
+  resolvedOmittedVertexIdCount: number;
   /** Fresh source links read before filtering; cached replay is not recounted. */
-  discoveredLinks: number;
-  /** Per-phase acknowledged observations, independent of callback/delivery filters. */
-  processedObservations: Readonly<Record<GraphWalkPhase, number>>;
+  freshSourceOutgoingLinkCount: number;
+  /** Per-kind acknowledged observations, independent of callback/delivery filters. */
+  acknowledgedObservationCountsByKind: Readonly<
+    Record<GraphWalkObservationKind, number>
+  >;
 }>;
-export type GraphWalkOutcome =
-  | { readonly kind: 'exhausted' | 'closed' }
+export type GraphWalkTerminalOutcome =
+  | { readonly kind: 'sourceRoutesExhausted' | 'permanentlyClosedByCaller' }
   | {
-      readonly kind: 'limited';
-      readonly reasons: readonly (
-        | 'maxDepth'
-        | 'maxAdmittedTargets'
-        | 'maxCandidateReadAttempts'
+      readonly kind: 'traversalLimitsReached';
+      readonly reachedLimits: readonly (
+        | 'maxRouteHopDepth'
+        | 'maxAdmittedRootOrLinkTargetOccurrences'
+        | 'maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay'
       )[];
     }
   | { readonly kind: 'failed'; readonly error: unknown };
-export type GraphWalkSummary = Readonly<{
+export type GraphWalkProgressSnapshot = Readonly<{
   status: TraversalRunnerStatus;
-  counts: GraphWalkCounts;
-  outcome: GraphWalkOutcome | null;
+  counts: GraphWalkProgressCounts;
+  terminalOutcome: GraphWalkTerminalOutcome | null;
 }>;

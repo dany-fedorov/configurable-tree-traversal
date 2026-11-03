@@ -5,10 +5,12 @@ import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContain
 import { runSync, type SyncDriverState } from '../src/core/drivers/runSync';
 import { createCallbackBindings } from '../src/core/drivers/callbackBindings';
 import type { TestGraph } from './helpers/graph-fixtures';
-import { MutableRef } from '../src/core/CTTRef';
+import { MutableValueReference } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 
-function setup(iterateOver: Array<'ON_WORK_READY' | 'ON_SUBGRAPH_READY'> = []) {
+function setup(
+  iterateOver: Array<'ON_WORK_READY' | 'ON_SUBGRAPH_COMPLETION_READY'> = [],
+) {
   const kernel = new TraversalKernel<TestGraph>({
     kind: 'dag',
     execution: 'sync',
@@ -18,7 +20,7 @@ function setup(iterateOver: Array<'ON_WORK_READY' | 'ON_SUBGRAPH_READY'> = []) {
       saveOriginal: false,
     }),
     stateBridge: {
-      status: TraversalRunnerStatus.INITIAL,
+      status: TraversalRunnerStatus.NOT_STARTED,
       traversalRootVertexRef: null,
       subtreeTraversalDisabledRefs: new Set(),
       visitorsState: {},
@@ -30,24 +32,26 @@ function setup(iterateOver: Array<'ON_WORK_READY' | 'ON_SUBGRAPH_READY'> = []) {
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasHintTransformer: false,
-    hasHintIds: false,
-    concurrency: 1,
+    hasChildHintsListTransformer: false,
+    hasChildHintVertexIdResolver: false,
+    maxConcurrentCallbackInvocations: 1,
   });
   return kernel;
 }
 
 test('invokes callbacks synchronously and restores the physical count', () => {
   const kernel = setup(['ON_WORK_READY']);
-  const runtime: SyncDriverState = { inFlightCallbackCount: 0 };
+  const runtime: SyncDriverState = { inFlightInvocationCount: 0 };
   const seen: number[] = [];
   const bindings: CallbackBindings<TestGraph> = {
     invoke(call) {
-      seen.push(runtime.inFlightCallbackCount);
+      seen.push(runtime.inFlightInvocationCount);
       if (call.kind !== 'MAKE_ROOT') throw new Error('Unexpected callback');
       return {
         kind: 'MAKE_ROOT',
-        value: { vertexContent: { $data: 'root', $childHints: [] } },
+        value: {
+          vertexContent: { $vertexData: 'root', $childDiscoveryHints: [] },
+        },
       };
     },
   };
@@ -57,14 +61,14 @@ test('invokes callbacks synchronously and restores the physical count', () => {
   expect(event.done).toBe(false);
   expect(event.value).not.toBeNull();
   expect(seen).toEqual([1]);
-  expect(runtime.inFlightCallbackCount).toBe(0);
+  expect(runtime.inFlightInvocationCount).toBe(0);
   expect(iterator.next()).toEqual({ done: true, value: undefined });
 });
 
 test('yields null at a retained halt boundary and resumes the loop', () => {
   const kernel = setup();
   kernel.requestHalt();
-  const runtime = { inFlightCallbackCount: 0 };
+  const runtime = { inFlightInvocationCount: 0 };
   const bindings: CallbackBindings<TestGraph> = {
     invoke: () => ({
       kind: 'MAKE_ROOT',
@@ -79,7 +83,7 @@ test('yields null at a retained halt boundary and resumes the loop', () => {
 
 test('restores the physical count and rethrows original callback errors', () => {
   const failure = { reason: 'original' };
-  const runtime = { inFlightCallbackCount: 0 };
+  const runtime = { inFlightInvocationCount: 0 };
   const iterator = runSync<TestGraph>(
     setup(),
     {
@@ -97,7 +101,7 @@ test('restores the physical count and rethrows original callback errors', () => 
     caught = error;
   }
   expect(caught).toBe(failure);
-  expect(runtime.inFlightCallbackCount).toBe(0);
+  expect(runtime.inFlightInvocationCount).toBe(0);
 });
 
 test.each([
@@ -133,7 +137,7 @@ test.each([
       {
         invoke: () => ({ kind: 'MAKE_ROOT', value } as never),
       },
-      { inFlightCallbackCount: 0 },
+      { inFlightInvocationCount: 0 },
     );
     expect(() => iterator.next()).toThrow(/synchronous runner.*MAKE_ROOT/i);
   },
@@ -147,7 +151,7 @@ test('rejects WAIT and mismatched callback transport results', () => {
     runSync(
       waiting,
       { invoke: () => ({ kind: 'MAKE_ROOT', value: { vertexContent: null } }) },
-      { inFlightCallbackCount: 0 },
+      { inFlightInvocationCount: 0 },
     ).next(),
   ).toThrow(/stalled/i);
 
@@ -159,7 +163,7 @@ test('rejects WAIT and mismatched callback transport results', () => {
         value: undefined,
       }),
     } as CallbackBindings<TestGraph>,
-    { inFlightCallbackCount: 0 },
+    { inFlightInvocationCount: 0 },
   );
   expect(() => iterator.next()).toThrow(/returned VISIT.*MAKE_ROOT/i);
 });
@@ -198,10 +202,17 @@ test('callback bindings dispatch every request by its discriminant', () => {
     kind: 'MAKE_ROOT',
     value: { vertexContent: null },
   });
-  const ref = new MutableRef(
-    new Vertex<TestGraph>({ $data: 'parent', $childHints: ['a'] }),
+  const ref = new MutableValueReference(
+    new Vertex<TestGraph>({
+      $vertexData: 'parent',
+      $childDiscoveryHints: ['a'],
+    }),
   );
-  const owner = { kind: 'frame' as const, id: 2, epoch: 0 };
+  const owner = {
+    ownerKind: 'vertexTraversalFrame' as const,
+    runnerLocalOwnerId: 2,
+    validityGeneration: 0,
+  };
   expect(
     bindings.invoke({
       requestId: 2,
@@ -225,27 +236,31 @@ test('callback bindings dispatch every request by its discriminant', () => {
       owner,
       kind: 'MAKE_VERTEX',
       context: {
-        depth: 1,
-        parentVertex: ref.getValue(),
-        parentVertexRef: ref,
-        hintIndex: 0,
-        vertexHint: 'a',
+        discoveryDepthInEdges: 1,
+        parentVertexAtChildResolution: ref.getReferencedValue(),
+        parentVertexHandle: ref,
+        parentChildHintIndex: 0,
+        childDiscoveryHint: 'a',
       },
     }),
   ).toEqual({ kind: 'MAKE_VERTEX', value: { vertexContent: null } });
   expect(
     bindings.invoke({
       requestId: 5,
-      owner: { kind: 'chain', id: 3, epoch: 0 },
+      owner: {
+        ownerKind: 'vertexPhaseVisitorChain',
+        runnerLocalOwnerId: 3,
+        validityGeneration: 0,
+      },
       kind: 'VISIT',
       ref,
       order: 'ON_WORK_READY',
       recordIndex: 0,
       metadata: {
-        phaseVisitIndex: 0,
-        visitorIndex: 0,
-        previousPhaseVertexRef: null,
-        visitorChainState: null,
+        phaseVisitorChainIndex: 0,
+        visitorCallbackIndexInPhaseChain: 0,
+        previousCommittedVisitVertexHandleForSamePhase: null,
+        currentVertexPhaseChainState: null,
       },
     }),
   ).toEqual({ kind: 'VISIT', value: undefined });
@@ -260,7 +275,11 @@ test('callback bindings use sort fallback and reject missing visitors', () => {
     },
     visit: {},
   });
-  const owner = { kind: 'frame' as const, id: 1, epoch: 0 };
+  const owner = {
+    ownerKind: 'vertexTraversalFrame' as const,
+    runnerLocalOwnerId: 1,
+    validityGeneration: 0,
+  };
   expect(
     bindings.invoke({
       requestId: 1,
@@ -272,18 +291,25 @@ test('callback bindings use sort fallback and reject missing visitors', () => {
   expect(() =>
     bindings.invoke({
       requestId: 2,
-      owner: { kind: 'chain', id: 2, epoch: 0 },
+      owner: {
+        ownerKind: 'vertexPhaseVisitorChain',
+        runnerLocalOwnerId: 2,
+        validityGeneration: 0,
+      },
       kind: 'VISIT',
-      ref: new MutableRef(
-        new Vertex<TestGraph>({ $data: 'root', $childHints: [] }),
+      ref: new MutableValueReference(
+        new Vertex<TestGraph>({
+          $vertexData: 'root',
+          $childDiscoveryHints: [],
+        }),
       ),
       order: 'ON_WORK_READY',
       recordIndex: 0,
       metadata: {
-        phaseVisitIndex: 0,
-        visitorIndex: 0,
-        previousPhaseVertexRef: null,
-        visitorChainState: null,
+        phaseVisitorChainIndex: 0,
+        visitorCallbackIndexInPhaseChain: 0,
+        previousCommittedVisitVertexHandleForSamePhase: null,
+        currentVertexPhaseChainState: null,
       },
     }),
   ).toThrow(/no callback binding/i);

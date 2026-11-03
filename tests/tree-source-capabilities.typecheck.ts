@@ -1,286 +1,311 @@
-import { ObjectTreeSource } from '../src';
+import { ObjectPropertyTreeSource } from '../src';
 import { rewriteObject } from '../src/tools/rewrite-object/rewriteObject';
 import type {
-  TreeSource,
-  AsyncTreeSource,
+  TreeDiscoverySource,
+  AsyncTreeDiscoverySource,
   DagDiscoverySource,
-  VertexTypes,
-  TreeVertexFound,
-  TreeVertexOmitted,
+  VertexDataAndChildHintTypes,
+  TreeVertexResolutionFound,
+  TreeVertexResolutionOmitted,
   TreeVertexResolution,
-  DagVertexResolution,
-  ObjectChildHookResult,
+  DagSourceVertexResolution,
+  ObjectChildPropertyResolutionOverrideResult,
 } from '../src';
 
-type T = VertexTypes<string, string>;
-const content = { $data: 'root', $childHints: [] };
-const found: TreeVertexFound<T> = {
-  kind: 'found',
-  vertex: { vertexContent: content },
+type T = VertexDataAndChildHintTypes<string, string>;
+const content = { $vertexData: 'root', $childDiscoveryHints: [] };
+const found: TreeVertexResolutionFound<T> = {
+  kind: 'vertexResolved',
+  resolvedVertexInput: { vertexContentInput: content },
 };
-const omitted: TreeVertexOmitted = { kind: 'omitted' };
+const omitted: TreeVertexResolutionOmitted = {
+  kind: 'vertexIntentionallyOmitted',
+};
 // @ts-expect-error Untagged tree source resolutions are retired.
 const legacy: TreeVertexResolution<T> = { vertexContent: null };
 const source: TreeVertexResolution<T> = found;
-const tree: TreeSource<T> = {
-  resolveRoot: () => source,
-  resolveChild: () => omitted,
+const tree: TreeDiscoverySource<T> = {
+  resolveRootVertex: () => source,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncTree: AsyncTreeSource<T> = {
-  resolveRoot: async () => legacy,
-  resolveChild: async () => found,
+const asyncTree: AsyncTreeDiscoverySource<T> = {
+  resolveRootVertex: async () => legacy,
+  resolveChildVertexFromHint: async () => found,
 };
-const hook: ObjectChildHookResult<T> = { kind: 'useDefault' };
+const hook: ObjectChildPropertyResolutionOverrideResult<T> = {
+  kind: 'useDefaultChildPropertyResolution',
+};
 const graph: DagDiscoverySource<T> = {
-  resolveRoot: () => ({
-    kind: 'found',
-    vertex: {
-      vertexContent: content,
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved',
+    resolvedVertexInput: {
+      vertexContentInput: content,
       vertexId: undefined,
-      dependsOnWork: [],
-      dependsOnSubgraphCompletion: [],
+      workWaitsForWorkOf: [],
+      workWaitsForSubgraphCompletionOf: [],
     },
   }),
-  resolveChild: () => ({
-    kind: 'omitted',
-    satisfiesDependencies: true,
-    identity: { vertexId: undefined },
+  resolveChildHint: () => ({
+    kind: 'vertexIntentionallyOmitted',
+    satisfiesWorkAndSubgraphCompletionPrerequisites: true,
+    omittedVertexIdentity: { vertexId: undefined },
   }),
 };
-const graphResult: DagVertexResolution<T> = graph.resolveRoot();
+const graphResult: DagSourceVertexResolution<T> = graph.resolveRootVertex();
 void [tree, asyncTree, hook, graphResult];
 
 const vertexIdlegacy = () => ({
-  kind: 'found' as const,
-  vertex: { vertexContent: content, vertexId: undefined },
+  kind: 'vertexResolved' as const,
+  resolvedVertexInput: { vertexContentInput: content, vertexId: undefined },
 });
-const badvertexIdlegacy: TreeSource<T> = {
+const badvertexIdlegacy: TreeDiscoverySource<T> = {
   // @ts-expect-error vertexId is not a tree legacy capability, even on pretyped functions.
-  resolveRoot: vertexIdlegacy,
-  resolveChild: () => omitted,
+  resolveRootVertex: vertexIdlegacy,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncBadvertexIdlegacy: AsyncTreeSource<T> = {
+const asyncBadvertexIdlegacy: AsyncTreeDiscoverySource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  resolveRoot: async () => vertexIdlegacy(),
-  resolveChild: () => omitted,
+  resolveRootVertex: async () => vertexIdlegacy(),
+  resolveChildVertexFromHint: () => omitted,
 };
 void [badvertexIdlegacy, asyncBadvertexIdlegacy];
 const vertexIdfound = () => ({
-  kind: 'found' as const,
-  vertex: { vertexContent: content, vertexId: undefined },
+  kind: 'vertexResolved' as const,
+  resolvedVertexInput: { vertexContentInput: content, vertexId: undefined },
 });
-const badvertexIdfound: TreeSource<T> = {
+const badvertexIdfound: TreeDiscoverySource<T> = {
   // @ts-expect-error vertexId is not a tree found capability, even on pretyped functions.
-  resolveRoot: vertexIdfound,
-  resolveChild: () => omitted,
+  resolveRootVertex: vertexIdfound,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncBadvertexIdfound: AsyncTreeSource<T> = {
+const asyncBadvertexIdfound: AsyncTreeDiscoverySource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  resolveRoot: async () => vertexIdfound(),
-  resolveChild: () => omitted,
+  resolveRootVertex: async () => vertexIdfound(),
+  resolveChildVertexFromHint: () => omitted,
 };
 void [badvertexIdfound, asyncBadvertexIdfound];
 const vertexIdomitted = () => ({
-  kind: 'omitted' as const,
-  identity: { vertexId: undefined },
+  kind: 'vertexIntentionallyOmitted' as const,
+  omittedVertexIdentity: { vertexId: undefined },
 });
-const badvertexIdomitted: TreeSource<T> = {
+const badvertexIdomitted: TreeDiscoverySource<T> = {
   // @ts-expect-error vertexId is not a tree omitted capability, even on pretyped functions.
-  resolveRoot: vertexIdomitted,
-  resolveChild: () => omitted,
+  resolveRootVertex: vertexIdomitted,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncBadvertexIdomitted: AsyncTreeSource<T> = {
+const asyncBadvertexIdomitted: AsyncTreeDiscoverySource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  resolveRoot: async () => vertexIdomitted(),
-  resolveChild: () => omitted,
+  resolveRootVertex: async () => vertexIdomitted(),
+  resolveChildVertexFromHint: () => omitted,
 };
 void [badvertexIdomitted, asyncBadvertexIdomitted];
 const dependsOnlegacy = () => ({
-  kind: 'found' as const,
-  vertex: { vertexContent: content, dependsOnWork: [] },
+  kind: 'vertexResolved' as const,
+  resolvedVertexInput: { vertexContentInput: content, workWaitsForWorkOf: [] },
 });
-const baddependsOnlegacy: TreeSource<T> = {
+const baddependsOnlegacy: TreeDiscoverySource<T> = {
   // @ts-expect-error dependsOnWork is not a tree legacy capability, even on pretyped functions.
-  resolveRoot: dependsOnlegacy,
-  resolveChild: () => omitted,
+  resolveRootVertex: dependsOnlegacy,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncBaddependsOnlegacy: AsyncTreeSource<T> = {
+const asyncBaddependsOnlegacy: AsyncTreeDiscoverySource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  resolveRoot: async () => dependsOnlegacy(),
-  resolveChild: () => omitted,
+  resolveRootVertex: async () => dependsOnlegacy(),
+  resolveChildVertexFromHint: () => omitted,
 };
 void [baddependsOnlegacy, asyncBaddependsOnlegacy];
 const dependsOnfound = () => ({
-  kind: 'found' as const,
-  vertex: { vertexContent: content, dependsOnWork: [] },
+  kind: 'vertexResolved' as const,
+  resolvedVertexInput: { vertexContentInput: content, workWaitsForWorkOf: [] },
 });
-const baddependsOnfound: TreeSource<T> = {
+const baddependsOnfound: TreeDiscoverySource<T> = {
   // @ts-expect-error dependsOnWork is not a tree found capability, even on pretyped functions.
-  resolveRoot: dependsOnfound,
-  resolveChild: () => omitted,
+  resolveRootVertex: dependsOnfound,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncBaddependsOnfound: AsyncTreeSource<T> = {
+const asyncBaddependsOnfound: AsyncTreeDiscoverySource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  resolveRoot: async () => dependsOnfound(),
-  resolveChild: () => omitted,
+  resolveRootVertex: async () => dependsOnfound(),
+  resolveChildVertexFromHint: () => omitted,
 };
 void [baddependsOnfound, asyncBaddependsOnfound];
 const dependsOnomitted = () => ({
-  kind: 'omitted' as const,
-  dependsOnWork: [],
+  kind: 'vertexIntentionallyOmitted' as const,
+  workWaitsForWorkOf: [],
 });
-const baddependsOnomitted: TreeSource<T> = {
+const baddependsOnomitted: TreeDiscoverySource<T> = {
   // @ts-expect-error dependsOnWork is not a tree omitted capability, even on pretyped functions.
-  resolveRoot: dependsOnomitted,
-  resolveChild: () => omitted,
+  resolveRootVertex: dependsOnomitted,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncBaddependsOnomitted: AsyncTreeSource<T> = {
+const asyncBaddependsOnomitted: AsyncTreeDiscoverySource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  resolveRoot: async () => dependsOnomitted(),
-  resolveChild: () => omitted,
+  resolveRootVertex: async () => dependsOnomitted(),
+  resolveChildVertexFromHint: () => omitted,
 };
 void [baddependsOnomitted, asyncBaddependsOnomitted];
 const dependsOnCompletelegacy = () => ({
-  kind: 'found' as const,
-  vertex: {
-    vertexContent: content,
-    dependsOnSubgraphCompletion: [],
+  kind: 'vertexResolved' as const,
+  resolvedVertexInput: {
+    vertexContentInput: content,
+    workWaitsForSubgraphCompletionOf: [],
   },
 });
-const baddependsOnCompletelegacy: TreeSource<T> = {
+const baddependsOnCompletelegacy: TreeDiscoverySource<T> = {
   // @ts-expect-error dependsOnSubgraphCompletion is not a tree legacy capability, even on pretyped functions.
-  resolveRoot: dependsOnCompletelegacy,
-  resolveChild: () => omitted,
+  resolveRootVertex: dependsOnCompletelegacy,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncBaddependsOnCompletelegacy: AsyncTreeSource<T> = {
+const asyncBaddependsOnCompletelegacy: AsyncTreeDiscoverySource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  resolveRoot: async () => dependsOnCompletelegacy(),
-  resolveChild: () => omitted,
+  resolveRootVertex: async () => dependsOnCompletelegacy(),
+  resolveChildVertexFromHint: () => omitted,
 };
 void [baddependsOnCompletelegacy, asyncBaddependsOnCompletelegacy];
 const dependsOnCompletefound = () => ({
-  kind: 'found' as const,
-  vertex: { vertexContent: content, dependsOnSubgraphCompletion: [] },
+  kind: 'vertexResolved' as const,
+  resolvedVertexInput: {
+    vertexContentInput: content,
+    workWaitsForSubgraphCompletionOf: [],
+  },
 });
-const baddependsOnCompletefound: TreeSource<T> = {
+const baddependsOnCompletefound: TreeDiscoverySource<T> = {
   // @ts-expect-error dependsOnSubgraphCompletion is not a tree found capability, even on pretyped functions.
-  resolveRoot: dependsOnCompletefound,
-  resolveChild: () => omitted,
+  resolveRootVertex: dependsOnCompletefound,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncBaddependsOnCompletefound: AsyncTreeSource<T> = {
+const asyncBaddependsOnCompletefound: AsyncTreeDiscoverySource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  resolveRoot: async () => dependsOnCompletefound(),
-  resolveChild: () => omitted,
+  resolveRootVertex: async () => dependsOnCompletefound(),
+  resolveChildVertexFromHint: () => omitted,
 };
 void [baddependsOnCompletefound, asyncBaddependsOnCompletefound];
 const dependsOnCompleteomitted = () => ({
-  kind: 'omitted' as const,
-  dependsOnSubgraphCompletion: [],
+  kind: 'vertexIntentionallyOmitted' as const,
+  workWaitsForSubgraphCompletionOf: [],
 });
-const baddependsOnCompleteomitted: TreeSource<T> = {
+const baddependsOnCompleteomitted: TreeDiscoverySource<T> = {
   // @ts-expect-error dependsOnSubgraphCompletion is not a tree omitted capability, even on pretyped functions.
-  resolveRoot: dependsOnCompleteomitted,
-  resolveChild: () => omitted,
+  resolveRootVertex: dependsOnCompleteomitted,
+  resolveChildVertexFromHint: () => omitted,
 };
-const asyncBaddependsOnCompleteomitted: AsyncTreeSource<T> = {
+const asyncBaddependsOnCompleteomitted: AsyncTreeDiscoverySource<T> = {
   // @ts-expect-error Async sources share the tree capability restrictions.
-  resolveRoot: async () => dependsOnCompleteomitted(),
-  resolveChild: () => omitted,
+  resolveRootVertex: async () => dependsOnCompleteomitted(),
+  resolveChildVertexFromHint: () => omitted,
 };
 void [baddependsOnCompleteomitted, asyncBaddependsOnCompleteomitted];
 // @ts-expect-error Canonical hooks cannot implicitly request default resolution.
-const implicitHook: ObjectChildHookResult<T> = undefined;
+const implicitHook: ObjectChildPropertyResolutionOverrideResult<T> = undefined;
 // @ts-expect-error Canonical default results cannot carry graph identity.
-const graphHook: ObjectChildHookResult<T> = {
-  kind: 'useDefault',
+const graphHook: ObjectChildPropertyResolutionOverrideResult<T> = {
+  kind: 'useDefaultChildPropertyResolution',
   vertexId: undefined,
 };
 void [implicitHook, graphHook];
 
 // The real adapter/helper surfaces infer hook hints and enforce tagged results.
-const adapter = new ObjectTreeSource(
+const adapter = new ObjectPropertyTreeSource(
   { a: 1 },
   {
-    resolveChildHook: (hint, options) => {
-      const sameHint: typeof hint = options.resolutionContext.vertexHint;
+    resolveChildPropertyOrUseDefault: (hint, options) => {
+      const sameHint: typeof hint =
+        options.childDiscoveryContext.childDiscoveryHint;
       return {
-        kind: 'found',
-        vertex: { vertexContent: { $data: sameHint, $childHints: [] } },
+        kind: 'vertexResolved',
+        resolvedVertexInput: {
+          vertexContentInput: {
+            $vertexData: sameHint,
+            $childDiscoveryHints: [],
+          },
+        },
       };
     },
   },
 );
-rewriteObject({ a: 1 }, { resolveChildHook: () => ({ kind: 'useDefault' }) });
-new ObjectTreeSource(
+rewriteObject(
+  { a: 1 },
+  {
+    resolveChildPropertyOrUseDefault: () => ({
+      kind: 'useDefaultChildPropertyResolution',
+    }),
+  },
+);
+new ObjectPropertyTreeSource(
   { a: 1 },
   {
     // @ts-expect-error Canonical hooks require an explicit tagged result.
-    resolveChildHook: () => undefined,
+    resolveChildPropertyOrUseDefault: () => undefined,
   },
 );
 rewriteObject(
   { a: 1 },
   {
     // @ts-expect-error Canonical hooks cannot return legacy null-content results.
-    resolveChildHook: () => ({ vertexContent: null }),
+    resolveChildPropertyOrUseDefault: () => ({ vertexContent: null }),
   },
 );
 void adapter;
 
 // Tree omission carries no milestone acknowledgement, even on pretyped callbacks.
-for (const satisfiesDependencies of [true, undefined] as const) {
+for (const satisfiesWorkAndSubgraphCompletionPrerequisites of [
+  true,
+  undefined,
+] as const) {
   const invalidOmission = () => ({
-    identity: null,
-    kind: 'omitted' as const,
-    satisfiesDependencies,
+    omittedVertexIdentity: null,
+    kind: 'vertexIntentionallyOmitted' as const,
+    satisfiesWorkAndSubgraphCompletionPrerequisites,
   });
-  const invalidTree: TreeSource<T> = {
+  const invalidTree: TreeDiscoverySource<T> = {
     // @ts-expect-error Trees forbid graph acknowledgement, including present undefined.
-    resolveRoot: invalidOmission,
-    resolveChild: () => omitted,
+    resolveRootVertex: invalidOmission,
+    resolveChildVertexFromHint: () => omitted,
   };
-  const invalidAsyncTree: AsyncTreeSource<T> = {
+  const invalidAsyncTree: AsyncTreeDiscoverySource<T> = {
     // @ts-expect-error Async tree sources enforce the same restriction.
-    resolveRoot: async () => invalidOmission(),
-    resolveChild: async () => omitted,
+    resolveRootVertex: async () => invalidOmission(),
+    resolveChildVertexFromHint: async () => omitted,
   };
   // @ts-expect-error Object hooks are tree sources too.
-  const invalidHook: ObjectChildHookResult<T> = invalidOmission();
+  const invalidHook: ObjectChildPropertyResolutionOverrideResult<T> =
+    invalidOmission();
   void [invalidTree, invalidAsyncTree, invalidHook];
 }
-const plainHook: ObjectChildHookResult<T> = omitted;
-const plainAsyncTree: AsyncTreeSource<T> = {
-  resolveRoot: async () => omitted,
-  resolveChild: async () => omitted,
+const plainHook: ObjectChildPropertyResolutionOverrideResult<T> = omitted;
+const plainAsyncTree: AsyncTreeDiscoverySource<T> = {
+  resolveRootVertex: async () => omitted,
+  resolveChildVertexFromHint: async () => omitted,
 };
 // @ts-expect-error Graph omission requires explicit acknowledgement.
-const invalidGraphOmission: DagVertexResolution<T> = omitted;
+const invalidGraphOmission: DagSourceVertexResolution<T> = omitted;
 void [plainHook, plainAsyncTree, invalidGraphOmission];
 
 const acknowledgedTreeOmission = () => ({
-  identity: null,
-  kind: 'omitted' as const,
-  satisfiesDependencies: true as const,
+  omittedVertexIdentity: null,
+  kind: 'vertexIntentionallyOmitted' as const,
+  satisfiesWorkAndSubgraphCompletionPrerequisites: true as const,
 });
 const undefinedTreeOmission = () => ({
-  identity: null,
-  kind: 'omitted' as const,
-  satisfiesDependencies: undefined,
+  omittedVertexIdentity: null,
+  kind: 'vertexIntentionallyOmitted' as const,
+  satisfiesWorkAndSubgraphCompletionPrerequisites: undefined,
 });
-const acknowledgedTree: TreeSource<T> = {
+const acknowledgedTree: TreeDiscoverySource<T> = {
   // @ts-expect-error Literal true is forbidden metadata for a tree callback.
-  resolveRoot: acknowledgedTreeOmission,
-  resolveChild: () => omitted,
+  resolveRootVertex: acknowledgedTreeOmission,
+  resolveChildVertexFromHint: () => omitted,
 };
-const undefinedTree: TreeSource<T> = {
+const undefinedTree: TreeDiscoverySource<T> = {
   // @ts-expect-error Present undefined is forbidden metadata for a tree callback.
-  resolveRoot: undefinedTreeOmission,
-  resolveChild: () => omitted,
+  resolveRootVertex: undefinedTreeOmission,
+  resolveChildVertexFromHint: () => omitted,
 };
 const invalidDefaultHook = {
-  kind: 'useDefault' as const,
-  satisfiesDependencies: undefined,
+  kind: 'useDefaultChildPropertyResolution' as const,
+  satisfiesWorkAndSubgraphCompletionPrerequisites: undefined,
 };
 // @ts-expect-error Default object-hook results also forbid acknowledgement metadata.
-const defaultHook: ObjectChildHookResult<T> = invalidDefaultHook;
+const defaultHook: ObjectChildPropertyResolutionOverrideResult<T> =
+  invalidDefaultHook;
 void [acknowledgedTree, undefinedTree, defaultHook];

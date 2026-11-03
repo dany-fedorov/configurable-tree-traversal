@@ -1,43 +1,50 @@
-import { MutableRef } from '../src/core/CTTRef';
+import { MutableValueReference } from '../src/core/CTTRef';
 import { Vertex } from '../src/core/Vertex';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import { VisitorChain } from '../src/core/visitors/VisitorChain';
 
-type Tree = VertexTypes<string, string>;
+type Tree = VertexDataAndChildHintTypes<string, string>;
 
 const ref = () =>
-  new MutableRef(new Vertex<Tree>({ $data: 'root', $childHints: [] }));
+  new MutableValueReference(
+    new Vertex<Tree>({ $vertexData: 'root', $childDiscoveryHints: [] }),
+  );
 const metadata = () => ({
-  phaseVisitIndex: 4,
-  visitorIndex: 99,
-  previousPhaseVertexRef: null,
-  visitorChainState: 'ignored at admission',
+  phaseVisitorChainIndex: 4,
+  visitorCallbackIndexInPhaseChain: 99,
+  previousCommittedVisitVertexHandleForSamePhase: null,
+  currentVertexPhaseChainState: 'ignored at admission',
 });
-const record = (commandCommitMode: import('../src').CommandCommitMode) => ({
-  addedIndex: 0,
-  priority: 100,
-  commandCommitMode,
+const record = (
+  visitorCommandCommitTiming: import('../src').VisitorCommandCommitTiming,
+) => ({
+  phaseRegistrationInsertionIndex: 0,
+  descendingExecutionPriorityWithinGroup: 100,
+  visitorCommandCommitTiming,
 });
 
 test('starts directly with the first callback and committed state is initially null', () => {
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record('afterEachVisitor')],
+    records: [record('afterEachVisitorCallback')],
     metadata: metadata(),
     family: 'tree',
   });
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 0,
-    metadata: { visitorChainState: null },
+    metadata: { currentVertexPhaseChainState: null },
   });
 });
 
 test('waits for a sequential command batch and resumes after its halt', () => {
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record('afterEachVisitor'), record('afterEachVisitor')],
+    records: [
+      record('afterEachVisitorCallback'),
+      record('afterEachVisitorCallback'),
+    ],
     metadata: metadata(),
     family: 'tree',
   });
@@ -45,16 +52,25 @@ test('waits for a sequential command batch and resumes after its halt', () => {
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 0,
-    metadata: { phaseVisitIndex: 4, visitorIndex: 0 },
+    metadata: {
+      phaseVisitorChainIndex: 4,
+      visitorCallbackIndexInPhaseChain: 0,
+    },
   });
   expect(chain.poll()).toEqual({ kind: 'WAIT' });
   chain.submit({
     ok: true,
-    value: { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] },
+    value: {
+      commands: [
+        { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+      ],
+    },
   });
   expect(chain.poll()).toEqual({
     kind: 'COMMANDS',
-    commands: [{ commandName: Command.PAUSE_TRAVERSAL }],
+    commands: [
+      { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+    ],
   });
   expect(chain.poll()).toEqual({ kind: 'WAIT' });
   chain.commitBatch({ halt: true, deleted: false });
@@ -63,7 +79,7 @@ test('waits for a sequential command batch and resumes after its halt', () => {
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 1,
-    metadata: { visitorIndex: 1 },
+    metadata: { visitorCallbackIndexInPhaseChain: 1 },
   });
 });
 
@@ -71,9 +87,9 @@ test('batches concurrent records in input order and passes null chain state', ()
   const chain = new VisitorChain<Tree>({
     ref: ref(),
     records: [
-      record('afterGroup'),
-      record('afterGroup'),
-      record('afterEachVisitor'),
+      record('afterContiguousVisitorBatch'),
+      record('afterContiguousVisitorBatch'),
+      record('afterEachVisitorCallback'),
     ],
     metadata: metadata(),
     family: 'dag',
@@ -82,42 +98,52 @@ test('batches concurrent records in input order and passes null chain state', ()
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 0,
-    metadata: { visitorChainState: null },
+    metadata: { currentVertexPhaseChainState: null },
   });
   chain.submit({
     ok: true,
-    value: { commands: [{ commandName: Command.NOOP }] },
+    value: { commands: [{ commandName: Command.NO_OPERATION }] },
   });
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 1,
     metadata: {
-      visitorIndex: 1,
-      visitorChainState: null,
+      visitorCallbackIndexInPhaseChain: 1,
+      currentVertexPhaseChainState: null,
     },
   });
   chain.submit({
     ok: true,
-    value: { commands: [{ commandName: Command.DELETE_TREE_SUBTREE }] },
+    value: {
+      commands: [
+        {
+          commandName:
+            Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
+        },
+      ],
+    },
   });
   expect(chain.poll()).toEqual({
     kind: 'COMMANDS',
     commands: [
-      { commandName: Command.NOOP },
-      { commandName: Command.DELETE_TREE_SUBTREE },
+      { commandName: Command.NO_OPERATION },
+      {
+        commandName:
+          Command.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS,
+      },
     ],
   });
   chain.commitBatch({
     halt: false,
     deleted: false,
-    visitorChainState: undefined,
+    currentVertexPhaseChainState: undefined,
   });
   expect(chain.poll()).toMatchObject({
     kind: 'VISIT',
     recordIndex: 2,
     metadata: {
-      visitorIndex: 2,
-      visitorChainState: undefined,
+      visitorCallbackIndexInPhaseChain: 2,
+      currentVertexPhaseChainState: undefined,
     },
   });
 });
@@ -125,7 +151,10 @@ test('batches concurrent records in input order and passes null chain state', ()
 test('does not pause for a halt that was not requested by its command batch', () => {
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record('afterEachVisitor'), record('afterEachVisitor')],
+    records: [
+      record('afterEachVisitorCallback'),
+      record('afterEachVisitorCallback'),
+    ],
     metadata: metadata(),
     family: 'dag',
   });
@@ -141,7 +170,10 @@ test('does not pause for a halt that was not requested by its command batch', ()
 test('stops before another callback after deletion or invalidation', () => {
   const deleted = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record('afterEachVisitor'), record('afterEachVisitor')],
+    records: [
+      record('afterEachVisitorCallback'),
+      record('afterEachVisitorCallback'),
+    ],
     metadata: metadata(),
     family: 'tree',
   });
@@ -154,7 +186,7 @@ test('stops before another callback after deletion or invalidation', () => {
 
   const invalid = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record('afterEachVisitor')],
+    records: [record('afterEachVisitorCallback')],
     metadata: metadata(),
     family: 'dag',
   });
@@ -165,7 +197,7 @@ test('stops before another callback after deletion or invalidation', () => {
 test('rejects submit and commit calls outside their transition boundaries', () => {
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record('afterEachVisitor')],
+    records: [record('afterEachVisitorCallback')],
     metadata: metadata(),
     family: 'tree',
   });
@@ -198,8 +230,8 @@ test('rejects every unknown command commit mode at admission and rethrows callba
       new VisitorChain<Tree>({
         ref: ref(),
         records: [
-          record('afterEachVisitor'),
-          record('ASYNC' as import('../src').CommandCommitMode),
+          record('afterEachVisitorCallback'),
+          record('ASYNC' as import('../src').VisitorCommandCommitTiming),
         ],
         metadata: metadata(),
         family: 'tree',
@@ -208,7 +240,7 @@ test('rejects every unknown command commit mode at admission and rethrows callba
 
   const chain = new VisitorChain<Tree>({
     ref: ref(),
-    records: [record('afterEachVisitor')],
+    records: [record('afterEachVisitorCallback')],
     metadata: metadata(),
     family: 'tree',
   });
@@ -225,27 +257,36 @@ test('rejects every unknown command commit mode at admission and rethrows callba
 
 test('tree visitor chains reject canonical deferral before exposing a command batch', () => {
   const chain = new VisitorChain<Tree>({
-    ref: new MutableRef(new Vertex<Tree>({ $data: 'root', $childHints: [] })),
+    ref: new MutableValueReference(
+      new Vertex<Tree>({ $vertexData: 'root', $childDiscoveryHints: [] }),
+    ),
     family: 'tree',
     records: [
       {
-        addedIndex: 0,
-        priority: 1,
-        commandCommitMode: 'afterEachVisitor' as const,
+        phaseRegistrationInsertionIndex: 0,
+        descendingExecutionPriorityWithinGroup: 1,
+        visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
       },
     ],
     metadata: {
-      phaseVisitIndex: 0,
-      visitorIndex: 0,
-      previousPhaseVertexRef: null,
-      visitorChainState: null,
+      phaseVisitorChainIndex: 0,
+      visitorCallbackIndexInPhaseChain: 0,
+      previousCommittedVisitVertexHandleForSamePhase: null,
+      currentVertexPhaseChainState: null,
     },
   });
   expect(chain.poll().kind).toBe('VISIT');
   expect(() =>
     chain.submit({
       ok: true,
-      value: { commands: [{ commandName: Command.DEFER_WORK_COMPLETION }] },
+      value: {
+        commands: [
+          {
+            commandName:
+              Command.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION,
+          },
+        ],
+      },
     }),
   ).toThrow(/ON_WORK_READY/);
 });

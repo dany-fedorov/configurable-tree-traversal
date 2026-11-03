@@ -5,51 +5,74 @@ import * as dag from 'configurable-tree-traversal/traversals/dag-traversal';
 const require = createRequire(import.meta.url);
 const cjs = require('configurable-tree-traversal');
 const cjsDag = require('configurable-tree-traversal/traversals/dag-traversal');
-assert.equal(esm.inspectDagMilestones, cjs.inspectDagMilestones);
-assert.equal(esm.inspectDagMilestones, dag.inspectDagMilestones);
-assert.equal(esm.inspectDagMilestones, cjsDag.inspectDagMilestones);
-assert.equal(esm.inspectDagMilestones, esm.dagTraversal.inspectDagMilestones);
-for (const Constructor of [esm.DagTraversal, cjs.AsyncDagTraversal]) {
+assert.equal(esm.captureDagMilestoneSnapshot, cjs.captureDagMilestoneSnapshot);
+assert.equal(esm.captureDagMilestoneSnapshot, dag.captureDagMilestoneSnapshot);
+assert.equal(
+  esm.captureDagMilestoneSnapshot,
+  cjsDag.captureDagMilestoneSnapshot,
+);
+assert.equal(
+  esm.captureDagMilestoneSnapshot,
+  esm.dagTraversal.captureDagMilestoneSnapshot,
+);
+for (const Constructor of [
+  esm.DagTraversalBuilder,
+  cjs.AsyncDagTraversalBuilder,
+]) {
   const task = { label: 'task' };
   const runner = new Constructor({
-    ...esm.materializeDagInputFromRecords([{ id: task }], {
-      id: (item) => item.id,
+    ...esm.materializeMultiEntryDagInputFromRecordCatalog([{ id: task }], {
+      selectVertexId: (item) => item.id,
     }),
-    workCompletion: 'externalSettlement',
-  }).createRunner();
-  const target = { vertexId: task, milestone: 'work' };
-  assert.deepEqual(runner.inspectMilestones().explain(target), {
+    workCompletionPolicy: 'requireExternalWorkSettlement',
+  }).createIndependentRunnerFromCurrentOptions();
+  const target = { vertexId: task, milestone: 'workCompletion' };
+  assert.deepEqual(runner.captureMilestoneSnapshot().explainMilestone(target), {
     kind: 'unresolved',
-    target,
+    targetMilestone: target,
     discoveryComplete: false,
   });
-  await runner.prepare();
-  await runner.run();
-  const snapshot = cjs.inspectDagMilestones(runner);
+  await runner.discoverValidateAndFreezeTopology();
+  await runner.runUntilSuspendedOrTerminal();
+  const snapshot = cjs.captureDagMilestoneSnapshot(runner);
   assert.deepEqual(
-    runner.inspectMilestones().explain(target),
-    snapshot.explain(target),
+    runner.captureMilestoneSnapshot().explainMilestone(target),
+    snapshot.explainMilestone(target),
   );
-  assert.deepEqual(snapshot.explain(target).blockers, [
-    { kind: 'unfinishedWork', target, work: 'deferred' },
+  assert.deepEqual(snapshot.explainMilestone(target).blockers, [
+    {
+      kind: 'workCompletionUncommitted',
+      targetMilestone: target,
+      workState: 'workCompletionDeferred',
+    },
   ]);
-  const ticket = runner.summary().awaitingSettlement[0];
-  runner.settle(task, { kind: 'workCompleted' }, ticket.generation);
-  await runner.run();
-  assert.equal(snapshot.explain(target).satisfied, false);
+  const ticket = runner.captureProgressSnapshot().workAwaitingSettlement[0];
+  runner.settleDeferredWork(
+    task,
+    { kind: 'workCompleted' },
+    ticket.settlementToken,
+  );
+  await runner.runUntilSuspendedOrTerminal();
+  assert.equal(snapshot.explainMilestone(target).milestoneSatisfied, false);
   assert.equal(
-    dag.inspectDagMilestones(runner).explain(target).satisfied,
+    dag.captureDagMilestoneSnapshot(runner).explainMilestone(target)
+      .milestoneSatisfied,
     true,
   );
-  assert.equal(runner.inspectMilestones().explain(target).satisfied, true);
-  assert.deepEqual(snapshot.dependentsOf(target).milestones, [
-    { vertexId: task, milestone: 'subgraphCompletion' },
-  ]);
   assert.equal(
-    snapshot.prerequisitesOf({
+    runner.captureMilestoneSnapshot().explainMilestone(target)
+      .milestoneSatisfied,
+    true,
+  );
+  assert.deepEqual(
+    snapshot.queryOriginalDependentMilestonesOf(target).reachedMilestones,
+    [{ vertexId: task, milestone: 'subgraphCompletion' }],
+  );
+  assert.equal(
+    snapshot.queryOriginalPrerequisiteMilestonesOf({
       vertexId: task,
       milestone: 'subgraphCompletion',
-    }).edges[0].reason,
+    }).originalMilestoneConstraints[0].reason,
     'ownWork',
   );
 }

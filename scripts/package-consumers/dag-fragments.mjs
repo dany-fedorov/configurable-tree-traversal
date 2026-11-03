@@ -7,42 +7,42 @@ const cjs = require('configurable-tree-traversal');
 const cjsDag = require('configurable-tree-traversal/traversals/dag-traversal');
 for (const name of [
   'DagFragmentValidationError',
-  'defineDag',
-  'prepareDagDefinition',
-  'defineDagFragment',
+  'copyAndNormalizeDagDefinition',
+  'validateAndPrepareDagDefinition',
+  'validateAndCreateDagFragment',
   'mapDagFragmentIds',
-  'composeDag',
+  'composeAndValidateDagFragments',
 ]) {
   for (const entry of [cjs, dag, cjsDag, esm.dagTraversal])
     assert.equal(esm[name], entry[name]);
 }
-const definition = cjs.defineDag({
-  vertices: [
+const definition = cjs.copyAndNormalizeDagDefinition({
+  vertexDeclarations: [
     {
       vertexId: 'start',
       data: { task: 'build' },
-      slots: [],
-      dependsOnWork: [],
-      dependsOnSubgraphCompletion: [],
+      childDiscoverySlots: [],
+      workWaitsForWorkOf: [],
+      workWaitsForSubgraphCompletionOf: [],
     },
     {
       vertexId: 'finish',
       data: { task: 'review' },
-      slots: [],
-      dependsOnWork: ['start'],
-      dependsOnSubgraphCompletion: [],
+      childDiscoverySlots: [],
+      workWaitsForWorkOf: ['start'],
+      workWaitsForSubgraphCompletionOf: [],
     },
   ],
-  omittedIds: [],
+  omittedVertexIds: [],
   entry: {
     kind: 'roots',
-    slots: [
+    entryDiscoverySlots: [
       { kind: 'vertex', vertexId: 'start' },
       { kind: 'vertex', vertexId: 'finish' },
     ],
   },
 });
-const fragment = dag.defineDagFragment(definition, {
+const fragment = dag.validateAndCreateDagFragment(definition, {
   start: 'start',
   finish: 'finish',
 });
@@ -52,12 +52,12 @@ const first = cjs.mapDagFragmentIds(fragment, {
 const second = esm.mapDagFragmentIds(fragment, {
   mapId: (local) => ({ run: 'second', local }),
 });
-const result = cjsDag.composeDag([first, second], {
-  dependencies: [
+const result = cjsDag.composeAndValidateDagFragments([first, second], {
+  additionalWorkPrerequisites: [
     {
-      dependent: second.ports.start,
+      dependentWorkVertexId: second.vertexIdsByPortName.start,
       prerequisite: {
-        vertexId: first.ports.finish,
+        vertexId: first.vertexIdsByPortName.finish,
         milestone: 'subgraphCompletion',
       },
     },
@@ -65,38 +65,45 @@ const result = cjsDag.composeDag([first, second], {
 });
 assert.equal(result.kind, 'valid');
 assert.equal(
-  result.dag.definition.vertices[2].dependsOnSubgraphCompletion[0],
-  first.ports.finish,
+  result.validatedTopology.definition.vertexDeclarations[2]
+    .workWaitsForSubgraphCompletionOf[0],
+  first.vertexIdsByPortName.finish,
 );
 for (const runner of [
-  result.dag.createRunner(),
-  await result.dag.createAsyncRunner(),
+  result.validatedTopology.createIndependentRunnerFromValidatedTopology(),
+  await result.validatedTopology.createIndependentAsyncRunnerFromValidatedTopology(),
 ]) {
   const seen = [];
-  for await (const event of runner.iterateEvents())
-    seen.push([event.vertexId, event.kind]);
-  assert.equal(seen[0][0], first.ports.start);
-  assert.equal(seen[3][0], first.ports.finish);
-  assert.equal(seen[3][1], 'subgraphCompleted');
-  assert.equal(seen[4][0], second.ports.start);
-  assert.equal(seen[7][0], second.ports.finish);
-  assert.equal(runner.summary().counts.subgraphCompleted, 4);
+  for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal())
+    seen.push([event.vertexId, event.eventKind]);
+  assert.equal(seen[0][0], first.vertexIdsByPortName.start);
+  assert.equal(seen[3][0], first.vertexIdsByPortName.finish);
+  assert.equal(seen[3][1], 'subgraphCompletionCommitted');
+  assert.equal(seen[4][0], second.vertexIdsByPortName.start);
+  assert.equal(seen[7][0], second.vertexIdsByPortName.finish);
+  assert.equal(
+    runner.captureProgressSnapshot().counts.subgraphCompletionCommittedVertices,
+    4,
+  );
 }
-assert.throws(() => esm.composeDag([first, first]), TypeError);
+assert.throws(
+  () => esm.composeAndValidateDagFragments([first, first]),
+  TypeError,
+);
 assert.equal(
-  dag.composeDag([first, second], {
-    dependencies: [
+  dag.composeAndValidateDagFragments([first, second], {
+    additionalWorkPrerequisites: [
       {
-        dependent: first.ports.start,
+        dependentWorkVertexId: first.vertexIdsByPortName.start,
         prerequisite: {
-          vertexId: second.ports.finish,
+          vertexId: second.vertexIdsByPortName.finish,
           milestone: 'subgraphCompletion',
         },
       },
       {
-        dependent: second.ports.start,
+        dependentWorkVertexId: second.vertexIdsByPortName.start,
         prerequisite: {
-          vertexId: first.ports.finish,
+          vertexId: first.vertexIdsByPortName.finish,
           milestone: 'subgraphCompletion',
         },
       },
@@ -108,18 +115,18 @@ assert.equal(
 const objectId = { task: 'root' };
 assert.throws(
   () =>
-    cjsDag.defineDagFragment(
+    cjsDag.validateAndCreateDagFragment(
       {
-        vertices: [
+        vertexDeclarations: [
           {
             vertexId: objectId,
             data: null,
-            slots: [],
-            dependsOnWork: [undefined],
-            dependsOnSubgraphCompletion: [],
+            childDiscoverySlots: [],
+            workWaitsForWorkOf: [undefined],
+            workWaitsForSubgraphCompletionOf: [],
           },
         ],
-        omittedIds: [],
+        omittedVertexIds: [],
         entry: { kind: 'root', vertexId: objectId },
       },
       {},
@@ -127,12 +134,12 @@ assert.throws(
   (error) => {
     assert(error instanceof esm.DagFragmentValidationError);
     assert(error instanceof TypeError);
-    assert.equal(error.issues[0].kind, 'milestone');
-    const edge = error.issues[0].diagnostics.dependencyEdges.find(
+    assert.equal(error.issues[0].kind, 'milestoneDependencyStall');
+    const edge = error.issues[0].diagnostics.originalMilestoneConstraints.find(
       (edge) => edge.reason === 'workDependency',
     );
-    assert.equal(edge.waiter.vertexId, objectId);
-    assert.equal(edge.prerequisite.vertexId, undefined);
+    assert.equal(edge.waitingMilestone.vertexId, objectId);
+    assert.equal(edge.prerequisiteMilestone.vertexId, undefined);
     return true;
   },
 );

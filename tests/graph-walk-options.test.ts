@@ -1,158 +1,240 @@
-import { GraphWalk, AsyncGraphWalk } from '../src';
+import { GraphWalkBuilder, AsyncGraphWalkBuilder } from '../src';
 import { idGraph } from './helpers/graph-walk-fixtures';
-import { GraphWalkPhase as Phase } from '../src/traversals/graph-walk/GraphWalkPhase';
-import type { GraphWalkSource } from '../src/traversals/graph-walk/GraphWalkSource';
+import { GraphWalkObservationKind as Phase } from '../src/traversals/graph-walk/GraphWalkPhase';
+import type { GraphWalkDiscoverySource } from '../src/traversals/graph-walk/GraphWalkSource';
 import { normalizeWalkOptions } from '../src/traversals/graph-walk/lib/normalizeWalkOptions';
 
-const source: GraphWalkSource<string, undefined, string> = {
-  hydration: 'inlineOrCached' as const,
-  roots: () => [],
-  outgoing: () => [],
+const source: GraphWalkDiscoverySource<string, undefined, string> = {
+  vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+  enumerateRootTargets: () => [],
+  enumerateOutgoingLinks: () => [],
 };
 
 describe('walking configuration snapshots', () => {
   test('defaults are once/BFS with vertex emissions and all visitors, without source I/O', () => {
     const calls: string[] = [];
     const lazySource = {
-      hydration: 'inlineOrCached' as const,
-      roots() {
+      vertexResolutionMode:
+        'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+      enumerateRootTargets() {
         calls.push('roots');
         return [];
       },
-      outgoing() {
-        calls.push('outgoing');
+      enumerateOutgoingLinks() {
+        calls.push('enumerateOutgoingLinks');
         return [];
       },
     };
-    const config = normalizeWalkOptions({ source: lazySource });
+    const config = normalizeWalkOptions({
+      graphWalkDiscoverySource: lazySource,
+    });
     expect(calls).toEqual([]);
-    expect(config.strategy).toBe('breadthFirst');
-    expect(config.revisit).toBe('once');
+    expect(config.expansionOrder).toBe('breadthFirst');
+    expect(config.routeEnumerationPolicy).toBe(
+      'firstAdmittedFoundRoutePerVertex',
+    );
     expect(config.limits).toEqual({});
-    expect(config.execution.emitEvents).toEqual([Phase.VERTEX]);
-    expect(config.execution.visitorPhases).toBe('all');
-    expect(config.visitors).toEqual({ vertex: [], edge: [], path: [] });
-    expect(config.source.receiver).toBe(lazySource);
-    expect(config.source.roots).toBe(lazySource.roots);
-    expect(config.source.resolveVertex).toBeUndefined();
-    expect(config.shouldFollowEdge).toBeUndefined();
-    expect(config.shouldExpandVertex).toBeUndefined();
+    expect(config.execution.deliveredEventKinds).toEqual([
+      Phase.VERTEX_OCCURRENCE,
+    ]);
+    expect(config.execution.admittedVisitorCallbackPhases).toBe('all');
+    expect(config.visitorsByObservationKind).toEqual({
+      vertexOccurrence: [],
+      admittedEdgeOccurrence: [],
+      routePrefix: [],
+    });
+    expect(config.graphWalkDiscoverySource.receiver).toBe(lazySource);
+    expect(config.graphWalkDiscoverySource.enumerateRootTargets).toBe(
+      lazySource.enumerateRootTargets,
+    );
+    expect(
+      config.graphWalkDiscoverySource.resolveVertexDataById,
+    ).toBeUndefined();
+    expect(config.shouldAdmitOutgoingLinkTarget).toBeUndefined();
+    expect(config.shouldExpandVertexOccurrence).toBeUndefined();
   });
 
   test('construction and patches require a depth or step bound for enumeration', () => {
-    for (const revisit of ['simplePaths', 'walks']) {
-      expect(() => normalizeWalkOptions({ source, revisit })).toThrow(
-        TypeError,
-      );
+    for (const routeEnumerationPolicy of [
+      'allVertexSimpleRoutePrefixes',
+      'allRoutePrefixesAllowingRepeatedVertices',
+    ]) {
       expect(() =>
         normalizeWalkOptions({
-          source,
-          revisit,
-          limits: { maxAdmittedTargets: 2 },
+          graphWalkDiscoverySource: source,
+          routeEnumerationPolicy,
+        }),
+      ).toThrow(TypeError);
+      expect(() =>
+        normalizeWalkOptions({
+          graphWalkDiscoverySource: source,
+          routeEnumerationPolicy,
+          limits: { maxAdmittedRootOrLinkTargetOccurrences: 2 },
         }),
       ).toThrow(TypeError);
       expect(
-        normalizeWalkOptions({ source, revisit, limits: { maxDepth: 0 } })
-          .revisit,
-      ).toBe(revisit);
+        normalizeWalkOptions({
+          graphWalkDiscoverySource: source,
+          routeEnumerationPolicy,
+          limits: { maxRouteHopDepth: 0 },
+        }).routeEnumerationPolicy,
+      ).toBe(routeEnumerationPolicy);
       expect(
         normalizeWalkOptions({
-          source,
-          revisit,
-          limits: { maxCandidateReadAttempts: 0 },
-        }).revisit,
-      ).toBe(revisit);
+          graphWalkDiscoverySource: source,
+          routeEnumerationPolicy,
+          limits: { maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 0 },
+        }).routeEnumerationPolicy,
+      ).toBe(routeEnumerationPolicy);
     }
-    const unbounded = normalizeWalkOptions({ source });
-    expect(() => normalizeWalkOptions({ revisit: 'walks' }, unbounded)).toThrow(
-      TypeError,
+    const unbounded = normalizeWalkOptions({
+      graphWalkDiscoverySource: source,
+    });
+    expect(() =>
+      normalizeWalkOptions(
+        { routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices' },
+        unbounded,
+      ),
+    ).toThrow(TypeError);
+    expect(unbounded.routeEnumerationPolicy).toBe(
+      'firstAdmittedFoundRoutePerVertex',
     );
-    expect(unbounded.revisit).toBe('once');
-    const bounded = normalizeWalkOptions({ source, limits: { maxDepth: 3 } });
-    const patched = normalizeWalkOptions({ revisit: 'walks' }, bounded);
-    expect(patched.revisit).toBe('walks');
-    expect(patched.limits).toEqual({ maxDepth: 3 });
-    expect(bounded.revisit).toBe('once');
+    const bounded = normalizeWalkOptions({
+      graphWalkDiscoverySource: source,
+      limits: { maxRouteHopDepth: 3 },
+    });
+    const patched = normalizeWalkOptions(
+      { routeEnumerationPolicy: 'allRoutePrefixesAllowingRepeatedVertices' },
+      bounded,
+    );
+    expect(patched.routeEnumerationPolicy).toBe(
+      'allRoutePrefixesAllowingRepeatedVertices',
+    );
+    expect(patched.limits).toEqual({ maxRouteHopDepth: 3 });
+    expect(bounded.routeEnumerationPolicy).toBe(
+      'firstAdmittedFoundRoutePerVertex',
+    );
     expect(() => normalizeWalkOptions({ limits: {} }, patched)).toThrow(
       TypeError,
     );
-    expect(patched.limits).toEqual({ maxDepth: 3 });
+    expect(patched.limits).toEqual({ maxRouteHopDepth: 3 });
   });
 
   test.each([-1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1, '1', null])(
     'rejects invalid bounds %p',
     (value) => {
       for (const key of [
-        'maxDepth',
-        'maxCandidateReadAttempts',
-        'maxAdmittedTargets',
+        'maxRouteHopDepth',
+        'maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay',
+        'maxAdmittedRootOrLinkTargetOccurrences',
       ]) {
         expect(() =>
-          normalizeWalkOptions({ source, limits: { [key]: value } }),
+          normalizeWalkOptions({
+            graphWalkDiscoverySource: source,
+            limits: { [key]: value },
+          }),
         ).toThrow(TypeError);
       }
     },
   );
 
   test('copies selectors, limits and registration wrappers while retaining callbacks and receiver', () => {
-    const emitEvents = [Phase.VERTEX];
-    const include = [Phase.EDGE];
-    const limits = { maxDepth: 4, maxCandidateReadAttempts: undefined };
+    const deliveredEventKinds = [Phase.VERTEX_OCCURRENCE];
+    const include = [Phase.ADMITTED_EDGE_OCCURRENCE];
+    const limits = {
+      maxRouteHopDepth: 4,
+      maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: undefined,
+    };
     const callback = () => undefined;
-    const records = [{ visitor: callback, priority: 5 }];
+    const records = [
+      { visitor: callback, descendingExecutionPriorityWithinGroup: 5 },
+    ];
     const resolver = () => ({ kind: 'omitted' as const });
     const hydrated = {
       ...source,
-      hydration: 'resolver' as const,
-      resolveVertex: resolver,
+      vertexResolutionMode: 'resolverWithOptionalInlineResolution' as const,
+      resolveVertexDataById: resolver,
     };
     const config = normalizeWalkOptions({
-      source: hydrated,
-      emitEvents,
-      visitorPhases: { include },
+      graphWalkDiscoverySource: hydrated,
+      deliveredEventKinds,
+      admittedVisitorCallbackPhases: { include },
       limits,
-      visitors: { vertex: records },
-      shouldFollowEdge: callback,
-      shouldExpandVertex: callback,
+      visitorsByObservationKind: { vertexOccurrence: records },
+      shouldAdmitOutgoingLinkTarget: callback,
+      shouldExpandVertexOccurrence: callback,
     });
-    emitEvents.length = 0;
+    deliveredEventKinds.length = 0;
     include.length = 0;
-    limits.maxDepth = 99;
-    records[0]!.priority = 99;
-    hydrated.roots = () => {
+    limits.maxRouteHopDepth = 99;
+    records[0]!.descendingExecutionPriorityWithinGroup = 99;
+    hydrated.enumerateRootTargets = () => {
       throw new Error('changed');
     };
-    expect(config.execution.emitEvents).toEqual([Phase.VERTEX]);
-    expect(config.execution.visitorPhases).toEqual({ include: [Phase.EDGE] });
-    expect(config.limits).toEqual({ maxDepth: 4 });
-    expect(config.visitors.vertex[0]!.priority).toBe(5);
-    expect(config.visitors.vertex[0]!.visitor).toBe(callback);
-    expect(config.source.receiver).toBe(hydrated);
-    expect(config.source.roots).toBe(source.roots);
-    expect(config.source.resolveVertex).toBe(resolver);
-    expect(config.shouldFollowEdge).toBe(callback);
-    expect(config.shouldExpandVertex).toBe(callback);
+    expect(config.execution.deliveredEventKinds).toEqual([
+      Phase.VERTEX_OCCURRENCE,
+    ]);
+    expect(config.execution.admittedVisitorCallbackPhases).toEqual({
+      include: [Phase.ADMITTED_EDGE_OCCURRENCE],
+    });
+    expect(config.limits).toEqual({ maxRouteHopDepth: 4 });
+    expect(
+      config.visitorsByObservationKind.vertexOccurrence[0]!
+        .descendingExecutionPriorityWithinGroup,
+    ).toBe(5);
+    expect(config.visitorsByObservationKind.vertexOccurrence[0]!.visitor).toBe(
+      callback,
+    );
+    expect(config.graphWalkDiscoverySource.receiver).toBe(hydrated);
+    expect(config.graphWalkDiscoverySource.enumerateRootTargets).toBe(
+      source.enumerateRootTargets,
+    );
+    expect(config.graphWalkDiscoverySource.resolveVertexDataById).toBe(
+      resolver,
+    );
+    expect(config.shouldAdmitOutgoingLinkTarget).toBe(callback);
+    expect(config.shouldExpandVertexOccurrence).toBe(callback);
     expect(Object.isFrozen(hydrated)).toBe(false);
     const copy = normalizeWalkOptions({}, config);
-    expect(copy.visitors.vertex[0]).not.toBe(config.visitors.vertex[0]);
-    expect(copy.source.roots).toBe(config.source.roots);
+    expect(copy.visitorsByObservationKind.vertexOccurrence[0]).not.toBe(
+      config.visitorsByObservationKind.vertexOccurrence[0],
+    );
+    expect(copy.graphWalkDiscoverySource.enumerateRootTargets).toBe(
+      config.graphWalkDiscoverySource.enumerateRootTargets,
+    );
     expect(copy.limits).not.toBe(config.limits);
   });
 
   test('uses shared selector validation and field-wise legacy patches', () => {
-    const config = normalizeWalkOptions({ source, emitEvents: [Phase.EDGE] });
-    expect(config.execution.emitEvents).toEqual([Phase.EDGE]);
+    const config = normalizeWalkOptions({
+      graphWalkDiscoverySource: source,
+      deliveredEventKinds: [Phase.ADMITTED_EDGE_OCCURRENCE],
+    });
+    expect(config.execution.deliveredEventKinds).toEqual([
+      Phase.ADMITTED_EDGE_OCCURRENCE,
+    ]);
     const patched = normalizeWalkOptions(
-      { visitorPhases: { exclude: [Phase.PATH] } },
+      { admittedVisitorCallbackPhases: { exclude: [Phase.ROUTE_PREFIX] } },
       config,
     );
-    expect(patched.execution.emitEvents).toEqual([Phase.EDGE]);
-    expect(patched.execution.visitorPhases).toEqual({ exclude: [Phase.PATH] });
+    expect(patched.execution.deliveredEventKinds).toEqual([
+      Phase.ADMITTED_EDGE_OCCURRENCE,
+    ]);
+    expect(patched.execution.admittedVisitorCallbackPhases).toEqual({
+      exclude: [Phase.ROUTE_PREFIX],
+    });
     expect(() =>
-      normalizeWalkOptions({ source, emitEvents: [], iterateOver: [] }),
+      normalizeWalkOptions({
+        graphWalkDiscoverySource: source,
+        deliveredEventKinds: [],
+        iterateOver: [],
+      }),
     ).toThrow(TypeError);
     expect(() =>
-      normalizeWalkOptions({ source, emitEvents: ['ON_WORK_READY'] }),
+      normalizeWalkOptions({
+        graphWalkDiscoverySource: source,
+        deliveredEventKinds: ['ON_WORK_READY'],
+      }),
     ).toThrow(TypeError);
   });
 
@@ -168,48 +250,57 @@ describe('walking configuration snapshots', () => {
     null,
     [],
     1,
-    { hydration: 'inlineOrCached' },
+    { vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex' },
     {
-      hydration: 'inlineOrCached',
-      roots: 1,
-      outgoing() {
+      vertexResolutionMode: 'inlineResolutionOrPreviouslyAdmittedVertex',
+      rootVertexIds: 1,
+      enumerateOutgoingLinks() {
         return [];
       },
     },
     {
-      hydration: 'inlineOrCached' as const,
-      roots() {
+      vertexResolutionMode:
+        'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+      enumerateRootTargets() {
         return [];
       },
-      outgoing: null,
+      enumerateOutgoingLinks: null,
     },
-    { ...source, hydration: 'resolver', resolveVertex: 1 },
+    {
+      ...source,
+      vertexResolutionMode: 'resolverWithOptionalInlineResolution',
+      resolveVertexDataById: 1,
+    },
   ])('rejects malformed sources %p', (value) => {
-    expect(() => normalizeWalkOptions({ source: value })).toThrow(TypeError);
+    expect(() =>
+      normalizeWalkOptions({ graphWalkDiscoverySource: value }),
+    ).toThrow(TypeError);
   });
 
   test.each([
-    { strategy: 'DFS' },
-    { strategy: null },
-    { revisit: 'paths' },
-    { revisit: null },
+    { expansionOrder: 'DFS' },
+    { expansionOrder: null },
+    { routeEnumerationPolicy: 'paths' },
+    { routeEnumerationPolicy: null },
     { limits: null },
     { limits: [] },
     { limits: 1 },
-    { shouldFollowEdge: false },
-    { shouldExpandVertex: false },
-    { visitors: null },
+    { shouldAdmitOutgoingLinkTarget: false },
+    { shouldExpandVertexOccurrence: false },
+    { visitorsByObservationKind: null },
     { visitors: [] },
-    { visitors: 1 },
-    { visitors: { ON_WORK_READY: [] } },
-    { visitors: { vertex: 1 } },
+    { visitorsByObservationKind: 1 },
+    { visitorsByObservationKind: { ON_WORK_READY: [] } },
+    { visitorsByObservationKind: { vertexOccurrence: 1 } },
   ])('rejects malformed fields %p', (patch) => {
-    expect(() => normalizeWalkOptions({ source, ...patch })).toThrow(TypeError);
+    expect(() =>
+      normalizeWalkOptions({ graphWalkDiscoverySource: source, ...patch }),
+    ).toThrow(TypeError);
   });
 
   test('rejects any own concurrency before reading options or source callbacks', () => {
     const input = {
-      get source() {
+      get graphWalkDiscoverySource() {
         throw 'source getter';
       },
     };
@@ -217,23 +308,25 @@ describe('walking configuration snapshots', () => {
     expect(() => normalizeWalkOptions(input)).toThrow(TypeError);
     const inherited = Object.assign(
       Object.create({ concurrency: 20 }) as object,
-      { source },
+      { graphWalkDiscoverySource: source },
     );
-    expect(normalizeWalkOptions(inherited).revisit).toBe('once');
+    expect(normalizeWalkOptions(inherited).routeEnumerationPolicy).toBe(
+      'firstAdmittedFoundRoutePerVertex',
+    );
   });
 
   test('reads recognized getters once and propagates exact getter errors', () => {
     const reads: string[] = [];
     const input = Object.create(null) as Record<string, unknown>;
     const values = {
-      source,
-      strategy: 'depthFirst',
-      revisit: 'once',
-      limits: { maxAdmittedTargets: 0 },
-      shouldFollowEdge: () => true,
-      shouldExpandVertex: () => false,
-      visitors: { edge: [] },
-      emitEvents: [Phase.PATH],
+      graphWalkDiscoverySource: source,
+      expansionOrder: 'depthFirst',
+      routeEnumerationPolicy: 'firstAdmittedFoundRoutePerVertex',
+      limits: { maxAdmittedRootOrLinkTargetOccurrences: 0 },
+      shouldAdmitOutgoingLinkTarget: () => true,
+      shouldExpandVertexOccurrence: () => false,
+      visitorsByObservationKind: { admittedEdgeOccurrence: [] },
+      deliveredEventKinds: [Phase.ROUTE_PREFIX],
     };
     for (const [key, value] of Object.entries(values))
       Object.defineProperty(input, key, {
@@ -242,13 +335,13 @@ describe('walking configuration snapshots', () => {
           return value;
         },
       });
-    expect(normalizeWalkOptions(input).strategy).toBe('depthFirst');
+    expect(normalizeWalkOptions(input).expansionOrder).toBe('depthFirst');
     expect(reads).toEqual(Object.keys(values));
     for (const error of [null, undefined, Symbol('error')]) {
       let caught = false;
       try {
         normalizeWalkOptions({
-          get source() {
+          get graphWalkDiscoverySource() {
             throw error;
           },
         });
@@ -263,45 +356,45 @@ describe('walking configuration snapshots', () => {
   test('captures nested source, limit and phase getters once without invoking callbacks', () => {
     const reads: string[] = [];
     const capturedSource = {
-      get hydration() {
-        reads.push('hydration');
-        return 'inlineOrCached' as const;
+      get vertexResolutionMode() {
+        reads.push('vertexResolutionMode');
+        return 'inlineResolutionOrPreviouslyAdmittedVertex' as const;
       },
-      get roots() {
+      get enumerateRootTargets() {
         reads.push('roots');
-        return source.roots;
+        return source.enumerateRootTargets;
       },
-      get outgoing() {
-        reads.push('outgoing');
-        return source.outgoing;
+      get enumerateOutgoingLinks() {
+        reads.push('enumerateOutgoingLinks');
+        return source.enumerateOutgoingLinks;
       },
-      get resolveVertex() {
-        reads.push('resolveVertex');
+      get resolveVertexDataById() {
+        reads.push('resolveVertexDataById');
         return undefined;
       },
     };
     normalizeWalkOptions({
-      source: capturedSource,
+      graphWalkDiscoverySource: capturedSource,
       limits: {
-        get maxDepth() {
-          reads.push('maxDepth');
+        get maxRouteHopDepth() {
+          reads.push('maxRouteHopDepth');
           return 2;
         },
       },
-      visitors: {
-        get vertex() {
-          reads.push('vertex');
+      visitorsByObservationKind: {
+        get vertexOccurrence() {
+          reads.push('vertexOccurrence');
           return [];
         },
       },
     });
     expect(reads).toEqual([
-      'hydration',
+      'vertexResolutionMode',
       'roots',
-      'outgoing',
-      'resolveVertex',
-      'maxDepth',
-      'vertex',
+      'enumerateOutgoingLinks',
+      'resolveVertexDataById',
+      'maxRouteHopDepth',
+      'vertexOccurrence',
     ]);
   });
 
@@ -309,77 +402,110 @@ describe('walking configuration snapshots', () => {
     const first = () => undefined;
     const second = () => undefined;
     const config = normalizeWalkOptions({
-      source,
-      visitors: { vertex: first, edge: second },
+      graphWalkDiscoverySource: source,
+      visitorsByObservationKind: {
+        vertexOccurrence: first,
+        admittedEdgeOccurrence: second,
+      },
     });
-    const patched = normalizeWalkOptions({ visitors: { vertex: [] } }, config);
-    expect(patched.visitors.vertex).toEqual([]);
-    expect(patched.visitors.edge[0]!.visitor).toBe(second);
-    expect(config.visitors.vertex[0]!.visitor).toBe(first);
+    const patched = normalizeWalkOptions(
+      { visitorsByObservationKind: { vertexOccurrence: [] } },
+      config,
+    );
+    expect(patched.visitorsByObservationKind.vertexOccurrence).toEqual([]);
+    expect(
+      patched.visitorsByObservationKind.admittedEdgeOccurrence[0]!.visitor,
+    ).toBe(second);
+    expect(config.visitorsByObservationKind.vertexOccurrence[0]!.visitor).toBe(
+      first,
+    );
   });
 });
 
-for (const Factory of [GraphWalk, AsyncGraphWalk]) {
+for (const Factory of [GraphWalkBuilder, AsyncGraphWalkBuilder]) {
   test(`${Factory.name} rejects unknown options and limit keys before discovery and preserves configuration`, async () => {
     const roots = jest.fn(() => []);
     const lazy = {
-      hydration: 'inlineOrCached' as const,
-      roots,
-      outgoing: () => [],
+      vertexResolutionMode:
+        'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+      enumerateRootTargets: roots,
+      enumerateOutgoingLinks: () => [],
     };
     const traversal = new Factory({
-      source: lazy,
-      limits: { maxCandidateReadAttempts: 0 },
+      graphWalkDiscoverySource: lazy,
+      limits: { maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 0 },
     });
     for (const key of ['stratgey', Symbol('option')]) {
       const bad = Object.defineProperty({}, key, { value: 'depthFirst' });
       expect(
-        () => new Factory({ source: lazy, ...bad, [key]: 'depthFirst' }),
+        () =>
+          new Factory({
+            graphWalkDiscoverySource: lazy,
+            ...bad,
+            [key]: 'depthFirst',
+          }),
       ).toThrow(TypeError);
-      expect(() => traversal.configure(bad)).toThrow(TypeError);
+      expect(() => traversal.patchOptionsForFutureRunners(bad)).toThrow(
+        TypeError,
+      );
     }
     expect(
       () =>
         new Factory({
-          source: lazy,
-          limits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never,
+          graphWalkDiscoverySource: lazy,
+          limits: {
+            maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 2,
+            maxDepht: 1,
+          } as never,
         }),
     ).toThrow(TypeError);
     expect(() =>
-      traversal.configure({
-        replaceLimits: { maxCandidateReadAttempts: 2, maxDepht: 1 } as never,
+      traversal.patchOptionsForFutureRunners({
+        replaceLimits: {
+          maxRootOrLinkReadAttemptsIncludingDoneAndCacheReplay: 2,
+          maxDepht: 1,
+        } as never,
       }),
     ).toThrow(TypeError);
     expect(roots).not.toHaveBeenCalled();
-    await traversal.createRunner().run();
+    await traversal
+      .createIndependentRunnerFromCurrentOptions()
+      .runUntilSuspendedOrTerminal();
     expect(roots).not.toHaveBeenCalled();
   });
 }
 
-for (const Factory of [GraphWalk, AsyncGraphWalk]) {
+for (const Factory of [GraphWalkBuilder, AsyncGraphWalkBuilder]) {
   test(`${Factory.name} accepts initially absent null predicates`, async () => {
     const walk = new Factory({
-      source: idGraph(
+      graphWalkDiscoverySource: idGraph(
         ['root'],
         [
           ['root', ['child']],
           ['child', []],
         ],
       ),
-      shouldFollowEdge: null,
-      shouldExpandVertex: null,
+      shouldAdmitOutgoingLinkTarget: null,
+      shouldExpandVertexOccurrence: null,
     });
-    const runner = walk.createRunner();
-    await runner.run();
-    expect(runner.summary().counts.uniqueFoundVertices).toBe(2);
-    expect(runner.summary().counts.discoveredLinks).toBe(1);
+    const runner = walk.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().counts.resolvedFoundVertexIdCount,
+    ).toBe(2);
+    expect(
+      runner.captureProgressSnapshot().counts.freshSourceOutgoingLinkCount,
+    ).toBe(1);
   });
 
-  test.each(['shouldFollowEdge', 'shouldExpandVertex'] as const)(
+  test.each([
+    'shouldAdmitOutgoingLinkTarget',
+    'shouldExpandVertexOccurrence',
+  ] as const)(
     `${Factory.name} resets %s with null and retains it with undefined or omission atomically`,
     async (predicate) => {
       const walk = new Factory({
-        source: idGraph(
+        graphWalkDiscoverySource: idGraph(
           ['root'],
           [
             ['root', ['child']],
@@ -389,19 +515,23 @@ for (const Factory of [GraphWalk, AsyncGraphWalk]) {
         [predicate]: () => false,
       });
       async function found() {
-        const runner = walk.createRunner();
-        await runner.run();
-        return runner.summary().counts.uniqueFoundVertices;
+        const runner = walk.createIndependentRunnerFromCurrentOptions();
+        await runner.runUntilSuspendedOrTerminal();
+        return runner.captureProgressSnapshot().counts
+          .resolvedFoundVertexIdCount;
       }
       expect(await found()).toBe(1);
-      walk.configure({ [predicate]: undefined });
-      walk.configure({});
+      walk.patchOptionsForFutureRunners({ [predicate]: undefined });
+      walk.patchOptionsForFutureRunners({});
       expect(await found()).toBe(1);
       expect(() =>
-        walk.configure({ [predicate]: null, emitEvents: ['invalid'] as never }),
+        walk.patchOptionsForFutureRunners({
+          [predicate]: null,
+          deliveredEventKinds: ['invalid'] as never,
+        }),
       ).toThrow(TypeError);
       expect(await found()).toBe(1);
-      walk.configure({ [predicate]: null });
+      walk.patchOptionsForFutureRunners({ [predicate]: null });
       expect(await found()).toBe(2);
     },
   );
@@ -411,25 +541,35 @@ it.each(['followEdge', 'expandVertex'])(
   'rejects removed predicate option %s instead of retaining an alias',
   (key) => {
     const source = {
-      hydration: 'inlineOrCached' as const,
-      roots: () => [],
-      outgoing: () => [],
+      vertexResolutionMode:
+        'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+      enumerateRootTargets: () => [],
+      enumerateOutgoingLinks: () => [],
     };
-    expect(() => new GraphWalk({ source, [key]: () => true } as never)).toThrow(
-      TypeError,
-    );
+    expect(
+      () =>
+        new GraphWalkBuilder({
+          graphWalkDiscoverySource: source,
+          [key]: () => true,
+        } as never),
+    ).toThrow(TypeError);
   },
 );
 it.each(['maxSteps', 'maxOccurrences'])(
   'rejects removed walking limit %s instead of retaining an alias',
   (key) => {
     const source = {
-      hydration: 'inlineOrCached' as const,
-      roots: () => [],
-      outgoing: () => [],
+      vertexResolutionMode:
+        'inlineResolutionOrPreviouslyAdmittedVertex' as const,
+      enumerateRootTargets: () => [],
+      enumerateOutgoingLinks: () => [],
     };
     expect(
-      () => new GraphWalk({ source, limits: { [key]: 1 } } as never),
+      () =>
+        new GraphWalkBuilder({
+          graphWalkDiscoverySource: source,
+          limits: { [key]: 1 },
+        } as never),
     ).toThrow(TypeError);
   },
 );

@@ -1,6 +1,9 @@
 import { AsyncRunnerSession } from '../src/core/drivers/AsyncRunnerSession';
 import { createAsyncDriver } from '../src/core/drivers/runAsync';
-import type { CallbackBindings, VisitPhase } from '../src/core/effects/types';
+import type {
+  CallbackBindings,
+  TreeOrDagVisitorPhase,
+} from '../src/core/effects/types';
 import { ResolvedGraphsContainer } from '../src/core/graph/ResolvedGraphsContainer';
 import type { InternalVertexRef } from '../src/core/graph/types';
 import { TraversalKernel } from '../src/core/TraversalKernel';
@@ -11,9 +14,9 @@ import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 
 function setup(options: {
   concurrency?: number;
-  hasHintTransformer?: boolean;
-  hasHintIds?: boolean;
-  iterateOver?: VisitPhase[];
+  hasChildHintsListTransformer?: boolean;
+  hasChildHintVertexIdResolver?: boolean;
+  iterateOver?: TreeOrDagVisitorPhase[];
   visitorCount?: number;
   bindings: CallbackBindings<TestGraph>;
 }) {
@@ -26,7 +29,7 @@ function setup(options: {
       saveOriginal: false,
     }),
     stateBridge: {
-      status: TraversalRunnerStatus.INITIAL,
+      status: TraversalRunnerStatus.NOT_STARTED,
       traversalRootVertexRef: null,
       subtreeTraversalDisabledRefs: new Set(),
       visitorsState: {},
@@ -35,29 +38,29 @@ function setup(options: {
       options.visitorCount === undefined
         ? {}
         : {
-            PRE_ORDER: Array.from(
+            BEFORE_CHILD_EXPANSION: Array.from(
               { length: options.visitorCount },
-              (_, addedIndex) => ({
-                addedIndex,
-                priority: 100,
-                commandCommitMode: 'afterEachVisitor' as const,
+              (_, phaseRegistrationInsertionIndex) => ({
+                phaseRegistrationInsertionIndex,
+                descendingExecutionPriorityWithinGroup: 100,
+                visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
               }),
             ),
           },
     iterableConfig: {
-      iterateOver: options.iterateOver ?? ['PRE_ORDER'],
+      iterateOver: options.iterateOver ?? ['BEFORE_CHILD_EXPANSION'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: {
-      afterChildIndices: { indices: [0] },
-      fallbackChildIndices: { indices: [0] },
-      visitSingleChildParent: true,
-      visitAfterOmittedChildren: true,
+      visitAfterChildIndices: { indices: [0] },
+      visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [0] },
+      alsoVisitAfterOnlyChild: true,
+      allowBoundaryVisitsAfterOmittedChildSlots: true,
     },
-    hasHintTransformer: options.hasHintTransformer ?? false,
-    hasHintIds: options.hasHintIds ?? false,
-    concurrency: options.concurrency ?? Infinity,
+    hasChildHintsListTransformer: options.hasChildHintsListTransformer ?? false,
+    hasChildHintVertexIdResolver: options.hasChildHintVertexIdResolver ?? false,
+    maxConcurrentCallbackInvocations: options.concurrency ?? Infinity,
   });
   const driver = createAsyncDriver(
     kernel,
@@ -69,7 +72,7 @@ function setup(options: {
 
 test('captures prefetched sibling rejection and surfaces it in slot order', async () => {
   const childA = deferred<{
-    vertexContent: { $data: string; $childHints: string[] };
+    vertexContent: { $vertexData: string; $childDiscoveryHints: string[] };
   }>();
   const siblingError = new Error('B failed');
   const invoked: string[] = [];
@@ -84,16 +87,19 @@ test('captures prefetched sibling rejection and surfaces it in slot order', asyn
             return {
               kind: call.kind,
               value: {
-                vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
+                vertexContent: {
+                  $vertexData: 'root',
+                  $childDiscoveryHints: ['A', 'B'],
+                },
               },
             };
           }
           if (call.kind === 'MAKE_VERTEX') {
-            invoked.push(call.context.vertexHint);
+            invoked.push(call.context.childDiscoveryHint);
             return {
               kind: call.kind,
               value:
-                call.context.vertexHint === 'A'
+                call.context.childDiscoveryHint === 'A'
                   ? childA.promise
                   : Promise.reject(siblingError),
             };
@@ -102,21 +108,28 @@ test('captures prefetched sibling rejection and surfaces it in slot order', asyn
         },
       },
     });
-    const iterator = session.iterateEvents();
+    const iterator =
+      session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
     const trace: string[] = [];
-    trace.push((await iterator.next()).value!.vertex.getData());
+    trace.push((await iterator.next()).value!.vertex.getVertexData());
     const childEvent = iterator.next();
     await eventLoopTurn();
 
     expect(invoked).toEqual(['A', 'B']);
     expect(errors).toEqual([]);
-    expect(kernel.getStatus()).toBe(TraversalRunnerStatus.RUNNING);
+    expect(kernel.getTraversalLifecycleStatus()).toBe(
+      TraversalRunnerStatus.RUNNING,
+    );
 
-    childA.resolve({ vertexContent: { $data: 'A', $childHints: [] } });
-    trace.push((await childEvent).value!.vertex.getData());
+    childA.resolve({
+      vertexContent: { $vertexData: 'A', $childDiscoveryHints: [] },
+    });
+    trace.push((await childEvent).value!.vertex.getVertexData());
     await expect(iterator.next()).rejects.toBe(siblingError);
     expect(trace).toEqual(['root', 'A']);
-    expect(kernel.getStatus()).toBe(TraversalRunnerStatus.FAILED);
+    expect(kernel.getTraversalLifecycleStatus()).toBe(
+      TraversalRunnerStatus.FAILED,
+    );
   } finally {
     process.off('unhandledRejection', listener);
   }
@@ -124,7 +137,7 @@ test('captures prefetched sibling rejection and surfaces it in slot order', asyn
 
 test('settle stores a child outcome without admitting its visitor chain', async () => {
   const child = deferred<{
-    vertexContent: { $data: string; $childHints: string[] };
+    vertexContent: { $vertexData: string; $childDiscoveryHints: string[] };
   }>();
   const visits: string[] = [];
   const { driver } = setup({
@@ -134,14 +147,19 @@ test('settle stores a child outcome without admitting its visitor chain', async 
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $data: 'root', $childHints: ['child'] } },
+            value: {
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['child'],
+              },
+            },
           };
         }
         if (call.kind === 'MAKE_VERTEX') {
           return { kind: call.kind, value: child.promise };
         }
         if (call.kind === 'VISIT') {
-          visits.push(call.ref.getValue().getData());
+          visits.push(call.ref.getReferencedValue().getVertexData());
           return { kind: call.kind, value: undefined };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -159,7 +177,9 @@ test('settle stores a child outcome without admitting its visitor chain', async 
   expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
   expect(visits).toEqual(['root']);
 
-  child.resolve({ vertexContent: { $data: 'child', $childHints: [] } });
+  child.resolve({
+    vertexContent: { $vertexData: 'child', $childDiscoveryHints: [] },
+  });
   await eventLoopTurn();
   expect(driver.advance('settle')).toEqual({ kind: 'WAIT' });
   expect(visits).toEqual(['root']);
@@ -171,19 +191,24 @@ test('settle stores a child outcome without admitting its visitor chain', async 
 test('the limiter includes promised sorting and prefetched child resolution', async () => {
   const sorted = deferred<string[]>();
   const child = deferred<{
-    vertexContent: { $data: string; $childHints: string[] };
+    vertexContent: { $vertexData: string; $childDiscoveryHints: string[] };
   }>();
   const started: string[] = [];
   const { driver, session } = setup({
     concurrency: 1,
-    hasHintTransformer: true,
+    hasChildHintsListTransformer: true,
     bindings: {
       invoke(call) {
         started.push(call.kind);
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $data: 'root', $childHints: ['child'] } },
+            value: {
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['child'],
+              },
+            },
           };
         }
         if (call.kind === 'SORT_HINTS')
@@ -194,18 +219,21 @@ test('the limiter includes promised sorting and prefetched child resolution', as
       },
     },
   });
-  const iterator = session.iterateEvents();
+  const iterator =
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await iterator.next();
   const next = iterator.next();
   await eventLoopTurn();
   expect(started).toEqual(['MAKE_ROOT', 'SORT_HINTS']);
-  expect(driver.inspect().inFlightCallbackCount).toBe(1);
+  expect(driver.captureExecutionSnapshot().inFlightInvocationCount).toBe(1);
 
   sorted.resolve(['child']);
   await eventLoopTurn();
   expect(started).toEqual(['MAKE_ROOT', 'SORT_HINTS', 'MAKE_VERTEX']);
-  expect(driver.inspect().inFlightCallbackCount).toBe(1);
-  child.resolve({ vertexContent: { $data: 'child', $childHints: [] } });
+  expect(driver.captureExecutionSnapshot().inFlightInvocationCount).toBe(1);
+  child.resolve({
+    vertexContent: { $vertexData: 'child', $childDiscoveryHints: [] },
+  });
   await expect(next).resolves.toMatchObject({ done: false });
 });
 
@@ -214,15 +242,18 @@ test.each(['SORT_HINTS', 'HINT_ID'] as const)(
   async (failedKind) => {
     const error = new Error(`${failedKind} failed`);
     const { session } = setup({
-      hasHintTransformer: failedKind === 'SORT_HINTS',
-      hasHintIds: failedKind === 'HINT_ID',
+      hasChildHintsListTransformer: failedKind === 'SORT_HINTS',
+      hasChildHintVertexIdResolver: failedKind === 'HINT_ID',
       bindings: {
         invoke(call) {
           if (call.kind === 'MAKE_ROOT') {
             return {
               kind: call.kind,
               value: {
-                vertexContent: { $data: 'root', $childHints: ['child'] },
+                vertexContent: {
+                  $vertexData: 'root',
+                  $childDiscoveryHints: ['child'],
+                },
               },
             };
           }
@@ -233,7 +264,8 @@ test.each(['SORT_HINTS', 'HINT_ID'] as const)(
         },
       },
     });
-    const iterator = session.iterateEvents();
+    const iterator =
+      session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
     await iterator.next();
     await expect(iterator.next()).rejects.toBe(error);
   },
@@ -241,7 +273,7 @@ test.each(['SORT_HINTS', 'HINT_ID'] as const)(
 
 test('stores a child rejection while halted and surfaces it after resume', async () => {
   const child = deferred<{
-    vertexContent: { $data: string; $childHints: string[] };
+    vertexContent: { $vertexData: string; $childDiscoveryHints: string[] };
   }>();
   const error = new Error('stored child failure');
   const { kernel, session } = setup({
@@ -250,7 +282,12 @@ test('stores a child rejection while halted and surfaces it after resume', async
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $data: 'root', $childHints: ['child'] } },
+            value: {
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['child'],
+              },
+            },
           };
         }
         if (call.kind === 'MAKE_VERTEX')
@@ -259,7 +296,8 @@ test('stores a child rejection while halted and surfaces it after resume', async
       },
     },
   });
-  const iterator = session.iterateEvents();
+  const iterator =
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await iterator.next();
   const pending = iterator.next();
   await eventLoopTurn();
@@ -269,8 +307,12 @@ test('stores a child rejection while halted and surfaces it after resume', async
 
   child.reject(error);
   await eventLoopTurn();
-  expect(kernel.getStatus()).toBe(TraversalRunnerStatus.HALTED);
-  await expect(session.iterateEvents().next()).rejects.toBe(error);
+  expect(kernel.getTraversalLifecycleStatus()).toBe(
+    TraversalRunnerStatus.SUSPENDED,
+  );
+  await expect(
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal().next(),
+  ).rejects.toBe(error);
 });
 
 test('runs promised hint identity hooks through the shared limit before resolvers', async () => {
@@ -278,7 +320,7 @@ test('runs promised hint identity hooks through the shared limit before resolver
   const calls: string[] = [];
   const { driver, session } = setup({
     concurrency: 1,
-    hasHintIds: true,
+    hasChildHintVertexIdResolver: true,
     bindings: {
       invoke(call) {
         calls.push(`${call.kind}:${call.kind === 'HINT_ID' ? call.hint : ''}`);
@@ -286,7 +328,10 @@ test('runs promised hint identity hooks through the shared limit before resolver
           return {
             kind: call.kind,
             value: {
-              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['A', 'B'],
+              },
             },
           };
         }
@@ -304,8 +349,8 @@ test('runs promised hint identity hooks through the shared limit before resolver
             kind: call.kind,
             value: {
               vertexContent: {
-                $data: call.context.vertexHint,
-                $childHints: [],
+                $vertexData: call.context.childDiscoveryHint,
+                $childDiscoveryHints: [],
               },
             },
           };
@@ -314,26 +359,27 @@ test('runs promised hint identity hooks through the shared limit before resolver
       },
     },
   });
-  const iterator = session.iterateEvents();
+  const iterator =
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await iterator.next();
   const childEvent = iterator.next();
   await eventLoopTurn();
   expect(calls).toEqual(['MAKE_ROOT:', 'HINT_ID:A']);
-  expect(driver.inspect().inFlightCallbackCount).toBe(1);
+  expect(driver.captureExecutionSnapshot().inFlightInvocationCount).toBe(1);
 
   firstId.resolve({ vertexId: 'A' });
   await eventLoopTurn();
   expect(calls.slice(0, 3)).toEqual(['MAKE_ROOT:', 'HINT_ID:A', 'HINT_ID:B']);
   await expect(childEvent).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'A' } },
+    value: { vertex: { $vertexData: 'A' } },
   });
 });
 
 test('known async hint identities are consumed without invoking a resolver', async () => {
   let resolverCalls = 0;
   const { session } = setup({
-    hasHintIds: true,
+    hasChildHintVertexIdResolver: true,
     bindings: {
       invoke(call) {
         if (call.kind === 'MAKE_ROOT') {
@@ -341,7 +387,10 @@ test('known async hint identities are consumed without invoking a resolver', asy
             kind: call.kind,
             value: {
               vertexId: 'root',
-              vertexContent: { $data: 'root', $childHints: ['root'] },
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['root'],
+              },
             },
           };
         }
@@ -359,16 +408,17 @@ test('known async hint identities are consumed without invoking a resolver', asy
       },
     },
   });
-  const iterator = session.iterateEvents();
+  const iterator =
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await iterator.next();
   await expect(iterator.next()).rejects.toThrow(/cycle/i);
   expect(resolverCalls).toBe(0);
 });
 
 const earlierIdentityCases: Array<
-  [string, { $data: string; $childHints: string[] } | null]
+  [string, { $vertexData: string; $childDiscoveryHints: string[] } | null]
 > = [
-  ['live', { $data: 'A', $childHints: [] }],
+  ['live', { $vertexData: 'A', $childDiscoveryHints: [] }],
   ['omitted', null],
 ];
 
@@ -377,7 +427,7 @@ test.each(earlierIdentityCases)(
   async (_state, firstContent) => {
     const resolved: string[] = [];
     const { session } = setup({
-      hasHintIds: true,
+      hasChildHintVertexIdResolver: true,
       bindings: {
         invoke(call) {
           if (call.kind === 'MAKE_ROOT') {
@@ -385,7 +435,10 @@ test.each(earlierIdentityCases)(
               kind: call.kind,
               value: {
                 vertexId: 'root',
-                vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
+                vertexContent: {
+                  $vertexData: 'root',
+                  $childDiscoveryHints: ['A', 'B'],
+                },
               },
             };
           }
@@ -396,15 +449,18 @@ test.each(earlierIdentityCases)(
             };
           }
           if (call.kind === 'MAKE_VERTEX') {
-            resolved.push(call.context.vertexHint);
+            resolved.push(call.context.childDiscoveryHint);
             return {
               kind: call.kind,
               value:
-                call.context.vertexHint === 'A'
+                call.context.childDiscoveryHint === 'A'
                   ? { vertexId: 'A', vertexContent: firstContent }
                   : {
                       vertexId: 'B',
-                      vertexContent: { $data: 'B', $childHints: ['A'] },
+                      vertexContent: {
+                        $vertexData: 'B',
+                        $childDiscoveryHints: ['A'],
+                      },
                     },
             };
           }
@@ -412,7 +468,7 @@ test.each(earlierIdentityCases)(
         },
       },
     });
-    await session.run();
+    await session.runUntilSuspendedOrTerminal();
     expect(resolved).toEqual(['A', 'B']);
   },
 );
@@ -426,18 +482,23 @@ test('uses rewritten hints when admitting child prefetch', async () => {
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $data: 'root', $childHints: ['old'] } },
+            value: {
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['old'],
+              },
+            },
           };
         }
         if (call.kind === 'VISIT') {
-          return call.ref.getValue().getData() === 'root'
+          return call.ref.getReferencedValue().getVertexData() === 'root'
             ? {
                 kind: call.kind,
                 value: {
                   commands: [
                     {
-                      commandName: Command.REWRITE_CHILD_HINTS,
-                      commandArguments: { newHints: ['new'] },
+                      commandName: Command.REPLACE_CURRENT_VERTEX_CHILD_HINTS,
+                      commandArguments: { replacementChildHints: ['new'] },
                     },
                   ],
                 },
@@ -445,13 +506,13 @@ test('uses rewritten hints when admitting child prefetch', async () => {
             : { kind: call.kind, value: undefined };
         }
         if (call.kind === 'MAKE_VERTEX') {
-          resolvedHints.push(call.context.vertexHint);
+          resolvedHints.push(call.context.childDiscoveryHint);
           return {
             kind: call.kind,
             value: {
               vertexContent: {
-                $data: call.context.vertexHint,
-                $childHints: [],
+                $vertexData: call.context.childDiscoveryHint,
+                $childDiscoveryHints: [],
               },
             },
           };
@@ -460,7 +521,8 @@ test('uses rewritten hints when admitting child prefetch', async () => {
       },
     },
   });
-  const iterator = session.iterateEvents();
+  const iterator =
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await iterator.next();
   await iterator.next();
   expect(resolvedHints).toEqual(['new']);
@@ -468,7 +530,7 @@ test('uses rewritten hints when admitting child prefetch', async () => {
 
 test('at limit one a settled first child admits its queued sibling before acknowledgment', async () => {
   const first = deferred<{
-    vertexContent: { $data: string; $childHints: string[] };
+    vertexContent: { $vertexData: string; $childDiscoveryHints: string[] };
   }>();
   const calls: string[] = [];
   const { session } = setup({
@@ -479,30 +541,41 @@ test('at limit one a settled first child admits its queued sibling before acknow
           return {
             kind: call.kind,
             value: {
-              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['A', 'B'],
+              },
             },
           };
         }
         if (call.kind === 'MAKE_VERTEX') {
-          calls.push(call.context.vertexHint);
+          calls.push(call.context.childDiscoveryHint);
           return {
             kind: call.kind,
             value:
-              call.context.vertexHint === 'A'
+              call.context.childDiscoveryHint === 'A'
                 ? first.promise
-                : { vertexContent: { $data: 'B', $childHints: [] } },
+                : {
+                    vertexContent: {
+                      $vertexData: 'B',
+                      $childDiscoveryHints: [],
+                    },
+                  },
           };
         }
         throw new Error(`Unexpected ${call.kind}`);
       },
     },
   });
-  const iterator = session.iterateEvents();
+  const iterator =
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await iterator.next();
   const child = iterator.next();
   await eventLoopTurn();
   expect(calls).toEqual(['A']);
-  first.resolve({ vertexContent: { $data: 'A', $childHints: [] } });
+  first.resolve({
+    vertexContent: { $vertexData: 'A', $childDiscoveryHints: [] },
+  });
   await expect(child).resolves.toMatchObject({ done: false });
   await eventLoopTurn();
   expect(calls).toEqual(['A', 'B']);
@@ -510,11 +583,11 @@ test('at limit one a settled first child admits its queued sibling before acknow
 
 test('breadth-first frames prefetch sorted siblings and consume them in queue order', async () => {
   const first = deferred<{
-    vertexContent: { $data: string; $childHints: string[] };
+    vertexContent: { $vertexData: string; $childDiscoveryHints: string[] };
   }>();
   const calls: string[] = [];
   const stateBridge = {
-    status: TraversalRunnerStatus.INITIAL,
+    status: TraversalRunnerStatus.NOT_STARTED,
     traversalRootVertexRef: null,
     subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
@@ -532,14 +605,14 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
     stateBridge,
     visitorMetadata: {},
     iterableConfig: {
-      iterateOver: ['LEVEL_ORDER'],
+      iterateOver: ['AT_LEVEL_ORDER_VERTEX'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasHintTransformer: true,
-    hasHintIds: false,
-    concurrency: 2,
+    hasChildHintsListTransformer: true,
+    hasChildHintVertexIdResolver: false,
+    maxConcurrentCallbackInvocations: 2,
   });
   const driver = createAsyncDriver<TestGraph>(
     kernel,
@@ -549,7 +622,10 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
           return {
             kind: call.kind,
             value: {
-              vertexContent: { $data: 'root', $childHints: ['A', 'B'] },
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['A', 'B'],
+              },
             },
           };
         }
@@ -560,13 +636,18 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
           };
         }
         if (call.kind === 'MAKE_VERTEX') {
-          calls.push(call.context.vertexHint);
+          calls.push(call.context.childDiscoveryHint);
           return {
             kind: call.kind,
             value:
-              call.context.vertexHint === 'B'
+              call.context.childDiscoveryHint === 'B'
                 ? first.promise
-                : { vertexContent: { $data: 'A', $childHints: [] } },
+                : {
+                    vertexContent: {
+                      $vertexData: 'A',
+                      $childDiscoveryHints: [],
+                    },
+                  },
           };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -575,23 +656,28 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
     2,
   );
   const session = new AsyncRunnerSession(driver);
-  const iterator = session.iterateEvents();
+  const iterator =
+    session.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await iterator.next();
   const child = iterator.next();
   await eventLoopTurn();
   expect(calls).toEqual(['B', 'A']);
-  first.resolve({ vertexContent: { $data: 'B', $childHints: [] } });
+  first.resolve({
+    vertexContent: { $vertexData: 'B', $childDiscoveryHints: [] },
+  });
   await expect(child).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'B' }, order: 'LEVEL_ORDER' },
+    value: { vertex: { $vertexData: 'B' }, order: 'AT_LEVEL_ORDER_VERTEX' },
   });
   await expect(iterator.next()).resolves.toMatchObject({
     done: false,
-    value: { vertex: { $data: 'A' }, order: 'LEVEL_ORDER' },
+    value: { vertex: { $vertexData: 'A' }, order: 'AT_LEVEL_ORDER_VERTEX' },
   });
-  expect(driver.inspect().readyVisits).toEqual([]);
-  expect(driver.inspect().frames).toEqual([]);
-  expect(session.inspect().bufferedEventCount).toBe(0);
+  expect(
+    driver.captureExecutionSnapshot().dependencyEligiblePhaseVisits,
+  ).toEqual([]);
+  expect(driver.captureExecutionSnapshot().vertexTraversalFrames).toEqual([]);
+  expect(session.captureExecutionSnapshot().bufferedDeliveryEventCount).toBe(0);
   await expect(iterator.next()).resolves.toEqual({
     done: true,
     value: undefined,
@@ -600,11 +686,11 @@ test('breadth-first frames prefetch sorted siblings and consume them in queue or
 
 test('breadth-first settle does not admit a resolved child visitor', async () => {
   const child = deferred<{
-    vertexContent: { $data: string; $childHints: string[] };
+    vertexContent: { $vertexData: string; $childDiscoveryHints: string[] };
   }>();
   const visits: string[] = [];
   const stateBridge = {
-    status: TraversalRunnerStatus.INITIAL,
+    status: TraversalRunnerStatus.NOT_STARTED,
     traversalRootVertexRef: null,
     subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
@@ -621,23 +707,23 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
     }),
     stateBridge,
     visitorMetadata: {
-      LEVEL_ORDER: [
+      AT_LEVEL_ORDER_VERTEX: [
         {
-          addedIndex: 0,
-          priority: 100,
-          commandCommitMode: 'afterEachVisitor' as const,
+          phaseRegistrationInsertionIndex: 0,
+          descendingExecutionPriorityWithinGroup: 100,
+          visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
         },
       ],
     },
     iterableConfig: {
-      iterateOver: ['LEVEL_ORDER'],
+      iterateOver: ['AT_LEVEL_ORDER_VERTEX'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasHintTransformer: false,
-    hasHintIds: false,
-    concurrency: 1,
+    hasChildHintsListTransformer: false,
+    hasChildHintVertexIdResolver: false,
+    maxConcurrentCallbackInvocations: 1,
   });
   const driver = createAsyncDriver(
     kernel,
@@ -646,14 +732,19 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
         if (call.kind === 'MAKE_ROOT') {
           return {
             kind: call.kind,
-            value: { vertexContent: { $data: 'root', $childHints: ['child'] } },
+            value: {
+              vertexContent: {
+                $vertexData: 'root',
+                $childDiscoveryHints: ['child'],
+              },
+            },
           };
         }
         if (call.kind === 'MAKE_VERTEX') {
           return { kind: call.kind, value: child.promise };
         }
         if (call.kind === 'VISIT') {
-          visits.push(call.ref.getValue().getData());
+          visits.push(call.ref.getReferencedValue().getVertexData());
           return { kind: call.kind, value: undefined };
         }
         throw new Error(`Unexpected ${call.kind}`);
@@ -672,7 +763,9 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
   expect(driver.advance('drive')).toEqual({ kind: 'WAIT' });
   expect(visits).toEqual(['root']);
 
-  child.resolve({ vertexContent: { $data: 'child', $childHints: [] } });
+  child.resolve({
+    vertexContent: { $vertexData: 'child', $childDiscoveryHints: [] },
+  });
   await eventLoopTurn();
   expect(driver.advance('settle')).toEqual({ kind: 'WAIT' });
   expect(visits).toEqual(['root']);
@@ -682,7 +775,7 @@ test('breadth-first settle does not admit a resolved child visitor', async () =>
 
 test('breadth-first closes an unsorted empty async frame', async () => {
   const stateBridge = {
-    status: TraversalRunnerStatus.INITIAL,
+    status: TraversalRunnerStatus.NOT_STARTED,
     traversalRootVertexRef: null,
     subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
@@ -700,14 +793,14 @@ test('breadth-first closes an unsorted empty async frame', async () => {
     stateBridge,
     visitorMetadata: {},
     iterableConfig: {
-      iterateOver: ['LEVEL_ORDER'],
+      iterateOver: ['AT_LEVEL_ORDER_VERTEX'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasHintTransformer: false,
-    hasHintIds: false,
-    concurrency: 1,
+    hasChildHintsListTransformer: false,
+    hasChildHintVertexIdResolver: false,
+    maxConcurrentCallbackInvocations: 1,
   });
   const session = new AsyncRunnerSession(
     createAsyncDriver(
@@ -718,21 +811,23 @@ test('breadth-first closes an unsorted empty async frame', async () => {
             throw new Error(`Unexpected ${call.kind}`);
           return {
             kind: call.kind,
-            value: { vertexContent: { $data: 'root', $childHints: [] } },
+            value: {
+              vertexContent: { $vertexData: 'root', $childDiscoveryHints: [] },
+            },
           };
         },
       },
       1,
     ),
   );
-  await expect(session.run()).resolves.toBe(session);
-  expect(kernel.inspect().frames).toEqual([]);
+  await expect(session.runUntilSuspendedOrTerminal()).resolves.toBe(session);
+  expect(kernel.captureExecutionSnapshot().vertexTraversalFrames).toEqual([]);
 });
 
 test('breadth-first surfaces a prefetched resolver rejection', async () => {
   const error = new Error('breadth child failed');
   const stateBridge = {
-    status: TraversalRunnerStatus.INITIAL,
+    status: TraversalRunnerStatus.NOT_STARTED,
     traversalRootVertexRef: null,
     subtreeTraversalDisabledRefs: new Set<InternalVertexRef<TestGraph>>(),
     visitorsState: {},
@@ -750,14 +845,14 @@ test('breadth-first surfaces a prefetched resolver rejection', async () => {
     stateBridge,
     visitorMetadata: {},
     iterableConfig: {
-      iterateOver: ['LEVEL_ORDER'],
+      iterateOver: ['AT_LEVEL_ORDER_VERTEX'],
       enableVisitorFunctionsFor: null,
       disableVisitorFunctionsFor: null,
     },
     inOrderConfig: null,
-    hasHintTransformer: false,
-    hasHintIds: false,
-    concurrency: 1,
+    hasChildHintsListTransformer: false,
+    hasChildHintVertexIdResolver: false,
+    maxConcurrentCallbackInvocations: 1,
   });
   const iterator = new AsyncRunnerSession(
     createAsyncDriver(
@@ -768,7 +863,10 @@ test('breadth-first surfaces a prefetched resolver rejection', async () => {
             return {
               kind: call.kind,
               value: {
-                vertexContent: { $data: 'root', $childHints: ['child'] },
+                vertexContent: {
+                  $vertexData: 'root',
+                  $childDiscoveryHints: ['child'],
+                },
               },
             };
           }
@@ -780,7 +878,7 @@ test('breadth-first surfaces a prefetched resolver rejection', async () => {
       },
       1,
     ),
-  ).iterateEvents();
+  ).runAndIterateObservationEventsUntilSuspendedOrTerminal();
   await iterator.next();
   await expect(iterator.next()).rejects.toBe(error);
 });

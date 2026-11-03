@@ -1,4 +1,4 @@
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { DagVisitorPhase } from './lib/DagTraversalOrder';
 import type {
   AsyncDagVisitor,
@@ -7,100 +7,161 @@ import type {
 } from './lib/DagTraversalVisitor';
 
 type FilteredVisitor<
-  DATA,
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ORDER extends DagVisitorPhase,
-  ID,
-> = ReturnType<DagVisitor<T, R, ORDER, ID>> extends infer RESULT
-  ? (data: DATA, options: DagVisitorContext<T, R, ORDER, ID>) => RESULT
+  Data,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  Phase extends DagVisitorPhase,
+  VertexId,
+> = ReturnType<
+  DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+> extends infer VisitorResult
+  ? (
+      data: Data,
+      context: DagVisitorContext<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        Phase,
+        VertexId
+      >,
+    ) => VisitorResult
   : never;
 
 type AsyncFilteredVisitor<
-  DATA,
-  T extends VertexTypes,
-  R extends VertexTypes,
-  ORDER extends DagVisitorPhase,
-  ID,
-> = ReturnType<AsyncDagVisitor<T, R, ORDER, ID>> extends infer RESULT
-  ? (data: DATA, options: DagVisitorContext<T, R, ORDER, ID>) => RESULT
+  Data,
+  SourceVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  Phase extends DagVisitorPhase,
+  VertexId,
+> = ReturnType<
+  AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>
+> extends infer VisitorResult
+  ? (
+      data: Data,
+      context: DagVisitorContext<
+        SourceVertexTypes,
+        RewrittenVertexTypes,
+        Phase,
+        VertexId
+      >,
+    ) => VisitorResult
   : never;
 
 /** Filter current vertex data; a guard narrows data, never the live graph context. */
-export function filterDagDataVisitor<
-  DATA,
-  NARROWED extends DATA,
-  T extends VertexTypes<DATA> = VertexTypes<DATA>,
-  R extends VertexTypes<DATA> = T,
-  ORDER extends DagVisitorPhase = DagVisitorPhase,
-  ID = unknown,
+export function createConditionalDagDataVisitor<
+  Data,
+  NarrowedData extends Data,
+  SourceVertexTypes extends VertexDataAndChildHintTypes<Data> = VertexDataAndChildHintTypes<Data>,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes<Data> = SourceVertexTypes,
+  Phase extends DagVisitorPhase = DagVisitorPhase,
+  VertexId = unknown,
 >(
-  predicate: (data: DATA) => data is NARROWED,
-  visitor: FilteredVisitor<NARROWED, T, R, ORDER, ID>,
-): DagVisitor<T, R, ORDER, ID>;
-export function filterDagDataVisitor<
-  DATA,
-  T extends VertexTypes<DATA> = VertexTypes<DATA>,
-  R extends VertexTypes<DATA> = T,
-  ORDER extends DagVisitorPhase = DagVisitorPhase,
-  ID = unknown,
+  predicate: (data: Data) => data is NarrowedData,
+  visitor: FilteredVisitor<
+    NarrowedData,
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    Phase,
+    VertexId
+  >,
+): DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>;
+export function createConditionalDagDataVisitor<
+  Data,
+  SourceVertexTypes extends VertexDataAndChildHintTypes<Data> = VertexDataAndChildHintTypes<Data>,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes<Data> = SourceVertexTypes,
+  Phase extends DagVisitorPhase = DagVisitorPhase,
+  VertexId = unknown,
 >(
-  predicate: (data: DATA) => boolean,
-  visitor: FilteredVisitor<DATA, T, R, ORDER, ID>,
-): DagVisitor<T, R, ORDER, ID>;
-export function filterDagDataVisitor<
-  DATA,
-  NARROWED extends DATA,
-  T extends VertexTypes<DATA>,
-  R extends VertexTypes<DATA>,
-  ORDER extends DagVisitorPhase,
-  ID,
+  predicate: (data: Data) => boolean,
+  visitor: FilteredVisitor<
+    Data,
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    Phase,
+    VertexId
+  >,
+): DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>;
+export function createConditionalDagDataVisitor<
+  Data,
+  NarrowedData extends Data,
+  SourceVertexTypes extends VertexDataAndChildHintTypes<Data>,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes<Data>,
+  Phase extends DagVisitorPhase,
+  VertexId,
 >(
-  predicate: (data: DATA) => boolean,
-  visitor: FilteredVisitor<NARROWED, T, R, ORDER, ID>,
-): DagVisitor<T, R, ORDER, ID> {
-  return ((vertex, options) => {
-    const data = vertex.getData();
+  predicate: (data: Data) => boolean,
+  visitor: FilteredVisitor<
+    NarrowedData,
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    Phase,
+    VertexId
+  >,
+): DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId> {
+  return ((vertex, context) => {
+    const data = vertex.getVertexData();
     // The guard overload proves this narrowing; the boolean overload keeps DATA.
-    return predicate(data) ? visitor(data as NARROWED, options) : undefined;
-  }) as DagVisitor<T, R, ORDER, ID>;
+    return predicate(data) ? visitor(data as NarrowedData, context) : undefined;
+  }) as DagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>;
 }
 
 /** Async callbacks retain their original promise and exact rejection value. */
-export function filterAsyncDagDataVisitor<
-  DATA,
-  NARROWED extends DATA,
-  T extends VertexTypes<DATA> = VertexTypes<DATA>,
-  R extends VertexTypes<DATA> = T,
-  ORDER extends DagVisitorPhase = DagVisitorPhase,
-  ID = unknown,
+export function createConditionalAsyncDagDataVisitor<
+  Data,
+  NarrowedData extends Data,
+  SourceVertexTypes extends VertexDataAndChildHintTypes<Data> = VertexDataAndChildHintTypes<Data>,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes<Data> = SourceVertexTypes,
+  Phase extends DagVisitorPhase = DagVisitorPhase,
+  VertexId = unknown,
 >(
-  predicate: (data: DATA) => data is NARROWED,
-  visitor: AsyncFilteredVisitor<NARROWED, T, R, ORDER, ID>,
-): AsyncDagVisitor<T, R, ORDER, ID>;
-export function filterAsyncDagDataVisitor<
-  DATA,
-  T extends VertexTypes<DATA> = VertexTypes<DATA>,
-  R extends VertexTypes<DATA> = T,
-  ORDER extends DagVisitorPhase = DagVisitorPhase,
-  ID = unknown,
+  predicate: (data: Data) => data is NarrowedData,
+  visitor: AsyncFilteredVisitor<
+    NarrowedData,
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    Phase,
+    VertexId
+  >,
+): AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>;
+export function createConditionalAsyncDagDataVisitor<
+  Data,
+  SourceVertexTypes extends VertexDataAndChildHintTypes<Data> = VertexDataAndChildHintTypes<Data>,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes<Data> = SourceVertexTypes,
+  Phase extends DagVisitorPhase = DagVisitorPhase,
+  VertexId = unknown,
 >(
-  predicate: (data: DATA) => boolean,
-  visitor: AsyncFilteredVisitor<DATA, T, R, ORDER, ID>,
-): AsyncDagVisitor<T, R, ORDER, ID>;
-export function filterAsyncDagDataVisitor<
-  DATA,
-  NARROWED extends DATA,
-  T extends VertexTypes<DATA>,
-  R extends VertexTypes<DATA>,
-  ORDER extends DagVisitorPhase,
-  ID,
+  predicate: (data: Data) => boolean,
+  visitor: AsyncFilteredVisitor<
+    Data,
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    Phase,
+    VertexId
+  >,
+): AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId>;
+export function createConditionalAsyncDagDataVisitor<
+  Data,
+  NarrowedData extends Data,
+  SourceVertexTypes extends VertexDataAndChildHintTypes<Data>,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes<Data>,
+  Phase extends DagVisitorPhase,
+  VertexId,
 >(
-  predicate: (data: DATA) => boolean,
-  visitor: AsyncFilteredVisitor<NARROWED, T, R, ORDER, ID>,
-): AsyncDagVisitor<T, R, ORDER, ID> {
-  return ((vertex, options) => {
-    const data = vertex.getData();
-    return predicate(data) ? visitor(data as NARROWED, options) : undefined;
-  }) as AsyncDagVisitor<T, R, ORDER, ID>;
+  predicate: (data: Data) => boolean,
+  visitor: AsyncFilteredVisitor<
+    NarrowedData,
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    Phase,
+    VertexId
+  >,
+): AsyncDagVisitor<SourceVertexTypes, RewrittenVertexTypes, Phase, VertexId> {
+  return ((vertex, context) => {
+    const data = vertex.getVertexData();
+    return predicate(data) ? visitor(data as NarrowedData, context) : undefined;
+  }) as AsyncDagVisitor<
+    SourceVertexTypes,
+    RewrittenVertexTypes,
+    Phase,
+    VertexId
+  >;
 }

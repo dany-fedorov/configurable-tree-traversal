@@ -1,20 +1,20 @@
-import type { GraphWalkOperation } from '../GraphWalkOperation';
+import type { GraphWalkPendingInvocationOperation } from '../GraphWalkOperation';
 import type { GraphWalkEvent } from '../GraphWalkEvent';
-import type { GraphWalkPhase } from '../GraphWalkPhase';
+import type { GraphWalkObservationKind } from '../GraphWalkPhase';
 
-export type WalkAction<Data, Edge, ID> =
+export type WalkAction<VertexData, EdgeData, VertexId> =
   | {
       kind: 'CALL';
-      requestId: number;
-      operation: GraphWalkOperation;
-      vertexToken?: symbol | undefined;
+      runnerLocalInvocationRequestId: number;
+      operation: GraphWalkPendingInvocationOperation;
+      runnerLocalVertexIdentityToken?: symbol | undefined;
       invoke: () => unknown;
     }
   | {
       kind: 'OBSERVATION';
       boundaryId: number;
-      phase: GraphWalkPhase;
-      event: () => GraphWalkEvent<Data, Edge, ID>;
+      observationKind: GraphWalkObservationKind;
+      event: () => GraphWalkEvent<VertexData, EdgeData, VertexId>;
     }
-  | { kind: 'WAIT' | 'HALTED' | 'FINISHED' }
+  | { kind: 'WAIT' | 'SUSPENDED' | 'FINISHED' }
   | { kind: 'FAILED'; error: unknown };

@@ -1,19 +1,19 @@
 import { TraversalVisitorCommandName as VisitorCommand } from '../src';
 import { TraversalRunnerStatus as Status } from '../src/core/TraversalRunner';
 import { TraversalVisitorCommandName as Command } from '../src/core/TraversalVisitor';
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import {
-  AsyncBreadthFirstTreeTraversal,
-  BreadthFirstTreeTraversal,
+  AsyncBreadthFirstTreeTraversalBuilder,
+  BreadthFirstTreeTraversalBuilder,
 } from '../src/traversals/breadth-first-traversal';
 import {
-  AsyncDagTraversal,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase as Order,
 } from '../src/traversals/dag-traversal';
 import {
-  AsyncDepthFirstTreeTraversal,
-  DepthFirstTreeTraversal,
+  AsyncDepthFirstTreeTraversalBuilder,
+  DepthFirstTreeTraversalBuilder,
 } from '../src/traversals/depth-first-traversal';
 import { deferred, eventLoopTurn } from './helpers/graph-fixtures';
 import {
@@ -26,135 +26,162 @@ import {
   runnerInternals,
 } from './internal-runner-fixtures';
 
-type G = VertexTypes<string, string>;
+type G = VertexDataAndChildHintTypes<string, string>;
 const tree = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: { $data: 'A', $childHints: ['B'] } },
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: { $vertexData: 'A', $childDiscoveryHints: ['B'] },
+    },
   }),
-  resolveChild: () => ({
-    kind: 'found' as const,
-    vertex: { vertexContent: { $data: 'B', $childHints: [] } },
+  resolveChildVertexFromHint: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
+      vertexContentInput: { $vertexData: 'B', $childDiscoveryHints: [] },
+    },
   }),
 };
 const graph = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'A',
-      vertexContent: { $data: 'A', $childHints: [] },
+      vertexContentInput: { $vertexData: 'A', $childDiscoveryHints: [] },
     },
   }),
-  resolveChild: tree.resolveChild,
+  resolveChildHint: tree.resolveChildVertexFromHint,
 };
 function expectReason(
   runner: {
-    getStopReason(): import('../src').TraversalStopReason | null;
-    inspect(): object;
+    getTraversalStopReason(): import('../src').TraversalStopReason | null;
+    captureExecutionSnapshot(): object;
   },
   expected: string | null,
 ) {
-  expect(runner.getStopReason()).toBe(expected);
-  expect(runner.inspect()).toHaveProperty('stopReason', expected);
+  expect(runner.getTraversalStopReason()).toBe(expected);
+  expect(runner.captureExecutionSnapshot()).toHaveProperty(
+    'traversalStopReason',
+    expected,
+  );
 }
 
 for (const Constructor of [
-  DepthFirstTreeTraversal<G>,
-  BreadthFirstTreeTraversal<G>,
-  DagTraversal<G>,
-  AsyncDepthFirstTreeTraversal<G>,
-  AsyncBreadthFirstTreeTraversal<G>,
-  AsyncDagTraversal<G>,
+  DepthFirstTreeTraversalBuilder<G>,
+  BreadthFirstTreeTraversalBuilder<G>,
+  DagTraversalBuilder<G>,
+  AsyncDepthFirstTreeTraversalBuilder<G>,
+  AsyncBreadthFirstTreeTraversalBuilder<G>,
+  AsyncDagTraversalBuilder<G>,
 ]) {
   test(`${Constructor.name} reports initial, running, iterator pause, resume, and finish boundaries`, async () => {
-    const runner = new Constructor({ traversableTree: tree }).createRunner();
+    const runner = new Constructor({
+      treeDiscoverySource: tree,
+    }).createIndependentRunnerFromCurrentOptions();
     expectReason(runner, null);
-    for await (const event of runner.iterateEvents()) {
-      expect(event.vertex.getData()).toBe('A');
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
+      expect(event.vertex.getVertexData()).toBe('A');
       expectReason(runner, null);
       break;
     }
     expectReason(runner, 'paused');
-    for await (const event of runner.iterateEvents()) {
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
       expect(event.vertex).toBeDefined();
       expectReason(runner, null);
     }
     expectReason(runner, 'finished');
-    expect(await runner.run()).toBe(runner);
+    expect(await runner.runUntilSuspendedOrTerminal()).toBe(runner);
     expectReason(runner, 'finished');
   });
   test.each([undefined, null, { cause: 'source' }])(
     `${Constructor.name} preserves exact source failure %p`,
     async (error) => {
       const runner = new Constructor({
-        traversableTree: {
+        treeDiscoverySource: {
           ...tree,
-          resolveRoot: () => {
+          resolveRootVertex: () => {
             throw error;
           },
         },
-      }).createRunner();
+      }).createIndependentRunnerFromCurrentOptions();
       await expect(async () => {
-        await runner.run();
+        await runner.runUntilSuspendedOrTerminal();
       }).rejects.toBe(error);
       expectReason(runner, 'failed');
       await expect(async () => {
-        await runner.run();
+        await runner.runUntilSuspendedOrTerminal();
       }).rejects.toBe(error);
       expectReason(runner, 'failed');
     },
   );
 }
 
-for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
+for (const Constructor of [
+  DagTraversalBuilder<G>,
+  AsyncDagTraversalBuilder<G>,
+]) {
   test(`${Constructor.name} keeps the preceding settlement stop until resume`, async () => {
-    const traversal = new Constructor({ traversableGraph: graph });
-    traversal.addVisitorFor(Order.ON_WORK_READY, () => ({
+    const traversal = new Constructor({ dagDiscoverySource: graph });
+    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => ({
       commands: [
-        { commandName: VisitorCommand.DEFER_WORK_COMPLETION as const },
+        {
+          commandName:
+            VisitorCommand.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION as const,
+        },
       ],
     }));
-    const runner = traversal.createRunner();
-    await runner.run();
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expectReason(runner, 'awaitingSettlement');
-    const generation = runner.summary().vertices.get('A')!.generation!;
-    runner.settle('A', { kind: 'workCompleted' }, generation);
+    const generation = runner
+      .captureProgressSnapshot()
+      .progressByVertexId.get('A')!.settlementToken!;
+    runner.settleDeferredWork('A', { kind: 'workCompleted' }, generation);
     expectReason(runner, 'awaitingSettlement');
-    for await (const event of runner.iterateEvents()) {
-      expect(event.vertex.getData()).toBe('A');
+    for await (const event of runner.runAndIterateObservationEventsUntilSuspendedOrTerminal()) {
+      expect(event.vertex.getVertexData()).toBe('A');
       expectReason(runner, null);
     }
     expectReason(runner, 'finished');
   });
   test(`${Constructor.name} distinguishes requested pause from deferred quiescence`, async () => {
     let halted = false;
-    const traversal = new Constructor({ traversableGraph: graph });
-    traversal.addVisitorFor(Order.ON_WORK_READY, () => {
+    const traversal = new Constructor({ dagDiscoverySource: graph });
+    traversal.registerVisitorCallbackForPhase(Order.ON_WORK_READY, () => {
       if (!halted) {
         halted = true;
-        return { commands: [{ commandName: Command.PAUSE_TRAVERSAL }] };
+        return {
+          commands: [
+            { commandName: Command.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY },
+          ],
+        };
       }
       return undefined;
     });
-    const runner = traversal.createRunner();
-    await runner.run();
+    const runner = traversal.createIndependentRunnerFromCurrentOptions();
+    await runner.runUntilSuspendedOrTerminal();
     expectReason(runner, 'paused');
-    await runner.run();
+    await runner.runUntilSuspendedOrTerminal();
     expectReason(runner, 'finished');
   });
 }
 
 test('async pause has no stop reason while admitted callbacks drain', async () => {
   const release = deferred<void>();
-  const traversal = new AsyncDagTraversal<G>({ traversableGraph: graph });
-  traversal.addVisitorFor(Order.ON_WORK_READY, () => release.promise);
-  const runner = traversal.createRunner();
-  const iterator = runner.iterateEvents();
+  const traversal = new AsyncDagTraversalBuilder<G>({
+    dagDiscoverySource: graph,
+  });
+  traversal.registerVisitorCallbackForPhase(
+    Order.ON_WORK_READY,
+    () => release.promise,
+  );
+  const runner = traversal.createIndependentRunnerFromCurrentOptions();
+  const iterator =
+    runner.runAndIterateObservationEventsUntilSuspendedOrTerminal();
   const next = iterator.next();
   await eventLoopTurn();
   const close = iterator.return();
   await eventLoopTurn();
-  expect(runner.getStatus()).toBe(Status.RUNNING);
+  expect(runner.getTraversalLifecycleStatus()).toBe(Status.RUNNING);
   expectReason(runner, null);
   release.resolve();
   await close;
@@ -163,69 +190,74 @@ test('async pause has no stop reason while admitted callbacks drain', async () =
 });
 
 for (const Constructor of [
-  DepthFirstTreeTraversal<G>,
-  AsyncDepthFirstTreeTraversal<G>,
+  DepthFirstTreeTraversalBuilder<G>,
+  AsyncDepthFirstTreeTraversalBuilder<G>,
 ]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
     const state = runnerInternals(
-      new DepthFirstTreeTraversal<G>({
-        traversableTree: tree,
-      }).createRunner(),
+      new DepthFirstTreeTraversalBuilder<G>({
+        treeDiscoverySource: tree,
+      }).createIndependentRunnerFromCurrentOptions(),
     ).state;
-    state.status = Status.HALTED;
+    state.status = Status.SUSPENDED;
     const runner = (
-      Constructor === DepthFirstTreeTraversal
+      Constructor === DepthFirstTreeTraversalBuilder
         ? createInternalDepthFirstTreeTraversal
         : createInternalAsyncDepthFirstTreeTraversal
     )({
-      traversableTree: tree,
+      treeDiscoverySource: tree,
       traversalRunnerInternalObjects: { state },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     expectReason(runner, 'paused');
-    await runner.run();
+    await runner.runUntilSuspendedOrTerminal();
     expectReason(runner, 'finished');
   });
 }
 for (const Constructor of [
-  BreadthFirstTreeTraversal<G>,
-  AsyncBreadthFirstTreeTraversal<G>,
+  BreadthFirstTreeTraversalBuilder<G>,
+  AsyncBreadthFirstTreeTraversalBuilder<G>,
 ]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
     const state = runnerInternals(
-      new BreadthFirstTreeTraversal<G>({
-        traversableTree: tree,
-      }).createRunner(),
+      new BreadthFirstTreeTraversalBuilder<G>({
+        treeDiscoverySource: tree,
+      }).createIndependentRunnerFromCurrentOptions(),
     ).state;
-    state.status = Status.HALTED;
+    state.status = Status.SUSPENDED;
     const runner = (
-      Constructor === BreadthFirstTreeTraversal
+      Constructor === BreadthFirstTreeTraversalBuilder
         ? createInternalBreadthFirstTreeTraversal
         : createInternalAsyncBreadthFirstTreeTraversal
     )({
-      traversableTree: tree,
+      treeDiscoverySource: tree,
       traversalRunnerInternalObjects: { state },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     expectReason(runner, 'paused');
-    await runner.run();
+    await runner.runUntilSuspendedOrTerminal();
     expectReason(runner, 'finished');
   });
 }
-for (const Constructor of [DagTraversal<G>, AsyncDagTraversal<G>]) {
+for (const Constructor of [
+  DagTraversalBuilder<G>,
+  AsyncDagTraversalBuilder<G>,
+]) {
   test(`${Constructor.name} legacy injected halted state reports a resumable pause`, async () => {
     const state = runnerInternals(
-      new DagTraversal<G>({ traversableGraph: graph }).createRunner(),
+      new DagTraversalBuilder<G>({
+        dagDiscoverySource: graph,
+      }).createIndependentRunnerFromCurrentOptions(),
     ).state;
-    state.status = Status.HALTED;
+    state.status = Status.SUSPENDED;
     const runner = (
-      Constructor === DagTraversal
+      Constructor === DagTraversalBuilder
         ? createInternalDagTraversal
         : createInternalAsyncDagTraversal
     )<G>({
-      traversableGraph: graph,
+      dagDiscoverySource: graph,
       traversalRunnerInternalObjects: { state },
-    }).createRunner();
+    }).createIndependentRunnerFromCurrentOptions();
     expectReason(runner, 'paused');
-    await runner.run();
+    await runner.runUntilSuspendedOrTerminal();
     expectReason(runner, 'finished');
   });
 }

@@ -1,10 +1,10 @@
 /** Distinct positions or inclusive intervals, with negative indices relative to the end. */
-export type ChildIndexSelection =
+export type ZeroBasedOrEndRelativeChildIndexSelection =
   | { readonly indices: readonly number[]; readonly ranges?: never }
   | {
       readonly ranges: readonly {
-        readonly from: number;
-        readonly through: number;
+        readonly fromInclusive: number;
+        readonly throughInclusive: number;
       }[];
       readonly indices?: never;
     };

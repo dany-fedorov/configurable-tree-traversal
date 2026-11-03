@@ -69,45 +69,55 @@ function createInspection(
 ) {
   const counters = { root: 0, vertex: 0, ready: 0 };
   const indexes = new Map(fixture.ids.map((id, i) => [id, i]));
-  const traversal = new library.DagTraversal({
-    discovery: 'eager',
-    syntheticRoot: true,
-    completedWork: completed,
-    traversableGraph: {
-      resolveRoot: () => {
+  const traversal = new library.DagTraversalBuilder({
+    discoveryTiming: 'completeBeforeAnyVisitor',
+    sourceRootIsHiddenEntryHolder: true,
+    acceptedCompletedWorkVertexIds: completed,
+    dagDiscoverySource: {
+      resolveRootVertex: () => {
         counters.root++;
         return {
-          kind: 'found',
-          vertex: {
-            vertexContent: { $data: 'catalog', $childHints: fixture.ids },
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
+            vertexContentInput: {
+              $vertexData: 'catalog',
+              $childDiscoveryHints: fixture.ids,
+            },
           },
         };
       },
-      resolveChild: (id) => {
+      resolveChildHint: (id) => {
         counters.vertex++;
         return {
-          kind: 'found',
-          vertex: {
+          kind: 'vertexResolved',
+          resolvedVertexInput: {
             vertexId: id,
-            dependsOnWork: fixture.prerequisites[indexes.get(id)],
-            vertexContent: { $data: id, $childHints: [] },
+            workWaitsForWorkOf: fixture.prerequisites[indexes.get(id)],
+            vertexContentInput: { $vertexData: id, $childDiscoveryHints: [] },
           },
         };
       },
     },
   });
-  traversal.addVisitorFor(library.DagVisitorPhase.ON_WORK_READY, () => {
-    if (counters.ready++ === 0) onFirstReady();
-    return {
-      commands: [
-        {
-          commandName:
-            library.TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
-        },
-      ],
-    };
-  });
-  return { runner: traversal.createRunner(), counters };
+  traversal.registerVisitorCallbackForPhase(
+    library.DagVisitorPhase.ON_WORK_READY,
+    () => {
+      if (counters.ready++ === 0) onFirstReady();
+      return {
+        commands: [
+          {
+            commandName:
+              library.TraversalVisitorCommandName
+                .END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION,
+          },
+        ],
+      };
+    },
+  );
+  return {
+    runner: traversal.createIndependentRunnerFromCurrentOptions(),
+    counters,
+  };
 }
 
 function sample(library, shape, count, seedCount, summaryIterations) {
@@ -130,34 +140,40 @@ function sample(library, shape, count, seedCount, summaryIterations) {
   );
   const runnerConstructionMs = performance.now() - start;
   const runStart = performance.now();
-  runner.run();
+  runner.runUntilSuspendedOrTerminal();
   const runToQuiescenceMs = performance.now() - runStart;
   // All correctness checks are outside measured regions. Summaries allocate detached snapshots.
-  const before = runner.summary();
-  assert.deepEqual(before.readyOrDeferredIds, baseline.readyIds);
-  assert.deepEqual(before.completedWorkIds, [...completed]);
+  const before = runner.captureProgressSnapshot();
+  assert.deepEqual(
+    before.workVisitorReadyOrWorkCompletionDeferredVertexIds,
+    baseline.readyIds,
+  );
+  assert.deepEqual(before.workCompletionCommittedVertexIds, [...completed]);
   assert.equal(before.discovery.complete, true);
-  assert.equal(before.diagnostics, null);
-  assert.equal(before.counts.discovered, count);
+  assert.equal(before.invalidDependencyTopologyDiagnostics, null);
+  assert.equal(before.counts.retainedLiveVertices, count);
   assert.equal(counters.root, 1);
   assert.equal(counters.vertex, count);
   assert.equal(counters.ready, baseline.readyIds.length);
-  assert.equal(before.counts.deferredWork, baseline.readyIds.length);
+  assert.equal(
+    before.counts.workCompletionDeferredVertices,
+    baseline.readyIds.length,
+  );
   const calls = { ...counters };
-  const status = runner.getStatus();
+  const status = runner.getTraversalLifecycleStatus();
   let last;
   let consumedVertices = 0;
   start = performance.now();
   for (let i = 0; i < summaryIterations; i++) {
-    last = runner.summary();
-    consumedVertices += last.vertices.size;
+    last = runner.captureProgressSnapshot();
+    consumedVertices += last.progressByVertexId.size;
   }
   const summaryBatchMs = performance.now() - start;
   assert.equal(consumedVertices, count * summaryIterations);
   assert.deepEqual(last, before);
-  assert.deepEqual(runner.summary(), before);
+  assert.deepEqual(runner.captureProgressSnapshot(), before);
   assert.deepEqual(counters, calls);
-  assert.equal(runner.getStatus(), status);
+  assert.equal(runner.getTraversalLifecycleStatus(), status);
   return {
     vertices: count,
     edges: fixture.edgeCount,
@@ -293,17 +309,17 @@ function main(args) {
     },
     timingNotes: {
       fixtureConstructionMs:
-        'IDs and prerequisite arrays only; excludes completedWork seed creation',
+        'IDs and prerequisite arrays only; excludes acceptedCompletedWorkVertexIds seed creation',
       runnerConstructionMs:
         'adapter index, traversal construction, visitor registration and createRunner',
       eagerToFirstReadyMs:
         'run entry to first ON_WORK_READY callback; includes traversal setup, full eager discovery and validation; overlaps runToQuiescenceMs',
       runToQuiescenceMs:
-        'run entry to return; includes discovery, validation and deferral admission; stops at HALTED frontier, no business work or settlement',
+        'run entry to return; includes discovery, validation and deferral admission; stops at SUSPENDED frontier, no business work or settlement',
       kahnIndexAndFrontierMs:
         'dependency indexing and removal of supplied seeds only; excludes CTT resolver/lifecycle/identity/validation features; not a speedup comparison',
       summaryBatchMs:
-        'repeated summary() plus consuming vertices.size; includes allocation/GC; all assertions excluded',
+        'repeated captureProgressSnapshot() plus consuming progressByVertexId.size; includes allocation/GC; all assertions excluded',
       summaryPerCallMs:
         'summaryBatchMs / summaryIterations; no stored history of snapshots',
     },

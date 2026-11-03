@@ -1,90 +1,128 @@
 import {
   mergeInOrderOptions,
-  type InOrderOptionsPatch,
+  type DepthFirstChildBoundaryVisitOptionsPatch,
 } from './DepthFirstTraversalInOrderTraversalConfig';
 import {
   assertTraversalFields,
   definedOptions,
 } from '@core/assertPublicOptions';
-import type { ChildHintTransformer } from '@core/ChildHintTransformer';
-import type { TreeSource } from '@core/TraversableTree';
-import type { VisitorInputs } from '@core/TraversalVisitor';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { ChildHintsListTransformer } from '@core/ChildHintTransformer';
+import type { TreeDiscoverySource } from '@core/TraversableTree';
+import type { VisitorDefinitionsByPhase } from '@core/TraversalVisitor';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import { normalizeVisitorDefinitions } from '@core/visitors/normalizeVisitorDefinitions';
-import type { InOrderOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
-import { DepthFirstPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
+import type { DepthFirstChildBoundaryVisitOptions } from '@depth-first-traversal/lib/DepthFirstTraversalInOrderTraversalConfig';
+import { DepthFirstTreeVisitPhase } from '@depth-first-traversal/lib/DepthFirstTraversalOrder';
 import type { DepthFirstTraversalRunnerInternalObjects } from '@depth-first-traversal/lib/DepthFirstTraversalRunnerInternalObjects';
-import type { DepthFirstTraversalVisitors } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
+import type { DepthFirstTreeVisitorRegistrationsByPhase } from '@depth-first-traversal/lib/DepthFirstTraversalVisitors';
 import type { OrNullAllFields } from '@depth-first-traversal/type-helpers/OrNullAllFields';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export type DepthFirstTreeResolvedOptions<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  traversableTree: TreeSource<TTP, RW_TTP>;
-  transformChildHints: ChildHintTransformer<TTP> | null;
-  visitors: DepthFirstTraversalVisitors<TTP, RW_TTP>;
-  inOrder: InOrderOptions;
-  retainOriginalTreeStructure: boolean;
+  treeDiscoverySource: TreeDiscoverySource<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
+  transformChildHintsBeforeResolution: ChildHintsListTransformer<InputVertexTypes> | null;
+  visitors: DepthFirstTreeVisitorRegistrationsByPhase<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
+  childBoundaryVisits: DepthFirstChildBoundaryVisitOptions;
+  retainDiscoveredTreeBeforeVisitorCommands: boolean;
   traversalRunnerInternalObjects: Partial<
-    OrNullAllFields<DepthFirstTraversalRunnerInternalObjects<TTP, RW_TTP>>
+    OrNullAllFields<
+      DepthFirstTraversalRunnerInternalObjects<
+        InputVertexTypes,
+        RewrittenVertexTypes
+      >
+    >
   >;
 };
 
 export const DEPTH_FIRST_TRAVERSAL_DEFAULT_INSTANCE_CONFIG: Omit<
-  DepthFirstTreeResolvedOptions<VertexTypes, VertexTypes>,
-  'traversableTree'
+  DepthFirstTreeResolvedOptions<
+    VertexDataAndChildHintTypes,
+    VertexDataAndChildHintTypes
+  >,
+  'treeDiscoverySource'
 > = deepFreeze({
-  transformChildHints: null,
-  inOrder: {
-    afterChildIndices: { ranges: [{ from: 0, through: -2 }] },
-    fallbackChildIndices: { indices: [-2] },
-    visitSingleChildParent: true,
-    visitAfterOmittedChildren: true,
+  transformChildHintsBeforeResolution: null,
+  childBoundaryVisits: {
+    visitAfterChildIndices: {
+      ranges: [{ fromInclusive: 0, throughInclusive: -2 }],
+    },
+    visitAfterChildIndicesWhenPrimarySelectionIsEmpty: { indices: [-2] },
+    alsoVisitAfterOnlyChild: true,
+    allowBoundaryVisitsAfterOmittedChildSlots: true,
   },
   visitors: {
-    [DepthFirstPhase.PRE_ORDER]: [],
-    [DepthFirstPhase.IN_ORDER]: [],
-    [DepthFirstPhase.POST_ORDER]: [],
+    [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]: [],
+    [DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]: [],
+    [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES]: [],
   },
-  retainOriginalTreeStructure: false,
+  retainDiscoveredTreeBeforeVisitorCommands: false,
   traversalRunnerInternalObjects: {
     resolvedTreesContainer: null,
     state: null,
   },
 });
 
-export type DepthFirstTreeOptionsPatch<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
+export type DepthFirstTreeTraversalBuilderOptionsPatch<
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
 > = {
-  traversableTree?: TreeSource<TTP, RW_TTP> | undefined;
-  transformChildHints?: ChildHintTransformer<TTP> | null | undefined;
-  visitors?:
-    | VisitorInputs<DepthFirstTraversalVisitors<TTP, RW_TTP>>
+  treeDiscoverySource?:
+    | TreeDiscoverySource<InputVertexTypes, RewrittenVertexTypes>
     | undefined;
-  retainOriginalTreeStructure?: boolean | undefined;
-  inOrder?: InOrderOptionsPatch | undefined;
+  transformChildHintsBeforeResolution?:
+    | ChildHintsListTransformer<InputVertexTypes>
+    | null
+    | undefined;
+  visitors?:
+    | VisitorDefinitionsByPhase<
+        DepthFirstTreeVisitorRegistrationsByPhase<
+          InputVertexTypes,
+          RewrittenVertexTypes
+        >
+      >
+    | undefined;
+  retainDiscoveredTreeBeforeVisitorCommands?: boolean | undefined;
+  childBoundaryVisits?: DepthFirstChildBoundaryVisitOptionsPatch | undefined;
 };
 
-export type DepthFirstTreeOptions<
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
-> = DepthFirstTreeOptionsPatch<TTP, RW_TTP> & {
-  traversableTree: TreeSource<TTP, RW_TTP>;
+export type DepthFirstTreeTraversalBuilderOptions<
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
+> = DepthFirstTreeTraversalBuilderOptionsPatch<
+  InputVertexTypes,
+  RewrittenVertexTypes
+> & {
+  treeDiscoverySource: TreeDiscoverySource<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >;
 };
 
 export function mergeInstanceConfigs<
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 >(
-  base: DepthFirstTreeResolvedOptions<TTP, RW_TTP>,
-  input: DepthFirstTreeOptionsPatch<TTP, RW_TTP>,
-): DepthFirstTreeResolvedOptions<TTP, RW_TTP> {
+  base: DepthFirstTreeResolvedOptions<InputVertexTypes, RewrittenVertexTypes>,
+  input: DepthFirstTreeTraversalBuilderOptionsPatch<
+    InputVertexTypes,
+    RewrittenVertexTypes
+  >,
+): DepthFirstTreeResolvedOptions<InputVertexTypes, RewrittenVertexTypes> {
   const capturedInput = definedOptions(input);
-  assertTraversalFields(capturedInput, Object.values(DepthFirstPhase));
-  const inOrder = mergeInOrderOptions(base.inOrder, capturedInput.inOrder);
+  assertTraversalFields(capturedInput, Object.values(DepthFirstTreeVisitPhase));
+  const childBoundaryVisits = mergeInOrderOptions(
+    base.childBoundaryVisits,
+    capturedInput.childBoundaryVisits,
+  );
   const visitors = {
     ...base.visitors,
     ...definedOptions(capturedInput.visitors ?? {}),
@@ -93,17 +131,22 @@ export function mergeInstanceConfigs<
     ...base,
     ...capturedInput,
     visitors: {
-      [DepthFirstPhase.PRE_ORDER]: normalizeVisitorDefinitions(
-        visitors[DepthFirstPhase.PRE_ORDER],
-      ),
-      [DepthFirstPhase.IN_ORDER]: normalizeVisitorDefinitions(
-        visitors[DepthFirstPhase.IN_ORDER],
-      ),
-      [DepthFirstPhase.POST_ORDER]: normalizeVisitorDefinitions(
-        visitors[DepthFirstPhase.POST_ORDER],
-      ),
+      [DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION]:
+        normalizeVisitorDefinitions(
+          visitors[DepthFirstTreeVisitPhase.BEFORE_CHILD_EXPANSION],
+        ),
+      [DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES]:
+        normalizeVisitorDefinitions(
+          visitors[
+            DepthFirstTreeVisitPhase.AT_CONFIGURED_CHILD_SUBTREE_BOUNDARIES
+          ],
+        ),
+      [DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES]:
+        normalizeVisitorDefinitions(
+          visitors[DepthFirstTreeVisitPhase.AFTER_CHILD_SUBTREES],
+        ),
     },
-    inOrder,
+    childBoundaryVisits,
     traversalRunnerInternalObjects: {
       ...base.traversalRunnerInternalObjects,
     },

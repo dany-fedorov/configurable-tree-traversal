@@ -1,9 +1,9 @@
 import type {
   MakeVertexResult,
-  DagPrerequisiteResolution,
+  DagPrerequisiteLookupResult,
   TreeVertexResolution,
 } from '@core/TraversableTree';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { MaybePromise } from '@core/graph/types';
 
 /** Validate before tagged branches can discard unsupported source fields. */
@@ -13,13 +13,18 @@ export function assertNoTreeMetadata(
 ): void {
   if (
     Object.prototype.hasOwnProperty.call(result, 'identity') ||
+    Object.prototype.hasOwnProperty.call(result, 'omittedVertexIdentity') ||
     Object.prototype.hasOwnProperty.call(result, 'vertexId') ||
-    Object.prototype.hasOwnProperty.call(result, 'dependsOnWork') ||
+    Object.prototype.hasOwnProperty.call(result, 'workWaitsForWorkOf') ||
     Object.prototype.hasOwnProperty.call(
       result,
-      'dependsOnSubgraphCompletion',
+      'workWaitsForSubgraphCompletionOf',
     ) ||
-    Object.prototype.hasOwnProperty.call(result, 'satisfiesDependencies')
+    Object.prototype.hasOwnProperty.call(result, 'satisfiesDependencies') ||
+    Object.prototype.hasOwnProperty.call(
+      result,
+      'satisfiesWorkAndSubgraphCompletionPrerequisites',
+    )
   ) {
     throw new TypeError(`${sourceName} results cannot include graph metadata`);
   }
@@ -36,11 +41,16 @@ function assertOwnGraphIdentity(result: object): void {
 }
 
 /** Normalize adapter vocabulary before any scheduling or identity decisions. */
-export function normalizeSourceResult<T extends VertexTypes, ID = unknown>(
-  result: DagPrerequisiteResolution<T, ID> | TreeVertexResolution<T>,
+export function normalizeSourceResult<
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  VertexId = unknown,
+>(
+  result:
+    | DagPrerequisiteLookupResult<InputVertexTypes, VertexId>
+    | TreeVertexResolution<InputVertexTypes>,
   prerequisite: boolean,
   treeSourceName?: string,
-): MakeVertexResult<T> | undefined {
+): MakeVertexResult<InputVertexTypes> | undefined {
   if (result === null || typeof result !== 'object') {
     throw new TypeError('Invalid source resolution result');
   }
@@ -50,35 +60,60 @@ export function normalizeSourceResult<T extends VertexTypes, ID = unknown>(
   if (!('kind' in result))
     throw new TypeError('Source results require a canonical kind tag');
   switch (result.kind) {
-    case 'found': {
-      const vertex = result.vertex;
-      if (
-        vertex === null ||
-        typeof vertex !== 'object' ||
-        vertex.vertexContent == null
-      ) {
+    case 'vertexResolved': {
+      const vertex = result.resolvedVertexInput;
+      if (vertex === null || typeof vertex !== 'object') {
         throw new TypeError(
-          'Found source result requires non-null vertexContent',
+          'vertexResolved source result requires non-null resolvedVertexInput.vertexContentInput',
         );
       }
       if (treeSourceName !== undefined)
         assertNoTreeMetadata(vertex, treeSourceName);
       else assertOwnGraphIdentity(vertex);
-      return vertex;
+      const vertexContent = vertex.vertexContentInput;
+      if (vertexContent == null) {
+        throw new TypeError(
+          'vertexResolved source result requires non-null resolvedVertexInput.vertexContentInput',
+        );
+      }
+      // Adapt metadata lazily: source records need not support key enumeration.
+      // Reads retain the source object's receiver, including inherited accessors.
+      return new Proxy(
+        { vertexContent },
+        {
+          get(_target, property) {
+            return property === 'vertexContent'
+              ? vertexContent
+              : Reflect.get(vertex, property, vertex);
+          },
+          getOwnPropertyDescriptor(target, property) {
+            if (property === 'vertexContent')
+              return Reflect.getOwnPropertyDescriptor(target, property);
+            const descriptor = Reflect.getOwnPropertyDescriptor(
+              vertex,
+              property,
+            );
+            // The shadow is extensible, even when the source is frozen.
+            return descriptor === undefined
+              ? undefined
+              : { ...descriptor, configurable: true };
+          },
+        },
+      );
     }
-    case 'omitted': {
+    case 'vertexIntentionallyOmitted': {
       if (treeSourceName !== undefined) return { vertexContent: null };
-      if (result.satisfiesDependencies !== true) {
+      if (result.satisfiesWorkAndSubgraphCompletionPrerequisites !== true) {
         throw new TypeError(
-          'Omitted source result requires satisfiesDependencies: true',
+          'Omitted source result requires satisfiesWorkAndSubgraphCompletionPrerequisites: true',
         );
       }
-      if ('vertexId' in result || !('identity' in result)) {
+      if ('vertexId' in result || !('omittedVertexIdentity' in result)) {
         throw new TypeError(
-          'Omitted source result requires explicit identity, not vertexId',
+          'Omitted source result requires explicit omittedVertexIdentity, not vertexId',
         );
       }
-      const identity = result.identity;
+      const identity = result.omittedVertexIdentity;
       if (identity === null) return { vertexContent: null };
       if (
         typeof identity !== 'object' ||
@@ -89,7 +124,10 @@ export function normalizeSourceResult<T extends VertexTypes, ID = unknown>(
           'Omission identity must be null or an own vertexId wrapper',
         );
       }
-      return { vertexContent: null, vertexId: identity.vertexId };
+      return {
+        vertexContent: null,
+        vertexId: (identity as { vertexId: VertexId }).vertexId,
+      };
     }
     case 'missing':
       if (!prerequisite) {

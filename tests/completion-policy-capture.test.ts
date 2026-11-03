@@ -1,7 +1,7 @@
-import type { VertexTypes } from '../src/core/TreeTypeParameters';
+import type { VertexDataAndChildHintTypes } from '../src/core/TreeTypeParameters';
 import {
-  AsyncDagTraversal,
-  DagTraversal,
+  AsyncDagTraversalBuilder,
+  DagTraversalBuilder,
   DagVisitorPhase,
 } from '../src/traversals/dag-traversal';
 import { InternalAsyncDagTraversalRunner as AsyncDagTraversalRunner } from '../src/traversals/dag-traversal/lib/AsyncDagTraversalRunner';
@@ -11,50 +11,64 @@ import {
   traversalInternals,
 } from './internal-runner-fixtures';
 
-type G = VertexTypes<string, string>;
+type G = VertexDataAndChildHintTypes<string, string>;
 const graph = {
-  resolveRoot: () => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveRootVertex: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'A',
-      vertexContent: { $data: 'A', $childHints: ['B'] },
+      vertexContentInput: { $vertexData: 'A', $childDiscoveryHints: ['B'] },
     },
   }),
-  resolveChild: () => ({
-    kind: 'found' as const,
-    vertex: {
+  resolveChildHint: () => ({
+    kind: 'vertexResolved' as const,
+    resolvedVertexInput: {
       vertexId: 'B',
-      dependsOnWork: ['A'],
-      vertexContent: { $data: 'B', $childHints: [] },
+      workWaitsForWorkOf: ['A'],
+      vertexContentInput: { $vertexData: 'B', $childDiscoveryHints: [] },
     },
   }),
 };
-type Policy = 'externalSettlement' | 'afterWorkReadyChain';
+type Policy = 'requireExternalWorkSettlement' | 'afterWorkReadyVisitorChain';
 
-for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
-  for (const entry of ['constructor', 'configure'] as const) {
-    test.each(['afterWorkReadyChain', 'invalid'])(
+for (const Constructor of [DagTraversalBuilder, AsyncDagTraversalBuilder]) {
+  for (const entry of [
+    'constructor',
+    'patchOptionsForFutureRunners',
+  ] as const) {
+    test.each(['afterWorkReadyVisitorChain', 'invalid'])(
       `${Constructor.name} ${entry} captures ownership before a later %s value`,
       async (later) => {
         let reads = 0;
         const input = {
-          traversableGraph: graph,
-          discovery: 'eager' as const,
-          get workCompletion(): Policy {
-            return (++reads === 1 ? 'externalSettlement' : later) as Policy;
+          dagDiscoverySource: graph,
+          discoveryTiming: 'completeBeforeAnyVisitor' as const,
+          get workCompletionPolicy(): Policy {
+            return (
+              ++reads === 1 ? 'requireExternalWorkSettlement' : later
+            ) as Policy;
           },
         };
         const traversal =
           entry === 'constructor'
             ? new Constructor<G>(input)
-            : new Constructor<G>({ traversableGraph: graph }).configure(input);
-        const runner = traversal.createRunner();
-        await runner.run();
-        expect(runner.summary().completedWorkIds).toEqual([]);
-        expect(runner.summary().deferredWorkIds).toEqual(['A']);
-        expect(runner.summary().vertices.get('B')!.work).toBe('pending');
-        expect(traversalInternals(traversal).icfg.workCompletion).toBe(
-          'externalSettlement',
+            : new Constructor<G>({
+                dagDiscoverySource: graph,
+              }).patchOptionsForFutureRunners(input);
+        const runner = traversal.createIndependentRunnerFromCurrentOptions();
+        await runner.runUntilSuspendedOrTerminal();
+        expect(
+          runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+        ).toEqual([]);
+        expect(
+          runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+        ).toEqual(['A']);
+        expect(
+          runner.captureProgressSnapshot().progressByVertexId.get('B')!
+            .workState,
+        ).toBe('waitingForPrerequisiteMilestones');
+        expect(traversalInternals(traversal).icfg.workCompletionPolicy).toBe(
+          'requireExternalWorkSettlement',
         );
         expect(reads).toBe(1);
       },
@@ -63,21 +77,23 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
     test(`${Constructor.name} ${entry} rejects the first invalid policy without consuming a later valid value`, () => {
       let reads = 0;
       const input = {
-        traversableGraph: graph,
-        get workCompletion(): Policy {
-          return (++reads === 1 ? 'invalid' : 'afterWorkReadyChain') as Policy;
+        dagDiscoverySource: graph,
+        get workCompletionPolicy(): Policy {
+          return (
+            ++reads === 1 ? 'invalid' : 'afterWorkReadyVisitorChain'
+          ) as Policy;
         },
       };
       const traversal = new Constructor<G>({
-        traversableGraph: graph,
-        workCompletion: 'externalSettlement',
+        dagDiscoverySource: graph,
+        workCompletionPolicy: 'requireExternalWorkSettlement',
       });
       const before = traversalInternals(traversal).icfg;
       const visitors = traversalInternals(traversal).visitors;
       expect(() =>
         entry === 'constructor'
           ? new Constructor<G>(input)
-          : traversal.configure(input),
+          : traversal.patchOptionsForFutureRunners(input),
       ).toThrow(TypeError);
       expect(reads).toBe(1);
       expect(traversalInternals(traversal).icfg).toBe(before);
@@ -88,23 +104,26 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
       `${Constructor.name} ${entry} preserves exact getter error %p`,
       (error) => {
         const traversal = new Constructor<G>({
-          traversableGraph: graph,
-          workCompletion: 'externalSettlement',
+          dagDiscoverySource: graph,
+          workCompletionPolicy: 'requireExternalWorkSettlement',
         });
-        traversal.addVisitorFor(DagVisitorPhase.ON_WORK_READY, () => undefined);
+        traversal.registerVisitorCallbackForPhase(
+          DagVisitorPhase.ON_WORK_READY,
+          () => undefined,
+        );
         const before = traversalInternals(traversal).icfg;
         const visitors = traversalInternals(traversal).visitors;
         const input = {
-          traversableGraph: graph,
-          discovery: 'eager' as const,
-          get workCompletion(): Policy {
+          dagDiscoverySource: graph,
+          discoveryTiming: 'completeBeforeAnyVisitor' as const,
+          get workCompletionPolicy(): Policy {
             throw error;
           },
         };
         let caught = false;
         try {
           if (entry === 'constructor') new Constructor<G>(input);
-          else traversal.configure(input);
+          else traversal.patchOptionsForFutureRunners(input);
         } catch (actual) {
           caught = true;
           expect(actual).toBe(error);
@@ -118,23 +137,35 @@ for (const Constructor of [DagTraversal, AsyncDagTraversal]) {
 
   test(`${Constructor.name} omission and present undefined retain external ownership`, async () => {
     const traversal = new Constructor<G>({
-      traversableGraph: graph,
-      workCompletion: 'externalSettlement',
+      dagDiscoverySource: graph,
+      workCompletionPolicy: 'requireExternalWorkSettlement',
     });
-    traversal.configure({});
-    const external = traversal.createRunner();
-    await external.run();
-    expect(external.summary().completedWorkIds).toEqual([]);
-    expect(external.summary().deferredWorkIds).toEqual(['A']);
-    traversal.configure({ workCompletion: undefined });
-    const retained = traversal.createRunner();
-    await retained.run();
-    expect(retained.summary().completedWorkIds).toEqual([]);
-    expect(retained.summary().deferredWorkIds).toEqual(['A']);
-    traversal.configure({ workCompletion: 'afterWorkReadyChain' });
-    const automatic = traversal.createRunner();
-    await automatic.run();
-    expect(automatic.summary().completedWorkIds).toEqual(['A', 'B']);
+    traversal.patchOptionsForFutureRunners({});
+    const external = traversal.createIndependentRunnerFromCurrentOptions();
+    await external.runUntilSuspendedOrTerminal();
+    expect(
+      external.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual([]);
+    expect(
+      external.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['A']);
+    traversal.patchOptionsForFutureRunners({ workCompletionPolicy: undefined });
+    const retained = traversal.createIndependentRunnerFromCurrentOptions();
+    await retained.runUntilSuspendedOrTerminal();
+    expect(
+      retained.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual([]);
+    expect(
+      retained.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['A']);
+    traversal.patchOptionsForFutureRunners({
+      workCompletionPolicy: 'afterWorkReadyVisitorChain',
+    });
+    const automatic = traversal.createIndependentRunnerFromCurrentOptions();
+    await automatic.runUntilSuspendedOrTerminal();
+    expect(
+      automatic.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual(['A', 'B']);
   });
 }
 
@@ -142,19 +173,26 @@ for (const Runner of [DagTraversalRunner, AsyncDagTraversalRunner]) {
   test(`${Runner.name} captures external ownership once for its config and execution`, async () => {
     let reads = 0;
     const input = {
-      ...traversalInternals(new DagTraversal<G>({ traversableGraph: graph }))
-        .icfg,
-      concurrency: 1,
-      get workCompletion(): Policy {
-        return ++reads === 1 ? 'externalSettlement' : 'afterWorkReadyChain';
+      ...traversalInternals(
+        new DagTraversalBuilder<G>({ dagDiscoverySource: graph }),
+      ).icfg,
+      maxConcurrentCallbackInvocations: 1,
+      get workCompletionPolicy(): Policy {
+        return ++reads === 1
+          ? 'requireExternalWorkSettlement'
+          : 'afterWorkReadyVisitorChain';
       },
     };
     const runner = new Runner<G>(input);
-    await runner.run();
-    expect(runner.summary().completedWorkIds).toEqual([]);
-    expect(runner.summary().deferredWorkIds).toEqual(['A']);
-    expect(runnerInternals(runner).icfg.workCompletion).toBe(
-      'externalSettlement',
+    await runner.runUntilSuspendedOrTerminal();
+    expect(
+      runner.captureProgressSnapshot().workCompletionCommittedVertexIds,
+    ).toEqual([]);
+    expect(
+      runner.captureProgressSnapshot().workCompletionDeferredVertexIds,
+    ).toEqual(['A']);
+    expect(runnerInternals(runner).icfg.workCompletionPolicy).toBe(
+      'requireExternalWorkSettlement',
     );
     expect(reads).toBe(1);
   });
@@ -162,11 +200,14 @@ for (const Runner of [DagTraversalRunner, AsyncDagTraversalRunner]) {
   test(`${Runner.name} rejects the first invalid policy`, () => {
     let reads = 0;
     const input = {
-      ...traversalInternals(new DagTraversal<G>({ traversableGraph: graph }))
-        .icfg,
-      concurrency: 1,
-      get workCompletion(): Policy {
-        return (++reads === 1 ? 'invalid' : 'afterWorkReadyChain') as Policy;
+      ...traversalInternals(
+        new DagTraversalBuilder<G>({ dagDiscoverySource: graph }),
+      ).icfg,
+      maxConcurrentCallbackInvocations: 1,
+      get workCompletionPolicy(): Policy {
+        return (
+          ++reads === 1 ? 'invalid' : 'afterWorkReadyVisitorChain'
+        ) as Policy;
       },
     };
     expect(() => new Runner<G>(input)).toThrow(TypeError);

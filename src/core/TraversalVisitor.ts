@@ -1,91 +1,98 @@
 import type { VertexHandle } from '@core/CTTRef';
 import type { VisitorRecord } from '@core/graph/types';
-import type { ResolvedTreeView } from '@core/ResolvedTreeView';
-import type { VertexTypes } from '@core/TreeTypeParameters';
+import type { LiveResolvedTreeView } from '@core/ResolvedTreeView';
+import type { VertexDataAndChildHintTypes } from '@core/TreeTypeParameters';
 import type { VertexView } from '@core/Vertex';
 import { deepFreeze } from '@utils/deepFreeze';
 
 export enum TraversalVisitorCommandName {
-  NOOP = 'NOOP',
-  DEFER_WORK_COMPLETION = 'DEFER_WORK_COMPLETION',
-  REWRITE_CHILD_HINTS = 'REWRITE_CHILD_HINTS',
-  PAUSE_TRAVERSAL = 'PAUSE_TRAVERSAL',
-  DELETE_TREE_SUBTREE = 'DELETE_TREE_SUBTREE',
-  DELETE_DAG_VERTEX_CASCADE = 'DELETE_DAG_VERTEX_CASCADE',
-  SET_VISITOR_CHAIN_STATE = 'SET_VISITOR_CHAIN_STATE',
-  REWRITE_VERTEX_DATA = 'REWRITE_VERTEX_DATA',
-  SKIP_REMAINING_CHILDREN = 'SKIP_REMAINING_CHILDREN',
+  NO_OPERATION = 'NO_OPERATION',
+  END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION = 'END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION',
+  REPLACE_CURRENT_VERTEX_CHILD_HINTS = 'REPLACE_CURRENT_VERTEX_CHILD_HINTS',
+  PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY = 'PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY',
+  DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS = 'DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS',
+  DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS = 'DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS',
+  SET_CURRENT_VERTEX_PHASE_CHAIN_STATE = 'SET_CURRENT_VERTEX_PHASE_CHAIN_STATE',
+  REPLACE_CURRENT_VERTEX_DATA = 'REPLACE_CURRENT_VERTEX_DATA',
+  SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX = 'SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX',
 }
 
 /** Rewritten data and discovery hints have independent domains. */
 export type TraversalVisitorCommandArguments<
-  RW_TTP extends VertexTypes,
-  SourceHint = RW_TTP['VertexHint'],
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+  SourceHint = RewrittenVertexTypes['ChildHint'],
 > = {
-  [TraversalVisitorCommandName.NOOP]: never;
-  [TraversalVisitorCommandName.DEFER_WORK_COMPLETION]: never;
-  [TraversalVisitorCommandName.REWRITE_CHILD_HINTS]: {
-    newHints: readonly SourceHint[];
+  [TraversalVisitorCommandName.NO_OPERATION]: never;
+  [TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION]: never;
+  [TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_CHILD_HINTS]: {
+    replacementChildHints: readonly SourceHint[];
   };
-  [TraversalVisitorCommandName.PAUSE_TRAVERSAL]: never;
-  [TraversalVisitorCommandName.DELETE_TREE_SUBTREE]: never;
-  [TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE]: never;
-  [TraversalVisitorCommandName.SET_VISITOR_CHAIN_STATE]: {
-    state: unknown;
+  [TraversalVisitorCommandName.PAUSE_TRAVERSAL_AT_COMMAND_COMMIT_BOUNDARY]: never;
+  [TraversalVisitorCommandName.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS]: never;
+  [TraversalVisitorCommandName.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS]: never;
+  [TraversalVisitorCommandName.SET_CURRENT_VERTEX_PHASE_CHAIN_STATE]: {
+    phaseChainState: unknown;
   };
-  [TraversalVisitorCommandName.REWRITE_VERTEX_DATA]: {
-    newData: RW_TTP['VertexData'];
+  [TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_DATA]: {
+    replacementVertexData: RewrittenVertexTypes['VertexData'];
   };
-  [TraversalVisitorCommandName.SKIP_REMAINING_CHILDREN]: never;
+  [TraversalVisitorCommandName.SKIP_PENDING_CHILD_DISCOVERY_OF_CURRENT_VERTEX]: never;
 };
 
 export type TraversalVisitorCommand<
-  RW_TTP extends VertexTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
   T extends TraversalVisitorCommandName = TraversalVisitorCommandName,
-  SourceHint = RW_TTP['VertexHint'],
+  SourceHint = RewrittenVertexTypes['ChildHint'],
 > = {
   [Name in T]: { commandName: Name } & ([
-    TraversalVisitorCommandArguments<RW_TTP, SourceHint>[Name],
+    TraversalVisitorCommandArguments<RewrittenVertexTypes, SourceHint>[Name],
   ] extends [never]
     ? { commandArguments?: never }
     : {
         commandArguments: TraversalVisitorCommandArguments<
-          RW_TTP,
+          RewrittenVertexTypes,
           SourceHint
         >[Name];
       });
 }[T];
 
-/** Prevent callback returns from widening the phase inferred from a registration key. */
-export type NoInferPhase<P extends string> = [P][P extends string ? 0 : never];
+/** Prevent callback returns from widening the visitorPhase inferred from a visitorRegistrationMetadata key. */
+export type PreventVisitorReturnFromWideningPhase<P extends string> = [
+  P,
+][P extends string ? 0 : never];
 
-type HintCommand = TraversalVisitorCommandName.REWRITE_CHILD_HINTS;
-export type DeletionCommandName =
-  | TraversalVisitorCommandName.DELETE_TREE_SUBTREE
-  | TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE;
+type ChildHintReplacementCommandName =
+  TraversalVisitorCommandName.REPLACE_CURRENT_VERTEX_CHILD_HINTS;
+export type TreeOrDagDeletionCommandName =
+  | TraversalVisitorCommandName.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS
+  | TraversalVisitorCommandName.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS;
 
-type CommonCommand = Exclude<
+type CommonNonHintNonDeletionNonDeferralCommandName = Exclude<
   TraversalVisitorCommandName,
-  | HintCommand
-  | TraversalVisitorCommandName.DEFER_WORK_COMPLETION
-  | DeletionCommandName
+  | ChildHintReplacementCommandName
+  | TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION
+  | TreeOrDagDeletionCommandName
 >;
 
-export type TraversalVisitorResult<
-  RW_TTP extends VertexTypes,
+export type VisitorCommandsResult<
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
   Phase extends string = string,
   Family extends 'tree' | 'dag' = 'tree' | 'dag',
-  SourceHint = RW_TTP['VertexHint'],
+  SourceHint = RewrittenVertexTypes['ChildHint'],
 > =
   | {
       commands?: TraversalVisitorCommand<
-        RW_TTP,
-        | CommonCommand
+        RewrittenVertexTypes,
+        | CommonNonHintNonDeletionNonDeferralCommandName
         | (Family extends 'tree'
-            ? TraversalVisitorCommandName.DELETE_TREE_SUBTREE
-            : TraversalVisitorCommandName.DELETE_DAG_VERTEX_CASCADE)
-        | ([Phase] extends ['PRE_ORDER' | 'LEVEL_ORDER' | 'ON_WORK_READY']
-            ? HintCommand
+            ? TraversalVisitorCommandName.DELETE_CURRENT_VERTEX_AND_RESOLVED_TREE_DESCENDANTS
+            : TraversalVisitorCommandName.DELETE_DAG_VERTEX_WITH_DEPENDENTS_AND_ORPHANED_DESCENDANTS)
+        | ([Phase] extends [
+            | 'BEFORE_CHILD_EXPANSION'
+            | 'AT_LEVEL_ORDER_VERTEX'
+            | 'ON_WORK_READY',
+          ]
+            ? ChildHintReplacementCommandName
             : never),
         SourceHint
       >[];
@@ -94,8 +101,8 @@ export type TraversalVisitorResult<
       ? {
           commands: [
             TraversalVisitorCommand<
-              RW_TTP,
-              TraversalVisitorCommandName.DEFER_WORK_COMPLETION,
+              RewrittenVertexTypes,
+              TraversalVisitorCommandName.END_WORK_VISITOR_CHAIN_AND_DEFER_WORK_COMPLETION,
               SourceHint
             >,
           ];
@@ -104,104 +111,116 @@ export type TraversalVisitorResult<
 
 export type TreeVisitorContext<
   Phase extends string,
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
 > = {
-  resolvedTreeView: ResolvedTreeView<TTP | RW_TTP>;
-  originalTreeView: ResolvedTreeView<TTP> | null;
-  phaseVisitIndex: number;
-  visitorIndex: number;
-  previousPhaseVertexRef: VertexHandle<TTP | RW_TTP> | null;
+  liveResolvedTreeView: LiveResolvedTreeView<
+    InputVertexTypes | RewrittenVertexTypes
+  >;
+  preCommandDiscoveredTreeView: LiveResolvedTreeView<InputVertexTypes> | null;
+  phaseVisitorChainIndex: number;
+  visitorCallbackIndexInPhaseChain: number;
+  previousCommittedVisitVertexHandleForSamePhase: VertexHandle<
+    InputVertexTypes | RewrittenVertexTypes
+  > | null;
   isTreeRoot: boolean;
-  vertexRef: VertexHandle<TTP | RW_TTP>;
-  visitorChainState: unknown;
-  registration: VisitorRegistrationMetadata;
-  phase: Phase;
+  vertexHandle: VertexHandle<InputVertexTypes | RewrittenVertexTypes>;
+  currentVertexPhaseChainState: unknown;
+  visitorRegistrationMetadata: VisitorRegistrationMetadata;
+  visitorPhase: Phase;
 };
 
-export type CommandCommitMode = 'afterEachVisitor' | 'afterGroup';
+export type VisitorCommandCommitTiming =
+  | 'afterEachVisitorCallback'
+  | 'afterContiguousVisitorBatch';
 
-export type TraversalVisitorFunctionOptions = {
-  priority: number;
-  commandCommitMode?: CommandCommitMode | undefined;
+export type VisitorRegistrationOptions = {
+  descendingExecutionPriorityWithinGroup: number;
+  visitorCommandCommitTiming?: VisitorCommandCommitTiming | undefined;
 };
 
-/** A callback or caller definition; registration bookkeeping is assigned internally. */
-export type VisitorDefinition<F> =
-  | F
+/** A callback or caller definition; visitorRegistrationMetadata bookkeeping is assigned internally. */
+export type VisitorRegistrationDefinition<VisitorCallback> =
+  | VisitorCallback
   | ({
-      visitor: F;
-    } & Partial<TraversalVisitorFunctionOptions>);
+      visitor: VisitorCallback;
+    } & Partial<VisitorRegistrationOptions>);
 
-export type VisitorGroupMember<F> =
-  | F
+export type VisitorGroupMember<VisitorCallback> =
+  | VisitorCallback
   | {
-      visitor: F;
-      priority?: number;
-      commandCommitMode?: never;
+      visitor: VisitorCallback;
+      descendingExecutionPriorityWithinGroup?: number;
+      visitorCommandCommitTiming?: never;
       resolutionStyle?: never;
     };
 
-export type VisitorGroupDefinition<F> = {
-  visitors: readonly VisitorGroupMember<F>[];
-  commandCommitMode?: CommandCommitMode;
+export type VisitorGroupDefinition<VisitorCallback> = {
+  visitors: readonly VisitorGroupMember<VisitorCallback>[];
+  visitorCommandCommitTiming?: VisitorCommandCommitTiming;
 };
 
-export type VisitorPhaseInput<F> =
-  | VisitorDefinition<F>
-  | readonly VisitorDefinition<F>[]
-  | { groups: readonly VisitorGroupDefinition<F>[] };
+export type VisitorDefinitionsForPhase<VisitorCallback> =
+  | VisitorRegistrationDefinition<VisitorCallback>
+  | readonly VisitorRegistrationDefinition<VisitorCallback>[]
+  | { groups: readonly VisitorGroupDefinition<VisitorCallback>[] };
 
 /** Immutable execution boundary retained by normalized list/set records. */
 export type VisitorGroupMetadata = Readonly<{
-  identity: symbol;
-  explicit: boolean;
-  commandCommitMode: CommandCommitMode;
+  groupIdentity: symbol;
+  isExplicitlyDeclaredGroup: boolean;
+  visitorCommandCommitTiming: VisitorCommandCommitTiming;
 }>;
 
 /** Descriptive callback-context metadata. Executable records remain on the traversal. */
 export type VisitorRegistrationMetadata = Readonly<
-  TraversalVisitorFunctionOptions & {
-    addedIndex: number;
+  VisitorRegistrationOptions & {
+    phaseRegistrationInsertionIndex: number;
     visitorGroup?: VisitorGroupMetadata | undefined;
   }
 >;
 
-export type TreeVisitorRecord<
+export type TreePhaseVisitorRegistrationRecord<
   Phase extends string,
-  TTP extends VertexTypes,
-  RW_TTP extends VertexTypes,
-> = VisitorRecord<TreeVisitor<Phase, TTP, RW_TTP>>;
+  InputVertexTypes extends VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes,
+> = VisitorRecord<
+  TreeVertexPhaseVisitorCallback<InputVertexTypes, RewrittenVertexTypes, Phase>
+>;
 
 export const DEFAULT_VISITOR_PRIORITY = 100;
 
 export const DEFAULT_VISITOR_FN_OPTIONS = deepFreeze({
-  priority: DEFAULT_VISITOR_PRIORITY,
-  commandCommitMode: 'afterEachVisitor' as const,
+  descendingExecutionPriorityWithinGroup: DEFAULT_VISITOR_PRIORITY,
+  visitorCommandCommitTiming: 'afterEachVisitorCallback' as const,
 });
 
 // Resolve the result before constructing the callback so TypeScript compares
 // concrete return contracts structurally across phases (broad common results
-// remain assignable to a narrower phase's superset of allowed commands).
-export type TreeVisitor<
+// remain assignable to a narrower visitorPhase's superset of allowed commands).
+export type TreeVertexPhaseVisitorCallback<
+  InputVertexTypes extends VertexDataAndChildHintTypes = VertexDataAndChildHintTypes,
+  RewrittenVertexTypes extends VertexDataAndChildHintTypes = InputVertexTypes,
   Phase extends string = string,
-  TTP extends VertexTypes = VertexTypes,
-  RW_TTP extends VertexTypes = TTP,
-> = TraversalVisitorResult<
-  RW_TTP,
+> = VisitorCommandsResult<
+  RewrittenVertexTypes,
   Phase,
   'tree',
-  TTP['VertexHint']
+  InputVertexTypes['ChildHint']
 > extends infer RESULT
   ? (
-      vertex: VertexView<TTP | RW_TTP>,
-      options: TreeVisitorContext<Phase, TTP, RW_TTP>,
+      vertex: VertexView<InputVertexTypes | RewrittenVertexTypes>,
+      options: TreeVisitorContext<
+        Phase,
+        InputVertexTypes,
+        RewrittenVertexTypes
+      >,
     ) => RESULT | undefined | void
   : never;
 
 /** Phase-keyed caller inputs corresponding to a normalized visitor map. */
-export type VisitorInputs<M> = {
-  [K in keyof M]?: M[K] extends readonly VisitorRecord<infer F>[]
-    ? VisitorPhaseInput<F> | undefined
+export type VisitorDefinitionsByPhase<M> = {
+  [K in keyof M]?: M[K] extends readonly VisitorRecord<infer VisitorCallback>[]
+    ? VisitorDefinitionsForPhase<VisitorCallback> | undefined
     : never;
 };
